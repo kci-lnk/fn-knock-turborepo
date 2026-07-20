@@ -4,199 +4,196 @@ export const jaJPServer = {
   apiPathNotFound: "API パスが見つかりません",
   invalidLocale: "サポートされていないロケールです",
   dockerAdminDenied:
-    "Docker 管理パネルでは、イントラネットまたは信頼できるリバース プロキシ アクセスのみが許可されます",
+    "Docker 管理パネルには、プライベートネットワークまたは信頼済みプロキシからのみアクセスできます",
   dockerAdminDeniedTitle: "アクセスが拒否されました",
   dockerAdminDeniedDescription:
-    "Docker 管理パネルは、デフォルトでホストローカル、LAN、VPN、または設定された信頼できるリバースプロキシからのアクセスのみを許可します。公衆ネットワークへの直接接続は拒否されます。",
-  dockerAdminCurrentIp: "現在の識別ソース IP: {ip}",
+    "Docker 管理パネルは、デフォルトではホスト自身、LAN、VPN、または設定済みの信頼できるリバースプロキシからのみアクセスできます。インターネットからの直接アクセスは拒否されます。",
+  dockerAdminCurrentIp: "検出されたアクセス元 IP: {ip}",
   dockerAdminProxyRequired:
-    "{port}管理ポータルからバックエンドインターフェースにアクセスしてください",
-  dockerAdminLoginRequired: "まずはDocker管理パネルにログインしてください",
-  captchaUnavailable: "認証コードサービスは一時的にご利用いただけません",
-  tooManyAttempts: "何度も試しました。後でもう一度試してください。",
+    "ポート {port} の管理用エントリーポイントから管理 API へアクセスしてください",
+  dockerAdminLoginRequired: "先に Docker 管理パネルへログインしてください",
+  captchaUnavailable: "CAPTCHA サービスは一時的に利用できません",
+  tooManyAttempts:
+    "試行回数が多すぎます。しばらくしてから、もう一度お試しください。",
   tooManyAttemptsWithRetry:
-    "試行回数が多すぎます。{seconds} 秒後にもう一度お試しください",
+    "試行回数が多すぎます。{seconds}秒後にもう一度お試しください。",
   loginCredentialMissing: "サーバーにはログイン認証情報が設定されていません",
   invalidOtpWithRetry:
-    "確認コードが正しくありません。{seconds} 秒後にもう一度お試しください。",
+    "認証コードが正しくありません。{seconds}秒後にもう一度お試しください。",
   invalidPasswordWithRetry:
-    "ユーザー名またはパスワードが正しくありません。{seconds} 秒後にもう一度お試しください。",
+    "ユーザー名またはパスワードが正しくありません。{seconds}秒後にもう一度お試しください。",
   runtimeProfile: {
     capabilities: {
-      default: "現在の動作環境はこの機能をサポートしていません",
+      default: "現在の実行環境ではこの機能を利用できません",
       direct_mode_available: {
         docker:
-          "Docker 導入ではホスト ダイレクト ファイアウォール モードがサポートされません",
+          "Docker 環境ではホストの直接接続用ファイアウォールを管理できません",
         platform:
-          "現在の動作環境はホスト直接接続ファイアウォールモードをサポートしていません。",
+          "現在の実行環境ではホストの直接接続用ファイアウォールを管理できません",
         permission:
-          "現在のプロセスには、ホストのファイアウォールに直接接続する機能がありません。",
+          "現在のプロセスにはホストの直接接続用ファイアウォールを管理する権限がありません",
       },
       host_firewall_available: {
-        docker:
-          "Docker 導入ではホスト ファイアウォール管理がサポートされていません",
-        platform:
-          "現在のオペレーティング環境はホストのファイアウォール管理をサポートしていません",
+        docker: "Docker 環境ではホストのファイアウォールを管理できません",
+        platform: "現在の実行環境ではホストのファイアウォールを管理できません",
         permission:
-          "現在のプロセスにはホスト ファイアウォール管理機能がありません",
+          "現在のプロセスにはホストのファイアウォールを管理する権限がありません",
       },
       smart_connect_available: {
         docker:
-          "Docker デプロイメントはスマート コネクトをまだサポートしておらず、ホスト dnsmasq とポート 53 に依存しています。",
-        platform:
-          "現在の動作環境はまだスマートコネクトをサポートしていません。",
+          "Docker 環境ではスマート接続を利用できません。ホストの dnsmasq とポート53が必要です",
+        platform: "現在の実行環境ではスマート接続を利用できません",
         permission:
-          "現在のプロセスには、スマート コネクトに必要なホスト管理機能がありません",
+          "現在のプロセスにはスマート接続に必要なホスト管理権限がありません",
       },
       fnos_certificate_sync_available: {
-        docker: "Docker 展開では FNOS SSL 証明書同期を使用できません",
-        platform: "FNOS SSL 証明書同期は FPK 展開でのみ使用できます",
+        docker: "Docker 環境では FNOS SSL 証明書同期を利用できません",
+        platform: "FNOS SSL 証明書同期は FPK 環境でのみ利用できます",
         permission:
           "現在のプロセスには FNOS SSL 証明書同期に必要な root 権限がありません",
       },
       system_clock_sync_available: {
-        docker: "Docker 導入ではホスト システムの時刻同期がサポートされません",
-        platform: "現在の動作環境はシステム時刻同期をサポートしていません",
+        docker: "Docker 環境ではホストのシステム時刻を同期できません",
+        platform: "現在の実行環境ではシステム時刻を同期できません",
         permission:
-          "現在のプロセスには、システム時刻の同期に必要なホスト権限がありません。",
+          "現在のプロセスにはシステム時刻の同期に必要なホスト権限がありません",
       },
       self_update_available: {
         docker:
-          "Docker のデプロイメントはアプリ内 FPK アップデートをサポートしていません。新しいイメージを取得してアップグレードしてください。",
+          "Docker 環境ではアプリ内 FPK アップデートを利用できません。新しいイメージを取得してアップグレードしてください",
         openwrt:
-          "OpenWrt の展開ではアプリ内 FPK アップデートがサポートされていません。デバイス アーキテクチャに一致する IPK をインストールし、opkg 経由でアップグレードしてください。",
+          "OpenWrt 環境ではアプリ内 FPK アップデートを利用できません。デバイスのアーキテクチャに合う IPK を opkg でインストールしてください",
         deployment:
-          "現在の展開フォームはアプリ内アップデートをサポートしていません。",
+          "現在のデプロイ形式ではアプリ内アップデートを利用できません",
       },
       terminal_available: {
-        docker: "Docker デプロイメントは Web ターミナルをサポートしていません",
-        openwrt: "OpenWrt 導入では現在 Web 端末をサポートしていません",
-        platform: "現在の動作環境はWeb端末をサポートしていません",
+        docker: "Docker 環境では Web ターミナルを利用できません",
+        openwrt: "OpenWrt 環境では Web ターミナルを利用できません",
+        platform: "現在の実行環境では Web ターミナルを利用できません",
       },
       shared_root_available: {
         missing:
-          "現在の実行環境にはマウントできる共有ディレクトリがありません。",
+          "現在の実行環境には利用可能な共有ディレクトリのマウントがありません",
       },
     },
   },
   systemClock: {
     unknown: "不明",
-    actionSeparator: ";",
+    actionSeparator: "、",
     listSeparator: "、",
     duration: {
       seconds: "{seconds} 秒",
       minutes: "{minutes} 分",
-      minutesSeconds: "{minutes}分 {seconds}秒",
+      minutesSeconds: "{minutes} 分 {seconds} 秒",
     },
-    networkCheckFailed: "オンラインでシステム時間を確認できませんでした",
+    networkCheckFailed: "ネットワーク経由でシステム時刻を確認できませんでした",
     issues: {
       timezone: {
-        title: "システムのタイムゾーンは北京時間ではありません",
+        title: "システムのタイムゾーンが中国標準時ではありません",
         message:
-          "現在のシステムのタイムゾーンは{timezone}で、{expected}に設定する必要があります。",
+          "現在のシステムタイムゾーンは {timezone} です。{expected} に設定してください。",
       },
       timeMismatch: {
-        title: "システム時刻がネットワーク検証結果と一致しません",
+        title: "システム時刻がネットワーク上の時刻と一致しません",
         message:
-          "現在のシステム時刻とネットワーク検証結果の差は約{drift}です。",
+          "システム時刻はネットワーク上の時刻と約 {drift} ずれています。",
       },
     },
-    statusRefreshed: "システム時間ステータスが更新されました",
+    statusRefreshed: "システム時刻の状態を更新しました",
     syncFailed: "システム時刻の同期に失敗しました",
     networkTimeUnavailable: "ネットワークから標準時刻を取得できませんでした",
-    sourceFetchFailed: "{source}からの時間を取得できませんでした",
-    missingDateHeader:
-      "{source} 利用可能な日付応答ヘッダーが返されませんでした",
-    invalidDateHeader: "{source} は解析できない時間を返しました",
+    sourceFetchFailed: "{source} から時刻を取得できませんでした",
+    missingDateHeader: "{source} から有効な Date ヘッダーが返されませんでした",
+    invalidDateHeader: "{source} から解析できない時刻が返されました",
     commandFailed: "{command} の実行に失敗しました",
-    timezoneSet: "システムのタイムゾーンは {timezone} に設定されました",
-    missingZoneinfoFile: "システムにタイムゾーンファイル {path} がありません",
-    timezoneWritten: "はシステムのタイムゾーン {timezone} に書き込まれています",
-    clockAdjusted: "校正されたシステム時間",
-    ntpEnabled: "有効 NTP 自動時刻修正",
-    serviceRestarted: "{service} サービスを再開しました",
+    timezoneSet: "システムタイムゾーンを {timezone} に設定しました",
+    missingZoneinfoFile: "システムにタイムゾーンファイルがありません: {path}",
+    timezoneWritten: "システムタイムゾーン {timezone} を書き込みました",
+    clockAdjusted: "システム時刻を修正しました",
+    ntpEnabled: "NTP による自動時刻同期を有効にしました",
+    serviceRestarted: "{service} を再起動しました",
   },
   updateRoutes: {
-    downloadStarted: "がアップデートパッケージのダウンロードを開始しました",
+    downloadStarted: "アップデートパッケージのダウンロードを開始しました",
     downloadStartFailed: "ダウンロードの開始に失敗しました",
-    installStarted: "アップデートのインストールプロセスが開始されました",
+    installStarted: "アップデートのインストールを開始しました",
     installStartFailed: "インストールの開始に失敗しました",
-    checkAndDownloadStarted: "チェックを開始し、ダウンロードを開始しました",
-    startFailed: "起動に失敗しました",
-    loadStatusFailed: "更新ステータスの読み込みに失敗しました",
-    loadConfirmationFailed: "更新確認情報の読み込みに失敗しました",
+    checkAndDownloadStarted:
+      "アップデートの確認を開始し、ダウンロードを待機キューへ追加しました",
+    startFailed: "開始に失敗しました",
+    loadStatusFailed: "アップデート状況の読み込みに失敗しました",
+    loadConfirmationFailed: "アップデート確認情報の読み込みに失敗しました",
   },
   gatewayHostResponse: {
     runTypes: {
-      direct: "ダイレクト接続モード",
-      reverseProxy: "アンチジェネレーションモード",
+      direct: "直接接続モード",
+      reverseProxy: "リバースプロキシモード",
       subdomain: "サブドメインモード",
     },
     unavailableReason:
-      "サブドメイン モードのみが利用可能で、現在は {mode} です。",
+      "サブドメインモードでのみ利用できます。現在のモード: {mode}",
     editSubdomainOnly:
-      "ホスト応答はサブドメイン マッピング モードでのみ編集できます",
-    syncFailed: "同期ゲートウェイ ホスト応答設定に失敗しました",
-    hostRoutesSyncFailed: "ホストルートの同期に失敗しました",
-    updateFailed: "ゲートウェイのホスト応答の更新に失敗しました",
+      "Host ヘッダー設定はサブドメインマッピングモードでのみ編集できます",
+    syncFailed: "ゲートウェイの Host ヘッダー設定を同期できませんでした",
+    hostRoutesSyncFailed: "Host ルートの同期に失敗しました",
+    updateFailed: "ゲートウェイの Host ヘッダー設定を更新できませんでした",
     updateFailedRolledBack:
-      "ゲートウェイのホスト応答の更新に失敗し、設定はロールバックされました",
+      "ゲートウェイの Host ヘッダー設定を更新できなかったため、設定を元に戻しました",
     updateFailedRollbackFailed:
-      "{error};ロールバックが失敗しました: {rollbackError}",
-    restoreConfigFailed: "元の構成に応答するようにホストを復元できませんでした",
-    restoreRuntimeFailed: "ホストの応答を実行状態に復元できませんでした",
+      "{error}、設定の復元にも失敗しました: {rollbackError}",
+    restoreConfigFailed: "Host ヘッダー設定を復元できませんでした",
+    restoreRuntimeFailed: "Host ヘッダーの実行状態を復元できませんでした",
     restoreGatewayRuntimeFailed:
-      "ゲートウェイホストの応答を実行状態に復元できませんでした",
+      "ゲートウェイの Host ヘッダーの実行状態を復元できませんでした",
   },
   admin: {
     runTypes: {
       direct: "ダイレクト接続モード",
-      reverseProxy: "アンチジェネレーションモード",
+      reverseProxy: "リバースプロキシモード",
       subdomain: "サブドメインモード",
     },
     validation: {
-      required: "{label} を空にすることはできません",
-      httpUrlRequired:
-        "{label}は http:// または https:// で始まる必要があります",
+      required: "{label} は必須です",
+      httpUrlRequired: "{label} は http:// または https:// で始めてください",
       proxyTargetUrlRequired:
-        "{label} は http://、https://、ws://、または wss:// で始まり、ホストを含む必要があります",
-      invalidFormat: "{label}形式が正しくありません",
+        "{label} は http://、https://、ws://、wss:// のいずれかで始め、ホスト名を含めてください",
+      invalidFormat: "{label} の形式が正しくありません",
     },
     rollback: {
-      failed: "{message};ロールバックが失敗しました: {rollbackError}",
-      restoreConfigFailed: "以前の構成を復元できませんでした",
+      failed: "{message}。ロールバックにも失敗しました: {rollbackError}",
+      restoreConfigFailed: "以前の設定を復元できませんでした",
       restoreSmartConnectFailed:
         "以前のスマート接続の実行状態を復元できませんでした",
       restoreRuntimeFailed: "以前の実行状態の復元に失敗しました",
       restoreProtocolConfigFailed:
-        "プロトコル マッピング設定の復元に失敗しました",
+        "プロトコルマッピング設定の復元に失敗しました",
       restoreProtocolFeatureFailed:
         "プロトコルマッピング機能スイッチの復元に失敗しました",
       restoreProtocolRuntimeFailed:
-        "プロトコル マッピングを実行状態に復元できませんでした",
-      restoreVisibilityConfigFailed: "可視性を元の構成に復元できませんでした",
+        "プロトコルマッピングの実行状態を復元できませんでした",
+      restoreVisibilityConfigFailed: "公開範囲を元の設定に復元できませんでした",
       restoreVisibilityRuntimeFailed:
-        "可視性ランタイムの復元 CIDR が失敗しました",
+        "実行中の公開範囲 CIDR を復元できませんでした",
       restoreGatewayVisibilityFailed:
-        "ゲートウェイの可視性を実行状態に復元できませんでした",
+        "ゲートウェイの公開範囲を実行状態に復元できませんでした",
       restoreProxyHeadersConfigFailed:
-        "プロトコルヘッダーの元の設定を復元できませんでした",
+        "以前のプロキシヘッダー設定を復元できませんでした",
       restoreProxyHeadersRuntimeFailed:
-        "プロトコルヘッダーを実行状態に復元できませんでした",
+        "プロキシヘッダーの実行状態を復元できませんでした",
       restoreGatewayProxyHeadersRuntimeFailed:
-        "ゲートウェイ プロトコル ヘッダーの実行状態を復元できませんでした",
+        "ゲートウェイのプロキシヘッダー実行状態を復元できませんでした",
       restorePortalFailed: "ポータル表示を実行状態に復元できませんでした",
     },
     dockerPanel: {
       passwordNotNeeded:
-        "現在の動作モードでは設定が必要ありません Docker 管理パネルのパスワード",
+        "現在の動作モードでは Docker 管理パネルのパスワードは不要です",
       setPasswordFailed: "管理パネルのパスワードの設定に失敗しました",
       passwordChangeUnsupported:
-        "現在の動作モードは、Docker 管理パネルのパスワードの変更をサポートしていません",
+        "現在の動作モードでは、Docker 管理パネルのパスワードを変更できません",
       changePasswordFailed: "管理パネルのパスワードの変更に失敗しました",
       tooManyAttemptsWithRetry:
         "試行回数が多すぎます。{seconds} 秒後にもう一度お試しください",
-      tooManyAttempts: "何度も試しました。後でもう一度試してください。",
+      tooManyAttempts: "試行回数が多すぎます。後でもう一度お試しください。",
       passwordSetupRequired:
         "管理パネルのパスワードが設定されていません。最初の設定を完了してください。",
       passwordIncorrectWithRetry:
@@ -222,38 +219,37 @@ export const jaJPServer = {
         "動作モードの切り替えに失敗しました。設定はロールバックされました",
     },
     firewall: {
-      whitelistSynced: "と同期 {count} ホワイトリスト IP",
-      exemptPorts: "、予約済みエントリーポート{ports}",
+      whitelistSynced: "、ホワイトリストの IP {count} 件を同期",
+      exemptPorts: "、エントリーポイントのポート {ports} を許可",
       resetSuccess:
-        "{runType}を押してファイアウォールをリセットしました {whitelistMessage}{exemptPortsMessage}",
+        "{runType}用にファイアウォールをリセットしました{whitelistMessage}{exemptPortsMessage}",
       resetFailed: "ファイアウォールのリセットに失敗しました",
       clearSuccess:
-        "ファイアウォール ルールをクリアし、{port} ポートに関連する履歴リダイレクトを削除しました",
+        "ファイアウォールルールを消去し、ポート {port} に関連する以前のリダイレクトを削除しました",
       clearFailed: "ファイアウォールのクリアに失敗しました",
     },
     protocolMapping: {
       subdomainOnly:
-        "プロトコル マッピングはサブドメイン モードでのみ有効にできます",
+        "プロトコルマッピングはサブドメインモードでのみ有効にできます",
       updateFeatureFailed:
         "プロトコルマッピング機能スイッチの更新に失敗しました",
       updateFeatureFailedRolledBack:
         "プロトコルマッピング機能スイッチの更新に失敗し、設定がロールバックされました",
     },
     smartConnect: {
-      subdomainOnly:
-        "スマート コネクトはサブドメイン モードでのみ有効にできます",
+      subdomainOnly: "Smart Connect はサブドメインモードでのみ有効にできます",
       updateFailed: "スマート接続の更新に失敗しました",
       updateFailedRolledBack:
-        "スマート接続の更新に失敗し、構成がロールバックされました",
+        "スマート接続の更新に失敗し、設定がロールバックされました",
     },
     fnosPortIcon: {
       syncFailed:
-        "Feiniu ポート アイコンの引き継ぎ設定をゲートウェイに同期できませんでした",
+        "FNOS ポートアイコンの置換設定をゲートウェイへ同期できませんでした",
     },
     fnosNetworkTuning: {
       unavailable:
-        "現在のランタイムは Feiniu FPK ネットワーク最適化をサポートしていません",
-      updateFailed: "Feiniu FPK ネットワーク最適化の更新に失敗しました",
+        "現在のランタイムは FNOS FPK のネットワーク最適化に対応していません",
+      updateFailed: "FNOS FPK ネットワーク最適化の更新に失敗しました",
       errors: {
         bbrNotSupported: "ホストカーネルが tcp_bbr を提供していません",
         bbrEnableVerificationFailed:
@@ -275,27 +271,27 @@ export const jaJPServer = {
       },
       blocked: {
         deployment:
-          "Feiniu FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
-        platform: "Feiniu FPK ネットワーク最適化には Linux ホストが必要です",
-        permission: "Feiniu FPK ネットワーク最適化には root 権限が必要です",
+          "FNOS FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
+        platform: "FNOS FPK ネットワーク最適化には Linux ホストが必要です",
+        permission: "FNOS FPK ネットワーク最適化には root 権限が必要です",
       },
     },
     gateway: {
       syncAuthCacheFailed:
-        "認証キャッシュ構成をゲートウェイに同期できませんでした",
+        "認証キャッシュ設定をゲートウェイに同期できませんでした",
       syncThrottleFailed:
-        "ゲートウェイ スロットリング構成をゲートウェイに同期できませんでした",
+        "ゲートウェイ スロットリング設定をゲートウェイに同期できませんでした",
       syncCrawlerBlockerFailed:
-        "クローラーブロック構成をゲートウェイに同期できませんでした",
-      updateFailed: "ゲートウェイ構成の更新に失敗しました",
+        "クローラーブロック設定をゲートウェイに同期できませんでした",
+      updateFailed: "ゲートウェイ設定の更新に失敗しました",
       updateFailedRolledBack:
-        "ゲートウェイ構成の更新に失敗しました。構成はロールバックされました。",
+        "ゲートウェイ設定の更新に失敗しました。設定はロールバックされました。",
     },
     proxyMappings: {
       payloadObjectRequired:
         "パスプロキシマッピングはオブジェクトである必要があります",
       targetInvalid:
-        "パスプロキシのターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
+        "パスプロキシの転送先は http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
       syncRulesFailed: "パスプロキシルートの同期に失敗しました",
       restoreRulesFailed: "パスプロキシルートの復元に失敗しました",
       updateFailed: "パスプロキシマッピングの更新に失敗しました",
@@ -303,16 +299,16 @@ export const jaJPServer = {
         "パスプロキシマッピングの更新に失敗しました。設定はロールバックされました",
     },
     gatewayVisibility: {
-      updateFailed: "ゲートウェイの可視性を更新できませんでした",
+      updateFailed: "ゲートウェイの公開範囲を更新できませんでした",
       updateFailedRolledBack:
-        "ゲートウェイの可視性を更新できませんでした。設定はロールバックされました。",
+        "ゲートウェイの公開範囲を更新できませんでした。設定はロールバックされました。",
     },
     gatewayProxyHeaders: {
       subdomainOnly:
-        "プロトコルヘッダーはサブドメインマッピングモードでのみ編集できます",
-      updateFailed: "ゲートウェイプロトコルヘッダーの更新に失敗しました",
+        "プロキシヘッダーはサブドメインマッピングモードでのみ編集できます",
+      updateFailed: "ゲートウェイのプロキシヘッダー更新に失敗しました",
       updateFailedRolledBack:
-        "ゲートウェイ プロトコル ヘッダーの更新に失敗し、構成はロールバックされました",
+        "ゲートウェイのプロキシヘッダー更新に失敗したため、設定をロールバックしました",
     },
     gatewaySettingsRoutes: {
       loadGatewaySettingsFailed: "ゲートウェイ設定の読み込みに失敗しました",
@@ -324,12 +320,13 @@ export const jaJPServer = {
         "ゲートウェイ設定の同期に失敗しました: {message}",
       responseReloadFailed:
         "ゲートウェイ設定は保存されましたが、応答の再読み込みに失敗しました",
-      loadGatewayVisibilityFailed: "ゲートウェイ可視性の読み込みに失敗しました",
+      loadGatewayVisibilityFailed:
+        "ゲートウェイの公開範囲を読み込めませんでした",
       loadRuntimeFailed: "実行状態の読み込みに失敗しました",
       loadGatewayProxyHeadersFailed:
-        "ゲートウェイプロトコルヘッダーの読み込みに失敗しました",
+        "ゲートウェイのプロキシヘッダー読み込みに失敗しました",
       loadGatewayHostResponseFailed:
-        "ゲートウェイ Host 応答の読み込みに失敗しました",
+        "ゲートウェイの Host ヘッダー設定の読み込みに失敗しました",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "CAPTCHA 設定の読み込みに失敗しました",
@@ -355,7 +352,7 @@ export const jaJPServer = {
       saveDefaultRouteFailed: "既定ルートの保存に失敗しました",
       unsupportedTunnelType: "サポートされていないトンネルタイプです",
       saveDefaultTunnelFailed: "既定トンネルの保存に失敗しました",
-      upstreamUnavailable: "上流サービスを利用できません",
+      upstreamUnavailable: "アップストリームサービスを利用できません",
       proxyProtocolForceBooleanRequired:
         "proxy_protocol_force は boolean である必要があります",
       loadRunModePromptPreferencesFailed:
@@ -367,26 +364,25 @@ export const jaJPServer = {
     },
     captcha: {
       turnstileKeysRequired:
-        "Cloudflare回転木戸が有効な場合、site_keyとsecret_keyの両方を入力する必要があります",
+        "Cloudflare Turnstile を有効にするには site_key と secret_key の両方が必要です",
     },
     ipLocation: {
-      ipLookupUrlLabel: "IP 識別ライブラリのアドレス",
-      cidrUrlLabel: "CIDR アドレスライブラリのアドレス",
+      ipLookupUrlLabel: "IP 位置情報データベースの URL",
+      cidrUrlLabel: "CIDR データベースの URL",
       loadSettingsFailed: "IP ロケーション API 設定の読み込みに失敗しました",
       saveSettingsFailed: "IP ロケーション API 設定の保存に失敗しました",
       modeInvalid: "モードは online または custom である必要があります",
     },
     connectionTest: {
-      httpStatus: "サービスはエラーステータスコード {status} を返します",
-      invalidData: "サービスがデータを異常に返しました",
-      success: "正常に接続されました",
+      httpStatus: "サービスから HTTP ステータス {status} が返されました",
+      invalidData: "サービスから不正なデータが返されました",
+      success: "接続に成功しました",
       timeout: "接続タイムアウト",
       failed: "接続に失敗しました",
     },
     autoHttps: {
-      dockerUnsupported: "Docker バージョンは自動 HTTPS をサポートしていません",
-      openWrtUnsupported:
-        "OpenWrt バージョンは自動 HTTPS をサポートしていません",
+      dockerUnsupported: "Docker 版は自動 HTTPS に対応していません",
+      openWrtUnsupported: "OpenWrt 版は自動 HTTPS に対応していません",
       startFailed: "自動 HTTPS 起動に失敗しました",
     },
     hostMappings: {
@@ -399,82 +395,81 @@ export const jaJPServer = {
       backendProtocolUnsupported:
         "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
       visibilityInvalid:
-        "Host マッピング {host} の可視性設定が無効です: {message}",
+        "Host マッピング {host} の公開範囲設定が無効です: {message}",
       backendVisibilityUnsupported:
-        "ゲートウェイバックエンドが {host} の可視性ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
+        "ゲートウェイバックエンドが {host} の公開範囲ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
       revisionConflict:
         "別のページで Host マッピングが更新されました。更新してから再試行してください",
       targetInvalid:
-        "Host マッピング {host} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
+        "Host マッピング {host} の転送先は http://、https://、ws://、wss:// のいずれかで始め、ホスト名を含めてください",
       singleAuthPortMapping:
-        "は、認証サービスとして AUTH_PORT を指すホスト マッピングを 1 つだけ持つことができます",
+        "認証サービスとして AUTH_PORT を参照できる Host マッピングは1件だけです",
       authMappingMustBePublic:
-        "認証サービス {host} はパブリック入口を維持する必要があり、自己認証や厳格なホワイトリストを有効にすることはできません。そうしないと、ログイン入口に到達できなくなります。",
+        "認証サービス {host} は公開状態を維持する必要があります。自身への認証や厳格なホワイトリストを有効にすると、ログイン画面へ到達できなくなります。",
       authMappingBasicAuthForbidden:
-        "認証サービス {host} 資格情報の注入を有効にできません",
+        "認証サービス {host} では認証情報の自動送信を有効にできません",
       basicAuthInvalid:
-        "ホスト マッピング {host} の資格情報の挿入には、ユーザー名とパスワードの入力が必要であり、ユーザー名にはコロンを含めることはできません",
+        "Host マッピング {host} で認証情報を自動送信するには、ユーザー名とパスワードが必要です。ユーザー名にコロンは使用できません",
       locationPathRequired:
-        "ホスト マッピング {host} のパス ルールにパスを入力する必要があります",
+        "Host マッピング {host} のパスルールにはパスが必要です",
       locationPathMustStartSlash:
-        "ホスト マッピング {host} {path} のパス ルールは / で始まる必要があります",
+        "Host マッピング {host} のパスルール {path} は / で始めてください",
       locationRootForbidden:
-        "ホスト マッピング {host} では、パス ルールとしてルート パスの構成が許可されません",
+        "Host マッピング {host} ではルートパス / をパスルールに指定できません",
       locationReservedPath:
         "ホストマッピング {host} のパスルール {path} は予約されたパスを使用します",
       locationDuplicate:
-        "ホストマッピング {host} 重複したパスルールが存在します {path}",
+        "Host マッピング {host} でパスルール {path} が重複しています",
       locationTargetRequired:
-        "ホストマッピング {host} パスルール {path} にターゲットを入力する必要があります",
+        "Host マッピング {host} のパスルール {path} には転送先が必要です",
       locationTargetInvalid:
-        "Host マッピング {host} のパスルール {path} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
+        "Host マッピング {host} のパスルール {path} の転送先は http://、https://、ws://、wss:// のいずれかで始め、ホスト名を含めてください",
       locationStatusInvalid:
-        "ホストマッピング {host} パスルール {path} 応答ステータスコードは 100 ～ 599 でなければなりません",
+        "Host マッピング {host} のパスルール {path} のレスポンスステータスは 100～599 で指定してください",
       locationHeaderInvalid:
         "ホスト マッピング {host} のパス ルール {path} に不正な応答ヘッダー {header} が含まれています",
       locationHeaderForbidden:
-        "ホストマッピング {host} パスルール {path} 応答ヘッダーをカスタマイズできません {header}",
-      syncHostRulesFailed: "ホストルートの同期に失敗しました",
-      syncAuthConfigFailed: "認証ゲートウェイ構成の同期に失敗しました",
-      updateFailed: "ホストマッピングの更新に失敗しました",
+        "Host マッピング {host} のパスルール {path} ではレスポンスヘッダー {header} を変更できません",
+      syncHostRulesFailed: "Host ルートの同期に失敗しました",
+      syncAuthConfigFailed: "認証ゲートウェイ設定の同期に失敗しました",
+      updateFailed: "Host マッピングの更新に失敗しました",
       updateFailedRolledBack:
-        "ホスト マッピングの更新に失敗し、構成はロールバックされました",
-      metadataFailed: "ターゲットアドレスタイトルの更新に失敗しました",
-      onlyHttpTargetsSupported: "http/https ターゲットのみサポートされています",
-      metadataUpstreamStatus: "上流サービスがステータス {status} を返しました",
+        "ホスト マッピングの更新に失敗し、設定はロールバックされました",
+      metadataFailed: "転送先タイトルの更新に失敗しました",
+      onlyHttpTargetsSupported: "http／https の転送先だけに対応しています",
+      metadataUpstreamStatus:
+        "アップストリームからステータス {status} が返されました",
       bookmarkFolderForRoot: "{root} サブドメインマッピング",
       bookmarkFolderDefault: "fn-knock サブドメインマッピング",
     },
     streamMappings: {
       payloadObjectRequired:
         "ストリームマッピングはオブジェクトである必要があります",
-      listenPortRequiredInteger:
-        "リスニングポートは有効な整数である必要があります",
-      listenPortNotInteger:
-        "リスニングポート {port} は有効な整数ではありません",
-      listenPortOutOfRange: "リスニングポート {port} が有効範囲外です",
+      listenPortRequiredInteger: "待受ポートには整数を指定してください",
+      listenPortNotInteger: "待受ポート {port} は整数ではありません",
+      listenPortOutOfRange: "待受ポート {port} は範囲外です",
       duplicatePort:
-        "{protocol} リスニングポート {port} 重複しています。プロトコルとポートを一意にしてください",
+        "{protocol} の待受ポート {port} が重複しています。プロトコルとポートの組み合わせは一意にしてください",
       targetMustBeHostPort:
-        "ターゲット アドレス {target} は、ホスト:ポートの形式である必要があります",
+        "転送先 {target} は host:port 形式で指定してください",
       saveFailed: "プロトコルマッピングの保存に失敗しました",
       syncFailed:
-        "プロトコル マッピングとゲートウェイ ポート解放ルールの同期に失敗しました",
+        "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗しました",
       syncFailedRolledBack:
-        "プロトコル マッピングとゲートウェイ ポート解放ルールの同期に失敗し、設定はロールバックされました",
+        "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗したため、設定をロールバックしました",
     },
     passkeyRp: {
       parentDomainRequired:
-        "親ドメイン Passkey RP を有効にする場合は、最初にルート ドメイン名を入力するか、親ドメイン RP ID を明示的に指定してください。",
+        "親ドメインのパスキー RP を有効にするには、ルートドメインを入力するか、親ドメインの RP ID を明示的に指定してください。",
       mustMatchAuthHost:
-        "親ドメイン Passkey RP ID {rpId} は、認証サービス {authHost} またはその親ドメインと同じである必要があります。",
+        "親ドメインのパスキー RP ID {rpId} は、認証サービス {authHost} またはその親ドメインと一致させてください。",
     },
     subdomainMode: {
       payloadObjectRequired:
         "サブドメインモードのリクエスト本文はオブジェクトである必要があります",
       saveFailed: "サブドメインモード設定の保存に失敗しました",
       sslAutoSelected:
-        "は、現在のサブドメイン モードにより適した証明書に自動的に切り替わりました。",
+        "現在のサブドメインモードに適した証明書へ自動的に切り替えました。",
       sslAutoSelectionSyncFailed:
         "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。",
     },
@@ -484,7 +479,7 @@ export const jaJPServer = {
       previewFailed: "ログインモード切り替えのプレビューに失敗しました",
       switchFailed: "ログインモードの切り替えに失敗しました",
       blockingIssues:
-        "ブロック項目が残っているため、ログインモードを切り替えられません",
+        "切り替えを妨げる問題が残っているため、ログインモードを変更できません",
     },
     authAccounts: {
       loadFailed: "認証アカウントの読み込みに失敗しました",
@@ -505,7 +500,7 @@ export const jaJPServer = {
       deleteFailed: "認証アカウントの削除に失敗しました",
       deleted: "認証アカウントを削除しました",
       totpAlreadyBound:
-        "このアカウントには利用可能な TOTP が既にバインドされています",
+        "このアカウントには使用可能な TOTP がすでに登録されています",
     },
     authCredentialSettings: {
       loadFailed: "認証情報設定の読み込みに失敗しました",
@@ -544,35 +539,34 @@ export const jaJPServer = {
         "一度にインポートできるアカウントパスワード認証情報は最大 {max} 件です",
     },
     passkeys: {
-      notFound: "Passkey が見つかりません",
-      listFailed: "Passkey 一覧の読み込みに失敗しました",
-      deleteFailed: "Passkey の削除に失敗しました",
-      deleted: "Passkey を削除しました",
+      notFound: "パスキーが見つかりません",
+      listFailed: "パスキー一覧の読み込みに失敗しました",
+      deleteFailed: "パスキーの削除に失敗しました",
+      deleted: "パスキーを削除しました",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
-        "同期部分が失敗しました: gateway_logging={gatewayLogging}",
+        "一部の同期に失敗しました: gateway_logging={gatewayLogging}",
       partialFailedGatewayLoggingWaf:
-        "同期部分が失敗しました: gateway_logging={gatewayLogging}、waf={waf}",
+        "一部の同期に失敗しました: gateway_logging={gatewayLogging}、waf={waf}",
       success:
-        "は、現在の動作モードに応じて、{rules} パス ルート、{hostRules} ホスト ルート、{streamRules} プロトコル マッピング、リクエスト ログ構成、および WAF 構成を同期しています。",
+        "現在の動作モード用に、パスルート {rules} 件、Host ルート {hostRules} 件、プロトコルマッピング {streamRules} 件、リクエストログ設定、WAF 設定を同期しました。",
     },
     backup: {
       readFnosDirectoryFailed:
-        "Feiniu バックアップ ディレクトリの読み取りに失敗しました",
+        "FNOS バックアップ ディレクトリの読み取りに失敗しました",
       exportFnosSuccess:
-        "バックアップが Feiniu ディレクトリにエクスポートされました",
-      exportFnosFailed: "Feiniu ディレクトリへのエクスポートに失敗しました",
+        "バックアップが FNOS ディレクトリにエクスポートされました",
+      exportFnosFailed: "FNOS ディレクトリへのエクスポートに失敗しました",
       importSuccessWithWarnings:
         "バックアップはインポートされましたが、実行状態の同期の一部が失敗しました。",
-      importSuccess:
-        "バックアップがインポートされ、実行ステータスの同期が完了しました",
+      importSuccess: "バックアップをインポートし、実行状態を同期しました",
       importFailed: "バックアップのインポートに失敗しました",
       importFnosSuccessWithWarnings:
-        "Feiniu バックアップはインポートされましたが、実行状態の同期の一部が失敗しました",
+        "FNOS バックアップはインポートされましたが、実行状態の同期の一部が失敗しました",
       importFnosSuccess:
-        "Feiniu バックアップがインポートされ、実行ステータスの同期が完了しました",
-      importFnosFailed: "Feiniu からのバックアップのインポートに失敗しました",
+        "FNOS バックアップをインポートし、実行状態を同期しました",
+      importFnosFailed: "FNOS からのバックアップのインポートに失敗しました",
     },
     sessions: {
       notFound: "セッションが見つかりません",
@@ -580,7 +574,7 @@ export const jaJPServer = {
       loadFailed: "セッションの読み込みに失敗しました",
       updateFailed: "セッションの更新に失敗しました",
       deleteFailed: "セッションの削除に失敗しました",
-      mobilityLoadFailed: "セッション移動情報の読み込みに失敗しました",
+      mobilityLoadFailed: "セッションの IP 変更履歴の読み込みに失敗しました",
       deleted: "セッションを削除しました",
     },
   },
@@ -588,7 +582,7 @@ export const jaJPServer = {
     configLoadFailed: "リクエストログ設定の読み取りに失敗しました",
     configSaveFailed: "リクエストログ設定の保存に失敗しました",
     configSyncFailed:
-      "リクエストログ設定は保存されますが、ゲートウェイとの同期に失敗します",
+      "リクエストログ設定は保存しましたが、ゲートウェイとの同期に失敗しました",
     readDirectoryFailed: "ログディレクトリの読み取りに失敗しました",
     readDatesFailed: "ログ日付の読み取りに失敗しました",
     readEntriesFailed: "リクエストログの読み取りに失敗しました",
@@ -597,32 +591,33 @@ export const jaJPServer = {
   },
   backoffRoutes: {
     ipRequired: "ip パラメータがありません",
-    listFailed: "ログイン backoff 一覧の読み込みに失敗しました",
-    statusFailed: "ログイン backoff 状態の読み込みに失敗しました",
-    resetFailed: "ログイン backoff のリセットに失敗しました",
+    listFailed: "ログイン試行制限の一覧読み込みに失敗しました",
+    statusFailed: "ログイン試行制限の状態読み込みに失敗しました",
+    resetFailed: "ログイン試行制限の解除に失敗しました",
   },
   systemInfoRoutes: {
-    loadAccessEntryFailed: "アクセス入口の読み込みに失敗しました",
+    loadAccessEntryFailed:
+      "アクセス用エントリーポイントの読み込みに失敗しました",
   },
   securityOverviewRoutes: {
     loadFailed: "セキュリティ概要の読み込みに失敗しました",
   },
   ipLocationRoutes: {
-    batchLimit: "単一クエリの最大数 {max} IP",
+    batchLimit: "一度に照会できる IP は最大 {max} 件です",
     enqueueFailed: "IP 位置検索キューへの追加に失敗しました",
   },
   gatewayPortal: {
     syncConfigFailed: "ポータル表示設定のゲートウェイへの同期に失敗しました",
-    syncHostRulesFailed: "ホストルートの同期に失敗しました",
+    syncHostRulesFailed: "Host ルートの同期に失敗しました",
   },
   gatewayVisibility: {
-    customCidrInvalid: "カスタム CIDR 間違った形式: {cidrs}",
+    customCidrInvalid: "カスタム CIDR の形式が正しくありません: {cidrs}",
     emptyEnabledConfig:
-      "可視性をオンにした後、少なくとも 1 つの領域またはカスタム CIDR を追加する必要があります",
-    syncFailed: "ゲートウェイ可視性構成の同期に失敗しました",
+      "公開範囲を有効にするには、地域またはカスタム CIDR を 1 件以上追加してください",
+    syncFailed: "ゲートウェイの公開範囲設定を同期できませんでした",
   },
   gatewayCrawlerBlocker: {
-    syncFailed: "クローラーブロック構成の同期に失敗しました",
+    syncFailed: "クローラーブロック設定の同期に失敗しました",
   },
   scanner: {
     settingsLoadFailed: "スキャナー設定の読み込みに失敗しました",
@@ -640,26 +635,27 @@ export const jaJPServer = {
     cidrExemptionsInvalid: "CIDR 免除の形式が正しくありません: {cidrs}",
   },
   gatewayLogging: {
-    syncConfigFailed: "同期ゲートウェイ要求ログの構成に失敗しました",
+    syncConfigFailed: "ゲートウェイのリクエストログ設定の同期に失敗しました",
   },
   sslGateway: {
     clearFailed: "ゲートウェイ証明書のクリアに失敗しました",
     syncFailed: "ゲートウェイ証明書の同期に失敗しました",
   },
   sslRoutes: {
-    statusReadFailed: "SSL ステータスの読み込みに失敗しました",
-    gatewayStatusReadFailed: "ゲートウェイ SSL ステータスを読み取れません",
+    statusReadFailed: "SSL 状態の読み込みに失敗しました",
+    gatewayStatusReadFailed: "ゲートウェイの SSL 状態を読み取れません",
     readSharedFileFailed: "共有ディレクトリファイルの読み込みに失敗しました",
-    emptyDomains: "ドメイン名リストが空です。最初にドメイン名を追加するか、IP",
+    emptyDomains:
+      "ドメイン一覧が空です。先にドメインまたは IP を追加してください",
     certOrKeyInvalid: "証明書または秘密鍵が無効です",
-    hostRequired: "ホストを空にすることはできません",
+    hostRequired: "ホストは必須です",
     localCaCertificateLabel: "ローカル CA 証明書",
     rootCaNotInitialized: "ルート CA が初期化されていません",
     success: "成功",
     certNotInstalled: "証明書がインストールされていません",
     certReadFailed: "SSL 証明書を読み取れませんでした",
     certZipCreateFailed: "SSL 証明書 zip を作成できませんでした",
-    manualCertificateLabel: "証明書を手動でアップロードします",
+    manualCertificateLabel: "手動アップロード証明書",
     certNotFound: "証明書が存在しません",
     caInitFailed: "ローカル CA の初期化に失敗しました",
     caHostLoadFailed: "ローカル CA Host リストの読み込みに失敗しました",
@@ -683,20 +679,20 @@ export const jaJPServer = {
       keyFormatInvalid: "無効な秘密鍵形式: {message}",
       certKeyMismatch: "証明書と秘密鍵が一致しません",
       certKeyCheckFailed: "証明書と秘密キーの検証に失敗しました: {message}",
-      certContentRequired: "証明書の内容を空にすることはできません",
+      certContentRequired: "証明書の内容は必須です",
       certNotFound: "証明書が存在しません",
       certOrKeyInvalid: "証明書または秘密鍵が無効です",
     },
     acme: {
-      domainRequired: "ドメイン名を空にすることはできません",
-      domainsRequired: "ドメイン名のリストを空にすることはできません",
-      dnsProviderRequired: "DNS サービスプロバイダーを空にすることはできません",
+      domainRequired: "ドメインは必須です",
+      domainsRequired: "ドメイン一覧は必須です",
+      dnsProviderRequired: "DNS プロバイダーは必須です",
       primaryDomainDuplicated:
-        "プライマリ ドメイン名 {primaryDomain} はすでに他のアプリケーションに存在します",
-      applicationNotFound: "申請項目が存在しません",
+        "メインドメイン {primaryDomain} は別の申請設定ですでに使用されています",
+      applicationNotFound: "申請設定が見つかりません",
       noMatchingIssuedCertificate:
-        "現在のアプリケーション項目には、ドメイン名構成に一致する発行済み証明書がありません。",
-      jobDataInvalid: "ACME 無効なタスクデータです",
+        "この申請設定には、現在のドメイン設定に一致する発行済み証明書がありません。",
+      jobDataInvalid: "ACME タスクデータが正しくありません",
       multipleApplicationsUseNewApi:
         "現在複数の申請項目があります。ACME 申請項目を管理するには新しいインターフェースを使用してください。",
     },
@@ -707,66 +703,65 @@ export const jaJPServer = {
     setDefaultCaFailed:
       "デフォルトの認証局の設定に失敗しました (終了コード: {code}) {brief}",
     registerAccountFailed:
-      "登録 ACME アカウントが失敗しました (終了コード: {code}) {brief}",
+      "ACME アカウントの登録に失敗しました（終了コード: {code}）{brief}",
     bundledZipMissing: "組み込みの acmesh.zip リソースが見つかりません",
     extractingBundled: "組み込みの acme.sh リソースを解凍しています...",
     unzipFailed: "解凍に失敗しました。終了コード: {code}",
     extractedAcmeMissing: "解凍は成功しましたが、acme.sh が見つかりません",
-    writingDataDir: "データ ディレクトリに書き込み中...",
-    writtenAcmeMissing: "acme.sh を書き込んだ後に見つかりません",
+    writingDataDir: "データディレクトリへ書き込み中...",
+    writtenAcmeMissing: "書き込み後に acme.sh が見つかりません",
     checkInstallFailed: "インストール状況の確認に失敗しました: {detail}",
     ready: "acme.sh の準備ができました",
     notInstalled: "acme.sh がインストールされていません",
     initializingBundled: "組み込みの acme.sh を初期化しています...",
     registeringAccount: "ACME アカウントを登録中...",
     savingDefaultCa: "デフォルトの認証局を保存しています...",
-    installSuccess:
-      "インストールが成功しました。アカウントのメールアドレス: {email}",
+    installSuccess: "インストールしました。アカウントのメールアドレス: {email}",
     installFailed: "インストールに失敗しました: {detail}",
     installFirst: "まず acme.sh をインストールしてください",
     installingCannotDelete: "acme.sh がインストール中のため削除できません",
-    deleted: "acme.sh が削除されました",
+    deleted: "acme.sh を削除しました",
     deleteFailed: "削除に失敗しました: {detail}",
-    domainsRequired: "ドメイン名のリストを空にすることはできません",
-    dnsTypeRequired: "DNS 検証タイプがありません",
-    issueFailed: "証明書発行失敗（終了コード：{code}） {brief}",
+    domainsRequired: "ドメイン一覧は必須です",
+    dnsTypeRequired: "DNS 検証方式が指定されていません",
+    issueFailed: "証明書の発行に失敗しました（終了コード: {code}）{brief}",
   },
   acmeJobRunner: {
-    manualStop: "ACME タスクはユーザーによって手動で停止されました",
+    manualStop: "ユーザーが ACME タスクを手動で停止しました",
     lockMessages: {
       manualRequest: "証明書の申請",
       autoRenew: "証明書の自動更新",
     },
     activeTaskRunning:
       "現在 ACME のタスクが実行中です。後でもう一度お試しください。",
-    flowFailed: "証明書申請プロセスが失敗しました: {message}",
-    stopSignalSent: "停止信号を送信し、{count} acme.sh プロセスを終了しました",
+    flowFailed: "証明書の申請処理に失敗しました: {message}",
+    stopSignalSent:
+      "停止シグナルを送信し、acme.sh プロセスを {count} 件終了しました",
     noRunningProcess: "実行中の acme.sh プロセスが見つかりません",
-    stopProcessError: "プロセスの停止中に例外が発生しました: {message}",
+    stopProcessError: "プロセスの停止中にエラーが発生しました: {message}",
     processStillRunning:
       "終了していない acme.sh プロセスがまだあります: {pids}",
     lockLost:
-      "ACME 実行中のロックが失われ、タスクが停止されました。アプリケーションを再度開始してください。",
-    lockRefreshFailed: "ACME 実行中のロック更新例外: {message}",
+      "ACME 実行ロックが失われたため、タスクを停止しました。申請をやり直してください。",
+    lockRefreshFailed: "ACME 実行ロックの更新に失敗しました: {message}",
     lockLeaseExpired:
-      "{message};ロックイン期間が終了し、タスクが停止されました。アプリケーションを再度開始してください。",
+      "{message}。ロックのリース期限が切れたためタスクを停止しました。申請をやり直してください。",
     applicationChangedSkipped:
-      "アプリケーションのドメイン名が実行中に変更され、古い証明書の書き込みがスキップされました。アプリケーションを再度開始してください。",
+      "実行中に申請設定のドメインが変更されたため、古い証明書の書き込みをスキップしました。申請をやり直してください。",
     issuedButApplicationChanged:
-      "証明書の発行は成功しましたが、申請項目のドメイン名が変更されているため、現在の申請項目は書き込まれません。",
+      "証明書は発行されましたが、申請設定のドメインが変更されていたため、現在の申請設定には保存しませんでした。",
     issuedButCertReadFailed:
-      "証明書は正常に発行されましたが、証明書ファイルの読み取りに失敗しました (後で再試行するか、acme.sh ディレクトリを確認してください)",
+      "証明書は発行されましたが、証明書ファイルの読み取りに失敗しました。後で再試行するか、acme.sh ディレクトリを確認してください。",
     clearedDomainWorkingState:
-      "acme.sh ドメイン名の作業ディレクトリがクリーンアップされ、証明書のリストと更新がシステム タスクによって管理されます。",
+      "acme.sh のドメイン作業ディレクトリをクリアしました。今後の証明書一覧と更新はシステムタスクが管理します。",
     clearDomainWorkingStateFailed:
-      "証明書は保存されましたが、acme.sh ドメイン名のステータスのクリーニングに失敗しました: {message}",
+      "証明書は保存されましたが、acme.sh のドメイン状態をクリアできませんでした: {message}",
     linkedLibrarySyncedGateway:
       "関連する証明書ストア エントリが同期され、ゲートウェイ証明書リストが更新されました。",
     linkedLibraryUpdated: "関連する証明書ストア エントリを更新しました",
     addedToLibraryAndSyncedGateway:
-      "証明書が正常に発行されると、証明書は自動的に証明書ライブラリに追加され、ゲートウェイ証明書リストが更新されます。",
-    addedToLibrary:
-      "証明書が正常に発行されると、証明書ストアに自動的に追加されます。",
+      "発行した証明書を証明書ストアへ自動追加し、ゲートウェイの証明書一覧を更新しました",
+    addedToLibrary: "発行した証明書を証明書ストアへ自動追加しました",
     addToLibraryFailed:
       "証明書は発行され、保存されましたが、証明書ストアへの自動追加に失敗しました: {message}",
     stoppedIgnoredProcessError:
@@ -777,19 +772,18 @@ export const jaJPServer = {
     loadStatusFailed: "ACME 状態の読み込みに失敗しました",
     loadClientSettingsFailed: "ACME クライアント設定の読み込みに失敗しました",
     saveClientSettingsFailed: "ACME クライアント設定の保存に失敗しました",
-    switchCertificateAuthorityFailed:
-      "ACME 証明書発行機関の切り替えに失敗しました",
+    switchCertificateAuthorityFailed: "ACME 認証局の切り替えに失敗しました",
     loadOverviewFailed: "ACME 概要の読み込みに失敗しました",
-    loadApplicationOverviewFailed: "ACME 申請項目概要の読み込みに失敗しました",
+    loadApplicationOverviewFailed: "ACME 申請設定の概要読み込みに失敗しました",
     loadConfigFailed: "ACME 設定の読み込みに失敗しました",
     loadSubdomainRecommendationFailed:
       "サブドメイン証明書推奨の読み込みに失敗しました",
-    loadApplicationsFailed: "ACME 申請項目一覧の読み込みに失敗しました",
-    loadApplicationFailed: "ACME 申請項目の読み込みに失敗しました",
-    updateApplicationFailed: "ACME 申請項目の更新に失敗しました",
-    deleteApplicationFailed: "ACME 申請項目の削除に失敗しました",
-    syncLibraryFailed: "ACME 証明書の証明書ライブラリ同期に失敗しました",
-    deployCertificateFailed: "ACME 証明書のデプロイに失敗しました",
+    loadApplicationsFailed: "ACME 申請設定一覧の読み込みに失敗しました",
+    loadApplicationFailed: "ACME 申請設定の読み込みに失敗しました",
+    updateApplicationFailed: "ACME 申請設定の更新に失敗しました",
+    deleteApplicationFailed: "ACME 申請設定の削除に失敗しました",
+    syncLibraryFailed: "ACME 証明書の証明書ストア同期に失敗しました",
+    deployCertificateFailed: "ACME 証明書の展開に失敗しました",
     loadJobFailed: "ACME タスクの読み込みに失敗しました",
     loadJobLogsFailed: "ACME タスクログの読み込みに失敗しました",
     loadJobPollFailed: "ACME タスクのポーリングに失敗しました",
@@ -799,22 +793,21 @@ export const jaJPServer = {
     uninstallFailed: "ACME クライアントのアンインストールに失敗しました",
     createCertificateZipFailed: "ACME 証明書 zip の作成に失敗しました",
     loadCertificateFailed: "ACME 証明書の読み込みに失敗しました",
-    domainsInvalid:
-      "ドメイン名リストを空にすることはできません、または形式が無効です。",
-    dnsTypeRequired: "DNS 検証タイプがありません",
-    unsupportedDnsProvider: "サポートされていません DNS サービスプロバイダー",
+    domainsInvalid: "ドメイン一覧が空か、形式が正しくありません",
+    dnsTypeRequired: "DNS 検証方式が指定されていません",
+    unsupportedDnsProvider: "対応していない DNS プロバイダーです",
     missingDnsCredentials:
       "DNS API 認証情報がありません。次のオプションのいずれかを入力してください: {requirements}",
     cloudflareInvalidKey:
-      "Cloudflare API キーが正しくありません (X-Auth-Key 形式が無効です)",
+      "Cloudflare API キーが正しくありません（X-Auth-Key の形式が不正です）",
     cloudflareInvalidEmail:
-      "Cloudflare 電子メールが正しくありません (X-Auth-Email 形式が無効です)",
+      "Cloudflare のメールアドレスが正しくありません（X-Auth-Email の形式が不正です）",
     cloudflareInvalidHeaders:
-      "Cloudflare API リクエストヘッダーが無効です。通常、API キー/電子メールが正しくないことが原因です。",
+      "Cloudflare API のリクエストヘッダーが不正です。API キーまたはメールアドレスを確認してください。",
     acmeFrequencyLimited:
-      "適用頻度は制限されています（Retry-After={seconds}秒、600秒以降は再試行されません）。しばらく待ってから再試行してください。",
+      "申請回数の制限に達しました（Retry-After={seconds}秒。600秒を超える場合は自動再試行しません）。しばらく待ってから再試行してください。",
     dnsApiRateLimited:
-      "DNS API 電流制限 (429/レート制限) をトリガーします。後でもう一度お試しください。",
+      "DNS API のレート制限に達しました（429）。後でもう一度お試しください。",
     logUnknownFailure:
       "ログでエラーが検出されましたが、自動的に関連付けられませんでした",
     installingRetryLater:
@@ -822,15 +815,15 @@ export const jaJPServer = {
     installFirst: "まず acme.sh をインストールしてください",
     multipleApplicationsUseNewApi:
       "現在複数の申請項目があります。ACME 申請項目を管理するには新しいインターフェースを使用してください。",
-    applicationNotFound: "申請項目が存在しません",
+    applicationNotFound: "申請設定が見つかりません",
     notFound: "見つかりません",
     installingCannotDelete: "acme.sh がインストール中のため削除できません。",
     installingCannotSwitchCa:
-      "acme.sh がインストールされているため、一時的に認証局を切り替えることができません。",
+      "acme.sh のインストール中は認証局を切り替えられません。",
     noMatchingIssuedCertificate:
-      "現在のアプリケーション項目には、ドメイン名構成に一致する発行済み証明書がありません。",
+      "この申請設定には、現在のドメイン設定に一致する発行済み証明書がありません。",
     success: "成功",
-    dns01Only: "はDNS-01検証方法のみをサポートします",
+    dns01Only: "DNS-01 検証だけに対応しています",
     certNotFound: "証明書が存在しません",
     certOrKeyInvalid: "証明書または秘密鍵が無効です",
   },
@@ -839,7 +832,7 @@ export const jaJPServer = {
       common: "よく使われる",
       domestic: "国内",
       international: "インターナショナル",
-      selfHostedAdvanced: "自作/上級",
+      selfHostedAdvanced: "セルフホスト / 高度",
     },
     credentialSchemes: {
       default: "デフォルトの認証情報",
@@ -849,49 +842,47 @@ export const jaJPServer = {
       sshPrivateKeyPath: "SSH 秘密鍵ファイルのパス",
     },
     labels: {
-      aliyun: "アリババクラウド DNS",
-      tencentCloudDnspod: "テンセントクラウド DNSPod (テンセントクラウド)",
-      huaweiCloudDns: "ファーウェイクラウド DNS",
-      jdCloudDns: "JDクラウドDNS",
-      westCn: "ウェスタンデジタル",
+      aliyun: "Alibaba Cloud DNS",
+      tencentCloudDnspod: "Tencent Cloud DNSPod（TencentCloud）",
+      huaweiCloudDns: "Huawei Cloud DNS",
+      jdCloudDns: "JD Cloud DNS",
+      westCn: "West.cn",
     },
     cloudflare: {
       globalKeyDescription:
         "Cloudflare レガシー グローバル API キー方式と互換性があります。",
       apiTokenDescription:
-        "おすすめです。トークンを入力するだけです。ゾーン ID またはアカウント ID がわかっている場合は、それらを一緒に入力して自動検出を減らすことができます。",
+        "推奨方式です。トークンだけで使用できます。Zone ID または Account ID も入力すると、自動検出を省略できます。",
     },
     gcloud: {
       description:
-        "gcloud コマンドと実行環境の承認された構成に応じて異なります。入力されていない場合は、gcloud のデフォルト設定を使用します。",
+        "実行環境の gcloud コマンドと認証済み設定を使用します。空欄の場合は gcloud のデフォルト設定を使用します。",
     },
     azure: {
       managedIdentityDescription:
-        "AZUREDNS_MANAGEDIDENTITY trueを入力してください。",
+        "AZUREDNS_MANAGEDIDENTITY に true を設定してください。",
     },
     descriptions: {
-      boolean01: "0または1を入力してください。",
-      optionalBoolean01: "オプション、0 または 1 を入力します。",
+      boolean01: "0 または 1 を入力してください。",
+      optionalBoolean01: "省略可能。0 または 1 を入力してください。",
     },
     requirements: {
-      optionalSuffix: ";オプション {keys}",
-      orSeparator: ";または",
+      optionalSuffix: "、省略可能: {keys}",
+      orSeparator: "、または ",
     },
   },
   acmePatches: {
     duckdns: {
-      scriptMissing: "見つかりません DuckDNS DNS API スクリプト: {path}",
-      proxyApplied: "は DuckDNS API を {from} から {to} に切り替えました",
+      scriptMissing: "DuckDNS DNS API スクリプトが見つかりません: {path}",
+      proxyApplied: "DuckDNS API を {from} から {to} へ切り替えました",
     },
   },
   reverseProxyTrustedIps: {
-    syncFailed:
-      "同期アンチジェネレーション スロットリング免除 IP が失敗しました",
+    syncFailed: "リバースプロキシのレート制限除外 IP の同期に失敗しました",
   },
   commonAuthLocations: {
-    cidrLookupFailed: "CIDR クエリが失敗しました",
-    syncFailed:
-      "一般的に使用される除外設定をゲートウェイに同期できませんでした",
+    cidrLookupFailed: "CIDR の検索に失敗しました",
+    syncFailed: "共通地域の除外設定をゲートウェイへ同期できませんでした",
   },
   generalBlacklist: {
     invalidRequestBody: "リクエスト本文が正しくありません",
@@ -899,25 +890,25 @@ export const jaJPServer = {
     invalidIpWithValue: "IP アドレスが正しくありません: {ip}",
     atLeastOneValidIpRequired: "有効な IP を少なくとも 1 つ指定してください",
     backendRequestFailed:
-      "汎用ブラックリストのバックエンドリクエストに失敗しました",
+      "共通ブラックリストのバックエンドリクエストに失敗しました",
     backendResponseMissingData:
-      "汎用ブラックリストのバックエンド応答にデータがありません",
+      "共通ブラックリストのバックエンド応答にデータがありません",
   },
   fnosDataShare: {
-    invalidPath: "不正な共有ファイルパス",
+    invalidPath: "共有ファイルのパスが正しくありません",
     shareMissing:
-      "Feiniu 共有ディレクトリが見つかりませんでした。アプリケーション リソースが正しく構成されていることを確認してください。",
-    fileOnly: "は共有ディレクトリ内のファイルのみを読み取ることができます",
+      "FNOS 共有ディレクトリが見つかりませんでした。アプリケーション リソースが正しく設定されていることを確認してください。",
+    fileOnly: "共有ディレクトリ内のファイルだけを読み取れます",
     fileTooLarge:
       "ファイルが大きすぎます。証明書または秘密鍵のテキスト ファイルのみを入れてください。",
   },
   autoHttps: {
     listenEacces:
-      "にはポート 80 をリッスンする権限がありません。現在のデバイスまたはコンテナーでプログラムが低いポートにバインドできることを確認してください。",
+      "ポート 80 を待ち受ける権限がありません。現在のデバイスまたはコンテナで、プロセスが特権ポートへバインドできることを確認してください。",
     listenEaddrinuse:
-      "ポート 80 が他のプログラムによって占有されているため、自動 HTTPS を開始できません。 Feiniu システム設定、セキュリティ、ポート設定を試して、編集し、ポート 80 と 443 をリダイレクトするチェックを外してください。",
-    listenFailedWithMessage: "ポート 80 でのリッスンに失敗しました: {message}",
-    listenFailed: "はポート 80 でのリッスンに失敗しました。",
+      "ポート 80 が別のプログラムで使用されているため、自動 HTTPS を起動できません。FNOS の「システム設定 → セキュリティ → ポート設定」を編集し、ポート 80 と 443 のリダイレクトを無効にしてください。",
+    listenFailedWithMessage: "ポート 80 の待受に失敗しました: {message}",
+    listenFailed: "ポート 80 の待受に失敗しました",
   },
   wafCollector: {
     drainFailed: "WAF イベントの取得に失敗しました",
@@ -943,32 +934,32 @@ export const jaJPServer = {
   },
   whitelistManager: {
     dnsRecordQueryFailedWithCode:
-      "{label} レコードのクエリが失敗しました ({code}): {message}",
-    dnsRecordQueryFailed: "{label} レコードのクエリが失敗しました: {message}",
+      "{label} レコードの照会に失敗しました（{code}）: {message}",
+    dnsRecordQueryFailed: "{label} レコードの照会に失敗しました: {message}",
     targetFormatInvalid: "IP、CIDR、またはドメイン名の形式が正しくありません",
-    autoGrantIpOnly: "ログイン自動認証は 1 つの IP のみをサポートします",
+    autoGrantIpOnly: "ログイン時の自動許可は単一の IP だけに対応しています",
     cidrInvalid: "CIDR 形式が正しくありません",
     domainInvalid: "ドメイン名の形式が正しくありません",
     ipInvalid: "IP 形式が正しくありません",
-    autoOwnerMissing: "自動ホワイトリスト属性識別子がありません",
+    autoOwnerMissing: "自動ホワイトリストの所有者 ID がありません",
     domainResolveFailed: "ドメイン名解決に失敗しました",
-    resolvedIpCount: "解析されました {count} IP",
-    noAaaaRecords: "は現在 A / AAAA レコードに解析されていません",
+    resolvedIpCount: "{count} 件の IP を解決しました",
+    noAaaaRecords: "A／AAAA レコードを解決できませんでした",
     syncAllowedStateFailed:
-      "ドメイン名解決結果は更新されましたが、システム解放ステータスの同期に失敗しました",
+      "ドメインの名前解決結果は更新しましたが、システムの許可状態を同期できませんでした",
   },
   terminal: {
-    defaultTitle: "Webターミナル",
+    defaultTitle: "Web ターミナル",
     defaultSessionTitlePrefix: "セッション-",
     tmuxNotDetectedInstallFirst:
       "tmux が検出されません。最初に tmux 環境をインストールしてください。",
     tmuxReadyWithVersion: "tmux の準備ができました: {version}",
-    refreshingApt: "Debian ソフトウェア ソースを更新しています...",
-    aptUpdateFailed: "apt-get アップデートの実行に失敗しました",
+    refreshingApt: "Debian パッケージリストを更新中...",
+    aptUpdateFailed: "apt-get update の実行に失敗しました",
     installingTmux: "tmux をインストールしています...",
-    aptInstallTmuxFailed: "apt-get tmux のインストールの実行に失敗しました",
+    aptInstallTmuxFailed: "apt-get install tmux の実行に失敗しました",
     verifyingTmuxInstall: "tmux のインストール結果を確認しています...",
-    tmuxMissingAfterInstall: "インストールが完了した後も tmux が検出されない",
+    tmuxMissingAfterInstall: "インストール完了後も tmux を検出できません",
     tmuxInstallCompleteWithVersion:
       "tmux のインストールが完了しました: {version}",
     tmuxInstallFailed: "tmux のインストールに失敗しました",
@@ -976,12 +967,12 @@ export const jaJPServer = {
     operationFailedWithMessage: "ターミナル操作に失敗しました: {message}",
     cwdUnavailable:
       "作業ディレクトリが存在しないか、アクセスできません: {path}",
-    webTerminalDisabled: "Webターミナル機能はまだ有効になっていません",
+    webTerminalDisabled: "Web ターミナルが無効です",
     tmuxInstallingWait:
       "tmux がインストールされています。インストールが完了するまでお待ちください。",
-    tmuxStatusError: "tmux ステータス異常: {message}",
+    tmuxStatusError: "tmux の状態エラー: {message}",
     tmuxMissingCannotCreate:
-      "tmux が検出されず、復元可能な端末セッションを作成できません",
+      "tmux を検出できないため、再接続可能なターミナルセッションを作成できません",
     rootRunRequiresDangerToggle:
       "現在のプロセスは root として実行されています。ターミナルを作成する前に、設定で高リスク操作スイッチを明示的にオンにする必要があります。",
     requestedShellUnavailable: "要求されたシェルは利用できません: {shell}",
@@ -990,134 +981,130 @@ export const jaJPServer = {
     paneMetadataReadFailed: "ターミナルペインのメタデータを読み取れません",
     paneTtyParseFailed: "ターミナルペイン tty を解析できません",
     inputPipeCreateFailed: "ターミナル入力パイプを作成できません",
-    ioRelayCreateFailed: "端末IOリレーを確立できません",
+    ioRelayCreateFailed: "ターミナルの I/O リレーを作成できません",
     sessionLimitReached: "ターミナルセッションの制限に達しました ({count})",
     tmuxSessionCreateFailed: "tmux セッションの作成に失敗しました",
-    sessionTitleRequired: "セッション名を空にすることはできません",
+    sessionTitleRequired: "セッション名は必須です",
     sessionMissingOrExpired: "ターミナルセッションが存在しないか、期限切れです",
     tmuxMissingCannotAttach:
-      "tmux が検出されず、端末セッションを接続できません",
+      "tmux を検出できないため、ターミナルセッションへ接続できません",
     inputPipeNotReady: "ターミナル入力パイプはまだ準備ができていません",
-    inputWriteInterrupted: "端子入力書き込み中断",
-    attachmentExpired: "端末の接続に失敗しました",
-    inputSendFailed: "端末入力の送信に失敗しました",
-    resizeFailed: "端子サイズ調整に失敗しました",
-    sessionNotFound: "ターミナルセッションが存在しません",
+    inputWriteInterrupted: "ターミナルへの入力書き込みが中断されました",
+    attachmentExpired: "ターミナル接続の有効期限が切れました",
+    inputSendFailed: "ターミナル入力の送信に失敗しました",
+    resizeFailed: "ターミナルサイズ調整に失敗しました",
+    sessionNotFound: "ターミナルセッションが見つかりません",
   },
   waf: {
-    manifestInvalid: "システムルールリストの形式が正しくありません",
+    manifestInvalid: "システムルールマニフェストの形式が正しくありません",
     manifestMissingZipInfo:
-      "システム ルール リストに zip ファイル情報がありません",
+      "システムルールマニフェストに ZIP ファイル情報がありません",
     manifestRequestFailed:
-      "システム ルール リストのリクエストが失敗しました: HTTP {status}",
-    manifestRefreshFailed: "システムルールリストの更新に失敗しました",
-    confOnly: ".conf ルール ファイルのみをサポートします",
-    ruleFilenameInvalid: "ルールファイル名が間違っています",
-    fileTooLarge: "{filename}が1MBを超えています",
+      "システムルールマニフェストの取得に失敗しました: HTTP {status}",
+    manifestRefreshFailed: "システムルールマニフェストの更新に失敗しました",
+    confOnly: ".conf ルールファイルだけに対応しています",
+    ruleFilenameInvalid: "ルールファイル名が正しくありません",
+    fileTooLarge: "{filename} が 1 MB を超えています",
     fileInvalidUtf8: "{filename} は有効な UTF-8 テキストではありません",
     filesystemDirectiveBlocked:
-      "{filename} には、許可されていないファイル システム ディレクティブが含まれています",
+      "{filename} には、許可されていないファイルシステムディレクティブが含まれています",
     systemRuleDescription: "システムセキュリティルール",
     customRuleDescription: "ユーザーアップロードルール",
     enableNeedsRule:
-      "開く前に少なくとも 1 つの WAF ルール ファイルを有効にしてください",
-    rulesLoadFailed: "WAF ルールのロードに失敗しました",
-    configSyncFailed: "同期 WAF をゲートウェイに設定できませんでした",
+      "WAF を有効にする前にルールファイルを1つ以上有効にしてください",
+    rulesLoadFailed: "WAF ルールの読み込みに失敗しました",
+    configSyncFailed: "WAF 設定をゲートウェイへ同期できませんでした",
     sourceInvalid: "ルールのソースが正しくありません",
     ruleFileNotFound: "ルールファイルが存在しません",
-    zipInvalid: "システムルールのzip形式が正しくありません",
-    zipDirectoryInvalid: "システム ルールの zip ディレクトリが正しくありません",
-    zipUnpackedTooLarge: "解凍後のシステム ルール パッケージが大きすぎます",
-    zipHeaderInvalid:
-      "システム ルールの zip ファイル ヘッダーが正しくありません",
-    zipMethodUnsupported:
-      "は現在、zip 圧縮方式 {method} をサポートしていません。",
-    zipSizeInvalid: "システムルールのzipファイルサイズが正しくありません",
+    zipInvalid: "システムルールの ZIP 形式が正しくありません",
+    zipDirectoryInvalid: "システムルールの ZIP ディレクトリが正しくありません",
+    zipUnpackedTooLarge: "解凍後のシステムルールパッケージが大きすぎます",
+    zipHeaderInvalid: "システムルールの ZIP ファイルヘッダーが正しくありません",
+    zipMethodUnsupported: "ZIP 圧縮方式 {method} には対応していません",
+    zipSizeInvalid: "システムルールの ZIP ファイルサイズが正しくありません",
     zipPathInvalid:
-      "システム ルールの zip ファイル パスが正しくありません: {path}",
-    downloadFailed:
-      "システム ルールのダウンロードに失敗しました: HTTP {status}",
-    zipTooLarge: "システム ルール パッケージが大きすぎます",
-    zipHashMismatch: "システム ルール パッケージの検証に失敗しました",
-    zipEmpty: "システム ルール パッケージが空です",
+      "システムルールの ZIP ファイルパスが正しくありません: {path}",
+    downloadFailed: "システムルールのダウンロードに失敗しました: HTTP {status}",
+    zipTooLarge: "システムルールパッケージが大きすぎます",
+    zipHashMismatch: "システムルールパッケージのハッシュ検証に失敗しました",
+    zipEmpty: "システムルールパッケージが空です",
     zipDuplicateFile:
-      "システム ルール パッケージに重複したファイルがあります: {path}",
+      "システムルールパッケージに重複したファイルがあります: {path}",
     zipConfRootOnly:
-      "システム ルール パッケージの .conf ファイルはルート ディレクトリに配置する必要があります",
-    zipNoConf: "システム ルール パッケージに .conf ファイルがありません",
+      "システムルールパッケージの .conf ファイルはルートディレクトリに配置してください",
+    zipNoConf: "システムルールパッケージに .conf ファイルがありません",
     systemRulePathInvalid: "システムルールファイルのパスが正しくありません",
-    manifestEmpty: "システムルールリストが空です",
+    manifestEmpty: "システムルールマニフェストが空です",
     keepOneEnabledRule:
-      "WAF がオンの場合、有効なルール ファイルを少なくとも 1 つ保持します",
+      "WAF が有効な間は、ルールファイルを1つ以上有効にしておいてください",
     uploadSelectConf: "アップロードする .conf ファイルを選択してください",
     base64Invalid: "ルールファイルの内容は有効な Base64 ではありません",
-    reloadRulesFailed: "WAF ルールのリロードに失敗しました",
+    reloadRulesFailed: "WAF ルールの再読み込みに失敗しました",
     detailsLoadFailed: "WAF 詳細の読み込みに失敗しました",
-    statusReadFailed: "WAF ステータスの読み取りに失敗しました",
+    statusReadFailed: "WAF 状態の読み取りに失敗しました",
     invalidRequestBody: "リクエスト本文が正しくありません",
     dateInvalid: "日付形式が正しくありません。YYYY-MM-DD を指定してください",
     configSaveOrLoadFailed: "WAF 設定の保存または読み込みに失敗しました",
     systemRulesSyncFailed: "システムルールの同期に失敗しました",
-    ruleToggleFailed: "WAF ルールの開始と停止に失敗しました",
+    ruleToggleFailed: "WAF ルールの有効状態の切り替えに失敗しました",
     ruleReadFailed: "WAF ルールの読み取りに失敗しました",
     customRuleUploadFailed: "カスタムルールのアップロードに失敗しました",
     customRuleDeleteFailed: "カスタムルールの削除に失敗しました",
     eventsDrainFailed: "WAF イベントの取得に失敗しました",
-    logsQueryFailed: "WAF ログのクエリに失敗しました",
+    logsQueryFailed: "WAF ログの検索に失敗しました",
     logNotFound: "WAF ログが存在しません",
     logLoadFailed: "WAF ログの読み込みに失敗しました",
     logsDeleteFailed: "WAF ログの削除に失敗しました",
   },
   oidc: {
     callbackStateExpired:
-      "ログインステータスの有効期限が切れています。再度ログインしてください。",
+      "ログイン状態の有効期限が切れています。再度ログインしてください。",
     loginFailedRetry: "外部ログインに失敗しました。もう一度お試しください。",
     loginMethodUnavailable:
       "現在のログインモードでは外部ログインは利用できません。",
     reservedExtraAuthParam:
       "extra_auth_params には OIDC 予約パラメータ: {key} が含まれます",
-    urlInvalid: "{label} は合法である必要があります URL",
-    urlMustUseHttps: "{label} は HTTPS を使用する必要があります",
+    urlInvalid: "{label} には有効な URL を指定してください",
+    urlMustUseHttps: "{label} には HTTPS URL を指定してください",
     providerUnsupported: "サポートされていない外部ログインプロバイダー",
-    providerMissingRequiredConfig: "{provider} 必要な構成がありません {fields}",
+    providerMissingRequiredConfig:
+      "{provider} に必須設定がありません: {fields}",
     providerMissingRequiredFields:
-      "外部ログインプロバイダーに必要な構成がありません {fields}",
-    accessTokenMissing: "未取得 access_token",
-    idTokenMissing: "未取得 id_token",
+      "外部ログインプロバイダーに必須設定がありません: {fields}",
+    accessTokenMissing: "access_token が返されませんでした",
+    idTokenMissing: "id_token が返されませんでした",
     callbackUrlBuildFailed:
-      "外部ログイン コールバック アドレスを生成できません。public_auth_base_url を設定してください",
-    issuerMissing: "OIDC 発行者が構成されていません",
-    discoveryMissingFields: "OIDC 証拠書類に必須フィールドがありません",
+      "外部ログインのコールバック URL を生成できません。public_auth_base_url を設定してください",
+    issuerMissing: "OIDC Issuer が設定されていません",
+    discoveryMissingFields: "OIDC Discovery ドキュメントに必須項目がありません",
     nonceCheckFailed: "OIDC ノンス検証に失敗しました",
     issuerCheckFailed: "OIDC 発行者の検証に失敗しました",
-    subjectEmpty: "OIDC 件名が空です",
-    githubUserIdEmpty: "GitHub ユーザー ID は空です",
-    providerNotFound: "外部ログインプロバイダーが存在しません",
+    subjectEmpty: "OIDC Subject が空です",
+    githubUserIdEmpty: "GitHub ユーザー ID が空です",
+    providerNotFound: "外部ログインプロバイダーが見つかりません",
     connectionTestSuccess: "接続テストに成功しました",
-    oauthEndpointIncomplete: "OAuth2 エンドポイントが完全に構成されていません",
+    oauthEndpointIncomplete: "OAuth2 エンドポイントが完全に設定されていません",
     connectionTestFailed: "接続テストに失敗しました",
     totpMissing: "TOTP 認証情報が存在しません",
     selectProvider: "外部ログインプロバイダーを選択してください",
     providerUnavailable: "外部ログインプロバイダーは利用できません",
-    bindingNotFound: "外部アカウント バインドが存在しません",
-    inviteInvalid: "バインディング招待リンクが無効です",
-    inviteExpired: "バインディング招待リンクの有効期限が切れました",
+    bindingNotFound: "外部アカウントの紐付けが見つかりません",
+    inviteInvalid: "紐付け用の招待リンクが無効です",
+    inviteExpired: "紐付け用の招待リンクの有効期限が切れました",
     inviteProviderNotAllowed:
       "この招待リンクはこのプロバイダーの使用を許可されていません",
-    authorizationEndpointMissing: "認証エンドポイントが構成されていません",
+    authorizationEndpointMissing: "認証エンドポイントが設定されていません",
     authorizationEndpointInvalid: "認証エンドポイントの形式が正しくありません",
-    bindStateInvalid: "バインディング招待ステータスが無効です",
+    bindStateInvalid: "紐付け用招待の状態が無効です",
     accountNotBoundCannotLogin:
-      "この外部アカウントはバインドされていないため、ログインできません。",
-    tokenEndpointMissing: "トークンエンドポイントが構成されていません",
-    clientIdMissing: "client_id が構成されていません",
-    bindProviderMismatch:
-      "バインディング招待状がログインプロバイダーと一致しません",
-    inviteTotpMissing:
-      "バインディング招待状に関連付けられた TOTP は存在しなくなりました",
+      "この外部アカウントは紐付けられていないため、ログインできません",
+    tokenEndpointMissing: "トークンエンドポイントが設定されていません",
+    clientIdMissing: "client_id が設定されていません",
+    bindProviderMismatch: "紐付け用招待とログインプロバイダーが一致しません",
+    inviteTotpMissing: "紐付け用招待に関連付けられた TOTP は存在しません",
     accountAlreadyBoundOtherTotp:
-      "この外部アカウントは別の TOTP にバインドされています",
-    inviteUsed: "バインディング招待リンクが使用されました",
+      "この外部アカウントは別の TOTP に紐付けられています",
+    inviteUsed: "紐付け用の招待リンクは使用済みです",
     externalAccountFallback: "外部アカウント",
     loginFailedWithDetail: "外部ログインに失敗しました: {detail}",
     tokenRequestFailed: "外部ログイントークンの取得に失敗しました: {detail}",
@@ -1126,7 +1113,7 @@ export const jaJPServer = {
       "外部ログインリクエストに失敗しました: HTTP {status}: {detail}",
     jsonResponseInvalid:
       "外部ログイン応答は有効な JSON ではありません: {detail}",
-    jwksUriMissing: "OIDC JWKS URI が構成されていません",
+    jwksUriMissing: "OIDC JWKS URI が設定されていません",
     jwksFetchFailed: "OIDC JWKS の取得に失敗しました: {detail}",
     jwksInvalid: "OIDC JWKS 応答が無効です: {detail}",
     tokenHeaderInvalid: "OIDC token header が無効です: {detail}",
@@ -1143,23 +1130,23 @@ export const jaJPServer = {
       serverError:
         "外部ログインプロバイダーがサービスエラーを返しました。後でもう一度試してください。",
       invalidScope:
-        "外部ログイン許可範囲が正しく構成されていません。管理者に連絡してプロバイダーの構成を確認してください。",
+        "外部ログイン許可範囲が正しく設定されていません。管理者に連絡してプロバイダーの設定を確認してください。",
       rejected:
         "外部ログイン要求はプロバイダーによって拒否されました。外部ログイン設定を確認して、もう一度お試しください。",
       incomplete:
         "外部ログインが完了していません。ログインをやり直してください。",
     },
-    bindWithProvider: "{provider}を使用してバインドします",
-    selectProviderTitle: "外部アカウントプロバイダーを選択してください",
-    bindToTotp: "外部アカウントを {totp} にバインドします。",
-    linkMissingToken: "リンクにトークンがありません。",
+    bindWithProvider: "{provider} で紐付け",
+    selectProviderTitle: "外部アカウントプロバイダーを選択",
+    bindToTotp: "外部アカウントを {totp} に紐付けます。",
+    linkMissingToken: "リンクにトークンがありません",
     inviteMissingExpiredUsed:
-      "招待状が存在しないか、有効期限が切れているか、すでに使用されています。",
+      "招待が存在しないか、有効期限切れ、または使用済みです。",
     noProvidersTitle: "利用可能な外部ログインプロバイダーはありません",
     noProvidersBody:
-      "現在、この招待にはバインドできる外部アカウント プロバイダーがありません。",
-    bindFailedTitle: "外部アカウントのバインドに失敗しました",
-    bindStartFailed: "外部アカウントのバインドを開始できません。",
+      "この招待で紐付け可能な外部アカウントプロバイダーがありません。",
+    bindFailedTitle: "外部アカウントの紐付けに失敗しました",
+    bindStartFailed: "外部アカウントの紐付けを開始できません。",
     startFailed: "外部ログインの開始に失敗しました",
     callbackMissingParams:
       "外部ログイン コールバックに必要なパラメータがありません。ログインを再度開始してください。",
@@ -1171,24 +1158,25 @@ export const jaJPServer = {
     updateProviderFailed: "外部ログインプロバイダーの更新に失敗しました",
     deleteProviderFailed: "外部ログインプロバイダーの削除に失敗しました",
     testProviderFailed: "外部ログインプロバイダーのテストに失敗しました",
-    deleteBindingFailed: "外部アカウント バインドを削除できませんでした",
-    createInviteFailed: "バインディング招待状の作成に失敗しました",
+    deleteBindingFailed: "外部アカウントの紐付け削除に失敗しました",
+    createInviteFailed: "紐付け用招待の作成に失敗しました",
     listProvidersFailed: "外部ログインプロバイダー一覧の取得に失敗しました",
     providerPayloadObject:
       "プロバイダーのペイロードはオブジェクトである必要があります",
     loadProviderFailed: "外部ログインプロバイダーの読み込みに失敗しました",
-    listBindingsFailed: "外部アカウント連携一覧の取得に失敗しました",
+    listBindingsFailed: "外部アカウントの紐付け一覧取得に失敗しました",
     invitationPayloadObject: "招待ペイロードはオブジェクトである必要があります",
     totpRequired: "TOTP 認証情報が必要です",
     loadTotpFailed: "TOTP 認証情報の読み込みに失敗しました",
     loadConfigFailed: "設定の読み込みに失敗しました",
     inviteUrlBuildFailed: "外部アカウント招待 URL の作成に失敗しました",
-    connectionConfigInvalid: "外部ログインプロバイダーの接続設定が無効です",
+    connectionConfigInvalid:
+      "外部ログインプロバイダーの接続設定が正しくありません",
     oauthEndpointIncompleteWithField:
       "OAuth2 エンドポイント設定が不完全です: {field}",
     discoveryHttpFailed:
       "OIDC discovery リクエストに失敗しました: HTTP {status}: {detail}",
-    discoveryInvalid: "OIDC discovery ドキュメントが無効です",
+    discoveryInvalid: "OIDC Discovery ドキュメントが正しくありません",
     discoveryMissingFieldsWithList:
       "OIDC discovery ドキュメントに必須フィールドがありません: {fields}",
     providerTypeRequired: "外部ログインプロバイダーの種類が必要です",
@@ -1206,77 +1194,77 @@ export const jaJPServer = {
   },
   subdomainMode: {
     recommendationMissingBase:
-      "ルート ドメイン名または認証サービスが設定されていないため、現時点では推奨される証明書ドメイン名を生成できません。",
+      "ルートドメインまたは認証サービスが未設定のため、推奨する証明書ドメインを生成できません。",
     recommendationWildcardSummary:
-      "推奨アプリケーション {rootDomain} および *.{rootDomain} は、同じ親ドメイン内のルート ドメイン名、認証サービス、およびビジネス サブドメインをカバーするために使用されます。",
+      "推奨ドメインは {rootDomain} と *.{rootDomain} です。同じ親ドメイン配下のルートドメイン、認証サービス、アプリ用サブドメインをカバーします。",
     authOutOfRootWarning:
-      "現在の認証サービス {authHost} はルート ドメイン名 {rootDomain} の下になく、追加の正確なドメイン名が追加されています。選択した DNS サービス プロバイダーがこれらのドメイン名を管理できることを確認してください。",
+      "認証サービス {authHost} はルートドメイン {rootDomain} の配下ではないため、完全なドメインとして個別に追加しました。選択した DNS プロバイダーでこれらのドメインを管理できることを確認してください。",
     recommendationSingleHostSummary:
-      "ルートドメイン名が設定されていません。現在、認証サービス {authHost} として推奨できるのは、単一のドメイン名証明書を申請する場合のみです。",
+      "ルートドメインが未設定のため、認証サービス {authHost} 用の単一ドメイン証明書だけを推奨できます。",
     wildcardSuggestion:
-      "将来的に複数のビジネス サブドメインをカバーしたい場合は、最初にルート ドメイン名を補足してから、ワイルドカード証明書を申請することをお勧めします。",
+      "複数のアプリ用サブドメインをカバーする場合は、先にルートドメインを設定してからワイルドカード証明書を申請してください。",
     configureRootOrAuth:
-      "最初にサブドメインモードでルートドメイン名を設定するか、ホストマッピングで認証サービスを指定してください。",
+      "先にサブドメインモードでルートドメインを設定するか、Host マッピングで認証サービスを指定してください。",
     authMissingWarning:
-      "認証サービスは指定されておらず、現在の推奨結果はルート ドメイン名に基づいてのみ導出されています。",
+      "認証サービスが指定されていないため、ルートドメインだけを基に推奨範囲を算出しています。",
     uncoveredHostMappingsWarning:
-      "現在、推奨される証明書でカバーされていないホスト マッピングが {count} あります。これらを外部に公開する必要がある場合でも、追加の証明書またはドメイン名の計画が必要になります。",
+      "推奨証明書でカバーされない Host マッピングが {count} 件あります。公開する場合は、証明書の追加またはドメイン設定の見直しが必要です。",
     coverageNoSsl:
-      "SSL 証明書は現在有効になっておらず、認証サービスとビジネス サブドメインは HTTPS の対象になっていません。",
+      "SSL 証明書が有効になっていないため、認証サービスとアプリ用サブドメインは HTTPS で保護されていません。",
     coverageReadyConcrete:
-      "現在展開されている証明書は、認証サービスと構成されているすべてのホスト マッピングをカバーしています。",
+      "展開中の証明書は、認証サービスと設定済みのすべての Host マッピングをカバーしています。",
     coverageReadyRecommended:
-      "現在展開されている証明書は、サブドメイン モードで現在推奨されている範囲を満たしています。",
+      "現在展開されている証明書は、サブドメインモードで推奨される範囲を満たしています。",
     coveragePartialConcrete:
-      "現在の証明書は、サブドメイン モードで必要なドメイン名の一部のみをカバーしており、認証サービスまたは一部のビジネス ホストで証明書の不一致が依然として存在する可能性があります。",
+      "現在の証明書は、サブドメインモードに必要なドメインの一部しかカバーしていません。認証サービスまたは一部のアプリ用 Host で証明書が一致しない可能性があります。",
     coveragePartialRecommended:
-      "現在の証明書は一部の推奨ドメイン名のみをカバーしており、後でサブドメイン モードを有効にした場合でも証明書の不一致が発生する可能性があります。",
+      "現在の証明書がカバーするのは推奨ドメインの一部だけです。今後サブドメインモードを有効にすると、証明書が一致しない可能性があります。",
     coverageMismatchConcrete:
-      "現在展開されている証明書はサブドメイン モードと一致せず、認証サービスとビジネス ホストが正しくカバーされていません。",
+      "現在展開されている証明書はサブドメインモードと一致せず、認証サービスとサービス用 Host を正しくカバーしていません。",
     coverageMismatchRecommended:
-      "現在展開されている証明書は、サブドメイン モードで推奨されるドメイン名の範囲をカバーしていません。",
+      "現在展開されている証明書は、サブドメインモードで推奨されるドメインをカバーしていません。",
     coverageMissingRequiredWarning:
-      "現在の証明書には、{count} 必要な補償項目がまだ不足しています。証明書を再適用または置き換えることをお勧めします。",
+      "現在の証明書では必須ドメインが {count} 件不足しています。証明書を再発行または置き換えてください。",
     coverageMissingRecommendedWarning:
-      "現在の証明書には、{count} 推奨されるドメイン名適用項目がまだ不足しています。将来これらのドメイン名を使用する必要がある場合は、証明書を再適用または置き換えることをお勧めします。",
+      "現在の証明書では推奨ドメインが {count} 件不足しています。今後使用する場合は、証明書を再発行または置き換えてください。",
     coverageAuthHostMissingWarning:
       "現在の証明書は認証サービス {authHost} をカバーしていません。",
     inventoryEmpty:
-      "証明書ストアにはサブドメイン モードで使用できる証明書がまだありません。",
+      "証明書ストアにはサブドメインモードで使用できる証明書がありません。",
     inventoryActiveReady:
-      "現在アクティブな証明書は、サブドメイン モードで必要なドメイン名を完全にカバーしています。",
+      "現在有効な証明書は、サブドメインモードで必要なドメインをすべてカバーしています。",
     inventoryOneReady:
-      "証明書ストアには、サブドメイン モードを完全にカバーでき、アクティブな証明書に直接切り替えることができる証明書が 1 つあります。",
+      "証明書ストアには、サブドメインモードを完全にカバーし、そのまま有効化できる証明書が 1 件あります。",
     inventoryMultipleReady:
-      "証明書ストアには {count} の証明書があり、それぞれが現在のサブドメイン モードを完全にカバーできます。",
+      "証明書ストアには、現在のサブドメインモードを完全にカバーできる証明書が {count} 件あります。",
     inventoryCombinedReady:
-      "証明書ライブラリは、結合後に完全なカバレッジ機能を備えています。",
+      "証明書ストア内の証明書を組み合わせると、必要なドメインをすべてカバーできます。",
     inventoryCandidateReady:
-      "現在のサブドメイン モードをカバーできる候補証明書が証明書ストアにすでに存在します。",
+      "現在のサブドメインモードをカバーできる証明書が、証明書ストアにすでにあります。",
     inventoryCombinedNeedsMultiSni:
-      "証明書ライブラリの組み合わせで現在のサブドメイン モードをすでにカバーできますが、現在のゲートウェイはまだ単一アクティブ証明書モードのままであり、同時に有効にすることはできません。",
+      "証明書ストア内の証明書を組み合わせれば現在のサブドメインモードをカバーできますが、ゲートウェイが単一証明書モードのため、すべてを同時に有効化できません。",
     inventoryPartialCandidates:
       "証明書ストアにはすでに候補証明書がいくつかありますが、認証サービスとすべてのホスト マッピングを完全にカバーすることはできません。",
     inventoryNoCertificateCoversRecommendation:
-      "現在、サブドメイン モードで推奨されるドメイン名をカバーできる証明書はありません。",
+      "現在、サブドメインモードで推奨されるドメインをカバーできる証明書はありません。",
     inventoryMultiCertRequiresSniWarning:
-      "現在の証明書ライブラリでは、複数の証明書を共同でカバーする必要がありますが、ゲートウェイは依然として単一アクティブ証明書モードであり、一度にすべてを有効にすることはできません。",
+      "必要なドメインをカバーするには複数の証明書が必要ですが、ゲートウェイが単一証明書モードのため、すべてを同時に有効化できません。",
     inventorySwitchRecommendedWarning:
-      "現在アクティブな証明書はサブドメイン モードと正確に一致しません。推奨される証明書に切り替えることをお勧めします。",
+      "現在有効な証明書はサブドメインモードと完全には一致しません。推奨証明書へ切り替えてください。",
     inventoryBetterForSniWarning:
-      "既存の証明書ストアは、後続のマルチ証明書/SNI の展開により適しています。",
+      "証明書ストアの内容は、今後マルチ証明書 SNI で展開する設定に適しています。",
   },
   cloudflared: {
     configReadFailed: "Cloudflared 設定の読み込みに失敗しました",
     configWriteFailed: "Cloudflared 設定の保存に失敗しました",
-    missingToken: "最初にCloudflareトークンを設定してください",
+    missingToken: "先に Cloudflare トークンを設定してください",
     startFailedWithDetail: "Cloudflared の起動に失敗しました: {detail}",
-    processExited: "クラウドフレアプロセスが終了しました",
+    processExited: "cloudflared プロセスが終了しました",
     processExitedWithCode:
       "Cloudflared プロセスが終了しました (終了コード {code})",
-    processCrashed: "クラウドフレアプロセスが異常終了しました: {message}",
+    processCrashed: "cloudflared プロセスが異常終了しました: {message}",
     resumeOnBoot:
-      "再開: 前回 Cloudflared がオンであったことが検出され、自動的に回復中です...",
+      "再開: 前回 cloudflared が実行中だったため、自動的に復旧しています...",
     unknownError: "不明なエラー",
     notInitialized: "Cloudflared が初期化されていません",
     startFailed: "起動に失敗しました",
@@ -1289,99 +1277,104 @@ export const jaJPServer = {
     notDetectedInstallFirst:
       "dnsmasq が検出されません。最初にインストールを完了してください。",
     dnsPortUnavailable:
-      "DNS 53 ポートは使用できません。ポートを解放して再試行してください。",
+      "DNS ポート 53 を使用できません。ポートを解放して再試行してください。",
     dnsPortUnavailableWithDetail:
-      "DNS 53 ポートが利用できません。ポートを解放して再試行してください: {detail}",
+      "DNS ポート 53 を使用できません。ポートを解放して再試行してください: {detail}",
     detectedWithVersion:
       "dnsmasq が検出されました: {version}、初期化またはサービスの起動を待機しています",
     detected:
       "dnsmasq が検出されました。サービスの初期化または開始を待機しています。",
     missingServiceAutoComplete:
-      "システムサービスが欠落しているため、初期化中に自動的に完了します。",
+      "システムサービスがないため、初期化時に自動でセットアップします。",
     servicePackageMissing:
       "dnsmasq 実行可能ファイルは検出されましたが、システム サービスがインストールされていません。最初に dnsmasq パッケージをインストールしてください",
-    completingService: "dnsmasq システム サービスを完了しています...",
-    completeServiceFailed: "dnsmasq システム サービスの完全な障害",
+    completingService: "dnsmasq システムサービスをセットアップ中...",
+    completeServiceFailed:
+      "dnsmasq システムサービスのセットアップに失敗しました",
     serviceDefinitionMissingAfterInstall:
       "dnsmasq サービスのインストール後に、利用可能なシステム サービス定義が検出されません。",
-    executableMissing: "dnsmasq 実行可能ファイルが検出されない",
-    configTestFailed: "dnsmasq 構成の検証に失敗しました",
+    executableMissing: "dnsmasq 実行ファイルを検出できません",
+    configTestFailed: "dnsmasq 設定の検証に失敗しました",
     restartFailed: "dnsmasq の再起動に失敗しました",
     serviceDefinitionMissing:
       "dnsmasq システムサービス定義が検出されません。サービス環境を完成させるために、まず初期化を完了してください。",
     readyWithVersion: "dnsmasq の準備が完了しました: {version}",
     ready: "dnsmasq の準備ができました",
-    refreshingApt: "Debian ソフトウェア ソースを更新しています...",
-    aptUpdateFailed: "apt-get アップデートの実行に失敗しました",
+    refreshingApt: "Debian パッケージリストを更新中...",
+    aptUpdateFailed: "apt-get update の実行に失敗しました",
     installing: "dnsmasq をインストールしています...",
-    aptInstallFailed: "apt-get dnsmasq のインストールの実行に失敗しました",
+    aptInstallFailed: "apt-get install dnsmasq の実行に失敗しました",
     enablingService: "dnsmasq サービスを有効にしています...",
     verifyingService: "dnsmasq サービスを確認しています...",
     installMissingAfterComplete: "dnsmasq が検出されません",
     installFailed: "dnsmasq のインストールに失敗しました",
     checkingEnvironment: "dnsmasq 環境を確認しています...",
-    validatingConfig: "dnsmasq 構成を確認しています...",
+    validatingConfig: "dnsmasq 設定を確認しています...",
     startingService: "dnsmasq サービスを開始しています...",
     initializeFailed: "dnsmasq の初期化に失敗しました",
   },
   firewall: {
     goBackendCallFailed:
-      "Go バックエンド インターフェイス呼び出しが失敗しました: {message}",
+      "Go バックエンド API の呼び出しに失敗しました: {message}",
     clearLegacyTcpRedirectFailed:
-      "履歴クリア TCP リダイレクト {listenPort} -> {targetPort} 失敗",
+      "従来の TCP リダイレクト {listenPort} → {targetPort} のクリアに失敗しました",
     initDefaultRulesFailed:
-      "デフォルトのファイアウォール ルールの初期化に失敗しました",
+      "デフォルトのファイアウォールルールを初期化できませんでした",
     syncWhitelistTargetFailed:
-      "ホワイトリスト ターゲット {target} の同期に失敗しました",
-    cleanRulesFailed: "ファイアウォール ルールをクリアできませんでした",
-    syncAuthGatewayConfigFailed: "認証ゲートウェイ構成の同期に失敗しました",
+      "ホワイトリストの同期先 {target} を同期できませんでした",
+    cleanRulesFailed: "ファイアウォールルールを消去できませんでした",
+    syncAuthGatewayConfigFailed: "認証ゲートウェイ設定の同期に失敗しました",
     syncReverseProxyThrottleFailed:
-      "同期アンチジェネレーションスロットル構成が失敗しました",
+      "リバースプロキシのレート制限設定の同期に失敗しました",
     syncGatewayVisibilityConfigFailed:
-      "ゲートウェイ可視性構成の同期に失敗しました",
+      "ゲートウェイの公開範囲設定を同期できませんでした",
     syncGatewayProxyHeadersConfigFailed:
-      "同期ゲートウェイプロトコルヘッダーの構成に失敗しました",
+      "ゲートウェイのプロキシヘッダー設定の同期に失敗しました",
     syncGatewayHostResponseConfigFailed:
-      "同期ゲートウェイ ホスト応答設定に失敗しました",
+      "ゲートウェイの Host ヘッダー設定の同期に失敗しました",
     syncGatewayCrawlerBlockerConfigFailed:
-      "クローラーブロック構成の同期に失敗しました",
+      "クローラーブロック設定の同期に失敗しました",
     enableProxyProtocolForceFailed:
-      "プロキシプロトコル強制モードを有効にできませんでした",
+      "Proxy Protocol 強制モードを有効にできませんでした",
     disableProxyProtocolForceFailed:
-      "プロキシ プロトコル強制モードを終了できませんでした",
+      "Proxy Protocol 強制モードを無効にできませんでした",
     disableStreamRulesFailed:
-      "プロトコル マッピングの監視をオフにできませんでした",
-    flushPathRoutesFailed: "パスルーティングのクリアに失敗しました",
-    syncHostRoutesFailed: "ホストルートの同期に失敗しました",
+      "プロトコルマッピングのリスナーを無効にできませんでした",
+    flushPathRoutesFailed: "パスルートのクリアに失敗しました",
+    syncHostRoutesFailed: "Host ルートの同期に失敗しました",
     syncDefaultRouteFailed: "デフォルトルートの同期に失敗しました",
-    flushHostRoutesFailed: "ホストルートのクリアに失敗しました",
-    syncPathRoutesFailed: "パスルーティングの同期に失敗しました",
-    syncStreamRulesFailed: "同期プロトコルのマッピングに失敗しました",
+    flushHostRoutesFailed: "Host ルートのクリアに失敗しました",
+    syncPathRoutesFailed: "パスルートの同期に失敗しました",
+    syncStreamRulesFailed: "プロトコルマッピングの同期に失敗しました",
     syncAuthEntryRouteFailed: "認証エントリルートの同期に失敗しました",
-    syncAuthDefaultRouteFailed: "同期認証のデフォルトルートに失敗しました",
+    syncAuthDefaultRouteFailed: "認証用デフォルトルートの同期に失敗しました",
   },
   updateManager: {
-    manifestFieldInvalid: "更新情報 {field} 無効",
-    manifestFormatInvalid: "更新情報フォーマットエラー",
-    manifestMissingVersion: "アップデート情報にバージョンがありません",
-    manifestMissingUpdateAvailable: "更新情報がありません update_available",
-    manifestMissingForceUpdate: "更新情報がありません force_update",
-    manifestMissingDownloadUrl: "更新情報がありません download_url",
+    manifestFieldInvalid: "更新マニフェストの {field} が正しくありません",
+    manifestFormatInvalid: "更新マニフェストの形式が正しくありません",
+    manifestMissingVersion: "更新マニフェストにバージョンがありません",
+    manifestMissingUpdateAvailable:
+      "更新マニフェストに update_available がありません",
+    manifestMissingForceUpdate: "更新マニフェストに force_update がありません",
+    manifestMissingDownloadUrl: "更新マニフェストに download_url がありません",
     manifestArm64FieldsIncomplete:
-      "アップデート情報 ARM64 ダウンロード欄が不完全です",
+      "更新マニフェストの ARM64 ダウンロード情報が不足しています",
     architectureUnsupported:
-      "現在のシステム アーキテクチャは自動更新をサポートしていません: {arch}",
+      "現在のシステムアーキテクチャは自動更新に対応していません: {arch}",
     manifestMissingArm64DownloadUrl:
-      "アップデート情報がありません ARM64 ダウンロードアドレス",
-    manifestMissingArm64Checksum: "更新情報がありません ARM64 チェック値",
-    checkHttpFailed: "更新チェックに失敗しました: HTTP {status}",
-    checkFailed: "アップデートチェックに失敗しました",
-    noUpdateInfo: "アップデート情報はまだ取得されていません",
-    featureDisabled: "アップデート機能は現在有効になっていません",
-    alreadyLatest: "が現在の最新バージョンです",
+      "更新マニフェストに ARM64 のダウンロード URL がありません",
+    manifestMissingArm64Checksum:
+      "更新マニフェストに ARM64 のチェックサムがありません",
+    checkHttpFailed: "更新の確認に失敗しました: HTTP {status}",
+    checkFailed: "更新の確認に失敗しました",
+    noUpdateInfo: "更新情報をまだ取得していません",
+    featureDisabled: "更新機能は現在無効です",
+    alreadyLatest: "最新バージョンです",
     downloadHttpFailed: "ダウンロードに失敗しました: HTTP {status}",
-    responseBodyUnreadable: "ダウンロード失敗: 応答ストリームを読み取れません",
-    checksumFailed: "検証失敗: 期待値 {expected}、実際の値 {actual}",
+    responseBodyUnreadable:
+      "ダウンロードに失敗しました: 応答本文を読み取れません",
+    checksumFailed:
+      "チェックサムが一致しません: 期待値 {expected}、実際の値 {actual}",
     downloadFailed: "ダウンロードに失敗しました",
     noInstallableUpdate: "現在、インストールするアップデートはありません",
     downloadPackageFirst:
@@ -1396,22 +1389,22 @@ export const jaJPServer = {
   tunnelManagers: {
     cloudflared: {
       macAutoDownloadUnsupported:
-        "MAC プラットフォームは現在、アプリケーションの自動ダウンロードをサポートしていません。 brew install Cloudflared を通じて手動でインストールしてください。",
-      platformUnsupported: "現在のプラットフォームはサポートされていません",
+        "macOS では自動ダウンロードに対応していません。brew install cloudflared で手動インストールしてください。",
+      platformUnsupported: "現在のプラットフォームには対応していません",
       downloadStarted: "Cloudflared のダウンロードを開始しました",
       responseBodyUnreadable: "ダウンロード応答本文が読めません",
       downloadCancelled: "ダウンロードがキャンセルされました",
       unknownError: "不明なエラー",
       deleteSuccess: "Cloudflared を削除しました",
       deleteFailed: "Cloudflared の削除に失敗しました: {detail}",
-      macManualRemove: "MAC プラットフォームを手動で削除してください",
+      macManualRemove: "macOS では cloudflared を手動で削除してください",
       notInstalledBrew:
-        "Cloudflared がインストールされていません。最初に brew install Cloudflared を通じてインストールしてください。",
+        "cloudflared がインストールされていません。先に brew install cloudflared を実行してください。",
       notInitialized:
         "Cloudflared は初期化されていません。最初にダウンロードしてください",
     },
     frp: {
-      platformUnsupported: "現在のプラットフォームはサポートされていません",
+      platformUnsupported: "現在のプラットフォームには対応していません",
       packageMissing: "FRP インストールパッケージがありません",
       extractFailed: "解凍に失敗しました。終了コード {code}",
       downloadStarted: "FRP のダウンロードを開始しました",
@@ -1423,28 +1416,27 @@ export const jaJPServer = {
       deleteSuccess: "FRP を削除しました",
       deleteFailed: "FRP の削除に失敗しました: {detail}",
       notInitialized:
-        "FRP 初期化されていません。最初にダウンロードしてください",
+        "FRP が初期化されていません。先にダウンロードしてください",
     },
   },
   frpc: {
-    instanceNotFound: "FRP インスタンスが存在しません: {id}",
-    instanceLimitExceeded:
-      "追加の FRP インスタンスが {limit} までサポートされます",
-    primaryName: "メインFRP",
-    instanceName: "FRP 例",
-    verifyFailedWithDetail: "frpc verify 検証失敗: {detail}",
-    verifyFailedWithCode: "frpc verify 検証失敗、終了コード {code}",
+    instanceNotFound: "FRP インスタンスが見つかりません: {id}",
+    instanceLimitExceeded: "追加できる FRP インスタンスは最大 {limit} 件です",
+    primaryName: "メイン FRP",
+    instanceName: "FRP インスタンス",
+    verifyFailedWithDetail: "frpc verify に失敗しました: {detail}",
+    verifyFailedWithCode: "frpc verify に失敗しました（終了コード {code}）",
     verifyFrpNotInitialized:
-      "FRPは初期化されていないため検証できません。 frpc.toml、まずシステム設定でFRPリソースをダウンロードしてください。",
+      "FRP が初期化されていないため frpc.toml を検証できません。先にシステム設定から FRP リソースをダウンロードしてください。",
     pidInvalidForInstance:
       "PID は有効期限が切れているか、このインスタンスに属していません",
     processExited: "frpc プロセスは終了しました",
     processExitedWithCode: "frpc プロセスが終了しました (終了コード {code})",
     processCrashed: "frpc プロセスが異常終了しました: {message}",
     processStillRunning: "FRP プロセスはまだ終了していません pid={pid}",
-    primaryDeleteDenied: "マスター FRP インスタンスは削除できません",
-    notInitialized: "FRP 初期化されていません",
-    startFailedWithDetail: "起動 frpc が失敗しました: {detail}",
+    primaryDeleteDenied: "メイン FRP インスタンスは削除できません",
+    notInitialized: "FRP が初期化されていません",
+    startFailedWithDetail: "frpc の起動に失敗しました: {detail}",
     pidReadFailed: "frpc PID の読み取りに失敗しました",
     startedWithPid: "frpc が起動しました pid={pid}",
     stoppedWithPid: "frpc が停止しました pid={pid}",
@@ -1452,7 +1444,7 @@ export const jaJPServer = {
     pidCleanedForInstance:
       "PID はこのインスタンスに属しません。このインスタンスの実行記録はクリアされました。",
     resumeOnBoot:
-      "再開: FRP インスタンスが前回オープン状態であったことが検出され、自動的に回復中です...",
+      "再開: 前回この FRP インスタンスが実行中だったため、自動的に復旧しています...",
     routes: {
       saveConfigFailed: "設定の保存に失敗しました",
       startFailed: "起動に失敗しました",
@@ -1470,53 +1462,51 @@ export const jaJPServer = {
     },
   },
   dockerAdminPanel: {
-    passwordTooShort:
-      "管理パネルのパスワードには少なくとも 6 桁の数字が必要です",
+    passwordTooShort: "管理パネルのパスワードは 6 文字以上にしてください",
     passwordTooLong:
       "管理パネルのパスワードは 128 文字を超えることはできません",
     passwordWhitespace:
       "管理パネルのパスワードには空白文字を含めることはできません",
     passwordNeedsLettersAndNumbers:
       "管理パネルのパスワードには文字と数字の両方を含める必要があります",
-    passwordAlreadyConfigured: "管理パネルのパスワードが設定されました",
-    passwordNotConfigured: "現在、管理パネルのパスワードは設定されていません。",
+    passwordAlreadyConfigured: "管理パネルのパスワードは設定済みです",
+    passwordNotConfigured: "管理パネルのパスワードは未設定です",
     newPasswordSameAsCurrent:
       "新しいパスワードは現在のパスワードと同じにすることはできません",
     resetHelp:
-      "fn-knock 管理パネルパスワードリセットツール\n\n使用法:\n  fn-knock-リセットパネルパスワード\n\n機能:\n  - 管理パネルのパスワードをクリア\n  - すべての管理パネルのログインセッションをクリアします\n  - ログイン失敗退避ステータスのクリア\n\n実行完了後、次回管理ポータルにアクセスした際に、再度「初回パスワード設定」の作業が行われます。",
-    resetCleared:
-      "[fn-knock] 管理パネルのパスワードステータスがクリアされました",
+      "fn-knock 管理パネルパスワードのリセットツール\n\n使用方法:\n  fn-knock-reset-panel-password\n\n実行内容:\n  - 管理パネルのパスワードをクリア\n  - すべての管理パネルログインセッションをクリア\n  - ログイン失敗による試行制限をクリア\n\n完了後、次回管理画面へアクセスすると初回パスワード設定が表示されます。",
+    resetCleared: "[fn-knock] 管理パネルのパスワード状態をクリアしました",
     resetNextVisit:
-      "[fn-knock] 次回管理ポータルにアクセスするときに、管理パネルのパスワードをリセットする必要があります。",
+      "[fn-knock] 次回管理画面へアクセスしたときに、管理パネルのパスワードを再設定してください",
     resetFailed: "[fn-knock] 管理パネルのパスワードをクリアできませんでした:",
   },
   passkeyRoutes: {
     notFoundWithRetry:
-      "Passkey が見つかりません。{seconds} 秒後にもう一度お試しください",
+      "パスキーが見つかりません。{seconds}秒後にもう一度お試しください",
     verifyFailedWithRetry:
       "認証に失敗しました。{seconds} 秒後にもう一度お試しください",
-    bindTokenExpired: "結合証明書の有効期限が切れています",
+    bindTokenExpired: "紐付け用の認証情報の有効期限が切れています",
     loginMethodUnavailable:
-      "現在のログインモードでは Passkey ログインは利用できません。",
-    loadStatusFailed: "Passkey ステータスの読み込みに失敗しました",
-    createOptionsFailed: "Passkey オプションの作成に失敗しました",
-    loadPasskeysFailed: "Passkey 一覧の読み込みに失敗しました",
-    noPasskeyAvailable: "利用可能な Passkey がありません",
-    noValidPasskeyAvailable: "有効な Passkey がありません",
-    invalidRpConfig: "Passkey RP 設定が無効です",
-    invalidResponse: "Passkey 応答が無効です",
-    challengeExpired: "Passkey チャレンジの有効期限が切れました",
-    verifyFailed: "Passkey の検証に失敗しました",
-    notFound: "Passkey が見つかりません",
+      "現在のログインモードではパスキーを利用できません。",
+    loadStatusFailed: "パスキー状態の読み込みに失敗しました",
+    createOptionsFailed: "パスキーオプションの作成に失敗しました",
+    loadPasskeysFailed: "パスキー一覧の読み込みに失敗しました",
+    noPasskeyAvailable: "利用可能なパスキーがありません",
+    noValidPasskeyAvailable: "有効なパスキーがありません",
+    invalidRpConfig: "パスキーの RP 設定が正しくありません",
+    invalidResponse: "パスキーの応答が正しくありません",
+    challengeExpired: "パスキーのチャレンジが期限切れです",
+    verifyFailed: "パスキーの検証に失敗しました",
+    notFound: "パスキーが見つかりません",
     createSessionFailed: "認証セッションの作成に失敗しました",
     loginSuccessful: "ログインしました",
     unauthorizedOrMissingTotp: "未認可、または TOTP ID がありません",
-    createBindTokenFailed: "Passkey バインドトークンの作成に失敗しました",
+    createBindTokenFailed: "パスキー紐付けトークンの作成に失敗しました",
     createRegistrationOptionsFailed:
-      "Passkey 登録オプションの作成に失敗しました",
-    registerFailed: "Passkey の登録に失敗しました",
-    registrationFailed: "Passkey 登録に失敗しました",
-    alreadyRegistered: "Passkey はすでに登録されています",
+      "パスキー登録オプションの作成に失敗しました",
+    registerFailed: "パスキーの登録に失敗しました",
+    registrationFailed: "パスキー登録に失敗しました",
+    alreadyRegistered: "パスキーはすでに登録されています",
     unknownDevice: "不明なデバイス",
   },
   authRoutes: {
@@ -1555,25 +1545,25 @@ export const jaJPServer = {
   maintenanceBackup: {
     commandMissing: "システム環境に {command} コマンドがありません",
     commandFailed: "{command} コマンドの実行に失敗しました",
-    commandCheckFailed: "検出 {command} コマンドが失敗しました",
+    commandCheckFailed: "{command} コマンドの確認に失敗しました",
     commandsMissingNoApt:
       "システム環境に {commands} コマンドが不足しており、Debian apt-get が見つからず、自動的にインストールできません。",
     commandsMissingNoPackageManager:
       "システム環境に {commands} コマンドがなく、opkg または Debian apt-get が見つからず、自動インストールできません。",
     opkgUpdateFailed: "opkg 更新の実行に失敗しました",
-    aptUpdateFailed: "apt-get アップデートの実行に失敗しました",
-    packageInstallFailed: "インストール {packages} が失敗しました",
+    aptUpdateFailed: "apt-get update の実行に失敗しました",
+    packageInstallFailed: "{packages} のインストールに失敗しました",
     commandsStillMissingAfterInstall:
       "自動インストールが完了しても、{commands} コマンドが検出されません。",
     commandErrorWithDetail: "{message} (終了コード: {code}): {detail}",
     commandError: "{message} (終了コード: {code})",
     shareDirectoryMissing:
-      "Feiniu 共有ディレクトリが見つかりませんでした。アプリケーション リソースが正しく構成されていることを確認してください。",
+      "FNOS 共有ディレクトリが見つかりませんでした。アプリケーション リソースが正しく設定されていることを確認してください。",
     invalidBackupPath: "バックアップファイルのパスが不正です",
     invalidRedisStreamData:
       "Redis ストリーム データ形式が無効です: {key} ({id})",
     unsupportedRedisExportType:
-      "は、エクスポートされた Redis データ型: {type} ({key}) をサポートしていません。",
+      "Redis データ型 {type}（{key}）のエクスポートには対応していません",
     createArchiveFailed: "バックアップ アーカイブの生成に失敗しました",
     buildResponseFailed: "バックアップのダウンロード応答の生成に失敗しました",
     invalidBackupExtension:
@@ -1595,7 +1585,7 @@ export const jaJPServer = {
       "エントリ [{index}] はオブジェクトである必要があります",
     entryKeyPrefixRequired:
       "エントリ[{index}].key は {prefix} で始まる必要があります",
-    entryTypeUnsupported: "エントリ[{index}].type はサポートされていません",
+    entryTypeUnsupported: "エントリ[{index}].type は対応していません",
     entryTtlInvalid:
       "エントリ[{index}].ttl_ms は正の整数または null でなければなりません",
     entryValueStringRequired:
@@ -1604,13 +1594,13 @@ export const jaJPServer = {
     payloadObjectInvalid:
       "バックアップ ファイルの内容は有効なオブジェクトではありません",
     unsupportedSchemaVersion:
-      "は、バージョン = {version} のバックアップ ファイルのみをサポートします",
+      "version={version} のバックアップファイルだけに対応しています",
     unsupportedPrefix:
-      "は、{prefix} プレフィックスが付いたバックアップ ファイルのみをサポートします",
-    missingAppVersion: "バックアップ ファイルがありません app_version",
+      "プレフィックス {prefix} のバックアップファイルだけに対応しています",
+    missingAppVersion: "バックアップファイルに app_version がありません",
     appVersionUnsupported:
-      "現在のバージョン {currentVersion} では、{range} の範囲内でエクスポートされ、{appVersion} を受信したバックアップのインポートのみが許可されます",
-    missingExportedAt: "バックアップファイルがありません exported_at",
+      "現在のバージョン {currentVersion} では、{range} のバージョンでエクスポートされたバックアップのみインポートできます。バックアップのバージョン: {appVersion}",
+    missingExportedAt: "バックアップファイルに exported_at がありません",
     missingEntries: "バックアップ ファイルにエントリ配列がありません",
     duplicateRedisKey: "バックアップ ファイルに重複した Redis キーがあります",
     archiveMissingPayload: "バックアップ アーカイブに {filename} がありません",
@@ -1624,11 +1614,11 @@ export const jaJPServer = {
     syncSteps: {
       runModeGatewayRoutes: "動作モードとゲートウェイルーティング",
       directModeWhitelist: "ダイレクトモードのホワイトリスト",
-      gatewayLogging: "ログ構成のリクエスト",
+      gatewayLogging: "ログ設定のリクエスト",
       wafRuntime: "WAF 設定と実行状態",
       sslDeployment: "SSL 証明書の展開",
-      legacyAuthLogCleanup: "放棄されたログインログのクリーニング",
-      systemResourceMonitorReset: "システムリソース監視ステータスリセット",
+      legacyAuthLogCleanup: "従来の認証ログをクリーンアップ",
+      systemResourceMonitorReset: "システムリソース監視状態をリセット",
     },
     archiveEmpty: "バックアップ アーカイブのコンテンツが空です",
     archiveTooLarge:
@@ -1638,33 +1628,30 @@ export const jaJPServer = {
     directoryImportFileUnreadable:
       "インポートするバックアップ ファイルを読み取れません",
     directoryImportFileOnly:
-      "はバックアップ ディレクトリ内のファイルのみをインポートできます",
+      "バックアップディレクトリ内のファイルだけをインポートできます",
     directoryImportExtensionOnly:
-      "は、{extension} バックアップ ファイルのインポートのみをサポートします",
+      "{extension} バックアップファイルだけをインポートできます",
     directoryImportTooLarge:
-      "バックアップ ファイルが大きすぎるため、Feiniu ディレクトリからインポートできません。",
+      "バックアップ ファイルが大きすぎるため、FNOS ディレクトリからインポートできません。",
     archiveContentMissing: "バックアップ アーカイブ コンテンツが欠落しています",
     archiveBase64Invalid:
       "バックアップ アーカイブは有効な Base64 データではありません",
   },
   captcha: {
-    powServerNotConfigured:
-      "PoW 検証コードはサーバー設定をまだ完了していません。",
-    providerMismatch: "認証コードの種類が一致しません",
+    powServerNotConfigured: "サーバー側で PoW CAPTCHA が設定されていません",
+    providerMismatch: "CAPTCHA の種類が一致しません",
     turnstileNotConfigured:
-      "現在の回転式改札口の構成はまだ完了していません。パラメータを完了するには管理者に問い合わせてください。",
-    turnstileSecretMissing: "Cloudflare 改札口 secret_key 未設定",
-    turnstileTokenRequired: "改札口トークンを空にすることはできません",
+      "Turnstile が設定されていません。管理者へ設定を依頼してください。",
+    turnstileSecretMissing: "Cloudflare Turnstile の secret_key が未設定です",
+    turnstileTokenRequired: "Turnstile トークンは必須です",
     turnstileServiceUnavailable:
-      "回転式改札口認証サービスは一時的に利用できません",
-    turnstileVerifyFailedWithReason:
-      "回転式改札口の検証に失敗しました: {reason}",
-    turnstileVerifyFailed: "回転式改札口の検証に失敗しました",
-    providerUnavailable:
-      "利用可能な確認コードプロバイダーが見つかりませんでした",
-    powNotEnabled: "PoW 確認コードは現在有効になっていません",
-    powUnavailable: "現在の PoW 検証コードは利用できません",
-    providerConfigMismatch: "確認コードプロバイダーが現在の構成と一致しません",
+      "Turnstile 検証サービスは一時的に利用できません",
+    turnstileVerifyFailedWithReason: "Turnstile の検証に失敗しました: {reason}",
+    turnstileVerifyFailed: "Turnstile の検証に失敗しました",
+    providerUnavailable: "利用可能な CAPTCHA プロバイダーがありません",
+    powNotEnabled: "PoW CAPTCHA が有効になっていません",
+    powUnavailable: "PoW CAPTCHA を利用できません",
+    providerConfigMismatch: "CAPTCHA プロバイダーが現在の設定と一致しません",
   },
   hmac: {
     missingTimestamp: "HMAC タイムスタンプがありません",
@@ -1677,16 +1664,16 @@ export const jaJPServer = {
     nonceVerifyFailed: "HMAC nonce の検証に失敗しました",
   },
   cidr: {
-    serviceError: "CIDR サービス異常",
+    serviceError: "CIDR サービスエラー",
     emptyResponse: "<空の応答>",
-    upstreamUrl: "上流アドレス: {url}",
+    upstreamUrl: "アップストリーム URL: {url}",
     status: "ステータス: {status}{statusText}",
-    contentType: "タイプ: {contentType}",
+    contentType: "Content-Type: {contentType}",
     upstreamCode: "アップストリームコード: {code}",
-    upstreamMessage: "アップストリームニュース: {message}",
-    requestId: "リクエストID: {requestId}",
-    responsePreview: "回答概要: {preview}",
-    provinceRequired: "州を空にすることはできません",
+    upstreamMessage: "アップストリームメッセージ: {message}",
+    requestId: "リクエスト ID: {requestId}",
+    responsePreview: "レスポンスのプレビュー: {preview}",
+    provinceRequired: "都道府県は必須です",
     invalidApiUrl: "CIDR API URL が無効です: {error}",
     upstreamTimeout: "CIDR アップストリームリクエストのタイムアウト",
     upstreamRequestFailedGeneric:
@@ -1694,223 +1681,224 @@ export const jaJPServer = {
     upstreamRequestFailed:
       "CIDR アップストリームリクエストが失敗しました ({status})",
     invalidJson: "CIDR アップストリームが無効な JSON を返しました",
-    upstreamUnexpected: "CIDR アップストリームは例外を返します",
-    provinceWideLabel: "{province}県",
+    upstreamUnexpected: "CIDR アップストリームから予期しない応答が返されました",
+    provinceWideLabel: "{province} 全域",
     provinceWideUnsupported:
       "浙江省と広東省では省全体の CIDR を選択できません。都市を選択してください",
-    operatorInvalid: "通信事業者は電信、聯通、移動のみ指定できます",
+    operatorInvalid:
+      "通信事業者は China Telecom、China Unicom、China Mobile のいずれかを指定してください",
     operatorUnsupported:
-      "現在の CIDR サービスは通信事業者フィルターをサポートしていません。CIDR コンテナを 0.1.3 以降へ更新してください",
+      "現在の CIDR サービスは通信事業者フィルターに対応していません。CIDR コンテナを 0.1.3 以降へ更新してください",
   },
   dashboard: {
-    inbound: "インバウンド",
-    outbound: "下り",
-    upstreamUnavailable: "上りサービスが利用できません",
-    hostRequired: "ホストを空にすることはできません",
+    inbound: "受信",
+    outbound: "送信",
+    upstreamUnavailable: "アップストリームサービスを利用できません",
+    hostRequired: "ホストは必須です",
     statsLoadFailed: "ダッシュボード統計の読み込みに失敗しました",
     configLoadFailed: "ダッシュボード設定の読み込みに失敗しました",
     displayConfigSaveFailed: "ダッシュボード表示設定の保存に失敗しました",
   },
   acme: {
-    alreadyInstalled: "acme.shがインストールされました",
+    alreadyInstalled: "acme.sh はインストール済みです",
     installInProgress: "インストールタスクが進行中です",
-    installSubmitted: "インストールタスクが送信されました",
-    issueSucceeded: "証明書が正常に発行されました",
+    installSubmitted: "インストールタスクを登録しました",
+    issueSucceeded: "証明書を発行しました",
   },
   ddns: {
     ipv6OnlyUnavailable:
-      "現在の更新スコープは IPv6 のみを更新していますが、使用可能な IPv6 アドレスが検出されません",
+      "更新対象は IPv6 のみですが、使用可能な IPv6 アドレスを検出できませんでした",
     ipv4OnlyUnavailable:
-      "現在の更新スコープは IPv4 のみを更新していますが、使用可能な IPv4 アドレスが検出されませんでした",
+      "更新対象は IPv4 のみですが、使用可能な IPv4 アドレスを検出できませんでした",
     dualStackUnavailable:
-      "現在の更新範囲内に使用可能な IPv4 または IPv6 アドレスはありません",
-    domainConfigIncomplete: "ドメイン名の設定が不完全です",
-    domainNotInZone:
-      "ドメイン名 {fqdn} はルート ドメイン {zone} に属していません",
-    invalidJsonResponse: "応答が無効です JSON: {text}",
-    aRecordFailed: "レコード処理に失敗しました",
+      "更新対象に使用可能な IPv4 または IPv6 アドレスがありません",
+    domainConfigIncomplete: "ドメイン設定が不完全です",
+    domainNotInZone: "ドメイン {fqdn} はルートゾーン {zone} に属していません",
+    invalidJsonResponse: "レスポンスが有効な JSON ではありません: {text}",
+    aRecordFailed: "A レコードの処理に失敗しました",
     aaaaRecordFailed: "AAAA レコード処理に失敗しました",
-    providerDnsUpdateSuccess: "{provider} DNS 正常に更新されました",
+    providerDnsUpdateSuccess: "{provider} の DNS 更新に成功しました",
     aliyunParamKeyMissing:
-      "Alibaba Cloud リクエストパラメータにキー名がありません",
-    requestFailed: "リクエストが失敗しました",
+      "Alibaba Cloud のリクエストパラメーターにキー名がありません",
+    requestFailed: "リクエストに失敗しました",
     tencentMissingResponse:
-      "HTTP {status}: Tencent Cloud API 応答がありません 応答",
+      "HTTP {status}: Tencent Cloud API のレスポンスに Response がありません",
     invalidHeaderFormat: "無効なヘッダー形式: {header}",
-    publicCheckSourceEmpty: "{family} 公開検出アドレスは空にできません",
+    publicCheckSourceEmpty: "{family} のグローバル IP 検出元は空にできません",
     publicCheckSourceInvalidUrl:
-      "{family} 公開検出アドレスが無効です: {source}",
+      "{family} のグローバル IP 検出元が無効です: {source}",
     publicCheckSourceUnsupportedProtocol:
-      "{family} 公開検出アドレスは HTTP/HTTPS のみ対応しています: {source}",
-    publicCheckSourceListEmpty: "{family} 公開検出アドレスが設定されていません",
+      "{family} のグローバル IP 検出元は HTTP/HTTPS のみ対応しています: {source}",
+    publicCheckSourceListEmpty:
+      "{family} のグローバル IP 検出元が設定されていません",
     publicCheckSourceRequestFailed:
       "検出元 {url} のリクエストに失敗しました: HTTP {status}",
     publicCheckSourceInvalidPayload:
       "検出元 {url} は有効な {family} アドレスを返しませんでした",
-    publicCheckTestFailed: "公開検出アドレスのテストに失敗しました",
+    publicCheckTestFailed: "グローバル IP 検出元のテストに失敗しました",
     publicDnsResolveFailed:
-      "パブリックDNSで {host} の {family} アドレスを解決できませんでした: {detail}",
+      "パブリック DNS で {host} の {family} アドレスを名前解決できませんでした: {detail}",
     publicDnsNoAddress:
-      "パブリックDNSから {host} の {family} アドレスが返されませんでした",
+      "パブリック DNS から {host} の {family} アドレスが返されませんでした",
     publicDnsNoUsableServer:
-      "選択したインターフェースからパブリックDNSサーバーに接続できません",
-    publicCheckTimeout: "公開検出リクエストがタイムアウトしました",
+      "選択したインターフェースからパブリック DNS サーバーに接続できません",
+    publicCheckTimeout: "グローバル IP 検出リクエストがタイムアウトしました",
     publicCheckTooManyRedirects:
-      "公開検出リクエストのリダイレクト回数が多すぎます",
-    interfaceSourceLabel: "ネットワークカード {name}",
-    selectedInterfaceSourceLabel: "選択されたネットワークカード",
-    publicSourceLabel: "パブリックネットワーク",
+      "グローバル IP 検出リクエストのリダイレクト回数が多すぎます",
+    interfaceSourceLabel: "インターフェース {name}",
+    selectedInterfaceSourceLabel: "選択したインターフェース",
+    publicSourceLabel: "インターネット",
     staticSourceLabel: "静的 IP",
-    domainSourceLabel: "ドメイン名 {domain}",
-    domainSourceLabelEmpty: "ソースドメイン名",
-    staticIpv4Invalid: "静的 IPv4 無効なアドレス: {value}",
-    staticIpv6Invalid: "静的 IPv6 無効なアドレス: {value}",
-    sourceDomainRequired: "解決するソースドメイン名を入力してください",
-    sourceDomainInvalid: "ソース ドメイン名の形式が無効です: {domain}",
-    sourceDomainResolveFailed: "ソースドメイン名 {domain} 解決失敗: {error}",
+    domainSourceLabel: "ドメイン {domain}",
+    domainSourceLabelEmpty: "取得元ドメイン",
+    staticIpv4Invalid: "静的 IPv4 アドレスが無効です: {value}",
+    staticIpv6Invalid: "静的 IPv6 アドレスが無効です: {value}",
+    sourceDomainRequired: "名前解決する取得元ドメインを入力してください",
+    sourceDomainInvalid: "取得元ドメインが無効です: {domain}",
+    sourceDomainResolveFailed:
+      "取得元ドメイン {domain} の名前解決に失敗しました: {error}",
     singleAddressProviderUnsupported:
-      "{provider} 一度に更新できるアドレスは 1 つだけです。更新範囲を IPv4 または IPv6 のみに設定してください",
+      "{provider} では一度に 1 つのアドレスのみ更新できます。更新対象を IPv4 のみ、または IPv6 のみに設定してください",
     interfaceIpv6Unavailable:
-      "現在の取得方法はネットワーク カードから直接取得することですが、選択したネットワーク カードには利用可能な IPv6 アドレスがありません",
+      "IP の取得元はインターフェースですが、選択したインターフェースに使用可能な IPv6 アドレスがありません",
     interfaceIpv4Unavailable:
-      "現在の取得方法はネットワーク カードから直接取得することですが、選択したネットワーク カードには利用可能な IPv4 アドレスがありません",
+      "IP の取得元はインターフェースですが、選択したインターフェースに使用可能な IPv4 アドレスがありません",
     interfaceDualStackUnavailable:
-      "現在の取得方法はネットワーク カードから直接取得することですが、選択したネットワーク カードには利用可能な IPv4 または IPv6 アドレスがありません。",
+      "IP の取得元はインターフェースですが、選択したインターフェースに使用可能な IPv4 または IPv6 アドレスがありません",
     publicIpv6Unavailable:
-      "現在の取得方法は公衆ネットワークからの取得ですが、利用可能なIPv6アドレスが取得できません",
+      "IP の取得元はインターネットですが、使用可能な IPv6 アドレスを取得できませんでした",
     publicIpv4Unavailable:
-      "現在の取得方法は公衆ネットワークからの取得ですが、利用可能なIPv4アドレスが取得できません",
+      "IP の取得元はインターネットですが、使用可能な IPv4 アドレスを取得できませんでした",
     publicDualStackUnavailable:
-      "現在の取得方法は公衆ネットワークからの取得ですが、利用可能なIPv4またはIPv6のアドレスは取得できておりません。",
+      "IP の取得元はインターネットですが、使用可能な IPv4 または IPv6 アドレスを取得できませんでした",
     staticIpv6Unavailable:
-      "現在の取得方法は静的 IP ですが、使用可能な IPv6 アドレスが入力されていません",
+      "IP の取得元は静的 IP ですが、使用可能な IPv6 アドレスが入力されていません",
     staticIpv4Unavailable:
-      "現在の取得方法は静的 IP ですが、使用可能な IPv4 アドレスが入力されていません",
+      "IP の取得元は静的 IP ですが、使用可能な IPv4 アドレスが入力されていません",
     staticDualStackUnavailable:
-      "現在の取得方法は静的 IP ですが、使用可能な IPv4 または IPv6 アドレスが入力されていません",
+      "IP の取得元は静的 IP ですが、使用可能な IPv4 または IPv6 アドレスが入力されていません",
     domainIpv6Unavailable:
-      "現在の取得方法はドメイン名解決ですが、利用可能なIPv6アドレスは解決されていません。",
+      "IP の取得元はドメインの名前解決ですが、使用可能な IPv6 アドレスを解決できませんでした",
     domainIpv4Unavailable:
-      "現在の取得方法はドメイン名解決ですが、利用可能なIPv4アドレスは解決されていません。",
+      "IP の取得元はドメインの名前解決ですが、使用可能な IPv4 アドレスを解決できませんでした",
     domainDualStackUnavailable:
-      "現在の取得方法はドメイン名を解決することですが、利用可能な IPv4 または IPv6 アドレスが解決されていません",
+      "IP の取得元はドメインの名前解決ですが、使用可能な IPv4 または IPv6 アドレスを解決できませんでした",
     selectInterfaceAddress:
-      "をネットワーク カードから直接取得する場合は、最初に {family} アドレスを選択してください",
+      "インターフェースから直接取得するには、{family} アドレスを選択してください",
     selectedInterfaceAddressUnavailable:
-      "選択したネットワーク カードの {index} 番目 {family} のアドレスは使用できなくなりました。再度選択してください。",
+      "選択したインターフェースの {index} 番目の {family} アドレスは使用できなくなりました。選択し直してください",
     ipv4FailedContinueIpv6:
-      "IPv4 取得に失敗しました。引き続き使用します IPv6 ({error})",
-    ipv4Failed: "IPv4 取得に失敗しました ({error})",
+      "IPv4 の検出に失敗したため、IPv6 で続行します（{error}）",
+    ipv4Failed: "IPv4 の検出に失敗しました（{error}）",
     ipv6FailedContinueIpv4:
-      "IPv6 取得に失敗しました。引き続き使用します IPv4 ({error})",
-    ipv6Failed: "IPv6 取得に失敗しました ({error})",
+      "IPv6 の検出に失敗したため、IPv4 で続行します（{error}）",
+    ipv6Failed: "IPv6 の検出に失敗しました（{error}）",
     publicIpv6NotSelectable:
-      "パブリック ネットワークによって検出された IPv6 ({ip}) は、ローカル マシンまたは Docker ホストのオプションのネットワーク カード アドレスにありません。外部ネットワークがアドレスにアクセスできない場合は、代わりに「ネットワーク カードから直接取得」を使用し、ホストのパブリック ネットワークを選択してください IPv6",
+      "検出したグローバル IPv6 アドレス（{ip}）は、このマシンまたは Docker ホストで選択可能なインターフェースのアドレスに含まれていません。外部から到達できない場合は、インターフェースからの直接取得に切り替え、ホストのグローバル IPv6 アドレスを選択してください",
     interfaceRequired:
-      "ネットワーク カードから直接取得する場合は、まず送信ネットワーク カードを明示的に選択する必要があります",
-    interfaceNotFound: "利用可能なネットワーク カードが見つかりません: {name}",
+      "インターフェースから直接取得するには、送信インターフェースを選択してください",
+    interfaceNotFound: "使用可能なインターフェースが見つかりません: {name}",
     dockerHostInterfaceLabel: "ホスト {name} ({summary})",
     curlStatusLineParseFailed: "CURL 応答ステータス行を解析できません: {line}",
     curlNoHeaders: "curl は応答ヘッダーを返しませんでした",
     requestCanceled: "リクエストがキャンセルされました",
     curlRequestFailed: "curl リクエストが失敗しました: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "組み込み HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能な {family} ローカルアドレスがありません",
+      "組み込み HTTP リクエストをインターフェース {name} にバインドできません: 使用可能な {family} ローカルアドレスがありません",
     nodeTransportInterfaceNoAddress:
-      "組み込み HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能なローカルアドレスがありません",
+      "組み込み HTTP リクエストをインターフェース {name} にバインドできません: 使用可能なローカルアドレスがありません",
     nodeTransportUnsupportedProtocol:
-      "組み込み HTTP リクエストはこのプロトコルをサポートしていません: {protocol}",
+      "組み込み HTTP リクエストはこのプロトコルに対応していません: {protocol}",
     nodeTransportRedirectLimitExceeded:
       "組み込み HTTP リクエストのリダイレクト回数が上限 {max} を超えました",
-    triggerCron: "定期点検",
-    triggerEnable: "自動アップデートを有効にした後、今すぐ確認してください",
-    triggerStartup: "起動後チェック",
+    triggerCron: "スケジュール実行",
+    triggerEnable: "自動更新の有効化後に即時実行",
+    triggerStartup: "起動時実行",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "未設定",
     skippedNoProvider:
       "DDNS プロバイダーが選択されていないため、スキップされました",
-    skippedIncompleteConfig: "現在の構成は不完全であるためスキップされました",
+    skippedIncompleteConfig: "現在の設定は不完全であるためスキップされました",
     skippedPublicIpUnavailable:
-      "パブリックネットワークIPを取得できません、スキップされました",
-    skippedReason: "{reason}、スキップ",
-    targetIpNoChange: "ターゲットIP 変更なし、更新不要",
+      "グローバル IP を取得できないため、スキップしました",
+    skippedReason: "{reason}。スキップしました",
+    targetIpNoChange: "更新対象の IP に変更がないため、更新は不要です",
     none: "なし",
     ipChange: "{family}: {before} -> {after}",
-    targetIpChanged: "ターゲットを検出しました IP 変更: {changes}",
-    dnsUpdateSuccess: "DNS が正常に更新されました [{provider}]: {message}",
+    targetIpChanged: "更新対象の IP 変更を検出しました: {changes}",
+    dnsUpdateSuccess: "DNS 更新に成功しました [{provider}]: {message}",
     dnsUpdateFailed: "DNS 更新に失敗しました [{provider}]: {message}",
-    taskError: "タスク例外: {message}",
+    taskError: "タスクでエラーが発生しました: {message}",
     intervalOutOfRange:
-      "自動同期頻度は、{min} ～ {max} の間の整数の分数である必要があります。",
+      "自動同期間隔には {min}～{max} 分の整数を指定してください",
     primaryDomainName: "メインドメイン",
     noProviderSelected: "プロバイダーが選択されていません",
     duplicateTarget:
-      "同じプロバイダーとドメイン ダイジェストにはすでに DDNS のエントリがあります",
+      "同じプロバイダーとドメインの組み合わせを持つ DDNS エントリがすでに存在します",
     domainTargets: {
-      invalidDomain: "完全なドメイン名の形式が無効です: {domain}",
-      tooMany: "完全なドメイン名は 2 件まで設定できます",
+      invalidDomain: "FQDN が無効です: {domain}",
+      tooMany: "FQDN は 2 件まで設定できます",
       invalidPair:
-        "2 件の完全なドメイン名はワイルドカードと対応する基準ドメインの組み合わせにしてください",
-      mismatchedPair: "ワイルドカードドメインと基準ドメインが一致しません",
+        "2 件の FQDN には、ワイルドカードドメインと対応するベースドメインを指定してください",
+      mismatchedPair: "ワイルドカードドメインとベースドメインが一致しません",
       pairUnsupported:
-        "{provider} はワイルドカードと基準ドメインの同時更新をサポートしていません",
+        "{provider} はワイルドカードドメインとベースドメインの同時更新に対応していません",
       rootMissing:
-        "ワイルドカードと基準ドメインを組み合わせる前に {field} を設定してください",
+        "ワイルドカードドメインとベースドメインを組み合わせる前に {field} を設定してください",
       rootMismatch:
-        "組み合わせの基準ドメインが {field} の管理範囲外です（Zone {expected}、組み合わせ {actual}）",
+        "ベースドメインが {field} の管理範囲外です（ゾーン: {expected}、指定値: {actual}）",
       allSucceeded: "{count} 件のドメイン",
       itemSucceeded: "{domain}: 成功",
       itemFailed: "{domain}: 失敗（{detail}）",
     },
-    primaryInitFailed: "プライマリドメイン DDNS エントリの初期化に失敗しました",
+    primaryInitFailed: "メインドメインの DDNS エントリを初期化できませんでした",
     primaryDomainScope: "メインドメイン",
-    additionalDomainScope: "追加フィールド",
+    additionalDomainScope: "追加ドメイン",
     targetNotFound: "DDNS エントリが見つかりませんでした",
-    unknownProvider: "不明 DDNS プロバイダー: {provider}",
-    primaryDeleteForbidden: "メインドメインエントリは削除できません",
+    unknownProvider: "不明な DDNS プロバイダーです: {provider}",
+    primaryDeleteForbidden: "メインドメインのエントリは削除できません",
     primaryDisableForbidden:
-      "メインドメインエントリを個別に無効化することはできません",
+      "メインドメインのエントリだけを無効にすることはできません",
     unknownProviderShort: "不明なプロバイダー: {provider}",
-    selectProviderFirst: "最初にDDNSプロバイダーを選択してください",
+    selectProviderFirst: "先に DDNS プロバイダーを選択してください",
     primaryConfigIncomplete:
-      "現在のプライマリ ドメイン構成は不完全です。すべての必須フィールドに入力してください。",
+      "メインドメインの設定が不完全です。すべての必須項目を入力してください",
     targetConfigIncomplete:
-      "現在のエントリ構成は不完全です。すべての必須フィールドに入力してください。",
+      "このエントリの設定が不完全です。すべての必須項目を入力してください",
     manualTestStart:
-      "手動テストが開始され、現在のターゲット IP を解析しています...",
+      "手動テストを開始しました。現在の更新対象 IP を取得しています…",
     manualTestPrefix: "手動テスト",
     currentTargetIp:
-      "現在のターゲット IP ({source}) — IPv4: {ipv4}, IPv6: {ipv6}",
-    testAborted: "{message}、テストは中止されました",
-    updateSuccess: "アップデート成功: {message}",
+      "現在の更新対象 IP（{source}）— IPv4: {ipv4}、IPv6: {ipv6}",
+    testAborted: "{message}。テストを中止しました",
+    updateSuccess: "更新に成功しました: {message}",
     updateFailed: "更新に失敗しました: {message}",
-    testError: "テスト例外: {message}",
-    statusLoadFailed: "DDNS ステータスの読み込みに失敗しました",
+    testError: "テストでエラーが発生しました: {message}",
+    statusLoadFailed: "DDNS の状態を読み込めませんでした",
     toggleFailed: "DDNS 有効状態の更新に失敗しました",
     settingsLoadFailed: "DDNS 自動同期設定の読み込みに失敗しました",
-    settingsSaveFailed: "保存DDNS 自動同期設定に失敗しました",
+    settingsSaveFailed: "DDNS 自動同期設定の保存に失敗しました",
     logsLoadFailed: "DDNS ログの読み込みに失敗しました",
     logsClearFailed: "DDNS ログの消去に失敗しました",
-    pollFailed: "DDNS ログとステータスのポーリングに失敗しました",
+    pollFailed: "DDNS のログと状態を取得できませんでした",
     providerSetFailed: "プロバイダーの設定に失敗しました",
     configSaveFailed: "DDNS の保存に失敗しました",
     createTargetFailed: "DDNS エントリの作成に失敗しました",
     updateTargetFailed: "DDNS エントリの更新に失敗しました",
     deleteTargetFailed: "DDNS エントリの削除に失敗しました",
-    updateTargetEnabledFailed: "更新 DDNS エントリ有効ステータスに失敗しました",
+    updateTargetEnabledFailed: "DDNS エントリの有効状態を更新できませんでした",
     providers: {
       common: {
         fields: {
           root_domain: {
-            label: "ルートドメイン名",
-            description:
-              "は、example.com などのゾーンを決定するために使用されます。",
+            label: "ルートドメイン",
+            description: "ゾーンの判定に使用します（例: example.com）",
           },
           domain: {
-            label: "完全なドメイン名",
-            shortLabel: "ドメイン名",
-            description: "更新される完全なドメイン名",
-            hostDescription: "更新する完全なホスト名",
+            label: "FQDN",
+            shortLabel: "ドメイン",
+            description: "更新する完全修飾ドメイン名",
+            hostDescription: "更新する完全修飾ホスト名",
           },
           ttl: {
             description: "デフォルト {seconds} 秒",
@@ -1978,48 +1966,48 @@ export const jaJPServer = {
             description: "dynv6 ゾーンのドメイン名",
           },
           ipv6prefix: {
-            description: "オプション、透過的に dynv6 API に渡されます",
+            description: "任意。dynv6 API にそのまま渡されます",
           },
         },
-        configIncomplete: "dynv6 構成が不完全です",
-        empty: "(空)",
-        success: "dynv6: {detail} (送信: {params})",
-        updateFailed: "dynv6 アップデートに失敗しました [{status}]: {detail}",
-        requestError: "dynv6 リクエスト例外: {detail}",
+        configIncomplete: "dynv6 設定が不完全です",
+        empty: "（空）",
+        success: "dynv6: {detail}（送信内容: {params}）",
+        updateFailed: "dynv6 の更新に失敗しました [{status}]: {detail}",
+        requestError: "dynv6 のリクエストでエラーが発生しました: {detail}",
       },
       duckdns: {
         fields: {
           domains: {
             label: "サブドメイン",
             description:
-              ".duckdns.org サフィックスを付けずに、DuckDNS サブドメイン名のみを入力します。カンマ区切りがサポートされています",
+              ".duckdns.org を付けずに DuckDNS のサブドメインのみを入力してください。複数指定する場合はカンマで区切ります",
           },
           token: {
             description:
-              "DuckDNS コンソールのホームページでアカウント トークンを確認できます",
+              "DuckDNS コンソールのホーム画面に表示されるアカウントトークン",
           },
         },
-        configIncomplete: "DuckDNS 構成が不完全です",
+        configIncomplete: "DuckDNS 設定が不完全です",
         noIpAvailable:
           "DuckDNS 更新に失敗しました: IPv4 または IPv6 アドレスが利用できません",
         updateFailedWithStatus:
           "DuckDNS 更新に失敗しました [{status}]: {detail}",
-        requestFailed: "リクエストが失敗しました",
+        requestFailed: "リクエストに失敗しました",
         updateFailed: "DuckDNS 更新に失敗しました: {detail}",
-        nonOkResponse: "が OK 以外の応答を返しました",
-        success: "DuckDNS 正常に更新されました{detail}",
-        requestError: "DuckDNS 例外リクエスト: {detail}",
+        nonOkResponse: "OK 以外のレスポンスが返されました",
+        success: "DuckDNS の更新に成功しました{detail}",
+        requestError: "DuckDNS のリクエストでエラーが発生しました: {detail}",
       },
       dnspod: {
         fields: {
           record_line: {
-            label: "線",
-            description: "デフォルトで「デフォルト」行を使用します",
+            label: "回線",
+            description: "指定しない場合は「デフォルト」回線を使用します",
           },
         },
         defaultLine: "デフォルト",
-        configIncomplete: "DNSPod 構成が不完全です",
-        queryRecordFailed: "レコードのクエリに失敗しました",
+        configIncomplete: "DNSPod 設定が不完全です",
+        queryRecordFailed: "レコードの照会に失敗しました",
         updateRecordFailed: "レコードの更新に失敗しました",
         createRecordFailed: "レコードの作成に失敗しました",
       },
@@ -2027,40 +2015,40 @@ export const jaJPServer = {
         fields: {
           api_token: {
             label: "API トークン",
-            description: "ゾーン。DNS 編集権限が必要です",
+            description: "Zone.DNS の編集権限が必要です",
           },
           zone_id: {
             description:
-              "Cloudflare ドメイン名ページで、3 つの点をクリックし、コピー領域 ID を選択します",
+              "Cloudflare のドメイン画面で三点メニューを開き、「Zone ID をコピー」を選択します",
           },
           proxied: {
-            label: "Cloudflare エージェント",
-            description:
-              "Cloudflareプロキシ（オレンジ色の雲）を有効にするかどうか",
+            label: "Cloudflare プロキシ",
+            description: "Cloudflare プロキシ（オレンジ色の雲）を有効にします",
             options: {
-              dnsOnly: "解析のみ",
-              orangeCloud: "オレンジ色の雲",
+              dnsOnly: "DNS のみ",
+              orangeCloud: "プロキシ有効",
             },
           },
         },
-        configIncomplete: "Cloudflare 構成が不完全です",
-        zoneLookupFailed: "Cloudflare Zone の照会に失敗しました: {detail}",
+        configIncomplete: "Cloudflare 設定が不完全です",
+        zoneLookupFailed: "Cloudflare ゾーンの検索に失敗しました: {detail}",
         zoneMismatch:
-          "組み合わせの基準ドメインが Cloudflare Zone の範囲外です（Zone {expected}、組み合わせ {actual}）",
-        searchRecordFailed: "クエリ {type} レコードが失敗しました: {detail}",
-        updateRecordFailed: "更新 {type} 記録に失敗しました: {detail}",
+          "ベースドメインが Cloudflare ゾーンの範囲外です（ゾーン: {expected}、指定値: {actual}）",
+        searchRecordFailed: "{type} レコードの検索に失敗しました: {detail}",
+        updateRecordFailed: "{type} レコードの更新に失敗しました: {detail}",
         createRecordFailed: "{type} レコードの作成に失敗しました: {detail}",
-        recordOperationError: "{type} 録画動作例外: {detail}",
-        success: "Cloudflare DNS 正常に更新されました",
+        recordOperationError:
+          "{type} レコードの操作でエラーが発生しました: {detail}",
+        success: "Cloudflare DNS の更新に成功しました",
       },
       godaddy: {
         configIncomplete: "GoDaddy の設定が不完全です",
-        updateFailed: "アップデートに失敗しました",
+        updateFailed: "更新に失敗しました",
         updateFailedWithStatus: "[{status}] {detail}",
       },
       porkbun: {
-        configIncomplete: "豚まんの設定が不完全です",
-        queryRecordFailed: "レコードのクエリに失敗しました",
+        configIncomplete: "Porkbun の設定が不完全です",
+        queryRecordFailed: "レコードの照会に失敗しました",
         updateRecordFailed: "レコードの更新に失敗しました",
         createRecordFailed: "レコードの作成に失敗しました",
       },
@@ -2071,14 +2059,14 @@ export const jaJPServer = {
             placeholder: "Alibaba Cloud AccessKey シークレット",
           },
           line: {
-            label: "線",
+            label: "回線",
             description:
-              "デフォルトで Alibaba Cloud の「デフォルト」行を使用する",
+              "指定しない場合は Alibaba Cloud の「default」回線を使用します",
           },
         },
-        configIncomplete: "Alibaba Cloud DNS 構成が不完全",
-        requestFailed: "リクエストが失敗しました",
-        updateFailed: "アップデートに失敗しました",
+        configIncomplete: "Alibaba Cloud DNS の設定が不完全です",
+        requestFailed: "リクエストに失敗しました",
+        updateFailed: "更新に失敗しました",
         createFailed: "作成に失敗しました",
         recordIdMissing:
           "Alibaba Cloud DNS が RecordId のないレコードを返しました",
@@ -2093,9 +2081,9 @@ export const jaJPServer = {
             placeholder: "Baidu スマートクラウド秘密キー",
           },
         },
-        configIncomplete: "Baidu Cloud DNS 設定が不完全",
-        queryFailed: "クエリが失敗しました",
-        updateFailed: "アップデートに失敗しました",
+        configIncomplete: "Baidu Cloud DNS の設定が不完全です",
+        queryFailed: "照会に失敗しました",
+        updateFailed: "更新に失敗しました",
         createFailed: "作成に失敗しました",
       },
       huawei: {
@@ -2109,51 +2097,50 @@ export const jaJPServer = {
           },
         },
         webCryptoUnsupported:
-          "現在のオペレーティング環境は Web Crypto をサポートしていないため、Huawei Cloud AK/SK 署名を生成できません。",
-        configIncomplete: "Huawei Cloud DNS 構成が不完全",
+          "現在の実行環境は Web Crypto に対応していないため、Huawei Cloud AK/SK 署名を生成できません",
+        configIncomplete: "Huawei Cloud DNS の設定が不完全です",
         requestFailed:
           "Huawei Cloud DNS リクエストが失敗しました: HTTP {status} {statusText}、{detail}",
-        zoneNotFound: "Huawei クラウドゾーンが見つかりません: {zone}",
+        zoneNotFound: "Huawei Cloud のゾーンが見つかりません: {zone}",
         recordsetIdMissing:
           "Huawei Cloud DNS が ID のないレコードセットを返しました",
       },
       tencentcloud: {
-        label: "テンセントクラウド DNS",
+        label: "Tencent Cloud DNS",
         fields: {
           secret_key: {
-            placeholder: "テンセントクラウド秘密鍵",
+            placeholder: "Tencent Cloud SecretKey",
           },
           record_line: {
-            label: "線",
-            description: "デフォルトで「デフォルト」行を使用します",
+            label: "回線",
+            description: "指定しない場合は「デフォルト」回線を使用します",
           },
           record_line_id: {
-            label: "ライン ID",
-            description: "オプション;入力すると、行 ID が最初に使用されます",
+            label: "回線 ID",
+            description: "任意。指定した場合は回線 ID が優先されます",
           },
         },
         defaultLine: "デフォルト",
-        configIncomplete: "Tencent Cloud DNS 構成が不完全",
+        configIncomplete: "Tencent Cloud DNS の設定が不完全です",
         missingUpdatedRecordId:
-          "Tencent Cloud が更新された RecordId を返さなかった",
+          "Tencent Cloud から更新後の RecordId が返されませんでした",
         missingCreatedRecordId:
-          "Tencent Cloud が作成後に RecordId を返さなかった",
+          "Tencent Cloud から作成後の RecordId が返されませんでした",
       },
       noip: {
         fields: {
           hostname: {
             description:
-              "完全なホスト名を入力します。カンマ区切りの複数のホスト名をサポートします。",
+              "完全修飾ホスト名を入力してください。複数指定する場合はカンマで区切ります",
           },
           username: {
             label: "ユーザー名",
-            description:
-              "コンソールで生成された NO-IP DDNS キーのユーザー名を使用することをお勧めします",
+            description: "NO-IP コンソールで生成した DDNS Key のユーザー名",
           },
           password: {
             label: "パスワード",
             description:
-              "メインアカウントのパスワードの代わりに、DDNSキーと一致するパスワードを使用することをお勧めします",
+              "メインアカウントのパスワードではなく、DDNS Key と対になるパスワードを使用してください",
           },
         },
         statusMessages: {
@@ -2163,22 +2150,22 @@ export const jaJPServer = {
             "指定されたホスト名が存在しないか、現在の DDNS キーに属していません",
           badauth: "ユーザー名またはパスワードが間違っています",
           badagent:
-            "クライアントは NO-IP によって無効になっています。ユーザー エージェントまたはクライアントのステータスを確認してください",
-          "!donator":
-            "現在のアカウントは要求された機能強化をサポートしていません",
-          abuse: "DDNS キーは、悪用のため NO-IP によって禁止されました。",
+            "NO-IP によってクライアントが無効化されています。User-Agent またはクライアントの状態を確認してください",
+          "!donator": "現在のアカウントは要求された拡張機能に対応していません",
+          abuse: "不正利用により、この DDNS Key は NO-IP にブロックされました",
         },
-        unknownStatus: "不明なステータスを返します: {code}",
+        unknownStatus: "不明なステータスが返されました: {code}",
         updateFailed: "NO-IP 更新に失敗しました: {detail}",
-        updateSuccess: "NO-IP 正常に更新されました {detail}",
-        ipUnchanged: "NO-IP IP 不変 {detail}",
-        configIncomplete: "NO-IP 構成が不完全です",
+        updateSuccess: "NO-IP の更新に成功しました{detail}",
+        ipUnchanged: "NO-IP の IP に変更はありません{detail}",
+        configIncomplete: "NO-IP 設定が不完全です",
         noIpAvailable:
-          "NO-IP 更新に失敗しました: 利用可能なIPv4 または IPv6 アドレスがありません",
+          "NO-IP の更新に失敗しました: 使用可能な IPv4 または IPv6 アドレスがありません",
         updateFailedWithStatus: "NO-IP 更新に失敗しました [{status}]: {detail}",
-        requestFailed: "リクエストが失敗しました",
-        emptyResponse: "NO-IP 更新失敗: 空の応答が返されました",
-        requestError: "NO-IP 例外リクエスト: {detail}",
+        requestFailed: "リクエストに失敗しました",
+        emptyResponse:
+          "NO-IP の更新に失敗しました: 空のレスポンスが返されました",
+        requestError: "NO-IP のリクエストでエラーが発生しました: {detail}",
       },
       esa: {
         label: "アリババクラウド ESA DNS",
@@ -2189,99 +2176,98 @@ export const jaJPServer = {
           site_name: {
             label: "サイト名",
             description:
-              "ESA サイト名、通常はルート ドメイン名。サイト ID が入力されている場合、この項目は一般的なクエリ用です",
+              "ESA のサイト名（通常はルートドメイン）。Site ID を指定した場合は、フォールバック検索にのみ使用します",
           },
           site_id: {
             description:
-              "オプション。入力後、サイトは直接操作されるため、毎回最初にサイト リストをクエリする必要がなくなります。",
+              "任意。指定すると、サイト一覧を検索せずに対象サイトを直接操作します",
           },
           proxied: {
-            label: "ESA エージェント",
+            label: "ESA プロキシ",
             description:
-              "デフォルトでは、解析のみを行います。プロキシが有効になっている場合、ビジネスタイプは自動的に含まれます",
+              "デフォルトは DNS のみです。プロキシを有効にすると、ビジネスタイプが自動的に送信されます",
             options: {
-              dnsOnly: "解析のみ",
-              enabled: "プロキシを有効にする",
+              dnsOnly: "DNS のみ",
+              enabled: "プロキシ有効",
             },
           },
           biz_name: {
             label: "業種",
             description:
-              "ESA プロキシが有効な場合にのみ有効で、デフォルトの Web",
+              "ESA プロキシが有効な場合のみ適用されます。デフォルトは Web です",
             options: {
               web: "ウェブサイト",
-              api: "インターフェース",
-              imageVideo: "オーディオとビデオ",
+              api: "API",
+              imageVideo: "音声・動画",
             },
           },
         },
-        configIncomplete: "Alibaba Cloud ESA DNS 構成が不完全",
-        siteNameMissing: "Alibaba Cloud ESA DNS サイト名がありません",
+        configIncomplete: "Alibaba Cloud ESA DNS の設定が不完全です",
+        siteNameMissing: "Alibaba Cloud ESA DNS のサイト名がありません",
         siteLookupFailed:
-          "Alibaba Cloud ESA サイトの照会に失敗しました: {detail}",
+          "Alibaba Cloud ESA サイトの検索に失敗しました: {detail}",
         siteMismatch:
-          "設定された Site ID がサイトの照会結果と一致しません（設定 {expected}、照会結果 {actual}）",
-        siteNotFound: "見つかりません ESA サイト: {site}",
+          "設定された Site ID がサイトの検索結果と一致しません（設定値: {expected}、検索結果: {actual}）",
+        siteNotFound: "ESA サイトが見つかりません: {site}",
         noIpAvailable:
           "Alibaba Cloud ESA DNS には更新可能な IP アドレスがありません",
-        createRecordFailed: "CreateFailed: レコードの作成に失敗しました",
-        success: "Alibaba Cloud ESA DNS 正常に更新されました",
-        recordIdMissing: "更新失敗: レコードに RecordId がありません",
+        createRecordFailed: "CreateFailed: レコードを作成できませんでした",
+        success: "Alibaba Cloud ESA DNS の更新に成功しました",
+        recordIdMissing: "UpdateFailed: レコードに RecordId がありません",
       },
       dynu: {
         fields: {
           api_key: {
-            description: "API-Dynu で生成されたキー API 認証情報",
+            description: "Dynu の API Credentials で生成した API-Key",
           },
           domain: {
             description:
-              "更新する完全な Dynu ホスト名です。ワイルドカードと基準ドメインの組み合わせでは、基準ドメインが別 Service 配下の通常のサブドメインではなく、Dynu に独立した DDNS Service として登録されている必要があります。更新時は個別の基準ドメインレコードを作成せず、IP を設定して Wildcard Alias を有効にします。",
+              "更新する Dynu の完全修飾ホスト名。ワイルドカードドメインとベースドメインを組み合わせる場合、ベースドメインは別サービス配下の通常のサブドメインではなく、Dynu に独立した DDNS Service として登録されている必要があります。更新時はベースドメイン用のレコードを個別に作成せず、IP を設定して Wildcard Alias を有効にします",
           },
           group: {
-            description:
-              "オプション;グループを Dynu DNS レコードに書き込みます",
+            description: "任意。Dynu DNS レコードに書き込むグループ",
           },
         },
-        actionFailed: "{action} 失敗しました",
+        actionFailed: "{action}に失敗しました",
         actions: {
-          resolveRoot: "Dynu ルートゾーンの解析",
-          readDnsService: "Dynu DNS サービスを読み取ります",
+          resolveRoot: "Dynu ルートドメインの名前解決",
+          readDnsService: "Dynu DNS サービスの読み込み",
           updateWildcardAlias: "Dynu ワイルドカード エイリアスの更新",
-          queryRecord: "Dynu {type} レコードのクエリ",
-          updateRecord: "Dynu {type} 記録を更新",
-          createRecord: "Dynu {type} レコードを作成",
+          queryRecord: "Dynu {type} レコードの照会",
+          updateRecord: "Dynu {type} レコードの更新",
+          createRecord: "Dynu {type} レコードの作成",
         },
-        invalidRootInfo: "Dynu が有効なルート ドメイン情報を返しませんでした",
+        invalidRootInfo:
+          "Dynu から有効なルートドメイン情報が返されませんでした",
         wildcardUnsupported:
-          "Dynu REST は、nodeName を *.{domain} として DNS として記録することをサポートしていません。まず {domain} を独立したサービスとして追加し、Dynu DDNS サービスでワイルドカード エイリアスを有効にするか、DDNS 設定を {domain} に変更してください。",
-        wildcardUnchanged: "Dynu ワイルドカード エイリアス IP 変更なし",
-        wildcardSuccess: "Dynu ワイルドカード エイリアスが正常に更新されました",
+          "Dynu REST は *.{domain} を DNS レコードの nodeName に指定できません。Dynu DDNS Services で {domain} を独立したサービスとして追加して Wildcard Alias を有効にするか、DDNS 設定を {domain} に変更してください",
+        wildcardUnchanged: "Dynu Wildcard Alias の IP に変更はありません",
+        wildcardSuccess: "Dynu Wildcard Alias の更新に成功しました",
         configIncomplete: "Dynu 設定が不完全です",
         noIpAvailable:
-          "Dynu アップデートに失敗しました: 利用可能な IPv4 または IPv6 アドレスがありません",
+          "Dynu の更新に失敗しました: 使用可能な IPv4 または IPv6 アドレスがありません",
         recordIdMissing:
           "Dynu から返された DNS レコードには RecordId がありません",
-        requestError: "Dynu リクエスト例外: {detail}",
+        requestError: "Dynu のリクエストでエラーが発生しました: {detail}",
       },
       edgeone: {
-        label: "テンセントクラウド EdgeOne",
+        label: "Tencent Cloud EdgeOne",
         fields: {
           secret_key: {
-            placeholder: "テンセントクラウド秘密鍵",
+            placeholder: "Tencent Cloud SecretKey",
           },
           zone_id: {
-            description:
-              "EdgeOne サイト ID、ホストゾーンを見つけるために使用されます",
+            description: "ホストゾーンの特定に使用する EdgeOne のサイト ID",
           },
           domain: {
             description:
-              "更新する完全なホスト名。まず中国語のドメイン名を Punycode に変換してください",
+              "更新する完全修飾ホスト名。国際化ドメイン名は先に Punycode へ変換してください",
           },
           location: {
-            label: "ラインを分析します",
+            label: "回線",
             placeholder: "デフォルトまたは CN.BJ",
             description:
-              "オプション;デフォルトでは空白のままにして、デフォルトのグローバル行を示します",
+              "任意。空欄の場合はデフォルトのグローバル回線を使用します",
           },
           ttl: {
             description:
@@ -2290,125 +2276,121 @@ export const jaJPServer = {
           overseas_access: {
             label: "海外アクセス制御",
             description:
-              "オンにすると、EdgeOneセキュリティポリシーAPIが海外IPからのアクセスをブロックします。香港、マカオ、台湾は海外ではありません。この設定は、構成が変更されたときに 1 回だけ同期され、DDNS の更新ごとに繰り返されることはありません。",
+              "有効にすると、EdgeOne Security Policy API で海外 IP からのアクセスをブロックします。香港・マカオ・台湾は海外として扱いません。この設定は変更時に一度だけ同期され、DDNS の更新時には再同期されません",
             options: {
-              off: "未使用",
-              blockOverseas: "海外ブロックIP",
+              off: "オフ",
+              blockOverseas: "海外 IP をブロック",
             },
           },
           endpoint: {
             description:
-              "デフォルトの国内バージョン、https://teo.intl.tencentcloudapi.com または地域のアクセス ドメイン名に変更可能",
+              "デフォルトは中国本土向けエンドポイントです。https://teo.intl.tencentcloudapi.com または地域別エンドポイントも指定できます",
           },
           region: {
-            placeholder: "空白のままにしてください",
-            description:
-              "オプション;ほとんどのシナリオでは空白のままにすることができます",
+            placeholder: "空欄",
+            description: "任意。通常は空欄のままで使用できます",
           },
         },
-        configIncomplete: "Tencent Cloud EdgeOne 構成が不完全",
-        zoneLookupFailed: "EdgeOne サイトの照会に失敗しました: {detail}",
+        configIncomplete: "Tencent Cloud EdgeOne の設定が不完全です",
+        zoneLookupFailed: "EdgeOne サイトの検索に失敗しました: {detail}",
         zoneMismatch:
-          "組み合わせの基準ドメインが EdgeOne Zone の範囲外です（Zone {expected}、組み合わせ {actual}）",
+          "ベースドメインが EdgeOne ゾーンの範囲外です（ゾーン: {expected}、指定値: {actual}）",
         configTargetIncomplete:
-          "Tencent Cloud EdgeOne の構成が不完全で、ゾーン ID またはドメイン名がありません",
-        missingRecordId: "EdgeOne 返されたレコードに RecordId がありません",
-        missingCreatedRecordId: "EdgeOne 作成した RecordId は返されません",
+          "Tencent Cloud EdgeOne の設定が不完全です。Zone ID またはドメインがありません",
+        missingRecordId: "EdgeOne から返されたレコードに RecordId がありません",
+        missingCreatedRecordId:
+          "EdgeOne から作成後の RecordId が返されませんでした",
         overseasAccess: {
           describeRulesFailed:
-            "EdgeOne 海外アクセス制御は既存のカスタム ルールの読み取りに失敗しました (provider_target={target}、zone_id={zoneId}、endpoint_host={endpointHost}、リージョン={region}、エンティティ={entity}、スコープ={scope}): {message}",
+            "EdgeOne 海外アクセス制御で既存のカスタムルールを読み込めませんでした（provider_target={target}、zone_id={zoneId}、endpoint_host={endpointHost}、region={region}、entity={entity}、scope={scope}）: {message}",
           syncFailedWithAttempt:
-            "EdgeOne 海外アクセス制御同期失敗({attempt}、submitted_rule_count={count}): {message}",
+            "EdgeOne 海外アクセス制御の同期に失敗しました（{attempt}、submitted_rule_count={count}）: {message}",
           syncAllScopesFailed:
             "EdgeOne 海外アクセス制御の同期に失敗しました: すべてのルール スコープの試行が失敗しました",
           cleanupAllScopesFailed:
             "EdgeOne 海外アクセス制御のクリーンアップに失敗しました: すべてのルール スコープの試行が失敗しました",
           syncSuccess:
-            "同期 EdgeOne 海外 IP ブロックポリシー、中国本土、香港、マカオ、台湾からのアクセスのみ許可",
-          cleanupSuccess: "クリーニング済み EdgeOne 海外 IP ブロックポリシー",
+            "EdgeOne の海外 IP ブロックポリシーを同期しました。中国本土・香港・マカオ・台湾からのアクセスのみ許可します",
+          cleanupSuccess: "EdgeOne の海外 IP ブロックポリシーを削除しました",
         },
       },
       edgeone_cname: {
-        label: "Tencent Cloud EdgeOne (CNAME アクセス)",
+        label: "Tencent Cloud EdgeOne（CNAME 接続）",
         fields: {
           secret_key: {
-            placeholder: "テンセントクラウド秘密鍵",
+            placeholder: "Tencent Cloud SecretKey",
           },
           zone_id: {
             description:
-              "EdgeOne サイト ID、アクセラレーションされたドメイン名が属するサイトを見つけるために使用されます",
+              "高速化ドメインが属するサイトの特定に使用する EdgeOne サイト ID",
           },
           domain: {
-            label: "高速化されたドメイン名",
+            label: "高速化ドメイン",
             description:
-              "EdgeOneで作成された高速化されたドメイン名。現在のオリジン サイト タイプ IP_DOMAIN のみをサポートし、一度に 1 つのオリジン サイト アドレスのみを更新できます。",
+              "EdgeOne で作成済みの高速化ドメイン。IP_DOMAIN タイプのオリジンのみ対応し、一度に更新できるオリジンアドレスは 1 件です",
           },
           overseas_access: {
             label: "海外アクセス制御",
             description:
-              "オンにすると、EdgeOneセキュリティポリシーAPIが海外IPからのアクセスをブロックします。香港、マカオ、台湾は海外ではありません。この設定は、構成が変更されたときに 1 回だけ同期され、DDNS の更新ごとに繰り返されることはありません。",
+              "有効にすると、EdgeOne Security Policy API で海外 IP からのアクセスをブロックします。香港・マカオ・台湾は海外として扱いません。この設定は変更時に一度だけ同期され、DDNS の更新時には再同期されません",
             options: {
-              off: "未使用",
-              blockOverseas: "海外ブロックIP",
+              off: "オフ",
+              blockOverseas: "海外 IP をブロック",
             },
           },
           endpoint: {
             description:
-              "デフォルトの国内バージョン、https://teo.intl.tencentcloudapi.com または地域のアクセス ドメイン名に変更可能",
+              "デフォルトは中国本土向けエンドポイントです。https://teo.intl.tencentcloudapi.com または地域別エンドポイントも指定できます",
           },
           region: {
-            placeholder: "空白のままにしてください",
-            description:
-              "オプション;ほとんどのシナリオでは空白のままにすることができます",
+            placeholder: "空欄",
+            description: "任意。通常は空欄のままで使用できます",
           },
         },
         configIncomplete:
-          "Tencent Cloud EdgeOne (CNAME アクセス) の設定が不完全です",
+          "Tencent Cloud EdgeOne（CNAME 接続）の設定が不完全です",
         singleAddressOnly:
-          "Tencent Cloud EdgeOne (CNAME アクセス) は一度に 1 つのオリジンサイトアドレスのみ更新できます。DDNS 更新範囲を「IPv4 のみ更新」または「IPv6 のみ更新」に設定してください。",
+          "Tencent Cloud EdgeOne（CNAME 接続）では、一度に 1 つのオリジンアドレスのみ更新できます。DDNS の更新対象を「IPv4 のみ」または「IPv6 のみ」に設定してください",
         noIpAvailable:
-          "Tencent Cloud EdgeOne (CNAME アクセス) には更新可能な IP アドレスがありません",
-        domainNotFound:
-          "見つかりません EdgeOne 高速化されたドメイン名: {domain}",
+          "Tencent Cloud EdgeOne（CNAME 接続）に更新可能な IP アドレスがありません",
+        domainNotFound: "EdgeOne の高速化ドメインが見つかりません: {domain}",
         unsupportedOriginType:
-          "現在の高速化されたドメイン名オリジン サイト タイプは {originType} で、DDNS 更新ではタイプ IP_DOMAIN の高速化されたドメイン名のみがサポートされます。",
+          "現在の高速化ドメインのオリジンタイプは {originType} です。DDNS で更新できるのは IP_DOMAIN タイプの高速化ドメインのみです",
         originUnchanged:
-          "Tencent Cloud EdgeOne (CNAME アクセス) ソース サイトはすでに最新であるため、更新する必要はありません。",
+          "Tencent Cloud EdgeOne（CNAME 接続）のオリジンはすでに最新です",
         successWithInvalidHostHeaderIgnored:
-          "Tencent Cloud EdgeOne (CNAME アクセス) オリジン サイトが正常に更新されました (無効なホスト ヘッダーは無視されました)",
-        success:
-          "Tencent Cloud EdgeOne (CNAME アクセス) オリジンサイトが正常に更新されました",
+          "Tencent Cloud EdgeOne（CNAME 接続）のオリジンを更新しました（無効な Host ヘッダーは無視されました）",
+        success: "Tencent Cloud EdgeOne（CNAME 接続）のオリジンを更新しました",
       },
     },
   },
   smartConnect: {
     runTypes: {
       direct: "ダイレクト接続モード",
-      reverseProxy: "アンチジェネレーションモード",
+      reverseProxy: "リバースプロキシモード",
       subdomain: "サブドメインモード",
     },
     currentMode: "現在のモード",
     unavailableReason:
-      "サブドメイン モードのみが利用可能で、現在は {mode} です。",
-    selectLocalIp: "ローカルエリアネットワークIPを選択してください",
+      "この機能はサブドメインモードでのみ利用できます。現在のモード: {mode}",
+    selectLocalIp: "LAN IP を選択してください",
     selectValidLocalIpv4: "有効なローカル LAN IPv4 アドレスを選択してください",
     dnsmasqNotInstalled:
-      "dnsmasq が検出されません。最初にインストールを完了してください。",
+      "dnsmasq が見つかりません。先にインストールしてください",
     dnsmasqNotInitialized:
-      "dnsmasq はまだ初期化されていません。まず環境の初期化を完了してください。",
-    syncFailed: "スマート接続の同期に失敗しました",
+      "dnsmasq の初期化が完了していません。先に環境を初期化してください",
+    syncFailed: "Smart Connect の同期に失敗しました",
   },
   scanDiscovery: {
     localIpv4CidrOnly:
-      "スキャン ネットワーク セグメントはローカル IPv4 CIDR: {cidrs} のみをサポートします",
-    maxCidrsExceeded:
-      "一度にネットワークセグメントをスキャンする最大{max}を選択します",
+      "スキャン範囲にはローカル IPv4 CIDR のみ指定できます: {cidrs}",
+    maxCidrsExceeded: "一度に選択できるスキャン範囲は {max} 件までです",
     maxHostsExceededWithCurrent:
-      "は一度に最大 {max} のホストをスキャンできますが、現在は {current} です",
-    maxHostsExceeded: "一度に最大 {max} のホストをスキャンします",
+      "一度にスキャンできるホストは {max} 台までです（現在の選択: {current} 台）",
+    maxHostsExceeded: "一度にスキャンできるホストは {max} 台までです",
     selectAtLeastOneCidr:
-      "ローカル IPv4 スキャン ネットワーク セグメントを少なくとも 1 つ選択してください",
-    scanJobNotFound: "スキャンジョブが見つからないか、有効期限が切れています",
+      "ローカル IPv4 のスキャン範囲を 1 件以上選択してください",
+    scanJobNotFound: "スキャンジョブが見つからないか、期限切れです",
     loadTargetsFailed: "スキャン対象の読み込みに失敗しました",
     loadConfigFailed: "設定の読み込みに失敗しました",
     saveTargetsFailed: "スキャン対象の保存に失敗しました",
@@ -2417,63 +2399,62 @@ export const jaJPServer = {
     invalidIntensityMode: "スキャン強度モードが無効です",
     invalidIntensityLevel: "スキャン強度レベルが無効です",
     targetLabels: {
-      docker: "{cidr} (Docker ホスト LAN)",
-      loopback: "{cidr} (ネイティブ ループバック)",
+      docker: "{cidr}（Docker ホスト LAN）",
+      loopback: "{cidr}（ローカルループバック）",
       interface: "{cidr}({name})",
-      mapping: "{cidr} (マッピング済みターゲット)",
-      custom: "{cidr} (カスタム)",
-      saved: "{cidr} (保存)",
+      mapping: "{cidr}（既存のマッピング先）",
+      custom: "{cidr}（カスタム）",
+      saved: "{cidr}（保存済み）",
     },
     serviceLabels: {
       lottery: "宝くじアシスタント",
-      dlymusic: "Liyu Music Management",
-      kuake: "Quark自動転送",
-      xunlei: "サンダー",
-      nowen: "ネビュラポータル",
-      fnos: "フェイニウOS",
-      fnys: "フェイニウフィルム",
-      xiaoyaAlist: "シャオヤ・アリスト",
+      dlymusic: "Daoliyu Music Manager",
+      kuake: "Quark 自動転送",
+      xunlei: "Xunlei",
+      nowen: "Nebula Portal",
+      fnos: "FNOS",
+      fnys: "FNOS Video",
+      xiaoyaAlist: "Xiaoya Alist",
     },
   },
   gatewayProxyHeaders: {
     runTypes: {
       direct: "ダイレクト接続モード",
-      reverseProxy: "アンチジェネレーションモード",
+      reverseProxy: "リバースプロキシモード",
       subdomain: "サブドメインモード",
     },
     unavailableReason:
-      "サブドメイン モードのみが利用可能で、現在は {mode} です。",
-    syncFailed: "同期ゲートウェイプロトコルヘッダーの構成に失敗しました",
+      "この機能はサブドメインモードでのみ利用できます。現在のモード: {mode}",
+    syncFailed: "ゲートウェイのプロキシヘッダー設定を同期できませんでした",
   },
   sshSecurity: {
     logSourceUnavailable:
-      "現在のシステムはjournalctlまたは/var/log/auth.logを見つけられません",
+      "このシステムに journalctl または /var/log/auth.log が見つかりません",
     openWrtUnsupported:
-      "OpenWrt バージョンはまだサポートされていません SSH 安全",
-    enableUnavailable: "現在の環境では有効化できません SSH セキュリティ",
-    syncFirewallUnavailable: "現在の環境は同期できません SSH ファイアウォール",
+      "OpenWrt ビルドは SSH セキュリティにまだ対応していません",
+    enableUnavailable: "この環境では SSH セキュリティを有効にできません",
+    syncFirewallUnavailable:
+      "この環境では SSH ファイアウォールを同期できません",
     clearFirewallUnavailable:
-      "現在の環境SSH ファイアウォールをクリアできません",
-    logSourceUnavailableShort: "SSH ログソースが利用できません",
-    customCidrInvalid: "カスタム CIDR 間違った形式: {cidrs}",
+      "この環境では SSH ファイアウォールを消去できません",
+    logSourceUnavailableShort: "SSH ログの取得元を利用できません",
+    customCidrInvalid: "カスタム CIDR の形式が無効です: {cidrs}",
     customCidrsMustBeArray: "custom_cidrs は配列である必要があります",
-    syncSshPolicyFailed: "同期 SSH 専用ファイアウォール ルールが失敗しました",
-    clearSshPolicyFailed:
-      "クリア SSH 専用ファイアウォール ルールが失敗しました",
+    syncSshPolicyFailed: "SSH 専用ファイアウォールルールの同期に失敗しました",
+    clearSshPolicyFailed: "SSH 専用ファイアウォールルールの消去に失敗しました",
     blockRecordInvalid: "ブロックレコード形式が正しくありません",
     routes: {
       loadConfigFailed: "SSH セキュリティ設定の読み込みに失敗しました",
-      updateConfigFailed: "アップデート SSH セキュリティ設定に失敗しました",
+      updateConfigFailed: "SSH セキュリティ設定の更新に失敗しました",
       syncFirewallSuccess:
-        "同期 {allowedCidrs} は許可 CIDR および {synced} SSH IP から {ports} ポートはブロック",
-      syncFirewallFailed: "同期 SSH ファイアウォールが失敗しました",
-      clearFirewallSuccess:
-        "SSH プライベート ファイアウォール ルールをクリアしました",
-      clearFirewallFailed: "クリア SSH ファイアウォールが失敗しました",
+        "許可 CIDR {allowedCidrs} 件と SSH ブロック IP {synced} 件をポート {ports} に同期しました",
+      syncFirewallFailed: "SSH ファイアウォールの同期に失敗しました",
+      clearFirewallSuccess: "SSH 専用ファイアウォールルールを消去しました",
+      clearFirewallFailed: "SSH ファイアウォールの消去に失敗しました",
       readLoginLogsFailed: "SSH ログインログの読み取りに失敗しました",
       listBlocksFailed: "SSH ブロック一覧の取得に失敗しました",
-      blockNotFound: "ブロッキングレコードは存在しません",
-      loadBlockFailed: "SSH ブロック記録の読み込みに失敗しました",
+      blockNotFound: "ブロック記録が見つかりません",
+      loadBlockFailed: "SSH ブロック記録の取得に失敗しました",
       removeBlockFailed: "ブロックを解除できませんでした",
       selectIps: "ブロックを解除するには IP を選択してください",
       removeBlocksFailed: "一括ブロック解除に失敗しました",
@@ -2495,47 +2476,47 @@ export const jaJPServer = {
       writeEventFailed: "システムイベントの書き込みに失敗しました",
       listEventsFailed: "システムイベント一覧の取得に失敗しました",
       deleteEventsFailed: "システムイベントの削除に失敗しました",
-      clearEventsFailed: "システムイベントのクリアに失敗しました",
+      clearEventsFailed: "システムイベントの全削除に失敗しました",
     },
   },
   notifications: {
     brand: {
-      prefix: "ノックノック",
-      defaultTitle: "ノック通知",
+      prefix: "Knock ",
+      defaultTitle: "Knock 通知",
     },
     templates: {
       events: {
         authLoginSuccess: "ログイン成功",
         authLogout: "ログアウト",
-        authLoginFailure: "ログインに失敗しました",
-        authSessionIpDrift: "セッション IP ドリフト",
-        securityScannerBlocked: "スキャナー傍受",
-        ddnsUpdateCompleted: "DDNS アップデート",
-        gatewayThrottleBlocked: "ゲートウェイスロットルブロック",
-        wafBlocked: "WAF ブロック",
+        authLoginFailure: "ログイン失敗",
+        authSessionIpDrift: "セッション IP の変化",
+        securityScannerBlocked: "スキャナーをブロック",
+        ddnsUpdateCompleted: "DDNS 更新",
+        gatewayThrottleBlocked: "ゲートウェイのレート制限",
+        wafBlocked: "WAF がブロック",
         sshLoginSuccess: "SSH ログイン成功",
-        sshLoginFailure: "SSH ログインに失敗しました",
-        sshIpBlocked: "SSH IP ブロックされました",
-        appUpdateAvailable: "アプリアップデートのヒント",
-        cpuAlert: "CPU アラーム",
-        cpuRecovered: "CPU 回復",
-        memoryAlert: "メモリーアラーム",
-        memoryRecovered: "記憶回復",
-        frpConnected: "FRP 接続されました",
-        frpDisconnected: "FRP 切断されました",
-        cloudflaredConnected: "Cloudflared が接続されています",
-        cloudflaredDisconnected: "Cloudflared 切断されました",
+        sshLoginFailure: "SSH ログイン失敗",
+        sshIpBlocked: "SSH で IP をブロック",
+        appUpdateAvailable: "アプリの更新が利用可能",
+        cpuAlert: "CPU 使用率アラート",
+        cpuRecovered: "CPU 使用率が復旧",
+        memoryAlert: "メモリ使用率アラート",
+        memoryRecovered: "メモリ使用率が復旧",
+        frpConnected: "FRP 接続",
+        frpDisconnected: "FRP 切断",
+        cloudflaredConnected: "Cloudflared 接続",
+        cloudflaredDisconnected: "Cloudflared 切断",
       },
-      ruleName: "{event} お知らせ",
+      ruleName: "{event}通知",
       levels: {
         info: "お知らせ",
         warn: "注意",
         error: "エラー",
-        critical: "重度",
+        critical: "重大",
       },
       sources: {
         serverAdmin: "管理バックエンド",
-        goReauthProxy: "認定代理店",
+        goReauthProxy: "認証プロキシ",
         systemMonitor: "システム監視",
       },
       authMethods: {
@@ -2543,136 +2524,136 @@ export const jaJPServer = {
       },
       grantTypes: {
         browserSession: "ブラウザセッション",
-        loginIpGrant: "ログイン IP 認証",
+        loginIpGrant: "ログイン IP の許可",
       },
       wafModes: {
         detection: "検出",
         blocking: "ブロック",
-        off: "閉じる",
+        off: "オフ",
       },
       wafActions: {
         block: "ブロック",
         deny: "拒否",
         detect: "検出",
         log: "記録",
-        pass: "リリース",
+        pass: "許可",
       },
       logoutSources: {
-        userLogout: "ユーザーが積極的に終了",
-        adminSessionDelete: "管理者はオフラインです",
+        userLogout: "ユーザーがログアウト",
+        adminSessionDelete: "管理者がセッションを終了",
       },
       driftSources: {
-        proxySession: "エージェントセッション",
-        fnosToken: "フェイニウトークン",
+        proxySession: "プロキシセッション",
+        fnosToken: "FNOS トークン",
         sessionRefresh: "セッション更新",
         browserSession: "ブラウザセッション",
       },
       ddnsTriggers: {
         cron: "スケジュールされたタスク",
         enable: "有効化後の最初の実行",
-        startup: "起動後チェック",
+        startup: "起動時チェック",
         manualTest: "手動テスト",
       },
       ddnsUpdateScopes: {
-        ipv4Only: "のみIPv4",
-        ipv6Only: "IPv6のみ",
+        ipv4Only: "IPv4 のみ",
+        ipv6Only: "IPv6 のみ",
       },
       ddnsIpSources: {
-        public: "パブリックネットワーク検出",
-        interface: "ネットワークカード読み取り",
+        public: "グローバル IP の検出",
+        interface: "インターフェースから取得",
         static: "静的 IP",
         domain: "ドメイン名解決",
       },
       updateCheckReasons: {
-        cron: "定期点検",
-        manual: "手動検査",
+        cron: "スケジュール確認",
+        manual: "手動確認",
         manualCheckAndDownload: "手動で確認してダウンロード",
-        downloadBootstrap: "ダウンロード前にご確認ください",
+        downloadBootstrap: "ダウンロード前の確認",
       },
       credential: "認証情報",
       unknownCredential: "不明な認証情報",
-      credentialLinkedTotp: "{authMethod}「{credential}」関連 TOTP「{totp}」",
-      credentialName: "証明書「{credential}」",
+      credentialLinkedTotp:
+        "{authMethod}「{credential}」に TOTP「{totp}」を紐付け",
+      credentialName: "認証情報「{credential}」",
       sessionCommentCompact: "備考: {comment}",
-      appendSessionComment: "{text} (備考:{comment})",
+      appendSessionComment: "{text}（備考: {comment}）",
       yes: "はい",
       no: "いいえ",
       wafOutcomeBlocked: "ブロック",
       wafOutcomeLogged: "記録",
       sections: {
         overview: "イベント概要",
-        aggregation: "集計ステータス",
-        advice: "取り扱いに関する提案",
+        aggregation: "集計",
+        advice: "推奨対応",
       },
       aggregationText:
-        "この通知には、{seconds} 番目のウィンドウ内の{count} の同様のイベントが集約されています。",
+        "この通知には、{seconds} 秒間に発生した同様のイベント {count} 件が集約されています",
       details: {
         units: {
-          seconds: "{count}秒",
-          minutes: "{count}分",
-          times: "{count}回",
-          ratePerSecond: "{count}回/秒",
+          seconds: "{count} 秒",
+          minutes: "{count} 分",
+          times: "{count} 回",
+          ratePerSecond: "{count} 回/秒",
         },
         listSeparator: "、",
         unknown: "不明",
         unknownIp: "不明 IP",
-        unknownMethod: "未知の方法",
+        unknownMethod: "不明な方式",
         unknownProvider: "不明なプロバイダー",
         unknownUser: "不明なユーザー",
         unknownHost: "不明なホスト",
         currentSession: "現在のセッション",
         memoryMetric: "メモリ",
-        connected: "接続されました",
-        disconnected: "切断されました",
-        parenthesized: "({value})",
-        sessionCommentSentence: "現在のセッションコメントは「{comment}」です。",
-        aggregationStatsValue:
-          "{count} アイテム / {seconds} 2 番目のウィンドウ",
+        connected: "接続",
+        disconnected: "切断",
+        parenthesized: "（{value}）",
+        sessionCommentSentence: "現在のセッションの備考:「{comment}」",
+        aggregationStatsValue: "{count} 件 / {seconds} 秒間",
         facts: {
-          credentialName: "証明書名",
-          linkedTotp: "協会TOTP",
-          sessionComment: "セッションメモ",
-          loginIp: "ログインIP",
-          ipLocation: "IP 場所",
+          credentialName: "認証情報名",
+          linkedTotp: "紐付け済み TOTP",
+          sessionComment: "セッションの備考",
+          loginIp: "ログイン IP",
+          ipLocation: "IP の所在地",
           authMethod: "認証方式",
           loginProvider: "ログインプロバイダー",
           grantType: "認可方法",
-          rememberLogin: "忘れずにログインしてください",
-          sessionExpiresAt: "セッションが期限切れになりました",
+          rememberLogin: "ログイン状態を保持",
+          sessionExpiresAt: "セッションの有効期限",
           sessionId: "セッション ID",
-          logoutSource: "終了方法",
+          logoutSource: "ログアウト元",
           loginTime: "ログイン時間",
           sourceIp: "ソース IP",
-          failureAttempts: "失敗数",
-          retryWait: "再試行してお待ちください",
-          limitUntil: "リミットカットオフ",
-          originalIp: "オリジナル IP",
-          originalLocation: "元の場所",
-          currentIp: "現在 IP",
-          currentLocation: "現在地",
-          driftSource: "変化の根源",
+          failureAttempts: "失敗回数",
+          retryWait: "再試行までの待機時間",
+          limitUntil: "制限解除時刻",
+          originalIp: "変更前の IP",
+          originalLocation: "変更前の所在地",
+          currentIp: "現在の IP",
+          currentLocation: "現在の所在地",
+          driftSource: "変化の検出元",
           hitCount: "ヒット数",
-          observationWindow: "観察窓",
+          observationWindow: "監視期間",
           triggerThreshold: "トリガー閾値",
-          blockedAt: "インターセプト時間",
+          blockedAt: "ブロック時間",
           recentPaths: "最近のパス",
-          target: "エントリー",
+          target: "更新対象",
           provider: "プロバイダー",
-          targetType: "エントリータイプ",
+          targetType: "対象の種類",
           trigger: "実行方法",
-          updateScope: "更新範囲",
-          ipSource: "IP 出典",
+          updateScope: "更新対象",
+          ipSource: "IP の取得元",
           ipv4Change: "IPv4 変更",
           ipv6Change: "IPv6 変更",
           result: "実行結果",
           blockDuration: "ブロック期間",
-          blockedUntil: "封鎖終了",
-          rateLimit: "電流制限閾値",
+          blockedUntil: "ブロック解除時刻",
+          rateLimit: "レート制限",
           burstCapacity: "バースト容量",
-          targetHost: "ターゲットホスト",
+          targetHost: "対象ホスト",
           requestPath: "リクエストパス",
-          routeType: "ルーティングタイプ",
-          authRoute: "認定ルーティング",
+          routeType: "ルート種別",
+          authRoute: "認証ルート",
           traceId: "トレース ID",
           requestAddress: "リクエストアドレス",
           outcome: "処理結果",
@@ -2683,8 +2664,8 @@ export const jaJPServer = {
           statusCode: "ステータスコード",
           user: "ユーザー",
           port: "ポート",
-          logTime: "ログタイム",
-          invalidUser: "無効なユーザーです",
+          logTime: "ログ記録時刻",
+          invalidUser: "無効なユーザー",
           threshold: "しきい値",
           window: "ウィンドウ",
           blockedReason: "ブロックの理由",
@@ -2692,18 +2673,18 @@ export const jaJPServer = {
           currentVersion: "現在のバージョン",
           latestVersion: "最新バージョン",
           checkReason: "確認方法",
-          forceUpdate: "強制アップデート",
-          releaseNotes: "アップデート手順",
+          forceUpdate: "強制更新",
+          releaseNotes: "リリースノート",
           hostname: "ホスト名",
-          currentUsage: "現在の使用状況",
-          alertThreshold: "アラーム閾値",
-          recoverThreshold: "回復閾値",
+          currentUsage: "現在の使用率",
+          alertThreshold: "アラート閾値",
+          recoverThreshold: "復旧閾値",
           sampleInterval: "サンプリング間隔",
-          sustainDuration: "期間",
+          sustainDuration: "継続時間",
           tunnelType: "トンネルタイプ",
           connectionStatus: "接続状態",
-          processPid: "プロセスPID",
-          runtimeFeedback: "操作フィードバック",
+          processPid: "プロセス PID",
+          runtimeFeedback: "実行時メッセージ",
           eventType: "イベントタイプ",
           riskLevel: "リスクレベル",
           eventSource: "イベントソース",
@@ -2711,178 +2692,178 @@ export const jaJPServer = {
           aggregationStats: "集計統計",
         },
         authLoginSuccess: {
-          loginViaProvider: "{provider}からログイン",
-          loginWithMethod: "は {method} を使用します",
-          authViaProvider: "合格 {provider}",
-          authWithMethod: "は {method} を使用します",
-          summaryOidc: "{credential} {method}成功、ソース IP {ip}{totpPart}",
-          linkedTotpPart: "、 TOTP『{totp}』 に関連付けられています",
+          loginViaProvider: "{provider} からログイン",
+          loginWithMethod: "{method} を使用",
+          authViaProvider: "{provider} を経由",
+          authWithMethod: "{method} を使用",
+          summaryOidc:
+            "{credential} が {method} で認証成功（IP: {ip}）{totpPart}",
+          linkedTotpPart: "、TOTP「{totp}」を紐付け済み",
           summaryTotp:
-            "{method}『{credential}』 TOTP『{totp}』 に関連付けられています {ip}からログイン成功",
+            "{method}「{credential}」（紐付け済み TOTP「{totp}」）が {ip} からログインしました",
           summaryCredential:
-            '認証情報 "{credential}" が {ip} から正常にログインしました',
+            "認証情報「{credential}」が {ip} からログインしました",
           overview:
-            "今回のログイン{auth}で認証が完了し、認可方法は{grantType}{locationPart}となります。 {commentPart}",
-          locationPart: "、ログイン場所は{location}です",
+            "今回のログインは {auth} で認証されました。許可方式: {grantType}{locationPart}。{commentPart}",
+          locationPart: "、所在地: {location}",
           advice:
-            "ご自身でログインされていない場合は、できるだけ早くセッションをキャンセルし、アクセスポリシーを確認することをお勧めします。",
+            "心当たりがない場合は、すぐにセッションを無効化し、アクセスポリシーを確認してください",
         },
         authLogout: {
           summaryTotp:
-            "{method}「{credential}」関連 TOTP「{totp}」がログアウトしました",
-          summaryCredential: "資格情報「{credential}」がログアウトしました",
+            "{method}「{credential}」（紐付け済み TOTP「{totp}」）がログアウトしました",
+          summaryCredential: "認証情報「{credential}」がログアウトしました",
           overview:
-            "セッションは、終了モード {source} で {ip}{locationPart} から終了しました。 {commentPart}",
+            "{ip}{locationPart} からのセッションがログアウトしました。ログアウト元: {source}。{commentPart}",
           advice:
-            "期待どおりに終了しない場合は、管理者がオフラインになっているか、異常なセッション クリーンアップが発生していないかを確認してください。",
+            "予期しないログアウトの場合は、管理者によるセッション終了や異常なクリーンアップが発生していないか確認してください",
         },
         authLoginFailure: {
-          summary: "{ip}からのログイン失敗が{attempts}回累積しました",
+          summary: "{ip} からのログイン失敗が {attempts} 回に達しました",
           overview:
-            "連続ログイン認証の失敗を検出しました。現在のソース IP は {ip}{retryPart}{blockedPart} です。",
-          retryPart: "、再試行する前に {seconds} 秒待つ必要があります",
-          blockedPart: "、制限は {time} まで続きます",
+            "ログイン認証の連続失敗を検出しました。送信元 IP: {ip}{retryPart}{blockedPart}",
+          retryPart: "、{seconds} 秒後に再試行可能",
+          blockedPart: "、{time} まで制限",
           advice:
-            "自分で実行していない場合は、すぐに認証情報の安全性を確認し、ソース IP をブロックするか、ログイン保護レベルを向上させることを検討することをお勧めします。",
+            "心当たりがない場合は認証情報の安全性をすぐに確認し、送信元 IP のブロックやログイン保護の強化を検討してください",
         },
         authSessionIpDrift: {
-          summary: "{session} IP {fromIp} から {toIp} に切り替えます",
+          summary: "{session} の IP が {fromIp} から {toIp} に変化しました",
           overview:
-            "は、{session}のアクセス元IPが変化したことを検出し、アクセス元が{source}であると判明しました。 {commentPart}これは通常、ネットワークの切り替え、プロキシの変更、またはセッションの異常に関連しています。",
+            "{session} のアクセス元 IP が変化しました。検出元: {source}。{commentPart}通常はネットワークの切り替え、プロキシの変更、またはセッションの異常が原因です",
           advice:
-            "この IP の変更が予想どおりでない場合は、現在のセッションが乗っ取られる危険性があるかどうかをできるだけ早く確認してください。",
+            "予期しない IP の変化の場合は、現在のセッションが乗っ取られていないか、すぐに確認してください",
         },
         securityScannerBlocked: {
-          summary: "{ip} はスキャン動作によりブロックされました",
+          summary: "{ip} をスキャン行為のためブロックしました",
           overview:
-            "このソースは、{minutes} 分以内に合計 {hits} のスキャン動作をトリガーし、しきい値を {threshold} 回 {pathsPart} 超えました。",
-          pathsPart: ";最近のヒット パスには {paths} が含まれます",
+            "この送信元では {minutes} 分間に {hits} 回のスキャンを検出し、閾値 {threshold} 回を超えました{pathsPart}",
+          pathsPart: "。最近一致したパス: {paths}",
           advice:
-            "ゲートウェイのログをチェックして、悪意のある検出かどうかを確認することをお勧めします。偽陽性であることが確認された場合は、スキャンしきい値をさらに調整できます。",
+            "ゲートウェイログで悪意のある探索か確認してください。誤検知の場合はスキャン閾値を調整できます",
         },
         ddnsUpdateCompleted: {
-          defaultTarget: "DDNS エントリー",
-          summarySuccess: "{target} DDNS 正常に更新されました",
-          summaryFailure: "{target} DDNS アップデートに失敗しました",
-          currentTask: "今回のミッション",
+          defaultTarget: "DDNS の更新対象",
+          summarySuccess: "{target} の DDNS 更新に成功しました",
+          summaryFailure: "{target} の DDNS 更新に失敗しました",
+          currentTask: "今回のタスク",
           overview:
-            "{trigger}は範囲{scope}、IPソース{ipSource}でDDNS更新を実行しました。 {resultPart}",
-          resultPart: "結果の説明: {message}",
+            "{trigger}で DDNS 更新を実行しました。更新対象: {scope}、IP の取得元: {ipSource}。{resultPart}",
+          resultPart: "結果: {message}",
           adviceSuccess:
-            "解析がまだ有効になっていない場合は、外部アクセスを検証する前に、DNS キャッシュが更新されるのを待ち続けることができます。",
+            "DNS の変更がまだ反映されていない場合は、キャッシュの更新を待ってから外部アクセスを再確認してください",
           adviceFailure:
-            "プロバイダーの資格情報、レコード構成の解析、およびパブリック ネットワーク IP の取得ステータスが正常かどうかを確認することをお勧めします。",
+            "プロバイダーの認証情報、DNS レコード設定、グローバル IP の検出状態を確認してください",
           primaryDomain: "メインドメイン",
-          additionalDomain: "追加フィールド",
+          additionalDomain: "追加ドメイン",
         },
         gatewayThrottleBlocked: {
-          summary:
-            "{ip} リクエストが速すぎるためブロックされました {seconds} 秒",
+          summary: "{ip} をリクエスト過多のため {seconds} 秒間ブロックしました",
           overview:
-            "このソースはゲートウェイ スロットリング保護をトリガーしました。現在の制限しきい値は {rate} 回/秒、バースト容量は {burst}{targetPart} です。",
-          targetPart: "、ターゲットリクエストは{target}です",
+            "この送信元がゲートウェイのレート制限に達しました。上限: {rate} 回/秒、バースト容量: {burst}{targetPart}",
+          targetPart: "、対象リクエスト: {target}",
           advice:
-            "アクセスログをチェックして、突然のトラフィック、偶発的な損傷、または悪意のあるリクエストであるかどうかを確認し、必要に応じて現在の制限ポリシーを調整してください。",
+            "アクセスログで、急激なトラフィック、誤検知、悪意のあるリクエストのいずれかを確認し、必要に応じてレート制限を調整してください",
         },
         wafBlocked: {
-          summary: "{ip} のリクエストは WAF {outcome} に置き換えられました",
+          summary: "{ip} のリクエストを WAF が{outcome}しました",
           overview:
-            "WAF は {outcome} {ip}{hostPart}{pathPart}{actionPart}{modePart} から供給されています。 {rulesPart}",
-          hostPart: "訪問しました {host}",
-          pathPart: "{path}",
-          actionPart: "、アクションは {action}",
-          modePart: "、現在のモードは {mode}",
-          rulesPart: "ヒットルール: {rules}。",
+            "WAF が送信元 {ip}{hostPart}{pathPart} を{outcome}しました{actionPart}{modePart}。{rulesPart}",
+          hostPart: "（アクセス先: {host}）",
+          pathPart: " {path}",
+          actionPart: "、アクション: {action}",
+          modePart: "、現在のモード: {mode}",
+          rulesPart: "一致したルール: {rules}",
           adviceBlocked:
-            "WAF ログの Trace ID を押して、ヒットの詳細を表示してください。誤警報であることが確認された場合は、BUGまでにプロジェクトチームに報告してください。",
+            "WAF ログの Trace ID から一致内容を確認してください。誤検知の場合はプロジェクトのメンテナーへ報告してください",
           adviceLogged:
-            "WAF ログの Trace ID を押してヒットの詳細を表示し、ルールとリクエストのコンテキストに基づいてポリシーを調整する必要があるかどうかを判断してください。",
+            "WAF ログの Trace ID から一致内容を確認し、ルールとリクエストの内容に基づいてポリシーの調整が必要か判断してください",
         },
         sshLoginSuccess: {
-          summary: "SSH ユーザー「{username}」が{ip}から正常にログインしました",
+          summary: "SSH ユーザー「{username}」が {ip} からログインしました",
           overview:
-            "は、{ip}{locationPart}{authPart} からの SSH の 1 つの成功したログインを検出しました。",
-          authPart: "、認証方法は{authMethod}です",
+            "{ip}{locationPart}{authPart} からの SSH ログインに成功しました",
+          authPart: "、認証方式: {authMethod}",
           advice:
-            "このログインが予期されていない場合は、SSH アカウント、キー、およびソース アクセス ポリシーを確認してください。",
+            "心当たりがない場合は、SSH アカウント、鍵、送信元アクセスポリシーを確認してください",
         },
         sshLoginFailure: {
           summary:
-            "SSH ユーザー「{username}」は{ip}からのログインに失敗しました",
+            "SSH ユーザー「{username}」が {ip} からのログインに失敗しました",
           overview:
-            "このソースは、{minutes} 分間に {attempts}/{threshold} {locationPart} 回ログインに失敗しました。",
-          locationPart: "、位置{location}",
+            "この送信元では {minutes} 分間に SSH ログインが {attempts}/{threshold} 回失敗しました{locationPart}",
+          locationPart: "、所在地: {location}",
           advice:
-            "失敗の数がブロックしきい値に近いかどうかに注意し、必要に応じて SSH の公開範囲を強化するか、資格情報を調整してください。",
+            "失敗回数がブロック閾値に近づいていないか確認し、必要に応じて SSH の公開範囲を狭めるか認証情報を見直してください",
         },
         sshIpBlocked: {
-          reasonCidrNotAllowed: "は許可エリア内にありません",
+          reasonCidrNotAllowed: "許可された地域範囲外",
           reasonFailedThreshold: "失敗数がしきい値に達しました",
-          summary: "{ip} は SSH によって安全にブロックされました",
+          summary: "{ip} を SSH セキュリティがブロックしました",
           overview:
-            "SSH {reason} により、セキュリティがソース {ip}{locationPart} をブロックしました。",
+            "SSH セキュリティが送信元 {ip}{locationPart} をブロックしました。理由: {reason}",
           advice:
-            "ソースが信頼できるかどうかを確認してください。誤ってブロックした場合は、SSH 安全なブロック リストでブロックを解除できます。",
+            "送信元が信頼できるか確認してください。誤ってブロックされた場合は、SSH セキュリティのブロック一覧から解除できます",
         },
         appUpdateAvailable: {
-          currentVersionUnknown: "現在のバージョンは不明",
-          targetVersionUnknown: "対象バージョン不明",
-          summary: "新しいバージョン{version}が見つかりました",
-          currentCheck: "今回の検査",
+          currentVersionUnknown: "現在のバージョン不明",
+          targetVersionUnknown: "更新先バージョン不明",
+          summary: "新しいバージョン {version} が利用可能です",
+          currentCheck: "今回の確認",
           overview:
-            "{reason}は、fn-knockを{localVersion}から{latestVersion}{forcePart}にアップグレードできることを発見しました。",
-          forcePart: "、できるだけ早くアップデートを手配することをお勧めします",
-          releaseNotesAdvice: "アップデートの説明: {releaseNotes}",
+            "{reason}により、fn-knock を {localVersion} から {latestVersion} に更新できることを確認しました{forcePart}",
+          forcePart: "。早めに更新してください",
+          releaseNotesAdvice: "リリースノート: {releaseNotes}",
           advice:
-            "適切なメンテナンス期間中にアップデートを完了し、インストール前に現在の構成とサービスのステータスを確認することをお勧めします。",
+            "適切なメンテナンス時間帯に更新し、インストール前に現在の設定とサービス状態を確認してください",
         },
         systemMetric: {
           recoveredSummary:
             "{hostname} {metric} 使用率が {usage}% に戻りました",
           alertSummary: "{hostname} {metric} 使用率が {usage}% に増加しました",
           recoveredOverview:
-            "{hostname}の{metric}使用率は{usage}%まで戻り、回復ラインは{recover}%です。以前のアラームしきい値は {threshold}% でした。",
+            "{hostname} の {metric} 使用率は {usage}% まで低下しました。復旧閾値: {recover}%、直前のアラート閾値: {threshold}%",
           alertOverview:
-            "{hostname}の{metric}使用率は現在{usage}%で、警報閾値{threshold}%を超えており、回復ラインは{recover}%に設定されています。",
+            "{hostname} の {metric} 使用率は現在 {usage}% で、アラート閾値 {threshold}% を超えています。復旧閾値: {recover}%",
           recoveredAdvice:
-            "現在の資源は比較的安全な範囲に戻りました。今後も変動を繰り返すかどうか引き続き観察することをお勧めします。",
+            "リソース使用率は安全な範囲に戻りました。再び変動しないか、引き続き監視してください",
           alertAdvice:
-            "継続的なリソースの満杯を避けるために、高負荷のプロセス、バックグラウンドタスク、または外部トラフィックの変化をできるだけ早く確認することをお勧めします。",
+            "リソースの逼迫が続かないよう、高負荷のプロセス、バックグラウンドタスク、外部トラフィックの変化を確認してください",
         },
         tunnel: {
-          connectedSummary: "{tunnel} 接続されました",
-          disconnectedSummary: "{tunnel} 切断されました",
+          connectedSummary: "{tunnel} が接続されました",
+          disconnectedSummary: "{tunnel} が切断されました",
           connectedOverview:
-            "{tunnel} トンネル接続が復旧しました {messagePart}。",
-          connectedMessagePart: "、実行中のフィードバックは: {message}",
+            "{tunnel} のトンネル接続が復旧しました{messagePart}",
+          connectedMessagePart: "。実行時メッセージ: {message}",
           disconnectedOverview:
-            "{tunnel} トンネル接続が切断されました {messagePart}。",
-          disconnectedMessagePart: "、現在のフィードバックは: {message}",
+            "{tunnel} のトンネル接続が切断されました{messagePart}",
+          disconnectedMessagePart: "。現在のメッセージ: {message}",
           connectedAdvice:
-            "以前にアクセスの問題のトラブルシューティングを行っていた場合は、外部入口が復旧したかどうかを再確認できます。",
+            "アクセス障害を調査していた場合は、外部公開エンドポイントが復旧したか再確認してください",
           disconnectedAdvice:
-            "トンネル構成、上流ネットワークのステータス、およびリモート サービスが到達可能かどうかを確認することをお勧めします。",
+            "トンネル設定、アップストリームネットワークの状態、リモートサービスへの到達性を確認してください",
         },
         short: {
-          loginFailureAttempts: "{count} 失敗しました",
-          scanHits: "{count} スキャン",
-          scanBlocked: "スキャンと傍受",
+          loginFailureAttempts: "{count} 回失敗",
+          scanHits: "スキャン {count} 回",
+          scanBlocked: "スキャナーをブロック",
           success: "成功",
-          failure: "失敗しました",
-          blockSeconds: "{seconds}s がブロックされました",
-          blockTriggered: "トリガーブロック",
+          failure: "失敗",
+          blockSeconds: "{seconds} 秒間ブロック",
+          blockTriggered: "ブロック発動",
           rules: "ルール {rules}",
           sshLoginSuccess: "SSH ログイン成功",
-          sshLoginFailure: "SSH ログインに失敗しました",
-          regionNotAllowed: "この地域では許可されていません",
+          sshLoginFailure: "SSH ログイン失敗",
+          regionNotAllowed: "許可地域外",
           failureThreshold: "失敗しきい値",
           currentVersion: "現在 {version}",
         },
         titles: {
-          ddnsUpdateSuccess: "{target} が正常に更新されました",
-          ddnsUpdateFailure: "{target} アップデートに失敗しました",
-          credentialIpDrift: "証明書「{credential}」IP ドリフト",
-          appUpdateAvailable: "新しいバージョン{version}が見つかりました",
+          ddnsUpdateSuccess: "{target} の更新に成功しました",
+          ddnsUpdateFailure: "{target} の更新に失敗しました",
+          credentialIpDrift: "認証情報「{credential}」の IP が変化しました",
+          appUpdateAvailable: "新しいバージョン {version} が利用可能です",
         },
       },
     },
@@ -2891,30 +2872,30 @@ export const jaJPServer = {
         email: {
           label: "メール",
           description:
-            "は、SMTP を介して電子メール通知を送信し、メールボックス接続情報を一元管理するための IMAP 設定項目の保存をサポートします。",
+            "SMTP でメール通知を送信します。メールボックスの接続情報を一元管理するため、任意で IMAP 設定も保存できます",
           fields: {
             smtp_host: {
               label: "SMTP ホスト",
               description:
-                "電子メール送信サーバーのアドレス (smtp.example.com など)。",
+                "メール送信サーバーのアドレス（例: smtp.example.com）",
             },
             smtp_port: {
-              label: "SMTPポート",
+              label: "SMTP ポート",
               description:
-                "共通ポートは 465 (SSL/TLS) または 587 (STARTTLS) です。",
+                "一般的なポートは 465（SSL/TLS）または 587（STARTTLS）です",
             },
             smtp_security: {
               label: "SMTP 暗号化方式",
               options: {
-                none: "暗号化されていません",
+                none: "暗号化なし",
               },
             },
             smtp_auth_mode: {
               label: "SMTP 認証方式",
               description:
-                "は自動的に AUTH PLAIN を優先し、サポートされていない場合は AUTH LOGIN に戻ります。",
+                "AUTH PLAIN を優先し、必要に応じて AUTH LOGIN にフォールバックします",
               options: {
-                auto: "オートネゴシエーション",
+                auto: "自動選択",
                 none: "認証なし",
               },
             },
@@ -2925,9 +2906,8 @@ export const jaJPServer = {
               label: "SMTP パスワード",
             },
             from_address: {
-              label: "メール送信中",
-              description:
-                "は、メールヘッダーの MAIL FROM および From アドレスとして使用されます。",
+              label: "送信元アドレス",
+              description: "MAIL FROM とメールヘッダーの From に使用します",
             },
             from_name: {
               label: "送信者名",
@@ -2935,20 +2915,20 @@ export const jaJPServer = {
             to_addresses: {
               label: "デフォルトの受信者",
               description:
-                "は、複数のメールボックスを区切るためのカンマまたは改行をサポートしています。テスト送信ではここで受信者が使用され、ルールはターゲットでオーバーライドすることもできます。",
+                "複数のメールアドレスはカンマまたは改行で区切ります。テスト送信ではこの宛先を使用し、ルールごとに上書きできます",
               targetLabel: "受信者のオーバーライド",
               targetDescription:
-                "オプション。プロバイダーのデフォルト受信者を使用する場合は、空白のままにします。",
+                "任意。プロバイダーのデフォルト宛先を使用する場合は空欄にします",
               addressLabel: "受信者",
             },
             cc_addresses: {
-              label: "デフォルトCC",
-              targetLabel: "CCの範囲",
+              label: "デフォルト CC",
+              targetLabel: "CC の上書き",
               addressLabel: "CC",
             },
             bcc_addresses: {
               label: "デフォルトの BCC",
-              targetLabel: "BCC カバレッジ",
+              targetLabel: "BCC の上書き",
               addressLabel: "BCC",
             },
             reply_to: {
@@ -2957,9 +2937,9 @@ export const jaJPServer = {
               addressLabel: "返信アドレス",
             },
             allow_invalid_tls: {
-              label: "証明書を検証しないことを許可します",
+              label: "無効な証明書を許可",
               description:
-                "独自に構築したメール サーバーまたは自己署名証明書をデバッグする場合にのみオンにすることをお勧めします。実稼働環境では、これをオフにしておく必要があります。",
+                "セルフホスト型メールサーバーや自己署名証明書のデバッグ時にのみ使用してください。本番環境では無効にします",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -2967,15 +2947,15 @@ export const jaJPServer = {
             imap_host: {
               label: "IMAP ホスト",
               description:
-                "オプション。受信設定を保存するために使用されます。現在の通知送信プロセスは SMTP のみを使用し、IMAP を積極的に読み取りません。",
+                "任意。受信用メールボックスの設定として保存します。現在の通知送信は SMTP のみを使用し、IMAP からの読み込みは行いません",
             },
             imap_port: {
-              label: "IMAPポート",
+              label: "IMAP ポート",
             },
             imap_security: {
               label: "IMAP 暗号化方式",
               options: {
-                none: "暗号化されていません",
+                none: "暗号化なし",
               },
             },
             imap_username: {
@@ -2985,16 +2965,16 @@ export const jaJPServer = {
               label: "IMAP パスワード",
             },
             imap_mailbox: {
-              label: "IMAP メールディレクトリ",
+              label: "IMAP メールボックス",
             },
             subject_prefix: {
-              label: "トピックの接頭辞",
-              description: "オプション、例: [運用環境]。",
-              placeholder: "[制作環境]",
+              label: "件名の接頭辞",
+              description: "任意（例: [本番環境]）",
+              placeholder: "[本番環境]",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
             details: "詳細:",
             actionLinks: "操作リンク:",
             severity: "レベル: {value}",
@@ -3005,71 +2985,71 @@ export const jaJPServer = {
             invalidEmailAddress:
               "{field} には無効な電子メール アドレスが含まれています: {value}",
             smtpConnectionClosed: "SMTP 接続が閉じられました",
-            smtpReaderDisposed: "SMTP リーダーがリリースされました",
-            invalidSmtpResponse: "SMTP を解析できません 応答: {line}",
-            smtpConnectionTimeout: "SMTP 接続タイムアウト",
-            smtpTlsHandshakeTimeout: "SMTP TLS ハンドシェイクタイムアウト",
+            smtpReaderDisposed: "SMTP リーダーが破棄されました",
+            invalidSmtpResponse: "SMTP レスポンスを解析できません: {line}",
+            smtpConnectionTimeout: "SMTP 接続がタイムアウトしました",
+            smtpTlsHandshakeTimeout:
+              "SMTP TLS ハンドシェイクがタイムアウトしました",
             smtpCommandFailed: "{message}: {code} {response}",
             unknownResponse: "不明な応答",
             authPlainUnsupported:
-              "SMTP サーバーは AUTH PLAIN をサポートしていません",
+              "SMTP サーバーは AUTH PLAIN に対応していません",
             authLoginUnsupported:
-              "SMTP サーバーは AUTH LOGIN をサポートしていません",
+              "SMTP サーバーは AUTH LOGIN に対応していません",
             unsupportedAuthMechanisms:
-              "SMTP サポートされていない認証方法: {mechanisms}",
+              "対応していない SMTP 認証方式です: {mechanisms}",
             authFailed: "SMTP 認証に失敗しました",
             usernameAuthFailed: "SMTP ユーザー名認証に失敗しました",
             passwordAuthFailed: "SMTP パスワード認証に失敗しました",
-            dataStartFailed: "SMTP DATA ステージ起動に失敗しました",
+            dataStartFailed: "SMTP DATA フェーズの開始に失敗しました",
             submitFailed: "SMTP メール送信に失敗しました",
-            invalidFromAddress: "送信メールの形式が間違っています",
+            invalidFromAddress: "送信元アドレスの形式が無効です",
             recipientRequired:
               "少なくとも 1 つの受信メール アドレスを設定する必要があります",
-            handshakeFailed: "SMTP サーバーハンドシェイクが失敗しました",
-            ehloFailed: "SMTP EHLO 失敗しました",
+            handshakeFailed: "SMTP サーバーからのグリーティングに失敗しました",
+            ehloFailed: "SMTP EHLO に失敗しました",
             startTlsUnsupported:
-              "SMTP サーバーは STARTTLS 機能を宣言していませんでした",
-            startTlsFailed: "SMTP STARTTLS 失敗しました",
+              "SMTP サーバーは STARTTLS 対応を通知していません",
+            startTlsFailed: "SMTP STARTTLS に失敗しました",
             ehloAfterTlsFailed: "SMTP TLS アップグレード後 EHLO が失敗しました",
             credentialsRequired:
               "SMTP ユーザー名とパスワードを空にすることはできません",
             noAuthMechanism:
-              "SMTP サーバーは利用可能な認証方法を提供していません。",
+              "SMTP サーバーから使用可能な認証方式が提示されませんでした",
             mailFromFailed: "SMTP 送信者の設定に失敗しました",
             recipientSetFailed:
               "SMTP 受信者 {recipient} を設定できませんでした",
             quitFailed: "SMTP 終了に失敗しました",
-            missingSmtpHost: "SMTP ホストが見つかりません",
+            missingSmtpHost: "SMTP ホストが指定されていません",
             deliveryFailed: "メール配信に失敗しました",
           },
         },
         pushplus: {
           label: "PushPlus",
           description:
-            "プッシュ通知はPushPlus標準の送信インターフェースを通じて送信され、公式アカウント、アプリ、メールなどのチャネルをルールに従って選択できます。",
+            "PushPlus の標準 API で通知を送信します。ルールごとに WeChat 公式アカウント、アプリ、メールなどのチャネルを選択できます",
           fields: {
             server_url: {
-              label: "サービスアドレス",
-              description:
-                "公式インターフェースのデフォルト値をそのままにしておきます。",
+              label: "サービス URL",
+              description: "必要がなければ公式 API の URL のままにします",
             },
             token: {
               label: "トークン",
               description:
-                "PushPlusのユーザートークンまたはメッセージトークンは大切に保管してください。",
+                "PushPlus のユーザートークンまたはメッセージトークン。安全に管理してください",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
             topic: {
-              label: "グループエンコーディング",
+              label: "トピックコード",
               description:
-                "オプション。入力後、メッセージは指定されたグループに送信されます。入力されていない場合、メッセージはトークン自体に送信されます。",
+                "任意。指定したトピックへメッセージを送信します。空欄の場合はトークンの所有者へ送信します",
             },
             template: {
               label: "メッセージテンプレート",
               description:
-                "はデフォルトで Markdown を使用します。ターゲットチャンネルがプレーンテキストまたはHTMLに適している場合は、個別に切り替えることもできます。",
+                "デフォルトは Markdown です。送信先に応じてプレーンテキストや HTML に切り替えられます",
               options: {
                 markdown: "Markdown",
                 html: "HTML",
@@ -3080,62 +3060,62 @@ export const jaJPServer = {
             channel: {
               label: "送信チャンネル",
               description:
-                "はデフォルトで WeChat 公式アカウントに送信されます。他のチャンネルがPushPlusで設定されている場合は、ここで切り替えることができます。",
+                "デフォルトは WeChat 公式アカウントです。PushPlus で他のチャネルを設定済みの場合は、ここで切り替えられます",
               options: {
-                wechat: "WeChat 公開アカウント",
+                wechat: "WeChat 公式アカウント",
                 webhook: "サードパーティ Webhook",
-                cp: "エンタープライズ WeChat アプリケーション",
+                cp: "WeCom アプリ",
                 mail: "メール",
                 sms: "SMS",
                 voice: "音声",
-                extension: "プラグイン/デスクトップ プログラム",
+                extension: "プラグイン / デスクトップアプリ",
                 app: "アプリ",
-                clawbot: "WeChat クローボット",
+                clawbot: "WeChat ClawBot",
               },
             },
             option: {
-              label: "チャンネル設定パラメータ",
+              label: "チャネルオプション",
               description:
-                "オプション。 cp、Webhook、メールなどのチャネルは通常、PushPlus パーソナル センターで事前に設定されたチャネル コードを入力する必要があります。",
+                "任意。cp、Webhook、メールなどでは通常、PushPlus のアカウントセンターで設定したチャネルコードが必要です",
             },
             to: {
               label: "フレンドトークン / ユーザー ID",
               description:
-                "オプション。 WeChat 公式アカウント チャネルの友達トークンを入力し、エンタープライズ WeChat アプリケーション チャネルのユーザー ID を入力します。 PushPlusドキュメント形式で複数人で入力できます。",
+                "任意。WeChat 公式アカウントではフレンドトークン、WeCom アプリではユーザー ID を指定します。複数の宛先は PushPlus の形式で入力します",
               placeholder: "friend_token または user1、user2",
             },
             callback_url: {
               label: "コールバック URL",
               description:
-                "オプション。 PushPlus 非同期配信が完了すると、結果がこのアドレスにコールバックされます。",
+                "任意。PushPlus の非同期配信が完了すると、この URL に結果が通知されます",
             },
             pre: {
-              label: "前処理エンコーディング",
+              label: "前処理コード",
               description:
-                "オプション。これは、PushPlus アカウントが対応する前処理ロジックで構成されている場合にのみ入力されます。このロジックは、メッセージの内容をサーバーに送信する前に処理するために使用されます。",
+                "任意。PushPlus アカウントに対応する前処理ロジックを設定している場合のみ入力します",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingToken: "PushPlus トークンがありません",
-            requestFailed: "PushPlus リクエストは失敗しました",
+            missingToken: "PushPlus トークンが指定されていません",
+            requestFailed: "PushPlus のリクエストに失敗しました",
           },
         },
         wxpusher: {
           label: "WxPusher",
           description:
-            "は、WxPusher 標準プッシュ インターフェイスを通じて、指定された UID またはトピックにメッセージ通知を送信します。ルールのターゲットを空白のままにすると、プロバイダーのデフォルトのターゲット構成が継承されます。",
+            "WxPusher の標準 API で指定した UID またはトピックへ通知を送信します。ルールの宛先が空欄の場合はプロバイダーのデフォルト設定を継承します",
           fields: {
             server_url: {
-              label: "サービスアドレス",
-              description: "正式サービスではデフォルト値のままにしておきます。",
+              label: "サービス URL",
+              description: "必要がなければ公式サービスの URL のままにします",
             },
             app_token: {
               label: "AppToken",
               description:
-                "WxPusher バックグラウンドアプリケーションのAppTokenを適切に保管してください。",
+                "WxPusher バックエンドアプリの AppToken。安全に管理してください",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -3144,32 +3124,32 @@ export const jaJPServer = {
               label: "デフォルト UID リスト",
               targetLabel: "UID リスト",
               description:
-                "オプション。テスト送信では、ここでは UID の使用が優先されます。ルールターゲットが空白のままの場合、ここのデフォルト値も使用されます。",
+                "任意。テスト送信ではこの UID を優先し、ルールの宛先が空欄の場合にも使用します",
               targetDescription:
-                "オプション。プロバイダーのデフォルトの UID リストを上書きするには、入力します。デフォルト値を使用する場合は空白のままにします。",
+                "任意。プロバイダーのデフォルト UID を上書きします。継承する場合は空欄にします",
             },
             topic_ids: {
               label: "デフォルトのトピック",
               description:
-                "オプション。ここではテスト送信によりトピックが優先されます。チャンネルの直接検証を容易にするために、少なくとも 1 つのデフォルト UID またはトピックを入力することをお勧めします。",
+                "任意。テスト送信ではこのトピックを優先します。チャネルを直接テストできるよう、デフォルト UID またはトピックを 1 件以上設定してください",
               targetDescription:
-                "オプション。プロバイダーのデフォルトのトピックを上書きするには、これを入力します。デフォルト値を使用する場合は空白のままにします。",
+                "任意。プロバイダーのデフォルトトピックを上書きします。継承する場合は空欄にします",
             },
             url: {
-              label: "デフォルトメッセージジャンプ URL",
-              targetLabel: "メッセージジャンプ URL",
+              label: "デフォルトのメッセージ URL",
+              targetLabel: "メッセージ URL",
               description:
-                "オプション。ルールターゲットが入力されていない場合は、ここのジャンプリンクが使用されます。テスト送信にも使用されます。",
+                "任意。ルールの宛先が空欄の場合にこのリンクを継承し、テスト送信でも使用します",
               targetDescription:
-                "オプション。入力後、プロバイダーのデフォルトのジャンプ リンクを上書きします。空白のままにすると、デフォルト値が使用されます。",
+                "任意。プロバイダーのデフォルトリンクを上書きします。継承する場合は空欄にします",
             },
             verify_pay_type: {
               label: "デフォルトのサブスクリプション検証",
               targetLabel: "サブスクリプションの検証",
               description:
-                "オプション。ルールターゲットが入力されていない場合、ここでのサブスクリプション検証戦略が使用されます。",
+                "任意。ルールの宛先が空欄の場合に、この購読検証ポリシーを継承します",
               targetDescription:
-                "オプション。入力後、プロバイダーのデフォルトのサブスクリプション検証ポリシーが上書きされます。 「プロバイダーのデフォルトを継承」が選択されている場合、個別にオーバーライドされることはありません。",
+                "任意。プロバイダーのデフォルト購読検証ポリシーを上書きします。「プロバイダーのデフォルトを使用」を選ぶと個別には上書きしません",
               options: {
                 "0": "未検証",
                 "1": "有料会員限定",
@@ -3179,16 +3159,16 @@ export const jaJPServer = {
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingAppToken: "WxPusher AppToken がありません",
-            invalidTopicIds: "トピック ID 形式が正しくありません: {values}",
+            missingAppToken: "WxPusher AppToken が指定されていません",
+            invalidTopicIds: "トピック ID の形式が無効です: {values}",
             recipientRequired:
-              "WxPusher 少なくとも 1 つの UID またはトピック ID を設定する必要があります。これはプロバイダーのデフォルト設定に入力するか、ルール ターゲットで個別にオーバーライドできます。",
+              "WxPusher には UID またはトピック ID が 1 件以上必要です。プロバイダーのデフォルト設定か、ルールの宛先に指定してください",
             targetsFailed:
-              "{failed}/{total} WxPusher ターゲットの送信に失敗しました",
-            requestFailed: "WxPusher リクエストが失敗しました",
+              "WxPusher の送信先 {total} 件中 {failed} 件への送信に失敗しました",
+            requestFailed: "WxPusher のリクエストに失敗しました",
           },
         },
         harmonyosmeow: {
@@ -3198,7 +3178,8 @@ export const jaJPServer = {
           fields: {
             server_url: {
               label: "サービス URL",
-              description: "必要がなければ公式 API URL のまま使用してください。",
+              description:
+                "必要がなければ公式 API URL のまま使用してください。",
             },
             nickname: {
               label: "受信者ニックネーム",
@@ -3211,7 +3192,8 @@ export const jaJPServer = {
           },
           errors: {
             missingNickname: "MeoW の受信者ニックネームがありません",
-            invalidNickname: "MeoW の受信者ニックネームにスラッシュは使用できません",
+            invalidNickname:
+              "MeoW の受信者ニックネームにスラッシュは使用できません",
             invalidServerUrl: "MeoW サービス URL が無効です",
             requestFailed: "MeoW リクエストに失敗しました",
           },
@@ -3219,17 +3201,17 @@ export const jaJPServer = {
         bark: {
           label: "Bark",
           description:
-            "は、Bark 公式オンライン バージョンまたは自社構築の Bark サーバーを通じて APN プッシュ通知を iPhone に送信します。",
+            "Bark の公式サービスまたはセルフホストした Bark Server を使い、iPhone へ APNs プッシュ通知を送信します",
           fields: {
             server_url: {
-              label: "サービスアドレス",
+              label: "サービス URL",
               description:
-                "公式オンライン バージョンのデフォルト値をそのまま使用します。自社構築の Bark サーバーを使用する場合は、サービス ルート アドレスを入力します。",
+                "セルフホストした Bark Server を使用する場合を除き、公式サービスの URL のままにします",
             },
             device_key: {
-              label: "デバイス Key",
+              label: "Device Key",
               description:
-                "Barkアプリにデバイスキーがコピーされました。複数のキーを入力し、カンマで区切ることができます。",
+                "Bark アプリからコピーした Device Key。複数指定する場合はカンマで区切ります",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -3237,37 +3219,37 @@ export const jaJPServer = {
             level: {
               label: "通知レベル",
               description:
-                "アクティブはデフォルトのインスタント リマインダーです。 timeSensitive はフォーカス モードを通過できます。クリティカルは重要な注意事項です。",
+                "active は通常の即時通知、timeSensitive は集中モードを突破できる通知、critical は重大な通知です",
               options: {
-                active: "即時通知",
-                timeSensitive: "時間制限通知",
-                passive: "サイレント通知",
-                critical: "重要通知",
+                active: "通常",
+                timeSensitive: "時間指定",
+                passive: "受動的",
+                critical: "重大",
               },
             },
             group: {
-              label: "メッセージのグループ化",
+              label: "メッセージグループ",
               description:
-                "オプション。 Barkクライアントでは同じグループが集約されて表示されます。",
+                "任意。同じグループのメッセージを Bark クライアントでまとめて表示します",
             },
             sound: {
-              label: "警報音",
+              label: "通知音",
               description:
-                "オプション。サポートされているシステムまたはカスタム通知サウンドの名前を Bark に入力します。",
+                "任意。Bark が対応するシステム通知音またはカスタム通知音の名前",
             },
             url: {
-              label: "クリックしてジャンプ URL",
+              label: "タップ時に開く URL",
               description:
-                "オプション。通知をクリックするとリンクが開きました。入力されていない場合は、メッセージ アクションの最初のリンクが最初に使用されます。",
+                "任意。通知をタップするとこのリンクを開きます。空欄の場合はメッセージアクションの最初のリンクを使用します",
             },
             icon: {
               label: "アイコン URL",
               description:
-                "オプション。 iOS 15以降ではカスタムアイコンを表示できます。",
+                "任意。iOS 15 以降ではカスタムアイコンを表示できます",
             },
             badge: {
-              label: "下付き数字",
-              description: "オプション。 Barkアプリアイコンに表示される数字。",
+              label: "バッジ数",
+              description: "任意。Bark アプリアイコンのバッジに表示する数値",
             },
             call: {
               label: "繰り返し鳴る",
@@ -3275,30 +3257,29 @@ export const jaJPServer = {
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingDeviceKey: "Bark デバイスキーがありません",
-            requestFailed: "Bark リクエストが失敗しました",
+            missingDeviceKey: "Bark Device Key が指定されていません",
+            requestFailed: "Bark のリクエストに失敗しました",
             pushFailed: "Bark プッシュに失敗しました",
             targetsFailed:
-              "{failed}/{total} Bark ターゲットの送信に失敗しました",
+              "Bark の送信先 {total} 件中 {failed} 件への送信に失敗しました",
           },
         },
         serverchan: {
-          label: "サーバーソース",
+          label: "ServerChan",
           description:
-            "Server Turbo・Turbo を通じて Markdown 通知を送信すると、Web サイトで設定されたデフォルトの受信チャネルを再利用できます。",
+            "ServerChan Turbo で Markdown 通知を送信し、Web サイト側で設定したデフォルト受信チャネルを使用します",
           fields: {
             server_url: {
-              label: "サービスアドレス",
-              description:
-                "公式インターフェースのデフォルト値をそのままにしておきます。",
+              label: "サービス URL",
+              description: "必要がなければ公式 API の URL のままにします",
             },
             sendkey: {
               label: "SendKey",
               description:
-                "サーバー Jiang·Turbo が SendKey を提供します。安全に保管してください。",
+                "ServerChan Turbo が発行する SendKey。安全に管理してください",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -3306,105 +3287,103 @@ export const jaJPServer = {
             channel: {
               label: "メッセージチャンネル",
               description:
-                "オプション。このプッシュのチャネルを動的に指定します。9|66 のように、| で区切られた最大 2 つの値を使用します。",
+                "任意。この通知で使用するチャネルを最大 2 つ指定します。9|66 のように | で区切ります",
             },
             openid: {
               label: "OpenID / UID",
               description:
-                "オプション。テスト アカウントは openid を使用し、エンタープライズ WeChat アプリケーション メッセージは受信者の UID を使用します。サーバーソースのドキュメント形式に従って複数の値を入力してください。",
-              placeholder: "openid1、openid2 または uid1|uid2",
+                "任意。テストアカウントでは openid、WeCom アプリのメッセージでは受信者の UID を使用します。複数指定する場合は ServerChan のドキュメントに従って入力します",
+              placeholder: "openid1,openid2 または uid1|uid2",
             },
             short: {
               label: "カード概要",
               description:
-                "オプション。メッセージ カードの短い概要 (最大 64 文字)。空白のままにすると、サーバーは自動的にテキストをインターセプトします。",
+                "任意。メッセージカードに表示する 64 文字以内の概要。空欄の場合は ServerChan が本文から生成します",
               placeholder: "ログイン異常、早めに対処してください",
             },
             noip: {
-              label: "隠し通話 IP",
+              label: "送信元 IP を非表示",
               description:
-                "が有効になった後、このプッシュでは呼び出し元 IP は表示されません。",
+                "有効にすると、この通知に呼び出し元の IP を表示しません",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingSendKey: "サーバーソース SendKey がありません",
-            requestReturned: "サーバーソースリターン HTTP {status}",
-            requestFailed: "サーバーソースリクエストが失敗しました",
+            missingSendKey: "ServerChan SendKey が指定されていません",
+            requestReturned: "ServerChan が HTTP {status} を返しました",
+            requestFailed: "ServerChan のリクエストに失敗しました",
           },
         },
         dingtalk: {
-          label: "ディントークロボット",
+          label: "DingTalk Bot",
           description:
-            "DingTalk ロボット Webhook を使用して、Markdown 通知をグループ チャットに送信し、署名検証をサポートします。",
+            "DingTalk Bot の Webhook でグループチャットへ Markdown 通知を送信します。署名検証にも対応します",
           fields: {
             webhook_url: {
               label: "Webhook URL",
-              description:
-                "DingTalk ロボットによって生成された完全な Webhook アドレス。",
+              description: "DingTalk Bot が生成した完全な Webhook URL",
             },
             secret: {
               label: "署名キー",
               description:
-                "オプション。ロボットの「署名」が有効になっている場合は、セキュリティ設定ページに表示されるSECから始まるキーを入力してください。",
+                "任意。Bot の署名を有効にしている場合は、セキュリティ設定に表示される SEC から始まるシークレットを入力します",
             },
             keyword_prefix: {
               label: "キーワードプレフィックス",
               description:
-                "オプション。ロボットがカスタム キーワード検証を有効にしている場合は、固定キーワードを入力することをお勧めします。送信時にタイトルに自動的に付加されます。",
+                "任意。Bot でカスタムキーワード検証を有効にしている場合、その固定キーワードを指定します。送信時に件名の先頭へ自動追加されます",
               placeholder: "監視アラーム",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
             at_mobiles: {
-              label: "@携帯番号",
+              label: "@ メンバーの携帯番号",
               description:
-                "オプション。複数の値はカンマまたは改行で区切る必要があり、グループのメンバーの携帯電話番号である必要があります。",
+                "任意。複数指定する場合はカンマまたは改行で区切ります。グループメンバーの携帯番号を指定してください",
             },
             at_user_ids: {
               label: "@ ユーザー ID",
               description:
-                "オプション。カンマまたは改行を使用して複数の値を区切ると、@userId がテキストに自動的に追加されます。",
+                "任意。複数指定する場合はカンマまたは改行で区切ります。本文に @userId が自動追加されます",
             },
             is_at_all: {
-              label: "@みんな",
+              label: "@ 全員",
               description:
                 "有効にすると、isAtAll がリクエストに含まれ、@Everyone がテキストに追加されます。",
             },
           },
-          mentionAll: "@みんな",
+          mentionAll: "@ 全員",
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingWebhookUrl: "がありません DingTalk Webhook URL",
-            requestReturned: "DingTalk 戻る HTTP {status}",
-            requestFailed: "DingTalk リクエストが失敗しました",
+            missingWebhookUrl: "DingTalk Webhook URL が指定されていません",
+            requestReturned: "DingTalk が HTTP {status} を返しました",
+            requestFailed: "DingTalk のリクエストに失敗しました",
           },
         },
         feishu: {
-          label: "フェイシュロボット",
+          label: "Feishu Bot",
           description:
-            "は、Feishu ロボット Webhook を使用して、投稿リッチ テキスト通知をグループ チャットに送信し、署名検証をサポートします。",
+            "Feishu Bot の Webhook でグループチャットへリッチテキスト通知を送信します。署名検証にも対応します",
           fields: {
             webhook_url: {
               label: "Webhook URL",
-              description:
-                "Feishu ロボットによって生成された完全な Webhook アドレス。",
+              description: "Feishu Bot が生成した完全な Webhook URL",
             },
             secret: {
               label: "署名キー",
               description:
-                "オプション。ロボットの「署名検証」が有効になっている場合は、セキュリティ設定からコピーしたキーを入力してください。",
+                "任意。Bot の署名検証を有効にしている場合は、セキュリティ設定からコピーしたシークレットを入力します",
             },
             keyword_prefix: {
               label: "キーワードプレフィックス",
               description:
-                "オプション。ロボットがカスタム キーワード検証を有効にしている場合は、固定キーワードを入力することをお勧めします。送信時にタイトルに自動的に付加されます。",
-              placeholder: "アプリケーションアラーム",
+                "任意。Bot でカスタムキーワード検証を有効にしている場合、その固定キーワードを指定します。送信時に件名の先頭へ自動追加されます",
+              placeholder: "アプリアラート",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -3412,117 +3391,115 @@ export const jaJPServer = {
             mention_user_ids: {
               label: "@ ユーザー ID",
               description:
-                "オプション。複数の値を区切るには、カンマまたは改行を使用します。すべての入力をサポートします。外部グループの @ 個人ユーザーに対しては、Open ID のみがサポートされます。",
+                "任意。複数指定する場合はカンマまたは改行で区切ります。all も指定できます。外部グループで個人をメンションする場合は Open ID のみ対応します",
             },
           },
-          mentionAll: "皆さん",
+          mentionAll: "全員",
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingWebhookUrl: "フェイシュがいなくなった Webhook URL",
-            requestReturned: "フェイシュ帰還 HTTP {status}",
-            requestFailed: "フェイシュのリクエストが失敗しました",
+            missingWebhookUrl: "Feishu Webhook URL が指定されていません",
+            requestReturned: "Feishu が HTTP {status} を返しました",
+            requestFailed: "Feishu のリクエストに失敗しました",
           },
         },
         webhook: {
           label: "Webhook",
           description:
-            "HTTP JSON をサポートするアドレスに標準通知メッセージを送信します。",
+            "HTTP JSON に対応する任意のエンドポイントへ標準形式の通知を送信します",
           fields: {
             url: {
               label: "Webhook URL",
-              description: "標準通知を受信する宛先アドレス JSON。",
+              description: "標準形式の通知 JSON を受信するエンドポイント",
             },
             method: {
-              label: "リクエスト方法",
+              label: "リクエストメソッド",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
             shared_secret: {
-              label: "共有キー",
+              label: "共有シークレット",
               description:
-                "オプション。入力すると、X-Fn-Knock-Signature リクエスト ヘッダーを介して送信されます。",
+                "任意。指定すると X-Fn-Knock-Signature リクエストヘッダーで送信します",
             },
             endpoint_path: {
               label: "追加パス",
-              description: "オプション。ベースWebhookURLに接合して発送します。",
+              description: "任意。送信前にベース Webhook URL へ追加します",
             },
             extra_headers_json: {
-              label: "追加リクエストヘッダー JSON",
-              description: 'オプション。例: {"X-Env":"prod"}。',
+              label: "追加ヘッダー JSON",
+              description: '任意（例: {"X-Env":"prod"}）',
             },
             extra_body_json: {
-              label: "追加リクエストボディJSON",
-              description:
-                "オプション。ペイロードにリンクされます。extra_body。",
+              label: "追加ボディ JSON",
+              description: "任意。payload.extra_body に追加します",
             },
           },
           errors: {
-            missingUrl: "がありません Webhook URL",
-            requestReturned: "Webhook 戻る HTTP {status}",
-            requestFailed: "Webhook リクエストが失敗しました",
+            missingUrl: "Webhook URL が指定されていません",
+            requestReturned: "Webhook が HTTP {status} を返しました",
+            requestFailed: "Webhook のリクエストに失敗しました",
           },
         },
         magicpush: {
-          label: "MagicPushマジックプッシュ",
+          label: "MagicPush",
           description:
-            "MagicPush の自社構築サービスを通じて構成済みのチャネルにプッシュ通知を送信し、標準プッシュ構成と MagicPush インバウンド構成をサポートします。",
+            "セルフホストした MagicPush サービスから設定済みのチャネルへ通知を送信します。標準プッシュと MagicPush インバウンドモードに対応します",
           fields: {
             server_url: {
-              label: "基本 API アドレス",
+              label: "ベース API URL",
               description:
-                "http://192.168.31.98:3000 などの MagicPush サービス ルート アドレスを入力します。 /api/pushまたは/api/inboundに入力されている場合は、そのまま使用されます。",
+                "MagicPush サービスのルート URL（例: http://192.168.31.98:3000）。/api/push または /api/inbound を含む URL も使用できます",
             },
             delivery_mode: {
               label: "配信モード",
               description:
-                "標準プッシュは /api/push に送信されます。受信設定は /api/inbound/:token に送信され、MagicPush の受信ルールがフィールド マッピングを担当します。",
+                "標準プッシュは /api/push へ送信します。インバウンドモードは /api/inbound/:token へ送信し、MagicPush 側のインバウンドルールでフィールドをマッピングします",
               options: {
                 push: "標準プッシュ",
-                inbound: "インバウンド構成",
+                inbound: "インバウンドモード",
               },
             },
             token: {
               label: "トークン",
               description:
-                "MagicPush インターフェーストークン。標準プッシュは、Authorization: Bearer で送信されます。受信設定は /api/inbound/:token に接続されます。",
+                "MagicPush API トークン。標準プッシュでは Authorization: Bearer で送信し、インバウンドモードでは /api/inbound/:token の末尾に追加します",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingBaseUrl: "MagicPush ベース API アドレスがありません",
-            missingToken: "MagicPush トークンがありません",
-            invalidBaseUrl: "MagicPush 基本 API 無効なアドレス",
-            requestReturned: "MagicPush 戻る HTTP {status}",
-            requestFailed: "MagicPush リクエストが失敗しました",
+            missingBaseUrl: "MagicPush ベース API URL が指定されていません",
+            missingToken: "MagicPush トークンが指定されていません",
+            invalidBaseUrl: "MagicPush ベース API URL が無効です",
+            requestReturned: "MagicPush が HTTP {status} を返しました",
+            requestFailed: "MagicPush のリクエストに失敗しました",
           },
         },
         telegram: {
           label: "Telegram",
           description:
-            "インライン アクション ボタンを使用して、Telegram ボット API を介して、指定されたチャットまたはチャネルにテキスト通知を送信します。",
+            "Telegram Bot API で指定したチャットまたはチャネルへ、インラインアクションボタン付きのテキスト通知を送信します",
           fields: {
             server_url: {
-              label: "ボット API アドレス",
+              label: "Bot API URL",
               description:
-                "公式ボット API デフォルト値のままにしてください。ネットワーク要因により公式アドレスにアクセスできない場合は、https://tgapi.fnknock.cnを入力して代わりにアドレスを転送できます。独自に構築したローカル ボット API サーバーを使用する場合は、そのルート アドレスを入力することもできます。",
+                "通常は公式 Bot API のままにします。公式エンドポイントへ接続できない場合は中継先として https://tgapi.fnknock.cn を指定できます。セルフホストした Local Bot API Server のルート URL も使用できます",
             },
             bot_token: {
               label: "Bot Token",
-              description:
-                "@BotFather を通じてロボットを作成した後に取得したボット トークン。",
+              description: "@BotFather で Bot を作成した際に取得した Bot Token",
             },
             chat_id: {
               label: "Chat ID",
               description:
-                "ターゲットチャット ID、またはチャンネルユーザー名 (例: @channelusername)。最初に @UserIdzhBot にメッセージを送信すると、チャット ID を取得できます。テスト送信でもこのターゲットが使用されます。",
+                "送信先のチャット ID またはチャネルユーザー名（例: @channelusername）。@UserIdzhBot へメッセージを送ると Chat ID を確認できます。テスト送信でもこの宛先を使用します",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
@@ -3530,117 +3507,117 @@ export const jaJPServer = {
             message_thread_id: {
               label: "トピック ID",
               description:
-                "オプション。グループトピックに送信する場合は、該当のトピックID（message_thread_id）を記入してください。",
+                "任意。グループトピックへ送信する場合のトピック ID（message_thread_id）",
             },
             disable_notification: {
               label: "サイレント送信",
               description:
-                "が有効な場合、Telegram はプロンプト音を再生せずにサイレントで配信されます。",
+                "有効にすると、Telegram は通知音を鳴らさずに配信します",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingBotToken: "Telegram ボットトークンがありません",
-            missingChatId: "行方不明 Telegram チャット ID",
-            requestReturned: "Telegram 戻る HTTP {status}",
-            requestFailed: "Telegram リクエストが失敗しました",
+            missingBotToken: "Telegram Bot Token が指定されていません",
+            missingChatId: "Telegram Chat ID が指定されていません",
+            requestReturned: "Telegram が HTTP {status} を返しました",
+            requestFailed: "Telegram のリクエストに失敗しました",
           },
         },
         wecom: {
-          label: "エンタープライズ WeChat メッセージ プッシュ",
+          label: "WeCom グループ Bot",
           description:
-            "エンタープライズ WeChat メッセージ プッシュ (グループ Webhook) を通じて、指定されたグループ チャットにテキストまたはマークダウン通知を送信します。",
+            "WeCom のグループ Webhook で、指定したグループチャットへテキストまたは Markdown 通知を送信します",
           fields: {
             webhook_url: {
               label: "Webhook URL",
               description:
-                "企業 WeChat メッセージ プッシュ ページによって生成された完全な Webhook アドレスを保管してください。",
+                "WeCom のメッセージ送信画面で生成された完全な Webhook URL。安全に管理してください",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
             mentioned_list: {
-              label: "アラートメンバーのユーザーID",
+              label: "メンションするメンバーの UserID",
               description:
-                "オプション。複数の値を区切るには、カンマまたは改行を使用します。 @all がサポートされています。",
+                "任意。複数指定する場合はカンマまたは改行で区切ります。@all も指定できます",
             },
             mentioned_mobile_list: {
-              label: "リマインダー携帯番号",
+              label: "メンションする携帯番号",
               description:
-                "オプション。複数の値を区切るには、カンマまたは改行を使用します。 @all がサポートされています。",
+                "任意。複数指定する場合はカンマまたは改行で区切ります。@all も指定できます",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingWebhookUrl: "がありません WeCom Webhook URL",
-            requestReturned: "WeCom 戻る HTTP {status}",
-            requestFailed: "WeCom リクエストが失敗しました",
+            missingWebhookUrl: "WeCom Webhook URL が指定されていません",
+            requestReturned: "WeCom が HTTP {status} を返しました",
+            requestFailed: "WeCom のリクエストに失敗しました",
           },
         },
         pushdeer: {
           label: "PushDeer",
           description:
-            "PushDeer 公式オンライン バージョンまたは自社構築サービスを通じて、バインドされたデバイスに Markdown 通知を送信します。",
+            "PushDeer の公式サービスまたはセルフホストしたサービスで、紐付け済みデバイスへ Markdown 通知を送信します",
           fields: {
             server_url: {
-              label: "サービスアドレス",
+              label: "サービス URL",
               description:
-                "公式オンライン バージョンのデフォルト値をそのまま使用してください。自己構築 PushDeer を使用する場合は、自己構築したサービスのルート アドレスを入力します。",
+                "セルフホストした PushDeer を使用する場合を除き、公式サービスの URL のままにします",
             },
             pushkey: {
               label: "PushKey",
               description:
-                "PushDeer クライアントで生成された PushKey。複数のキーを入力し、カンマで区切ることができます。",
+                "PushDeer クライアントで生成した PushKey。複数指定する場合はカンマで区切ります",
             },
             timeout_seconds: {
               label: "タイムアウト秒数",
             },
           },
           message: {
-            fallbackTitle: "fn-knock お知らせ",
+            fallbackTitle: "fn-knock 通知",
           },
           errors: {
-            missingPushKey: "PushDeer プッシュキーがありません",
-            requestReturned: "PushDeer 戻る HTTP {status}",
-            apiReturnedCode: "PushDeer API リターンコード {code}",
-            requestFailed: "PushDeer リクエストは失敗しました",
+            missingPushKey: "PushDeer PushKey が指定されていません",
+            requestReturned: "PushDeer が HTTP {status} を返しました",
+            apiReturnedCode: "PushDeer API がコード {code} を返しました",
+            requestFailed: "PushDeer のリクエストに失敗しました",
           },
         },
       },
     },
     routes: {
       createProviderFailed: "通知プロバイダーの作成に失敗しました",
-      testProviderFailed: "通知プロバイダーのテストが失敗しました",
+      testProviderFailed: "通知プロバイダーのテストに失敗しました",
       getProviderFailed: "通知プロバイダーの取得に失敗しました",
       updateProviderFailed: "通知プロバイダーの更新に失敗しました",
       deleteProviderFailed: "通知プロバイダーの削除に失敗しました",
       createRuleFailed: "通知ルールの作成に失敗しました",
       updateRuleFailed: "通知ルールの更新に失敗しました",
       deleteRuleFailed: "通知ルールの削除に失敗しました",
-      unsupportedDeliveryStatus: "サポートされていない配信ステータス",
-      clearDeliveriesFailed: "配送記録をクリアできませんでした",
+      unsupportedDeliveryStatus: "対応していない配信状態です",
+      clearDeliveriesFailed: "配信履歴の消去に失敗しました",
     },
     service: {
       unnamed: "無名",
       invalidJsonBody: "リクエスト本文は有効な JSON である必要があります",
-      invalidJson: "{field} は合法である必要があります JSON",
-      invalidSelectValue: "{field} 値が不正です",
+      invalidJson: "{field} には有効な JSON を指定してください",
+      invalidSelectValue: "{field} の値が無効です",
       fieldRequired: "{field} を空にすることはできません",
       testMessage: {
-        title: "テストのお知らせ",
+        title: "テスト通知",
         summary:
-          "通知チャネル構成は正常であり、テスト メッセージが正常にトリガーされました。",
+          "通知チャネルは正しく設定され、テストメッセージの送信に成功しました",
         bodyText:
-          "これは、現在のプロバイダーの接続、構造化コピー、プレゼンテーションを検証するために Knock によって事前に送信されるテスト通知です。",
+          "これは、プロバイダーへの接続、構造化されたメッセージ、表示形式を確認するために fn-knock が送信したテスト通知です",
         bodyMarkdown:
-          "**接続チェックに合格しました。 **\n\nこれは、現在のプロバイダーの接続、構造化コピー、および表示を確認するために、ノックノックによって送信される一方的なテスト通知です。",
+          "**接続確認に成功しました。**\n\nこれは、プロバイダーへの接続、構造化されたメッセージ、表示形式を確認するために fn-knock が送信したテスト通知です。",
         sendType: "送信タイプ",
         providerTest: "プロバイダーテスト",
-        sentAt: "送信時間",
+        sentAt: "送信日時",
       },
       providerNotFound: "通知プロバイダーが存在しません",
       unsupportedProviderType: "サポートされていない通知プロバイダーの種類です",
@@ -3648,26 +3625,24 @@ export const jaJPServer = {
       providerReferencedByRule:
         "このプロバイダーはまだルール「{rule}」によって参照されています",
       testSendFailed: "テスト送信に失敗しました",
-      testSendSuccess: "テストは正常に送信されました",
+      testSendSuccess: "テスト送信に成功しました",
       providerRequestReturnedStatus:
-        "{provider} リクエストがステータス {status} を返しました",
+        "{provider} のリクエストが HTTP ステータス {status} を返しました",
       barkPartialFailed:
-        "Bark は {failed}/{total} 件のターゲット送信に失敗しました",
-      providerTypeMismatch: "プロバイダーのタイプが既存の構成と一致しません",
+        "Bark の送信先 {total} 件中 {failed} 件への送信に失敗しました",
+      providerTypeMismatch: "プロバイダーのタイプが既存の設定と一致しません",
       providerTestName: "{provider} テスト",
       invalidProviderRecord: "通知プロバイダーレコードが無効です",
       ruleProviderMissing: "ルールは存在しない通知プロバイダーを参照しています",
-      invalidTemplateOverrideMode:
-        "ターゲット テンプレート カバレッジ モードが不正です",
-      unsupportedEventType: "サポートされていないシステム イベント タイプ",
-      invalidGroupBy: "集計ディメンションが不正です",
-      invalidMessageTemplateMode: "メッセージ テンプレート モードが不正です",
+      invalidTemplateOverrideMode: "送信先テンプレートの上書きモードが無効です",
+      unsupportedEventType: "対応していないシステムイベント種別です",
+      invalidGroupBy: "集約単位が無効です",
+      invalidMessageTemplateMode: "メッセージテンプレートモードが無効です",
       invalidEventLevelFilter: "イベントレベルのフィルタ条件が不正です",
       invalidEventSourceFilter: "イベントソースのフィルター条件が不正です",
-      targetRequired:
-        "少なくとも 1 つの通知ターゲットをバインドする必要があります",
+      targetRequired: "通知先を 1 件以上指定してください",
       duplicateEventRule:
-        "このイベントにはすでに通知ルールが存在します。まず元のルールを削除してください。",
+        "このイベントには通知ルールがすでに存在します。先に既存のルールを削除してください",
       ruleNotFound: "通知ルールが存在しません",
       invalidRuleRecord: "通知ルールレコードが無効です",
       deletedProvider: "プロバイダーが削除されました",

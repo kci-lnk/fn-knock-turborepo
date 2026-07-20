@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,14 +15,15 @@ import { Input } from "@/components/ui/input";
 import type { TOTPSubdomainAccessMode } from "../../types";
 
 type SubdomainAccessOption = {
-  host: string;
+  key: string;
+  kind: "host" | "stream";
   label: string;
   description: string;
   stale?: boolean;
   builtin?: boolean;
 };
 
-defineProps<{
+const props = defineProps<{
   hasTarget: boolean;
   isSaving: boolean;
   mode: TOTPSubdomainAccessMode;
@@ -30,7 +32,7 @@ defineProps<{
   options: SubdomainAccessOption[];
   search: string;
   selectedCount: number;
-  selectedHosts: ReadonlySet<string>;
+  selectedKeys: ReadonlySet<string>;
   targetName: string;
 }>();
 
@@ -42,10 +44,27 @@ const emit = defineEmits<{
   close: [];
   save: [];
   selectAllFiltered: [];
-  toggleHost: [host: string, checked: boolean];
+  toggleOption: [key: string, checked: boolean];
 }>();
 
 const { t } = useI18n();
+const optionGroups = computed(() =>
+  [
+    {
+      kind: "host" as const,
+      label: t("admin.authSettings.permissionHostGroup"),
+      options: props.options.filter((option) => option.kind === "host"),
+    },
+    {
+      kind: "stream" as const,
+      label: t("admin.authSettings.permissionStreamGroup"),
+      options: props.options.filter((option) => option.kind === "stream"),
+    },
+  ].filter((group) => group.options.length > 0),
+);
+const hasStreamOptions = computed(() =>
+  props.options.some((option) => option.kind === "stream"),
+);
 
 const handleOpenChange = (open: boolean) => {
   if (open) {
@@ -101,6 +120,12 @@ const updateSearch = (value: string | number) => {
         </div>
 
         <div v-if="mode === 'custom'" class="space-y-3">
+          <p
+            v-if="hasStreamOptions"
+            class="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground"
+          >
+            {{ t("admin.authSettings.permissionStreamIpNotice") }}
+          </p>
           <Input
             :model-value="search"
             :placeholder="t('admin.authSettings.permissionSearchPlaceholder')"
@@ -137,43 +162,54 @@ const updateSearch = (value: string | number) => {
           </div>
 
           <div
-            class="max-h-72 overflow-y-auto rounded-md border"
+            class="max-h-80 overflow-y-auto rounded-md border"
             role="group"
             :aria-label="t('admin.authSettings.permissionCustom')"
           >
-            <label
-              v-for="option in options"
-              :key="option.host"
-              class="flex cursor-pointer items-start gap-3 border-b px-3 py-3 last:border-b-0 hover:bg-muted/40"
+            <section
+              v-for="group in optionGroups"
+              :key="group.kind"
+              class="border-b last:border-b-0"
             >
-              <Checkbox
-                class="mt-0.5"
-                :model-value="selectedHosts.has(option.host)"
-                @update:model-value="
-                  emit('toggleHost', option.host, $event === true)
-                "
-              />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-medium">
-                  {{ option.label }}
-                </span>
-                <span class="block truncate text-xs text-muted-foreground">
-                  {{ option.description }}
-                </span>
-              </span>
-              <span
-                v-if="option.builtin"
-                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+              <div
+                class="sticky top-0 z-10 bg-muted/90 px-3 py-2 text-xs font-semibold text-muted-foreground backdrop-blur"
               >
-                {{ t("admin.authSettings.permissionBuiltin") }}
-              </span>
-              <span
-                v-else-if="option.stale"
-                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+                {{ group.label }}
+              </div>
+              <label
+                v-for="option in group.options"
+                :key="option.key"
+                class="flex cursor-pointer items-start gap-3 border-t px-3 py-3 hover:bg-muted/40"
               >
-                {{ t("admin.authSettings.permissionStaleHost") }}
-              </span>
-            </label>
+                <Checkbox
+                  class="mt-0.5"
+                  :model-value="selectedKeys.has(option.key)"
+                  @update:model-value="
+                    emit('toggleOption', option.key, $event === true)
+                  "
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-medium">
+                    {{ option.label }}
+                  </span>
+                  <span class="block truncate text-xs text-muted-foreground">
+                    {{ option.description }}
+                  </span>
+                </span>
+                <span
+                  v-if="option.builtin"
+                  class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+                >
+                  {{ t("admin.authSettings.permissionBuiltin") }}
+                </span>
+                <span
+                  v-else-if="option.stale"
+                  class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+                >
+                  {{ t("admin.authSettings.permissionStaleItem") }}
+                </span>
+              </label>
+            </section>
             <div
               v-if="options.length === 0"
               class="px-3 py-8 text-center text-sm text-muted-foreground"

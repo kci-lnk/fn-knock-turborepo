@@ -110,6 +110,110 @@ pub async fn clear_auto_ip_grants_for_auth_credential(
     .await
 }
 
+pub async fn reconcile_stream_access_grants_for_totp_credential(
+    state: &AppState,
+    totp_id: &str,
+    credential_access: &Value,
+) -> anyhow::Result<bool> {
+    reconcile_stream_access_grants_for_matching_sessions(
+        state,
+        |session| session.totp_id == totp_id,
+        |_| Some(credential_access.clone()),
+        None,
+    )
+    .await
+}
+
+pub async fn reconcile_stream_access_grants_for_auth_credential(
+    state: &AppState,
+    credential_id: &str,
+    credential_access: &Value,
+) -> anyhow::Result<bool> {
+    reconcile_stream_access_grants_for_matching_sessions(
+        state,
+        |session| session.credential_id == credential_id,
+        |_| Some(credential_access.clone()),
+        None,
+    )
+    .await
+}
+
+pub async fn reconcile_all_stream_access_grants(
+    state: &AppState,
+    settings_value: &Value,
+) -> anyhow::Result<bool> {
+    let totps = state.store.get_totps().await?;
+    let accounts = state.store.get_auth_accounts().await?;
+    reconcile_stream_access_grants_for_matching_sessions(
+        state,
+        |_| true,
+        |session| {
+            if crate::auth::mode::AuthMethod::Password.matches_session_str(&session.method) {
+                accounts
+                    .iter()
+                    .find(|account| account.id == session.credential_id)
+                    .map(|account| account.subdomain_access.clone())
+            } else {
+                totps
+                    .iter()
+                    .find(|credential| credential.id == session.totp_id)
+                    .map(|credential| credential.subdomain_access.clone())
+            }
+        },
+        Some(settings_value),
+    )
+    .await
+}
+
+async fn reconcile_stream_access_grants_for_matching_sessions<M, A>(
+    state: &AppState,
+    matches_session: M,
+    credential_access_for_session: A,
+    settings_value: Option<&Value>,
+) -> anyhow::Result<bool>
+where
+    M: Fn(&LoginSession) -> bool,
+    A: Fn(&LoginSession) -> Option<Value>,
+{
+    let settings = match settings_value {
+        Some(value) => AuthCredentialSettings::from_raw(value),
+        None => {
+            let config = state.store.get_config().await?;
+            AuthCredentialSettings::from_config(&config)
+        }
+    };
+    let sessions = state.store.list_login_sessions().await?;
+    let mut changed = false;
+    for (session_id, session) in sessions {
+        if !matches_session(&session) {
+            continue;
+        }
+        let next_expires_at = credential_access_for_session(&session).and_then(|access| {
+            session
+                .expires_at
+                .as_deref()
+                .and_then(|expires_at| stream_access_expires_at(&settings, expires_at, &access))
+        });
+        if session.stream_access_expires_at == next_expires_at {
+            continue;
+        }
+        let mut updates = Map::new();
+        updates.insert(
+            "streamAccessExpiresAt".to_string(),
+            next_expires_at.map(Value::String).unwrap_or(Value::Null),
+        );
+        if state
+            .store
+            .update_session_value(&session_id, updates)
+            .await?
+            .is_some()
+        {
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
 async fn clear_auto_ip_grants_for_matching_sessions<F>(
     state: &AppState,
     matches_session: F,

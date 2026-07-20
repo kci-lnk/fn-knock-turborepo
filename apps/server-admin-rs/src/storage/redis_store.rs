@@ -1103,7 +1103,7 @@ pub(crate) fn normalize_totp_subdomain_access(value: Value) -> Value {
         .filter(|mode| *mode == "custom")
         .unwrap_or("all");
     if mode != "custom" {
-        return json!({ "mode": "all", "hosts": [] });
+        return json!({ "mode": "all", "hosts": [], "streams": [] });
     }
     let hosts = value
         .get("hosts")
@@ -1119,7 +1119,40 @@ pub(crate) fn normalize_totp_subdomain_access(value: Value) -> Value {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    json!({ "mode": "custom", "hosts": hosts })
+    let streams = value
+        .get("streams")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(normalize_totp_stream_access)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .map(|(listen_port, protocol)| {
+                    json!({
+                        "protocol": protocol,
+                        "listen_port": listen_port,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({ "mode": "custom", "hosts": hosts, "streams": streams })
+}
+
+fn normalize_totp_stream_access(value: &Value) -> Option<(i64, String)> {
+    let protocol = value
+        .get("protocol")
+        .and_then(Value::as_str)?
+        .trim()
+        .to_ascii_lowercase();
+    if protocol != "tcp" && protocol != "udp" {
+        return None;
+    }
+    let listen_port = value.get("listen_port").and_then(Value::as_i64)?;
+    (1..=65535)
+        .contains(&listen_port)
+        .then_some((listen_port, protocol))
 }
 
 fn normalize_totp_subdomain_access_host(value: &str) -> String {
@@ -1389,6 +1422,7 @@ pub fn new_login_session(
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: ip.to_string(),
         user_agent: user_agent.to_string(),

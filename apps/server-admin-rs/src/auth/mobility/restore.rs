@@ -332,7 +332,7 @@ pub(super) async fn resolve_bootstrap_owner(
         .flatten())
 }
 
-pub(super) async fn list_active_sessions_by_ip(
+pub async fn list_active_sessions_by_ip(
     state: &AppState,
     client_ip: &str,
 ) -> anyhow::Result<Vec<(String, LoginSession)>> {

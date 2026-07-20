@@ -377,10 +377,22 @@ pub(super) async fn resolve_preflight_normal_access(
     }
 
     if has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["auto"])).await? {
+        let mobility =
+            resolve_auto_ip_subdomain_access(state, headers, uri, config, client_ip).await?;
+        if mobility.protected_host && (!mobility.has_owner_session || !mobility.allowed) {
+            return Ok(PreflightNormalAccess {
+                authorized: false,
+                deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
+                invalid_session_cookie,
+                response_headers: mobility.response_headers,
+                ..Default::default()
+            });
+        }
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("login_ip_grant".to_string()),
             invalid_session_cookie,
+            response_headers: mobility.response_headers,
             ..Default::default()
         });
     }
@@ -638,6 +650,28 @@ pub(super) async fn resolve_mobility_subdomain_access(
     client_ip: &str,
     identity: &AuthMobilityRequestIdentity,
 ) -> anyhow::Result<MobilitySubdomainAccessDecision> {
+    let owners = resolve_auth_mobility_owner_sessions(state, client_ip, identity).await?;
+    resolve_owner_sessions_subdomain_access(state, headers, uri, config, owners).await
+}
+
+async fn resolve_auto_ip_subdomain_access(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    config: &Value,
+    client_ip: &str,
+) -> anyhow::Result<MobilitySubdomainAccessDecision> {
+    let owners = list_auth_mobility_owner_sessions_by_ip(state, client_ip).await?;
+    resolve_owner_sessions_subdomain_access(state, headers, uri, config, owners).await
+}
+
+async fn resolve_owner_sessions_subdomain_access(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    config: &Value,
+    owners: Vec<(String, LoginSession)>,
+) -> anyhow::Result<MobilitySubdomainAccessDecision> {
     let host = normalize_subdomain_access_host(&resolve_request_subdomain_access_key(headers, uri));
     if host.is_empty() {
         return Ok(MobilitySubdomainAccessDecision {
@@ -648,7 +682,6 @@ pub(super) async fn resolve_mobility_subdomain_access(
         });
     }
 
-    let owners = resolve_auth_mobility_owner_sessions(state, client_ip, identity).await?;
     if owners.is_empty() {
         let protected_host = is_protected_subdomain_auth_host(&host, config);
         return Ok(MobilitySubdomainAccessDecision {
@@ -862,16 +895,7 @@ pub(super) async fn resolve_session_subdomain_access(
     config: &Value,
     session: &LoginSession,
 ) -> anyhow::Result<SessionSubdomainAccessDecision> {
-    let credential = if AuthMethod::Password.matches_session_str(&session.method) {
-        password_session_account_credential(state, session).await?
-    } else {
-        state
-            .store
-            .get_totps()
-            .await?
-            .into_iter()
-            .find(|credential| credential.id == session.totp_id)
-    };
+    let credential = session_auth_credential(state, session).await?;
     let host = resolve_request_subdomain_access_key(headers, uri);
     let normalized_host = normalize_subdomain_access_host(&host);
     let protected_host = is_protected_subdomain_auth_host(&normalized_host, config);
@@ -897,17 +921,23 @@ pub(super) async fn resolve_session_subdomain_access(
     })
 }
 
-async fn password_session_account_credential(
+pub(super) async fn session_auth_credential(
     state: &AppState,
     session: &LoginSession,
 ) -> anyhow::Result<Option<TotpCredential>> {
-    if !AuthMethod::Password.matches_session_str(&session.method) {
-        return Ok(None);
+    if AuthMethod::Password.matches_session_str(&session.method) {
+        return Ok(state
+            .store
+            .get_auth_account(&session.credential_id)
+            .await?
+            .map(password_account_to_credential));
     }
-    let Some(account) = state.store.get_auth_account(&session.credential_id).await? else {
-        return Ok(None);
-    };
-    Ok(Some(password_account_to_credential(account)))
+    Ok(state
+        .store
+        .get_totps()
+        .await?
+        .into_iter()
+        .find(|credential| credential.id == session.totp_id))
 }
 
 fn password_account_to_credential(account: crate::store::AuthAccount) -> TotpCredential {
@@ -1077,6 +1107,30 @@ pub(super) fn is_host_allowed_by_totp_subdomain_access(access: &Value, host: &st
             .any(|candidate| candidate == host)
 }
 
+pub(super) fn is_stream_allowed_by_totp_subdomain_access(
+    access: &Value,
+    protocol: &str,
+    listen_port: i32,
+) -> bool {
+    let mode = access.get("mode").and_then(Value::as_str).unwrap_or("all");
+    if mode != "custom" {
+        return true;
+    }
+    let protocol = protocol.trim().to_ascii_lowercase();
+    access
+        .get("streams")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|stream| {
+            stream
+                .get("protocol")
+                .and_then(Value::as_str)
+                .is_some_and(|candidate| candidate.eq_ignore_ascii_case(&protocol))
+                && stream.get("listen_port").and_then(Value::as_i64) == Some(i64::from(listen_port))
+        })
+}
+
 pub(super) fn build_credential_subdomain_access_response_headers(
     credential: &TotpCredential,
 ) -> Vec<(String, String)> {
@@ -1179,7 +1233,11 @@ mod tests {
             access_scopes: json!(["docker_admin_panel", "other"]),
             subdomain_access: json!({
                 "mode": "custom",
-                "hosts": ["HTTPS://App.Example.com/path", "__builtin_select__"]
+                "hosts": ["HTTPS://App.Example.com/path", "__builtin_select__"],
+                "streams": [
+                    { "protocol": "TCP", "listen_port": 2222 },
+                    { "protocol": "udp", "listen_port": 0 }
+                ]
             }),
         });
 
@@ -1190,8 +1248,19 @@ mod tests {
             credential.subdomain_access,
             json!({
                 "mode": "custom",
-                "hosts": ["__builtin_select__", "app.example.com"]
+                "hosts": ["__builtin_select__", "app.example.com"],
+                "streams": [{ "protocol": "tcp", "listen_port": 2222 }]
             })
         );
+        assert!(is_stream_allowed_by_totp_subdomain_access(
+            &credential.subdomain_access,
+            "TCP",
+            2222
+        ));
+        assert!(!is_stream_allowed_by_totp_subdomain_access(
+            &credential.subdomain_access,
+            "udp",
+            2222
+        ));
     }
 }

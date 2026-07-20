@@ -1,12 +1,12 @@
 export const koKRShared = {
   binaryDownload: {
     currentPlatform: "현재 플랫폼",
-    supported: "지원됨",
-    unsupported: "지원되지 않음",
-    resourceStatus: "자원현황",
-    readyLabel: "준비",
-    pendingLabel: "준비되지 않음",
-    downloadProgress: "다운로드 진행 상황",
+    supported: "지원",
+    unsupported: "미지원",
+    resourceStatus: "리소스 상태",
+    readyLabel: "사용 가능",
+    pendingLabel: "사용 불가",
+    downloadProgress: "다운로드 진행률",
     errorPrefix: "오류: ",
     downloadButton: "리소스 다운로드",
     redownload: "다시 다운로드",
@@ -21,44 +21,44 @@ export const koKRShared = {
     cancelTask: "작업 취소",
   },
   dataShareFilePicker: {
-    title: "FNOS에서 파일을 선택하세요",
+    title: "FNOS에서 파일 선택",
     description:
-      "애플리케이션 루트 디렉터리에서 읽을 수 있는 파일을 선택합니다.",
+      "애플리케이션 루트 디렉터리에서 읽을 수 있는 파일을 선택하세요.",
     directoryLabel: "애플리케이션 파일",
     alertTitle: "디렉터리를 읽지 못했습니다.",
     unavailableDescription:
-      "디렉터리에 아직 액세스할 수 없습니다. 앱이 설치되어 있고 공유 디렉터리가 생성되었는지 확인하세요.",
-    confirmText: "이 파일을 사용하세요",
-    availableDescription: "{count} 사용 가능한 파일을 찾았습니다.",
+      "디렉터리에 아직 접근할 수 없습니다. 앱이 설치되어 있고 공유 디렉터리가 생성되었는지 확인하세요.",
+    confirmText: "이 파일 사용",
+    availableDescription: "사용 가능한 파일 {count}개",
     noMatchedFiles: "일치하는 파일이 없습니다.",
     noMatchedDescription:
       "다른 키워드를 사용하거나 디렉터리 목록을 새로 고치세요.",
     emptyTitle: "공유 디렉터리에 사용 가능한 파일이 없습니다.",
     emptyDescription:
       "이 디렉터리에는 일치하는 파일이 없습니다. 지원되는 파일 형식을 추가한 후 다시 선택하세요.",
-    noExtension: "확장 없음",
+    noExtension: "확장자 없음",
   },
   certSourceField: {
     uploadFromPhone: "휴대전화에서 업로드",
     uploadFromComputer: "컴퓨터에서 업로드",
     uploadFile: "파일 업로드",
-    chooseSourceTitle: "파일 소스 선택",
+    chooseSourceTitle: "파일 가져올 위치 선택",
     chooseSourceDescription:
-      "가져오기 방법을 선택한 다음 {label} 파일을 읽으세요.",
+      "가져올 위치를 선택한 다음 {label} 파일을 불러오세요.",
     localFileDescription:
-      "이 장치에서 {types} 파일을 선택하고 자동으로 읽습니다.",
-    chooseFromFnos: "FNOS에서 선택하세요",
+      "이 기기에서 {types} 파일을 선택하면 자동으로 불러옵니다.",
+    chooseFromFnos: "FNOS에서 선택",
     sharedFileDescription:
-      "최대 3개 수준까지 {shareName} 루트 디렉터리에서 기존 파일을 읽습니다.",
-    pickerTitle: "FNOS에서 {label}을 선택하세요",
+      "{shareName} 루트 디렉터리에서 최대 3단계 아래의 기존 파일을 불러옵니다.",
+    pickerTitle: "FNOS에서 {label} 선택",
     pickerDescription:
-      "인증서 파일을 애플리케이션 데이터로 이동 -> fn-knock 먼저",
-    readFile: "이 파일 읽기",
+      "먼저 인증서 파일을 애플리케이션 데이터 > fn-knock으로 옮기세요.",
+    readFile: "이 파일 불러오기",
   },
   logViewer: {
     title: "런타임 로그",
     emptyText: "아직 로그가 없습니다.",
-    lineCount: "{count} 라인",
+    lineCount: "{count}줄",
   },
   detailDialog: {
     close: "닫기",
@@ -71,22 +71,22 @@ export const koKRShared = {
       "이 페이지는 제한된 환경에서 실행 중일 수 있습니다. 수동으로 복사하세요.",
   },
   inlineCommentEditor: {
-    placeholder: "댓글을 입력하세요...",
-    edit: "댓글 수정",
-    save: "댓글 저장",
+    placeholder: "메모 입력...",
+    edit: "메모 수정",
+    save: "메모 저장",
     cancel: "편집 취소",
-    required: "댓글 이름은 비워둘 수 없습니다.",
-    updateFailed: "댓글을 업데이트하지 못했습니다.",
+    required: "메모를 입력하세요.",
+    updateFailed: "메모를 수정하지 못했습니다.",
   },
   defaultRouteConfirm: {
-    clearTitle: "기본 경로를 삭제하시겠습니까?",
-    setTitle: "기본 경로를 설정하시겠습니까?",
+    clearTitle: "기본 라우트를 해제하시겠습니까?",
+    setTitle: "기본 라우트로 설정하시겠습니까?",
     clearFnosDescription:
-      "{port} 포트에서 서비스의 기본 경로를 지우고 있습니다. 이는 기본 FNOS 항목에 영향을 미칠 수 있습니다.",
+      "{port} 포트 서비스의 기본 라우트를 해제하면 FNOS 기본 항목에 영향을 줄 수 있습니다.",
     clearDescription:
-      "이를 지우면 기본 경로가 더 이상 존재하지 않습니다. 경로와 일치하지 않는 요청은 예상대로 전달되지 않을 수 있습니다.",
+      "해제 후에는 기본 라우트가 없습니다. 경로가 일치하지 않는 요청이 예상대로 전달되지 않을 수 있습니다.",
     setDescription:
-      "현재 기본 경로는 {port} 포트의 서비스를 가리킵니다. 다른 경로로 전환하면 기본 FNOS 항목에 영향을 미칠 수 있습니다.",
+      "현재 기본 라우트는 {port} 포트 서비스를 가리킵니다. 다른 라우트로 바꾸면 FNOS 기본 항목에 영향을 줄 수 있습니다.",
   },
   certForm: {
     sslCert: "SSL 인증서",
@@ -94,7 +94,7 @@ export const koKRShared = {
   },
   pagedTableFooter: {
     total: "{total} {itemText}",
-    records: "기록",
+    records: "개",
     pageSizeOption: "{count} 행",
   },
   dnsCredentialBridge: {
@@ -104,19 +104,19 @@ export const koKRShared = {
       dnspod: "DNSPod",
       tencentcloud: "Tencent Cloud DNS",
       edgeone: "Tencent Cloud EdgeOne",
-      edgeoneCname: "Tencent Cloud EdgeOne(CNAME 액세스)",
-      godaddy: "고대디",
-      porkbun: "돼지고기",
+      edgeoneCname: "Tencent Cloud EdgeOne(CNAME 연결)",
+      godaddy: "GoDaddy",
+      porkbun: "Porkbun",
       dynv6: "dynv6",
-      duckdns: "덕DNS",
+      duckdns: "DuckDNS",
     },
   },
   proxyTargetInputField: {
     hint: "왼쪽에서 프로토콜을 선택하고 오른쪽에서 IP와 포트를 입력하세요. 포트를 생략하면 프로토콜 기본 포트로 자동 채워집니다.",
-    suggestionsLabel: "대상 주소 추천",
+    suggestionsLabel: "대상 주소 제안",
   },
   configCollapsibleCard: {
-    editConfig: "구성 수정",
+    editConfig: "설정 수정",
   },
   streamProtocolMultiSelect: {
     ariaLabel: "전송 프로토콜",

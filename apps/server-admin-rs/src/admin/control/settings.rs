@@ -136,6 +136,19 @@ pub(super) fn session_ip_mobility_settings_changed(previous: &Value, next: &Valu
                 .and_then(Value::as_i64)
 }
 
+pub(super) fn stream_access_grant_settings_changed(previous: &Value, next: &Value) -> bool {
+    previous
+        .get("post_login_ip_grant_mode")
+        .and_then(Value::as_str)
+        != next.get("post_login_ip_grant_mode").and_then(Value::as_str)
+        || previous
+            .get("post_login_ip_grant_ttl_seconds")
+            .and_then(Value::as_i64)
+            != next
+                .get("post_login_ip_grant_ttl_seconds")
+                .and_then(Value::as_i64)
+}
+
 pub(super) fn node_totp_bind_comment(comment: Option<String>) -> String {
     match comment {
         Some(value) if !value.is_empty() => value,

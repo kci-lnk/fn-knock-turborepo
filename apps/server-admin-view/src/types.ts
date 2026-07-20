@@ -823,9 +823,15 @@ export interface AppConfig {
 export type TOTPAccessScope = "docker_admin_panel";
 export type TOTPSubdomainAccessMode = "all" | "custom";
 
+export type TOTPStreamAccess = {
+  protocol: StreamMappingProtocol;
+  listen_port: number;
+};
+
 export type TOTPSubdomainAccess = {
   mode: TOTPSubdomainAccessMode;
   hosts: string[];
+  streams: TOTPStreamAccess[];
 };
 
 export type TOTPCredential = {

@@ -34,6 +34,7 @@ use super::{
         auth_credential_settings_from_config, ensure_object, is_allowed_auth_credential_setting,
         legacy_auto_add_whitelist_on_login, node_totp_bind_comment,
         normalize_auth_credential_settings, session_ip_mobility_settings_changed,
+        stream_access_grant_settings_changed,
     },
     text::{admin_control_text, totp_import_error_message},
     transfer::{
@@ -84,6 +85,7 @@ pub(super) async fn update_auth_credential_settings(
         legacy_auto_add_whitelist_on_login(&config),
     );
     let session_ip_mobility_changed = session_ip_mobility_settings_changed(&current, &normalized);
+    let stream_access_grants_changed = stream_access_grant_settings_changed(&current, &normalized);
     if session_ip_mobility_changed
         && let Err(error) = auth_mobility::reconcile_session_ip_mobility_policy(
             &state,
@@ -94,6 +96,25 @@ pub(super) async fn update_auth_credential_settings(
         .await
     {
         tracing::warn!(%error, "failed to reconcile session IP mobility before auth settings update");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            admin_control_text(&translator, "authCredentialSettings.saveFailed"),
+        );
+    }
+    if stream_access_grants_changed
+        && let Err(error) =
+            auth_mobility::reconcile_all_stream_access_grants(&state, &normalized).await
+    {
+        if session_ip_mobility_changed {
+            let _ = auth_mobility::reconcile_session_ip_mobility_policy(
+                &state,
+                &normalized,
+                &current,
+                false,
+            )
+            .await;
+        }
+        tracing::warn!(%error, "failed to reconcile stream access grants before auth settings update");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             admin_control_text(&translator, "authCredentialSettings.saveFailed"),
@@ -126,6 +147,15 @@ pub(super) async fn update_auth_credential_settings(
                 } else {
                     whitelist::sync_reverse_proxy_trusted_ips(&state).await;
                 }
+            }
+            if stream_access_grants_changed
+                && let Err(rollback_error) =
+                    auth_mobility::reconcile_all_stream_access_grants(&state, &current).await
+            {
+                tracing::warn!(
+                    %rollback_error,
+                    "failed to rollback stream access grants after auth settings save failure"
+                );
             }
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -587,6 +617,18 @@ pub(super) async fn totp_update_subdomain_access(
     Json(body): Json<TotpSubdomainAccessBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let previous = match state.store.get_totps().await {
+        Ok(credentials) => credentials
+            .into_iter()
+            .find(|credential| credential.id == id),
+        Err(error) => {
+            tracing::warn!(%error, %id, "failed to load TOTP before subdomain access update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_control_text(&translator, "totp.updateFailed"),
+            );
+        }
+    };
     match state
         .store
         .update_totp_subdomain_access(&id, body.subdomain_access)
@@ -597,13 +639,38 @@ pub(super) async fn totp_update_subdomain_access(
                 && let Err(error) =
                     auth_mobility::clear_auto_ip_grants_for_totp_credential(&state, &id).await
             {
+                if let Some(previous) = previous.as_ref() {
+                    rollback_totp_subdomain_access_update(&state, previous).await;
+                }
                 tracing::warn!(%error, %id, "failed to clear auto IP grants after TOTP subdomain access restriction");
                 return response::error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     admin_control_text(&translator, "totp.updateFailed"),
                 );
             }
+            if let Err(error) = auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+                &state,
+                &id,
+                &updated.subdomain_access,
+            )
+            .await
+            {
+                if let Some(previous) = previous.as_ref() {
+                    rollback_totp_subdomain_access_update(&state, previous).await;
+                }
+                tracing::warn!(%error, %id, "failed to reconcile stream access grants after TOTP permission update");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_control_text(&translator, "totp.updateFailed"),
+                );
+            }
             if let Err(error) = refresh_gateway_auth_runtime(&state).await {
+                if let Some(previous) = previous.as_ref() {
+                    rollback_totp_subdomain_access_update(&state, previous).await;
+                    if let Err(rollback_error) = refresh_gateway_auth_runtime(&state).await {
+                        tracing::warn!(%rollback_error, %id, "failed to refresh auth gateway runtime after TOTP permission rollback");
+                    }
+                }
                 tracing::warn!(%error, %id, "failed to refresh auth gateway runtime after TOTP subdomain access update");
                 return response::error(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -623,6 +690,26 @@ pub(super) async fn totp_update_subdomain_access(
                 admin_control_text(&translator, "totp.updateFailed"),
             )
         }
+    }
+}
+
+async fn rollback_totp_subdomain_access_update(state: &AppState, previous: &TotpCredential) {
+    if let Err(error) = state
+        .store
+        .update_totp_subdomain_access(&previous.id, previous.subdomain_access.clone())
+        .await
+    {
+        tracing::warn!(%error, id = %previous.id, "failed to roll back TOTP subdomain access");
+        return;
+    }
+    if let Err(error) = auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+        state,
+        &previous.id,
+        &previous.subdomain_access,
+    )
+    .await
+    {
+        tracing::warn!(%error, id = %previous.id, "failed to roll back TOTP stream access grants");
     }
 }
 
@@ -863,7 +950,7 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             access_scopes: Value::Array(Vec::new()),
-            subdomain_access: json!({ "mode": "all", "hosts": [] }),
+            subdomain_access: json!({ "mode": "all", "hosts": [], "streams": [] }),
         }
     }
 

@@ -1248,7 +1248,15 @@ fn normalizes_totp_credentials_like_node_store() {
             "comment": "  Comment  ",
             "createdAt": "",
             "access_scopes": [" docker_admin_panel "],
-            "subdomain_access": { "mode": "custom", "hosts": ["Example.com."] }
+            "subdomain_access": {
+                "mode": "custom",
+                "hosts": ["Example.com."],
+                "streams": [
+                    { "protocol": "TCP", "listen_port": 2222 },
+                    { "protocol": "tcp", "listen_port": 2222 },
+                    { "protocol": "udp", "listen_port": 53 }
+                ]
+            }
         },
         { "id": "", "secret": "NOPE" }
     ]));
@@ -1260,7 +1268,14 @@ fn normalizes_totp_credentials_like_node_store() {
     assert_eq!(credentials[0].access_scopes, json!(["docker_admin_panel"]));
     assert_eq!(
         credentials[0].subdomain_access,
-        json!({ "mode": "custom", "hosts": ["example.com"] })
+        json!({
+            "mode": "custom",
+            "hosts": ["example.com"],
+            "streams": [
+                { "protocol": "udp", "listen_port": 53 },
+                { "protocol": "tcp", "listen_port": 2222 }
+            ]
+        })
     );
 }
 
@@ -1275,16 +1290,28 @@ fn normalizes_totp_subdomain_access_like_node() {
                 "/__select__",
                 "*.bad.test",
                 "bad host"
+            ],
+            "streams": [
+                { "protocol": "TCP", "listen_port": 2222 },
+                { "protocol": "tcp", "listen_port": 2222 },
+                { "protocol": "udp", "listen_port": 53 },
+                { "protocol": "icmp", "listen_port": 7 },
+                { "protocol": "tcp", "listen_port": 0 },
+                { "protocol": "udp", "listen_port": 65536 }
             ]
         })),
         json!({
             "mode": "custom",
-            "hosts": ["__builtin_select__", "example.com"]
+            "hosts": ["__builtin_select__", "example.com"],
+            "streams": [
+                { "protocol": "udp", "listen_port": 53 },
+                { "protocol": "tcp", "listen_port": 2222 }
+            ]
         })
     );
     assert_eq!(
         normalize_totp_subdomain_access(json!({ "mode": "all", "hosts": ["example.com"] })),
-        json!({ "mode": "all", "hosts": [] })
+        json!({ "mode": "all", "hosts": [], "streams": [] })
     );
 }
 

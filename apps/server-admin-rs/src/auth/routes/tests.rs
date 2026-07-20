@@ -339,6 +339,7 @@ fn auth_mobility_resolvable_access_requires_live_owner_session_like_node() {
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: "203.0.113.10".to_string(),
         user_agent: "ua".to_string(),
@@ -372,6 +373,156 @@ fn presented_session_expiry_preserves_unparseable_legacy_values() {
 
     session.expires_at = None;
     assert!(!login_session_has_expired(&session));
+}
+
+#[tokio::test]
+async fn automatic_ip_grant_respects_owner_subdomain_scope() {
+    let (_directory, state) = auth_route_test_state("auto-ip-subdomain-scope").await;
+    let client_ip = "203.0.113.30";
+    let config = json!({
+        "run_type": 3,
+        "host_mappings": [
+            {"host": "allowed.example.com", "use_auth": true},
+            {"host": "denied.example.com", "use_auth": true}
+        ]
+    });
+    state
+        .store
+        .add_totp(TotpCredential {
+            id: "scoped-totp".to_string(),
+            secret: "secret".to_string(),
+            comment: "Scoped credential".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: Value::Null,
+            subdomain_access: json!({
+                "mode": "custom",
+                "hosts": ["allowed.example.com"]
+            }),
+        })
+        .await
+        .expect("store scoped credential");
+
+    let mut session = auth_route_test_session(client_ip, &time_utils::iso_after_seconds(3_600));
+    session.totp_id = "scoped-totp".to_string();
+    session.credential_id = "scoped-totp".to_string();
+    session.grant_type = Some("login_ip_grant".to_string());
+    session.post_login_ip_grant_mode = Some("follow_session".to_string());
+    state
+        .store
+        .add_session("scoped-session", &session, 3_600)
+        .await
+        .expect("store scoped session");
+    state
+        .store
+        .insert_whitelist_record(&crate::store::WhitelistRecord {
+            id: "scoped-auto-whitelist".to_string(),
+            ip: client_ip.to_string(),
+            target_type: "ip".to_string(),
+            expire_at: Some(time_utils::now_ms().div_euclid(1_000) + 3_600),
+            source: "auto".to_string(),
+            created_at: time_utils::now_ms().div_euclid(1_000),
+            status: "active".to_string(),
+            comment: None,
+            ip_location: None,
+            resolved_targets: None,
+            check_interval_minutes: None,
+            last_checked_at: None,
+            last_resolved_at: None,
+            resolve_status: None,
+            resolve_message: None,
+        })
+        .await
+        .expect("store automatic whitelist");
+
+    let allowed = resolve_preflight_normal_access(
+        &state,
+        &forwarded_headers("allowed.example.com"),
+        &Uri::from_static("/"),
+        &config,
+        client_ip,
+        RequestedAccessMode::LoginFirst,
+    )
+    .await
+    .expect("resolve allowed host");
+    assert!(allowed.authorized);
+    assert_eq!(allowed.grant_type.as_deref(), Some("login_ip_grant"));
+
+    let denied = resolve_preflight_normal_access(
+        &state,
+        &forwarded_headers("denied.example.com"),
+        &Uri::from_static("/"),
+        &config,
+        client_ip,
+        RequestedAccessMode::LoginFirst,
+    )
+    .await
+    .expect("resolve denied host");
+    assert!(!denied.authorized);
+    assert_eq!(denied.deny_reason.as_deref(), Some(REAUTH_SCOPE_DENIED));
+}
+
+#[tokio::test]
+async fn matched_rule_takes_precedence_over_automatic_ip_grant() {
+    let (_directory, state) = auth_route_test_state("rule-before-auto-ip").await;
+    let config = json!({
+        "host_mappings": [{
+            "host": "allowed.example.com",
+            "use_auth": true,
+            "advanced_auth": {
+                "enabled": true,
+                "idle_ttl_seconds": 86_400,
+                "max_lifetime_seconds": 2_592_000,
+                "policy_version": "policy-v1",
+                "groups": [{"id": "group-v1", "conditions": []}]
+            }
+        }]
+    });
+    let normal_access = PreflightNormalAccess {
+        authorized: true,
+        grant_type: Some("login_ip_grant".to_string()),
+        ..Default::default()
+    };
+    let matched = crate::grpc_proto::SubdomainRuleMatch {
+        host: "allowed.example.com".to_string(),
+        policy_version: "policy-v1".to_string(),
+        group_id: "group-v1".to_string(),
+    };
+
+    let access = resolve_auth_access_with_normal_access_and_rule_match(
+        &state,
+        &forwarded_headers("allowed.example.com"),
+        &Uri::from_static("/"),
+        &Translator::new(crate::i18n::DEFAULT_LOCALE),
+        &config,
+        "203.0.113.31",
+        &normal_access,
+        Some(&matched),
+    )
+    .await
+    .expect("resolve matched rule");
+
+    assert!(access.authenticated);
+    assert_eq!(access.grant_type.as_deref(), Some("subdomain_rule"));
+    assert_eq!(access.set_cookies.len(), 1);
+    assert!(
+        access.set_cookies[0]
+            .starts_with(&format!("{}=", cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME))
+    );
+    assert!(!access.set_cookies[0].contains("Domain="));
+}
+
+#[test]
+fn advanced_rule_precedes_each_ip_or_mobility_grant_type() {
+    for grant_type in [
+        "login_ip_grant",
+        "fnos_fingerprint_session",
+        "session_migration",
+    ] {
+        assert!(is_ip_or_mobility_grant(grant_type));
+    }
+    for grant_type in ["browser_session", "manual_whitelist", "local_network"] {
+        assert!(!is_ip_or_mobility_grant(grant_type));
+    }
 }
 
 #[tokio::test]
@@ -697,6 +848,7 @@ fn logout_custom_post_login_grant_revoke_predicate_matches_node() {
         grant_type: Some("login_ip_grant".to_string()),
         post_login_ip_grant_mode: Some("custom".to_string()),
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: "203.0.113.10".to_string(),
         user_agent: "ua".to_string(),
@@ -957,6 +1109,7 @@ fn auth_route_test_session(ip: &str, expires_at: &str) -> LoginSession {
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: ip.to_string(),
         user_agent: "auth-route-test".to_string(),

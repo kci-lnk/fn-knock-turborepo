@@ -112,6 +112,9 @@ pub async fn create_login_session(
     let session_subdomain_access = input.totp_credential.as_ref().map(|credential| {
         crate::store::normalize_totp_subdomain_access(credential.subdomain_access.clone())
     });
+    let session_stream_access_expires_at = input.totp_credential.as_ref().and_then(|credential| {
+        stream_access_expires_at(&settings, &expires_at, &credential.subdomain_access)
+    });
 
     if !normalized_client_ip.is_empty() && effective_post_login_mode != "disabled" {
         let grant_expire_at = if effective_post_login_mode == "custom" {
@@ -145,6 +148,7 @@ pub async fn create_login_session(
         post_login_ip_grant_record_id: (grant_type == "login_ip_grant")
             .then(|| whitelist_record_id.clone())
             .flatten(),
+        stream_access_expires_at: session_stream_access_expires_at,
         comment: session_comment.clone(),
         ip: client_ip_for_session.clone(),
         user_agent: input.user_agent.clone(),

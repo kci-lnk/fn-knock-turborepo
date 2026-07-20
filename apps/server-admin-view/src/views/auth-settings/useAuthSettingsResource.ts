@@ -11,6 +11,7 @@ import type {
   AuthLoginMode,
   AuthLoginModeStatus,
   HostMapping,
+  StreamMapping,
   TOTPCredential,
 } from "../../types";
 
@@ -20,6 +21,7 @@ interface UseAuthSettingsResourceOptions {
   authModeStatus: Ref<AuthLoginModeStatus | null>;
   credentials: Ref<TOTPCredential[]>;
   hostMappings: Ref<HostMapping[]>;
+  streamMappings: Ref<StreamMapping[]>;
   normalizeAuthAccount: (account: AuthAccount) => AuthAccount;
   normalizeCredential: (credential: TOTPCredential) => TOTPCredential;
   translate: (key: string) => string;
@@ -31,6 +33,7 @@ export function useAuthSettingsResource({
   authModeStatus,
   credentials,
   hostMappings,
+  streamMappings,
   normalizeAuthAccount,
   normalizeCredential,
   translate,
@@ -52,7 +55,7 @@ export function useAuthSettingsResource({
 
   const fetchStatus = async () => {
     await runLoadStatus(async () => {
-      const [res, mappings, modeStatus, accounts] = await Promise.all([
+      const [res, mappings, streams, modeStatus, accounts] = await Promise.all([
         ConfigAPI.getTOTPStatus(),
         ConfigAPI.getHostMappings()
           .then((snapshot) => snapshot.mappings)
@@ -60,6 +63,10 @@ export function useAuthSettingsResource({
             console.error("Failed to get host mappings:", error);
             return [] as HostMapping[];
           }),
+        ConfigAPI.getStreamMappings().catch((error) => {
+          console.error("Failed to get stream mappings:", error);
+          return [] as StreamMapping[];
+        }),
         ConfigAPI.getAuthLoginMode(),
         ConfigAPI.getAuthAccounts().catch((error) => {
           console.error("Failed to get auth accounts:", error);
@@ -67,6 +74,7 @@ export function useAuthSettingsResource({
         }),
       ]);
       hostMappings.value = mappings;
+      streamMappings.value = streams;
       credentials.value = (res.credentials || []).map(normalizeCredential);
       authModeStatus.value = modeStatus;
       authLoginMode.value = modeStatus.mode || "totp";

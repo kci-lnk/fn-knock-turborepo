@@ -394,6 +394,43 @@ fn is_totp_subdomain_access_restricted(value: &Value) -> bool {
     value.get("mode").and_then(Value::as_str) == Some("custom")
 }
 
+fn credential_has_stream_access(value: &Value) -> bool {
+    value.get("mode").and_then(Value::as_str) != Some("custom")
+        || value
+            .get("streams")
+            .and_then(Value::as_array)
+            .is_some_and(|streams| !streams.is_empty())
+}
+
+fn stream_access_expires_at(
+    settings: &AuthCredentialSettings,
+    session_expires_at: &str,
+    credential_access: &Value,
+) -> Option<String> {
+    if settings.post_login_ip_grant_mode == "disabled"
+        || !credential_has_stream_access(credential_access)
+    {
+        return None;
+    }
+    if settings.post_login_ip_grant_mode == "follow_session" {
+        return Some(session_expires_at.to_string());
+    }
+    let remaining_session_seconds = time_utils::parse_iso_ms(session_expires_at)
+        .map(|expires_at| {
+            expires_at
+                .saturating_sub(time_utils::now_ms())
+                .saturating_add(999)
+                .div_euclid(1000)
+        })
+        .unwrap_or(settings.post_login_ip_grant_ttl_seconds);
+    Some(time_utils::iso_after_seconds(
+        settings
+            .post_login_ip_grant_ttl_seconds
+            .min(remaining_session_seconds)
+            .max(1),
+    ))
+}
+
 fn is_follow_session_auto_grant(session: &LoginSession) -> bool {
     session.grant_type.as_deref() == Some("login_ip_grant")
         && session.post_login_ip_grant_mode.as_deref() == Some("follow_session")
@@ -559,12 +596,14 @@ pub use cleanup::{
     clear_auto_ip_grants_for_auth_credential, clear_auto_ip_grants_for_totp_credential,
     destroy_session, destroy_sessions_for_auth_credential, destroy_sessions_for_auth_method,
     destroy_sessions_for_totp_credential, list_session_whitelist_record_ids,
-    reconcile_session_ip_mobility_policy,
+    reconcile_all_stream_access_grants, reconcile_session_ip_mobility_policy,
+    reconcile_stream_access_grants_for_auth_credential,
+    reconcile_stream_access_grants_for_totp_credential,
 };
 use events::*;
 pub use login::create_login_session;
 use restore::resolve_bootstrap_owner;
-pub use restore::try_restore_access;
+pub use restore::{list_active_sessions_by_ip, try_restore_access};
 pub(crate) use trusted_sync::sync_browser_session_ip_with_session;
 pub use trusted_sync::{sync_browser_session_ip, sync_trusted_request};
 

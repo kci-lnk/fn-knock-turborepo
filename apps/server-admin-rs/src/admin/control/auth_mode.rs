@@ -781,7 +781,7 @@ async fn update_account_permissions(
         }
     };
     if let Err(error) = sync_account_to_source_totp(state, &saved).await {
-        rollback_auth_account_mutation(state, &rollback, id, "auth account permission update")
+        rollback_auth_account_permission_mutation(state, &rollback, id, subdomain_access_updated)
             .await;
         tracing::warn!(%error, account_id = %id, "failed to sync auth account permissions to TOTP");
         return response::error(
@@ -793,8 +793,13 @@ async fn update_account_permissions(
         if let Err(error) =
             auth_mobility::clear_auto_ip_grants_for_auth_credential(state, &saved.id).await
         {
-            rollback_auth_account_mutation(state, &rollback, id, "auth account permission update")
-                .await;
+            rollback_auth_account_permission_mutation(
+                state,
+                &rollback,
+                id,
+                subdomain_access_updated,
+            )
+            .await;
             tracing::warn!(%error, account_id = %id, "failed to clear auto IP grants after auth account subdomain access restriction");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -806,8 +811,13 @@ async fn update_account_permissions(
             && let Err(error) =
                 auth_mobility::clear_auto_ip_grants_for_totp_credential(state, source_totp_id).await
         {
-            rollback_auth_account_mutation(state, &rollback, id, "auth account permission update")
-                .await;
+            rollback_auth_account_permission_mutation(
+                state,
+                &rollback,
+                id,
+                subdomain_access_updated,
+            )
+            .await;
             tracing::warn!(%error, account_id = %id, totp_id = %source_totp_id, "failed to clear TOTP auto IP grants after auth account subdomain access restriction");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -815,8 +825,52 @@ async fn update_account_permissions(
             );
         }
     }
+    if subdomain_access_updated {
+        if let Err(error) = auth_mobility::reconcile_stream_access_grants_for_auth_credential(
+            state,
+            &saved.id,
+            &saved.subdomain_access,
+        )
+        .await
+        {
+            rollback_auth_account_permission_mutation(
+                state,
+                &rollback,
+                id,
+                subdomain_access_updated,
+            )
+            .await;
+            tracing::warn!(%error, account_id = %id, "failed to reconcile account stream access grants");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_control_text(&translator, "authAccounts.saveFailed"),
+            );
+        }
+        let source_totp_id = saved.source_totp_id.trim();
+        if !source_totp_id.is_empty()
+            && let Err(error) = auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+                state,
+                source_totp_id,
+                &saved.subdomain_access,
+            )
+            .await
+        {
+            rollback_auth_account_permission_mutation(
+                state,
+                &rollback,
+                id,
+                subdomain_access_updated,
+            )
+            .await;
+            tracing::warn!(%error, account_id = %id, totp_id = %source_totp_id, "failed to reconcile linked TOTP stream access grants");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_control_text(&translator, "authAccounts.saveFailed"),
+            );
+        }
+    }
     if let Err(error) = refresh_gateway_auth_runtime(state).await {
-        rollback_auth_account_mutation(state, &rollback, id, "auth account permission update")
+        rollback_auth_account_permission_mutation(state, &rollback, id, subdomain_access_updated)
             .await;
         tracing::warn!(%error, account_id = %id, "failed to refresh gateway after auth account permission update");
         return response::error(
@@ -1090,6 +1144,53 @@ async fn capture_auth_account_rollback(
         totps: state.store.get_totps().await?,
         password: state.store.get_auth_password_credential(account_id).await?,
     })
+}
+
+async fn rollback_auth_account_permission_mutation(
+    state: &AppState,
+    snapshot: &AuthAccountRollbackSnapshot,
+    account_id: &str,
+    subdomain_access_updated: bool,
+) {
+    rollback_auth_account_mutation(
+        state,
+        snapshot,
+        account_id,
+        "auth account permission update",
+    )
+    .await;
+    if !subdomain_access_updated {
+        return;
+    }
+    let Some(account) = snapshot
+        .accounts
+        .iter()
+        .find(|account| account.id == account_id)
+    else {
+        return;
+    };
+    if let Err(error) = auth_mobility::reconcile_stream_access_grants_for_auth_credential(
+        state,
+        account_id,
+        &account.subdomain_access,
+    )
+    .await
+    {
+        tracing::warn!(%error, %account_id, "failed to roll back account stream access grants");
+    }
+    if let Some(totp) = snapshot
+        .totps
+        .iter()
+        .find(|totp| totp.id == account.source_totp_id)
+        && let Err(error) = auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+            state,
+            &totp.id,
+            &totp.subdomain_access,
+        )
+        .await
+    {
+        tracing::warn!(%error, %account_id, totp_id = %totp.id, "failed to roll back linked TOTP stream access grants");
+    }
 }
 
 async fn rollback_auth_account_mutation(
@@ -1666,7 +1767,8 @@ mod tests {
             totp.subdomain_access,
             json!({
                 "mode": "custom",
-                "hosts": ["__builtin_select__", "app.example.com"]
+                "hosts": ["__builtin_select__", "app.example.com"],
+                "streams": []
             })
         );
     }

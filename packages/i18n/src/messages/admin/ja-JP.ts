@@ -3922,7 +3922,7 @@ export const jaJPAdmin = {
     deviceAssociation: "デバイスの関連付け",
     permission: "権限",
     permissionAll: "全範囲",
-    permissionCustom: "カスタムサブドメイン",
+    permissionCustom: "カスタム範囲",
     permissionCustomSummary: "カスタム · {count} 件の範囲",
     permissionCustomEmpty: "カスタム · 範囲未選択",
     permissionNoAllowedHosts: "許可された範囲はありません",
@@ -3930,14 +3930,22 @@ export const jaJPAdmin = {
     permissionDialogTitle: "アクセス権限を編集",
     permissionDialogDescription:
       "「{name}」と関連する Passkey/外部アカウントがアクセスできる保護エントリを設定します。",
-    permissionSearchPlaceholder: "サブドメインまたは内蔵エントリを検索",
+    permissionSearchPlaceholder:
+      "サブドメイン、プロトコルポート、または内蔵エントリを検索",
     permissionSelectedCount: "{count} 件を選択済み",
     permissionSelectAll: "すべて選択",
     permissionClear: "クリア",
     permissionBuiltin: "内蔵",
     permissionBuiltinSelectLabel: "内蔵選択ページ",
+    permissionHostGroup: "サブドメインと内蔵エントリ",
+    permissionStreamGroup: "プロトコルマッピング",
+    permissionStreamIpNotice:
+      "プロトコルマッピングは現在のログインセッションの送信元 IP を認可し、「ログイン後の IP 許可」の有効期間設定を使用します。",
+    permissionMissingStream: "対応するプロトコルマッピングは存在しません",
+    permissionStaleItem: "未設定",
     permissionStaleHost: "未設定",
-    permissionNoHosts: "選択可能な保護エントリはありません",
+    permissionNoHosts:
+      "選択可能な保護エントリまたはプロトコルマッピングはありません",
     permissionNoSearchResults: "一致するエントリはありません",
     permissionUpdated: "アクセス権限を更新しました",
     permissionUpdateFailed: "アクセス権限の更新に失敗しました",

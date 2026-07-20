@@ -245,6 +245,34 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
         Vec::new()
     };
 
+    if normal_access.authorized
+        && normal_access
+            .grant_type
+            .as_deref()
+            .is_some_and(is_ip_or_mobility_grant)
+    {
+        let grant = match subdomain_grant::authorize(state, headers, config, matched).await {
+            Err(error) if subdomain_grant::is_rate_limited(&error) => {
+                return Ok(rate_limited_access(invalid_session_cookies));
+            }
+            result => result?,
+        };
+        if let Some(grant) = grant {
+            let mut set_cookies = invalid_session_cookies;
+            if let Some(cookie) = grant.set_cookie.clone() {
+                set_cookies.push(cookie);
+            }
+            return Ok(AuthAccess {
+                authenticated: true,
+                message: auth_route_text(translator, "authenticated"),
+                grant_type: Some("subdomain_rule".to_string()),
+                deny_reason: None,
+                set_cookies,
+                response_headers: rule_grant_headers(headers, &grant),
+            });
+        }
+    }
+
     if normal_access.authorized {
         let identity = inspect_auth_mobility_request(headers);
         if let Err(error) = auth_mobility::sync_trusted_request(
@@ -378,6 +406,13 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
         set_cookies: invalid_session_cookies,
         response_headers: Vec::new(),
     })
+}
+
+pub(super) fn is_ip_or_mobility_grant(grant_type: &str) -> bool {
+    matches!(
+        grant_type,
+        "login_ip_grant" | "fnos_fingerprint_session" | "session_migration"
+    )
 }
 
 fn rule_grant_headers(

@@ -33,6 +33,52 @@ fn auth_credential_settings_runtime_normalizes_like_node() {
 }
 
 #[test]
+fn stream_access_grant_follows_ip_grant_policy_and_credential_scope() {
+    let session_expires_at = time_utils::iso_after_seconds(3600);
+    let all_access = json!({ "mode": "all", "hosts": [], "streams": [] });
+    let selected_stream = json!({
+        "mode": "custom",
+        "hosts": [],
+        "streams": [{ "protocol": "tcp", "listen_port": 2222 }]
+    });
+    let host_only = json!({
+        "mode": "custom",
+        "hosts": ["app.example.com"],
+        "streams": []
+    });
+
+    let disabled = AuthCredentialSettings::from_raw(&json!({
+        "post_login_ip_grant_mode": "disabled"
+    }));
+    assert_eq!(
+        stream_access_expires_at(&disabled, &session_expires_at, &all_access),
+        None
+    );
+
+    let follow_session = AuthCredentialSettings::from_raw(&json!({
+        "post_login_ip_grant_mode": "follow_session"
+    }));
+    assert_eq!(
+        stream_access_expires_at(&follow_session, &session_expires_at, &selected_stream),
+        Some(session_expires_at.clone())
+    );
+    assert_eq!(
+        stream_access_expires_at(&follow_session, &session_expires_at, &host_only),
+        None
+    );
+
+    let custom = AuthCredentialSettings::from_raw(&json!({
+        "post_login_ip_grant_mode": "custom",
+        "post_login_ip_grant_ttl_seconds": 60
+    }));
+    let custom_expiry = stream_access_expires_at(&custom, &session_expires_at, &all_access)
+        .and_then(|value| time_utils::parse_iso_ms(&value))
+        .expect("custom stream expiry");
+    let remaining_seconds = custom_expiry.saturating_sub(time_utils::now_ms()) / 1000;
+    assert!((59..=60).contains(&remaining_seconds));
+}
+
+#[test]
 fn mobility_binding_builder_preserves_and_clears_node_fields() {
     let original = json!({
         "createdAt": "2026-01-01T00:00:00.000Z",
@@ -743,6 +789,7 @@ fn test_browser_session(ip: &str) -> LoginSession {
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: ip.to_string(),
         user_agent: "video-player".to_string(),

@@ -508,6 +508,7 @@ fn passkey_test_session(expires_at: &str) -> LoginSession {
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: "203.0.113.20".to_string(),
         user_agent: "passkey-test".to_string(),

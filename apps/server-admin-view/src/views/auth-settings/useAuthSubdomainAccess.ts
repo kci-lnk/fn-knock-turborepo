@@ -8,9 +8,11 @@ import { ConfigAPI } from "../../lib/api";
 import type {
   AuthAccount,
   HostMapping,
+  StreamMapping,
   TOTPCredential,
   TOTPSubdomainAccess,
   TOTPSubdomainAccessMode,
+  TOTPStreamAccess,
 } from "../../types";
 
 const BUILTIN_SELECT_PAGE_ACCESS_HOST = "__builtin_select__";
@@ -18,12 +20,16 @@ const BUILTIN_SELECT_PAGE_PATH = "/__select__";
 const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
   mode: "all",
   hosts: [],
+  streams: [],
 };
+const HOST_ACCESS_KEY_PREFIX = "host:";
+const STREAM_ACCESS_KEY_PREFIX = "stream:";
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 type SubdomainAccessOption = {
-  host: string;
+  key: string;
+  kind: "host" | "stream";
   label: string;
   description: string;
   stale?: boolean;
@@ -88,12 +94,79 @@ export const normalizeAuthSubdomainAccess = (
         ...new Set(hostsValue.map(normalizeAuthSubdomainHost).filter(Boolean)),
       ].sort(compareSubdomainAccessHosts)
     : [];
-  return { mode: "custom", hosts };
+  const streamsValue = (value as { streams?: unknown }).streams;
+  const streams = Array.isArray(streamsValue)
+    ? [
+        ...new Map(
+          streamsValue
+            .map(normalizeAuthStreamAccess)
+            .filter((stream): stream is TOTPStreamAccess => stream !== null)
+            .map((stream) => [createAuthStreamAccessKey(stream), stream]),
+        ).values(),
+      ].sort(compareAuthStreamAccess)
+    : [];
+  return { mode: "custom", hosts, streams };
+};
+
+export const normalizeAuthStreamAccess = (
+  value: unknown,
+): TOTPStreamAccess | null => {
+  if (typeof value !== "object" || value === null) return null;
+  const rawProtocol = String(
+    (value as { protocol?: unknown }).protocol ?? "",
+  )
+    .trim()
+    .toLowerCase();
+  const protocol =
+    rawProtocol === "udp"
+      ? "udp"
+      : rawProtocol === "tcp"
+        ? "tcp"
+        : null;
+  const listenPort = Number(
+    (value as { listen_port?: unknown }).listen_port,
+  );
+  if (
+    protocol === null ||
+    !Number.isInteger(listenPort) ||
+    listenPort < 1 ||
+    listenPort > 65535
+  ) {
+    return null;
+  }
+  return { protocol, listen_port: listenPort };
+};
+
+export const createAuthStreamAccessKey = (stream: TOTPStreamAccess) =>
+  `${STREAM_ACCESS_KEY_PREFIX}${stream.protocol}:${stream.listen_port}`;
+
+const createAuthHostAccessKey = (host: string) =>
+  `${HOST_ACCESS_KEY_PREFIX}${host}`;
+
+const compareAuthStreamAccess = (
+  left: TOTPStreamAccess,
+  right: TOTPStreamAccess,
+) =>
+  left.listen_port === right.listen_port
+    ? left.protocol.localeCompare(right.protocol)
+    : left.listen_port - right.listen_port;
+
+const parseAuthStreamAccessKey = (key: string): TOTPStreamAccess | null => {
+  if (!key.startsWith(STREAM_ACCESS_KEY_PREFIX)) return null;
+  const [protocol, rawPort, extra] = key
+    .slice(STREAM_ACCESS_KEY_PREFIX.length)
+    .split(":");
+  if (extra !== undefined) return null;
+  return normalizeAuthStreamAccess({
+    protocol,
+    listen_port: Number(rawPort),
+  });
 };
 
 interface UseAuthSubdomainAccessOptions {
   credentials: Ref<TOTPCredential[]>;
   hostMappings: Ref<HostMapping[]>;
+  streamMappings: Ref<StreamMapping[]>;
   replaceAuthAccount: (account: AuthAccount) => void;
   translate: Translate;
 }
@@ -101,6 +174,7 @@ interface UseAuthSubdomainAccessOptions {
 export function useAuthSubdomainAccess({
   credentials,
   hostMappings,
+  streamMappings,
   replaceAuthAccount,
   translate,
 }: UseAuthSubdomainAccessOptions) {
@@ -108,7 +182,7 @@ export function useAuthSubdomainAccess({
   const editingSubdomainAccessTotp = ref<TOTPCredential | null>(null);
   const editingSubdomainAccessAccount = ref<AuthAccount | null>(null);
   const subdomainAccessMode = ref<TOTPSubdomainAccessMode>("all");
-  const selectedSubdomainHosts = ref<Set<string>>(new Set());
+  const selectedAccessKeys = ref<Set<string>>(new Set());
   const subdomainAccessSearch = ref("");
   const updatingSubdomainAccessIds = ref<Set<string>>(new Set());
 
@@ -123,14 +197,13 @@ export function useAuthSubdomainAccess({
       ? translate("admin.authSettings.permissionBuiltinSelectLabel")
       : host;
 
-  const selectedSubdomainHostCount = computed(
-    () => selectedSubdomainHosts.value.size,
-  );
+  const selectedAccessCount = computed(() => selectedAccessKeys.value.size);
 
   const subdomainAccessOptions = computed<SubdomainAccessOption[]>(() => {
     const byHost = new Map<string, SubdomainAccessOption>();
-    byHost.set(BUILTIN_SELECT_PAGE_ACCESS_HOST, {
-      host: BUILTIN_SELECT_PAGE_ACCESS_HOST,
+    byHost.set(createAuthHostAccessKey(BUILTIN_SELECT_PAGE_ACCESS_HOST), {
+      key: createAuthHostAccessKey(BUILTIN_SELECT_PAGE_ACCESS_HOST),
+      kind: "host",
       label: translate("admin.authSettings.permissionBuiltinSelectLabel"),
       description: BUILTIN_SELECT_PAGE_PATH,
       builtin: true,
@@ -141,18 +214,49 @@ export function useAuthSubdomainAccess({
         continue;
       }
       const host = normalizeAuthSubdomainHost(mapping.host);
-      if (!host || byHost.has(host)) continue;
+      const key = createAuthHostAccessKey(host);
+      if (!host || byHost.has(key)) continue;
       const label =
         mapping.title_override.trim() || mapping.title.trim() || mapping.host;
-      byHost.set(host, { host, label, description: host, stale: false });
+      byHost.set(key, {
+        key,
+        kind: "host",
+        label,
+        description: host,
+        stale: false,
+      });
     }
 
-    for (const host of selectedSubdomainHosts.value) {
-      if (byHost.has(host)) continue;
-      byHost.set(host, {
-        host,
-        label: host,
-        description: host,
+    for (const mapping of streamMappings.value) {
+      if (mapping.use_auth !== true) continue;
+      const stream = normalizeAuthStreamAccess(mapping);
+      if (!stream) continue;
+      const key = createAuthStreamAccessKey(stream);
+      byHost.set(key, {
+        key,
+        kind: "stream",
+        label: `${stream.protocol.toUpperCase()}/${stream.listen_port}`,
+        description: mapping.target,
+        stale: false,
+      });
+    }
+
+    for (const key of selectedAccessKeys.value) {
+      if (byHost.has(key)) continue;
+      const stream = parseAuthStreamAccessKey(key);
+      const host = key.startsWith(HOST_ACCESS_KEY_PREFIX)
+        ? key.slice(HOST_ACCESS_KEY_PREFIX.length)
+        : "";
+      if (!stream && !host) continue;
+      byHost.set(key, {
+        key,
+        kind: stream ? "stream" : "host",
+        label: stream
+          ? `${stream.protocol.toUpperCase()}/${stream.listen_port}`
+          : formatSubdomainAccessHostLabel(host),
+        description: stream
+          ? translate("admin.authSettings.permissionMissingStream")
+          : host,
         stale: true,
       });
     }
@@ -162,7 +266,10 @@ export function useAuthSubdomainAccess({
       ...options.filter((option) => option.builtin),
       ...options
         .filter((option) => !option.builtin)
-        .sort((left, right) => left.host.localeCompare(right.host)),
+        .sort((left, right) => {
+          if (left.kind !== right.kind) return left.kind === "host" ? -1 : 1;
+          return left.key.localeCompare(right.key);
+        }),
     ];
   });
 
@@ -171,7 +278,7 @@ export function useAuthSubdomainAccess({
     if (!keyword) return subdomainAccessOptions.value;
     return subdomainAccessOptions.value.filter(
       (option) =>
-        option.host.includes(keyword) ||
+        option.key.includes(keyword) ||
         option.description.toLowerCase().includes(keyword) ||
         option.label.toLowerCase().includes(keyword),
     );
@@ -200,7 +307,10 @@ export function useAuthSubdomainAccess({
     editingSubdomainAccessTotp.value = totp;
     editingSubdomainAccessAccount.value = null;
     subdomainAccessMode.value = access.mode;
-    selectedSubdomainHosts.value = new Set(access.hosts);
+    selectedAccessKeys.value = new Set([
+      ...access.hosts.map(createAuthHostAccessKey),
+      ...access.streams.map(createAuthStreamAccessKey),
+    ]);
     subdomainAccessSearch.value = "";
     showSubdomainAccessDialog.value = true;
   }
@@ -210,7 +320,10 @@ export function useAuthSubdomainAccess({
     editingSubdomainAccessTotp.value = null;
     editingSubdomainAccessAccount.value = account;
     subdomainAccessMode.value = access.mode;
-    selectedSubdomainHosts.value = new Set(access.hosts);
+    selectedAccessKeys.value = new Set([
+      ...access.hosts.map(createAuthHostAccessKey),
+      ...access.streams.map(createAuthStreamAccessKey),
+    ]);
     subdomainAccessSearch.value = "";
     showSubdomainAccessDialog.value = true;
   }
@@ -220,33 +333,36 @@ export function useAuthSubdomainAccess({
     editingSubdomainAccessTotp.value = null;
     editingSubdomainAccessAccount.value = null;
     subdomainAccessMode.value = "all";
-    selectedSubdomainHosts.value = new Set();
+    selectedAccessKeys.value = new Set();
     subdomainAccessSearch.value = "";
   }
 
-  function toggleSubdomainHost(host: string, checked: boolean) {
-    const normalizedHost = normalizeAuthSubdomainHost(host);
-    if (!normalizedHost) return;
-
-    const next = new Set(selectedSubdomainHosts.value);
+  function toggleAccessOption(key: string, checked: boolean) {
+    if (
+      !key.startsWith(HOST_ACCESS_KEY_PREFIX) &&
+      !key.startsWith(STREAM_ACCESS_KEY_PREFIX)
+    ) {
+      return;
+    }
+    const next = new Set(selectedAccessKeys.value);
     if (checked) {
-      next.add(normalizedHost);
+      next.add(key);
     } else {
-      next.delete(normalizedHost);
+      next.delete(key);
     }
-    selectedSubdomainHosts.value = next;
+    selectedAccessKeys.value = next;
   }
 
-  function selectHosts(hosts: Iterable<string>) {
-    const next = new Set(selectedSubdomainHosts.value);
-    for (const host of hosts) {
-      next.add(host);
+  function selectAccessOptions(keys: Iterable<string>) {
+    const next = new Set(selectedAccessKeys.value);
+    for (const key of keys) {
+      next.add(key);
     }
-    selectedSubdomainHosts.value = next;
+    selectedAccessKeys.value = next;
   }
 
-  function clearSelectedSubdomainHosts() {
-    selectedSubdomainHosts.value = new Set();
+  function clearSelectedAccessOptions() {
+    selectedAccessKeys.value = new Set();
   }
 
   function isSubdomainAccessUpdating(id: string) {
@@ -272,11 +388,21 @@ export function useAuthSubdomainAccess({
       subdomainAccessMode.value === "custom"
         ? {
             mode: "custom",
-            hosts: [...selectedSubdomainHosts.value].sort(
-              compareSubdomainAccessHosts,
-            ),
+            hosts: [...selectedAccessKeys.value]
+              .filter((key) => key.startsWith(HOST_ACCESS_KEY_PREFIX))
+              .map((key) =>
+                normalizeAuthSubdomainHost(
+                  key.slice(HOST_ACCESS_KEY_PREFIX.length),
+                ),
+              )
+              .filter(Boolean)
+              .sort(compareSubdomainAccessHosts),
+            streams: [...selectedAccessKeys.value]
+              .map(parseAuthStreamAccessKey)
+              .filter((stream): stream is TOTPStreamAccess => stream !== null)
+              .sort(compareAuthStreamAccess),
           }
-        : { mode: "all", hosts: [] };
+        : { mode: "all", hosts: [], streams: [] };
 
     setSubdomainAccessUpdating(target.id, true);
     try {
@@ -314,39 +440,42 @@ export function useAuthSubdomainAccess({
     if (access.mode !== "custom") {
       return translate("admin.authSettings.permissionAll");
     }
-    if (access.hosts.length === 0) {
+    if (access.hosts.length + access.streams.length === 0) {
       return translate("admin.authSettings.permissionCustomEmpty");
     }
     return translate("admin.authSettings.permissionCustomSummary", {
-      count: access.hosts.length,
+      count: access.hosts.length + access.streams.length,
     });
   };
 
   const getSubdomainAccessPreview = (record: AuthPermissionRecord) => {
     const access = getSubdomainAccess(record);
     if (access.mode !== "custom") return "";
-    if (access.hosts.length === 0) {
+    const labels = [
+      ...access.hosts.map(formatSubdomainAccessHostLabel),
+      ...access.streams.map(
+        (stream) => `${stream.protocol.toUpperCase()}/${stream.listen_port}`,
+      ),
+    ];
+    if (labels.length === 0) {
       return translate("admin.authSettings.permissionNoAllowedHosts");
     }
-    const previewHosts = access.hosts
-      .slice(0, 2)
-      .map(formatSubdomainAccessHostLabel)
-      .join(", ");
-    if (access.hosts.length <= 2) return previewHosts;
+    const previewHosts = labels.slice(0, 2).join(", ");
+    if (labels.length <= 2) return previewHosts;
     return translate("admin.authSettings.permissionPreviewMore", {
       hosts: previewHosts,
-      count: access.hosts.length,
+      count: labels.length,
     });
   };
 
-  const selectAllFilteredSubdomainHosts = () => {
-    selectHosts(
-      filteredSubdomainAccessOptions.value.map((option) => option.host),
+  const selectAllFilteredAccessOptions = () => {
+    selectAccessOptions(
+      filteredSubdomainAccessOptions.value.map((option) => option.key),
     );
   };
 
   return {
-    clearSelectedSubdomainHosts,
+    clearSelectedAccessOptions,
     closeSubdomainAccessDialog,
     editingSubdomainAccessAccount,
     editingSubdomainAccessTotp,
@@ -360,14 +489,13 @@ export function useAuthSubdomainAccess({
     normalizeCredential,
     openAccountSubdomainAccessDialog,
     openSubdomainAccessDialog,
-    selectHosts,
-    selectedSubdomainHosts,
-    selectedSubdomainHostCount,
-    selectAllFilteredSubdomainHosts,
+    selectedAccessCount,
+    selectedAccessKeys,
+    selectAllFilteredAccessOptions,
     showSubdomainAccessDialog,
     subdomainAccessMode,
     subdomainAccessOptions,
     subdomainAccessSearch,
-    toggleSubdomainHost,
+    toggleAccessOption,
   };
 }

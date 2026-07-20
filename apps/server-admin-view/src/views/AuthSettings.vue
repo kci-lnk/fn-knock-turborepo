@@ -184,18 +184,18 @@
     :is-saving="isSavingSubdomainAccess"
     :option-count="subdomainAccessOptions.length"
     :options="filteredSubdomainAccessOptions"
-    :selected-count="selectedSubdomainHostCount"
-    :selected-hosts="selectedSubdomainHosts"
+    :selected-count="selectedAccessCount"
+    :selected-keys="selectedAccessKeys"
     :target-name="
       editingSubdomainAccessAccount?.username ||
       editingSubdomainAccessTotp?.comment ||
       t('admin.authSettings.tokenFallback')
     "
-    @clear-selected="clearSelectedSubdomainHosts"
+    @clear-selected="clearSelectedAccessOptions"
     @close="closeSubdomainAccessDialog"
     @save="handleSaveSubdomainAccess"
-    @select-all-filtered="selectAllFilteredSubdomainHosts"
-    @toggle-host="toggleSubdomainHost"
+    @select-all-filtered="selectAllFilteredAccessOptions"
+    @toggle-option="toggleAccessOption"
   />
 
   <AuthAccountEditDialog
@@ -289,6 +289,7 @@ import type {
   AuthLoginMode,
   AuthLoginModeStatus,
   HostMapping,
+  StreamMapping,
   TOTPCredential,
 } from "../types";
 import { useAuthModeSwitch } from "./auth-settings/useAuthModeSwitch";
@@ -303,6 +304,7 @@ const authAccounts = ref<AuthAccount[]>([]);
 const authLoginMode = ref<AuthLoginMode>("totp");
 const authModeStatus = ref<AuthLoginModeStatus | null>(null);
 const hostMappings = ref<HostMapping[]>([]);
+const streamMappings = ref<StreamMapping[]>([]);
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = useMediaQueryMatch(
   "(hover: none), (pointer: coarse)",
@@ -355,7 +357,7 @@ const {
   showAuthModeSwitchDialog,
 });
 const {
-  clearSelectedSubdomainHosts,
+  clearSelectedAccessOptions,
   closeSubdomainAccessDialog,
   editingSubdomainAccessAccount,
   editingSubdomainAccessTotp,
@@ -368,17 +370,18 @@ const {
   normalizeCredential,
   openAccountSubdomainAccessDialog,
   openSubdomainAccessDialog,
-  selectedSubdomainHosts,
-  selectedSubdomainHostCount,
-  selectAllFilteredSubdomainHosts,
+  selectedAccessKeys,
+  selectedAccessCount,
+  selectAllFilteredAccessOptions,
   showSubdomainAccessDialog,
   subdomainAccessMode,
   subdomainAccessOptions,
   subdomainAccessSearch,
-  toggleSubdomainHost,
+  toggleAccessOption,
 } = useAuthSubdomainAccess({
   credentials,
   hostMappings,
+  streamMappings,
   replaceAuthAccount,
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
@@ -453,6 +456,7 @@ const authSettingsResource = useAuthSettingsResource({
   authModeStatus,
   credentials,
   hostMappings,
+  streamMappings,
   normalizeAuthAccount,
   normalizeCredential,
   translate: (key) => t(key),

@@ -191,20 +191,49 @@ async fn handle_authorize_http(
         }
     };
     let translator = translator_from_config(&config);
-    let normal_access = match resolve_preflight_normal_access(
-        &state,
-        &headers,
-        &uri,
-        &config,
-        &client_ip,
-        access_mode,
-    )
-    .await
-    {
-        Ok(access) => access,
-        Err(error) => {
-            tracing::warn!(%error, "auth bridge authorize HTTP normal access resolution failed");
-            return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
+    let matched_rule_valid = request
+        .subdomain_rule_match
+        .as_ref()
+        .is_some_and(|matched| {
+            subdomain_grant::match_is_valid(
+                &config,
+                resolve_request_hostname_from_headers(&headers)
+                    .as_deref()
+                    .unwrap_or(""),
+                matched,
+            )
+        });
+    let existing_rule_grant = if matched_rule_valid {
+        false
+    } else {
+        match subdomain_grant::inspect_existing(&state, &headers, &config).await {
+            Ok(grant) => grant.is_some(),
+            Err(error) => {
+                tracing::warn!(%error, "auth bridge existing subdomain grant inspection failed");
+                false
+            }
+        }
+    };
+    // A rule grant is host-scoped and must not refresh a broader FNOS/session
+    // IP grant as a side effect of resolving normal access.
+    let normal_access = if matched_rule_valid || existing_rule_grant {
+        PreflightNormalAccess::default()
+    } else {
+        match resolve_preflight_normal_access(
+            &state,
+            &headers,
+            &uri,
+            &config,
+            &client_ip,
+            access_mode,
+        )
+        .await
+        {
+            Ok(access) => access,
+            Err(error) => {
+                tracing::warn!(%error, "auth bridge authorize HTTP normal access resolution failed");
+                return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
+            }
         }
     };
 
@@ -235,21 +264,7 @@ async fn handle_authorize_http(
         // A validated subdomain-rule match may proceed to the verify stage so
         // Rust can issue the host-only grant. Protective preflight denials
         // (blacklist/WAF/strict whitelist) remain fail-closed.
-        if preflight_rejected
-            && request
-                .subdomain_rule_match
-                .as_ref()
-                .is_some_and(|matched| {
-                    subdomain_grant::match_is_valid(
-                        &config,
-                        resolve_request_hostname_from_headers(&headers)
-                            .as_deref()
-                            .unwrap_or(""),
-                        matched,
-                    )
-                })
-            && !preflight.deny
-        {
+        if preflight_rejected && matched_rule_valid && !preflight.deny {
             preflight_rejected = false;
             preflight.redirect_location.clear();
             preflight.access_denied_reason.clear();
@@ -501,12 +516,52 @@ async fn handle_verify_stream_auth(
     let uri = Uri::from_static("/");
     let translator = Translator::from_state(&state).await;
 
-    match resolve_auth_access(&state, &headers, &uri, &translator).await {
-        Ok(access) if access.authenticated => VerifyStreamAuthResponse {
+    let session_access = match resolve_stream_session_access(
+        &state,
+        &request.client_ip,
+        &request.protocol,
+        request.listen_port,
+    )
+    .await
+    {
+        Ok(access) => access,
+        Err(error) => {
+            tracing::warn!(%error, "auth bridge stream session access resolution failed");
+            return VerifyStreamAuthResponse {
+                allowed: false,
+                status: StatusCode::BAD_GATEWAY.as_u16() as i32,
+                decision: "auth_error".to_string(),
+                message: "Authentication Service Unavailable".to_string(),
+            };
+        }
+    };
+    if session_access.allowed {
+        return VerifyStreamAuthResponse {
             allowed: true,
             status: StatusCode::OK.as_u16() as i32,
             decision: "passed".to_string(),
-            message: access.message,
+            message: auth_route_text(&translator, "authenticated"),
+        };
+    }
+
+    match resolve_auth_access(&state, &headers, &uri, &translator).await {
+        Ok(access)
+            if access.authenticated
+                && !(session_access.has_custom_owner
+                    && access.grant_type.as_deref() == Some("login_ip_grant")) =>
+        {
+            VerifyStreamAuthResponse {
+                allowed: true,
+                status: StatusCode::OK.as_u16() as i32,
+                decision: "passed".to_string(),
+                message: access.message,
+            }
+        }
+        Ok(access) if access.authenticated => VerifyStreamAuthResponse {
+            allowed: false,
+            status: StatusCode::FORBIDDEN.as_u16() as i32,
+            decision: "access_denied".to_string(),
+            message: "Access denied by credential scope".to_string(),
         },
         Ok(access) => VerifyStreamAuthResponse {
             allowed: false,
@@ -526,6 +581,59 @@ async fn handle_verify_stream_auth(
                 decision: "auth_error".to_string(),
                 message: "Authentication Service Unavailable".to_string(),
             }
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct StreamSessionAccess {
+    allowed: bool,
+    has_custom_owner: bool,
+}
+
+async fn resolve_stream_session_access(
+    state: &AppState,
+    client_ip: &str,
+    protocol: &str,
+    listen_port: i32,
+) -> anyhow::Result<StreamSessionAccess> {
+    let mut result = StreamSessionAccess::default();
+    for (_session_id, session) in
+        auth_mobility::list_active_sessions_by_ip(state, client_ip).await?
+    {
+        if login_session_has_expired(&session) {
+            continue;
+        }
+        let Some(credential) = session_auth_credential(state, &session).await? else {
+            continue;
+        };
+        result.has_custom_owner |= credential
+            .subdomain_access
+            .get("mode")
+            .and_then(Value::as_str)
+            == Some("custom");
+        if !session_has_active_stream_access(&session) {
+            continue;
+        }
+        if is_stream_allowed_by_totp_subdomain_access(
+            &credential.subdomain_access,
+            protocol,
+            listen_port,
+        ) {
+            result.allowed = true;
+            return Ok(result);
+        }
+    }
+    Ok(result)
+}
+
+fn session_has_active_stream_access(session: &LoginSession) -> bool {
+    match session.stream_access_expires_at.as_deref() {
+        Some(expires_at) => time_utils::parse_iso_ms(expires_at)
+            .is_some_and(|expires_at| expires_at > time_utils::now_ms()),
+        None => {
+            session.grant_type.as_deref() == Some("login_ip_grant")
+                && session.post_login_ip_grant_mode.as_deref() == Some("follow_session")
         }
     }
 }
@@ -758,6 +866,243 @@ mod tests {
         assert_eq!(
             verify_cache_scope(&header_cookie_access),
             AuthCacheScope::None
+        );
+    }
+
+    #[tokio::test]
+    async fn matched_subdomain_rule_does_not_refresh_session_ip_mobility() {
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "rule-mobility-isolation-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        state
+            .store
+            .save_config(&json!({
+                "run_type": 3,
+                "auth_credential_settings": {
+                    "post_login_ip_grant_mode": "follow_session",
+                    "session_ip_mobility_enabled": true,
+                    "session_ip_mobility_window_seconds": 1_200
+                },
+                "host_mappings": [{
+                    "host": "allowed.example.com",
+                    "use_auth": true,
+                    "advanced_auth": {
+                        "enabled": true,
+                        "idle_ttl_seconds": 86_400,
+                        "max_lifetime_seconds": 2_592_000,
+                        "policy_version": "policy-v1",
+                        "groups": [{"id": "group-v1", "conditions": []}]
+                    }
+                }]
+            }))
+            .await
+            .expect("auth config");
+        state
+            .store
+            .add_totp(TotpCredential {
+                id: "totp-1".to_string(),
+                secret: "SECRET".to_string(),
+                comment: "unrestricted".to_string(),
+                created_at: time_utils::now_iso(),
+                access_scopes: json!([]),
+                subdomain_access: json!({"mode": "all", "hosts": []}),
+            })
+            .await
+            .expect("TOTP credential");
+        let session = LoginSession {
+            totp_id: "totp-1".to_string(),
+            method: "TOTP".to_string(),
+            credential_id: "totp-1".to_string(),
+            credential_name: "unrestricted".to_string(),
+            linked_totp_name: None,
+            access_scopes: None,
+            subdomain_access: None,
+            grant_type: Some("browser_session".to_string()),
+            post_login_ip_grant_mode: None,
+            post_login_ip_grant_record_id: None,
+            stream_access_expires_at: None,
+            comment: None,
+            ip: "203.0.113.10".to_string(),
+            user_agent: "rule-test".to_string(),
+            login_time: time_utils::now_iso(),
+            expires_at: Some(time_utils::iso_after_seconds(3_600)),
+            ip_location: None,
+        };
+        state
+            .store
+            .add_session("session-1", &session, 3_600)
+            .await
+            .expect("login session");
+
+        let response = handle_authorize_http(
+            state.clone(),
+            AuthorizeHttpRequest {
+                context: Some(AuthContext {
+                    client_ip: "203.0.113.20".to_string(),
+                    forwarded_host: "allowed.example.com".to_string(),
+                    forwarded_proto: "https".to_string(),
+                    path: "/".to_string(),
+                    cookie: format!("{}=session-1", cookies::SESSION_COOKIE_NAME),
+                    ..Default::default()
+                }),
+                matched: true,
+                mode: HttpAuthMode::PreflightAndVerify as i32,
+                subdomain_rule_match: Some(crate::grpc_proto::SubdomainRuleMatch {
+                    host: "allowed.example.com".to_string(),
+                    policy_version: "policy-v1".to_string(),
+                    group_id: "group-v1".to_string(),
+                }),
+            },
+        )
+        .await;
+
+        let verify = response.verify.expect("verify response");
+        assert!(verify.success);
+        assert_eq!(verify.decision, "subdomain_rule_allowed");
+        assert!(
+            state
+                .store
+                .list_auth_mobility_recent_active_ip_details("session-1", 0)
+                .await
+                .expect("active IP details")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn stream_access_expiry_supports_new_and_legacy_sessions() {
+        let mut session =
+            crate::store::new_login_session("totp-1", "TOTP", "203.0.113.10", "test", 3600);
+        assert!(!session_has_active_stream_access(&session));
+
+        session.stream_access_expires_at = Some(time_utils::iso_after_seconds(60));
+        assert!(session_has_active_stream_access(&session));
+
+        session.stream_access_expires_at = Some("2000-01-01T00:00:00Z".to_string());
+        assert!(!session_has_active_stream_access(&session));
+
+        session.stream_access_expires_at = None;
+        session.grant_type = Some("login_ip_grant".to_string());
+        session.post_login_ip_grant_mode = Some("follow_session".to_string());
+        assert!(session_has_active_stream_access(&session));
+
+        session.post_login_ip_grant_mode = Some("custom".to_string());
+        assert!(!session_has_active_stream_access(&session));
+    }
+
+    #[tokio::test]
+    async fn stream_scope_reconciles_current_session_and_matches_protocol_port() {
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "stream-scope-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        state
+            .store
+            .save_config(&json!({
+                "auth_credential_settings": {
+                    "post_login_ip_grant_mode": "follow_session",
+                    "session_ip_mobility_enabled": false
+                }
+            }))
+            .await
+            .expect("auth config");
+        let credential = TotpCredential {
+            id: "totp-1".to_string(),
+            secret: "SECRET".to_string(),
+            comment: "stream token".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: json!([]),
+            subdomain_access: json!({
+                "mode": "custom",
+                "hosts": [],
+                "streams": [{ "protocol": "tcp", "listen_port": 2222 }]
+            }),
+        };
+        state
+            .store
+            .add_totp(credential.clone())
+            .await
+            .expect("TOTP credential");
+        let session = LoginSession {
+            totp_id: credential.id.clone(),
+            method: "TOTP".to_string(),
+            credential_id: credential.id.clone(),
+            credential_name: credential.comment.clone(),
+            linked_totp_name: None,
+            access_scopes: None,
+            subdomain_access: None,
+            grant_type: Some("browser_session".to_string()),
+            post_login_ip_grant_mode: None,
+            post_login_ip_grant_record_id: None,
+            stream_access_expires_at: None,
+            comment: None,
+            ip: "203.0.113.10".to_string(),
+            user_agent: "stream-test".to_string(),
+            login_time: time_utils::now_iso(),
+            expires_at: Some(time_utils::iso_after_seconds(3600)),
+            ip_location: None,
+        };
+        state
+            .store
+            .add_session("session-1", &session, 3600)
+            .await
+            .expect("login session");
+
+        auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+            &state,
+            &credential.id,
+            &credential.subdomain_access,
+        )
+        .await
+        .expect("custom stream grant reconciliation");
+
+        assert!(
+            resolve_stream_session_access(&state, "203.0.113.10", "tcp", 2222)
+                .await
+                .expect("allowed stream lookup")
+                .allowed
+        );
+        let denied = resolve_stream_session_access(&state, "203.0.113.10", "udp", 2222)
+            .await
+            .expect("denied stream lookup");
+        assert!(!denied.allowed);
+        assert!(denied.has_custom_owner);
+
+        let all_access = json!({ "mode": "all", "hosts": [], "streams": [] });
+        state
+            .store
+            .update_totp_subdomain_access(&credential.id, all_access.clone())
+            .await
+            .expect("all-scope update")
+            .expect("existing TOTP");
+        auth_mobility::reconcile_stream_access_grants_for_totp_credential(
+            &state,
+            &credential.id,
+            &all_access,
+        )
+        .await
+        .expect("all-scope stream grant reconciliation");
+
+        assert!(
+            resolve_stream_session_access(&state, "203.0.113.10", "udp", 5353)
+                .await
+                .expect("all-scope stream lookup")
+                .allowed
         );
     }
 }

@@ -84,6 +84,12 @@ pub struct LoginSession {
         skip_serializing_if = "Option::is_none"
     )]
     pub post_login_ip_grant_record_id: Option<String>,
+    #[serde(
+        default,
+        rename = "streamAccessExpiresAt",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stream_access_expires_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
     pub ip: String,

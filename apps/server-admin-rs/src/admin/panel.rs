@@ -1255,6 +1255,7 @@ mod tests {
             grant_type: Some("browser_session".to_string()),
             post_login_ip_grant_mode: None,
             post_login_ip_grant_record_id: None,
+            stream_access_expires_at: None,
             comment: None,
             ip: "127.0.0.1".to_string(),
             user_agent: "test".to_string(),

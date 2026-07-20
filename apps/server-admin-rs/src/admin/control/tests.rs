@@ -102,7 +102,11 @@ fn import_plan_normalizes_totp_metadata_like_node() {
                 "access_scopes": [" docker_admin_panel ", "other", "docker_admin_panel"],
                 "subdomain_access": {
                     "mode": "custom",
-                    "hosts": ["https://Example.com:8443/path", "/__select__", "bad host"]
+                    "hosts": ["https://Example.com:8443/path", "/__select__", "bad host"],
+                    "streams": [
+                        { "protocol": "TCP", "listen_port": 2222 },
+                        { "protocol": "icmp", "listen_port": 7 }
+                    ]
                 }
             }
         ]
@@ -121,7 +125,8 @@ fn import_plan_normalizes_totp_metadata_like_node() {
         credential.subdomain_access,
         json!({
             "mode": "custom",
-            "hosts": ["__builtin_select__", "example.com"]
+            "hosts": ["__builtin_select__", "example.com"],
+            "streams": [{ "protocol": "tcp", "listen_port": 2222 }]
         })
     );
 }
@@ -141,7 +146,8 @@ fn export_payload_normalizes_totp_metadata_like_node() {
                     " HTTPS://Example.COM:443/path ",
                     "*bad.example",
                     "__builtin_select__"
-                ]
+                ],
+                "streams": [{ "protocol": "udp", "listen_port": 5353 }]
             }),
         }],
         "2026-01-02T03:04:05.000Z",
@@ -159,7 +165,8 @@ fn export_payload_normalizes_totp_metadata_like_node() {
             "access_scopes": ["docker_admin_panel"],
             "subdomain_access": {
                 "mode": "custom",
-                "hosts": ["__builtin_select__", "example.com"]
+                "hosts": ["__builtin_select__", "example.com"],
+                "streams": [{ "protocol": "udp", "listen_port": 5353 }]
             }
         })
     );
@@ -307,7 +314,7 @@ fn password_import_plan_merges_accounts_passwords_and_linked_totps() {
     );
     assert_eq!(
         plan.accounts[0].subdomain_access,
-        json!({ "mode": "custom", "hosts": ["example.com"] })
+        json!({ "mode": "custom", "hosts": ["example.com"], "streams": [] })
     );
     assert_eq!(plan.accounts[1].id, "invalid-account");
     assert_eq!(plan.accounts[1].username, "x");
@@ -497,6 +504,7 @@ fn custom_post_login_grant_revoke_condition_matches_node() {
         grant_type: Some("login_ip_grant".to_string()),
         post_login_ip_grant_mode: Some("custom".to_string()),
         post_login_ip_grant_record_id: None,
+        stream_access_expires_at: None,
         comment: None,
         ip: "203.0.113.8".to_string(),
         user_agent: "test".to_string(),

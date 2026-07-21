@@ -268,7 +268,11 @@ export const useConfigStore = defineStore("config", () => {
     await loadConfig({ force: true });
   }
 
-  async function saveHostMappings(mappings: HostMapping[]) {
+  async function saveHostMappings(
+    mappings: HostMapping[],
+    refreshedFaviconHosts: ReadonlySet<string> = new Set(),
+    refreshedTitleHosts: ReadonlySet<string> = new Set(),
+  ) {
     if (hostMappingsSavePromise) {
       await hostMappingsSavePromise;
     }
@@ -278,6 +282,8 @@ export const useConfigStore = defineStore("config", () => {
       const snapshot = await ConfigAPI.updateHostMappings(
         mappings,
         hostMappingsRevision,
+        refreshedFaviconHosts,
+        refreshedTitleHosts,
       );
       if (requestId === hostMappingsSnapshotRequestId) {
         hostMappingsRevision = snapshot.revision;

@@ -2505,6 +2505,35 @@ export const koKRAdmin = {
     protocolModeHttp1: "HTTP/1.1 전용(호환 모드)",
     protocolModeHttp2: "HTTP/2 강제",
     displayTitle: "표시 제목",
+    iconTitle: "앱 아이콘",
+    iconPreviewAlt: "앱 아이콘 미리보기",
+    iconPreviewDescription: "이 아이콘은 하위 도메인 목록과 포털에 표시됩니다.",
+    customIcon: "사용자 지정 아이콘",
+    customIconHelp:
+      "PNG, JPG, WebP, AVIF, SVG, ICO 파일을 최대 5MB까지 지원합니다. 이미지를 안전하게 변환하고 자르지 않은 채 정사각형 캔버스에 맞춥니다.",
+    uploadIcon: "사용자 지정 아이콘 업로드",
+    replaceIcon: "아이콘 변경",
+    restoreAutomaticIcon: "자동 수집으로 복원",
+    recollectIcon: "다시 수집",
+    iconCollected: "앱 아이콘을 다시 수집했습니다",
+    iconNotFound:
+      "대상에서 사용할 수 있는 아이콘을 찾지 못해 기존 자동 아이콘을 유지했습니다.",
+    iconCollectFailed:
+      "아이콘을 다시 수집하지 못해 기존 자동 아이콘을 유지했습니다.",
+    iconSource: {
+      custom: "사용자 지정 아이콘",
+      auto: "자동 수집",
+      missing: "수집되지 않음",
+    },
+    iconUploadErrors: {
+      unsupported_format: "PNG, JPG, WebP, AVIF, SVG, ICO 이미지만 지원합니다.",
+      source_too_large: "원본 이미지는 5MB 이하여야 합니다.",
+      decode_failed: "이미지를 읽을 수 없습니다. 다른 이미지를 사용해 보세요.",
+      encode_failed:
+        "이미지를 처리할 수 없습니다. 다른 이미지를 사용해 보세요.",
+      output_too_large:
+        "처리된 아이콘이 여전히 128KiB보다 큽니다. 더 단순한 이미지를 사용하세요.",
+    },
     refreshTitle: "제목 새로고침",
     titleAutoPlaceholder: "비어 있는 경우 가져온 페이지 제목 사용",
     titleHelp:

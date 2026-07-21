@@ -20,7 +20,8 @@ describe("subdomain WAF mapping state", () => {
     mapping.waf_enabled = false;
 
     const normalized = normalizeMappingForm(mapping, {
-      hasFreshMetadata: false,
+      hasFreshFaviconMetadata: false,
+      hasFreshTitleMetadata: false,
       host: "app.example.com",
       isAuthServiceTarget: () => false,
       isWebSocketTarget: () => false,
@@ -35,7 +36,8 @@ describe("subdomain WAF mapping state", () => {
     mapping.waf_enabled = false;
 
     const normalized = normalizeMappingForm(mapping, {
-      hasFreshMetadata: false,
+      hasFreshFaviconMetadata: false,
+      hasFreshTitleMetadata: false,
       host: "auth.example.com",
       isAuthServiceTarget: () => true,
       isWebSocketTarget: () => false,

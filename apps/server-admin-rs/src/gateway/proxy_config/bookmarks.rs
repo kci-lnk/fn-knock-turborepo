@@ -74,8 +74,11 @@ pub(super) fn build_bookmarks_document(
                 omit_access_entry_port,
             );
             let title = resolve_bookmark_title(object, &host);
+            let icon_attribute = resolve_bookmark_icon(object)
+                .map(|icon| format!(" ICON=\"{}\"", escape_html(icon)))
+                .unwrap_or_default();
             lines.push(format!(
-                "    <DT><A HREF=\"{}\" ADD_DATE=\"{add_date}\">{}</A>",
+                "    <DT><A HREF=\"{}\" ADD_DATE=\"{add_date}\"{icon_attribute}>{}</A>",
                 escape_html(&href),
                 escape_html(&title)
             ));
@@ -151,6 +154,18 @@ pub(super) fn resolve_bookmark_title(object: &Map<String, Value>, host: &str) ->
         .filter(|value| !value.is_empty())
         .unwrap_or(host)
         .to_string()
+}
+
+pub(super) fn resolve_bookmark_icon(object: &Map<String, Value>) -> Option<&str> {
+    ["favicon_override", "favicon"]
+        .into_iter()
+        .filter_map(|key| object.get(key).and_then(Value::as_str).map(str::trim))
+        .find(|value| {
+            !value.is_empty()
+                && value
+                    .get(..11)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:image/"))
+        })
 }
 
 pub(super) fn build_bookmark_filename(config: &Value) -> String {

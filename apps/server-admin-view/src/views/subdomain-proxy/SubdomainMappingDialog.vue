@@ -34,10 +34,12 @@ import {
 } from "@/components/ui/tooltip";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import SubdomainMappingVisibilityPanel from "./SubdomainMappingVisibilityPanel.vue";
+import SubdomainMappingIconPanel from "./SubdomainMappingIconPanel.vue";
+import SubdomainMappingIconEntry from "./SubdomainMappingIconEntry.vue";
 import type { HostMapping } from "@/types";
 import type { MappingInputMode } from "./model";
 import { useMappingVisibility } from "./useMappingVisibility";
-
+import type { useMappingIcon } from "./useMappingIcon";
 const props = defineProps<{
   basicAuthInjection: boolean;
   basicAuthValidationMessage: string;
@@ -55,6 +57,7 @@ const props = defineProps<{
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
   handlePortalDisabledTooltipTriggerClick: () => void;
   isGatewayAdvancedLoading: boolean;
+  iconEditor: UnwrapNestedRefs<ReturnType<typeof useMappingIcon>>;
   isMappingAuthService: boolean;
   isMappingValid: boolean;
   isMappingWebSocketTarget: boolean;
@@ -100,32 +103,26 @@ const titleOverrideModel = computed({
   get: () => props.mappingForm.title_override,
   set: (value: string) => props.updateMappingForm({ title_override: value }),
 });
-
 const targetModel = computed({
   get: () => props.mappingForm.target,
   set: (value: string) => props.updateMappingForm({ target: value }),
 });
-
 const mappingSubdomainModel = computed({
   get: () => props.mappingSubdomain,
   set: (value: string) => props.setMappingSubdomain(value),
 });
-
 const mappingUseAuthModel = computed({
   get: () => props.mappingUseAuth,
   set: (value: boolean) => props.setMappingUseAuth(value),
 });
-
 const showToolbarModel = computed({
   get: () => props.showToolbar,
   set: (value: boolean) => props.setShowToolbar(value),
 });
-
 const basicAuthInjectionModel = computed({
   get: () => props.basicAuthInjection,
   set: (value: boolean) => props.setBasicAuthInjection(value),
 });
-
 const basicAuthUsernameModel = computed({
   get: () => props.mappingForm.basic_auth.username,
   set: (value: string) => props.updateMappingBasicAuth({ username: value }),
@@ -158,7 +155,6 @@ const mappingWafEnabledModel = computed({
   get: () => props.mappingForm.waf_enabled !== false,
   set: (value: boolean) => props.updateMappingForm({ waf_enabled: value }),
 });
-
 </script>
 
 <template>
@@ -169,7 +165,7 @@ const mappingWafEnabledModel = computed({
       :show-close-button="false"
     >
       <div
-        v-if="visibilityEditor.mappingDialogView === 'visibility'"
+        v-if="visibilityEditor.mappingDialogView !== 'basic'"
         class="shrink-0 border-b bg-background px-6 pb-3 pt-8"
       >
         <button
@@ -180,7 +176,11 @@ const mappingWafEnabledModel = computed({
         >
           <ChevronLeft class="h-4 w-4 shrink-0" />
           <span class="text-sm font-semibold">
-            {{ t("admin.subdomainProxy.visibilityTitle") }}
+            {{
+              visibilityEditor.mappingDialogView === "icon"
+                ? t("admin.subdomainProxy.iconTitle")
+                : t("admin.subdomainProxy.visibilityTitle")
+            }}
           </span>
         </button>
       </div>
@@ -247,6 +247,11 @@ const mappingWafEnabledModel = computed({
                 </span>
               </p>
             </div>
+
+            <SubdomainMappingIconEntry
+              :icon-editor="iconEditor"
+              :open-editor="visibilityEditor.openIconView"
+            />
 
             <div class="space-y-2">
               <div
@@ -647,6 +652,12 @@ const mappingWafEnabledModel = computed({
               </Button>
             </div>
           </div>
+          <SubdomainMappingIconPanel
+            v-else-if="visibilityEditor.mappingDialogView === 'icon'"
+            key="mapping-icon"
+            :icon-editor="iconEditor"
+            :is-saving-mappings="isSavingMappings"
+          />
           <SubdomainMappingVisibilityPanel
             v-else
             key="mapping-visibility"
@@ -664,7 +675,10 @@ const mappingWafEnabledModel = computed({
         </Button>
         <Button
           :disabled="
-            !isMappingValid || isSavingMappings || isGatewayAdvancedLoading
+            !isMappingValid ||
+            isSavingMappings ||
+            isGatewayAdvancedLoading ||
+            iconEditor.isIconBusy
           "
           @click="emit('save')"
         >

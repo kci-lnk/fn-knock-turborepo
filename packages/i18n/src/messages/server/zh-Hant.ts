@@ -330,6 +330,7 @@ export const zhHantServer = {
       authMappingBasicAuthForbidden: "鑒權服務 {host} 不能開啟憑證注入",
       basicAuthInvalid:
         "Host 映射 {host} 的憑證注入需要填寫使用者名稱和密碼，且使用者名稱不能包含冒號",
+      customIconInvalid: "Host 映射 {host} 的自訂圖示無效或格式不受支援",
       locationPathRequired: "Host 映射 {host} 的路徑規則需要填寫路徑",
       locationPathMustStartSlash:
         "Host 映射 {host} 的路徑規則 {path} 必須以 / 開頭",
@@ -1505,8 +1506,7 @@ export const zhHantServer = {
       "所選網卡的第 {index} 個 {family} 地址已不可用，請重新選擇",
     interfaceSelectorFamilyInvalid: "網卡地址選擇規則的地址族無效",
     interfaceSelectorInvalid: "網卡地址選擇規則無效：{message}",
-    interfaceSelectorNoMatch:
-      "網卡地址選擇規則未匹配到可用的 {family} 地址",
+    interfaceSelectorNoMatch: "網卡地址選擇規則未匹配到可用的 {family} 地址",
     interfaceSelectorMultiple:
       "{family} 地址規則匹配到 {count} 個候選，已選擇 {address}（{reason}）",
     interfaceSelectorResolved:

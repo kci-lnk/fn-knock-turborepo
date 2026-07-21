@@ -282,9 +282,16 @@ export const ConfigAPI = {
   async updateHostMappings(
     mappings: HostMapping[],
     revision: string | null,
+    refreshedFaviconHosts: ReadonlySet<string> = new Set(),
+    refreshedTitleHosts: ReadonlySet<string> = new Set(),
   ): Promise<RevisionedHostMappings> {
     const res = await apiClient.post("/config/host_mappings", {
-      mappings: mappings.map(toHostMappingUpdatePayload),
+      mappings: mappings.map((mapping) =>
+        toHostMappingUpdatePayload(mapping, {
+          includeFavicon: refreshedFaviconHosts.has(mapping.host),
+          includeTitle: refreshedTitleHosts.has(mapping.host),
+        }),
+      ),
       ...(revision ? { revision } : {}),
     });
     return {

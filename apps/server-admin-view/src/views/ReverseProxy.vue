@@ -225,7 +225,6 @@
     ref="discoverTargetsSettingsRef"
     v-model:selected-services="selectedServices"
     :discovered-data="discoveredData"
-    :footer-scanned-ports="discoverFooterScannedPorts"
     :is-all-selected="isAllSelected"
     :is-discovering="isDiscovering"
     :is-saving="isSaving"
@@ -506,7 +505,6 @@ async function syncRoutes() {
 
 const {
   discoveredData,
-  discoverFooterScannedPorts,
   dismissDiscoverDialog,
   handleDiscoverDialogOpenChange,
   isAllSelected,

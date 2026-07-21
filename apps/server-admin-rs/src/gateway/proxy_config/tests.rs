@@ -130,6 +130,66 @@ fn normalizes_host_mapping_route_shape() {
 }
 
 #[test]
+fn validates_and_applies_custom_host_mapping_icons() {
+    let custom_icon = "data:image/png;base64,iVBORw0KGgo=";
+    assert_eq!(
+        normalize_favicon_override(Some(&Value::String(custom_icon.to_string()))).unwrap(),
+        custom_icon
+    );
+    assert!(
+        normalize_favicon_override(Some(&Value::String(
+            "data:image/svg+xml;base64,PHN2Zz4=".to_string()
+        )))
+        .is_err()
+    );
+    assert!(
+        normalize_favicon_override(Some(&Value::String(
+            "data:image/png;base64,UklGRgAAAABXRUJQ".to_string()
+        )))
+        .is_err()
+    );
+    let mut oversized_png = b"\x89PNG\r\n\x1a\n".to_vec();
+    oversized_png.resize(MAX_FAVICON_BYTES + 1, 0);
+    assert!(
+        normalize_favicon_override(Some(&Value::String(format!(
+            "data:image/png;base64,{}",
+            BASE64_STANDARD.encode(oversized_png)
+        ))))
+        .is_err()
+    );
+
+    let previous_config = json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "title": "App",
+            "favicon": "data:image/png;base64,iVBORw0KGgo=",
+            "favicon_override": ""
+        }]
+    });
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "use_auth": true,
+            "favicon_override": custom_icon
+        })],
+        &previous_config,
+    )
+    .unwrap();
+    assert_eq!(
+        mappings[0].get("favicon_override").and_then(Value::as_str),
+        Some(custom_icon)
+    );
+    assert_eq!(
+        build_host_rules_payload(&mappings)
+            .pointer("/0/favicon")
+            .and_then(Value::as_str),
+        Some(custom_icon)
+    );
+}
+
+#[test]
 fn ordinary_host_mapping_updates_cannot_inject_uncompiled_advanced_auth() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({
@@ -515,6 +575,7 @@ fn host_mapping_responses_backfill_legacy_defaults() {
     assert_eq!(mappings[1]["visibility"]["mode"], json!("inherit"));
     assert_eq!(mappings[2]["visibility"]["mode"], json!("inherit"));
     assert_eq!(mappings[3]["visibility"]["mode"], json!("custom"));
+    assert_eq!(mappings[0]["favicon_override"], json!(""));
     assert_eq!(
         mappings[3]["visibility"]["cidrs"],
         json!(["203.0.113.0/24"])
@@ -835,6 +896,14 @@ fn host_mapping_revision_tracks_user_config_but_ignores_fetched_metadata() {
         "title": "New title",
         "favicon": "new.ico"
     })];
+    let changed_icon_override = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1",
+        "title": "New title",
+        "favicon": "new.ico",
+        "favicon_override": "data:image/png;base64,iVBORw0KGgo="
+    })];
 
     assert_eq!(
         host_mappings_revision(&initial),
@@ -843,6 +912,10 @@ fn host_mapping_revision_tracks_user_config_but_ignores_fetched_metadata() {
     assert_ne!(
         host_mappings_revision(&initial),
         host_mappings_revision(&changed_mode)
+    );
+    assert_ne!(
+        host_mappings_revision(&initial),
+        host_mappings_revision(&changed_icon_override)
     );
 }
 
@@ -1889,7 +1962,9 @@ fn builds_i18n_bookmarks_document_without_auth_mapping() {
                 "host": "app.example.com",
                 "target": "http://127.0.0.1:8080",
                 "title": "App",
-                "title_override": "Portal"
+                "title_override": "Portal",
+                "favicon": "data:image/png;base64,YXV0bw==",
+                "favicon_override": "data:image/webp;base64,Y3VzdG9tJm1vcmU="
             },
             {
                 "host": "auth.example.com",
@@ -1903,6 +1978,8 @@ fn builds_i18n_bookmarks_document_without_auth_mapping() {
     assert!(document.contains("example.com 子域映射"));
     assert!(document.contains("https://app.example.com:8443/"));
     assert!(document.contains(">Portal</A>"));
+    assert!(document.contains("ICON=\"data:image/webp;base64,Y3VzdG9tJm1vcmU=\""));
+    assert!(!document.contains("ICON=\"data:image/png;base64,YXV0bw==\""));
     assert!(!document.contains("auth.example.com"));
     assert_eq!(
         build_bookmark_filename(&config),

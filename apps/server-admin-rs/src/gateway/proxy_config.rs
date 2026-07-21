@@ -457,6 +457,15 @@ fn localize_proxy_config_error(translator: &Translator, message: &str) -> String
             &[("host", host.to_string())],
         );
     }
+    if let Some(rest) = message.strip_prefix("Host mapping ")
+        && let Some((host, _)) = rest.split_once(" custom icon")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.customIconInvalid",
+            &[("host", host.to_string())],
+        );
+    }
     if let Some(port) = extract_between(message, "Stream mapping listen_port ", " is out of range")
     {
         return admin_config_text_params(
@@ -803,6 +812,9 @@ fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
             });
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
         object.insert("visibility".to_string(), visibility);
+        if !object.contains_key("favicon_override") {
+            object.insert("favicon_override".to_string(), Value::String(String::new()));
+        }
     }
 }
 

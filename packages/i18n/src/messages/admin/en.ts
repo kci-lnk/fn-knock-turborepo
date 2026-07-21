@@ -2510,6 +2510,36 @@ export const enAdmin = {
     protocolModeHttp1: "HTTP/1.1 only (compatibility mode)",
     protocolModeHttp2: "Force HTTP/2",
     displayTitle: "Display title",
+    iconTitle: "App icon",
+    iconPreviewAlt: "App icon preview",
+    iconPreviewDescription:
+      "This icon appears in the subdomain list and portal.",
+    customIcon: "Custom icon",
+    customIconHelp:
+      "Supports PNG, JPG, WebP, AVIF, SVG, and ICO up to 5 MB. Images are safely converted and fitted onto a square canvas without cropping.",
+    uploadIcon: "Upload custom icon",
+    replaceIcon: "Replace icon",
+    restoreAutomaticIcon: "Restore automatic icon",
+    recollectIcon: "Collect again",
+    iconCollected: "App icon collected",
+    iconNotFound:
+      "The target did not return a usable icon. The existing automatic icon was kept.",
+    iconCollectFailed:
+      "Could not collect the icon. The existing automatic icon was kept.",
+    iconSource: {
+      custom: "Custom icon",
+      auto: "Automatically collected",
+      missing: "Not collected",
+    },
+    iconUploadErrors: {
+      unsupported_format:
+        "Only PNG, JPG, WebP, AVIF, SVG, and ICO images are supported.",
+      source_too_large: "The source image must be 5 MB or smaller.",
+      decode_failed: "This image could not be read. Try another image.",
+      encode_failed: "The image could not be processed. Try another image.",
+      output_too_large:
+        "The processed icon is still larger than 128 KiB. Use a simpler image.",
+    },
     refreshTitle: "Refresh title",
     titleAutoPlaceholder: "Use the fetched page title when empty",
     titleHelp:
@@ -3888,7 +3918,8 @@ export const enAdmin = {
     permissionStreamGroup: "Protocol mappings",
     permissionStreamIpNotice:
       'Protocol mappings authorize the current sign-in session\'s source IP and use the "post-login IP grant" lifetime setting.',
-    permissionMissingStream: "The corresponding protocol mapping no longer exists",
+    permissionMissingStream:
+      "The corresponding protocol mapping no longer exists",
     permissionStaleItem: "Unavailable",
     permissionStaleHost: "Unavailable",
     permissionNoHosts: "No protected entries or protocol mappings available",

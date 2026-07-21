@@ -396,6 +396,8 @@ export const enServer = {
         "Auth service {host} cannot enable credential injection",
       basicAuthInvalid:
         "Host mapping {host} credential injection requires username and password, and the username cannot contain a colon",
+      customIconInvalid:
+        "Host mapping {host} has an invalid or unsupported custom icon",
       locationPathRequired: "Host mapping {host} path rule requires a path",
       locationPathMustStartSlash:
         "Host mapping {host} path rule {path} must start with /",
@@ -1707,8 +1709,7 @@ export const enServer = {
       "The selected interface's {index} {family} address is no longer available. Select again.",
     interfaceSelectorFamilyInvalid:
       "The interface address selector has an invalid address family",
-    interfaceSelectorInvalid:
-      "Invalid interface address selector: {message}",
+    interfaceSelectorInvalid: "Invalid interface address selector: {message}",
     interfaceSelectorNoMatch:
       "The interface address selector did not match a usable {family} address",
     interfaceSelectorMultiple:

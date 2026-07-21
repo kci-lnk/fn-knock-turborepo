@@ -101,12 +101,15 @@ export const useSubdomainDestructiveActions = ({
       return;
     }
     if (allMappings.value.some((item) => item.host === host)) {
-      toast.error(translate("admin.subdomainProxy.defaultAuthSubdomainExists"), {
-        description: translate(
-          "admin.subdomainProxy.defaultAuthSubdomainExistsDescription",
-          { host },
-        ),
-      });
+      toast.error(
+        translate("admin.subdomainProxy.defaultAuthSubdomainExists"),
+        {
+          description: translate(
+            "admin.subdomainProxy.defaultAuthSubdomainExistsDescription",
+            { host },
+          ),
+        },
+      );
       return;
     }
 
@@ -132,6 +135,7 @@ export const useSubdomainDestructiveActions = ({
           title: "",
           title_override: "",
           favicon: "",
+          favicon_override: "",
         },
       ]);
       toast.success(translate("admin.subdomainProxy.authServiceAdded"), {
@@ -156,9 +160,7 @@ export const useSubdomainDestructiveActions = ({
     const authHost = authServiceMapping.value.host;
     const removed = await runSaveMappings(async () => {
       await saveHostMappings(
-        allMappings.value.filter(
-          (item) => !isAuthServiceTarget(item.target),
-        ),
+        allMappings.value.filter((item) => !isAuthServiceTarget(item.target)),
       );
       toast.success(translate("admin.subdomainProxy.authServiceDeleted"), {
         description: authHost,

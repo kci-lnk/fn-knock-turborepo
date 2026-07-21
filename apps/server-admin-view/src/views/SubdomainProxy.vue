@@ -121,6 +121,7 @@
         handlePortalDisabledTooltipTriggerClick
       "
       :is-gateway-advanced-loading="isGatewayAdvancedLoading"
+      :icon-editor="iconEditor"
       :is-mapping-auth-service="isMappingAuthService"
       :is-mapping-valid="isMappingValid"
       :is-mapping-web-socket-target="isMappingWebSocketTarget"
@@ -516,6 +517,7 @@ const {
   handleMappingDialogFocusIn,
   handleMappingDialogViewportResize,
   handleMappingInputModeChange,
+  iconEditor,
   isGatewayAdvancedLoading,
   isDialogOpen,
   isMappingAuthService,
@@ -558,7 +560,12 @@ const {
   resetFaviconErrors,
   runSaveMappings,
   savedRootDomain,
-  saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
+  saveHostMappings: (mappings, refreshedFaviconHosts, refreshedTitleHosts) =>
+    configStore.saveHostMappings(
+      mappings,
+      refreshedFaviconHosts,
+      refreshedTitleHosts,
+    ),
   setGatewayHostResponseDisabledHosts: (disabledHosts) => {
     if (!configStore.config) return;
     configStore.config = {
@@ -725,7 +732,6 @@ onUnmounted(() => {
   stopTrafficRealtimePolling();
   stopDiscoverScan();
 });
-
 
 function openStaleCleanupDialog() {
   void staleCleanupDialogRef.value?.open();

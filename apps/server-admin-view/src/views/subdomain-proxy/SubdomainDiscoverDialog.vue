@@ -203,62 +203,21 @@
         </div>
       </div>
 
-      <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
-        <span class="text-sm text-muted-foreground">
+      <DialogFooter
+        class="mt-2 shrink-0 items-center sm:flex-nowrap sm:justify-between"
+      >
+        <span
+          class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1"
+        >
           <template v-if="discoveredData">
-            <template v-if="isDiscovering">
-              {{ t("admin.subdomainProxy.probing") }}
-            </template>
-            <template v-else>
-              {{
-                t("admin.subdomainProxy.discoveredScannedPorts", {
-                  count: footerScannedPorts,
-                })
-              }}
-            </template>
-            <template v-if="discoveredData.intensityLevel">
-              ，{{
-                t("admin.scanIntensity.resultSummary", {
-                  level: t(
-                    `admin.scanIntensity.levels.${discoveredData.intensityLevel}`,
-                  ),
-                  count: discoveredData.effectiveConcurrency || 0,
-                })
-              }}
-            </template>
-            ，{{
+            {{
               t("admin.subdomainProxy.selectedItems", {
-                count: `${selectedServices.length} / ${discoveredData.services.length}`,
+                count: `${selectedServices.length}/${discoveredData.services.length}`,
               })
             }}
-            <template v-if="discoveredData.scanCidrs?.length">
-              ，{{
-                t("admin.subdomainProxy.coveredCidrsHosts", {
-                  cidrs: discoveredData.scanCidrs.length,
-                  hosts:
-                    discoveredData.scanHostCount ||
-                    discoveredData.scannedHosts ||
-                    0,
-                })
-              }}
-            </template>
-            <template
-              v-if="
-                !discoveredData.scanCidrs?.length &&
-                discoveredData.scannedHosts &&
-                discoveredData.scannedHosts > 1
-              "
-            >
-              {{
-                t("admin.subdomainProxy.coveredHosts", {
-                  hosts:
-                    discoveredData.scanScope || discoveredData.scannedHosts,
-                })
-              }}
-            </template>
           </template>
         </span>
-        <div class="space-x-2">
+        <div class="flex shrink-0 items-center gap-2">
           <Button variant="outline" @click="emit('cancel')">
             {{ t("admin.subdomainProxy.cancel") }}
           </Button>
@@ -341,10 +300,6 @@ const selectedServicesModel = computed({
   set: (value: DiscoveredHostService[]) => {
     emit("update:selectedServices", value);
   },
-});
-
-const footerScannedPorts = computed(() => {
-  return props.discoveredData?.totalPortsScanned || 0;
 });
 
 const emitToggleAll = (event: Event) => {

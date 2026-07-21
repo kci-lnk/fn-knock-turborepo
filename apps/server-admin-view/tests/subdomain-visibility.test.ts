@@ -112,7 +112,8 @@ describe("subdomain visibility", () => {
     };
 
     const normalized = normalizeMappingForm(mapping, {
-      hasFreshMetadata: false,
+      hasFreshFaviconMetadata: false,
+      hasFreshTitleMetadata: false,
       host: "auth.example.com",
       isAuthServiceTarget: () => true,
       isWebSocketTarget: () => false,

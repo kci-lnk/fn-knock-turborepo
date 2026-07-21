@@ -194,6 +194,7 @@ export interface HostMapping {
   title: string;
   title_override: string;
   favicon: string;
+  favicon_override: string;
   advanced_auth?: AdvancedAuthConfig;
 }
 

@@ -124,9 +124,6 @@ export const useReverseProxyDiscoverFlow = ({
     );
     return hosts.size > 1;
   });
-  const discoverFooterScannedPorts = computed(
-    () => discoveredData.value?.totalPortsScanned || 0,
-  );
   const resolveDiscoveredServiceHost = (service: DiscoveredServiceInfo) =>
     service.host?.trim() ||
     discoveredData.value?.host?.trim() ||
@@ -350,7 +347,6 @@ export const useReverseProxyDiscoverFlow = ({
 
   return {
     discoveredData,
-    discoverFooterScannedPorts,
     dismissDiscoverDialog,
     handleDiscoverDialogOpenChange,
     isAllSelected,

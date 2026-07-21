@@ -20,6 +20,7 @@ import {
 import { useBasicAuthProbe } from "./useBasicAuthProbe";
 import { useMappingDialogKeyboardScroll } from "./useMappingDialogKeyboardScroll";
 import { useMappingGatewayAdvanced } from "./useMappingGatewayAdvanced";
+import { useMappingIcon } from "./useMappingIcon";
 import {
   shouldBlockMappingSaveForVisibility,
   shouldReturnToVisibilityAfterSaveError,
@@ -59,7 +60,11 @@ export const useSubdomainMappingDialogController = ({
   isGatewayAdvancedAvailableByMode: Ref<boolean>;
   resetFaviconErrors: () => void;
   runSaveMappings: AsyncActionRun;
-  saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
+  saveHostMappings: (
+    mappings: HostMapping[],
+    refreshedFaviconHosts?: ReadonlySet<string>,
+    refreshedTitleHosts?: ReadonlySet<string>,
+  ) => Promise<unknown>;
   savedRootDomain: ComputedRef<string>;
   setGatewayHostResponseDisabledHosts: (disabledHosts: string[]) => void;
   setGatewayProxyHeadersDisabledHosts: (disabledHosts: string[]) => void;
@@ -69,7 +74,10 @@ export const useSubdomainMappingDialogController = ({
   const isDialogOpen = ref(false);
   const editingHost = ref<string | null>(null);
   const mappingMetadataTarget = ref("");
+  const faviconMetadataTarget = ref("");
+  const titleRefreshDirty = ref(false);
   const mappingForm = reactive<HostMapping>(createDefaultMapping());
+  let metadataRefreshRequestId = 0;
 
   const {
     clearMappingDialogKeyboardScrollTimer,
@@ -189,6 +197,16 @@ export const useSubdomainMappingDialogController = ({
     translate,
   });
   const visibilityEditor = reactive(mappingVisibility);
+  const mappingIcon = useMappingIcon({
+    canRefreshMetadata: canRefreshMappingMetadata,
+    getMetadataBasicAuth: getMappingMetadataBasicAuth,
+    isDialogOpen,
+    mappingForm,
+    metadataTarget: faviconMetadataTarget,
+    resetFaviconErrors,
+    translate,
+  });
+  const iconEditor = reactive(mappingIcon);
 
   const {
     addMappingAdvancedCleanupHost,
@@ -274,14 +292,18 @@ export const useSubdomainMappingDialogController = ({
   }
 
   function resetMappingAdvancedState(host = "") {
+    metadataRefreshRequestId += 1;
+    titleRefreshDirty.value = false;
     resetGatewayAdvancedState(host);
     mappingVisibility.resetVisibilityEditor();
+    mappingIcon.resetIconEditor();
   }
 
   function openCreateDialog() {
     editingHost.value = null;
     resetMappingDraftInput();
     mappingMetadataTarget.value = "";
+    faviconMetadataTarget.value = "";
     Object.assign(mappingForm, createDefaultMapping());
     resetMappingAdvancedState("");
     isDialogOpen.value = true;
@@ -296,11 +318,13 @@ export const useSubdomainMappingDialogController = ({
     setMappingDraftInputFromHost(mapping.host);
     Object.assign(mappingForm, {
       ...mapping,
+      favicon_override: mapping.favicon_override ?? "",
       protocol_mode: mapping.protocol_mode || DEFAULT_PROTOCOL_MODE,
       basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
       visibility: normalizeMappingVisibility(mapping.visibility),
     });
     mappingMetadataTarget.value = mapping.target.trim();
+    faviconMetadataTarget.value = mapping.target.trim();
     resetMappingAdvancedState(mapping.host);
     isDialogOpen.value = true;
     void Promise.all([
@@ -315,6 +339,7 @@ export const useSubdomainMappingDialogController = ({
     editingHost.value = null;
     resetMappingDraftInput();
     mappingMetadataTarget.value = "";
+    faviconMetadataTarget.value = "";
     Object.assign(mappingForm, createDefaultMapping());
     resetMappingAdvancedState("");
   }
@@ -336,19 +361,26 @@ export const useSubdomainMappingDialogController = ({
 
   async function refreshMappingMetadata() {
     if (!canRefreshMappingMetadata.value) return;
+    const requestId = ++metadataRefreshRequestId;
+    const target = mappingForm.target.trim();
 
     await runRefreshMappingMetadata(
       () =>
         ConfigAPI.fetchHostMappingMetadata(
-          mappingForm.target.trim(),
+          target,
           getMappingMetadataBasicAuth(),
         ),
       {
         onSuccess: (metadata) => {
-          mappingMetadataTarget.value = mappingForm.target.trim();
+          if (
+            requestId !== metadataRefreshRequestId ||
+            mappingForm.target.trim() !== target
+          ) {
+            return;
+          }
+          mappingMetadataTarget.value = target;
           mappingForm.title = metadata.title.trim();
-          mappingForm.favicon = metadata.favicon.trim();
-          resetFaviconErrors();
+          titleRefreshDirty.value = true;
           toast.success(translate("admin.subdomainProxy.metadataRefreshed"), {
             description: metadata.title.trim()
               ? translate("admin.subdomainProxy.fetchedTitle", {
@@ -364,10 +396,13 @@ export const useSubdomainMappingDialogController = ({
   async function saveMapping() {
     if (!isMappingValid.value) return;
     if (isGatewayAdvancedLoading.value) return;
+    if (mappingIcon.isIconBusy.value) return;
 
     const normalized = normalizeMappingForm(mappingForm, {
-      hasFreshMetadata:
+      hasFreshTitleMetadata:
         mappingMetadataTarget.value === mappingForm.target.trim(),
+      hasFreshFaviconMetadata:
+        faviconMetadataTarget.value === mappingForm.target.trim(),
       host: mappingDraftHost.value,
       isAuthServiceTarget,
       isWebSocketTarget: isWebSocketProxyTargetUrl,
@@ -413,7 +448,17 @@ export const useSubdomainMappingDialogController = ({
           next.push(normalized);
         }
 
-        await saveHostMappings(next);
+        await saveHostMappings(
+          next,
+          mappingIcon.faviconRefreshDirty.value &&
+            faviconMetadataTarget.value === normalized.target.trim()
+            ? new Set([normalized.host])
+            : undefined,
+          titleRefreshDirty.value &&
+            mappingMetadataTarget.value === normalized.target.trim()
+            ? new Set([normalized.host])
+            : undefined,
+        );
         if (previousHost !== normalized.host) {
           addMappingAdvancedCleanupHost(previousHost);
         }
@@ -468,6 +513,7 @@ export const useSubdomainMappingDialogController = ({
     handleMappingDialogViewportResize,
     handleMappingInputModeChange,
     isGatewayAdvancedLoading,
+    iconEditor,
     isDialogOpen,
     isMappingAuthService,
     isMappingValid,

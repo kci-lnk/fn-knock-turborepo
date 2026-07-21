@@ -394,6 +394,8 @@ export const koKRServer = {
         "인증 서비스 {host}에서 자격 증명 삽입을 활성화할 수 없습니다.",
       basicAuthInvalid:
         "호스트 매핑 {host} 자격 증명 주입에는 사용자 이름과 비밀번호가 필요하며 사용자 이름에는 콜론을 포함할 수 없습니다.",
+      customIconInvalid:
+        "호스트 매핑 {host}의 사용자 지정 아이콘이 잘못되었거나 지원되지 않는 형식입니다.",
       locationPathRequired:
         "호스트 매핑 {host} 경로 규칙에는 경로가 필요합니다.",
       locationPathMustStartSlash:

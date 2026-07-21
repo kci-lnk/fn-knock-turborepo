@@ -330,6 +330,7 @@ export const zhCNServer = {
       authMappingBasicAuthForbidden: "鉴权服务 {host} 不能开启凭证注入",
       basicAuthInvalid:
         "Host 映射 {host} 的凭证注入需要填写用户名和密码，且用户名不能包含冒号",
+      customIconInvalid: "Host 映射 {host} 的自定义图标无效或格式不受支持",
       locationPathRequired: "Host 映射 {host} 的路径规则需要填写路径",
       locationPathMustStartSlash:
         "Host 映射 {host} 的路径规则 {path} 必须以 / 开头",
@@ -1505,8 +1506,7 @@ export const zhCNServer = {
       "所选网卡的第 {index} 个 {family} 地址已不可用，请重新选择",
     interfaceSelectorFamilyInvalid: "网卡地址选择规则的地址族无效",
     interfaceSelectorInvalid: "网卡地址选择规则无效：{message}",
-    interfaceSelectorNoMatch:
-      "网卡地址选择规则未匹配到可用的 {family} 地址",
+    interfaceSelectorNoMatch: "网卡地址选择规则未匹配到可用的 {family} 地址",
     interfaceSelectorMultiple:
       "{family} 地址规则匹配到 {count} 个候选，已选择 {address}（{reason}）",
     interfaceSelectorResolved:

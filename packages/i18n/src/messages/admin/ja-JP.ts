@@ -2516,6 +2516,35 @@ export const jaJPAdmin = {
     protocolModeHttp1: "HTTP/1.1 のみ（互換モード）",
     protocolModeHttp2: "HTTP/2 を強制",
     displayTitle: "表示タイトル",
+    iconTitle: "アプリアイコン",
+    iconPreviewAlt: "アプリアイコンのプレビュー",
+    iconPreviewDescription:
+      "このアイコンはサブドメイン一覧とポータルに表示されます。",
+    customIcon: "カスタムアイコン",
+    customIconHelp:
+      "PNG、JPG、WebP、AVIF、SVG、ICO（最大 5 MB）に対応しています。画像を安全に変換し、切り抜かず正方形のキャンバスに収めます。",
+    uploadIcon: "カスタムアイコンをアップロード",
+    replaceIcon: "アイコンを変更",
+    restoreAutomaticIcon: "自動取得に戻す",
+    recollectIcon: "再取得",
+    iconCollected: "アプリアイコンを再取得しました",
+    iconNotFound:
+      "対象から利用可能なアイコンを取得できなかったため、既存の自動アイコンを保持しました。",
+    iconCollectFailed:
+      "アイコンの再取得に失敗したため、既存の自動アイコンを保持しました。",
+    iconSource: {
+      custom: "カスタムアイコン",
+      auto: "自動取得",
+      missing: "未取得",
+    },
+    iconUploadErrors: {
+      unsupported_format: "PNG、JPG、WebP、AVIF、SVG、ICO のみ使用できます。",
+      source_too_large: "元画像は 5 MB 以下にしてください。",
+      decode_failed: "画像を読み込めません。別の画像をお試しください。",
+      encode_failed: "画像を処理できません。別の画像をお試しください。",
+      output_too_large:
+        "処理後のアイコンが 128 KiB を超えています。より単純な画像を使用してください。",
+    },
     refreshTitle: "タイトルを更新",
     titleAutoPlaceholder: "空欄の場合は取得したページタイトルを使用",
     titleHelp:

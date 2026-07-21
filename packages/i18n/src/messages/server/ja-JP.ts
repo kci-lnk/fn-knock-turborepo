@@ -410,6 +410,8 @@ export const jaJPServer = {
         "認証サービス {host} では認証情報の自動送信を有効にできません",
       basicAuthInvalid:
         "Host マッピング {host} で認証情報を自動送信するには、ユーザー名とパスワードが必要です。ユーザー名にコロンは使用できません",
+      customIconInvalid:
+        "Host マッピング {host} のカスタムアイコンが無効か、形式がサポートされていません",
       locationPathRequired:
         "Host マッピング {host} のパスルールにはパスが必要です",
       locationPathMustStartSlash:

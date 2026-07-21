@@ -246,7 +246,7 @@ pub(super) fn normalize_host_mappings_for_route(
             has_default_mapping = true;
         }
 
-        object.insert("host".to_string(), Value::String(host));
+        object.insert("host".to_string(), Value::String(host.clone()));
         object.insert("target".to_string(), Value::String(target));
         object.insert(
             "waf_enabled".to_string(),
@@ -371,10 +371,80 @@ pub(super) fn normalize_host_mappings_for_route(
                 can_reuse_previous_metadata,
             )),
         );
+        let favicon_override = if service_role == "auth" {
+            String::new()
+        } else {
+            let requested = object
+                .get("favicon_override")
+                .or_else(|| previous.and_then(|value| value.get("favicon_override")));
+            normalize_favicon_override(requested)
+                .map_err(|message| format!("Host mapping {host} {message}"))?
+        };
+        object.insert(
+            "favicon_override".to_string(),
+            Value::String(favicon_override),
+        );
         normalized.push(Value::Object(object));
     }
 
     Ok(normalized)
+}
+
+pub(super) fn normalize_favicon_override(value: Option<&Value>) -> Result<String, String> {
+    let Some(value) = value else {
+        return Ok(String::new());
+    };
+    let Some(value) = value.as_str() else {
+        return Err("custom icon must be an image data URL".to_string());
+    };
+    let value = value.trim();
+    if value.is_empty() {
+        return Ok(String::new());
+    }
+
+    let Some((header, encoded)) = value.split_once(',') else {
+        return Err("custom icon must be an image data URL".to_string());
+    };
+    let media_type = header
+        .strip_prefix("data:")
+        .and_then(|value| value.strip_suffix(";base64"))
+        .map(str::to_ascii_lowercase)
+        .ok_or_else(|| "custom icon must be a base64 image data URL".to_string())?;
+    if !matches!(
+        media_type.as_str(),
+        "image/png" | "image/jpeg" | "image/webp" | "image/x-icon" | "image/vnd.microsoft.icon"
+    ) {
+        return Err("custom icon format is not supported".to_string());
+    }
+    let max_encoded_len = MAX_FAVICON_BYTES.div_ceil(3) * 4;
+    if encoded.len() > max_encoded_len {
+        return Err("custom icon exceeds the 128 KiB limit".to_string());
+    }
+
+    let bytes = BASE64_STANDARD
+        .decode(encoded)
+        .map_err(|_| "custom icon contains invalid base64 data".to_string())?;
+    if bytes.is_empty() {
+        return Err("custom icon image is empty".to_string());
+    }
+    if bytes.len() > MAX_FAVICON_BYTES {
+        return Err("custom icon exceeds the 128 KiB limit".to_string());
+    }
+
+    let signature_matches = match media_type.as_str() {
+        "image/png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "image/jpeg" => bytes.starts_with(&[0xff, 0xd8, 0xff]),
+        "image/webp" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP",
+        "image/x-icon" | "image/vnd.microsoft.icon" => {
+            bytes.starts_with(&[0, 0, 1, 0]) || bytes.starts_with(&[0, 0, 2, 0])
+        }
+        _ => false,
+    };
+    if !signature_matches {
+        return Err("custom icon content does not match its image format".to_string());
+    }
+
+    Ok(value.to_string())
 }
 
 pub(super) async fn compile_host_mapping_visibilities(

@@ -314,6 +314,7 @@ export const buildDiscoveredServiceMappings = ({
     title: "",
     title_override: "",
     favicon: "",
+    favicon_override: "",
   }));
 
 export const resolveEdgeClientIpProvider = (
@@ -626,6 +627,7 @@ export const createDefaultMapping = (): HostMapping => ({
   title: "",
   title_override: "",
   favicon: "",
+  favicon_override: "",
 });
 
 export const createDefaultMappingVisibility =
@@ -705,8 +707,17 @@ export const getMappingDisplayTitle = (mapping: HostMapping): string =>
   mapping.title_override.trim() || mapping.title.trim();
 
 export const getMappingFaviconSrc = (mapping: HostMapping): string => {
-  const favicon = mapping.favicon.trim();
+  const favicon = mapping.favicon_override?.trim() || mapping.favicon.trim();
   return /^data:image\//i.test(favicon) ? favicon : "";
+};
+
+export const getMappingFaviconSource = (
+  mapping: HostMapping,
+): "custom" | "auto" | "missing" => {
+  if (/^data:image\//i.test(mapping.favicon_override?.trim() || "")) {
+    return "custom";
+  }
+  return /^data:image\//i.test(mapping.favicon.trim()) ? "auto" : "missing";
 };
 
 export const getFaviconKey = (mapping: HostMapping): string =>
@@ -715,12 +726,14 @@ export const getFaviconKey = (mapping: HostMapping): string =>
 export const normalizeMappingForm = (
   input: HostMapping,
   {
-    hasFreshMetadata,
+    hasFreshFaviconMetadata,
+    hasFreshTitleMetadata,
     host,
     isAuthServiceTarget,
     isWebSocketTarget,
   }: {
-    hasFreshMetadata: boolean;
+    hasFreshFaviconMetadata: boolean;
+    hasFreshTitleMetadata: boolean;
     host: string;
     isAuthServiceTarget: (target: string) => boolean;
     isWebSocketTarget: (target: string) => boolean;
@@ -768,9 +781,11 @@ export const normalizeMappingForm = (
       : createDisabledMappingBasicAuth(),
     locations: serviceRole === "auth" ? [] : [...(input.locations ?? [])],
     service_role: serviceRole,
-    title: hasFreshMetadata ? input.title.trim() : "",
+    title: hasFreshTitleMetadata ? input.title.trim() : "",
     title_override: input.title_override.trim(),
-    favicon: hasFreshMetadata ? input.favicon.trim() : "",
+    favicon: hasFreshFaviconMetadata ? input.favicon.trim() : "",
+    favicon_override:
+      serviceRole === "auth" ? "" : input.favicon_override?.trim() || "",
   };
 };
 

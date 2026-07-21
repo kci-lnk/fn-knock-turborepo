@@ -8,10 +8,17 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
             .map(|object| {
                 let title = resolve_host_rule_title(object);
                 let favicon = object
-                    .get("favicon")
+                    .get("favicon_override")
                     .and_then(Value::as_str)
                     .map(str::trim)
                     .filter(|value| !value.is_empty())
+                    .or_else(|| {
+                        object
+                            .get("favicon")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .filter(|value| !value.is_empty())
+                    })
                     .map(|value| Value::String(value.to_string()))
                     .unwrap_or(Value::Null);
                 json!({

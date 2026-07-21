@@ -21,7 +21,10 @@ type HostMappingUpdatePayload = Pick<
   | "basic_auth"
   | "locations"
   | "title_override"
+  | "favicon_override"
 > & {
+  favicon?: string;
+  title?: string;
   visibility: {
     mode: HostMapping["visibility"]["mode"];
     selections: Pick<
@@ -62,6 +65,7 @@ export const toHostMappingBasicAuthPayload = (
 
 export const toHostMappingUpdatePayload = (
   mapping: HostMapping,
+  options: { includeFavicon?: boolean; includeTitle?: boolean } = {},
 ): HostMappingUpdatePayload => ({
   host: mapping.host,
   target: mapping.target,
@@ -106,4 +110,7 @@ export const toHostMappingUpdatePayload = (
     },
   })),
   title_override: mapping.title_override.trim(),
+  favicon_override: mapping.favicon_override?.trim() || "",
+  ...(options.includeFavicon ? { favicon: mapping.favicon.trim() } : {}),
+  ...(options.includeTitle ? { title: mapping.title.trim() } : {}),
 });

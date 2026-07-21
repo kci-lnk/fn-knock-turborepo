@@ -5,7 +5,7 @@ import { ConfigAPI } from "@/lib/api";
 import type { GatewayVisibilitySelection, HostMapping } from "@/types";
 import type { TranslationParams } from "./model";
 
-export type MappingDialogView = "basic" | "visibility";
+export type MappingDialogView = "basic" | "icon" | "visibility";
 export type MappingDialogMotionDirection = "forward" | "back";
 
 export type MappingVisibilityValidationIssue =
@@ -173,6 +173,11 @@ export const useMappingVisibility = ({
     mappingDialogView.value = "visibility";
   };
 
+  const openIconView = () => {
+    motionDirection.value = "forward";
+    mappingDialogView.value = "icon";
+  };
+
   const returnBasicView = () => {
     motionDirection.value = "back";
     mappingDialogView.value = "basic";
@@ -209,6 +214,7 @@ export const useMappingVisibility = ({
     isGlobalVisibilityLoading,
     loadGlobalVisibility,
     mappingDialogView,
+    openIconView,
     openVisibilityView,
     regionInputsDisabled,
     resetVisibilityEditor,

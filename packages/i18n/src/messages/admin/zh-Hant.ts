@@ -2174,9 +2174,9 @@ export const zhHantAdmin = {
     syncGateway: "同步網關",
     description:
       "每條規則都會把一個外部 TCP 或 UDP 端口轉發到指定目標地址，適合 SSH、MySQL、Redis、DNS 等業務",
-    accessTitle: "外部訪問方式",
+    accessTitle: "公網訪問與路由器設定",
     accessDescription:
-      "使用任意一個解析到本機的域名，加上這裡配置的對外端口即可訪問，例如 demo.example.com:3306。如果映射開啟了鑒權，需要先在網頁端完成登入，否則連接會被直接拒絕。",
+      "軟體中的「對外端口」是本機實際監聽的端口。例如設定「對外端口 6789 → 目標地址 127.0.0.1:3306」時，路由器應設定「公網 6789 → 本機 6789」，用戶端訪問 demo.example.com:6789；不要將路由器直接轉發到本機 3306。如果映射開啟了鑒權，需要先在網頁端完成登入，否則連接會被直接拒絕。",
     searchPlaceholder: "搜尋協議、對外端口、目標地址...",
     protocol: "協議",
     listenPort: "對外端口",

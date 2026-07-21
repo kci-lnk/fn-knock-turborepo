@@ -2164,9 +2164,9 @@ export const zhCNAdmin = {
     syncGateway: "同步网关",
     description:
       "每条规则都会把一个外部 TCP 或 UDP 端口转发到指定目标地址，适合 SSH、MySQL、Redis、DNS 等业务",
-    accessTitle: "外部访问方式",
+    accessTitle: "公网访问与路由器设置",
     accessDescription:
-      "使用任意一个解析到本机的域名，加上这里配置的对外端口即可访问，例如 demo.example.com:3306。如果映射开启了鉴权，需要先在网页端完成登录，否则连接会被直接拒绝。",
+      "软件中的“对外端口”是本机实际监听的端口。例如设置“对外端口 6789 → 目标地址 127.0.0.1:3306”时，路由器应配置“公网 6789 → 本机 6789”，客户端访问 demo.example.com:6789；不要将路由器直接转发到本机 3306。如果映射开启了鉴权，需要先在网页端完成登录，否则连接会被直接拒绝。",
     searchPlaceholder: "搜索协议、对外端口、目标地址...",
     protocol: "协议",
     listenPort: "对外端口",

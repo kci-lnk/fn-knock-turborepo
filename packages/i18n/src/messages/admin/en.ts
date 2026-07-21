@@ -2316,9 +2316,9 @@ export const enAdmin = {
     syncGateway: "Sync gateway",
     description:
       "Each rule forwards an external TCP or UDP port to a target address. This is useful for SSH, MySQL, Redis, DNS, and similar services.",
-    accessTitle: "External access",
+    accessTitle: "Public access and router setup",
     accessDescription:
-      "Use any domain that resolves to this host plus the external port configured here, such as demo.example.com:3306. If authentication is enabled, sign in on the web first, otherwise the connection is rejected directly.",
+      "The external port is the port this host actually listens on. For example, if the software maps external port 6789 to 127.0.0.1:3306, configure the router to forward public port 6789 to port 6789 on this host, then connect to demo.example.com:6789. Do not forward the router directly to port 3306. If authentication is enabled, sign in on the web first, otherwise the connection is rejected directly.",
     searchPlaceholder: "Search protocol, external port, target address...",
     protocol: "Protocol",
     listenPort: "External port",

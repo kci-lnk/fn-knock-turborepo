@@ -21,6 +21,7 @@ const {
   isSmartConnectAvailable,
   isSSHSecurityAvailable,
   openSmartConnect,
+  openSidebarMenuOrder,
   passkeyBindPromptEnabled,
   protocolMappingDisabledReason,
   protocolMappingEnabled,
@@ -108,6 +109,22 @@ const {
         :disabled-reason="protocolMappingDisabledReason"
         @change="saveProtocolMappingEnabled"
       />
+
+      <button
+        type="button"
+        class="flex w-full items-center justify-between bg-muted/5 p-6 text-left transition-colors hover:bg-muted/15"
+        @click="openSidebarMenuOrder"
+      >
+        <div class="min-w-0 space-y-1 pr-6">
+          <div class="text-base font-medium">
+            {{ t("admin.featuresSettings.sidebarMenuOrder") }}
+          </div>
+          <div class="text-sm text-muted-foreground">
+            {{ t("admin.featuresSettings.sidebarMenuOrderHint") }}
+          </div>
+        </div>
+        <ChevronRight class="h-5 w-5 shrink-0 text-muted-foreground" />
+      </button>
 
       <button
         v-if="showSmartConnectEntry"

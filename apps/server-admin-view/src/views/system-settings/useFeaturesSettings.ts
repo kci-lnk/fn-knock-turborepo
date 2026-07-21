@@ -62,8 +62,7 @@ export function useFeaturesSettings() {
     () => configStore.canUseSmartConnect && configStore.config?.run_type === 3,
   );
   const showSmartConnectEntry = computed(
-    () =>
-      !configStore.isDockerDeployment && !configStore.isSynologyDeployment,
+    () => !configStore.isDockerDeployment && !configStore.isSynologyDeployment,
   );
   const isDashboardDisplaySwitchDisabled = computed(
     () => isSaving.value || configStore.isLoading || configStore.isError,
@@ -100,7 +99,9 @@ export function useFeaturesSettings() {
     if (!runtime || (runtime.status !== "error" && !runtime.last_error)) {
       return "";
     }
-    return runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed");
+    return (
+      runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed")
+    );
   });
   const showAutoHttpsEntry = computed(
     () =>
@@ -123,9 +124,7 @@ export function useFeaturesSettings() {
     );
   });
 
-  const applyProtocolMappingSettings = (
-    data: ProtocolMappingFeatureConfig,
-  ) => {
+  const applyProtocolMappingSettings = (data: ProtocolMappingFeatureConfig) => {
     protocolMappingEnabled.value = data.enabled;
   };
   const applyAutoHttpsDetails = (data: AutoHttpsDetails) => {
@@ -142,14 +141,17 @@ export function useFeaturesSettings() {
   const applyAuthCredentialSettings = (data: AuthCredentialSettings) => {
     passkeyBindPromptEnabled.value = data.passkey_bind_prompt_enabled !== false;
   };
-  const applyDashboardDisplaySettings = (data: DashboardDisplayConfig) => {
+  const applyDashboardDisplaySettings = (
+    data: Pick<DashboardDisplayConfig, "show_entry_status_module">,
+  ) => {
     showEntryStatusModule.value = data.show_entry_status_module;
   };
   const syncDashboardDisplayFromConfig = () => {
     if (!configStore.config) return;
     applyDashboardDisplaySettings({
       show_entry_status_module:
-        configStore.config.dashboard_display?.show_entry_status_module !== false,
+        configStore.config.dashboard_display?.show_entry_status_module !==
+        false,
     });
   };
 
@@ -292,7 +294,12 @@ export function useFeaturesSettings() {
   };
 
   const openSmartConnect = () => {
-    if (isSmartConnectAvailable.value) void router.push("/system/smart-connect");
+    if (isSmartConnectAvailable.value)
+      void router.push("/system/smart-connect");
+  };
+
+  const openSidebarMenuOrder = () => {
+    void router.push("/system/sidebar-menu-order");
   };
 
   onMounted(() => {
@@ -327,6 +334,7 @@ export function useFeaturesSettings() {
     isSmartConnectAvailable,
     isSSHSecurityAvailable,
     openSmartConnect,
+    openSidebarMenuOrder,
     passkeyBindPromptEnabled,
     protocolMappingDisabledReason,
     protocolMappingEnabled,

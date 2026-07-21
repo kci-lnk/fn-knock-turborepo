@@ -621,9 +621,30 @@ export const jaJPAdmin = {
     protocolMapping: "プロトコルマッピング",
     protocolMappingHint:
       "「プロトコルマッピング」を表示し、TCP/UDP 転送を有効にします",
+    sidebarMenuOrder: "サイドバーメニューの並び順",
+    sidebarMenuOrderHint: "左側ナビゲーションの表示順を変更します",
     smartConnect: "スマート接続",
     smartConnectHint:
       "ネットワーク環境に応じて、LAN またはインターネット経由のアクセスを自動的に選択します",
+  },
+  sidebarMenuOrder: {
+    systemSettings: "システム設定",
+    features: "機能",
+    title: "サイドバーメニューの並び順",
+    description:
+      "メニュー項目をドラッグして左側ナビゲーションの順序を変更します。変更はこのインスタンス全体で共有されます。",
+    restoreDefault: "既定の順序に戻す",
+    visibleOnlyHint:
+      "現在のモードと機能設定で利用できるメニューのみ表示します。非表示のメニューも元の位置を保持します。",
+    dragAria: "{name} の順序をドラッグして変更",
+    empty: "並べ替え可能なメニュー項目がありません",
+    saving: "メニューの順序を保存中…",
+    autoSaveHint: "ドラッグ操作の終了後に自動保存されます。",
+    saved: "メニューの順序を保存しました",
+    defaultRestored: "既定のメニュー順序に戻しました",
+    saveFailed: "保存に失敗しました",
+    saveFailedDescription:
+      "サイドバーメニューの順序を保存できなかったため、以前の設定に戻しました。",
   },
   smartConnectSettings: {
     saveFailed: "保存に失敗しました",

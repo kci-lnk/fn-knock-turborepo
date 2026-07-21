@@ -614,9 +614,30 @@ export const enAdmin = {
     protocolMapping: "Protocol mapping",
     protocolMappingHint:
       "Shows the Protocol mapping entry and enables TCP/UDP forwarding",
+    sidebarMenuOrder: "Sidebar menu order",
+    sidebarMenuOrderHint: "Customize the order of the left navigation menu",
     smartConnect: "Smart Connect",
     smartConnectHint:
       "Automatically choose LAN or public access based on the network environment",
+  },
+  sidebarMenuOrder: {
+    systemSettings: "System settings",
+    features: "Features",
+    title: "Sidebar menu order",
+    description:
+      "Drag menu items to reorder the left navigation. Changes are shared across this instance.",
+    restoreDefault: "Restore default order",
+    visibleOnlyHint:
+      "Only menus available for the current mode and feature configuration are shown. Hidden menus keep their positions.",
+    dragAria: "Drag to reorder {name}",
+    empty: "There are no menu items to reorder",
+    saving: "Saving menu order…",
+    autoSaveHint: "Changes are saved automatically after each drag.",
+    saved: "Menu order saved",
+    defaultRestored: "Default menu order restored",
+    saveFailed: "Save failed",
+    saveFailedDescription:
+      "The sidebar menu order could not be saved. The previous order was restored.",
   },
   smartConnectSettings: {
     saveFailed: "Save failed",

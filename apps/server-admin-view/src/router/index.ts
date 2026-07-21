@@ -154,6 +154,12 @@ const router = createRouter({
             import("../views/system-settings/SmartConnectSettings.vue"),
         },
         {
+          path: "system/sidebar-menu-order",
+          name: "SidebarMenuOrderSettings",
+          component: () =>
+            import("../views/system-settings/SidebarMenuOrderSettings.vue"),
+        },
+        {
           path: "system/fnos-certificate-sync",
           name: "FnosCertificateSyncSettings",
           component: () =>

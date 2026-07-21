@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type {
   AppConfig,
   AppearanceConfig,
+  DashboardDisplayConfig,
   HostMapping,
   LocaleConfig,
   ProxyMapping,
@@ -357,6 +358,18 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
+  async function saveDashboardDisplayConfig(
+    next: Partial<DashboardDisplayConfig>,
+  ) {
+    const result = await ConfigAPI.updateDashboardDisplayConfig(next);
+    if (config.value) {
+      config.value.dashboard_display = result;
+    } else {
+      await loadConfig({ force: true });
+    }
+    return result;
+  }
+
   const runtimeProfile = computed(() =>
     getEffectiveRuntimeProfile(config.value?.runtime_profile),
   );
@@ -477,6 +490,7 @@ export const useConfigStore = defineStore("config", () => {
     saveSubdomainMode,
     saveLocaleConfig,
     saveAppearanceConfig,
+    saveDashboardDisplayConfig,
     saveDefaultRoute,
   };
 });

@@ -98,7 +98,26 @@ pub fn default_config() -> Value {
         "icon_drag_mode": "corners"
     });
     let appearance = json!({ "theme_color_preset": "default" });
-    let dashboard_display = json!({ "show_entry_status_module": true });
+    let dashboard_display = json!({
+        "show_entry_status_module": true,
+        "sidebar_menu_order": [
+            "dashboard",
+            "route_mapping",
+            "tunnel",
+            "protocol_mapping",
+            "sessions",
+            "ip_whitelist",
+            "ssl_certificate",
+            "ddns",
+            "auth",
+            "ssh_security",
+            "events",
+            "gateway_request_logs",
+            "waf_logs",
+            "web_terminal",
+            "system_settings"
+        ]
+    });
     let auto_https = json!({ "enabled": false });
     let smart_connect = json!({
         "enabled": false,

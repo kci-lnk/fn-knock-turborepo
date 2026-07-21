@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time::{MissedTickBehavior, interval};
 
@@ -302,33 +302,21 @@ async fn update_dashboard_display(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.store.get_config().await {
+    let config = match state
+        .store
+        .merge_config_object_fields("dashboard_display", dashboard_display_update_fields(&body))
+        .await
+    {
         Ok(config) => config,
         Err(error) => {
-            tracing::warn!(%error, "failed to load dashboard display config before update");
+            tracing::warn!(%error, "failed to save dashboard display config");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                dashboard_text(&translator, "configLoadFailed"),
+                dashboard_text(&translator, "displayConfigSaveFailed"),
             );
         }
     };
-
-    let mut next = normalize_dashboard_display(config.get("dashboard_display"));
-    if let Some(show) = body
-        .get("show_entry_status_module")
-        .and_then(Value::as_bool)
-    {
-        ensure_object(&mut next).insert("show_entry_status_module".to_string(), Value::Bool(show));
-    }
-    ensure_object(&mut config).insert("dashboard_display".to_string(), next.clone());
-
-    if let Err(error) = state.store.save_config(&config).await {
-        tracing::warn!(%error, "failed to save dashboard display config");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            dashboard_text(&translator, "displayConfigSaveFailed"),
-        );
-    }
+    let next = normalize_dashboard_display(config.get("dashboard_display"));
 
     response::ok(next).into_response()
 }
@@ -636,11 +624,71 @@ fn normalize_dashboard_display(value: Option<&Value>) -> Value {
         "show_entry_status_module": value
             .and_then(|value| value.get("show_entry_status_module"))
             .and_then(Value::as_bool)
-            .unwrap_or(true)
+            .unwrap_or(true),
+        "sidebar_menu_order": normalize_sidebar_menu_order(
+            value.and_then(|value| value.get("sidebar_menu_order"))
+        )
     })
 }
 
-use crate::json_utils::ensure_object;
+fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
+    let mut fields = Map::new();
+    if let Some(show) = body
+        .get("show_entry_status_module")
+        .and_then(Value::as_bool)
+    {
+        fields.insert("show_entry_status_module".to_string(), Value::Bool(show));
+    }
+    if body.get("sidebar_menu_order").is_some_and(Value::is_array) {
+        fields.insert(
+            "sidebar_menu_order".to_string(),
+            normalize_sidebar_menu_order(body.get("sidebar_menu_order")),
+        );
+    }
+    fields
+}
+
+const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
+    "dashboard",
+    "route_mapping",
+    "tunnel",
+    "protocol_mapping",
+    "sessions",
+    "ip_whitelist",
+    "ssl_certificate",
+    "ddns",
+    "auth",
+    "ssh_security",
+    "events",
+    "gateway_request_logs",
+    "waf_logs",
+    "web_terminal",
+    "system_settings",
+];
+
+fn normalize_sidebar_menu_order(value: Option<&Value>) -> Value {
+    let mut seen = std::collections::HashSet::new();
+    let mut normalized = Vec::new();
+
+    if let Some(items) = value.and_then(Value::as_array) {
+        for item in items {
+            let Some(id) = item.as_str() else {
+                continue;
+            };
+            if DEFAULT_SIDEBAR_MENU_ORDER.contains(&id) && seen.insert(id) {
+                normalized.push(Value::String(id.to_string()));
+            }
+        }
+    }
+
+    for id in DEFAULT_SIDEBAR_MENU_ORDER {
+        if seen.insert(id) {
+            normalized.push(Value::String((*id).to_string()));
+        }
+    }
+
+    Value::Array(normalized)
+}
 
 fn envelope_code(envelope: &Value) -> Option<u16> {
     envelope
@@ -793,6 +841,57 @@ fn round3(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalizes_sidebar_menu_order_for_legacy_and_malformed_config() {
+        assert_eq!(
+            normalize_dashboard_display(Some(&json!({
+                "show_entry_status_module": false
+            }))),
+            json!({
+                "show_entry_status_module": false,
+                "sidebar_menu_order": DEFAULT_SIDEBAR_MENU_ORDER
+            })
+        );
+
+        let normalized = normalize_sidebar_menu_order(Some(&json!([
+            "events",
+            "events",
+            "unknown",
+            42,
+            "dashboard"
+        ])));
+        let items = normalized.as_array().expect("normalized menu order");
+        assert_eq!(items.first(), Some(&json!("events")));
+        assert_eq!(items.get(1), Some(&json!("dashboard")));
+        assert_eq!(items.len(), DEFAULT_SIDEBAR_MENU_ORDER.len());
+        assert_eq!(
+            items
+                .iter()
+                .filter(|item| item.as_str() == Some("events"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn dashboard_display_partial_updates_only_write_submitted_fields() {
+        let show_update =
+            dashboard_display_update_fields(&json!({ "show_entry_status_module": true }));
+        assert_eq!(show_update.len(), 1);
+        assert_eq!(show_update["show_entry_status_module"], json!(true));
+
+        let order_update = dashboard_display_update_fields(
+            &json!({ "sidebar_menu_order": ["events", "dashboard"] }),
+        );
+        assert_eq!(order_update.len(), 1);
+        assert_eq!(order_update["sidebar_menu_order"][0], json!("events"));
+        assert_eq!(order_update["sidebar_menu_order"][1], json!("dashboard"));
+        assert_eq!(
+            order_update["sidebar_menu_order"].as_array().map(Vec::len),
+            Some(DEFAULT_SIDEBAR_MENU_ORDER.len())
+        );
+    }
 
     #[test]
     fn normalizes_traffic_hosts_like_node_dashboard() {

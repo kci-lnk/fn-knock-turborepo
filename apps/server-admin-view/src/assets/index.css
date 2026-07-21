@@ -4,6 +4,44 @@
 @source "../../../../packages/ui-vue/src/**/*.{vue,ts}";
 @source "../../../../packages/admin-shared/src/**/*.{vue,ts}";
 
+@keyframes sidebar-menu-item-wiggle {
+  0% {
+    transform: rotate(-0.45deg) translate3d(-0.18px, 0.1px, 0);
+  }
+
+  50% {
+    transform: rotate(0.42deg) translate3d(0.18px, -0.2px, 0);
+  }
+
+  100% {
+    transform: rotate(-0.38deg) translate3d(-0.1px, 0.2px, 0);
+  }
+}
+
+.sidebar-menu-editing > button {
+  transform-origin: center;
+  animation: sidebar-menu-item-wiggle 220ms ease-in-out infinite;
+  will-change: transform;
+}
+
+.sidebar-menu-editing > button:nth-child(2n) {
+  animation-direction: reverse;
+}
+
+.sidebar-menu-editing > button:nth-child(3n + 1) {
+  animation-delay: -57ms;
+}
+
+.sidebar-menu-editing > button:nth-child(3n + 2) {
+  animation-delay: -113ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-menu-editing > button {
+    animation: none;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 .theme-grid-background {
@@ -167,8 +205,7 @@
   background-color: var(--card);
 }
 
-.mapping-table-scroll--scrolled
-  .mapping-title-cell.mapping-sticky-cell::after {
+.mapping-table-scroll--scrolled .mapping-title-cell.mapping-sticky-cell::after {
   content: "";
   pointer-events: none;
   position: absolute;

@@ -614,9 +614,30 @@ export const koKRAdmin = {
     protocolMapping: "프로토콜 매핑",
     protocolMappingHint:
       "프로토콜 매핑 항목을 표시하고 TCP/UDP 전달을 활성화합니다.",
+    sidebarMenuOrder: "사이드바 메뉴 순서",
+    sidebarMenuOrderHint: "왼쪽 탐색 메뉴의 표시 순서를 변경합니다.",
     smartConnect: "스마트 커넥트",
     smartConnectHint:
       "네트워크 환경에 따라 LAN 또는 외부 접속 경로를 자동으로 선택합니다.",
+  },
+  sidebarMenuOrder: {
+    systemSettings: "시스템 설정",
+    features: "기능",
+    title: "사이드바 메뉴 순서",
+    description:
+      "메뉴 항목을 끌어 왼쪽 탐색 순서를 변경합니다. 변경 사항은 이 인스턴스 전체에 공유됩니다.",
+    restoreDefault: "기본 순서 복원",
+    visibleOnlyHint:
+      "현재 모드와 기능 설정에서 사용할 수 있는 메뉴만 표시됩니다. 숨겨진 메뉴의 위치는 유지됩니다.",
+    dragAria: "{name} 순서를 변경하려면 드래그",
+    empty: "정렬할 수 있는 메뉴 항목이 없습니다.",
+    saving: "메뉴 순서 저장 중…",
+    autoSaveHint: "드래그가 끝나면 자동으로 저장됩니다.",
+    saved: "메뉴 순서가 저장되었습니다.",
+    defaultRestored: "기본 메뉴 순서를 복원했습니다.",
+    saveFailed: "저장 실패",
+    saveFailedDescription:
+      "사이드바 메뉴 순서를 저장하지 못해 이전 설정으로 복원했습니다.",
   },
   smartConnectSettings: {
     saveFailed: "저장 실패",

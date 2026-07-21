@@ -515,8 +515,26 @@ export interface AutoHttpsDetails extends AutoHttpsConfig {
   runtime: AutoHttpsRuntimeState;
 }
 
+export type SidebarNavItemId =
+  | "dashboard"
+  | "route_mapping"
+  | "tunnel"
+  | "protocol_mapping"
+  | "sessions"
+  | "ip_whitelist"
+  | "ssl_certificate"
+  | "ddns"
+  | "auth"
+  | "ssh_security"
+  | "events"
+  | "gateway_request_logs"
+  | "waf_logs"
+  | "web_terminal"
+  | "system_settings";
+
 export interface DashboardDisplayConfig {
   show_entry_status_module: boolean;
+  sidebar_menu_order: SidebarNavItemId[];
 }
 
 export interface SmartConnectConfig {

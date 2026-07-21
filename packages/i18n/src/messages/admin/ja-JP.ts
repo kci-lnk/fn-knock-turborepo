@@ -2885,6 +2885,15 @@ export const jaJPAdmin = {
     invalidSourceCidrLine:
       "送信元 IP の {line} 行目は有効な IPv4/IPv6 CIDR ネットワークではありません。",
     headerName: "ヘッダー名",
+    headerNamePlaceholder: "ヘッダー名を入力または選択",
+    openHeaderSuggestions: "一般的なヘッダーを表示",
+    customHeaderHint:
+      "一致する候補がありません。入力した値をそのまま使用できます。",
+    headerGroups: {
+      standard: "一般的なリクエストヘッダー",
+      fetchMetadata: "Fetch Metadata",
+      application: "API・アプリケーション識別子",
+    },
     queryName: "クエリパラメータ名",
     namePlaceholder: "例: X-Device-ID",
     valuePlaceholder: "1行1値、正規表現は Go RE2",

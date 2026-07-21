@@ -2873,6 +2873,14 @@ export const enAdmin = {
     invalidSourceCidrLine:
       "Source IP line {line} is not a valid IPv4 or IPv6 CIDR network.",
     headerName: "Header name",
+    headerNamePlaceholder: "Enter or choose a header name",
+    openHeaderSuggestions: "Show common headers",
+    customHeaderHint: "No matches. You can use the value you entered.",
+    headerGroups: {
+      standard: "Common request headers",
+      fetchMetadata: "Fetch Metadata",
+      application: "API and application identifiers",
+    },
     queryName: "Query parameter name",
     namePlaceholder: "e.g. X-Device-ID",
     valuePlaceholder: "One value per line; regular expressions use Go RE2",

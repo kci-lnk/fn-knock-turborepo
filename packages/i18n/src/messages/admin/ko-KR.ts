@@ -2870,6 +2870,15 @@ export const koKRAdmin = {
     invalidSourceCidrLine:
       "출발지 IP의 {line}번째 줄은 올바른 IPv4/IPv6 CIDR 네트워크가 아닙니다.",
     headerName: "Header 이름",
+    headerNamePlaceholder: "Header 이름 입력 또는 선택",
+    openHeaderSuggestions: "일반 Header 펼치기",
+    customHeaderHint:
+      "일치하는 항목이 없습니다. 입력한 값을 그대로 사용할 수 있습니다.",
+    headerGroups: {
+      standard: "일반 요청 Header",
+      fetchMetadata: "Fetch Metadata",
+      application: "API 및 애플리케이션 식별자",
+    },
     queryName: "Query 매개변수 이름",
     namePlaceholder: "예: X-Device-ID",
     valuePlaceholder: "한 줄에 하나; 정규식은 Go RE2",

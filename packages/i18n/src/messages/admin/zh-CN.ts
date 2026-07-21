@@ -2673,6 +2673,14 @@ export const zhCNAdmin = {
     invalidSourceCidrLine:
       "源 IP 第 {line} 行不是有效的 IPv4 或 IPv6 CIDR 网段。",
     headerName: "Header 名称",
+    headerNamePlaceholder: "输入或选择 Header 名称",
+    openHeaderSuggestions: "展开常用 Header",
+    customHeaderHint: "未找到匹配项，可直接使用当前输入",
+    headerGroups: {
+      standard: "常见请求头",
+      fetchMetadata: "Fetch Metadata",
+      application: "API 与业务标识",
+    },
     queryName: "Query 参数名",
     namePlaceholder: "例如 X-Device-ID",
     valuePlaceholder: "每行一个值；正则使用 Go RE2",

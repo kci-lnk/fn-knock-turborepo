@@ -44,6 +44,7 @@ import {
 import { isHttpTargetUrl, normalizeHostLike } from "./model";
 import { useConfigStore } from "../../store/config";
 import { getCidrRegionSelectionLabel } from "../../types/cidr";
+import AdvancedAuthHeaderNameField from "./AdvancedAuthHeaderNameField.vue";
 import type {
   AdvancedAuthCondition,
   AdvancedAuthConditionTarget,
@@ -911,12 +912,22 @@ onUnmounted(() =>
                     "
                     class="space-y-1.5"
                   >
-                    <Label class="text-xs">{{
-                      condition.target === "request_header"
-                        ? t("admin.advancedAuth.headerName")
-                        : t("admin.advancedAuth.queryName")
-                    }}</Label
-                    ><Input
+                    <Label
+                      class="text-xs"
+                      :for="`advanced-auth-condition-name-${condition.id}`"
+                      >{{
+                        condition.target === "request_header"
+                          ? t("admin.advancedAuth.headerName")
+                          : t("admin.advancedAuth.queryName")
+                      }}</Label
+                    ><AdvancedAuthHeaderNameField
+                      v-if="condition.target === 'request_header'"
+                      :id="`advanced-auth-condition-name-${condition.id}`"
+                      v-model="condition.name"
+                      :disabled="saving"
+                    /><Input
+                      v-else
+                      :id="`advanced-auth-condition-name-${condition.id}`"
                       v-model="condition.name"
                       :placeholder="t('admin.advancedAuth.namePlaceholder')"
                       :disabled="saving"

@@ -710,17 +710,11 @@ impl UpdateManager {
     }
 
     async fn fetch_manifest(&self) -> Result<OtaManifest, UpdateCheckError> {
-        let mut url = url::Url::parse(OTA_LATEST_URL)
-            .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
-        url.query_pairs_mut()
-            .append_pair("t", &time_utils::now_ms().to_string());
         let client =
             update_http_client(UPDATE_CHECK_TIMEOUT_MS).map_err(UpdateCheckError::Message)?;
         let response = client
-            .get(url)
+            .get(OTA_LATEST_URL)
             .header(reqwest::header::ACCEPT, "application/json")
-            .header(reqwest::header::CACHE_CONTROL, "no-cache")
-            .header(reqwest::header::PRAGMA, "no-cache")
             .send()
             .await
             .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
@@ -753,8 +747,6 @@ impl UpdateManager {
             let mut file = fs::File::create(&temp_path).map_err(|error| error.to_string())?;
             let mut response = client
                 .get(&target_package.download_url)
-                .header(reqwest::header::CACHE_CONTROL, "no-cache")
-                .header(reqwest::header::PRAGMA, "no-cache")
                 .send()
                 .await
                 .map_err(|error| error.to_string())?;

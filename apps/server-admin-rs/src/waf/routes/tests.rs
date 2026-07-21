@@ -380,3 +380,19 @@ fn validates_waf_bundle_paths() {
     assert!(safe_bundle_entry_path("/absolute.conf").is_err());
     assert!(safe_bundle_entry_path("nested//rule.conf").is_err());
 }
+
+#[test]
+fn resolves_waf_download_urls_without_cache_busting() {
+    assert_eq!(
+        resolve_waf_url("https://cor.fnknock.cn/waf/manifest.json", None).unwrap(),
+        "https://cor.fnknock.cn/waf/manifest.json"
+    );
+    assert_eq!(
+        resolve_waf_url(
+            "rules/system.zip",
+            Some("https://cor.fnknock.cn/waf/manifest.json")
+        )
+        .unwrap(),
+        "https://cor.fnknock.cn/waf/rules/system.zip"
+    );
+}

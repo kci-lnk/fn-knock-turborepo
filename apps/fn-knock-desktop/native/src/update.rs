@@ -56,14 +56,7 @@ pub fn check() -> Result<Option<UpdateOffer>, String> {
         .build()
         .map_err(|e| format!("{}：{e}", i18n::tr("无法初始化更新网络客户端")))?;
     let manifest = client
-        .get(format!(
-            "{ENDPOINT}?t={}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        ))
-        .header(reqwest::header::CACHE_CONTROL, "no-cache")
+        .get(ENDPOINT)
         .send()
         .map_err(|e| format!("{}：{e}", i18n::tr("检查更新失败")))?
         .error_for_status()

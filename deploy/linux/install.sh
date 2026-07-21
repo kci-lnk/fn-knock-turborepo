@@ -30,12 +30,6 @@ ${C_DIM}                         Linux 一键安装器${C_RESET}
 EOF
 }
 
-cache_bust_url() {
-  url="$1" separator="?"
-  case "${url}" in *\?*) separator="&" ;; esac
-  printf '%s%scb=%s-%s\n' "${url}" "${separator}" "$(date +%s)" "$$"
-}
-
 cleanup() {
   [ -z "${WORK_DIR}" ] || rm -rf "${WORK_DIR}"
 }
@@ -185,8 +179,7 @@ ARCHIVE_FILE="${WORK_DIR}/release.tar.gz"
 
 log "检测到系统架构：${ARCH}"
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 \
-  -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
-  -o "${MANIFEST_FILE}" "$(cache_bust_url "${BASE_URL%/}/linux/latest/${ARCH}.env")"
+  -o "${MANIFEST_FILE}" "${BASE_URL%/}/linux/latest/${ARCH}.env"
 
 VERSION="$(manifest_value "${MANIFEST_FILE}" VERSION)" || fail "发布清单中的 VERSION 无效"
 URL="$(manifest_value "${MANIFEST_FILE}" URL)" || fail "发布清单中的 URL 无效"

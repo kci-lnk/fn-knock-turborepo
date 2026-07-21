@@ -22,9 +22,7 @@ pub(super) async fn refresh_system_manifest_cache(state: &AppState) -> anyhow::R
     let result = async {
         let response = state
             .fallback_client
-            .get(cache_busted_url(MANIFEST_URL, None)?)
-            .header("cache-control", "no-cache, no-store")
-            .header("pragma", "no-cache")
+            .get(resolve_waf_url(MANIFEST_URL, None)?)
             .send()
             .await?;
         if !response.status().is_success() {
@@ -200,9 +198,7 @@ pub(super) async fn download_system_zip(
         .to_ascii_lowercase();
     let response = state
         .fallback_client
-        .get(cache_busted_url(zip_file, Some(MANIFEST_URL))?)
-        .header("cache-control", "no-cache, no-store")
-        .header("pragma", "no-cache")
+        .get(resolve_waf_url(zip_file, Some(MANIFEST_URL))?)
         .send()
         .await?;
     if !response.status().is_success() {
@@ -592,16 +588,12 @@ pub(super) fn has_any_key(value: &Value, keys: &[&str]) -> bool {
         .is_some_and(|object| keys.iter().any(|key| object.contains_key(*key)))
 }
 
-pub(super) fn cache_busted_url(input: &str, base: Option<&str>) -> anyhow::Result<String> {
-    let mut url = if let Some(base) = base {
+pub(super) fn resolve_waf_url(input: &str, base: Option<&str>) -> anyhow::Result<String> {
+    let url = if let Some(base) = base {
         url::Url::parse(base)?.join(input)?
     } else {
         url::Url::parse(input)?
     };
-    url.query_pairs_mut().append_pair(
-        "t",
-        &format!("{}-{}", time_utils::now_ms(), uuid::Uuid::new_v4()),
-    );
     Ok(url.to_string())
 }
 

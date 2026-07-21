@@ -161,12 +161,6 @@ load_local_env() {
   FN_KNOCK_BASE_URL="${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}"
 }
 
-cache_bust_url() {
-  local url="$1" separator="?"
-  case "${url}" in *\?*) separator="&" ;; esac
-  printf '%s%scb=%s-%s-%s\n' "${url}" "${separator}" "$(date +%s)" "$$" "${RANDOM}"
-}
-
 normalize_arch() {
   case "${1:-$(uname -m)}" in
     x86_64|amd64) printf '%s\n' amd64 ;;
@@ -181,9 +175,9 @@ download_file() {
   local output="$2"
   if command -v curl >/dev/null 2>&1; then
     curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 \
-      -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' -o "${output}" "${url}"
+      -o "${output}" "${url}"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q --tries=3 --timeout=30 --header='Cache-Control: no-cache' --header='Pragma: no-cache' -O "${output}" "${url}"
+    wget -q --tries=3 --timeout=30 -O "${output}" "${url}"
   else
     fail "需要安装 curl 或 wget"
   fi
@@ -255,8 +249,8 @@ fetch_release() {
   local archive="${DOWNLOAD_DIR}/release.tar.gz"
   local base="${FN_KNOCK_BASE_URL%/}"
 
-  log "正在从线上获取最新版本信息（已绕过 CDN 缓存）…"
-  download_file "$(cache_bust_url "${base}/linux/latest/${arch}.env")" "${manifest}"
+  log "正在从线上获取最新版本信息…"
+  download_file "${base}/linux/latest/${arch}.env" "${manifest}"
   validate_manifest "${manifest}"
   download_file "${MANIFEST_URL}" "${archive}"
 

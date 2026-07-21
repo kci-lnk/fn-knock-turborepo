@@ -2822,8 +2822,6 @@ export const koKRAdmin = {
     ruleGroups: "허용 규칙",
     ruleGroupsDescription:
       "그룹 사이는 OR, 그룹 안의 조건은 AND로 평가합니다. 어느 한 그룹이라도 일치하면 접근 권한을 발급합니다.",
-    storageNotice:
-      "Header, Query 및 경로 값은 평문으로 저장되고 설정 백업에 포함되며 로그·메트릭·오류 세부 정보에는 기록되지 않습니다.",
     addOrGroup: "OR 그룹 추가",
     noGroups: "규칙 그룹이 없습니다",
     groupAll: "이 그룹의 모든 조건이 일치해야 합니다",
@@ -2857,18 +2855,18 @@ export const koKRAdmin = {
     operatorMethodIn: "메서드에 포함",
     operatorMethodNotIn: "메서드에 포함되지 않음",
     matchValue: "값",
-    sourceIpLabel: "IP 주소(한 줄에 하나)",
-    sourceIpPlaceholder: "192.168.10.10\n2001:db8::10",
+    sourceIpLabel: "IP 주소",
+    sourceIpPlaceholder: "192.168.10.10, 2001:db8::10",
     sourceIpHint:
-      "IPv4와 IPv6를 지원합니다. 같음은 나열된 주소 중 하나와 일치하며, 같지 않음은 모든 주소와 달라야 합니다.",
-    sourceCidrLabel: "CIDR 네트워크(한 줄에 하나)",
-    sourceCidrPlaceholder: "192.168.10.0/24\n2001:db8::/32",
+      "IPv4와 IPv6를 지원하며 여러 주소는 쉼표로 구분합니다. 같음은 나열된 주소 중 하나와 일치하며, 같지 않음은 모든 주소와 달라야 합니다.",
+    sourceCidrLabel: "CIDR 네트워크",
+    sourceCidrPlaceholder: "192.168.10.0/24, 2001:db8::/32",
     sourceCidrHint:
-      "IPv4/IPv6 CIDR를 지원합니다. CIDR 포함은 나열된 네트워크 중 하나와 일치하며, 미포함은 모든 네트워크 밖이어야 합니다.",
+      "IPv4/IPv6 CIDR를 지원하며 여러 네트워크는 쉼표로 구분합니다. CIDR 포함은 나열된 네트워크 중 하나와 일치하며, 미포함은 모든 네트워크 밖이어야 합니다.",
     invalidSourceIpLine:
-      "출발지 IP의 {line}번째 줄은 올바른 IPv4/IPv6 주소가 아닙니다.",
+      "출발지 IP의 {line}번째 항목은 올바른 IPv4/IPv6 주소가 아닙니다.",
     invalidSourceCidrLine:
-      "출발지 IP의 {line}번째 줄은 올바른 IPv4/IPv6 CIDR 네트워크가 아닙니다.",
+      "출발지 IP의 {line}번째 항목은 올바른 IPv4/IPv6 CIDR 네트워크가 아닙니다.",
     headerName: "Header 이름",
     headerNamePlaceholder: "Header 이름 입력 또는 선택",
     openHeaderSuggestions: "일반 Header 펼치기",
@@ -2881,10 +2879,10 @@ export const koKRAdmin = {
     },
     queryName: "Query 매개변수 이름",
     namePlaceholder: "예: X-Device-ID",
-    valuePlaceholder: "한 줄에 하나; 정규식은 Go RE2",
+    valuePlaceholder: "여러 값은 쉼표로 구분; 정규식은 Go RE2",
     valueHint:
-      "값은 기본적으로 대소문자를 구분하며, 여러 값을 지정한 긍정 조건은 하나만 일치해도 통과합니다.",
-    methodHint: "GET, HEAD처럼 한 줄에 메서드 하나를 입력하세요.",
+      "여러 값은 쉼표로 구분하고 쉼표가 포함된 값은 큰따옴표로 묶습니다. 값은 기본적으로 대소문자를 구분하며, 긍정 조건은 하나만 일치해도 통과합니다.",
+    methodHint: "GET, HEAD처럼 여러 메서드를 쉼표로 구분하세요.",
     andHint: "AND: 아래 조건 모두 일치",
     addAndCondition: "AND 조건 추가",
     deleteCondition: "조건 삭제",

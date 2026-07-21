@@ -60,11 +60,13 @@ const props = withDefaults(
   defineProps<{
     description?: string;
     disabled?: boolean;
+    layout?: "default" | "compact";
     text: CidrRegionSelectorText;
   }>(),
   {
     description: "",
     disabled: false,
+    layout: "default",
   },
 );
 
@@ -128,7 +130,61 @@ onMounted(() => {
 
 <template>
   <div class="space-y-3">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div
+      v-if="layout === 'compact'"
+      class="flex min-h-9 min-w-0 items-center gap-2 rounded-md border border-input bg-background px-2 py-1 shadow-xs"
+      :title="description"
+    >
+      <div
+        class="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <TagsInput
+          :model-value="
+            selections.map((item) => getCidrRegionSelectionKey(item))
+          "
+          class="h-7 min-h-0 w-max min-w-full flex-nowrap items-center gap-1.5 border-none bg-transparent px-0 py-0 shadow-none"
+        >
+          <template v-if="selections.length > 0">
+            <TagsInputItem
+              v-for="selection in selections"
+              :key="getCidrRegionSelectionKey(selection)"
+              :value="getCidrRegionSelectionKey(selection)"
+              class="h-6 shrink-0 rounded-full border border-border/70 bg-muted/40 pr-0.5 text-xs"
+            >
+              <TagsInputItemText class="px-2 py-0.5">
+                {{ getCidrRegionSelectionLabel(selection) }}
+              </TagsInputItemText>
+              <TagsInputItemDelete
+                class="mr-0.5 rounded-full hover:bg-muted"
+                :disabled="disabled"
+                @click.prevent="removeRegion(selection)"
+              />
+            </TagsInputItem>
+          </template>
+          <span
+            v-else
+            class="whitespace-nowrap px-1 text-sm text-muted-foreground"
+          >
+            {{ text.noRegions }}
+          </span>
+        </TagsInput>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        class="h-7 w-7 shrink-0 gap-1.5 p-0 text-xs min-[480px]:w-auto min-[480px]:px-2"
+        :disabled="disabled || provincesLoading || provinces.length === 0"
+        :aria-label="text.addRegion"
+        @click="openDialog"
+      >
+        <Loader2 v-if="provincesLoading" class="h-3.5 w-3.5 animate-spin" />
+        <Plus v-else class="h-3.5 w-3.5" />
+        <span class="hidden min-[480px]:inline">{{ text.addRegion }}</span>
+      </Button>
+    </div>
+
+    <div v-else class="flex flex-wrap items-center justify-between gap-3">
       <p v-if="description" class="text-sm leading-6 text-muted-foreground">
         {{ description }}
       </p>
@@ -191,7 +247,7 @@ onMounted(() => {
       </Button>
     </div>
 
-    <div class="rounded-xl bg-muted/20 px-4 py-4">
+    <div v-if="layout !== 'compact'" class="rounded-xl bg-muted/20 px-4 py-4">
       <TagsInput
         :model-value="selections.map((item) => getCidrRegionSelectionKey(item))"
         class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"

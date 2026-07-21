@@ -2825,8 +2825,6 @@ export const enAdmin = {
     ruleGroups: "Allow rules",
     ruleGroupsDescription:
       "OR between groups, AND within a group; a matching group issues the grant.",
-    storageNotice:
-      "Header, Query, and path match values are stored in plaintext and included in configuration backups; they are never written to logs, metrics, or error details.",
     addOrGroup: "Add OR group",
     noGroups: "No rule groups yet",
     groupAll: "All conditions in this group must match",
@@ -2860,18 +2858,18 @@ export const enAdmin = {
     operatorMethodIn: "method is in",
     operatorMethodNotIn: "method is not in",
     matchValue: "Match value",
-    sourceIpLabel: "IP addresses (one per line)",
-    sourceIpPlaceholder: "192.168.10.10\n2001:db8::10",
+    sourceIpLabel: "IP addresses",
+    sourceIpPlaceholder: "192.168.10.10, 2001:db8::10",
     sourceIpHint:
-      "Supports IPv4 and IPv6. Equals matches any listed address; not equals requires the source to differ from every address.",
-    sourceCidrLabel: "CIDR networks (one per line)",
-    sourceCidrPlaceholder: "192.168.10.0/24\n2001:db8::/32",
+      "Supports IPv4 and IPv6; separate multiple addresses with commas. Equals matches any listed address; not equals requires the source to differ from every address.",
+    sourceCidrLabel: "CIDR networks",
+    sourceCidrPlaceholder: "192.168.10.0/24, 2001:db8::/32",
     sourceCidrHint:
-      "Supports IPv4 and IPv6 CIDRs. In CIDR matches any listed network; not in CIDR requires the source to be outside every network.",
+      "Supports IPv4 and IPv6 CIDRs; separate multiple networks with commas. In CIDR matches any listed network; not in CIDR requires the source to be outside every network.",
     invalidSourceIpLine:
-      "Source IP line {line} is not a valid IPv4 or IPv6 address.",
+      "Source IP item {line} is not a valid IPv4 or IPv6 address.",
     invalidSourceCidrLine:
-      "Source IP line {line} is not a valid IPv4 or IPv6 CIDR network.",
+      "Source IP item {line} is not a valid IPv4 or IPv6 CIDR network.",
     headerName: "Header name",
     headerNamePlaceholder: "Enter or choose a header name",
     openHeaderSuggestions: "Show common headers",
@@ -2883,10 +2881,11 @@ export const enAdmin = {
     },
     queryName: "Query parameter name",
     namePlaceholder: "e.g. X-Device-ID",
-    valuePlaceholder: "One value per line; regular expressions use Go RE2",
+    valuePlaceholder:
+      "Separate values with commas; regular expressions use Go RE2",
     valueHint:
-      "Values are case-sensitive by default; positive multi-value rules match any value.",
-    methodHint: "Enter one method per line, such as GET or HEAD.",
+      "Separate values with commas; quote a value that contains a comma. Values are case-sensitive by default, and positive multi-value rules match any value.",
+    methodHint: "Separate method names with commas, such as GET, HEAD.",
     andHint: "AND: all conditions below must match",
     addAndCondition: "Add AND condition",
     deleteCondition: "Delete condition",

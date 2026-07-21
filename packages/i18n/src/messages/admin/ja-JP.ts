@@ -2837,8 +2837,6 @@ export const jaJPAdmin = {
     ruleGroups: "許可ルール",
     ruleGroupsDescription:
       "グループ間は OR、グループ内は AND で評価し、一致したグループがアクセス許可を発行します。",
-    storageNotice:
-      "ヘッダー、クエリ、パスの照合値は平文で保存され、設定バックアップにも含まれます。ログ、メトリクス、エラー詳細には記録されません。",
     addOrGroup: "OR グループを追加",
     noGroups: "ルールグループはありません",
     groupAll: "このグループの全条件に一致",
@@ -2872,18 +2870,18 @@ export const jaJPAdmin = {
     operatorMethodIn: "指定メソッドのいずれか",
     operatorMethodNotIn: "指定メソッド以外",
     matchValue: "照合値",
-    sourceIpLabel: "IP アドレス（1行に1件）",
-    sourceIpPlaceholder: "192.168.10.10\n2001:db8::10",
+    sourceIpLabel: "IP アドレス",
+    sourceIpPlaceholder: "192.168.10.10, 2001:db8::10",
     sourceIpHint:
-      "IPv4 と IPv6 に対応します。「等しい」はいずれかのアドレスに一致し、「等しくない」はすべてのアドレスと異なる必要があります。",
-    sourceCidrLabel: "CIDR ネットワーク（1行に1件）",
-    sourceCidrPlaceholder: "192.168.10.0/24\n2001:db8::/32",
+      "IPv4 と IPv6 に対応します。複数のアドレスはカンマで区切ります。「等しい」はいずれかのアドレスに一致し、「等しくない」はすべてのアドレスと異なる必要があります。",
+    sourceCidrLabel: "CIDR ネットワーク",
+    sourceCidrPlaceholder: "192.168.10.0/24, 2001:db8::/32",
     sourceCidrHint:
-      "IPv4/IPv6 CIDR に対応します。「CIDR に含む」はいずれかのネットワークに一致し、「含まない」はすべてのネットワーク外である必要があります。",
+      "IPv4/IPv6 CIDR に対応します。複数のネットワークはカンマで区切ります。「CIDR に含む」はいずれかのネットワークに一致し、「含まない」はすべてのネットワーク外である必要があります。",
     invalidSourceIpLine:
-      "送信元 IP の {line} 行目は有効な IPv4/IPv6 アドレスではありません。",
+      "送信元 IP の {line} 番目の項目は有効な IPv4/IPv6 アドレスではありません。",
     invalidSourceCidrLine:
-      "送信元 IP の {line} 行目は有効な IPv4/IPv6 CIDR ネットワークではありません。",
+      "送信元 IP の {line} 番目の項目は有効な IPv4/IPv6 CIDR ネットワークではありません。",
     headerName: "ヘッダー名",
     headerNamePlaceholder: "ヘッダー名を入力または選択",
     openHeaderSuggestions: "一般的なヘッダーを表示",
@@ -2896,10 +2894,10 @@ export const jaJPAdmin = {
     },
     queryName: "クエリパラメータ名",
     namePlaceholder: "例: X-Device-ID",
-    valuePlaceholder: "1行1値、正規表現は Go RE2",
+    valuePlaceholder: "複数の値はカンマ区切り、正規表現は Go RE2",
     valueHint:
-      "値はデフォルトで大文字と小文字を区別します。複数の値を指定した場合は、いずれかに一致すれば条件成立となります。",
-    methodHint: "GET や HEAD など、1行に1つのメソッドを入力してください。",
+      "複数の値はカンマで区切り、カンマを含む値は二重引用符で囲みます。値はデフォルトで大文字と小文字を区別し、いずれかに一致すれば条件成立となります。",
+    methodHint: "GET、HEAD のように複数のメソッドをカンマで区切ります。",
     andHint: "AND: 以下の全条件に一致",
     addAndCondition: "AND 条件を追加",
     deleteCondition: "条件を削除",

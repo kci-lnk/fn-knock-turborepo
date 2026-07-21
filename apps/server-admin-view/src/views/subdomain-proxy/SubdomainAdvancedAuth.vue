@@ -37,7 +37,9 @@ import { useConfirmationDialog } from "@admin-shared/composables/useConfirmation
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI, type AdvancedAuthDetails } from "../../lib/api";
 import {
+  formatAdvancedAuthValueList,
   getSourceNetworkValidationIssue,
+  parseAdvancedAuthValueList,
   parseSourceNetworkTextarea,
   sourceNetworkInputKind,
 } from "./advanced-auth-source-network";
@@ -74,9 +76,7 @@ const MAX_IDLE_TTL_SECONDS = 30 * 24 * SECONDS_PER_HOUR;
 const MAX_LIFETIME_SECONDS = 365 * 24 * SECONDS_PER_HOUR;
 // Keep the shortest supported value representable in the two-decimal hour
 // input. The setter rounds it back to the exact five-minute API boundary.
-const MIN_TTL_HOURS = Number(
-  (MIN_TTL_SECONDS / SECONDS_PER_HOUR).toFixed(2),
-);
+const MIN_TTL_HOURS = Number((MIN_TTL_SECONDS / SECONDS_PER_HOUR).toFixed(2));
 const MAX_IDLE_TTL_HOURS = MAX_IDLE_TTL_SECONDS / SECONDS_PER_HOUR;
 const MAX_LIFETIME_HOURS = MAX_LIFETIME_SECONDS / SECONDS_PER_HOUR;
 const host = computed(() => String(route.params.host ?? "").trim());
@@ -87,6 +87,7 @@ const missing = ref(false);
 const revision = ref<string | null>(null);
 const savedSnapshot = ref("");
 const confirmedBroadSnapshot = ref("");
+const valueDrafts = reactive<Record<string, string>>({});
 
 const form = reactive<AdvancedAuthConfig>({
   enabled: false,
@@ -252,8 +253,8 @@ const sourceIpDisplayValue = (condition: AdvancedAuthCondition) => {
   const values = condition.values?.length
     ? condition.values
     : (condition.cidrs ?? []);
-  return values
-    .map((value) => {
+  return formatAdvancedAuthValueList(
+    values.map((value) => {
       if (
         condition.operator === "equals" ||
         condition.operator === "not_equals"
@@ -261,11 +262,12 @@ const sourceIpDisplayValue = (condition: AdvancedAuthCondition) => {
         return value.replace(/\/(32|128)$/, "");
       }
       return value;
-    })
-    .join("\n");
+    }),
+  );
 };
 
 const setSourceIpValue = (condition: AdvancedAuthCondition, value: string) => {
+  valueDrafts[condition.id] = value;
   condition.values = parseSourceNetworkTextarea(value);
 };
 
@@ -276,9 +278,24 @@ const sourceNetworkTranslationKey = (
   `admin.advancedAuth.source${sourceNetworkInputKind(condition.operator) === "address" ? "Ip" : "Cidr"}${suffix}`;
 
 const valueText = (condition: AdvancedAuthCondition) =>
-  (condition.values ?? []).join("\n");
+  formatAdvancedAuthValueList(condition.values ?? []);
 const setValueText = (condition: AdvancedAuthCondition, value: string) => {
-  condition.values = value.split(/\n/u).filter((item) => item.length > 0);
+  valueDrafts[condition.id] = value;
+  condition.values = parseAdvancedAuthValueList(value);
+};
+const valueInputText = (condition: AdvancedAuthCondition) =>
+  valueDrafts[condition.id] ??
+  (condition.target === "source_ip"
+    ? sourceIpDisplayValue(condition)
+    : valueText(condition));
+const normalizeValueDraft = (condition: AdvancedAuthCondition) => {
+  valueDrafts[condition.id] =
+    condition.target === "source_ip"
+      ? sourceIpDisplayValue(condition)
+      : valueText(condition);
+};
+const clearValueDraft = (condition: AdvancedAuthCondition) => {
+  delete valueDrafts[condition.id];
 };
 const needsValue = (condition: AdvancedAuthCondition) =>
   condition.target !== "source_region" &&
@@ -292,6 +309,7 @@ const updateTarget = (
   condition: AdvancedAuthCondition,
   target: AdvancedAuthConditionTarget,
 ) => {
+  clearValueDraft(condition);
   condition.target = target;
   condition.operator = operatorsByTarget[target][0]?.value ?? "equals";
   condition.values = target === "source_region" ? [] : [""];
@@ -303,6 +321,7 @@ const updateOperator = (
   condition: AdvancedAuthCondition,
   operator: AdvancedAuthOperator,
 ) => {
+  clearValueDraft(condition);
   condition.operator = operator;
   if (operator === "exists" || operator === "not_exists") condition.values = [];
 };
@@ -317,29 +336,20 @@ const hourInputToSeconds = (value: number, maximum: number) => {
   if (!Number.isFinite(hours)) return MIN_TTL_SECONDS;
   return Math.min(
     maximum,
-    Math.max(
-      MIN_TTL_SECONDS,
-      Math.round(hours * 60) * SECONDS_PER_MINUTE,
-    ),
+    Math.max(MIN_TTL_SECONDS, Math.round(hours * 60) * SECONDS_PER_MINUTE),
   );
 };
 
 const idleHours = computed({
   get: () => secondsToHourInput(form.idle_ttl_seconds),
   set: (value: number) => {
-    form.idle_ttl_seconds = hourInputToSeconds(
-      value,
-      MAX_IDLE_TTL_SECONDS,
-    );
+    form.idle_ttl_seconds = hourInputToSeconds(value, MAX_IDLE_TTL_SECONDS);
   },
 });
 const maxLifetimeHours = computed({
   get: () => secondsToHourInput(form.max_lifetime_seconds),
   set: (value: number) => {
-    form.max_lifetime_seconds = hourInputToSeconds(
-      value,
-      MAX_LIFETIME_SECONDS,
-    );
+    form.max_lifetime_seconds = hourInputToSeconds(value, MAX_LIFETIME_SECONDS);
   },
 });
 
@@ -411,6 +421,7 @@ const addGroup = () => {
   form.groups.push(blankGroup());
 };
 const removeGroup = (groupIndex: number) => {
+  form.groups[groupIndex]?.conditions.forEach(clearValueDraft);
   form.groups.splice(groupIndex, 1);
 };
 const addCondition = (group: AdvancedAuthRuleGroup) => {
@@ -418,6 +429,8 @@ const addCondition = (group: AdvancedAuthRuleGroup) => {
   group.conditions.push(blankCondition());
 };
 const removeCondition = (group: AdvancedAuthRuleGroup, index: number) => {
+  const condition = group.conditions[index];
+  if (condition) clearValueDraft(condition);
   group.conditions.splice(index, 1);
 };
 
@@ -442,6 +455,7 @@ const regionText = {
 };
 
 const applyDetails = (details: AdvancedAuthDetails) => {
+  Object.keys(valueDrafts).forEach((key) => delete valueDrafts[key]);
   revision.value = details.revision;
   const next = cloneConfig(details.advanced_auth);
   form.enabled = next.enabled;
@@ -521,18 +535,17 @@ const save = async () => {
       );
       return;
     }
-    const invalidCondition = conditions
-      .find(
-        (condition) =>
-          (condition.target === "source_region" &&
-            (condition.selections ?? []).length === 0) ||
-          ((condition.target === "request_header" ||
-            condition.target === "query_parameter") &&
-            !condition.name?.trim()) ||
-          (needsValue(condition) &&
-            ((condition.values ?? []).length === 0 ||
-              (condition.values ?? []).some((value) => !value.trim()))),
-      );
+    const invalidCondition = conditions.find(
+      (condition) =>
+        (condition.target === "source_region" &&
+          (condition.selections ?? []).length === 0) ||
+        ((condition.target === "request_header" ||
+          condition.target === "query_parameter") &&
+          !condition.name?.trim()) ||
+        (needsValue(condition) &&
+          ((condition.values ?? []).length === 0 ||
+            (condition.values ?? []).some((value) => !value.trim()))),
+    );
     if (invalidCondition) {
       toast.error(t("admin.advancedAuth.invalidCondition"));
       return;
@@ -657,8 +670,8 @@ onUnmounted(() =>
           t("admin.advancedAuth.back")
         }}</Button>
       </CardContent>
-      <CardContent v-else class="space-y-6">
-        <section class="rounded-xl bg-muted/30 p-5">
+      <CardContent v-else class="space-y-6 px-3 sm:px-6">
+        <section class="rounded-xl bg-muted/30 p-4 sm:p-5">
           <div class="flex items-start justify-between gap-4">
             <div>
               <Label class="text-base">{{
@@ -676,6 +689,349 @@ onUnmounted(() =>
         </section>
 
         <div v-if="form.enabled" class="space-y-6">
+          <section class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-medium">
+                  {{ t("admin.advancedAuth.ruleGroups") }}
+                </h2>
+                <p class="text-sm text-muted-foreground">
+                  {{ t("admin.advancedAuth.ruleGroupsDescription") }}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                class="w-full min-[480px]:w-auto"
+                :disabled="form.groups.length >= MAX_GROUPS || saving"
+                @click="addGroup"
+                ><Plus class="mr-2 h-4 w-4" />{{
+                  t("admin.advancedAuth.addOrGroup")
+                }}</Button
+              >
+            </div>
+            <div
+              v-if="form.groups.length === 0"
+              class="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground"
+            >
+              {{ t("admin.advancedAuth.noGroups") }}
+            </div>
+            <div
+              v-else
+              class="relative space-y-4 sm:space-y-5 sm:pl-10 sm:before:absolute sm:before:inset-y-7 sm:before:left-4 sm:before:w-px sm:before:bg-border"
+            >
+              <div
+                v-for="(group, groupIndex) in form.groups"
+                :key="group.id"
+                class="relative sm:before:absolute sm:before:top-7 sm:before:-left-6 sm:before:h-px sm:before:w-6 sm:before:bg-border"
+              >
+                <div
+                  class="group/rule space-y-3 rounded-xl border border-border/65 bg-muted/25 p-3 shadow-none ring-2 ring-transparent transition-[border-color,background-color,box-shadow] duration-[280ms] ease-out hover:border-primary/25 hover:bg-muted/35 hover:ring-primary/5 focus-within:border-primary/50 focus-within:bg-muted/35 focus-within:ring-primary/15 motion-reduce:transition-none dark:bg-muted/20 dark:hover:bg-muted/30 dark:focus-within:bg-muted/30 sm:p-5"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div
+                      class="flex min-w-0 items-center gap-2 text-sm font-medium"
+                    >
+                      <span
+                        class="shrink-0 rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary transition-[border-color,background-color] duration-[280ms] ease-out group-hover/rule:border-primary/35 group-hover/rule:bg-primary/15 group-focus-within/rule:border-primary/50 group-focus-within/rule:bg-primary/20 motion-reduce:transition-none"
+                      >
+                        OR {{ groupIndex + 1 }}
+                      </span>
+                      <span class="truncate">{{
+                        t("admin.advancedAuth.groupAll")
+                      }}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 shrink-0"
+                      :disabled="saving"
+                      :aria-label="t('admin.advancedAuth.deleteGroup')"
+                      @click="removeGroup(groupIndex)"
+                    >
+                      <Trash2 class="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+
+                  <div
+                    class="relative space-y-3"
+                    :class="group.conditions.length > 1 ? 'sm:pl-9' : ''"
+                  >
+                    <div
+                      v-if="group.conditions.length > 1"
+                      class="absolute inset-y-8 left-3.5 hidden w-px bg-border sm:block"
+                    ></div>
+                    <span
+                      v-if="group.conditions.length > 1"
+                      class="absolute top-1/2 left-3.5 z-10 hidden -translate-x-1/2 -translate-y-1/2 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:block"
+                    >
+                      AND
+                    </span>
+
+                    <template
+                      v-for="(condition, conditionIndex) in group.conditions"
+                      :key="condition.id"
+                    >
+                      <div
+                        v-if="conditionIndex > 0"
+                        class="flex items-center gap-2 py-0.5 sm:hidden"
+                      >
+                        <span class="h-px flex-1 bg-border/80"></span>
+                        <span
+                          class="rounded border border-border/80 bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                        >
+                          AND
+                        </span>
+                        <span class="h-px flex-1 bg-border/80"></span>
+                      </div>
+
+                      <div
+                        class="relative rounded-lg border border-border/60 bg-background/80 p-3 shadow-none"
+                        :class="
+                          group.conditions.length > 1
+                            ? 'sm:before:absolute sm:before:top-1/2 sm:before:-left-[1.375rem] sm:before:h-px sm:before:w-[1.375rem] sm:before:bg-border'
+                            : ''
+                        "
+                      >
+                        <div class="flex min-w-0 items-start gap-1.5 sm:gap-2">
+                          <div
+                            class="grid min-w-0 flex-1 gap-3 sm:grid-cols-2"
+                            :class="
+                              condition.target === 'request_header' ||
+                              condition.target === 'query_parameter'
+                                ? needsValue(condition)
+                                  ? 'xl:grid-cols-[minmax(8.5rem,0.8fr)_minmax(10rem,1fr)_minmax(8.5rem,0.8fr)_minmax(13rem,1.5fr)]'
+                                  : 'xl:grid-cols-[minmax(8.5rem,0.8fr)_minmax(10rem,1fr)_minmax(8.5rem,0.8fr)]'
+                                : condition.target === 'source_region' ||
+                                    needsValue(condition)
+                                  ? 'xl:grid-cols-[minmax(9rem,0.8fr)_minmax(9rem,0.8fr)_minmax(15rem,1.8fr)]'
+                                  : 'xl:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)]'
+                            "
+                          >
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs">{{
+                                t("admin.advancedAuth.matchTarget")
+                              }}</Label>
+                              <select
+                                class="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                :value="condition.target"
+                                :disabled="saving"
+                                @change="
+                                  updateTarget(
+                                    condition,
+                                    ($event.target as HTMLSelectElement)
+                                      .value as AdvancedAuthConditionTarget,
+                                  )
+                                "
+                              >
+                                <option
+                                  v-for="target in targetOptions"
+                                  :key="target.value"
+                                  :value="target.value"
+                                >
+                                  {{ t(target.labelKey) }}
+                                </option>
+                              </select>
+                            </div>
+
+                            <div
+                              v-if="
+                                condition.target === 'request_header' ||
+                                condition.target === 'query_parameter'
+                              "
+                              class="min-w-0 space-y-1.5"
+                            >
+                              <Label
+                                class="text-xs"
+                                :for="`advanced-auth-condition-name-${condition.id}`"
+                                >{{
+                                  condition.target === "request_header"
+                                    ? t("admin.advancedAuth.headerName")
+                                    : t("admin.advancedAuth.queryName")
+                                }}</Label
+                              >
+                              <AdvancedAuthHeaderNameField
+                                v-if="condition.target === 'request_header'"
+                                :id="`advanced-auth-condition-name-${condition.id}`"
+                                v-model="condition.name"
+                                :disabled="saving"
+                              />
+                              <Input
+                                v-else
+                                :id="`advanced-auth-condition-name-${condition.id}`"
+                                v-model="condition.name"
+                                :placeholder="
+                                  t('admin.advancedAuth.namePlaceholder')
+                                "
+                                :disabled="saving"
+                              />
+                            </div>
+
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs">{{
+                                t("admin.advancedAuth.matchOperator")
+                              }}</Label>
+                              <select
+                                class="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                :value="condition.operator"
+                                :disabled="saving"
+                                @change="
+                                  updateOperator(
+                                    condition,
+                                    ($event.target as HTMLSelectElement)
+                                      .value as AdvancedAuthOperator,
+                                  )
+                                "
+                              >
+                                <option
+                                  v-for="operator in operatorsFor(
+                                    condition.target,
+                                  )"
+                                  :key="operator.value"
+                                  :value="operator.value"
+                                >
+                                  {{ t(operator.labelKey) }}
+                                </option>
+                              </select>
+                            </div>
+
+                          <div
+                            v-if="condition.target === 'source_region'"
+                            class="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1"
+                            >
+                              <Label class="text-xs">{{
+                                t("admin.advancedAuth.matchValue")
+                              }}</Label>
+                              <CidrRegionSelector
+                                v-model="condition.selections"
+                                layout="compact"
+                                :disabled="saving"
+                                :text="regionText"
+                                :description="
+                                  t('admin.advancedAuth.regionDescription')
+                                "
+                              />
+                            </div>
+
+                            <div
+                              v-else-if="needsValue(condition)"
+                              class="min-w-0 space-y-1.5"
+                              :class="
+                                condition.target === 'request_header' ||
+                                condition.target === 'query_parameter'
+                                ? 'xl:col-span-1'
+                                : 'sm:col-span-2 xl:col-span-1'
+                              "
+                            >
+                              <Label
+                                class="text-xs"
+                                :title="
+                                  condition.target === 'http_method'
+                                    ? t('admin.advancedAuth.methodHint')
+                                    : condition.target === 'source_ip'
+                                      ? t(
+                                          sourceNetworkTranslationKey(
+                                            condition,
+                                            'Hint',
+                                          ),
+                                        )
+                                      : t('admin.advancedAuth.valueHint')
+                                "
+                                >{{
+                                  condition.target === "source_ip"
+                                    ? t(
+                                        sourceNetworkTranslationKey(
+                                          condition,
+                                          "Label",
+                                        ),
+                                      )
+                                    : t("admin.advancedAuth.matchValue")
+                                }}</Label
+                              >
+                              <Input
+                                :model-value="valueInputText(condition)"
+                                :class="
+                                  condition.target === 'source_ip'
+                                    ? 'font-mono'
+                                    : ''
+                                "
+                                :placeholder="
+                                  condition.target === 'source_ip'
+                                    ? t(
+                                        sourceNetworkTranslationKey(
+                                          condition,
+                                          'Placeholder',
+                                        ),
+                                      )
+                                    : t('admin.advancedAuth.valuePlaceholder')
+                                "
+                                :title="
+                                  condition.target === 'http_method'
+                                    ? t('admin.advancedAuth.methodHint')
+                                    : condition.target === 'source_ip'
+                                      ? t(
+                                          sourceNetworkTranslationKey(
+                                            condition,
+                                            'Hint',
+                                          ),
+                                        )
+                                      : t('admin.advancedAuth.valueHint')
+                                "
+                                :disabled="saving"
+                                @update:model-value="
+                                  condition.target === 'source_ip'
+                                    ? setSourceIpValue(
+                                        condition,
+                                        String($event),
+                                      )
+                                    : setValueText(condition, String($event))
+                                "
+                                @blur="normalizeValueDraft(condition)"
+                              />
+                            </div>
+                          </div>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="group absolute top-1.5 right-1.5 h-7 w-7 shrink-0 sm:static sm:mt-5.5 sm:h-8 sm:w-8"
+                            :disabled="saving"
+                            :aria-label="
+                              t('admin.advancedAuth.deleteCondition')
+                            "
+                            @click="removeCondition(group, conditionIndex)"
+                          >
+                            <Trash2
+                              class="h-4 w-4 text-muted-foreground transition-colors group-hover:text-destructive"
+                            />
+                          </Button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div
+                    class="flex items-center justify-start"
+                    :class="group.conditions.length > 1 ? 'sm:pl-9' : ''"
+                  >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      class="w-full min-[480px]:w-auto"
+                      :disabled="
+                        group.conditions.length >= MAX_CONDITIONS || saving
+                      "
+                      @click="addCondition(group)"
+                    >
+                      <Plus class="mr-2 h-4 w-4" />{{
+                        t("admin.advancedAuth.addAndCondition")
+                      }}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section class="space-y-5 border-y border-border/40 py-5">
             <div class="space-y-1">
               <h2 class="text-base font-medium">
@@ -751,9 +1107,7 @@ onUnmounted(() =>
             <div
               class="flex items-start gap-3 rounded-lg bg-muted/40 px-4 py-3"
             >
-              <Clock3
-                class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
-              />
+              <Clock3 class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div class="space-y-0.5 text-sm">
                 <p class="font-medium">
                   {{ t("admin.advancedAuth.durationSummaryTitle") }}
@@ -766,247 +1120,6 @@ onUnmounted(() =>
                     })
                   }}
                 </p>
-              </div>
-            </div>
-          </section>
-
-          <section class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 class="text-base font-medium">
-                  {{ t("admin.advancedAuth.ruleGroups") }}
-                </h2>
-                <p class="text-sm text-muted-foreground">
-                  {{ t("admin.advancedAuth.ruleGroupsDescription") }}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                :disabled="form.groups.length >= MAX_GROUPS || saving"
-                @click="addGroup"
-                ><Plus class="mr-2 h-4 w-4" />{{
-                  t("admin.advancedAuth.addOrGroup")
-                }}</Button
-              >
-            </div>
-            <p
-              class="rounded-lg bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-800 dark:text-amber-200"
-            >
-              {{ t("admin.advancedAuth.storageNotice") }}
-            </p>
-            <div
-              v-if="form.groups.length === 0"
-              class="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground"
-            >
-              {{ t("admin.advancedAuth.noGroups") }}
-            </div>
-            <div
-              v-for="(group, groupIndex) in form.groups"
-              :key="group.id"
-              class="space-y-4 rounded-xl bg-muted/25 p-5 ring-1 ring-border/25"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <div class="text-sm font-medium">
-                  <span
-                    class="mr-2 rounded bg-primary/10 px-2 py-1 text-primary"
-                    >OR {{ groupIndex + 1 }}</span
-                  >{{ t("admin.advancedAuth.groupAll") }}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  :disabled="saving"
-                  :aria-label="t('admin.advancedAuth.deleteGroup')"
-                  @click="removeGroup(groupIndex)"
-                  ><Trash2 class="h-4 w-4 text-destructive"
-                /></Button>
-              </div>
-              <div
-                v-for="(condition, conditionIndex) in group.conditions"
-                :key="condition.id"
-                class="space-y-3"
-                :class="
-                  conditionIndex === 0
-                    ? 'pt-1'
-                    : 'border-t border-border/40 pt-5'
-                "
-              >
-                <div class="flex items-start gap-3">
-                  <div class="grid min-w-0 flex-1 gap-3 md:grid-cols-[1fr_1fr]">
-                    <div class="space-y-1.5">
-                      <Label class="text-xs">{{
-                        t("admin.advancedAuth.matchTarget")
-                      }}</Label
-                      ><select
-                        class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        :value="condition.target"
-                        :disabled="saving"
-                        @change="
-                          updateTarget(
-                            condition,
-                            ($event.target as HTMLSelectElement)
-                              .value as AdvancedAuthConditionTarget,
-                          )
-                        "
-                      >
-                        <option
-                          v-for="target in targetOptions"
-                          :key="target.value"
-                          :value="target.value"
-                        >
-                          {{ t(target.labelKey) }}
-                        </option>
-                      </select>
-                    </div>
-                    <div class="space-y-1.5">
-                      <Label class="text-xs">{{
-                        t("admin.advancedAuth.matchOperator")
-                      }}</Label
-                      ><select
-                        class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        :value="condition.operator"
-                        :disabled="saving"
-                        @change="
-                          updateOperator(
-                            condition,
-                            ($event.target as HTMLSelectElement)
-                              .value as AdvancedAuthOperator,
-                          )
-                        "
-                      >
-                        <option
-                          v-for="operator in operatorsFor(condition.target)"
-                          :key="operator.value"
-                          :value="operator.value"
-                        >
-                          {{ t(operator.labelKey) }}
-                        </option>
-                      </select>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    :disabled="saving"
-                    :aria-label="t('admin.advancedAuth.deleteCondition')"
-                    @click="removeCondition(group, conditionIndex)"
-                    ><Trash2 class="h-4 w-4 text-muted-foreground"
-                  /></Button>
-                </div>
-                <div
-                  v-if="condition.target === 'source_region'"
-                  class="rounded-lg bg-background/60 p-3"
-                >
-                  <CidrRegionSelector
-                    v-model="condition.selections"
-                    :disabled="saving"
-                    :text="regionText"
-                    :description="t('admin.advancedAuth.regionDescription')"
-                  />
-                </div>
-                <template v-else
-                  ><div
-                    v-if="
-                      condition.target === 'request_header' ||
-                      condition.target === 'query_parameter'
-                    "
-                    class="space-y-1.5"
-                  >
-                    <Label
-                      class="text-xs"
-                      :for="`advanced-auth-condition-name-${condition.id}`"
-                      >{{
-                        condition.target === "request_header"
-                          ? t("admin.advancedAuth.headerName")
-                          : t("admin.advancedAuth.queryName")
-                      }}</Label
-                    ><AdvancedAuthHeaderNameField
-                      v-if="condition.target === 'request_header'"
-                      :id="`advanced-auth-condition-name-${condition.id}`"
-                      v-model="condition.name"
-                      :disabled="saving"
-                    /><Input
-                      v-else
-                      :id="`advanced-auth-condition-name-${condition.id}`"
-                      v-model="condition.name"
-                      :placeholder="t('admin.advancedAuth.namePlaceholder')"
-                      :disabled="saving"
-                    />
-                  </div>
-                  <div v-if="needsValue(condition)" class="space-y-1.5">
-                    <Label class="text-xs">{{
-                      condition.target === "source_ip"
-                        ? t(sourceNetworkTranslationKey(condition, "Label"))
-                        : t("admin.advancedAuth.matchValue")
-                    }}</Label
-                    ><textarea
-                      class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      :class="
-                        condition.target === 'source_ip'
-                          ? 'min-h-28 font-mono'
-                          : 'min-h-20'
-                      "
-                      :value="
-                        condition.target === 'source_ip'
-                          ? sourceIpDisplayValue(condition)
-                          : valueText(condition)
-                      "
-                      :placeholder="
-                        condition.target === 'source_ip'
-                          ? t(
-                              sourceNetworkTranslationKey(
-                                condition,
-                                'Placeholder',
-                              ),
-                            )
-                          : t('admin.advancedAuth.valuePlaceholder')
-                      "
-                      :disabled="saving"
-                      :spellcheck="condition.target !== 'source_ip'"
-                      @input="
-                        condition.target === 'source_ip'
-                          ? setSourceIpValue(
-                              condition,
-                              ($event.target as HTMLTextAreaElement).value,
-                            )
-                          : setValueText(
-                              condition,
-                              ($event.target as HTMLTextAreaElement).value,
-                            )
-                      "
-                    />
-                    <p class="text-xs text-muted-foreground">
-                      {{
-                        condition.target === "http_method"
-                          ? t("admin.advancedAuth.methodHint")
-                          : condition.target === "source_ip"
-                            ? t(
-                                sourceNetworkTranslationKey(
-                                  condition,
-                                  "Hint",
-                                ),
-                              )
-                          : t("admin.advancedAuth.valueHint")
-                      }}
-                    </p>
-                  </div></template
-                >
-              </div>
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <span class="text-xs text-muted-foreground">{{
-                  t("admin.advancedAuth.andHint")
-                }}</span
-                ><Button
-                  variant="outline"
-                  size="sm"
-                  :disabled="
-                    group.conditions.length >= MAX_CONDITIONS || saving
-                  "
-                  @click="addCondition(group)"
-                  ><Plus class="mr-2 h-4 w-4" />{{
-                    t("admin.advancedAuth.addAndCondition")
-                  }}</Button
-                >
               </div>
             </div>
           </section>

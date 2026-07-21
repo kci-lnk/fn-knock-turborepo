@@ -203,8 +203,12 @@ async fn handle_authorize_http(
                 matched,
             )
         });
-    let existing_rule_grant = if matched_rule_valid {
+    let existing_rule_access = if matched_rule_valid {
         false
+    } else if subdomain_grant::has_valid_probe(&state, &headers, &config) {
+        // Probe validation is stateless. Keep its exchange path available even
+        // when persistent credential storage is temporarily unavailable.
+        true
     } else {
         match subdomain_grant::inspect_existing(&state, &headers, &config).await {
             Ok(grant) => grant.is_some(),
@@ -216,7 +220,7 @@ async fn handle_authorize_http(
     };
     // A rule grant is host-scoped and must not refresh a broader FNOS/session
     // IP grant as a side effect of resolving normal access.
-    let normal_access = if matched_rule_valid || existing_rule_grant {
+    let normal_access = if matched_rule_valid || existing_rule_access {
         PreflightNormalAccess::default()
     } else {
         match resolve_preflight_normal_access(
@@ -870,7 +874,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn matched_subdomain_rule_does_not_refresh_session_ip_mobility() {
+    async fn matched_upgrade_rule_is_transient_and_does_not_refresh_session_ip_mobility() {
         let directory = tempfile::tempdir().expect("temporary auth database");
         let mut settings = {
             let _environment = crate::test_support::EnvGuard::new(&[]);
@@ -949,8 +953,12 @@ mod tests {
                     client_ip: "203.0.113.20".to_string(),
                     forwarded_host: "allowed.example.com".to_string(),
                     forwarded_proto: "https".to_string(),
-                    path: "/".to_string(),
+                    path: "/websocket".to_string(),
                     cookie: format!("{}=session-1", cookies::SESSION_COOKIE_NAME),
+                    extra_headers: vec![Header {
+                        name: "Upgrade".to_string(),
+                        values: vec!["websocket".to_string()],
+                    }],
                     ..Default::default()
                 }),
                 matched: true,
@@ -967,6 +975,9 @@ mod tests {
         let verify = response.verify.expect("verify response");
         assert!(verify.success);
         assert_eq!(verify.decision, "subdomain_rule_allowed");
+        assert_eq!(verify.auth_grant_state, "transient");
+        assert_eq!(verify.cache_max_age_seconds, 0);
+        assert!(verify.set_cookies.is_empty());
         assert!(
             state
                 .store
@@ -974,6 +985,115 @@ mod tests {
                 .await
                 .expect("active IP details")
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn returned_cookie_probe_bypasses_preflight_and_becomes_one_persistent_grant() {
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "rule-cookie-probe-round-trip".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        state
+            .store
+            .save_config(&json!({
+                "run_type": 3,
+                "host_mappings": [{
+                    "host": "allowed.example.com",
+                    "use_auth": true,
+                    "advanced_auth": {
+                        "enabled": true,
+                        "idle_ttl_seconds": 86_400,
+                        "max_lifetime_seconds": 2_592_000,
+                        "policy_version": "policy-v1",
+                        "groups": [{"id": "group-v1", "conditions": []}]
+                    }
+                }]
+            }))
+            .await
+            .expect("auth config");
+
+        let first = handle_authorize_http(
+            state.clone(),
+            AuthorizeHttpRequest {
+                context: Some(AuthContext {
+                    client_ip: "203.0.113.20".to_string(),
+                    forwarded_host: "allowed.example.com".to_string(),
+                    forwarded_proto: "https".to_string(),
+                    path: "/entry".to_string(),
+                    ..Default::default()
+                }),
+                matched: true,
+                mode: HttpAuthMode::PreflightAndVerify as i32,
+                subdomain_rule_match: Some(crate::grpc_proto::SubdomainRuleMatch {
+                    host: "allowed.example.com".to_string(),
+                    policy_version: "policy-v1".to_string(),
+                    group_id: "group-v1".to_string(),
+                }),
+            },
+        )
+        .await;
+        let first_preflight = first.preflight.as_ref().expect("first preflight response");
+        assert!(first_preflight.redirect_location.is_empty());
+        let first_verify = first.verify.expect("first verify response");
+        assert!(first_verify.success);
+        assert_eq!(first_verify.auth_grant_state, "transient");
+        assert_eq!(first_verify.set_cookies.len(), 1);
+        let probe_cookie = first_verify.set_cookies[0]
+            .split(';')
+            .next()
+            .expect("probe cookie pair")
+            .to_string();
+        assert!(probe_cookie.starts_with(&format!(
+            "{}=p1.",
+            cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME
+        )));
+
+        // The entry-only rule no longer matches this path. A client that
+        // returned the signed probe must still pass the combined preflight so
+        // verify can exchange it for the persistent host-scoped credential.
+        let second = handle_authorize_http(
+            state.clone(),
+            AuthorizeHttpRequest {
+                context: Some(AuthContext {
+                    client_ip: "203.0.113.20".to_string(),
+                    forwarded_host: "allowed.example.com".to_string(),
+                    forwarded_proto: "https".to_string(),
+                    path: "/private".to_string(),
+                    cookie: probe_cookie,
+                    ..Default::default()
+                }),
+                matched: false,
+                mode: HttpAuthMode::PreflightAndVerify as i32,
+                subdomain_rule_match: None,
+            },
+        )
+        .await;
+        let second_preflight = second
+            .preflight
+            .as_ref()
+            .expect("second preflight response");
+        assert!(second_preflight.redirect_location.is_empty());
+        assert!(second_preflight.access_denied_reason.is_empty());
+        let second_verify = second.verify.expect("second verify response");
+        assert!(second_verify.success);
+        assert_eq!(second_verify.auth_grant_state, "issued");
+        assert_eq!(second_verify.set_cookies.len(), 1);
+        assert!(!second_verify.set_cookies[0].contains("=p1."));
+        assert_eq!(
+            state
+                .store
+                .count_keys_by_prefix("fn_knock:auth:subdomain_rule_grant:")
+                .await
+                .expect("grant count"),
+            1
         );
     }
 

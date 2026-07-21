@@ -504,9 +504,17 @@ async fn matched_rule_takes_precedence_over_automatic_ip_grant() {
     assert!(access.authenticated);
     assert_eq!(access.grant_type.as_deref(), Some("subdomain_rule"));
     assert_eq!(access.set_cookies.len(), 1);
-    assert!(
-        access.set_cookies[0]
-            .starts_with(&format!("{}=", cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME))
+    assert!(access.set_cookies[0].starts_with(&format!(
+        "{}=p1.",
+        cookies::SUBDOMAIN_RULE_GRANT_COOKIE_NAME
+    )));
+    assert_eq!(
+        access
+            .response_headers
+            .iter()
+            .find(|(name, _)| name == "X-Reauth-Auth-Grant-State")
+            .map(|(_, value)| value.as_str()),
+        Some("transient")
     );
     assert!(!access.set_cookies[0].contains("Domain="));
 }

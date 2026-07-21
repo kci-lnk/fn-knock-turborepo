@@ -3130,6 +3130,7 @@ export const zhHantAdmin = {
       issued: "已簽發",
       renewed: "已續期",
       reused: "已重用",
+      transient: "單次請求放行",
     },
     credentialMethods: {
       totp: "TOTP",

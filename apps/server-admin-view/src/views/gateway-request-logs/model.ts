@@ -310,6 +310,8 @@ const authGrantStateLabel = (
       return t("admin.gatewayRequestLogs.grantStates.renewed");
     case "reused":
       return t("admin.gatewayRequestLogs.grantStates.reused");
+    case "transient":
+      return t("admin.gatewayRequestLogs.grantStates.transient");
     default:
       return value || "-";
   }

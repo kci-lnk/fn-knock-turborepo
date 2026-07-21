@@ -3121,6 +3121,7 @@ export const zhCNAdmin = {
       issued: "已签发",
       renewed: "已续期",
       reused: "已复用",
+      transient: "单次请求放行",
     },
     credentialMethods: {
       totp: "TOTP",

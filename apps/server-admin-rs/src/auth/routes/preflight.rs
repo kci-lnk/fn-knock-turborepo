@@ -78,10 +78,13 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
     } else {
         false
     };
-    let active_rule_grant = if !normal_access.authorized && !strict_whitelist_denied {
-        subdomain_grant::inspect_existing(state, headers, config).await?
+    let active_rule_access = if !normal_access.authorized && !strict_whitelist_denied {
+        subdomain_grant::has_valid_probe(state, headers, config)
+            || subdomain_grant::inspect_existing(state, headers, config)
+                .await?
+                .is_some()
     } else {
-        None
+        false
     };
 
     if normal_access.invalid_session_cookie {
@@ -98,9 +101,10 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         response
             .headers_mut()
             .insert("X-Option", HeaderValue::from_static("Deny"));
-    } else if active_rule_grant.is_some() {
-        // A previously issued grant is already bound to this host and policy;
-        // it is intentionally independent of the current rule inputs.
+    } else if active_rule_access {
+        // A previously issued grant or a valid short-lived cookie probe is
+        // already bound to this host and policy. Verify will reuse the grant
+        // or exchange the probe without relying on the current rule inputs.
     } else if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
         insert_preflight_headers(response, &normal_access.response_headers);
         response.headers_mut().insert(

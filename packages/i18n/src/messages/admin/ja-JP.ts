@@ -3359,6 +3359,7 @@ export const jaJPAdmin = {
       issued: "発行済み",
       renewed: "更新済み",
       reused: "再利用",
+      transient: "リクエスト単位",
     },
     credentialMethods: {
       totp: "TOTP",

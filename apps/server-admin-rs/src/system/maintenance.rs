@@ -59,6 +59,9 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     // The per-host expiry index contains runtime credential metadata and may
     // otherwise restore orphan members without their excluded grant records.
     "fn_knock:auth:subdomain_rule_grant_active:",
+    // A short-lived earlier implementation wrote cookie-capability issue
+    // slots. They are obsolete runtime tombstones and must not survive backup.
+    "fn_knock:auth:subdomain_rule_issue_slot:",
     // Sliding-window issuance counters are runtime state as well.
     "fn_knock:auth:subdomain_rule_rate:",
     "fn_knock:backoff:",

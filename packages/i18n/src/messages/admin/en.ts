@@ -3351,6 +3351,7 @@ export const enAdmin = {
       issued: "Issued",
       renewed: "Renewed",
       reused: "Reused",
+      transient: "Per-request",
     },
     credentialMethods: {
       totp: "TOTP",

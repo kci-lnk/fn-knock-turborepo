@@ -3339,6 +3339,7 @@ export const koKRAdmin = {
       issued: "발급됨",
       renewed: "갱신됨",
       reused: "재사용됨",
+      transient: "요청별 허용",
     },
     credentialMethods: {
       totp: "TOTP",

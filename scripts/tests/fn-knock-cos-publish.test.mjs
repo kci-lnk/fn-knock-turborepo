@@ -551,7 +551,7 @@ test("refuses to overwrite different same-version objects", async (context) => {
   assert.deepEqual(store.operations, []);
 });
 
-test("resumes a partial version upload while latest still points to the old release", async (context) => {
+test("resumes and replaces a partial version upload while latest still points to the old release", async (context) => {
   const fixture = await createFixture();
   context.after(() => rm(fixture.root, { recursive: true, force: true }));
   const plan = await buildFixturePlan(fixture);
@@ -560,6 +560,8 @@ test("resumes a partial version upload while latest still points to the old rele
   for (const object of completed) {
     store.set(object.key, object.body ?? (await readFile(object.path)), object);
   }
+  const stale = plan.versionObjects[completed.length];
+  store.set(stale.key, Buffer.from("stale same-version build\n"), stale);
 
   await publishRelease({
     plan,
@@ -575,6 +577,8 @@ test("resumes a partial version upload while latest still points to the old rele
   for (const object of completed) {
     assert.ok(!store.operations.includes(`put:${object.key}`));
   }
+  assert.ok(store.operations.includes(`put:${stale.key}`));
+  assert.equal((await store.head(stale.key)).sha256, stale.sha256);
   for (const object of plan.versionObjects.slice(6)) {
     assert.ok(store.operations.includes(`put:${object.key}`));
   }

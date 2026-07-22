@@ -701,7 +701,12 @@ export const verifyLatestDocument = (actual, expected) => {
   );
 };
 
-const prepareVersionUploads = async ({ plan, store, log }) => {
+const prepareVersionUploads = async ({
+  plan,
+  store,
+  currentVersion,
+  log,
+}) => {
   const missing = [];
   for (const object of plan.versionObjects) {
     const head = await store.head(object.key);
@@ -710,6 +715,11 @@ const prepareVersionUploads = async ({ plan, store, log }) => {
       continue;
     }
     if (head.size !== object.size) {
+      if (currentVersion !== plan.version) {
+        missing.push(object);
+        log(`replacing staged ${object.key} (size changed)`);
+        continue;
+      }
       fail(`same-version COS object size mismatch: ${object.key}`);
     }
     let actualSha256 = head.sha256;
@@ -721,6 +731,11 @@ const prepareVersionUploads = async ({ plan, store, log }) => {
       actualSha256 = sha256Buffer(existing.body);
     }
     if (actualSha256 !== object.sha256) {
+      if (currentVersion !== plan.version) {
+        missing.push(object);
+        log(`replacing staged ${object.key} (SHA-256 changed)`);
+        continue;
+      }
       fail(`same-version COS object SHA-256 mismatch: ${object.key}`);
     }
     log(`reused ${object.key} (${object.size} bytes, sha256 ${object.sha256})`);
@@ -796,6 +811,7 @@ export const publishRelease = async ({
   const versionUploads = await prepareVersionUploads({
     plan,
     store,
+    currentVersion,
     log,
   });
   await mapWithConcurrency(versionUploads, 3, (object) =>

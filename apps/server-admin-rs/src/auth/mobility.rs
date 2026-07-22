@@ -602,8 +602,9 @@ pub use cleanup::{
 };
 use events::*;
 pub use login::create_login_session;
+pub(crate) use restore::list_stream_access_sessions_by_ip;
 use restore::resolve_bootstrap_owner;
-pub use restore::{list_active_sessions_by_ip, try_restore_access};
+pub use restore::try_restore_access;
 pub(crate) use trusted_sync::sync_browser_session_ip_with_session;
 pub use trusted_sync::{sync_browser_session_ip, sync_trusted_request};
 

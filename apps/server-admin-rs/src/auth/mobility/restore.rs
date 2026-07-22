@@ -350,3 +350,47 @@ pub async fn list_active_sessions_by_ip(
     }
     Ok(owners)
 }
+
+pub(crate) async fn list_stream_access_sessions_by_ip(
+    state: &AppState,
+    client_ip: &str,
+) -> anyhow::Result<Vec<(String, LoginSession)>> {
+    let normalized_ip = normalized_or_trimmed_ip(client_ip);
+    if normalized_ip.is_empty() {
+        return Ok(Vec::new());
+    }
+    let config = state.store.get_config().await?;
+    let mut owners = Vec::new();
+    for (session_id, session) in state.store.list_login_sessions().await? {
+        // Protocol mappings have no browser cookie to refresh mobility state.
+        // Keep the session's canonical IP eligible for the lifetime of its
+        // stream grant, while additional drift IPs remain window-bound.
+        if stream_access_ip_matches(&session.ip, &normalized_ip) {
+            owners.push((session_id, session));
+            continue;
+        }
+        let ips = effective_session_ips(state, &session_id, &session, &config).await?;
+        if ips
+            .iter()
+            .any(|ip| stream_access_ip_matches(ip, &normalized_ip))
+        {
+            owners.push((session_id, session));
+        }
+    }
+    Ok(owners)
+}
+
+fn stream_access_ip_matches(left: &str, right: &str) -> bool {
+    let left = normalized_or_trimmed_ip(left);
+    let right = normalized_or_trimmed_ip(right);
+    if left.is_empty() || right.is_empty() {
+        return false;
+    }
+    match (
+        left.parse::<std::net::IpAddr>(),
+        right.parse::<std::net::IpAddr>(),
+    ) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
+}

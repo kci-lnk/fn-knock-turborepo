@@ -603,7 +603,7 @@ async fn resolve_stream_session_access(
 ) -> anyhow::Result<StreamSessionAccess> {
     let mut result = StreamSessionAccess::default();
     for (_session_id, session) in
-        auth_mobility::list_active_sessions_by_ip(state, client_ip).await?
+        auth_mobility::list_stream_access_sessions_by_ip(state, client_ip).await?
     {
         if login_session_has_expired(&session) {
             continue;
@@ -1119,7 +1119,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stream_scope_reconciles_current_session_and_matches_protocol_port() {
+    async fn stream_scope_keeps_canonical_ip_and_expires_only_drift_ips_with_mobility() {
         let directory = tempfile::tempdir().expect("temporary auth database");
         let mut settings = {
             let _environment = crate::test_support::EnvGuard::new(&[]);
@@ -1136,7 +1136,8 @@ mod tests {
             .save_config(&json!({
                 "auth_credential_settings": {
                     "post_login_ip_grant_mode": "follow_session",
-                    "session_ip_mobility_enabled": false
+                    "session_ip_mobility_enabled": true,
+                    "session_ip_mobility_window_seconds": 60
                 }
             }))
             .await
@@ -1182,6 +1183,26 @@ mod tests {
             .add_session("session-1", &session, 3600)
             .await
             .expect("login session");
+        let now = time_utils::now_ms() / 1000;
+        assert!(
+            state
+                .store
+                .save_auth_mobility_active_ip_detail(
+                    "session-1",
+                    "203.0.113.10",
+                    now - 60,
+                    &json!({
+                        "version": 1,
+                        "ip": "203.0.113.10",
+                        "firstSeenAt": now - 60,
+                        "lastSeenAt": now - 60,
+                        "source": "browser-session"
+                    }),
+                    3_600,
+                )
+                .await
+                .expect("expired canonical active IP")
+        );
 
         auth_mobility::reconcile_stream_access_grants_for_totp_credential(
             &state,
@@ -1203,6 +1224,87 @@ mod tests {
         assert!(!denied.allowed);
         assert!(denied.has_custom_owner);
 
+        let mut updates = serde_json::Map::new();
+        updates.insert("ip".to_string(), Value::String("203.0.113.11".to_string()));
+        state
+            .store
+            .update_session_value("session-1", updates)
+            .await
+            .expect("session IP update")
+            .expect("live session");
+
+        assert!(
+            resolve_stream_session_access(&state, "203.0.113.11", "tcp", 2222)
+                .await
+                .expect("new canonical IP lookup")
+                .allowed
+        );
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.10", "tcp", 2222)
+                .await
+                .expect("unregistered drift IP lookup")
+                .allowed
+        );
+
+        let drift_detail = json!({
+            "version": 1,
+            "ip": "203.0.113.10",
+            "firstSeenAt": now,
+            "lastSeenAt": now,
+            "source": "browser-session"
+        });
+        assert!(
+            state
+                .store
+                .save_auth_mobility_active_ip_detail(
+                    "session-1",
+                    "203.0.113.10",
+                    now,
+                    &drift_detail,
+                    3_600,
+                )
+                .await
+                .expect("recent drift IP")
+        );
+        assert!(
+            resolve_stream_session_access(&state, "203.0.113.10", "tcp", 2222)
+                .await
+                .expect("recent drift IP lookup")
+                .allowed
+        );
+
+        assert!(
+            state
+                .store
+                .save_auth_mobility_active_ip_detail(
+                    "session-1",
+                    "203.0.113.10",
+                    now - 60,
+                    &json!({
+                        "version": 1,
+                        "ip": "203.0.113.10",
+                        "firstSeenAt": now - 60,
+                        "lastSeenAt": now - 60,
+                        "source": "browser-session"
+                    }),
+                    3_600,
+                )
+                .await
+                .expect("expired drift IP")
+        );
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.10", "tcp", 2222)
+                .await
+                .expect("expired drift IP lookup")
+                .allowed
+        );
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.10", "tcp", 2222)
+                .await
+                .expect("expired drift IP repeat lookup")
+                .allowed
+        );
+
         let all_access = json!({ "mode": "all", "hosts": [], "streams": [] });
         state
             .store
@@ -1219,9 +1321,272 @@ mod tests {
         .expect("all-scope stream grant reconciliation");
 
         assert!(
-            resolve_stream_session_access(&state, "203.0.113.10", "udp", 5353)
+            resolve_stream_session_access(&state, "203.0.113.11", "udp", 5353)
                 .await
                 .expect("all-scope stream lookup")
+                .allowed
+        );
+
+        let mut updates = serde_json::Map::new();
+        updates.insert(
+            "expiresAt".to_string(),
+            Value::String("2000-01-01T00:00:00Z".to_string()),
+        );
+        state
+            .store
+            .update_session_value("session-1", updates)
+            .await
+            .expect("session expiry update")
+            .expect("live session key");
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.11", "udp", 5353)
+                .await
+                .expect("expired session lookup")
+                .allowed
+        );
+    }
+
+    #[tokio::test]
+    async fn canonical_stream_ip_respects_grant_mode_credentials_ipv6_and_session_union() {
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "stream-canonical-policy-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        state
+            .store
+            .save_config(&json!({
+                "auth_credential_settings": {
+                    "post_login_ip_grant_mode": "follow_session",
+                    "session_ip_mobility_enabled": true,
+                    "session_ip_mobility_window_seconds": 60
+                },
+                "host_mappings": [{
+                    "host": "protected.example.com",
+                    "use_auth": true
+                }]
+            }))
+            .await
+            .expect("auth config");
+
+        let tcp_credential = TotpCredential {
+            id: "totp-tcp".to_string(),
+            secret: "TCP".to_string(),
+            comment: "TCP only".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: json!([]),
+            subdomain_access: json!({
+                "mode": "custom",
+                "hosts": ["protected.example.com"],
+                "streams": [{ "protocol": "tcp", "listen_port": 2222 }]
+            }),
+        };
+        let udp_credential = TotpCredential {
+            id: "totp-udp".to_string(),
+            secret: "UDP".to_string(),
+            comment: "UDP only".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: json!([]),
+            subdomain_access: json!({
+                "mode": "custom",
+                "hosts": [],
+                "streams": [{ "protocol": "udp", "listen_port": 5353 }]
+            }),
+        };
+        let all_credential = TotpCredential {
+            id: "totp-all".to_string(),
+            secret: "ALL".to_string(),
+            comment: "All streams".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: json!([]),
+            subdomain_access: json!({ "mode": "all", "hosts": [], "streams": [] }),
+        };
+        for credential in [&tcp_credential, &udp_credential, &all_credential] {
+            state
+                .store
+                .add_totp(credential.clone())
+                .await
+                .expect("TOTP credential");
+        }
+
+        let session_for = |credential: &TotpCredential, ip: &str| LoginSession {
+            totp_id: credential.id.clone(),
+            method: "TOTP".to_string(),
+            credential_id: credential.id.clone(),
+            credential_name: credential.comment.clone(),
+            linked_totp_name: None,
+            access_scopes: None,
+            subdomain_access: None,
+            grant_type: Some("login_ip_grant".to_string()),
+            post_login_ip_grant_mode: Some("custom".to_string()),
+            post_login_ip_grant_record_id: None,
+            stream_access_expires_at: Some(time_utils::iso_after_seconds(600)),
+            comment: None,
+            ip: ip.to_string(),
+            user_agent: "stream-test".to_string(),
+            login_time: time_utils::now_iso(),
+            expires_at: Some(time_utils::iso_after_seconds(3_600)),
+            ip_location: None,
+        };
+
+        let ipv6 = "[2001:0db8:0:0::10]";
+        state
+            .store
+            .add_session("session-tcp", &session_for(&tcp_credential, ipv6), 3_600)
+            .await
+            .expect("TCP session");
+        assert!(
+            resolve_stream_session_access(&state, "2001:db8::10", "tcp", 2222)
+                .await
+                .expect("normalized IPv6 stream lookup")
+                .allowed
+        );
+
+        let mut updates = serde_json::Map::new();
+        updates.insert(
+            "streamAccessExpiresAt".to_string(),
+            Value::String("2000-01-01T00:00:00Z".to_string()),
+        );
+        state
+            .store
+            .update_session_value("session-tcp", updates)
+            .await
+            .expect("custom grant expiry update")
+            .expect("live TCP session");
+        let expired_custom = resolve_stream_session_access(&state, "2001:db8::10", "tcp", 2222)
+            .await
+            .expect("expired custom stream lookup");
+        assert!(!expired_custom.allowed);
+        assert!(expired_custom.has_custom_owner);
+
+        let protected_subdomain = handle_authorize_http(
+            state.clone(),
+            AuthorizeHttpRequest {
+                context: Some(AuthContext {
+                    client_ip: "2001:db8::10".to_string(),
+                    forwarded_host: "protected.example.com".to_string(),
+                    forwarded_proto: "https".to_string(),
+                    path: "/".to_string(),
+                    cookie: format!("{}=session-tcp", cookies::SESSION_COOKIE_NAME),
+                    ..Default::default()
+                }),
+                matched: false,
+                mode: HttpAuthMode::PreflightAndVerify as i32,
+                subdomain_rule_match: None,
+            },
+        )
+        .await;
+        let protected_preflight = protected_subdomain
+            .preflight
+            .expect("protected subdomain preflight");
+        assert!(protected_preflight.redirect_location.is_empty());
+        assert!(protected_preflight.access_denied_reason.is_empty());
+        assert!(
+            protected_subdomain
+                .verify
+                .expect("protected subdomain verify")
+                .success
+        );
+        assert!(
+            !resolve_stream_session_access(&state, "2001:db8::10", "tcp", 2222)
+                .await
+                .expect("expired custom stream lookup after protected subdomain access")
+                .allowed
+        );
+        let refreshed_tcp_session = state
+            .store
+            .get_session("session-tcp")
+            .await
+            .expect("refreshed TCP session lookup")
+            .expect("live TCP session");
+        assert_eq!(refreshed_tcp_session.ip, "2001:db8::10");
+        assert_eq!(
+            refreshed_tcp_session.stream_access_expires_at.as_deref(),
+            Some("2000-01-01T00:00:00Z")
+        );
+
+        state
+            .store
+            .add_session("session-udp", &session_for(&udp_credential, ipv6), 3_600)
+            .await
+            .expect("UDP session");
+        assert!(
+            resolve_stream_session_access(&state, "2001:db8::10", "udp", 5353)
+                .await
+                .expect("same-IP session union lookup")
+                .allowed
+        );
+        assert!(
+            !resolve_stream_session_access(&state, "2001:db8::10", "tcp", 2222)
+                .await
+                .expect("same-IP scoped denial")
+                .allowed
+        );
+
+        let mut disabled = session_for(&all_credential, "203.0.113.20");
+        disabled.grant_type = Some("browser_session".to_string());
+        disabled.post_login_ip_grant_mode = None;
+        disabled.stream_access_expires_at = None;
+        state
+            .store
+            .add_session("session-disabled", &disabled, 3_600)
+            .await
+            .expect("disabled stream session");
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.20", "tcp", 2222)
+                .await
+                .expect("disabled stream lookup")
+                .allowed
+        );
+
+        let mut legacy_follow = session_for(&all_credential, "203.0.113.40");
+        legacy_follow.post_login_ip_grant_mode = Some("follow_session".to_string());
+        legacy_follow.stream_access_expires_at = None;
+        state
+            .store
+            .add_session("session-legacy", &legacy_follow, 3_600)
+            .await
+            .expect("legacy follow-session stream session");
+        assert!(
+            resolve_stream_session_access(&state, "203.0.113.40", "tcp", 2222)
+                .await
+                .expect("legacy follow-session stream lookup")
+                .allowed
+        );
+
+        let mut missing_credential = session_for(&all_credential, "203.0.113.30");
+        missing_credential.totp_id = "missing-totp".to_string();
+        state
+            .store
+            .add_session("session-missing", &missing_credential, 3_600)
+            .await
+            .expect("missing-credential session");
+        assert!(
+            !resolve_stream_session_access(&state, "203.0.113.30", "tcp", 2222)
+                .await
+                .expect("missing credential stream lookup")
+                .allowed
+        );
+
+        state
+            .store
+            .add_session(
+                "session-invalid-ip",
+                &session_for(&all_credential, "unknown"),
+                3_600,
+            )
+            .await
+            .expect("invalid-IP session");
+        assert!(
+            !resolve_stream_session_access(&state, "unknown", "tcp", 2222)
+                .await
+                .expect("invalid IP stream lookup")
                 .allowed
         );
     }

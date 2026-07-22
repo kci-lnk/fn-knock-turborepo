@@ -18,6 +18,13 @@ const KNOWN_PACKAGE_TYPES = [
   "linux",
   "windows",
 ];
+const LATEST_HEADER = [
+  "[**用户协议与隐私政策**](https://www.fnknock.cn/legal)",
+  "如果您是在飞牛应用商店安装的Knock，建议在官网重新下载FPK版本，功能更全面",
+  "我们推出了OpenWrt应用（IPK、Alpine APK），以及群晖SPK原生支持，欢迎在官网下载安装体验",
+  "[**官网**](https://www.fnknock.cn/)  、[**文档**](https://docs.fnknock.cn/) 、 [**Docker版**](https://hub.docker.com/r/kcilnk/fn-knock)、[**Windows版**](https://www.fnknock.cn/windows) 、 [**Linux一键脚本**](https://www.fnknock.cn/linux)、[**群晖套件**](https://www.fnknock.cn/synology)",
+  "QQ群：1081609274",
+].join("\n\n");
 const POINTER_CACHE_CONTROL = "no-cache";
 const LATEST_KEY = "latest.json";
 const WINDOWS_STABLE_KEY = "windows/stable/latest.json";
@@ -565,6 +572,7 @@ export const buildReleasePlan = async ({
 
   const latestCore = {
     version,
+    header: LATEST_HEADER,
     update_available: true,
     force_update: false,
     download_url: packages.fpk.amd64.download_url,

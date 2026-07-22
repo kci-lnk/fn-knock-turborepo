@@ -53,6 +53,7 @@ mod tests;
 const MAX_SCAN_CIDRS: usize = 16;
 const MAX_SCAN_HOSTS: u64 = 1024;
 const DOCKER_DISCOVER_IP_HEADER: &str = "x-fn-knock-docker-discover-ip";
+const DOCKER_DISCOVER_CIDRS_HEADER: &str = "x-fn-knock-docker-discover-cidrs";
 const DISCOVER_JOB_ACTIVE_TTL_MS: i64 = 30 * 60 * 1000;
 const DISCOVER_JOB_DONE_TTL_MS: i64 = 5 * 60 * 1000;
 const DISCOVER_JOB_MAX_ACTIVE: usize = 4;

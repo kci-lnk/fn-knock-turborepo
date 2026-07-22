@@ -2408,6 +2408,12 @@ export const zhHantAdmin = {
     finalHost: "最終地址：{host}",
     notFilled: "未填寫",
     targetLabel: "目標",
+    dockerTargetPlaceholder: "宿主機區域網路 IP:連接埠",
+    dockerTargetCandidatesLoading: "正在推導 Docker 宿主機區域網路地址...",
+    dockerTargetCandidatesHint:
+      "Docker 內的 127.0.0.1 只指向目前容器，請從候選宿主機地址中選擇並填寫連接埠。",
+    dockerTargetCandidatesEmpty:
+      "未能自動識別宿主機地址，請填寫區域網路 IP，或設定 DOCKER_DISCOVER_LAN_CIDRS。",
     authRequired: "要求登入",
     authRequiredDescription: "安全性，未登入使用者會被要求登入才可以訪問。",
     toolbar: "顯示傳送門",

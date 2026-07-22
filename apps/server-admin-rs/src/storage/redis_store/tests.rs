@@ -1057,6 +1057,79 @@ async fn session_merge_is_atomic_preserves_absolute_expiry_and_never_recreates()
 }
 
 #[tokio::test]
+async fn docker_admin_session_refresh_never_recreates_a_revoked_session() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+
+    for round in 0..16 {
+        let now = crate::time_utils::now_iso();
+        let record = DockerAdminSessionRecord {
+            id: format!("docker-admin-race-{round}"),
+            created_at: now.clone(),
+            updated_at: now,
+            expires_at: crate::time_utils::iso_after_seconds(600),
+            ttl_seconds: 600,
+            password_revision: "password-revision".to_string(),
+            ip: "192.0.2.1".to_string(),
+            user_agent: "test".to_string(),
+        };
+        store
+            .set_docker_admin_session(&record)
+            .await
+            .expect("seed docker admin session");
+
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+        let refresh_store = store.clone();
+        let refresh_barrier = std::sync::Arc::clone(&barrier);
+        let refresh_record = record.clone();
+        let refresher = tokio::spawn(async move {
+            refresh_barrier.wait().await;
+            refresh_store
+                .refresh_docker_admin_session_if_exists(&refresh_record)
+                .await
+        });
+        let delete_store = store.clone();
+        let delete_barrier = std::sync::Arc::clone(&barrier);
+        let delete_id = record.id.clone();
+        let deleter = tokio::spawn(async move {
+            delete_barrier.wait().await;
+            delete_store.delete_docker_admin_session(&delete_id).await
+        });
+        barrier.wait().await;
+        refresher.await.expect("refresher task").expect("refresh");
+        deleter.await.expect("deleter task").expect("delete");
+
+        assert!(
+            store
+                .docker_admin_session(&record.id)
+                .await
+                .expect("final session lookup")
+                .is_none(),
+            "round {round} recreated a revoked docker admin session"
+        );
+    }
+
+    let missing = DockerAdminSessionRecord {
+        id: "missing-docker-admin-session".to_string(),
+        created_at: crate::time_utils::now_iso(),
+        updated_at: crate::time_utils::now_iso(),
+        expires_at: crate::time_utils::iso_after_seconds(600),
+        ttl_seconds: 600,
+        password_revision: "password-revision".to_string(),
+        ip: "192.0.2.1".to_string(),
+        user_agent: "test".to_string(),
+    };
+    assert!(
+        !store
+            .refresh_docker_admin_session_if_exists(&missing)
+            .await
+            .expect("missing session refresh")
+    );
+}
+
+#[tokio::test]
 async fn binding_keep_ttl_rejects_missing_keys_and_preserves_persistent_keys() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
@@ -1514,6 +1587,7 @@ fn docker_admin_session_record_accepts_legacy_missing_ttl() {
     .expect("legacy docker admin session");
 
     assert_eq!(record.ttl_seconds, 0);
+    assert!(record.password_revision.is_empty());
 }
 
 #[test]

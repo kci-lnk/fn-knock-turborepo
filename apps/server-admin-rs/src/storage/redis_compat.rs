@@ -2638,6 +2638,7 @@ fn set_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResul
     let value = arg(args, 1)?.to_string();
     let mut ttl_ms = None;
     let mut nx = false;
+    let mut xx = false;
     let mut index = 2;
     while index < args.len() {
         match args[index].to_ascii_uppercase().as_str() {
@@ -2661,15 +2662,25 @@ fn set_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResul
                 nx = true;
                 index += 1;
             }
+            "XX" => {
+                xx = true;
+                index += 1;
+            }
             _ => index += 1,
         }
     }
     purge_expired_tx(tx, &key)?;
+    if nx && xx {
+        return Err(storage_error("SET cannot combine NX and XX"));
+    }
     if nx && key_kind_tx(tx, &key)?.is_some() {
         return Ok(CmdOutput::OptionalString(None));
     }
+    if xx && key_kind_tx(tx, &key)?.is_none() {
+        return Ok(CmdOutput::OptionalString(None));
+    }
     set_string_tx(tx, &key, &value, ttl_ms.map(|ttl| now_ms() + ttl))?;
-    Ok(if nx {
+    Ok(if nx || xx {
         CmdOutput::OptionalString(Some("OK".to_string()))
     } else {
         CmdOutput::String("OK".to_string())

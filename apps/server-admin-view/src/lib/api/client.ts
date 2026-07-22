@@ -1,4 +1,5 @@
 import { createApiClient } from "@frontend-core/api/createApiClient";
+import { isDockerAdminAuthRequiredResponse } from "../docker-admin-auth-response";
 import { isSynologyCgiApiPath } from "./synology-cgi";
 
 export const resolveAppRelativePath = (relativePath: string) => {
@@ -31,7 +32,10 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (typeof window !== "undefined" && error?.response?.status === 401) {
+    if (
+      typeof window !== "undefined" &&
+      isDockerAdminAuthRequiredResponse(error)
+    ) {
       window.dispatchEvent(
         new CustomEvent("fn-knock:docker-admin-auth-required"),
       );

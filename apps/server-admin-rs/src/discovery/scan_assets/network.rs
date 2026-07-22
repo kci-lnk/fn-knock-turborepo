@@ -210,13 +210,32 @@ pub(super) fn is_excluded_interface(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     lower == "lo"
         || lower.starts_with("docker")
-        || lower.starts_with("br-")
+        || is_docker_generated_bridge_name(&lower)
         || lower.starts_with("veth")
         || lower.starts_with("tailscale")
         || lower.starts_with("zt")
         || lower.starts_with("tun")
         || lower.starts_with("tap")
         || lower.starts_with("wg")
+        || lower.starts_with("gre")
+        || lower.starts_with("ipip")
+        || lower.starts_with("sit")
+        || lower.starts_with("vxlan")
+        || lower.starts_with("genev")
+        || lower.starts_with("erspan")
+        || lower.starts_with("ip6tnl")
+        || lower.starts_with("ip6gre")
+}
+
+pub(super) fn is_docker_generated_bridge_name(name: &str) -> bool {
+    let lower = name.trim().to_ascii_lowercase();
+    let Some(suffix) = lower.strip_prefix("br-") else {
+        return false;
+    };
+    (12..=64).contains(&suffix.len())
+        && suffix
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
 }
 
 pub(super) fn is_private_ipv4(ip: Ipv4Addr) -> bool {
@@ -243,35 +262,135 @@ pub(super) fn extract_ipv4_from_target(value: &str) -> Option<String> {
     is_allowed_scan_ipv4(&ip.to_string()).then(|| ip.to_string())
 }
 
-pub(super) fn resolve_docker_discover_host(headers: &HeaderMap) -> Option<String> {
-    headers
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct DockerDiscoverHostCandidate {
+    pub(super) address: String,
+    pub(super) cidr: String,
+    pub(super) source: &'static str,
+}
+
+pub(super) fn resolve_docker_discover_candidates(
+    headers: &HeaderMap,
+) -> Vec<DockerDiscoverHostCandidate> {
+    let mut output = Vec::new();
+    let mut seen_addresses = BTreeSet::new();
+
+    for env_name in ["DOCKER_DISCOVER_LAN_CIDRS", "DOCKER_DISCOVER_LAN_IP"] {
+        if let Ok(value) = env::var(env_name) {
+            for item in split_discover_candidate_values(&value) {
+                push_docker_discover_candidate(
+                    &mut output,
+                    &mut seen_addresses,
+                    item,
+                    "configured",
+                );
+            }
+        }
+    }
+
+    let proxy_cidr_values = headers
+        .get(DOCKER_DISCOVER_CIDRS_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| split_discover_candidate_values(value).collect::<Vec<_>>())
+        .unwrap_or_default();
+    if let Some(value) = headers
         .get(DOCKER_DISCOVER_IP_HEADER)
         .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| is_usable_private_discover_ipv4(value))
-        .map(str::to_string)
-        .or_else(|| {
-            env::var("DOCKER_DISCOVER_LAN_IP")
-                .ok()
-                .map(|value| value.trim().to_string())
-                .filter(|value| is_usable_private_discover_ipv4(value))
-        })
-        .or_else(|| {
-            for header in ["x-forwarded-host", "host"] {
-                let Some(host) = headers.get(header).and_then(|value| value.to_str().ok()) else {
-                    continue;
-                };
-                for candidate in host.split(',').map(normalize_host_like) {
-                    if is_usable_private_discover_ipv4(&candidate) {
-                        return Some(candidate);
-                    }
-                    if let Some(resolved) = resolve_private_ipv4_host(&candidate) {
-                        return Some(resolved);
-                    }
-                }
+    {
+        let preferred_value = proxy_cidr_values
+            .iter()
+            .copied()
+            .find(|candidate| {
+                discover_candidate_address(candidate).as_deref() == Some(value.trim())
+            })
+            .unwrap_or(value);
+        push_docker_discover_candidate(&mut output, &mut seen_addresses, preferred_value, "proxy");
+    }
+    for item in proxy_cidr_values {
+        push_docker_discover_candidate(&mut output, &mut seen_addresses, item, "proxy");
+    }
+
+    for header in ["x-forwarded-host", "host"] {
+        let Some(host) = headers.get(header).and_then(|value| value.to_str().ok()) else {
+            continue;
+        };
+        for candidate in host.split(',').map(normalize_host_like) {
+            if is_usable_private_discover_ipv4(&candidate) {
+                push_docker_discover_candidate(
+                    &mut output,
+                    &mut seen_addresses,
+                    &candidate,
+                    "request_host",
+                );
+            } else if let Some(resolved) = resolve_private_ipv4_host(&candidate) {
+                push_docker_discover_candidate(
+                    &mut output,
+                    &mut seen_addresses,
+                    &resolved,
+                    "request_host",
+                );
             }
-            None
-        })
+        }
+    }
+
+    output
+}
+
+fn split_discover_candidate_values(value: &str) -> impl Iterator<Item = &str> {
+    value
+        .split(|character: char| character == ',' || character.is_whitespace())
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+}
+
+fn discover_candidate_address(value: &str) -> Option<String> {
+    value
+        .trim()
+        .split_once('/')
+        .map(|(address, _)| address)
+        .unwrap_or(value)
+        .trim()
+        .parse::<Ipv4Addr>()
+        .ok()
+        .map(|address| address.to_string())
+}
+
+fn push_docker_discover_candidate(
+    output: &mut Vec<DockerDiscoverHostCandidate>,
+    seen_addresses: &mut BTreeSet<String>,
+    value: &str,
+    source: &'static str,
+) {
+    let (address, prefix) = match value.trim().split_once('/') {
+        Some((address, prefix)) => {
+            let Ok(prefix) = prefix.trim().parse::<u8>() else {
+                return;
+            };
+            (address.trim(), Some(prefix))
+        }
+        None => (value.trim(), None),
+    };
+    let Ok(parsed_address) = address.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let address = parsed_address.to_string();
+    if !is_usable_private_discover_ipv4(&address) {
+        return;
+    }
+    let Some(cidr) = build_ipv4_cidr(&address, prefix.unwrap_or(24)) else {
+        return;
+    };
+    if parse_allowed_scan_cidr(&cidr).is_none() {
+        return;
+    }
+    if !seen_addresses.insert(address.clone()) {
+        return;
+    }
+    output.push(DockerDiscoverHostCandidate {
+        address,
+        cidr,
+        source,
+    });
 }
 
 pub(super) fn normalize_host_like(value: &str) -> String {

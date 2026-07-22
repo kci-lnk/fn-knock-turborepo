@@ -32,10 +32,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import SubdomainMappingVisibilityPanel from "./SubdomainMappingVisibilityPanel.vue";
 import SubdomainMappingIconPanel from "./SubdomainMappingIconPanel.vue";
 import SubdomainMappingIconEntry from "./SubdomainMappingIconEntry.vue";
+import SubdomainMappingTargetField from "./SubdomainMappingTargetField.vue";
 import type { HostMapping } from "@/types";
 import type { MappingInputMode } from "./model";
 import { useMappingVisibility } from "./useMappingVisibility";
@@ -102,10 +102,6 @@ const { t } = useI18n();
 const titleOverrideModel = computed({
   get: () => props.mappingForm.title_override,
   set: (value: string) => props.updateMappingForm({ title_override: value }),
-});
-const targetModel = computed({
-  get: () => props.mappingForm.target,
-  set: (value: string) => props.updateMappingForm({ target: value }),
 });
 const mappingSubdomainModel = computed({
   get: () => props.mappingSubdomain,
@@ -337,18 +333,11 @@ const mappingWafEnabledModel = computed({
               </template>
             </div>
 
-            <div class="space-y-2">
-              <Label for="mapping-target">
-                {{ t("admin.subdomainProxy.targetLabel") }}
-              </Label>
-              <ProxyTargetInputField
-                v-model="targetModel"
-                input-id="mapping-target"
-                protocol-id="mapping-target-protocol"
-                placeholder="127.0.0.1:5173"
-                :suggestions="['127.0.0.1:']"
-              />
-            </div>
+            <SubdomainMappingTargetField
+              :model-value="mappingForm.target"
+              :open="open"
+              @update:model-value="updateMappingForm({ target: $event })"
+            />
 
             <div class="space-y-3 pt-2">
               <h3 class="text-sm font-semibold">

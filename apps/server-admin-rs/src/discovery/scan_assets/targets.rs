@@ -6,7 +6,13 @@ pub(super) fn build_discover_targets_payload(
     config: &Value,
     translator: &Translator,
 ) -> Value {
-    let automatic_targets = build_automatic_discover_targets(state, headers, config, translator);
+    let docker_candidates = if deployment_target(state) == "docker" {
+        resolve_docker_discover_candidates(headers)
+    } else {
+        Vec::new()
+    };
+    let automatic_targets =
+        build_automatic_discover_targets(state, config, translator, &docker_candidates);
     let scan_discovery = config.get("scan_discovery");
     let custom_targets = build_custom_discover_targets(
         scan_discovery
@@ -31,6 +37,20 @@ pub(super) fn build_discover_targets_payload(
         .iter()
         .filter_map(|item| item.get("cidr").and_then(Value::as_str).map(str::to_string))
         .collect::<Vec<_>>();
+    let automatic_cidr_set = automatic_cidrs.iter().cloned().collect::<BTreeSet<_>>();
+    let host_candidates = docker_candidates
+        .iter()
+        .enumerate()
+        .map(|(index, candidate)| {
+            json!({
+                "address": candidate.address,
+                "cidr": candidate.cidr,
+                "source": candidate.source,
+                "recommended": index == 0,
+                "includedInAutomaticScan": automatic_cidr_set.contains(&candidate.cidr),
+            })
+        })
+        .collect::<Vec<_>>();
     let selection_mode = if saved_selected_cidrs.is_empty() {
         "automatic"
     } else {
@@ -49,6 +69,7 @@ pub(super) fn build_discover_targets_payload(
     let selected_targets = build_saved_discover_targets(effective_cidrs.clone(), translator);
     json!({
         "automaticTargets": automatic_targets,
+        "hostCandidates": host_candidates,
         "customTargets": custom_targets,
         "selectedTargets": selected_targets,
         "selectionMode": selection_mode,
@@ -63,16 +84,19 @@ pub(super) fn build_discover_targets_payload(
 
 pub(super) fn build_automatic_discover_targets(
     state: &AppState,
-    headers: &HeaderMap,
     config: &Value,
     translator: &Translator,
+    docker_candidates: &[DockerDiscoverHostCandidate],
 ) -> Vec<Value> {
     let mut targets = Vec::new();
     if deployment_target(state) == "docker" {
-        targets.push(build_docker_discover_target(
-            resolve_docker_discover_host(headers),
-            translator,
-        ));
+        targets.extend(
+            docker_candidates
+                .iter()
+                .map(|candidate| build_docker_discover_target(candidate, translator)),
+        );
+        targets.extend(build_mapping_discover_targets(config, translator));
+        targets.extend(build_interface_discover_targets(translator));
     } else {
         let cidr = "127.0.0.1/32";
         targets.push(to_discover_target(
@@ -81,10 +105,10 @@ pub(super) fn build_automatic_discover_targets(
             "loopback",
             true,
         ));
+        targets.extend(build_interface_discover_targets(translator));
+        targets.extend(build_mapping_discover_targets(config, translator));
     }
-    targets.extend(build_interface_discover_targets(translator));
-    targets.extend(build_mapping_discover_targets(config, translator));
-    dedupe_targets(targets)
+    limit_automatic_targets(dedupe_targets(targets))
 }
 
 pub(super) fn resolve_discover_self_hosts(state: &AppState, headers: &HeaderMap) -> Vec<String> {
@@ -94,10 +118,12 @@ pub(super) fn resolve_discover_self_hosts(state: &AppState, headers: &HeaderMap)
             .into_iter()
             .map(|candidate| candidate.address),
     );
-    if deployment_target(state) == "docker"
-        && let Some(host) = resolve_docker_discover_host(headers)
-    {
-        hosts.push(host);
+    if deployment_target(state) == "docker" {
+        hosts.extend(
+            resolve_docker_discover_candidates(headers)
+                .into_iter()
+                .map(|candidate| candidate.address),
+        );
     }
     normalize_discover_self_hosts(hosts)
 }
@@ -150,17 +176,37 @@ pub(super) fn collect_excluded_ports(state: &AppState) -> Vec<u16> {
 }
 
 pub(super) fn build_docker_discover_target(
-    ip: Option<String>,
+    candidate: &DockerDiscoverHostCandidate,
     translator: &Translator,
 ) -> Option<Value> {
-    let ip = ip.filter(|value| is_allowed_scan_ipv4(value))?;
-    let cidr = build_ipv4_cidr(&ip, 24)?;
+    let cidr = candidate.cidr.clone();
     to_discover_target(
         &cidr,
         &scan_discovery_target_label(translator, "docker", &[("cidr", cidr.clone())]),
         "docker",
         true,
     )
+}
+
+pub(super) fn limit_automatic_targets(targets: Vec<Value>) -> Vec<Value> {
+    let mut output = Vec::new();
+    let mut cidrs = Vec::new();
+    for target in targets {
+        let Some(cidr) = target.get("cidr").and_then(Value::as_str) else {
+            continue;
+        };
+        if output.len() >= MAX_SCAN_CIDRS {
+            break;
+        }
+        let mut candidate_cidrs = cidrs.clone();
+        candidate_cidrs.push(cidr.to_string());
+        if count_scan_hosts(&candidate_cidrs).is_err() {
+            continue;
+        }
+        cidrs = candidate_cidrs;
+        output.push(target);
+    }
+    output
 }
 
 pub(super) fn build_interface_discover_targets(translator: &Translator) -> Vec<Option<Value>> {

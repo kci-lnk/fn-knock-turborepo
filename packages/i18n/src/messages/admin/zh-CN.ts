@@ -2398,6 +2398,12 @@ export const zhCNAdmin = {
     finalHost: "最终地址：{host}",
     notFilled: "未填写",
     targetLabel: "目标",
+    dockerTargetPlaceholder: "宿主机局域网 IP:端口",
+    dockerTargetCandidatesLoading: "正在推导 Docker 宿主机局域网地址...",
+    dockerTargetCandidatesHint:
+      "Docker 内的 127.0.0.1 只指向当前容器，请从候选宿主机地址中选择并填写端口。",
+    dockerTargetCandidatesEmpty:
+      "未能自动识别宿主机地址，请填写局域网 IP，或配置 DOCKER_DISCOVER_LAN_CIDRS。",
     authRequired: "要求登录",
     authRequiredDescription: "安全性，未登录用户会被要求登录才可以访问。",
     toolbar: "显示传送门",

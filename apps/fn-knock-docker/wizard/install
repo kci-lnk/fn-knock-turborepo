@@ -137,10 +137,34 @@
         "initValue": ""
       },
       {
+        "type": "tips",
+        "helpText": "仅在反代来源地址固定时填写。旧版 FPK 传来的网卡发现信息只接受此处明确列出的代理来源；多个值用逗号或空格分隔。"
+      },
+      {
         "type": "text",
-        "field": "wizard_discover_lan_ip",
-        "label": "宿主机局域网 IP 兜底",
+        "field": "wizard_discover_proxy_token",
+        "label": "发现信息共享令牌（可选）",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[A-Za-z0-9._~-]{32,256}$",
+            "message": "令牌需为 32-256 位字母、数字或 . _ ~ -"
+          }
+        ]
+      },
+      {
+        "type": "tips",
+        "helpText": "新版 FPK 可将同一值配置为 FN_KNOCK_DISCOVERY_PROXY_TOKEN，用于认证网卡发现头；留空时可使用上方可信反代来源。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_discover_lan_cidrs",
+        "label": "宿主机局域网 IP/CIDR 候选",
         "initValue": ""
+      },
+      {
+        "type": "tips",
+        "helpText": "通常无需手动填写。无法自动发现有线、无线或 OVS 网段时，可填写多个宿主机局域网 IP/CIDR，并使用逗号或空格分隔。"
       }
     ]
   }

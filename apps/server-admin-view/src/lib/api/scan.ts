@@ -112,8 +112,22 @@ export interface ScanDiscoveryTarget {
   isAutomatic: boolean;
 }
 
+export type ScanDiscoveryHostCandidateSource =
+  | "configured"
+  | "proxy"
+  | "request_host";
+
+export interface ScanDiscoveryHostCandidate {
+  address: string;
+  cidr: string;
+  source: ScanDiscoveryHostCandidateSource;
+  recommended: boolean;
+  includedInAutomaticScan: boolean;
+}
+
 export interface ScanDiscoveryTargetsResponse {
   automaticTargets: ScanDiscoveryTarget[];
+  hostCandidates?: ScanDiscoveryHostCandidate[];
   customTargets: ScanDiscoveryTarget[];
   selectedTargets?: ScanDiscoveryTarget[];
   selectionMode?: "automatic" | "custom";

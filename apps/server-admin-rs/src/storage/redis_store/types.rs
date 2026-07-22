@@ -124,6 +124,8 @@ pub struct DockerAdminSessionRecord {
     pub expires_at: String,
     #[serde(default)]
     pub ttl_seconds: i64,
+    #[serde(default)]
+    pub password_revision: String,
     pub ip: String,
     pub user_agent: String,
 }

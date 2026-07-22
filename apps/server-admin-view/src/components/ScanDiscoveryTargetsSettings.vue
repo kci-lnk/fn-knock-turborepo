@@ -383,6 +383,9 @@ async function ensureSaved(): Promise<string[]> {
   if (isDirty.value) {
     return saveTargets(true);
   }
+  if (isAutomaticSelection.value) {
+    await loadTargets(true);
+  }
   if (selectedCidrs.value.length === 0) {
     const message = t("admin.scanTargets.selectRequired");
     toast.error(message);

@@ -2568,6 +2568,12 @@ export const koKRAdmin = {
     finalHost: "최종 주소: {host}",
     notFilled: "채워지지 않음",
     targetLabel: "대상",
+    dockerTargetPlaceholder: "호스트_LAN_IP:포트",
+    dockerTargetCandidatesLoading: "Docker 호스트 LAN 주소를 검색하는 중...",
+    dockerTargetCandidatesHint:
+      "Docker 내부의 127.0.0.1은 현재 컨테이너만 가리킵니다. 검색된 호스트 주소를 선택하고 포트를 입력하세요.",
+    dockerTargetCandidatesEmpty:
+      "호스트 주소를 찾지 못했습니다. LAN IP를 입력하거나 DOCKER_DISCOVER_LAN_CIDRS를 설정하세요.",
     authRequired: "로그인 필요",
     authRequiredDescription:
       "보안을 위해 로그인하지 않은 사용자는 로그인을 해야 접근할 수 있습니다.",

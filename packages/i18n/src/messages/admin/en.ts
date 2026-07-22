@@ -2574,6 +2574,12 @@ export const enAdmin = {
     finalHost: "Final address: {host}",
     notFilled: "Not filled",
     targetLabel: "Target",
+    dockerTargetPlaceholder: "HOST_LAN_IP:PORT",
+    dockerTargetCandidatesLoading: "Detecting Docker host LAN addresses...",
+    dockerTargetCandidatesHint:
+      "127.0.0.1 inside Docker points only to this container. Choose a detected host address and enter its port.",
+    dockerTargetCandidatesEmpty:
+      "No host address was detected. Enter a LAN IP or configure DOCKER_DISCOVER_LAN_CIDRS.",
     authRequired: "Require sign-in",
     authRequiredDescription:
       "For security, users who are not signed in must sign in before access.",

@@ -13,7 +13,10 @@ use ipnet::IpNet;
 use subtle::ConstantTimeEq;
 
 use crate::{
-    admin_panel::resolve_panel_auth_context,
+    admin_panel::{
+        admin_auth_required_response, append_panel_session_refresh_cookie,
+        panel_session_refresh_cookie, resolve_panel_auth_context,
+    },
     http_utils::{self, html_escape},
     i18n::Translator,
     response,
@@ -22,7 +25,12 @@ use crate::{
 
 const DOCKER_ADMIN_PROXY_HEADER_NAME: &str = "x-fn-knock-admin-proxy";
 const DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME: &str = "x-fn-knock-docker-discover-ip";
+const DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME: &str = "x-fn-knock-docker-discover-cidrs";
 const UPSTREAM_PRIVATE_IPV4_HEADER_NAME: &str = "x-reauth-upstream-private-ipv4";
+const UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME: &str = "x-reauth-upstream-private-ipv4-cidrs";
+const UPSTREAM_DISCOVERY_PROXY_TOKEN_HEADER_NAME: &str = "x-reauth-upstream-discovery-proxy-token";
+const MAX_UPSTREAM_PRIVATE_IPV4_CIDRS: usize = 16;
+const MIN_DISCOVERY_PROXY_TOKEN_LENGTH: usize = 32;
 
 pub(super) async fn admin_backend_proxy_middleware(
     State(state): State<AppState>,
@@ -67,16 +75,22 @@ pub(super) async fn admin_backend_proxy_middleware(
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false) =>
         {
+            let refresh_cookie = panel_session_refresh_cookie(
+                &context,
+                req.headers(),
+                http_utils::is_secure_request(req.headers(), req.uri()),
+            );
             let mut response = next.run(req).await;
+            append_panel_session_refresh_cookie(&mut response, refresh_cookie);
             apply_no_store_header(&mut response);
             response
         }
         Ok(_) => {
             let translator = Translator::from_state(&state).await;
-            let mut response = response::error(
+            let mut response = admin_auth_required_response(response::error(
                 StatusCode::UNAUTHORIZED,
                 translator.t("server.dockerAdminLoginRequired"),
-            );
+            ));
             apply_no_store_header(&mut response);
             response
         }
@@ -220,6 +234,7 @@ struct AdminViewIngress {
     forwarded_ip: String,
     client_ip: String,
     trusted_ingress: bool,
+    trusted_discovery_hints: bool,
     via_forwarded_headers: bool,
 }
 
@@ -227,6 +242,7 @@ fn resolve_admin_view_ingress(headers: &HeaderMap, socket_ip: &str) -> AdminView
     let socket_ip = http_utils::normalize_ip(socket_ip);
     let forwarded_ip = admin_view_forwarded_ip(headers);
     let trusted_ingress = is_trusted_admin_view_ingress_ip(&socket_ip);
+    let trusted_discovery_hints = is_trusted_discovery_hint_ingress(headers, &socket_ip);
     let via_forwarded_headers = trusted_ingress && !forwarded_ip.is_empty();
     let client_ip = if via_forwarded_headers {
         forwarded_ip.clone()
@@ -241,6 +257,7 @@ fn resolve_admin_view_ingress(headers: &HeaderMap, socket_ip: &str) -> AdminView
         forwarded_ip,
         client_ip,
         trusted_ingress,
+        trusted_discovery_hints,
         via_forwarded_headers,
     }
 }
@@ -271,19 +288,47 @@ fn apply_admin_view_forwarded_headers(headers: &mut HeaderMap, access: &AdminVie
         headers.insert("x-real-ip", value);
     }
 
-    if access.via_forwarded_headers {
-        let discover_ip = headers
-            .get(UPSTREAM_PRIVATE_IPV4_HEADER_NAME)
-            .and_then(|value| value.to_str().ok())
+    let upstream_discover_ip = headers
+        .get(UPSTREAM_PRIVATE_IPV4_HEADER_NAME)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let upstream_discover_cidrs = headers
+        .get(UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+
+    for header_name in [
+        DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME,
+        DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME,
+        UPSTREAM_PRIVATE_IPV4_HEADER_NAME,
+        UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME,
+        UPSTREAM_DISCOVERY_PROXY_TOKEN_HEADER_NAME,
+    ] {
+        headers.remove(header_name);
+    }
+
+    if access.via_forwarded_headers && access.trusted_discovery_hints {
+        let discover_ip = upstream_discover_ip
+            .as_deref()
             .and_then(|value| value.split(',').next())
             .map(str::trim)
             .map(http_utils::normalize_ip)
-            .filter(|value| is_private_ipv4(value))
+            .filter(|value| is_usable_private_discover_ipv4(value))
             .unwrap_or_default();
         if !discover_ip.is_empty()
             && let Ok(value) = axum::http::HeaderValue::from_str(&discover_ip)
         {
             headers.insert(DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME, value);
+        }
+
+        let discover_cidrs = upstream_discover_cidrs
+            .as_deref()
+            .map(normalize_upstream_private_ipv4_cidrs)
+            .unwrap_or_default();
+        if !discover_cidrs.is_empty()
+            && let Ok(value) = axum::http::HeaderValue::from_str(&discover_cidrs)
+        {
+            headers.insert(DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME, value);
         }
     }
 }
@@ -293,6 +338,36 @@ fn is_private_ipv4(value: &str) -> bool {
         http_utils::normalize_ip(value).parse::<IpAddr>(),
         Ok(IpAddr::V4(_))
     ) && http_utils::is_private_or_local_ip(value)
+}
+
+fn is_usable_private_discover_ipv4(value: &str) -> bool {
+    let normalized = http_utils::normalize_ip(value);
+    is_private_ipv4(&normalized) && !normalized.starts_with("127.")
+}
+
+fn normalize_upstream_private_ipv4_cidrs(value: &str) -> String {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut output = Vec::new();
+    for item in value.split(|character: char| character == ',' || character.is_whitespace()) {
+        let Some((address, prefix)) = item.trim().split_once('/') else {
+            continue;
+        };
+        let address = http_utils::normalize_ip(address);
+        let Ok(prefix) = prefix.trim().parse::<u8>() else {
+            continue;
+        };
+        if prefix > 32 || !is_usable_private_discover_ipv4(&address) {
+            continue;
+        }
+        let candidate = format!("{address}/{prefix}");
+        if seen.insert(candidate.clone()) {
+            output.push(candidate);
+        }
+        if output.len() >= MAX_UPSTREAM_PRIVATE_IPV4_CIDRS {
+            break;
+        }
+    }
+    output.join(",")
 }
 
 fn is_trusted_admin_view_ingress_ip(ip: &str) -> bool {
@@ -309,6 +384,36 @@ fn is_trusted_admin_view_ingress_ip(ip: &str) -> bool {
     trusted_admin_proxy_cidrs()
         .iter()
         .any(|network| network.contains(&parsed_ip))
+}
+
+fn is_trusted_discovery_hint_ingress(headers: &HeaderMap, socket_ip: &str) -> bool {
+    let normalized = http_utils::normalize_ip(socket_ip);
+    let Ok(parsed_ip) = normalized.parse::<IpAddr>() else {
+        return false;
+    };
+    if parsed_ip.is_loopback() {
+        return true;
+    }
+    if trusted_admin_proxy_cidrs()
+        .iter()
+        .any(|network| network.contains(&parsed_ip))
+    {
+        return true;
+    }
+
+    let expected_token = env::var("DOCKER_DISCOVER_PROXY_TOKEN")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if expected_token.len() < MIN_DISCOVERY_PROXY_TOKEN_LENGTH {
+        return false;
+    }
+    let supplied_token = headers
+        .get(UPSTREAM_DISCOVERY_PROXY_TOKEN_HEADER_NAME)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .unwrap_or("");
+    safe_equal_string(supplied_token, &expected_token)
 }
 
 fn trusted_admin_proxy_cidrs() -> Vec<IpNet> {
@@ -383,6 +488,7 @@ mod tests {
     use axum::http::{HeaderMap, HeaderValue};
 
     use super::*;
+    use crate::test_support::EnvGuard;
 
     #[test]
     fn normalizes_admin_view_trusted_proxy_entries() {
@@ -412,13 +518,52 @@ mod tests {
 
         let private_socket = resolve_admin_view_ingress(&headers, "192.168.1.10");
         assert!(private_socket.trusted_ingress);
+        assert!(!private_socket.trusted_discovery_hints);
         assert!(private_socket.via_forwarded_headers);
         assert_eq!(private_socket.client_ip, "198.51.100.20");
 
         let public_socket = resolve_admin_view_ingress(&headers, "198.51.100.10");
         assert!(!public_socket.trusted_ingress);
+        assert!(!public_socket.trusted_discovery_hints);
         assert!(!public_socket.via_forwarded_headers);
         assert_eq!(public_socket.client_ip, "198.51.100.10");
+    }
+
+    #[test]
+    fn discovery_hints_require_loopback_explicit_proxy_or_shared_token() {
+        let env = EnvGuard::new(&[
+            "DOCKER_ADMIN_TRUSTED_PROXY_CIDRS",
+            "DOCKER_DISCOVER_PROXY_TOKEN",
+        ]);
+        env.remove("DOCKER_ADMIN_TRUSTED_PROXY_CIDRS");
+        env.set(
+            "DOCKER_DISCOVER_PROXY_TOKEN",
+            "0123456789abcdef0123456789abcdef",
+        );
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            UPSTREAM_DISCOVERY_PROXY_TOKEN_HEADER_NAME,
+            HeaderValue::from_static("wrong-token-wrong-token-wrong-token"),
+        );
+        assert!(!is_trusted_discovery_hint_ingress(&headers, "192.168.1.10"));
+
+        headers.insert(
+            UPSTREAM_DISCOVERY_PROXY_TOKEN_HEADER_NAME,
+            HeaderValue::from_static("0123456789abcdef0123456789abcdef"),
+        );
+        assert!(is_trusted_discovery_hint_ingress(&headers, "192.168.1.10"));
+        assert!(is_trusted_discovery_hint_ingress(
+            &HeaderMap::new(),
+            "127.0.0.1"
+        ));
+
+        env.remove("DOCKER_DISCOVER_PROXY_TOKEN");
+        env.set("DOCKER_ADMIN_TRUSTED_PROXY_CIDRS", "10.77.0.9/32");
+        assert!(is_trusted_discovery_hint_ingress(
+            &HeaderMap::new(),
+            "10.77.0.9"
+        ));
     }
 
     #[test]
@@ -469,11 +614,18 @@ mod tests {
             UPSTREAM_PRIVATE_IPV4_HEADER_NAME,
             HeaderValue::from_static("192.168.31.98"),
         );
+        headers.insert(
+            UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME,
+            HeaderValue::from_static(
+                "192.168.31.98/24, 10.20.0.8/23, 8.8.8.8/24, 192.168.31.98/24",
+            ),
+        );
         let access = AdminViewIngress {
             socket_ip: "10.0.0.2".to_string(),
             forwarded_ip: "198.51.100.20".to_string(),
             client_ip: "198.51.100.20".to_string(),
             trusted_ingress: true,
+            trusted_discovery_hints: true,
             via_forwarded_headers: true,
         };
 
@@ -496,6 +648,52 @@ mod tests {
                 .get(DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME)
                 .and_then(|value| value.to_str().ok()),
             Some("192.168.31.98")
+        );
+        assert_eq!(
+            headers
+                .get(DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME)
+                .and_then(|value| value.to_str().ok()),
+            Some("192.168.31.98/24,10.20.0.8/23")
+        );
+        assert!(headers.get(UPSTREAM_PRIVATE_IPV4_HEADER_NAME).is_none());
+        assert!(
+            headers
+                .get(UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn admin_view_forwarded_headers_remove_untrusted_discovery_hints() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME,
+            HeaderValue::from_static("192.168.1.10"),
+        );
+        headers.insert(
+            DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME,
+            HeaderValue::from_static("192.168.1.10/24"),
+        );
+        headers.insert(
+            UPSTREAM_PRIVATE_IPV4_CIDRS_HEADER_NAME,
+            HeaderValue::from_static("10.0.0.5/24"),
+        );
+        let access = AdminViewIngress {
+            socket_ip: "10.0.0.2".to_string(),
+            forwarded_ip: "198.51.100.20".to_string(),
+            client_ip: "198.51.100.20".to_string(),
+            trusted_ingress: true,
+            trusted_discovery_hints: false,
+            via_forwarded_headers: true,
+        };
+
+        apply_admin_view_forwarded_headers(&mut headers, &access);
+
+        assert!(headers.get(DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME).is_none());
+        assert!(
+            headers
+                .get(DOCKER_ADMIN_DISCOVER_CIDRS_HEADER_NAME)
+                .is_none()
         );
     }
 }

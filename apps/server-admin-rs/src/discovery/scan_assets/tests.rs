@@ -1222,6 +1222,111 @@ fn docker_discover_ip_filter_excludes_loopback_like_node() {
 }
 
 #[test]
+fn docker_discover_candidates_merge_config_proxy_and_request_host_in_priority_order() {
+    let env = EnvGuard::new(&["DOCKER_DISCOVER_LAN_CIDRS", "DOCKER_DISCOVER_LAN_IP"]);
+    env.set("DOCKER_DISCOVER_LAN_CIDRS", "10.20.0.8/23, 10.21.0.8/16");
+    env.set("DOCKER_DISCOVER_LAN_IP", "10.30.0.9");
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        DOCKER_DISCOVER_IP_HEADER,
+        axum::http::HeaderValue::from_static("192.168.1.9"),
+    );
+    headers.insert(
+        DOCKER_DISCOVER_CIDRS_HEADER,
+        axum::http::HeaderValue::from_static("192.168.1.9/23,192.168.50.9/24"),
+    );
+    headers.insert(
+        "x-forwarded-host",
+        axum::http::HeaderValue::from_static("192.168.60.9:7991"),
+    );
+
+    let candidates = resolve_docker_discover_candidates(&headers);
+    assert_eq!(
+        candidates,
+        vec![
+            DockerDiscoverHostCandidate {
+                address: "10.20.0.8".to_string(),
+                cidr: "10.20.0.0/23".to_string(),
+                source: "configured",
+            },
+            DockerDiscoverHostCandidate {
+                address: "10.21.0.8".to_string(),
+                cidr: "10.21.0.0/16".to_string(),
+                source: "configured",
+            },
+            DockerDiscoverHostCandidate {
+                address: "10.30.0.9".to_string(),
+                cidr: "10.30.0.0/24".to_string(),
+                source: "configured",
+            },
+            DockerDiscoverHostCandidate {
+                address: "192.168.1.9".to_string(),
+                cidr: "192.168.0.0/23".to_string(),
+                source: "proxy",
+            },
+            DockerDiscoverHostCandidate {
+                address: "192.168.50.9".to_string(),
+                cidr: "192.168.50.0/24".to_string(),
+                source: "proxy",
+            },
+            DockerDiscoverHostCandidate {
+                address: "192.168.60.9".to_string(),
+                cidr: "192.168.60.0/24".to_string(),
+                source: "request_host",
+            },
+        ]
+    );
+}
+
+#[test]
+fn ovs_bridge_filter_only_excludes_docker_generated_bridge_names() {
+    for name in ["br0", "br-lan", "ovs-system"] {
+        assert!(!is_excluded_interface(name), "{name} should be included");
+    }
+    for name in [
+        "docker0",
+        "br-0123456789ab",
+        "veth1234",
+        "gre0",
+        "gretap0",
+        "ipip0",
+        "sit0",
+        "vxlan100",
+        "genev_sys_6081",
+        "erspan0",
+        "ip6tnl0",
+        "ip6gre0",
+    ] {
+        assert!(is_excluded_interface(name), "{name} should be excluded");
+    }
+}
+
+#[test]
+fn automatic_target_limit_keeps_priority_order_without_exceeding_host_budget() {
+    let targets = ["10.0.0.0/22", "10.1.0.0/24", "10.2.0.1/32"]
+        .into_iter()
+        .filter_map(|cidr| to_discover_target(cidr, cidr, "docker", true))
+        .collect::<Vec<_>>();
+
+    let limited = limit_automatic_targets(targets);
+    let cidrs = limited
+        .iter()
+        .filter_map(|target| target.get("cidr").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert_eq!(cidrs, vec!["10.0.0.0/22", "10.2.0.1/32"]);
+    assert!(
+        count_scan_hosts(
+            &cidrs
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        )
+        .is_ok()
+    );
+}
+
+#[test]
 fn scan_excluded_env_ports_match_node_truthy_parse_int() {
     assert_eq!(excluded_env_port_value(None, 7_997), Some(7_997));
     assert_eq!(

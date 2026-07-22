@@ -15,7 +15,7 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     cookies::{self, ADMIN_PANEL_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME},
-    http_utils,
+    crypto_utils, http_utils,
     i18n::Translator,
     proxy_config,
     response::{self, ApiEnvelope},
@@ -23,7 +23,7 @@ use crate::{
     runtime_profile::{self, RuntimeProfile},
     state::AppState,
     store::{DockerAdminPasswordRecord, DockerAdminSessionRecord, LoginAttemptRecord},
-    time_utils,
+    system_events, time_utils,
 };
 
 const DEFAULT_SESSION_TTL_SECONDS: i64 = 12 * 60 * 60;
@@ -36,6 +36,13 @@ const SCRYPT_N: u32 = 16_384;
 const SCRYPT_R: u32 = 8;
 const SCRYPT_P: u32 = 1;
 const SCRYPT_KEY_LENGTH: usize = 64;
+pub(crate) const ADMIN_AUTH_RESPONSE_HEADER: &str = "x-fn-knock-admin-auth";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PanelSessionBinding {
+    Soft,
+    Strict,
+}
 
 fn admin_panel_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.admin.{key}"))
@@ -109,14 +116,21 @@ pub async fn admin_auth_middleware(
                 .and_then(Value::as_bool)
                 .unwrap_or(false) =>
         {
-            next.run(req).await
+            let refresh_cookie = panel_session_refresh_cookie(
+                &context,
+                req.headers(),
+                http_utils::is_secure_request(req.headers(), req.uri()),
+            );
+            let mut response = next.run(req).await;
+            append_panel_session_refresh_cookie(&mut response, refresh_cookie);
+            response
         }
         Ok(_) => {
             let translator = Translator::from_state(&state).await;
-            response::error(
+            admin_auth_required_response(response::error(
                 StatusCode::UNAUTHORIZED,
                 admin_panel_route_text(&translator, "signInRequired"),
-            )
+            ))
         }
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -126,6 +140,55 @@ pub async fn admin_auth_middleware(
                 admin_panel_route_text(&translator, "verifySessionFailed"),
             )
         }
+    }
+}
+
+pub(crate) fn admin_auth_required_response(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        ADMIN_AUTH_RESPONSE_HEADER,
+        HeaderValue::from_static("required"),
+    );
+    response
+}
+
+pub(crate) fn panel_session_refresh_cookie(
+    context: &Value,
+    headers: &HeaderMap,
+    secure: bool,
+) -> Option<String> {
+    if context.get("auth_source").and_then(Value::as_str) != Some("panel_session") {
+        return None;
+    }
+    let ttl_seconds = context
+        .get("session_ttl_seconds")
+        .and_then(Value::as_i64)
+        .filter(|value| *value > 0)?;
+    let session_id = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME)?;
+    Some(cookies::admin_panel_cookie(
+        &session_id,
+        ttl_seconds,
+        secure,
+    ))
+}
+
+pub(crate) fn append_panel_session_refresh_cookie(response: &mut Response, cookie: Option<String>) {
+    let already_sets_panel_session = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .any(|value| {
+            value
+                .trim_start()
+                .starts_with(&format!("{ADMIN_PANEL_SESSION_COOKIE_NAME}="))
+        });
+    if already_sets_panel_session {
+        return;
+    }
+    if let Some(cookie) = cookie
+        && let Ok(value) = HeaderValue::from_str(&cookie)
+    {
+        response.headers_mut().append(header::SET_COOKIE, value);
     }
 }
 
@@ -457,16 +520,19 @@ async fn set_password(
     }
 
     let session_ttl_seconds = session_ttl_seconds();
-    let session = match create_panel_session(&state, &headers, session_ttl_seconds).await {
-        Ok(session) => session,
-        Err(error) => {
-            tracing::warn!(%error, "failed to create docker admin session");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_panel_route_text(&translator, "createSessionFailed"),
-            );
-        }
-    };
+    let password_revision = docker_admin_password_revision(&record);
+    let session =
+        match create_panel_session(&state, &headers, session_ttl_seconds, &password_revision).await
+        {
+            Ok(session) => session,
+            Err(error) => {
+                tracing::warn!(%error, "failed to create docker admin session");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_panel_route_text(&translator, "createSessionFailed"),
+                );
+            }
+        };
     let _ = state
         .store
         .reset_docker_admin_login_attempt(&client_ip_for_tracking(&headers))
@@ -575,7 +641,15 @@ async fn change_password(
     }
 
     let session_ttl_seconds = session_ttl_seconds();
-    let session = match create_panel_session(&state, &headers, session_ttl_seconds).await {
+    let password_revision = docker_admin_password_revision(&record);
+    let session = match create_panel_session(
+        &state,
+        &headers,
+        session_ttl_seconds,
+        &password_revision,
+    )
+    .await
+    {
         Ok(session) => session,
         Err(error) => {
             tracing::warn!(%error, "failed to create docker admin session after password change");
@@ -716,7 +790,8 @@ async fn login(
     } else {
         session_ttl_seconds()
     };
-    let session = match create_panel_session(&state, &headers, ttl).await {
+    let password_revision = docker_admin_password_revision(&password_record);
+    let session = match create_panel_session(&state, &headers, ttl, &password_revision).await {
         Ok(session) => session,
         Err(error) => {
             tracing::warn!(%error, "failed to create docker admin session");
@@ -858,25 +933,90 @@ pub(crate) async fn resolve_panel_auth_context(
     state: &AppState,
     headers: &HeaderMap,
 ) -> anyhow::Result<Value> {
-    if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME)
-        && let Some(mut record) = state.store.docker_admin_session(&session_id).await?
-    {
-        let now = time_utils::now_ms();
-        if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now)
-            && record.ip == client_ip_for_tracking(headers)
-            && record.user_agent == user_agent_for_tracking(headers)
+    'panel_session: {
+        if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME)
+            && let Some(mut record) = state.store.docker_admin_session(&session_id).await?
         {
-            record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
-            record.updated_at = time_utils::now_iso();
-            record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
-            state.store.set_docker_admin_session(&record).await?;
-            return Ok(json!({
-                "authenticated": true,
-                "auth_source": "panel_session",
-                "session_expires_at": record.expires_at
-            }));
+            let now = time_utils::now_ms();
+            if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now) {
+                let Some(password) = state.store.docker_admin_password().await? else {
+                    let _ = state.store.delete_docker_admin_session(&session_id).await;
+                    break 'panel_session;
+                };
+                if !panel_session_password_revision_is_current(&mut record, &password) {
+                    let _ = state.store.delete_docker_admin_session(&session_id).await;
+                    break 'panel_session;
+                }
+                let current_ip = client_ip_for_tracking(headers);
+                let current_user_agent = user_agent_for_tracking(headers);
+                let previous_ip = record.ip.clone();
+                let ip_changed = previous_ip != current_ip;
+                let user_agent_changed = record.user_agent != current_user_agent;
+                let session_audit_id = panel_session_audit_id(&session_id);
+                let strict_binding_mismatch = panel_session_binding()
+                    == PanelSessionBinding::Strict
+                    && (ip_changed || user_agent_changed);
+
+                if strict_binding_mismatch {
+                    tracing::warn!(
+                        session_id = %session_audit_id,
+                        %ip_changed,
+                        %user_agent_changed,
+                        "rejected docker admin session fingerprint drift in strict mode"
+                    );
+                } else {
+                    if ip_changed || user_agent_changed {
+                        tracing::warn!(
+                            session_id = %session_audit_id,
+                            %ip_changed,
+                            %user_agent_changed,
+                            "accepted docker admin session fingerprint drift in soft mode"
+                        );
+                        record.ip = current_ip.clone();
+                        record.user_agent = current_user_agent;
+                    }
+                    record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
+                    record.updated_at = time_utils::now_iso();
+                    record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
+                    let session_still_exists = state
+                        .store
+                        .refresh_docker_admin_session_if_exists(&record)
+                        .await?;
+                    if !session_still_exists {
+                        tracing::info!(
+                            session_id = %session_audit_id,
+                            "docker admin session was revoked while it was being refreshed"
+                        );
+                    } else {
+                        if ip_changed
+                            && let Err(error) = system_events::publish_auth_session_ip_drift_event(
+                                state,
+                                json!({
+                                    "session_id": session_audit_id,
+                                    "auth_method": "PASSWORD",
+                                    "credential_name": "Docker Admin Panel",
+                                    "drift_source": "docker_admin_panel",
+                                    "from_ip": previous_ip,
+                                    "to_ip": current_ip,
+                                    "user_agent_changed": user_agent_changed,
+                                }),
+                            )
+                            .await
+                        {
+                            tracing::warn!(%error, session_id = %session_audit_id, "failed to publish docker admin session IP drift event");
+                        }
+                        return Ok(json!({
+                            "authenticated": true,
+                            "auth_source": "panel_session",
+                            "session_expires_at": record.expires_at,
+                            "session_ttl_seconds": record.ttl_seconds
+                        }));
+                    }
+                }
+            } else {
+                let _ = state.store.delete_docker_admin_session(&session_id).await;
+            }
         }
-        let _ = state.store.delete_docker_admin_session(&session_id).await;
     }
 
     if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME)
@@ -890,11 +1030,32 @@ pub(crate) async fn resolve_panel_auth_context(
         }));
     }
 
+    panel_unauthenticated_context()
+}
+
+fn panel_unauthenticated_context() -> anyhow::Result<Value> {
     Ok(json!({
         "authenticated": false,
         "auth_source": null,
         "session_expires_at": null
     }))
+}
+
+fn panel_session_binding() -> PanelSessionBinding {
+    match env::var("DOCKER_ADMIN_SESSION_BINDING")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "strict" => PanelSessionBinding::Strict,
+        _ => PanelSessionBinding::Soft,
+    }
+}
+
+fn panel_session_audit_id(session_id: &str) -> String {
+    let digest = crypto_utils::sha256_hex_str(session_id);
+    format!("docker-panel:{}", &digest[..16])
 }
 
 async fn is_docker_admin_panel_reauth_session_allowed(
@@ -950,6 +1111,7 @@ async fn create_panel_session(
     state: &AppState,
     headers: &HeaderMap,
     ttl_seconds: i64,
+    password_revision: &str,
 ) -> anyhow::Result<DockerAdminSessionRecord> {
     let ttl_seconds = normalize_session_create_ttl(ttl_seconds);
     let now = time_utils::now_iso();
@@ -959,11 +1121,61 @@ async fn create_panel_session(
         updated_at: now,
         expires_at: time_utils::iso_after_seconds(ttl_seconds),
         ttl_seconds,
+        password_revision: password_revision.to_string(),
         ip: client_ip_for_tracking(headers),
         user_agent: user_agent_for_tracking(headers),
     };
     state.store.set_docker_admin_session(&record).await?;
+    let current_password_revision = state
+        .store
+        .docker_admin_password()
+        .await?
+        .map(|password| docker_admin_password_revision(&password));
+    if current_password_revision.as_deref() != Some(password_revision) {
+        let _ = state.store.delete_docker_admin_session(&record.id).await;
+        anyhow::bail!("docker admin password changed while creating a session");
+    }
     Ok(record)
+}
+
+fn docker_admin_password_revision(record: &DockerAdminPasswordRecord) -> String {
+    crypto_utils::sha256_hex_str(&format!(
+        "{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}",
+        record.algorithm,
+        record.salt,
+        record.hash,
+        record.n,
+        record.r,
+        record.p,
+        record.key_length,
+        record.created_at,
+        record.updated_at,
+    ))
+}
+
+fn panel_session_password_revision_is_current(
+    session: &mut DockerAdminSessionRecord,
+    password: &DockerAdminPasswordRecord,
+) -> bool {
+    let current_revision = docker_admin_password_revision(password);
+    if !session.password_revision.is_empty() {
+        return bool::from(
+            session
+                .password_revision
+                .as_bytes()
+                .ct_eq(current_revision.as_bytes()),
+        );
+    }
+
+    let legacy_session_is_newer_than_password = time_utils::parse_iso_ms(&password.updated_at)
+        .zip(time_utils::parse_iso_ms(&session.created_at))
+        .is_some_and(|(password_updated_at, session_created_at)| {
+            password_updated_at <= session_created_at
+        });
+    if legacy_session_is_newer_than_password {
+        session.password_revision = current_revision;
+    }
+    legacy_session_is_newer_than_password
 }
 
 fn session_ttl_seconds() -> i64 {
@@ -1240,6 +1452,149 @@ mod tests {
             );
             assert_eq!(normalize_session_record_ttl(42), 42);
         });
+    }
+
+    #[test]
+    fn docker_admin_session_binding_defaults_to_soft_and_accepts_strict() {
+        with_env_var("DOCKER_ADMIN_SESSION_BINDING", |env| {
+            env.remove("DOCKER_ADMIN_SESSION_BINDING");
+            assert_eq!(panel_session_binding(), PanelSessionBinding::Soft);
+
+            env.set("DOCKER_ADMIN_SESSION_BINDING", " STRICT ");
+            assert_eq!(panel_session_binding(), PanelSessionBinding::Strict);
+
+            env.set("DOCKER_ADMIN_SESSION_BINDING", "invalid");
+            assert_eq!(panel_session_binding(), PanelSessionBinding::Soft);
+        });
+    }
+
+    fn test_password_record(updated_at: &str) -> DockerAdminPasswordRecord {
+        DockerAdminPasswordRecord {
+            algorithm: "scrypt".to_string(),
+            salt: "salt".to_string(),
+            hash: "hash".to_string(),
+            n: SCRYPT_N,
+            r: SCRYPT_R,
+            p: SCRYPT_P,
+            key_length: SCRYPT_KEY_LENGTH,
+            created_at: "2026-01-01T00:00:00.000Z".to_string(),
+            updated_at: updated_at.to_string(),
+        }
+    }
+
+    fn test_panel_session(created_at: &str, password_revision: &str) -> DockerAdminSessionRecord {
+        DockerAdminSessionRecord {
+            id: "session-1".to_string(),
+            created_at: created_at.to_string(),
+            updated_at: created_at.to_string(),
+            expires_at: "2026-01-02T00:00:00.000Z".to_string(),
+            ttl_seconds: DEFAULT_SESSION_TTL_SECONDS,
+            password_revision: password_revision.to_string(),
+            ip: "192.0.2.1".to_string(),
+            user_agent: "test".to_string(),
+        }
+    }
+
+    #[test]
+    fn panel_session_password_revision_tracks_password_changes() {
+        let password = test_password_record("2026-01-01T01:00:00.000Z");
+        let revision = docker_admin_password_revision(&password);
+        let mut session = test_panel_session("2026-01-01T02:00:00.000Z", &revision);
+        assert!(panel_session_password_revision_is_current(
+            &mut session,
+            &password
+        ));
+
+        let changed_password = test_password_record("2026-01-01T03:00:00.000Z");
+        assert!(!panel_session_password_revision_is_current(
+            &mut session,
+            &changed_password
+        ));
+    }
+
+    #[test]
+    fn legacy_panel_session_is_upgraded_only_when_newer_than_password() {
+        let password = test_password_record("2026-01-01T01:00:00.000Z");
+        let expected_revision = docker_admin_password_revision(&password);
+        let mut safe_legacy = test_panel_session("2026-01-01T02:00:00.000Z", "");
+        assert!(panel_session_password_revision_is_current(
+            &mut safe_legacy,
+            &password
+        ));
+        assert_eq!(safe_legacy.password_revision, expected_revision);
+
+        let mut stale_legacy = test_panel_session("2026-01-01T00:30:00.000Z", "");
+        assert!(!panel_session_password_revision_is_current(
+            &mut stale_legacy,
+            &password
+        ));
+        assert!(stale_legacy.password_revision.is_empty());
+    }
+
+    #[test]
+    fn admin_auth_required_response_has_explicit_marker() {
+        let response = admin_auth_required_response(response::error(
+            StatusCode::UNAUTHORIZED,
+            "sign in required".to_string(),
+        ));
+        assert_eq!(
+            response
+                .headers()
+                .get(ADMIN_AUTH_RESPONSE_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("required")
+        );
+    }
+
+    #[test]
+    fn panel_session_refresh_cookie_uses_stored_rolling_ttl_only_for_panel_sessions() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("fn-knock-admin-panel-session=random-session"),
+        );
+        let context = json!({
+            "authenticated": true,
+            "auth_source": "panel_session",
+            "session_ttl_seconds": REMEMBER_ME_SESSION_TTL_SECONDS,
+        });
+        let cookie = panel_session_refresh_cookie(&context, &headers, true)
+            .expect("panel session should refresh its browser cookie");
+        assert!(cookie.starts_with("fn-knock-admin-panel-session=random-session;"));
+        assert!(cookie.contains("Max-Age=2592000"));
+        assert!(cookie.contains("Secure"));
+
+        let reauth_context = json!({
+            "authenticated": true,
+            "auth_source": "reauth_session",
+            "session_ttl_seconds": REMEMBER_ME_SESSION_TTL_SECONDS,
+        });
+        assert!(panel_session_refresh_cookie(&reauth_context, &headers, true).is_none());
+    }
+
+    #[test]
+    fn panel_session_refresh_does_not_override_a_rotated_session_cookie() {
+        let mut response = Response::new(Body::empty());
+        response.headers_mut().append(
+            header::SET_COOKIE,
+            HeaderValue::from_static("fn-knock-admin-panel-session=new-session; Path=/"),
+        );
+
+        append_panel_session_refresh_cookie(
+            &mut response,
+            Some("fn-knock-admin-panel-session=old-session; Path=/".to_string()),
+        );
+
+        let values = response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            values,
+            vec!["fn-knock-admin-panel-session=new-session; Path=/"]
+        );
     }
 
     #[test]

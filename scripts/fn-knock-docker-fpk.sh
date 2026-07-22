@@ -24,6 +24,9 @@ WIZARD_TZ="${FN_KNOCK_DOCKER_FPK_WIZARD_TZ:-Asia/Shanghai}"
 WIZARD_DOCKER_IPV4_SUBNET="${FN_KNOCK_DOCKER_FPK_WIZARD_DOCKER_IPV4_SUBNET:-172.30.0.0/16}"
 WIZARD_DOCKER_IPV6_SUBNET="${FN_KNOCK_DOCKER_FPK_WIZARD_DOCKER_IPV6_SUBNET:-fd42:fb33:7f7a:100::/64}"
 WIZARD_ADMIN_TRUSTED_PROXY_CIDRS="${FN_KNOCK_DOCKER_FPK_WIZARD_ADMIN_TRUSTED_PROXY_CIDRS:-}"
+WIZARD_ADMIN_SESSION_BINDING="${FN_KNOCK_DOCKER_FPK_WIZARD_ADMIN_SESSION_BINDING:-soft}"
+WIZARD_DISCOVER_PROXY_TOKEN="${FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_PROXY_TOKEN:-}"
+WIZARD_DISCOVER_LAN_CIDRS="${FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_LAN_CIDRS:-}"
 WIZARD_DISCOVER_LAN_IP="${FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_LAN_IP:-}"
 REMOTE_WAIT_TIMEOUT="${FN_KNOCK_DOCKER_FPK_WAIT_TIMEOUT:-180}"
 
@@ -181,6 +184,14 @@ copy_remote_fpk() {
 }
 
 write_remote_install_env() {
+  case "${WIZARD_ADMIN_SESSION_BINDING}" in
+    soft | strict) ;;
+    *) fail "admin session binding must be soft or strict" ;;
+  esac
+  if [ -n "${WIZARD_DISCOVER_PROXY_TOKEN}" ] && \
+    [[ ! "${WIZARD_DISCOVER_PROXY_TOKEN}" =~ ^[A-Za-z0-9._~-]{32,256}$ ]]; then
+    fail "discovery proxy token must contain 32-256 safe characters"
+  fi
   log "Step 4/4: Prepare Docker FPK install env on remote host"
   ssh "${REMOTE_HOST}" "cat > '${REMOTE_INSTALL_ENV_PATH}' <<'EOF'
 wizard_admin_view_port=${WIZARD_ADMIN_VIEW_PORT}
@@ -192,6 +203,9 @@ wizard_tz=${WIZARD_TZ}
 wizard_docker_ipv4_subnet=${WIZARD_DOCKER_IPV4_SUBNET}
 wizard_docker_ipv6_subnet=${WIZARD_DOCKER_IPV6_SUBNET}
 wizard_admin_trusted_proxy_cidrs=${WIZARD_ADMIN_TRUSTED_PROXY_CIDRS}
+wizard_admin_session_binding=${WIZARD_ADMIN_SESSION_BINDING}
+wizard_discover_proxy_token=${WIZARD_DISCOVER_PROXY_TOKEN}
+wizard_discover_lan_cidrs=${WIZARD_DISCOVER_LAN_CIDRS}
 wizard_discover_lan_ip=${WIZARD_DISCOVER_LAN_IP}
 EOF"
 }
@@ -296,6 +310,9 @@ Optional env overrides:
   FN_KNOCK_DOCKER_FPK_WIZARD_DOCKER_IPV4_SUBNET           (default: 172.30.0.0/16)
   FN_KNOCK_DOCKER_FPK_WIZARD_DOCKER_IPV6_SUBNET           (default: fd42:fb33:7f7a:100::/64)
   FN_KNOCK_DOCKER_FPK_WIZARD_ADMIN_TRUSTED_PROXY_CIDRS    (default: empty)
+  FN_KNOCK_DOCKER_FPK_WIZARD_ADMIN_SESSION_BINDING        (default: soft; soft or strict)
+  FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_PROXY_TOKEN         (default: empty; 32-256 safe characters)
+  FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_LAN_CIDRS           (default: empty; comma/space-separated IPs or CIDRs)
   FN_KNOCK_DOCKER_FPK_WIZARD_DISCOVER_LAN_IP              (default: empty)
   FN_KNOCK_DOCKER_FPK_WAIT_TIMEOUT                        (default: 180 seconds)
 EOF

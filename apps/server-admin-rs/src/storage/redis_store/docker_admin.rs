@@ -48,6 +48,25 @@ impl Store {
         .await
     }
 
+    pub async fn refresh_docker_admin_session_if_exists(
+        &self,
+        record: &DockerAdminSessionRecord,
+    ) -> crate::storage::StorageResult<bool> {
+        let mut conn = self.conn();
+        let ttl = crate::time_utils::parse_iso_ms(&record.expires_at)
+            .map(|expires_ms| ((expires_ms - crate::time_utils::now_ms()).max(1000) / 1000) as u64)
+            .unwrap_or(record.ttl_seconds.max(1) as u64);
+        let result: Option<String> = redis::cmd("SET")
+            .arg(format!("{DOCKER_ADMIN_SESSION_PREFIX}{}", record.id))
+            .arg(serde_json::to_string(record).unwrap_or_default())
+            .arg("EX")
+            .arg(ttl)
+            .arg("XX")
+            .query_async(&mut conn)
+            .await?;
+        Ok(result.is_some())
+    }
+
     pub async fn delete_docker_admin_session(
         &self,
         session_id: &str,

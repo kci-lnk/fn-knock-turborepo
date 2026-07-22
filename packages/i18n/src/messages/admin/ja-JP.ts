@@ -2579,6 +2579,13 @@ export const jaJPAdmin = {
     finalHost: "最終アドレス: {host}",
     notFilled: "未記入",
     targetLabel: "転送先",
+    dockerTargetPlaceholder: "ホストLAN_IP:ポート",
+    dockerTargetCandidatesLoading:
+      "Docker ホストの LAN アドレスを検出しています...",
+    dockerTargetCandidatesHint:
+      "Docker 内の 127.0.0.1 はこのコンテナだけを指します。検出したホストアドレスを選び、ポートを入力してください。",
+    dockerTargetCandidatesEmpty:
+      "ホストアドレスを検出できませんでした。LAN IP を入力するか、DOCKER_DISCOVER_LAN_CIDRS を設定してください。",
     authRequired: "ログインを必須にする",
     authRequiredDescription:
       "未ログインのユーザーは、アクセスする前にログインする必要があります。",

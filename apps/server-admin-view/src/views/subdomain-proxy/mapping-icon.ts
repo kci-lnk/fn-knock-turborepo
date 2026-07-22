@@ -76,6 +76,10 @@ const FORBIDDEN_SVG_ELEMENTS = new Set([
   "video",
 ]);
 const SAFE_EMBEDDED_SVG_IMAGE = /^data:image\/(?:png|jpe?g|webp|gif);base64,/i;
+const ALLOWED_SVG_DOCTYPE =
+  /<!doctype\s+svg(?:\s+(?:system\s+(?:"[^"]*"|'[^']*')|public\s+(?:"[^"]*"|'[^']*')\s+(?:"[^"]*"|'[^']*')))?\s*>/i;
+const SVG_PROLOG_PREFIX =
+  /^\uFEFF?(?:\s|<\?[\s\S]*?\?>|<!--[\s\S]*?-->)*$/;
 
 const hasExternalSvgUrl = (value: string): boolean => {
   const urlPattern = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi;
@@ -86,11 +90,33 @@ const hasExternalSvgUrl = (value: string): boolean => {
   return false;
 };
 
-const sanitizeSvgFile = async (file: File): Promise<Blob> => {
-  const sourceText = await file.text();
-  if (/<!doctype|<!entity/i.test(sourceText)) {
+export const prepareMappingIconSvgSource = (sourceText: string): string => {
+  if (/<!entity/i.test(sourceText)) {
     throw new MappingIconProcessingError("decode_failed");
   }
+
+  const doctypeMatch = sourceText.match(ALLOWED_SVG_DOCTYPE);
+  let preparedSource = sourceText;
+  if (doctypeMatch?.index !== undefined) {
+    const prefix = sourceText.slice(0, doctypeMatch.index);
+    if (!SVG_PROLOG_PREFIX.test(prefix)) {
+      throw new MappingIconProcessingError("decode_failed");
+    }
+    preparedSource =
+      sourceText.slice(0, doctypeMatch.index) +
+      sourceText.slice(doctypeMatch.index + doctypeMatch[0].length);
+  }
+
+  // A remaining declaration is malformed, duplicated, uses a non-SVG root, or
+  // contains an internal subset. Do not pass any of those forms to DOMParser.
+  if (/<!doctype/i.test(preparedSource)) {
+    throw new MappingIconProcessingError("decode_failed");
+  }
+  return preparedSource;
+};
+
+const sanitizeSvgFile = async (file: File): Promise<Blob> => {
+  const sourceText = prepareMappingIconSvgSource(await file.text());
   const documentNode = new DOMParser().parseFromString(
     sourceText,
     "image/svg+xml",

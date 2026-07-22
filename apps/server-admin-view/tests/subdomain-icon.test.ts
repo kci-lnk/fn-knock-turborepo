@@ -12,8 +12,10 @@ import {
 } from "../src/views/subdomain-proxy/model";
 import {
   getMappingIconFileValidationIssue,
+  MappingIconProcessingError,
   MAPPING_ICON_FILE_ACCEPT,
   MAX_MAPPING_ICON_SOURCE_BYTES,
+  prepareMappingIconSvgSource,
 } from "../src/views/subdomain-proxy/mapping-icon";
 
 const AUTO_ICON = "data:image/png;base64,YXV0bw==";
@@ -100,5 +102,34 @@ describe("subdomain custom icon", () => {
       }),
       "source_too_large",
     );
+  });
+
+  it("strips a standard external SVG doctype before parsing", () => {
+    const source = `<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>`;
+
+    const prepared = prepareMappingIconSvgSource(source);
+
+    assert.doesNotMatch(prepared, /<!doctype/i);
+    assert.match(prepared, /^<\?xml[^>]*\?><svg/);
+    assert.match(prepared, /<path d="M0 0h24v24H0z"\/>/);
+  });
+
+  it("rejects entity declarations and unsafe SVG doctypes", () => {
+    const unsafeSources = [
+      `<!DOCTYPE svg [<!ENTITY payload SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&payload;</text></svg>`,
+      `<!DOCTYPE svg [<!ELEMENT svg ANY>]><svg xmlns="http://www.w3.org/2000/svg"/>`,
+      `<!DOCTYPE html SYSTEM "https://example.com/example.dtd"><svg xmlns="http://www.w3.org/2000/svg"/>`,
+      `<svg xmlns="http://www.w3.org/2000/svg"/><!DOCTYPE svg SYSTEM "https://example.com/example.dtd">`,
+      `<!DOCTYPE svg><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg"/>`,
+    ];
+
+    for (const source of unsafeSources) {
+      assert.throws(
+        () => prepareMappingIconSvgSource(source),
+        (error) =>
+          error instanceof MappingIconProcessingError &&
+          error.kind === "decode_failed",
+      );
+    }
   });
 });

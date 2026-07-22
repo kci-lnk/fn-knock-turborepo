@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-finalize-test.XXXXXX")"
 ASSETS_DIR="${WORK_DIR}/assets"
+WINDOWS_METADATA_DIR="${WORK_DIR}/windows-metadata"
+COS_OUTPUT_DIR="${WORK_DIR}/cos-output"
 VERSION="$(jq -r '.version' "${ROOT_DIR}/version.json")"
 
 cleanup() {
@@ -74,6 +76,22 @@ do
   printf 'fixture:%s\n' "${name}" > "${ASSETS_DIR}/${name}"
 done
 
+mkdir -p "${WINDOWS_METADATA_DIR}"
+WINDOWS_SETUP="fn-knock-${VERSION}-windows-x86_64-unsigned-setup.exe"
+WINDOWS_SHA256="$(sha256sum "${ASSETS_DIR}/${WINDOWS_SETUP}" | awk '{print $1}')"
+printf '%s  %s\n' "${WINDOWS_SHA256}" "${WINDOWS_SETUP}" \
+  > "${WINDOWS_METADATA_DIR}/${WINDOWS_SETUP}.sha256"
+printf '{"version":"%s","runtime_target":"windows","architecture":"x86_64","published_at":"2026-07-22T00:00:00.000Z"}\n' \
+  "${VERSION}" \
+  > "${WINDOWS_METADATA_DIR}/fn-knock-${VERSION}-windows-x86_64-unsigned-release.json"
+printf '{"version":"%s","pub_date":"2026-07-22T00:00:00.000Z"}\n' \
+  "${VERSION}" \
+  > "${WINDOWS_METADATA_DIR}/fn-knock-${VERSION}-windows-x86_64-unsigned-updater.json"
+printf '#!/bin/sh\necho install\n' > "${WORK_DIR}/install.sh"
+printf '# fn-knock %s\n\n- Integration fixture\n' "${VERSION}" \
+  > "${WORK_DIR}/release-notes.md"
+printf '[]\n' > "${WORK_DIR}/release-history.json"
+
 run_finalize >/dev/null
 jq -e \
   --arg version "${VERSION}" \
@@ -84,6 +102,8 @@ jq -e \
     (.artifacts | length) == 21 and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and
     ([.artifacts[].name | select(startswith("app-meta-"))] | length) == 2 and
+    ([.artifacts[] | select(.platform == "openwrt" and (.name | endswith(".ipk"))) | .architecture] | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
+    ([.artifacts[] | select(.platform == "openwrt" and (.name | endswith(".apk"))) | .architecture] | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
     ([.artifacts[] | select(.platform == "synology") | .architecture] | sort) == ["armv7", "armv8", "x86_64"] and
     .metadata_files == ["release-manifest.json", "SHA256SUMS"] and
     .docker.published == true and
@@ -99,6 +119,28 @@ if find "${ASSETS_DIR}" -maxdepth 1 -type f \
 then
   fail "per-artifact metadata files remain in the public release directory"
 fi
+
+COS_PUBLICBASICURL=https://cdn.example.test \
+FN_KNOCK_COS_OUTPUT_DIR="${COS_OUTPUT_DIR}" \
+FN_KNOCK_INSTALL_SCRIPT="${WORK_DIR}/install.sh" \
+FN_KNOCK_RELEASE_ASSETS_DIR="${ASSETS_DIR}" \
+FN_KNOCK_RELEASE_HISTORY_FILE="${WORK_DIR}/release-history.json" \
+FN_KNOCK_RELEASE_NOTES_PATH="${WORK_DIR}/release-notes.md" \
+FN_KNOCK_VERSION="${VERSION}" \
+FN_KNOCK_WINDOWS_METADATA_DIR="${WINDOWS_METADATA_DIR}" \
+  node "${ROOT_DIR}/scripts/fn-knock-cos-publish.mjs" plan >/dev/null
+jq -e \
+  '
+    (.version_objects | length) == 24 and
+    (.mutable_objects | length) == 6
+  ' \
+  "${COS_OUTPUT_DIR}/publish-plan.json" >/dev/null
+jq -e \
+  '
+    (.packages.ipk | keys | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
+    (.packages.apk | keys | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"]
+  ' \
+  "${COS_OUTPUT_DIR}/latest.json" >/dev/null
 
 run_finalize >/dev/null
 

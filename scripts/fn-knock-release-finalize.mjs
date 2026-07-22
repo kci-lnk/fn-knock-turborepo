@@ -57,14 +57,14 @@ function classify(name) {
     return { platform: "synology", architecture: synologyMatch[1] };
   if (name.includes("windows-x86_64"))
     return { platform: "windows", architecture: "x86_64" };
-  if (name.includes("aarch64"))
-    return { platform: "openwrt", architecture: "arm64" };
-  if (name.includes("arm_cortex"))
-    return { platform: "openwrt", architecture: "armv7" };
-  if (name.includes("x86_64") && /\.(ipk|apk)$/.test(name))
-    return { platform: "openwrt", architecture: "amd64" };
   if (name.startsWith("app-meta-"))
     return { platform: "openwrt", architecture: "all" };
+  const openwrtMatch = name.match(
+    /^fn-knock_.+?-(?:1|r1)_(aarch64_cortex-a53|aarch64_generic|arm_cortex-a5_vfpv4|arm_cortex-a7_neon-vfpv4|x86_64)\.(?:ipk|apk)$/,
+  );
+  if (openwrtMatch) {
+    return { platform: "openwrt", architecture: openwrtMatch[1] };
+  }
   const linuxMatch = name.match(/linux-[^-]+-(amd64|arm64|arm)\.tar\.gz$/);
   if (linuxMatch) {
     return {

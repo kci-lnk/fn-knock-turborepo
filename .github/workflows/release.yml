@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: fn-knock-stable-release
   cancel-in-progress: false
 
 env:
@@ -601,7 +601,7 @@ jobs:
       needs.windows-unsigned.result == 'success' &&
       (github.event_name != 'push' || needs.docker-manifest.result == 'success')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: write
       id-token: write
@@ -613,6 +613,16 @@ jobs:
         with:
           ref: ${{ needs.preflight.outputs.source_sha }}
           persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install locked publishing dependencies
+        shell: bash
+        run: npm ci --ignore-scripts
 
       - name: Download release archives
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -636,6 +646,9 @@ jobs:
           for archive in downloads/*.tar.gz; do
             tar -xzf "${archive}" -C dist/release-assets
           done
+          mkdir -p "${RUNNER_TEMP}/fn-knock-windows-release"
+          tar -xzf downloads/windows-release.tar.gz \
+            -C "${RUNNER_TEMP}/fn-knock-windows-release"
           node ./scripts/fn-knock-release-finalize.mjs dist/release-assets
           jq -r '.artifacts[].name, .metadata_files[]' \
             dist/release-assets/release-manifest.json | sort > /tmp/manifest-assets
@@ -643,11 +656,34 @@ jobs:
             sort > /tmp/directory-assets
           diff -u /tmp/manifest-assets /tmp/directory-assets
 
+      - name: Read previous GitHub Release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: >-
+          gh api
+          "repos/${GITHUB_REPOSITORY}/releases?per_page=100"
+          > "${RUNNER_TEMP}/fn-knock-releases.json"
+
+      - name: Validate Tencent COS publish plan
+        env:
+          COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
+          FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/cos-publish
+          FN_KNOCK_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/linux/install.sh
+          FN_KNOCK_RELEASE_ASSETS_DIR: ${{ github.workspace }}/dist/release-assets
+          FN_KNOCK_RELEASE_HISTORY_FILE: ${{ runner.temp }}/fn-knock-releases.json
+          FN_KNOCK_RELEASE_NOTES_PATH: ${{ github.workspace }}/release-notes/${{ needs.preflight.outputs.version }}.md
+          FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+          FN_KNOCK_WINDOWS_METADATA_DIR: ${{ runner.temp }}/fn-knock-windows-release
+        run: node ./scripts/fn-knock-cos-publish.mjs plan
+
       - name: Upload complete dry-run/release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fn-knock-${{ needs.preflight.outputs.version }}-release
-          path: dist/release-assets/
+          path: |
+            dist/release-assets/
+            dist/cos-publish/
           if-no-files-found: error
           retention-days: 30
 
@@ -668,13 +704,12 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Publish immutable GitHub Release
+      - name: Stage draft GitHub Release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.preflight.outputs.tag }}
           VERSION: ${{ needs.preflight.outputs.version }}
-          DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
         shell: bash
         run: |
           if gh release view "${TAG}" --json isDraft >/tmp/release.json 2>/dev/null; then
@@ -700,6 +735,12 @@ jobs:
           gh release view "${TAG}" --json assets --jq '.assets[].name' | sort > /tmp/actual-assets
           diff -u /tmp/expected-assets /tmp/actual-assets
 
+      - name: Publish and verify Docker latest
+        if: github.event_name == 'push'
+        env:
+          DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
+        shell: bash
+        run: |
           docker buildx imagetools create \
             -t "${FN_KNOCK_DOCKER_IMAGE_REPO}:latest" \
             "${FN_KNOCK_DOCKER_IMAGE_REPO}@${DOCKER_DIGEST}"
@@ -713,4 +754,29 @@ jobs:
           printf '%s\n' "${latest}" | grep -q 'linux/arm64'
           printf '%s\n' "${latest}" | grep -q 'linux/arm/v7'
 
+      - name: Publish to Tencent COS and refresh latest CDN cache
+        if: github.event_name == 'push'
+        env:
+          COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
+          COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
+          COS_REGION: ${{ vars.COS_REGION || secrets.COS_REGION }}
+          COS_SECRETID: ${{ secrets.COS_SECRETID }}
+          COS_SECRETKEY: ${{ secrets.COS_SECRETKEY }}
+          FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/cos-publish
+          FN_KNOCK_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/linux/install.sh
+          FN_KNOCK_LATEST_URL: https://cor.fnknock.cn/latest.json
+          FN_KNOCK_RELEASE_ASSETS_DIR: ${{ github.workspace }}/dist/release-assets
+          FN_KNOCK_RELEASE_HISTORY_FILE: ${{ runner.temp }}/fn-knock-releases.json
+          FN_KNOCK_RELEASE_NOTES_PATH: ${{ github.workspace }}/release-notes/${{ needs.preflight.outputs.version }}.md
+          FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+          FN_KNOCK_WINDOWS_METADATA_DIR: ${{ runner.temp }}/fn-knock-windows-release
+        run: node ./scripts/fn-knock-cos-publish.mjs publish
+
+      - name: Publish immutable GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+        shell: bash
+        run: |
           gh release edit "${TAG}" --draft=false --latest

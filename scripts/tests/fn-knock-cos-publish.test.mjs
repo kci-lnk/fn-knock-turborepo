@@ -10,6 +10,7 @@ import {
   compareVersions,
   composeReleaseNotes,
   mergeLatestDocument,
+  normalizeCosAccelerateDomain,
   publishRelease,
   verifyLatestDocument,
 } from "../fn-knock-cos-publish.mjs";
@@ -292,6 +293,32 @@ test("composes current notes plus at most five earlier stable releases", () => {
   assert.equal(compareVersions("3.4.10", "3.4.9"), 1);
 });
 
+test("validates the configured COS acceleration endpoint", () => {
+  assert.equal(
+    normalizeCosAccelerateDomain(
+      " Example-Bucket-1250000000.acceleration.example.test. ",
+      "example-bucket-1250000000",
+    ),
+    "example-bucket-1250000000.acceleration.example.test",
+  );
+  assert.throws(
+    () =>
+      normalizeCosAccelerateDomain(
+        "https://example-bucket-1250000000.example.test",
+        "example-bucket-1250000000",
+      ),
+    /hostname without a protocol/,
+  );
+  assert.throws(
+    () =>
+      normalizeCosAccelerateDomain(
+        "other-bucket-1250000000.example.test",
+        "example-bucket-1250000000",
+      ),
+    /configured COS_BUCKET/,
+  );
+});
+
 test("preserves unknown latest fields while replacing all known packages", () => {
   const merged = mergeLatestDocument(
     {
@@ -522,6 +549,35 @@ test("refuses to overwrite different same-version objects", async (context) => {
     /same-version COS object (size|SHA-256) mismatch/,
   );
   assert.deepEqual(store.operations, []);
+});
+
+test("resumes a partial version upload while latest still points to the old release", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildFixturePlan(fixture);
+  const completed = plan.versionObjects.slice(0, 6);
+  const store = new FakeStore(oldPointers(plan));
+  for (const object of completed) {
+    store.set(object.key, object.body ?? (await readFile(object.path)), object);
+  }
+
+  await publishRelease({
+    plan,
+    store,
+    cdn: { purgeAndWait: async () => "task-resume" },
+    latestUrl: "https://cor.example.test/latest.json",
+    fetchImpl: async () =>
+      new Response((await store.get("latest.json")).body, { status: 200 }),
+    wait: async () => {},
+    log: () => {},
+  });
+
+  for (const object of completed) {
+    assert.ok(!store.operations.includes(`put:${object.key}`));
+  }
+  for (const object of plan.versionObjects.slice(6)) {
+    assert.ok(store.operations.includes(`put:${object.key}`));
+  }
 });
 
 test("detects a pointer ETag conflict before pointer writes", async (context) => {

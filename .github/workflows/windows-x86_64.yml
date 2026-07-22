@@ -55,6 +55,16 @@ jobs:
           toolchain: "1.96.0"
           targets: x86_64-pc-windows-msvc
 
+      - name: Restore Windows Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: windows-x86_64
+          add-job-id-key: "false"
+          cache-bin: "false"
+          workspaces: |
+            apps/server-admin-rs -> target
+            apps/fn-knock-desktop/native -> target
+
       - name: Install dependencies
         shell: pwsh
         run: |

@@ -5,6 +5,7 @@ param(
   [string]$GoRepository = "",
   [switch]$SkipDesktopBundle,
   [switch]$BundleInstaller,
+  [switch]$SkipChecks,
   [switch]$RequireCleanTree,
   [string]$OutputDirectory = ""
 )
@@ -39,6 +40,9 @@ if ($SkipDesktopBundle -and $BundleInstaller) {
 }
 if ($BundleInstaller -and $Mode -ne "Build") {
   throw "BundleInstaller is only valid in Build mode"
+}
+if ($SkipChecks -and $Mode -ne "Build") {
+  throw "SkipChecks is only valid in Build mode"
 }
 
 function Assert-CleanReleaseTrees([string]$Phase) {
@@ -106,8 +110,10 @@ function Invoke-GoChecksAndBuild {
     $env:GOOS = "windows"
     $env:GOARCH = "amd64"
     $env:CGO_ENABLED = "0"
-    go test -mod=readonly ./...
-    Assert-LastExitCode "Go Windows tests"
+    if (-not $SkipChecks) {
+      go test -mod=readonly ./...
+      Assert-LastExitCode "Go Windows tests"
+    }
     New-Item -ItemType Directory -Force (Join-Path $GoRepository "build") | Out-Null
     $output = Join-Path $GoRepository "build\go-reauth-proxy-windows-amd64.exe"
     go build -mod=readonly -trimpath -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=$Version -X go-reauth-proxy/pkg/version.Commit=$GoCommit" -o $output ./cmd/server
@@ -122,10 +128,12 @@ function Invoke-RustChecksAndBuild {
   $env:FN_KNOCK_DEPLOYMENT_TARGET = "windows"
   $env:FN_KNOCK_COMMIT = $Commit
   $env:FN_KNOCK_GATEWAY_COMMIT = $GoCommit
-  cargo test --locked --manifest-path $manifest
-  Assert-LastExitCode "Rust unit tests"
-  cargo check --locked --manifest-path $manifest --target $Target
-  Assert-LastExitCode "Rust Windows check"
+  if (-not $SkipChecks) {
+    cargo test --locked --manifest-path $manifest
+    Assert-LastExitCode "Rust unit tests"
+    cargo check --locked --manifest-path $manifest --target $Target
+    Assert-LastExitCode "Rust Windows check"
+  }
   cargo build --locked --release --manifest-path $manifest --target $Target
   Assert-LastExitCode "Rust Windows release build"
 }

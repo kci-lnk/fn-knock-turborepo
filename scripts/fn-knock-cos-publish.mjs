@@ -23,6 +23,8 @@ const LATEST_KEY = "latest.json";
 const WINDOWS_STABLE_KEY = "windows/stable/latest.json";
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const HOSTNAME_PATTERN =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 const fail = (message) => {
   throw new Error(`[cos-publish] ${message}`);
@@ -32,6 +34,23 @@ const isRecord = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const normalizeBaseUrl = (value) => value.trim().replace(/\/+$/, "");
+
+export const normalizeCosAccelerateDomain = (value, bucket) => {
+  const domain = String(value ?? "")
+    .trim()
+    .replace(/\.$/, "")
+    .toLowerCase();
+  const normalizedBucket = String(bucket ?? "")
+    .trim()
+    .toLowerCase();
+  if (!HOSTNAME_PATTERN.test(domain)) {
+    fail("COS_ACC must be a hostname without a protocol, path, or port");
+  }
+  if (!normalizedBucket || !domain.startsWith(`${normalizedBucket}.`)) {
+    fail("COS_ACC must identify the configured COS_BUCKET");
+  }
+  return domain;
+};
 
 const parseVersion = (value) => {
   const match = String(value ?? "")
@@ -682,9 +701,7 @@ export const verifyLatestDocument = (actual, expected) => {
   );
 };
 
-const prepareVersionUploads = async ({ plan, store, currentVersion, log }) => {
-  if (currentVersion !== plan.version) return plan.versionObjects;
-
+const prepareVersionUploads = async ({ plan, store, log }) => {
   const missing = [];
   for (const object of plan.versionObjects) {
     const head = await store.head(object.key);
@@ -779,7 +796,6 @@ export const publishRelease = async ({
   const versionUploads = await prepareVersionUploads({
     plan,
     store,
-    currentVersion,
     log,
   });
   await mapWithConcurrency(versionUploads, 3, (object) =>
@@ -867,12 +883,20 @@ export const createTencentAdapters = ({
   secretKey,
   bucket,
   region,
+  accelerateDomain,
   wait = (milliseconds) =>
     new Promise((resolveWait) => setTimeout(resolveWait, milliseconds)),
 }) => {
   const COS = require("cos-nodejs-sdk-v5");
   const { cdn: cdnSdk } = require("tencentcloud-sdk-nodejs-cdn");
-  const cos = new COS({ SecretId: secretId, SecretKey: secretKey });
+  const originCos = new COS({ SecretId: secretId, SecretKey: secretKey });
+  const acceleratedCos = new COS({
+    SecretId: secretId,
+    SecretKey: secretKey,
+    Domain: normalizeCosAccelerateDomain(accelerateDomain, bucket),
+    Protocol: "https:",
+    UseAccelerate: true,
+  });
   const objectParams = (key) => ({ Bucket: bucket, Region: region, Key: key });
   const missing = (error) =>
     error?.statusCode === 404 || error?.code === "NoSuchKey";
@@ -887,7 +911,7 @@ export const createTencentAdapters = ({
   const store = {
     async get(key) {
       try {
-        const data = await cos.getObject(objectParams(key));
+        const data = await acceleratedCos.getObject(objectParams(key));
         const headers = headersOf(data);
         return {
           body: Buffer.from(data.Body),
@@ -904,7 +928,7 @@ export const createTencentAdapters = ({
     },
     async head(key) {
       try {
-        const data = await cos.headObject(objectParams(key));
+        const data = await acceleratedCos.headObject(objectParams(key));
         const headers = headersOf(data);
         return {
           etag: data.ETag ?? headers.etag ?? null,
@@ -917,7 +941,7 @@ export const createTencentAdapters = ({
       }
     },
     async put(object) {
-      await cos.putObject({
+      await acceleratedCos.putObject({
         ...objectParams(object.key),
         Body: object.body ?? createReadStream(object.path),
         ContentLength: object.size,
@@ -927,7 +951,7 @@ export const createTencentAdapters = ({
       });
     },
     async delete(key) {
-      await cos.deleteObject(objectParams(key));
+      await originCos.deleteObject(objectParams(key));
     },
   };
 
@@ -1050,6 +1074,7 @@ const main = async () => {
     secretKey: requireEnvironment("COS_SECRETKEY"),
     bucket: requireEnvironment("COS_BUCKET"),
     region: requireEnvironment("COS_REGION"),
+    accelerateDomain: requireEnvironment("COS_ACC"),
   });
   await publishRelease({
     plan,

@@ -44,6 +44,10 @@ assert_action_pin \
   "249970729cb0ef3589644e2896645e5dc5ba9c38" \
   "v6.5.0"
 assert_action_pin \
+  "Swatinem/rust-cache" \
+  "23869a5bd66c73db3c0ac40331f3206eb23791dc" \
+  "v2.9.1"
+assert_action_pin \
   "docker/setup-qemu-action" \
   "96fe6ef7f33517b61c61be40b68a1882f3264fb8" \
   "v4.2.0"

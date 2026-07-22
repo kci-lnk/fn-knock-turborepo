@@ -186,7 +186,7 @@ jobs:
           git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
 
   build-common:
-    needs: [preflight, quality]
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -260,7 +260,7 @@ jobs:
           retention-days: 14
 
   build-rust-gnu:
-    needs: [preflight, quality]
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -313,7 +313,7 @@ jobs:
           retention-days: 14
 
   build-rust-musl:
-    needs: [preflight, quality]
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -345,7 +345,7 @@ jobs:
           retention-days: 14
 
   windows-unsigned:
-    needs: [preflight, quality]
+    needs: preflight
     runs-on: windows-2022
     timeout-minutes: 120
     env:
@@ -384,6 +384,16 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-pc-windows-msvc
 
+      - name: Restore Windows Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: windows-x86_64
+          add-job-id-key: "false"
+          cache-bin: "false"
+          workspaces: |
+            apps/server-admin-rs -> target
+            apps/fn-knock-desktop/native -> target
+
       - name: Install dependencies
         shell: pwsh
         run: |
@@ -397,6 +407,7 @@ jobs:
           ./scripts/fn-knock-windows.ps1
           -Mode Build
           -BundleInstaller
+          -SkipChecks
           -RequireCleanTree
           -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
 
@@ -593,10 +604,11 @@ jobs:
           printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
 
   publish:
-    needs: [preflight, assemble, windows-unsigned, docker-manifest]
+    needs: [preflight, quality, assemble, windows-unsigned, docker-manifest]
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
+      needs.quality.result == 'success' &&
       needs.assemble.result == 'success' &&
       needs.windows-unsigned.result == 'success' &&
       (github.event_name != 'push' || needs.docker-manifest.result == 'success')
@@ -757,6 +769,7 @@ jobs:
       - name: Publish to Tencent COS and refresh latest CDN cache
         if: github.event_name == 'push'
         env:
+          COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}
           COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
           COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
           COS_REGION: ${{ vars.COS_REGION || secrets.COS_REGION }}

@@ -41,8 +41,38 @@ grep -Fq "FN_KNOCK_LATEST_URL: https://cor.fnknock.cn/latest.json" "${WORKFLOW}"
   fail "workflow does not pin the public latest URL"
 grep -Fq 'COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}' "${WORKFLOW}" ||
   fail "COS bucket does not support Variables with a Secrets fallback"
+grep -Fq 'COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}' "${WORKFLOW}" ||
+  fail "COS acceleration endpoint does not support Variables with a Secrets fallback"
 grep -Fq 'COS_SECRETID: ${{ secrets.COS_SECRETID }}' "${WORKFLOW}" ||
   fail "COS SecretId is not sourced from GitHub Secrets"
+
+job_needs() {
+  local job="$1"
+  awk -v job="${job}" '
+    $0 == "  " job ":" { in_job = 1; next }
+    in_job && /^  [a-zA-Z0-9_-]+:$/ { exit }
+    in_job && /^    needs:/ {
+      sub(/^    needs:[[:space:]]*/, "")
+      print
+      exit
+    }
+  ' "${WORKFLOW}"
+}
+
+for build_job in build-common build-rust-gnu build-rust-musl windows-unsigned; do
+  [ "$(job_needs "${build_job}")" = "preflight" ] ||
+    fail "${build_job} must start after preflight without waiting for quality"
+done
+[ "$(job_needs quality)" = "preflight" ] ||
+  fail "quality must start after preflight"
+[ "$(job_needs publish)" = "[preflight, quality, assemble, windows-unsigned, docker-manifest]" ] ||
+  fail "publish must wait for quality and every release artifact"
+grep -Fq "needs.quality.result == 'success'" "${WORKFLOW}" ||
+  fail "publish must retain quality as a release gate"
+grep -Fq -- '-SkipChecks' "${WORKFLOW}" ||
+  fail "Windows release packaging must not repeat checks owned by quality/Windows CI"
+grep -Fq 'shared-key: windows-x86_64' "${WORKFLOW}" ||
+  fail "Windows release packaging must restore its Rust dependency cache"
 
 cos_block="$(sed -n "${cos_line},${public_line}p" "${WORKFLOW}")"
 printf '%s\n' "${cos_block}" | grep -Fq "if: github.event_name == 'push'" ||

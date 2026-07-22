@@ -29,7 +29,10 @@ services:
     volumes:
       - fn_knock_data:/var/lib/fn-knock
       - fn_knock_gateway:/usr/local/etc/fn-knock
-      - /proc/1/net:/host/proc/net:ro
+      - type: bind
+        source: /proc/net/if_inet6
+        target: /host/proc/net/if_inet6
+        read_only: true
     healthcheck:
       test:
         [

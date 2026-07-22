@@ -28,6 +28,8 @@ fnknock 是一款鉴权网关，帮助你更方便地暴露公网服务，支持
 
 当前 Docker 镜像已经切换为 Rust 后端，并使用内置 SQLite 兼容存储；新部署只需要 `fn-knock` 一个容器，不需要 Redis，也不需要在 compose 里再配置 `redis` 服务。
 
+发布版 Compose 保持独立 bridge 网络，同时启用 IPv6，并将 Linux 宿主机的 `/proc/net/if_inet6` 只读映射进容器。这样 DDNS 可以在“从网卡获取”时选择宿主机真实 IPv6 接口，无需使用 host 网络模式。
+
 ### 1. 准备运行目录
 
 ```bash
@@ -65,7 +67,7 @@ DOCKER_DISCOVER_LAN_IP=
 - `ADMIN_VIEW_PORT`：管理后台入口端口，默认 `7991`
 - `GO_REPROXY_PORT`：网关对外服务端口，默认 `7999`
 - `FN_KNOCK_DOCKER_IPV4_SUBNET`：Docker bridge 的容器 IPv4 子网；如果同机网络冲突，可换成其它私网 CIDR
-- `FN_KNOCK_DOCKER_IPV6_SUBNET`：Docker bridge 的容器 IPv6 子网，默认启用 ULA `/64`，用于保留外部 IPv6 来源地址
+- `FN_KNOCK_DOCKER_IPV6_SUBNET`：Docker bridge 的容器 IPv6 子网，默认启用 ULA `/64`
 - `BACKEND_PORT` / `AUTH_PORT` / `GO_BACKEND_PORT`：容器内部组件端口，通常保持默认即可
 - `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`：如果 `7991` 需要挂在可信反代后面，填反代出口 IP 或 CIDR
 - `DOCKER_DISCOVER_LAN_IP`：仅第三方反代无法自动识别宿主机局域网地址时作为兜底
@@ -104,7 +106,10 @@ services:
     volumes:
       - fn_knock_data:/var/lib/fn-knock
       - fn_knock_gateway:/usr/local/etc/fn-knock
-      - /proc/1/net:/host/proc/net:ro
+      - type: bind
+        source: /proc/net/if_inet6
+        target: /host/proc/net/if_inet6
+        read_only: true
     healthcheck:
       test:
         [
@@ -131,10 +136,11 @@ networks:
 这份 compose 配置的要点：
 
 - `fn-knock` 使用 `unless-stopped`，重启后会自动拉起
-- 只对宿主机开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`
+- 保持 Docker bridge 隔离，只向宿主机开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`
+- 为 bridge 显式启用 IPv6；宿主机本身仍需启用 IPv6 并获得可用地址
+- 只读映射宿主机 `/proc/net/if_inet6`，让 DDNS 可以选择宿主机真实 IPv6 网卡；不会共享整个宿主机网络命名空间
+- `/proc/net/if_inet6` 是 procfs 虚拟文件，文件大小始终显示为 `0`；不要用 `test -s` 判断，应读取内容并检查 scope `00` 的全局 IPv6 条目
 - 不再启动 Redis；默认数据会写入 `fn_knock_gateway` 卷中的 SQLite 数据库
-- 默认启用容器 IPv6 网络，避免宿主机 IPv6 入口被 Docker 转接到容器 IPv4 后丢失真实来访 IP
-- 只读挂载宿主机 `/proc/1/net`，让 Docker 内的 DDNS 可以直接选择宿主机公网 IPv6；如果设备没有 IPv6 地址，DDNS 会自动退回原有公网探测逻辑
 - `fn_knock_data` 保存 secret、备份、FRP/Cloudflared 资源等运行数据
 - `fn_knock_gateway` 保存网关配置和默认 SQLite 数据库（`storage/fn-knock.sqlite3`）
 
@@ -257,6 +263,7 @@ npm run fn-knock:docker:down
 - 自动加载 `compose.override.yaml`
 - 默认附加 `EXPOSE_RUNTIME_HMAC_SECRET=1`，便于本地调试
 - 只对外开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`，`BACKEND_PORT` 仅保留在容器内部
+- 通过只读映射 `/proc/net/if_inet6` 将宿主机 IPv6 网卡信息提供给 DDNS，不启用 host 网络模式
 - 首次访问 `ADMIN_VIEW_PORT` 需要设置管理面板密码，后续访问需要先输入该密码
 - 成功登录后，可在“系统设置 -> 面板”里直接修改管理面板密码
 - `ADMIN_VIEW_PORT` 默认只允许宿主机本地、局域网或 VPN 等内网来源访问，公网直连会直接收到拒绝页面

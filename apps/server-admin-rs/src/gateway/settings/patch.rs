@@ -48,6 +48,17 @@ pub(super) fn apply_gateway_patch(config: &mut Value, patch: &Map<String, Value>
         );
     }
 
+    if let Some(value) = patch.get("unmatched_route") {
+        let previous = object
+            .get("gateway_unmatched_route")
+            .cloned()
+            .unwrap_or_else(default_gateway_unmatched_route);
+        object.insert(
+            "gateway_unmatched_route".to_string(),
+            normalize_gateway_unmatched_route(&merge_objects(&previous, value)),
+        );
+    }
+
     if let Some(value) = patch.get("crawler_blocker") {
         let previous = object
             .get("gateway_crawler_blocker")

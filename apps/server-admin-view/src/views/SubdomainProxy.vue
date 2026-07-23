@@ -58,6 +58,7 @@
       :is-exporting-bookmarks="isExportingBookmarks"
       :is-favicon-broken="isFaviconBroken"
       :is-gateway-portal-enabled="isGatewayPortalEnabled"
+      :is-default-domain-available="isDefaultDomainAvailable"
       :is-mapping-unavailable="isMappingUnavailable"
       :is-mapping-status-tooltip-open="isMappingStatusTooltipOpen"
       :is-protocol-headers-warning-open="isProtocolHeadersWarningOpen"
@@ -251,6 +252,7 @@ import { useConfigStore } from "../store/config";
 import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import { ConfigAPI, DashboardAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
+import { isDefaultDomainAvailableForBehavior } from "../lib/gatewayUnmatchedRoute";
 import type { HostMapping } from "../types";
 import {
   extractErrorMessage,
@@ -287,7 +289,6 @@ const staleCleanupDialogRef = ref<InstanceType<
   typeof StaleHostMappingsCleanupDialog
 > | null>(null);
 const isScanIntensityDialogOpen = ref(false);
-
 const searchQuery = ref("");
 const router = useRouter();
 const draggableVisibleMappings = ref<HostMapping[]>([]);
@@ -325,7 +326,6 @@ const isTouchInteraction = useMediaQueryMatch(
   "(hover: none), (pointer: coarse)",
 );
 const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
-
 const {
   clearCloseTimer: clearProtocolHeadersWarningCloseTimer,
   handleOpenChange: handleProtocolHeadersWarningOpenChange,
@@ -336,7 +336,6 @@ const {
 } = useDelayedHostPopover();
 const { isFaviconBroken, markFaviconBroken, resetFaviconErrors } =
   useMappingFaviconState();
-
 const {
   activeEdgeClientIpProvider,
   authServicePublicPort,
@@ -388,6 +387,11 @@ const {
 const isGatewayPortalEnabled = computed(
   () => configStore.config?.gateway_portal?.enabled !== false,
 );
+const isDefaultDomainAvailable = computed(() =>
+  isDefaultDomainAvailableForBehavior(
+    configStore.config?.gateway_unmatched_route?.behavior,
+  ),
+);
 const globalWafEnabled = computed(
   () => configStore.config?.waf?.enabled === true,
 );
@@ -415,7 +419,6 @@ const isSubdomainModeConfigured = computed(() => {
     authServiceMapping.value,
   );
 });
-
 const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.subdomainProxy.saveFailed"), {
@@ -426,7 +429,6 @@ const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
     });
   },
 });
-
 const {
   advanceClearAllConfirmation,
   closeDeleteDialog,
@@ -468,7 +470,6 @@ const {
 const isGatewayAdvancedAvailableByMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
-
 const getMappingTitleForDisplay = (mapping: HostMapping): string =>
   getMappingDisplayTitle(mapping) || t("admin.subdomainProxy.notFetched");
 
@@ -678,6 +679,7 @@ const {
   filteredMappings,
   formatHostWithAccessEntryPort,
   isAuthServiceTarget,
+  isDefaultDomainAvailable,
   isSavingMappings,
   navigateToGatewayLocations: (host) => {
     void router.push({

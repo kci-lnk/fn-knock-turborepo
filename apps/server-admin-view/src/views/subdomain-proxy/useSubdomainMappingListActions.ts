@@ -40,6 +40,7 @@ export const useSubdomainMappingListActions = ({
   filteredMappings,
   formatHostWithAccessEntryPort,
   isAuthServiceTarget,
+  isDefaultDomainAvailable,
   isSavingMappings,
   navigateToGatewayLocations,
   refreshAllHostMappingTitles,
@@ -61,6 +62,7 @@ export const useSubdomainMappingListActions = ({
   filteredMappings: ComputedRef<HostMapping[]>;
   formatHostWithAccessEntryPort: (host: string) => string;
   isAuthServiceTarget: (target: string) => boolean;
+  isDefaultDomainAvailable: ComputedRef<boolean>;
   isSavingMappings: Ref<boolean>;
   navigateToGatewayLocations: (host: string) => void;
   refreshAllHostMappingTitles: () => Promise<RefreshTitlesSummary>;
@@ -128,7 +130,11 @@ export const useSubdomainMappingListActions = ({
   };
 
   const setDefaultMapping = async (mapping: HostMapping) => {
-    if (isSavingMappings.value || isAuthServiceTarget(mapping.target)) {
+    if (
+      isSavingMappings.value ||
+      !isDefaultDomainAvailable.value ||
+      isAuthServiceTarget(mapping.target)
+    ) {
       return;
     }
 
@@ -147,7 +153,7 @@ export const useSubdomainMappingListActions = ({
   };
 
   const clearDefaultMapping = async (mapping: HostMapping) => {
-    if (isSavingMappings.value) {
+    if (isSavingMappings.value || !isDefaultDomainAvailable.value) {
       return;
     }
 

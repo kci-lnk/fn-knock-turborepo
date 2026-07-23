@@ -173,6 +173,10 @@ message GatewayPortalConfig {
   string icon_drag_mode = 4;
 }
 
+message GatewayUnmatchedRouteConfig {
+  string behavior = 1;
+}
+
 message FnosPortIconHijackConfig {
   bool enabled = 1;
   string updated_at = 2;
@@ -733,6 +737,8 @@ service GatewayControlService {
   rpc SetCrawlerBlockerConfig(CrawlerBlockerConfig) returns (CrawlerBlockerConfig);
   rpc GetGatewayPortalConfig(google.protobuf.Empty) returns (GatewayPortalConfig);
   rpc SetGatewayPortalConfig(GatewayPortalConfig) returns (GatewayPortalConfig);
+  rpc GetGatewayUnmatchedRouteConfig(google.protobuf.Empty) returns (GatewayUnmatchedRouteConfig);
+  rpc SetGatewayUnmatchedRouteConfig(GatewayUnmatchedRouteConfig) returns (GatewayUnmatchedRouteConfig);
   rpc GetFnosPortIconHijackConfig(google.protobuf.Empty) returns (FnosPortIconHijackConfig);
   rpc SetFnosPortIconHijackConfig(FnosPortIconHijackConfig) returns (FnosPortIconHijackConfig);
   rpc GetReverseProxyThrottleExemptIps(google.protobuf.Empty) returns (ReverseProxyThrottleExemptIpsRuntime);

@@ -23,6 +23,7 @@ const gatewayRouteTypes = [
   "slash_redirect",
   "stream_rule",
   "toolbar_asset",
+  "unmatched_route_blocked",
   "visibility",
 ] as const;
 

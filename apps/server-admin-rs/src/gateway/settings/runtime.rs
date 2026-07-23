@@ -279,6 +279,18 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
             .set_gateway_portal_config(&portal)
             .await
             .map_err(|error| error.to_string())?,
+    )?;
+    let unmatched_route = normalize_gateway_unmatched_route(
+        config
+            .get("gateway_unmatched_route")
+            .unwrap_or(&default_gateway_unmatched_route()),
+    );
+    ensure_go_success(
+        state
+            .go_backend
+            .set_gateway_unmatched_route_config(&unmatched_route)
+            .await
+            .map_err(|error| error.to_string())?,
     )
 }
 

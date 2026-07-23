@@ -100,6 +100,7 @@ const props = defineProps<{
   isExportingBookmarks: boolean;
   isFaviconBroken: (mapping: HostMapping) => boolean;
   isGatewayPortalEnabled: boolean;
+  isDefaultDomainAvailable: boolean;
   isMappingUnavailable: (mapping: HostMapping) => boolean;
   isMappingStatusTooltipOpen: (
     host: string,
@@ -570,6 +571,7 @@ const handleMappingTableScroll = (event: Event) => {
                   :global-waf-enabled="globalWafEnabled"
                   :is-auth-service="isAuthServiceTarget(mapping.target)"
                   :is-gateway-portal-enabled="isGatewayPortalEnabled"
+                  :is-default-domain-available="isDefaultDomainAvailable"
                   :is-mapping-status-tooltip-open="isMappingStatusTooltipOpen"
                   :handle-mapping-status-tooltip-open-change="
                     handleMappingStatusTooltipOpenChange
@@ -620,6 +622,16 @@ const handleMappingTableScroll = (event: Event) => {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="
+                          !isAuthServiceTarget(mapping.target) &&
+                          !isDefaultDomainAvailable
+                        "
+                        disabled
+                      >
+                        <StarOff class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.defaultDomainUnavailable") }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-else-if="
                           !isAuthServiceTarget(mapping.target) &&
                           mapping.is_default
                         "

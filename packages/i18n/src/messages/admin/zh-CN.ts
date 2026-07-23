@@ -271,7 +271,7 @@ export const zhCNAdmin = {
     subdomainOnlyReason: "仅子域映射模式可用，当前为{mode}。",
     title: "网关",
     description:
-      "这里的配置会直接保存到管理端配置，并立即下发到 Go 网关，包含鉴权结果缓存与反向代理节流策略。",
+      "修改本页选项后，点击“保存设置”统一保存到管理端并下发到 Go 网关。",
     authCacheTitle: "成功鉴权缓存时长",
     authCacheDescriptionBefore:
       "对同一客户端和同一鉴权目标，成功结果缓存多少秒。填",
@@ -289,6 +289,13 @@ export const zhCNAdmin = {
     portalDescription: "控制访问入口在传送门与工具栏中的展示方式。",
     portalIconSummary: "图标：{state}",
     editPortal: "编辑传送门",
+    unmatchedRoute: "无匹配路由时行为",
+    unmatchedRouteDescription:
+      "展示错误页面会返回友好的欢迎页、选择页或错误页；阻断连接不返回页面，HTTP/1 重置 TCP 连接，HTTP/2 仅中止当前请求流。",
+    unmatchedRouteDefaultDomainWarning:
+      "阻断连接时，默认域名的兜底跳转会暂时停用；现有配置会保留，切回“展示错误页面”后自动恢复。",
+    unmatchedRouteErrorPage: "展示错误页面",
+    unmatchedRouteReset: "阻断连接",
     throttleTitle: "启用网关反代节流",
     throttleDescription:
       "按客户端 IP 做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。",
@@ -2308,6 +2315,8 @@ export const zhCNAdmin = {
     copyHostTitle: "点击复制 {host}",
     copyHostAria: "复制域名 {host}",
     defaultDomain: "默认域名",
+    defaultDomainInactive: "默认域名已因未匹配路由阻断而停用",
+    defaultDomainUnavailable: "默认域名在阻断模式下不可用",
     defaultDomainAria: "{host} 是默认域名",
     setDefaultDomain: "设为默认域名",
     clearDefaultDomain: "清除默认域名",
@@ -3027,6 +3036,7 @@ export const zhCNAdmin = {
       protocolMisdirected: "协议不匹配",
       hostUnavailable: "Host 不可用",
       defaultHostRedirect: "默认 Host 跳转",
+      unmatchedRouteBlocked: "未匹配域阻断",
       notFound: "未命中",
     },
     moreRules: "# {id} · 另 {count} 条",
@@ -3188,6 +3198,7 @@ export const zhCNAdmin = {
       proxy: "代理转发",
       error: "鉴权异常",
       generalBlacklistBlocked: "通用黑名单阻断",
+      connectionReset: "连接已阻断",
       subdomainRuleAllowed: "子域规则放行",
     },
     grantStates: {

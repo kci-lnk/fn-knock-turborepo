@@ -820,6 +820,7 @@ export interface AppConfig {
   gateway_host_response?: GatewayHostResponseConfig;
   gateway_crawler_blocker?: GatewayCrawlerBlockerConfig;
   gateway_portal?: GatewayPortalConfig;
+  gateway_unmatched_route?: GatewayUnmatchedRouteConfig;
   appearance?: AppearanceConfig;
   protocol_mapping_feature?: ProtocolMappingFeatureConfig;
   auto_https?: AutoHttpsConfig;
@@ -1272,6 +1273,12 @@ export type GatewayPortalConfig = {
   icon_drag_mode: GatewayPortalIconDragMode;
 };
 
+export type GatewayUnmatchedRouteBehavior = "error_page" | "reset_connection";
+
+export type GatewayUnmatchedRouteConfig = {
+  behavior: GatewayUnmatchedRouteBehavior;
+};
+
 export type GatewayCrawlerBlockerConfig = {
   enabled: boolean;
   updated_at?: string | null;
@@ -1286,6 +1293,7 @@ export type GatewaySettings = {
   host_response: GatewayHostResponseSummary;
   crawler_blocker: GatewayCrawlerBlockerConfig;
   portal: GatewayPortalConfig;
+  unmatched_route: GatewayUnmatchedRouteConfig;
 };
 
 export type TrafficStats = {

@@ -14,6 +14,7 @@ import FloatingActionDock from "@admin-shared/components/common/FloatingActionDo
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import GatewayEditorRow from "./GatewayEditorRow.vue";
 import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
+import GatewayUnmatchedRouteSettingRow from "./GatewayUnmatchedRouteSettingRow.vue";
 import { useGatewaySettingsController } from "./useGatewaySettingsController";
 
 const { t } = useI18n();
@@ -188,6 +189,16 @@ const {
           </Badge>
         </template>
       </GatewayEditorRow>
+
+      <GatewayUnmatchedRouteSettingRow
+        v-model="form.unmatched_route.behavior"
+        :title="t('admin.gatewaySettings.unmatchedRoute')"
+        :description="t('admin.gatewaySettings.unmatchedRouteDescription')"
+        :error-page-label="t('admin.gatewaySettings.unmatchedRouteErrorPage')"
+        :reset-connection-label="t('admin.gatewaySettings.unmatchedRouteReset')"
+        :warning="t('admin.gatewaySettings.unmatchedRouteDefaultDomainWarning')"
+        :disabled="isGatewaySettingsBusy"
+      />
 
       <GatewayEditorRow
         :title="t('admin.gatewaySettings.visibility')"

@@ -16,14 +16,14 @@ use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
     BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosPortIconHijackConfig,
-    GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig, GatewayVisibilityConfig,
-    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
-    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
-    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
-    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
-    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
-    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
-    firewall_service_client::FirewallServiceClient,
+    GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig, GatewayUnmatchedRouteConfig,
+    GatewayVisibilityConfig, GeneralBlacklistListRequest, HostActiveIpStats, HostLocation,
+    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility,
+    HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig,
+    OmitTargetsConfig, ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule,
+    Rules, SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate,
+    StreamRule, StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig,
+    WafDrainRequest, firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
@@ -525,6 +525,21 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("set_gateway_portal_config", result)
+    }
+
+    pub async fn set_gateway_unmatched_route_config(
+        &self,
+        config: &Value,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_gateway_unmatched_route_config(self.request(parse_gateway_unmatched_route(config)))
+            .await
+        {
+            Ok(response) => ok(gateway_unmatched_route_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_gateway_unmatched_route_config", result)
     }
 
     pub async fn set_fnos_port_icon_hijack_config(&self, config: &Value) -> anyhow::Result<Value> {
@@ -1388,6 +1403,12 @@ fn parse_portal(value: &Value) -> GatewayPortalConfig {
     }
 }
 
+fn parse_gateway_unmatched_route(value: &Value) -> GatewayUnmatchedRouteConfig {
+    GatewayUnmatchedRouteConfig {
+        behavior: string_field(value, "behavior"),
+    }
+}
+
 fn parse_fnos_port_icon_hijack(value: &Value) -> FnosPortIconHijackConfig {
     FnosPortIconHijackConfig {
         enabled: bool_field(value, "enabled", false),
@@ -1633,6 +1654,10 @@ fn portal_to_json(config: GatewayPortalConfig) -> Value {
         "show_app_icon": config.show_app_icon,
         "icon_drag_mode": config.icon_drag_mode
     })
+}
+
+fn gateway_unmatched_route_to_json(config: GatewayUnmatchedRouteConfig) -> Value {
+    json!({ "behavior": config.behavior })
 }
 
 fn fnos_port_icon_hijack_to_json(config: FnosPortIconHijackConfig) -> Value {
@@ -1996,5 +2021,17 @@ mod tests {
         assert_eq!(parsed.dropped_entries, 0);
         assert_eq!(parsed.queue_size, 0);
         assert_eq!(parsed.queue_depth, 0);
+    }
+
+    #[test]
+    fn gateway_unmatched_route_grpc_conversion_round_trips() {
+        let parsed = parse_gateway_unmatched_route(&json!({
+            "behavior": "reset_connection"
+        }));
+        assert_eq!(parsed.behavior, "reset_connection");
+        assert_eq!(
+            gateway_unmatched_route_to_json(parsed),
+            json!({ "behavior": "reset_connection" })
+        );
     }
 }

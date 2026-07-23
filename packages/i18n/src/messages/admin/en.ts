@@ -303,7 +303,7 @@ export const enAdmin = {
       "Only available in subdomain mapping mode. Current mode: {mode}.",
     title: "Gateway",
     description:
-      "These settings are saved to the admin configuration and pushed to the Go gateway immediately, including auth result caching and reverse proxy throttling.",
+      "After changing options on this page, select “Save settings” to save them together and push them to the Go gateway.",
     authCacheTitle: "Successful auth cache duration",
     authCacheDescriptionBefore:
       "For the same client and auth target, cache successful results for this many seconds. Enter",
@@ -323,6 +323,13 @@ export const enAdmin = {
       "Control how access entries appear in the portal and toolbar.",
     portalIconSummary: "Icon: {state}",
     editPortal: "Edit portal",
+    unmatchedRoute: "No-match route behavior",
+    unmatchedRouteDescription:
+      "Show a friendly welcome, selection, or error page; or return no page, resetting HTTP/1 TCP connections and aborting only the current HTTP/2 stream.",
+    unmatchedRouteDefaultDomainWarning:
+      "Blocking temporarily disables default-domain fallback redirects. The current setting is retained and returns when “Show error page” is selected.",
+    unmatchedRouteErrorPage: "Show error page",
+    unmatchedRouteReset: "Block connection",
     throttleTitle: "Enable gateway reverse proxy throttling",
     throttleDescription:
       "Rate limit and briefly block by client IP to stop high-frequency probing, retry storms, and abnormal request floods.",
@@ -2474,6 +2481,9 @@ export const enAdmin = {
     copyHostTitle: "Click to copy {host}",
     copyHostAria: "Copy domain {host}",
     defaultDomain: "Default domain",
+    defaultDomainInactive:
+      "Default domain is inactive while unmatched routes are blocked",
+    defaultDomainUnavailable: "Default domain unavailable in blocking mode",
     defaultDomainAria: "{host} is the default domain",
     setDefaultDomain: "Set as default domain",
     clearDefaultDomain: "Clear default domain",
@@ -3260,6 +3270,7 @@ export const enAdmin = {
       protocolMisdirected: "Protocol mismatch",
       hostUnavailable: "Host unavailable",
       defaultHostRedirect: "Default host redirect",
+      unmatchedRouteBlocked: "Unmatched domain blocked",
       notFound: "No match",
     },
     moreRules: "# {id} · {count} more",
@@ -3429,6 +3440,7 @@ export const enAdmin = {
       proxy: "Proxied",
       error: "Auth error",
       generalBlacklistBlocked: "General blacklist blocked",
+      connectionReset: "Connection blocked",
       subdomainRuleAllowed: "Allowed by subdomain rule",
     },
     grantStates: {

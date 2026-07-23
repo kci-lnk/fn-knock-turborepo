@@ -1252,6 +1252,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "gateway_host_response",
         "gateway_crawler_blocker",
         "gateway_portal",
+        "gateway_unmatched_route",
         "appearance",
         "dashboard_display",
         "auto_https",
@@ -1292,6 +1293,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
     assert_eq!(
         config.pointer("/gateway_portal/display_style"),
         Some(&json!("title"))
+    );
+    assert_eq!(
+        config.pointer("/gateway_unmatched_route/behavior"),
+        Some(&json!("error_page"))
     );
     assert_eq!(
         config.pointer("/waf/system_rules_auto_update_enabled"),

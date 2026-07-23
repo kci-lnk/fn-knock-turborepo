@@ -51,6 +51,16 @@ pub(super) fn normalize_gateway_portal(value: &Value) -> Value {
     })
 }
 
+pub(super) fn normalize_gateway_unmatched_route(value: &Value) -> Value {
+    json!({
+        "behavior": if value.get("behavior").and_then(Value::as_str) == Some("reset_connection") {
+            "reset_connection"
+        } else {
+            "error_page"
+        },
+    })
+}
+
 pub(super) fn is_gateway_portal_title_mode(config: &Value) -> bool {
     normalize_gateway_portal(
         config
@@ -186,6 +196,10 @@ pub(super) fn default_gateway_portal() -> Value {
         "show_app_icon": true,
         "icon_drag_mode": "corners",
     })
+}
+
+pub(super) fn default_gateway_unmatched_route() -> Value {
+    json!({ "behavior": "error_page" })
 }
 
 pub(super) fn default_subdomain_mode() -> Value {

@@ -61,6 +61,11 @@ pub(super) async fn build_gateway_settings_response_from_config(
             .get("gateway_portal")
             .unwrap_or(&default_gateway_portal()),
     );
+    let unmatched_route = normalize_gateway_unmatched_route(
+        config
+            .get("gateway_unmatched_route")
+            .unwrap_or(&default_gateway_unmatched_route()),
+    );
     let host_mappings = config
         .get("host_mappings")
         .and_then(Value::as_array)
@@ -87,6 +92,7 @@ pub(super) async fn build_gateway_settings_response_from_config(
         "host_response": build_gateway_host_response_summary(&host_response_items, &host_response_runtime),
         "crawler_blocker": crawler_blocker,
         "portal": portal,
+        "unmatched_route": unmatched_route,
     }))
 }
 

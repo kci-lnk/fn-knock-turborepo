@@ -15,6 +15,7 @@ export const ROUTE_TYPE_TRANSLATION_KEYS = {
   protocol_misdirected: "admin.wafLogs.routeTypes.protocolMisdirected",
   host_unavailable: "admin.wafLogs.routeTypes.hostUnavailable",
   default_host_redirect: "admin.wafLogs.routeTypes.defaultHostRedirect",
+  unmatched_route_blocked: "admin.wafLogs.routeTypes.unmatchedRouteBlocked",
   not_found: "admin.wafLogs.routeTypes.notFound",
 } as const;
 

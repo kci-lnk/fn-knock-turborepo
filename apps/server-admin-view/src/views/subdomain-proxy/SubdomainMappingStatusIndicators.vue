@@ -111,7 +111,12 @@
           <TooltipTrigger as-child>
             <button
               type="button"
-              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :class="
+                isDefaultDomainAvailable
+                  ? 'text-muted-foreground'
+                  : 'text-amber-600 dark:text-amber-300'
+              "
               :aria-label="
                 t('admin.subdomainProxy.defaultDomainAria', {
                   host: formatHost(mapping.host),
@@ -128,7 +133,13 @@
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" align="center">
-            <p>{{ t("admin.subdomainProxy.defaultDomain") }}</p>
+            <p>
+              {{
+                isDefaultDomainAvailable
+                  ? t("admin.subdomainProxy.defaultDomain")
+                  : t("admin.subdomainProxy.defaultDomainInactive")
+              }}
+            </p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -204,11 +215,9 @@
           <TooltipContent side="top" align="center">
             <p>
               {{
-                t('admin.subdomainProxy.advancedAuthEnabledTooltip', {
+                t("admin.subdomainProxy.advancedAuthEnabledTooltip", {
                   groups: mapping.advanced_auth.groups.length,
-                  idle: formatDuration(
-                    mapping.advanced_auth.idle_ttl_seconds,
-                  ),
+                  idle: formatDuration(mapping.advanced_auth.idle_ttl_seconds),
                 })
               }}
             </p>
@@ -444,6 +453,7 @@ const props = defineProps<{
   globalWafEnabled: boolean;
   isAuthService: boolean;
   isGatewayPortalEnabled: boolean;
+  isDefaultDomainAvailable: boolean;
   isMappingStatusTooltipOpen: (
     host: string,
     tooltip: MappingStatusTooltip,

@@ -92,8 +92,7 @@ export const jaJPAdmin = {
     subtitleOpenWrt: "バージョン情報と OpenWrt IPK のアップグレード手順を表示",
     subtitleSynology:
       "バージョン情報と Synology パッケージのアップグレード手順を表示",
-    subtitleLite:
-      "バージョン情報、更新履歴、完全版のダウンロード方法を表示",
+    subtitleLite: "バージョン情報、更新履歴、完全版のダウンロード方法を表示",
     subtitleGeneric: "バージョン情報と手動アップグレードの手順を表示",
     openGithub: "GitHub プロジェクトを開く",
     synologyUpdateTitle: "Synology パッケージの手動アップグレード",
@@ -304,7 +303,7 @@ export const jaJPAdmin = {
       "サブドメインマッピングモードでのみ利用できます。現在のモード: {mode}",
     title: "ゲートウェイ",
     description:
-      "認証結果のキャッシュやリバースプロキシのレート制限など、ここで変更した内容は管理設定に保存され、直ちに Go ゲートウェイへ反映されます。",
+      "このページの項目を変更した後、「設定を保存」を選択すると、まとめて管理設定へ保存され Go ゲートウェイに反映されます。",
     authCacheTitle: "認証成功時のキャッシュ期間",
     authCacheDescriptionBefore:
       "同じクライアントと認証対象について、成功結果を指定した秒数だけキャッシュします。",
@@ -324,6 +323,13 @@ export const jaJPAdmin = {
       "ポータルとツールバーでアクセス先を表示する方法を設定します。",
     portalIconSummary: "アイコン: {state}",
     editPortal: "ポータルを編集",
+    unmatchedRoute: "ルート未一致時の動作",
+    unmatchedRouteDescription:
+      "わかりやすいウェルカム、選択、エラーページを表示するか、ページを返さず HTTP/1 の TCP 接続をリセットし、HTTP/2 では現在のストリームだけを中止します。",
+    unmatchedRouteDefaultDomainWarning:
+      "接続を遮断するとデフォルトドメインへのフォールバック転送は一時停止します。設定は保持され、「エラーページを表示」に戻すと自動的に復元されます。",
+    unmatchedRouteErrorPage: "エラーページを表示",
+    unmatchedRouteReset: "接続を遮断",
     throttleTitle: "ゲートウェイのリバースプロキシにレート制限を適用",
     throttleDescription:
       "クライアント IP ごとにレートを制限し、上限を超えた接続を一時的にブロックします。高頻度の探索、再試行の集中、異常な大量リクエストを防止できます。",
@@ -2483,6 +2489,9 @@ export const jaJPAdmin = {
     copyHostTitle: "クリックしてコピー {host}",
     copyHostAria: "ドメイン {host} をコピー",
     defaultDomain: "デフォルトドメイン",
+    defaultDomainInactive: "未一致ルートの遮断中はデフォルトドメインが無効です",
+    defaultDomainUnavailable:
+      "遮断モードではデフォルトドメインを利用できません",
     defaultDomainAria: "{host} はデフォルトドメインです",
     setDefaultDomain: "デフォルトドメインに設定",
     clearDefaultDomain: "デフォルトドメインを解除",
@@ -3269,6 +3278,7 @@ export const jaJPAdmin = {
       protocolMisdirected: "プロトコル不一致",
       hostUnavailable: "Host 利用不可",
       defaultHostRedirect: "デフォルト Host リダイレクト",
+      unmatchedRouteBlocked: "未一致ドメインを遮断",
       notFound: "一致なし",
     },
     moreRules: "# {id} · ほか {count} 件",
@@ -3437,6 +3447,7 @@ export const jaJPAdmin = {
       proxy: "プロキシ済み",
       error: "認証エラー",
       generalBlacklistBlocked: "共通ブラックリストでブロック",
+      connectionReset: "接続を遮断",
       subdomainRuleAllowed: "サブドメインルールで許可",
     },
     grantStates: {

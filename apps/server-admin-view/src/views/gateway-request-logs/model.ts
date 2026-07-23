@@ -292,6 +292,8 @@ export const authDecisionLabel = (
       return t(
         "admin.gatewayRequestLogs.authDecisions.generalBlacklistBlocked",
       );
+    case "connection_reset":
+      return t("admin.gatewayRequestLogs.authDecisions.connectionReset");
     case "subdomain_rule_allowed":
       return t("admin.gatewayRequestLogs.authDecisions.subdomainRuleAllowed");
     default:

@@ -8,6 +8,10 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "@/lib/api";
+import {
+  buildGatewayUnmatchedRoutePatch,
+  normalizeGatewayUnmatchedRouteBehavior,
+} from "@/lib/gatewayUnmatchedRoute";
 import { useConfigStore } from "@/store/config";
 import type { GatewaySettings } from "@/types";
 import { useGatewaySubdomainEditorAvailability } from "./useGatewaySubdomainEditorAvailability";
@@ -17,6 +21,7 @@ type GatewaySettingsForm = Pick<
   | "auth_cache_ttl_seconds"
   | "auth_cache_unauthorized_ttl_seconds"
   | "portal"
+  | "unmatched_route"
   | "crawler_blocker"
   | "reverse_proxy_throttle"
 >;
@@ -34,6 +39,9 @@ export const useGatewaySettingsController = () => {
       display_style: "title",
       show_app_icon: true,
       icon_drag_mode: "corners",
+    },
+    unmatched_route: {
+      behavior: "error_page",
     },
     crawler_blocker: {
       enabled: false,
@@ -90,7 +98,8 @@ export const useGatewaySettingsController = () => {
         Number(form.reverse_proxy_throttle.burst) ||
       settings.value.reverse_proxy_throttle.block_seconds !==
         Number(form.reverse_proxy_throttle.block_seconds) ||
-      settings.value.crawler_blocker.enabled !== form.crawler_blocker.enabled
+      settings.value.crawler_blocker.enabled !== form.crawler_blocker.enabled ||
+      settings.value.unmatched_route.behavior !== form.unmatched_route.behavior
     );
   });
 
@@ -126,7 +135,6 @@ export const useGatewaySettingsController = () => {
       ? t("admin.gatewaySettings.enabled")
       : t("admin.gatewaySettings.disabled"),
   );
-
   const {
     isProxyHeadersAvailable,
     proxyHeadersDisabledReason,
@@ -136,7 +144,8 @@ export const useGatewaySettingsController = () => {
     locationsDisabledReason,
   } = useGatewaySubdomainEditorAvailability();
 
-  const openVisibilityEditor = () => void router.push("/system/gateway-visibility");
+  const openVisibilityEditor = () =>
+    void router.push("/system/gateway-visibility");
   const openPortalEditor = () => void router.push("/system/gateway-portal");
   const openProxyHeadersEditor = () => {
     if (isProxyHeadersAvailable.value) {
@@ -168,6 +177,11 @@ export const useGatewaySettingsController = () => {
       enabled: data.crawler_blocker?.enabled === true,
       updated_at: data.crawler_blocker?.updated_at ?? null,
     },
+    unmatched_route: {
+      behavior: normalizeGatewayUnmatchedRouteBehavior(
+        data.unmatched_route?.behavior,
+      ),
+    },
     reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
   });
 
@@ -181,6 +195,7 @@ export const useGatewaySettingsController = () => {
     form.portal.display_style = snapshot.portal.display_style;
     form.portal.show_app_icon = snapshot.portal.show_app_icon;
     form.portal.icon_drag_mode = snapshot.portal.icon_drag_mode;
+    form.unmatched_route.behavior = snapshot.unmatched_route.behavior;
     form.crawler_blocker.enabled = snapshot.crawler_blocker.enabled;
     form.crawler_blocker.updated_at = snapshot.crawler_blocker.updated_at;
     form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
@@ -222,6 +237,7 @@ export const useGatewaySettingsController = () => {
           crawler_blocker: {
             enabled: form.crawler_blocker.enabled,
           },
+          ...buildGatewayUnmatchedRoutePatch(form.unmatched_route.behavior),
         }),
       {
         onSuccess: async (data) => {

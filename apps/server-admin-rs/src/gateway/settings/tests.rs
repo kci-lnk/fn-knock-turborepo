@@ -85,12 +85,26 @@ fn gateway_response_uses_node_defaults() {
         normalize_reverse_proxy_throttle(&json!({})),
         default_reverse_proxy_throttle()
     );
+    assert_eq!(
+        normalize_gateway_unmatched_route(&json!({})),
+        json!({ "behavior": "error_page" })
+    );
     assert_eq!(visible.len(), 1);
     assert_eq!(
         proxy_items[0]
             .get("send_proxy_headers")
             .and_then(Value::as_bool),
         Some(false)
+    );
+}
+
+#[tokio::test]
+async fn gateway_response_includes_default_unmatched_route_behavior() {
+    let (_directory, state) = gateway_settings_test_state().await;
+    let response = build_gateway_settings_response(&state).await.unwrap();
+    assert_eq!(
+        response.pointer("/unmatched_route/behavior"),
+        Some(&json!("error_page"))
     );
 }
 
@@ -105,6 +119,7 @@ fn gateway_patch_merges_and_normalizes_sections() {
         "auth_cache_ttl_seconds": 8,
         "reverse_proxy_throttle": { "burst": 250 },
         "portal": { "display_style": "domain", "show_app_icon": false },
+        "unmatched_route": { "behavior": "reset_connection" },
         "crawler_blocker": { "enabled": true }
     });
     apply_gateway_patch(&mut config, patch.as_object().unwrap());
@@ -128,6 +143,12 @@ fn gateway_patch_merges_and_normalizes_sections() {
     );
     assert_eq!(
         config
+            .pointer("/gateway_unmatched_route/behavior")
+            .and_then(Value::as_str),
+        Some("reset_connection")
+    );
+    assert_eq!(
+        config
             .pointer("/gateway_crawler_blocker/enabled")
             .and_then(Value::as_bool),
         Some(true)
@@ -137,6 +158,23 @@ fn gateway_patch_merges_and_normalizes_sections() {
             .pointer("/gateway_crawler_blocker/updated_at")
             .and_then(Value::as_str)
             .is_some()
+    );
+}
+
+#[test]
+fn gateway_unmatched_route_invalid_behavior_falls_back_to_error_page() {
+    let mut config = json!({
+        "gateway_unmatched_route": { "behavior": "reset_connection" }
+    });
+    apply_gateway_patch(
+        &mut config,
+        json!({ "unmatched_route": { "behavior": "drop" } })
+            .as_object()
+            .unwrap(),
+    );
+    assert_eq!(
+        config.pointer("/gateway_unmatched_route/behavior"),
+        Some(&json!("error_page"))
     );
 }
 

@@ -299,7 +299,7 @@ export const koKRAdmin = {
       "서브도메인 매핑 모드에서만 사용할 수 있습니다. 현재 모드: {mode}.",
     title: "게이트웨이",
     description:
-      "인증 결과 캐시와 리버스 프록시 요청 제한을 포함한 설정을 저장하고 Go 게이트웨이에 즉시 적용합니다.",
+      "이 페이지의 옵션을 변경한 뒤 “설정 저장”을 선택하면 변경 사항을 함께 저장하고 Go 게이트웨이에 적용합니다.",
     authCacheTitle: "인증 성공 캐시 시간",
     authCacheDescriptionBefore:
       "같은 클라이언트와 인증 대상의 성공 결과를 지정한 시간 동안 캐시합니다. 값을",
@@ -320,6 +320,13 @@ export const koKRAdmin = {
       "포털과 도구 모음에 접속 항목을 표시하는 방식을 설정합니다.",
     portalIconSummary: "아이콘: {state}",
     editPortal: "포털 편집",
+    unmatchedRoute: "일치하는 경로가 없을 때 동작",
+    unmatchedRouteDescription:
+      "안내·선택·오류 페이지를 표시하거나, 페이지를 반환하지 않고 HTTP/1 TCP 연결을 재설정하며 HTTP/2에서는 현재 스트림만 중단합니다.",
+    unmatchedRouteDefaultDomainWarning:
+      "연결 차단 중에는 기본 도메인 대체 리디렉션이 일시 중지됩니다. 기존 설정은 유지되며 “오류 페이지 표시”로 돌아가면 자동 복원됩니다.",
+    unmatchedRouteErrorPage: "오류 페이지 표시",
+    unmatchedRouteReset: "연결 차단",
     throttleTitle: "게이트웨이 리버스 프록시 요청 제한",
     throttleDescription:
       "클라이언트 IP별 요청 속도를 제한하고 잠시 차단하여 잦은 탐색, 반복 재시도, 비정상적인 요청 폭주를 막습니다.",
@@ -2469,6 +2476,10 @@ export const koKRAdmin = {
     copyHostTitle: "{host}(을)를 복사하려면 클릭하세요.",
     copyHostAria: "도메인 {host} 복사",
     defaultDomain: "기본 도메인",
+    defaultDomainInactive:
+      "일치하지 않는 경로를 차단하는 동안 기본 도메인은 비활성 상태입니다",
+    defaultDomainUnavailable:
+      "차단 모드에서는 기본 도메인을 사용할 수 없습니다",
     defaultDomainAria: "{host}(은)는 기본 도메인입니다.",
     setDefaultDomain: "기본 도메인으로 설정",
     clearDefaultDomain: "기본 도메인 해제",
@@ -3248,6 +3259,7 @@ export const koKRAdmin = {
       protocolMisdirected: "프로토콜 불일치",
       hostUnavailable: "호스트 사용 불가",
       defaultHostRedirect: "기본 호스트 리디렉션",
+      unmatchedRouteBlocked: "일치하지 않는 도메인 차단",
       notFound: "일치하지 않음",
     },
     moreRules: "# {id} · {count} 더보기",
@@ -3415,6 +3427,7 @@ export const koKRAdmin = {
       proxy: "프록시됨",
       error: "인증 오류",
       generalBlacklistBlocked: "일반 차단 목록 차단",
+      connectionReset: "연결 차단됨",
       subdomainRuleAllowed: "서브도메인 규칙으로 허용",
     },
     grantStates: {

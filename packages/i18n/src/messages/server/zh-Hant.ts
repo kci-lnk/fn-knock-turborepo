@@ -313,6 +313,8 @@ export const zhHantServer = {
     hostMappings: {
       payloadObjectRequired: "Host 映射必須是物件",
       hostRequired: "Host 映射需要填寫域名",
+      hostWildcardForbidden:
+        "Host 映射 {host} 不能包含萬用字元 *，請填寫精確域名",
       duplicateHost: "Host 映射域名 {host} 重複",
       protocolModeInvalid:
         "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
@@ -375,6 +377,8 @@ export const zhHantServer = {
     },
     subdomainMode: {
       payloadObjectRequired: "子域模式請求內容必須是物件",
+      rootDomainWildcardForbidden:
+        "根域名不能包含萬用字元 *。請填寫 example.com，而不是 *.example.com。",
       saveFailed: "保存子域模式配置失敗",
       sslAutoSelected: "已自動切換到更適合目前子域模式的證書。",
       sslAutoSelectionSyncFailed:

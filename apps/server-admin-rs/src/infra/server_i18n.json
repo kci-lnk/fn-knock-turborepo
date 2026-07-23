@@ -334,7 +334,8 @@
         "backendProtocolUnsupported": "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
         "revisionConflict": "Host 映射已在其他页面更新，请刷新后重试",
         "visibilityInvalid": "Host 映射 {host} 的可见性配置无效：{message}",
-        "backendVisibilityUnsupported": "网关后端未应用 {host} 的可见性规则，请升级网关后端"
+        "backendVisibilityUnsupported": "网关后端未应用 {host} 的可见性规则，请升级网关后端",
+        "hostWildcardForbidden": "Host 映射 {host} 不能包含通配符 *，请填写精确域名"
       },
       "streamMappings": {
         "payloadObjectRequired": "协议映射必须是对象",
@@ -355,7 +356,8 @@
         "payloadObjectRequired": "子域模式请求内容必须是对象",
         "saveFailed": "保存子域模式配置失败",
         "sslAutoSelected": "已自动切换到更适合当前子域模式的证书。",
-        "sslAutoSelectionSyncFailed": "已找到推荐证书，但同步到网关失败，未自动切换。"
+        "sslAutoSelectionSyncFailed": "已找到推荐证书，但同步到网关失败，未自动切换。",
+        "rootDomainWildcardForbidden": "根域名不能包含通配符 *。请填写 example.com，而不是 *.example.com。"
       },
       "authMode": {
         "loadFailed": "加载认证登录模式失败",
@@ -3383,7 +3385,8 @@
         "backendProtocolUnsupported": "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
         "revisionConflict": "Host 映射已在其他頁面更新，請重新整理後再試",
         "visibilityInvalid": "Host 對應 {host} 的可見性設定無效：{message}",
-        "backendVisibilityUnsupported": "閘道後端未套用 {host} 的可見性規則，請升級閘道後端"
+        "backendVisibilityUnsupported": "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",
+        "hostWildcardForbidden": "Host 映射 {host} 不能包含萬用字元 *，請填寫精確域名"
       },
       "streamMappings": {
         "payloadObjectRequired": "協議映射必須是物件",
@@ -3404,7 +3407,8 @@
         "payloadObjectRequired": "子域模式請求內容必須是物件",
         "saveFailed": "保存子域模式配置失敗",
         "sslAutoSelected": "已自動切換到更適合目前子域模式的證書。",
-        "sslAutoSelectionSyncFailed": "已找到推薦證書，但同步到網關失敗，未自動切換。"
+        "sslAutoSelectionSyncFailed": "已找到推薦證書，但同步到網關失敗，未自動切換。",
+        "rootDomainWildcardForbidden": "根域名不能包含萬用字元 *。請填寫 example.com，而不是 *.example.com。"
       },
       "authMode": {
         "loadFailed": "載入認證登入模式失敗",
@@ -6432,7 +6436,8 @@
         "backendProtocolUnsupported": "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
         "revisionConflict": "Host mappings were updated in another page; refresh and try again",
         "visibilityInvalid": "Host mapping {host} has invalid visibility settings: {message}",
-        "backendVisibilityUnsupported": "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend"
+        "backendVisibilityUnsupported": "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend",
+        "hostWildcardForbidden": "Host mapping {host} cannot contain the * wildcard; enter an exact host"
       },
       "streamMappings": {
         "payloadObjectRequired": "Stream mapping must be an object",
@@ -6453,7 +6458,8 @@
         "payloadObjectRequired": "Subdomain mode payload must be an object",
         "saveFailed": "Failed to save subdomain mode config",
         "sslAutoSelected": "Automatically switched to a certificate better suited to the current subdomain mode.",
-        "sslAutoSelectionSyncFailed": "A recommended certificate was found, but syncing it to the gateway failed, so it was not switched automatically."
+        "sslAutoSelectionSyncFailed": "A recommended certificate was found, but syncing it to the gateway failed, so it was not switched automatically.",
+        "rootDomainWildcardForbidden": "The root domain cannot contain the * wildcard. Enter example.com, not *.example.com."
       },
       "authMode": {
         "loadFailed": "Failed to load auth login mode",
@@ -9481,7 +9487,8 @@
         "backendProtocolUnsupported": "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}(을)를 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
         "revisionConflict": "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
         "visibilityInvalid": "호스트 매핑 {host}의 접근 범위 설정이 잘못되었습니다: {message}",
-        "backendVisibilityUnsupported": "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요."
+        "backendVisibilityUnsupported": "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
+        "hostWildcardForbidden": "호스트 매핑 {host}에는 * 와일드카드를 사용할 수 없습니다. 정확한 호스트를 입력하세요."
       },
       "streamMappings": {
         "payloadObjectRequired": "스트림 매핑은 객체여야 합니다.",
@@ -9502,7 +9509,8 @@
         "payloadObjectRequired": "서브도메인 모드 요청 내용은 객체여야 합니다.",
         "saveFailed": "서브도메인 모드 설정을 저장하지 못했습니다.",
         "sslAutoSelected": "현재 서브도메인 모드에 더 적합한 인증서로 자동 전환됩니다.",
-        "sslAutoSelectionSyncFailed": "권장 인증서를 찾았지만 게이트웨이와의 동기화에 실패하여 자동으로 전환되지 않았습니다."
+        "sslAutoSelectionSyncFailed": "권장 인증서를 찾았지만 게이트웨이와의 동기화에 실패하여 자동으로 전환되지 않았습니다.",
+        "rootDomainWildcardForbidden": "루트 도메인에는 * 와일드카드를 사용할 수 없습니다. *.example.com이 아닌 example.com을 입력하세요."
       },
       "authMode": {
         "loadFailed": "인증 로그인 모드를 불러오지 못했습니다",
@@ -12530,7 +12538,8 @@
         "backendProtocolUnsupported": "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
         "revisionConflict": "別のページで Host マッピングが更新されました。更新してから再試行してください",
         "visibilityInvalid": "Host マッピング {host} の可視性設定が無効です: {message}",
-        "backendVisibilityUnsupported": "ゲートウェイバックエンドが {host} の可視性ルールを適用できませんでした。ゲートウェイバックエンドを更新してください"
+        "backendVisibilityUnsupported": "ゲートウェイバックエンドが {host} の可視性ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
+        "hostWildcardForbidden": "Host マッピング {host} にワイルドカード * は使用できません。完全なホスト名を入力してください"
       },
       "streamMappings": {
         "payloadObjectRequired": "ストリームマッピングはオブジェクトである必要があります",
@@ -12551,7 +12560,8 @@
         "payloadObjectRequired": "サブドメインモードのリクエスト本文はオブジェクトである必要があります",
         "saveFailed": "サブドメインモード設定の保存に失敗しました",
         "sslAutoSelected": "は、現在のサブドメイン モードにより適した証明書に自動的に切り替わりました。",
-        "sslAutoSelectionSyncFailed": "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。"
+        "sslAutoSelectionSyncFailed": "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。",
+        "rootDomainWildcardForbidden": "ルートドメインにワイルドカード * は使用できません。*.example.com ではなく example.com を入力してください。"
       },
       "authMode": {
         "loadFailed": "認証ログインモードの読み込みに失敗しました",

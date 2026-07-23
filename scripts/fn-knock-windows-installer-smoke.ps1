@@ -598,16 +598,30 @@ function Remove-TestOwnedDirectory {
   }
 
   # The installer deliberately makes its trees SYSTEM-owned. Retake only the
-  # two fixed locations whose absence was verified before this test began.
-  $takeownHelp = (& takeown.exe /? 2>&1 | Out-String)
-  if ($LASTEXITCODE -ne 0 -or $takeownHelp -notmatch '(?im)(^|\s)/SKIPSL(\s|$)') {
-    throw "Refusing recursive cleanup because takeown.exe lacks /SKIPSL"
-  }
+  # fixed locations whose absence was verified before this test began. Keep the
+  # cleanup compatible with Windows builds that do not expose the undocumented
+  # recursive takeown /SKIPSL switch.
   Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\takeown.exe" -Arguments @(
-    "/F", $Path, "/R", "/D", "Y", "/SKIPSL"
+    "/F", $Path, "/A"
   )
   Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
-    $Path, "/grant", "*S-1-5-32-544:(OI)(CI)F", "/T", "/C", "/L"
+    $Path,
+    "/reset", "/L", "/Q"
+  )
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $Path,
+    "/grant:r", "*S-1-5-32-544:(OI)(CI)F",
+    "/L", "/Q"
+  )
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $Path,
+    "/setowner", "*S-1-5-32-544",
+    "/T", "/L", "/Q"
+  )
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $Path,
+    "/grant:r", "*S-1-5-32-544:(OI)(CI)F",
+    "/T", "/L", "/Q"
   )
   Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
 }

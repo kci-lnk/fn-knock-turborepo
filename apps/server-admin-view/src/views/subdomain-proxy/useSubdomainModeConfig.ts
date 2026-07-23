@@ -7,6 +7,7 @@ import { toast } from "@admin-shared/utils/toast";
 import type { SubdomainModeConfig } from "@/types";
 import {
   createDefaultModeForm,
+  hasSubdomainRootDomainWildcard,
   normalizePublicPort,
   normalizeRootDomainValue,
   type EdgeClientIpProvider,
@@ -95,13 +96,24 @@ export const useSubdomainModeConfig = ({
   const isRootDomainPendingSave = computed(
     () => currentDraftRootDomain.value !== savedRootDomain.value,
   );
+  const rootDomainValidationMessage = computed(() =>
+    hasSubdomainRootDomainWildcard(modeForm.root_domain)
+      ? translate("admin.subdomainProxy.rootDomainWildcardForbidden")
+      : "",
+  );
+  const isModeValid = computed(() => !rootDomainValidationMessage.value);
   const canUseRootDomainSuffix = computed(
-    () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
+    () =>
+      Boolean(savedRootDomain.value) &&
+      !isRootDomainPendingSave.value &&
+      isModeValid.value,
   );
   const canManageNewMappings = computed(
-    () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
+    () =>
+      Boolean(savedRootDomain.value) &&
+      !isRootDomainPendingSave.value &&
+      isModeValid.value,
   );
-  const isModeValid = computed(() => true);
   const isModeDirty = computed(
     () => JSON.stringify(modeForm) !== JSON.stringify(currentModeConfig.value),
   );
@@ -240,6 +252,7 @@ export const useSubdomainModeConfig = ({
     isSavingMode,
     modeForm,
     resetModeForm,
+    rootDomainValidationMessage,
     saveMode,
     savedRootDomain,
   };

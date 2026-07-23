@@ -2383,6 +2383,8 @@ export const enAdmin = {
     domainLabel: "Domain",
     domainHint:
       "After setting example.com, new mappings only need a subdomain prefix. The system will append it under the root domain, such as fnos.example.com.",
+    rootDomainWildcardForbidden:
+      "The root domain cannot contain the * wildcard. Enter example.com, not *.example.com.",
     currentAuthService: "Current auth service",
     authRedirectHint:
       "Before sign-in, requests will redirect to {url} to complete sign-in.",

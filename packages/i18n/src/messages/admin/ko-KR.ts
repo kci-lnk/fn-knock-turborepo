@@ -2378,6 +2378,8 @@ export const koKRAdmin = {
     domainLabel: "도메인",
     domainHint:
       "example.com을 설정한 후 새 매핑에는 서브도메인 접두사만 필요합니다. 시스템은 이를 fnos.example.com과 같은 루트 도메인 아래에 추가합니다.",
+    rootDomainWildcardForbidden:
+      "루트 도메인에는 * 와일드카드를 사용할 수 없습니다. *.example.com이 아닌 example.com을 입력하세요.",
     currentAuthService: "현재 인증 서비스",
     authRedirectHint:
       "로그인하기 전에 요청은 로그인을 완료하기 위해 {url}(으)로 리디렉션됩니다.",

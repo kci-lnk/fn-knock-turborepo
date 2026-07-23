@@ -2227,6 +2227,8 @@ export const zhCNAdmin = {
     domainLabel: "域名",
     domainHint:
       "如填写 example.com 后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如 fnos.example.com",
+    rootDomainWildcardForbidden:
+      "根域名不能包含通配符 *。请填写 example.com，而不是 *.example.com。",
     currentAuthService: "当前鉴权服务",
     authRedirectHint: "在尚未登录时，会自动跳转到 {url} 完成登录。",
     noAuthService: "还没有鉴权服务。",

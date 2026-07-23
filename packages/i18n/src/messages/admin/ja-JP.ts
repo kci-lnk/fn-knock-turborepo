@@ -2391,6 +2391,8 @@ export const jaJPAdmin = {
     domainLabel: "ドメイン",
     domainHint:
       "example.com を設定すると、以降はサブドメインのプレフィックスを入力するだけで、fnos.example.com のようにルートドメインが自動的に付加されます。",
+    rootDomainWildcardForbidden:
+      "ルートドメインにワイルドカード * は使用できません。*.example.com ではなく example.com を入力してください。",
     currentAuthService: "現在の認証サービス",
     authRedirectHint:
       "未ログインの場合は {url} へリダイレクトし、ログインを行います。",

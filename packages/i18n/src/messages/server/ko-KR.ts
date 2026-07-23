@@ -373,6 +373,8 @@ export const koKRServer = {
     hostMappings: {
       payloadObjectRequired: "호스트 매핑은 객체여야 합니다.",
       hostRequired: "호스트 매핑에는 도메인이 필요합니다.",
+      hostWildcardForbidden:
+        "호스트 매핑 {host}에는 * 와일드카드를 사용할 수 없습니다. 정확한 호스트를 입력하세요.",
       duplicateHost: "호스트 매핑 도메인 {host}(이)가 중복되었습니다.",
       protocolModeInvalid:
         "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
@@ -451,6 +453,8 @@ export const koKRServer = {
     },
     subdomainMode: {
       payloadObjectRequired: "서브도메인 모드 요청 내용은 객체여야 합니다.",
+      rootDomainWildcardForbidden:
+        "루트 도메인에는 * 와일드카드를 사용할 수 없습니다. *.example.com이 아닌 example.com을 입력하세요.",
       saveFailed: "서브도메인 모드 설정을 저장하지 못했습니다.",
       sslAutoSelected:
         "현재 서브도메인 모드에 더 적합한 인증서로 자동 전환됩니다.",

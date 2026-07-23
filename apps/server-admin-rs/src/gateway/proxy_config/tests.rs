@@ -63,6 +63,36 @@ fn normalizes_proxy_mapping_targets_without_touching_other_fields() {
 }
 
 #[test]
+fn rejects_wildcards_in_subdomain_roots_and_host_mappings() {
+    assert_eq!(
+        validate_subdomain_root_domain(&json!({
+            "root_domain": "*.example.com"
+        })),
+        Err("Subdomain root domain cannot contain wildcard")
+    );
+    assert!(
+        validate_subdomain_root_domain(&json!({
+            "root_domain": "example.com"
+        }))
+        .is_ok()
+    );
+
+    let error = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "auth.*.example.com",
+            "target": "http://127.0.0.1:7997",
+            "use_auth": false
+        })],
+        &json!({}),
+    )
+    .unwrap_err();
+    assert_eq!(
+        error,
+        "Host mapping auth.*.example.com cannot contain wildcard"
+    );
+}
+
+#[test]
 fn normalizes_host_mapping_route_shape() {
     let config = json!({
         "host_mappings": [{
@@ -2083,6 +2113,17 @@ fn localizes_proxy_config_route_errors() {
     assert_eq!(
         localize_proxy_config_error(&translator, "Duplicate host mapping video.example.com"),
         "Host 映射域名 video.example.com 重复"
+    );
+    assert_eq!(
+        localize_proxy_config_error(&translator, "Subdomain root domain cannot contain wildcard"),
+        "根域名不能包含通配符 *。请填写 example.com，而不是 *.example.com。"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping auth.*.example.com cannot contain wildcard"
+        ),
+        "Host 映射 auth.*.example.com 不能包含通配符 *，请填写精确域名"
     );
     assert_eq!(
         localize_proxy_config_error(

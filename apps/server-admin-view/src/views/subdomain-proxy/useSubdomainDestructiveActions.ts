@@ -34,6 +34,7 @@ export const useSubdomainDestructiveActions = ({
   modeForm,
   openClearAllConfigDialogState,
   runSaveMappings,
+  rootDomainValidationMessage,
   savedRootDomain,
   saveHostMappings,
   translate,
@@ -49,6 +50,7 @@ export const useSubdomainDestructiveActions = ({
   modeForm: SubdomainModeConfig;
   openClearAllConfigDialogState: () => void;
   runSaveMappings: RunAsyncAction;
+  rootDomainValidationMessage: ComputedRef<string>;
   savedRootDomain: ComputedRef<string>;
   saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
   translate: Translate;
@@ -70,9 +72,11 @@ export const useSubdomainDestructiveActions = ({
   const addAuthService = async () => {
     if (!canManageNewMappings.value) {
       toast.error(translate("admin.subdomainProxy.cannotAddAuthService"), {
-        description: !savedRootDomain.value
-          ? translate("admin.subdomainProxy.saveRootFirst")
-          : translate("admin.subdomainProxy.rootDirtyAddAuth"),
+        description:
+          rootDomainValidationMessage.value ||
+          (!savedRootDomain.value
+            ? translate("admin.subdomainProxy.saveRootFirst")
+            : translate("admin.subdomainProxy.rootDirtyAddAuth")),
       });
       return;
     }

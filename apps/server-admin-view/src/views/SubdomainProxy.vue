@@ -17,6 +17,7 @@
       :is-saving-mode="isSavingMode"
       :remove-auth-service="removeAuthService"
       :reset-mode-form="resetModeForm"
+      :root-domain-validation-message="rootDomainValidationMessage"
       :save-mode="saveMode"
       :saved-edge-client-ip-provider-label="savedEdgeClientIpProviderLabel"
       :saved-root-domain="savedRootDomain"
@@ -66,6 +67,7 @@
       :is-syncing="isSyncing"
       :mark-favicon-broken="markFaviconBroken"
       :open-protocol-headers-warning="openProtocolHeadersWarning"
+      :root-domain-validation-message="rootDomainValidationMessage"
       :saved-root-domain="savedRootDomain"
       :schedule-close-protocol-headers-warning="
         scheduleCloseProtocolHeadersWarning
@@ -300,6 +302,7 @@ const {
   isSavingMode,
   modeForm,
   resetModeForm,
+  rootDomainValidationMessage,
   saveMode,
   savedRootDomain,
 } = useSubdomainModeConfig({
@@ -453,6 +456,7 @@ const {
   modeForm,
   openClearAllConfigDialogState,
   runSaveMappings,
+  rootDomainValidationMessage,
   savedRootDomain,
   saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
   translate: (key, params) => (params ? t(key, params) : t(key)),
@@ -612,6 +616,7 @@ const {
   canManageNewMappings,
   existingMappingTargets,
   runSaveMappings,
+  rootDomainValidationMessage,
   savedRootDomain,
   saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
   translate: (key, params) => (params ? t(key, params) : t(key)),

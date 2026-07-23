@@ -113,6 +113,7 @@ const props = defineProps<{
   isAuthServiceTarget: (target: string) => boolean;
   markFaviconBroken: (mapping: HostMapping) => void;
   openProtocolHeadersWarning: (host: string) => void;
+  rootDomainValidationMessage: string;
   savedRootDomain: string;
   scheduleCloseProtocolHeadersWarning: (host: string) => void;
   searchQuery: string;
@@ -319,13 +320,18 @@ const handleMappingTableScroll = (event: Event) => {
         </a>
       </p>
       <p
-        v-if="!savedRootDomain || isRootDomainPendingSave"
+        v-if="
+          rootDomainValidationMessage ||
+          !savedRootDomain ||
+          isRootDomainPendingSave
+        "
         class="text-xs text-amber-600"
       >
         {{
-          !savedRootDomain
+          rootDomainValidationMessage ||
+          (!savedRootDomain
             ? t("admin.subdomainProxy.rootDomainRequired")
-            : t("admin.subdomainProxy.rootDomainDirty")
+            : t("admin.subdomainProxy.rootDomainDirty"))
         }}
       </p>
 

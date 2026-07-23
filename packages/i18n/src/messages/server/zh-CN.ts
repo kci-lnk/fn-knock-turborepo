@@ -313,6 +313,8 @@ export const zhCNServer = {
     hostMappings: {
       payloadObjectRequired: "Host 映射必须是对象",
       hostRequired: "Host 映射需要填写域名",
+      hostWildcardForbidden:
+        "Host 映射 {host} 不能包含通配符 *，请填写精确域名",
       duplicateHost: "Host 映射域名 {host} 重复",
       protocolModeInvalid:
         "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
@@ -375,6 +377,8 @@ export const zhCNServer = {
     },
     subdomainMode: {
       payloadObjectRequired: "子域模式请求内容必须是对象",
+      rootDomainWildcardForbidden:
+        "根域名不能包含通配符 *。请填写 example.com，而不是 *.example.com。",
       saveFailed: "保存子域模式配置失败",
       sslAutoSelected: "已自动切换到更适合当前子域模式的证书。",
       sslAutoSelectionSyncFailed:

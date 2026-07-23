@@ -48,6 +48,18 @@ pub(super) fn normalize_subdomain_mode_config(value: &Value) -> Value {
     })
 }
 
+pub(super) fn validate_subdomain_root_domain(value: &Value) -> Result<(), &'static str> {
+    let root_domain = value
+        .get("root_domain")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if root_domain.contains('*') {
+        return Err("Subdomain root domain cannot contain wildcard");
+    }
+    Ok(())
+}
+
 pub(super) fn previous_host_mappings_by_host(config: &Value) -> HashMap<String, Value> {
     config
         .get("host_mappings")

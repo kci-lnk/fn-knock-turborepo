@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNTIME_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-smoke.ps1"
 INSTALLER_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-installer-smoke.ps1"
+INSTALLER_HOOK="${ROOT_DIR}/apps/fn-knock-desktop/native/installer/hooks.nsh"
 RELEASE_WORKFLOW="${ROOT_DIR}/.github/workflows/release.yml"
 WINDOWS_WORKFLOW="${ROOT_DIR}/.github/workflows/windows-x86_64.yml"
 
@@ -66,6 +67,18 @@ unsafe_native_exit_reads="$(
 )"
 [ -z "${unsafe_native_exit_reads}" ] || \
   fail "installer native helpers must not rely on optional LASTEXITCODE: ${unsafe_native_exit_reads}"
+
+if grep -Eq "['\"]/SKIPSL" "${INSTALLER_HOOK}" "${INSTALLER_SMOKE_SCRIPT}"; then
+  fail "Windows installer paths must not depend on undocumented takeown /SKIPSL support"
+fi
+grep -Fq "\$\$rootTakeownArgs = @('/F', \$\$Path, '/A')" "${INSTALLER_HOOK}" || \
+  fail "installer bootstrap must limit portable takeown to the validated root"
+grep -Fq '& $$Icacls $$Path /reset /L /Q | Out-Null' "${INSTALLER_HOOK}" || \
+  fail "installer bootstrap must neutralize a stale root deny without recursive link traversal"
+grep -Fq "\$\$ownerArgs = @(\$\$Path, '/setowner', '*S-1-5-32-544', '/T', '/L', '/Q')" "${INSTALLER_HOOK}" || \
+  fail "installer bootstrap must use documented icacls /L for recursive ownership repair"
+grep -Fq "[Console]::Error.WriteLine(('FnKnock installer ' + \$\$Action + ' failed: ' + \$\$_.Exception.Message))" "${INSTALLER_HOOK}" || \
+  fail "installer transaction failures must emit a concise actionable error"
 
 workflow_smoke_calls="$(
   grep -HnE 'fn-knock-windows-(smoke|installer-smoke)\.ps1' \

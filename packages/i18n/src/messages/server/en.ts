@@ -375,6 +375,8 @@ export const enServer = {
     hostMappings: {
       payloadObjectRequired: "Host mapping must be an object",
       hostRequired: "Host mapping host is required",
+      hostWildcardForbidden:
+        "Host mapping {host} cannot contain the * wildcard; enter an exact host",
       duplicateHost: "Host mapping host {host} is duplicated",
       protocolModeInvalid:
         "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
@@ -449,6 +451,8 @@ export const enServer = {
     },
     subdomainMode: {
       payloadObjectRequired: "Subdomain mode payload must be an object",
+      rootDomainWildcardForbidden:
+        "The root domain cannot contain the * wildcard. Enter example.com, not *.example.com.",
       saveFailed: "Failed to save subdomain mode config",
       sslAutoSelected:
         "Automatically switched to a certificate better suited to the current subdomain mode.",

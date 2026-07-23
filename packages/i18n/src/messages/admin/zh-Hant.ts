@@ -2237,6 +2237,8 @@ export const zhHantAdmin = {
     domainLabel: "域名",
     domainHint:
       "如填寫 example.com 後，後續新增映射時，你只需要填寫子域名前綴，系統會自動拼接到這個根域名下面，比如 fnos.example.com",
+    rootDomainWildcardForbidden:
+      "根域名不能包含萬用字元 *。請填寫 example.com，而不是 *.example.com。",
     currentAuthService: "目前鑒權服務",
     authRedirectHint: "在尚未登入時，會自動跳轉到 {url} 完成登入。",
     noAuthService: "還沒有鑒權服務。",

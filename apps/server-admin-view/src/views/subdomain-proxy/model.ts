@@ -116,6 +116,9 @@ export const normalizeHostLike = (value: string): string => {
 export const normalizeRootDomainValue = (value: string): string =>
   normalizeHostLike(value);
 
+export const hasSubdomainRootDomainWildcard = (value: string): boolean =>
+  value.includes("*");
+
 export const stripRootDomainSuffix = (
   value: string,
   rootDomain: string,
@@ -134,6 +137,7 @@ export const composeHostFromSubdomain = (
   subdomain: string,
   rootDomain: string,
 ): string => {
+  if (hasSubdomainRootDomainWildcard(rootDomain)) return "";
   const normalizedRoot = normalizeRootDomainValue(rootDomain);
   const normalizedSubdomain = stripRootDomainSuffix(subdomain, normalizedRoot);
   if (!normalizedRoot || !normalizedSubdomain) return "";

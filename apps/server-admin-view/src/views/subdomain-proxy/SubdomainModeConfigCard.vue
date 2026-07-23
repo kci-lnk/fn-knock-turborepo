@@ -33,6 +33,7 @@ const props = defineProps<{
   removeAuthService: () => Promise<unknown>;
   resetModeForm: () => void;
   rootDomain: string;
+  rootDomainValidationMessage: string;
   saveMode: () => Promise<unknown>;
   savedEdgeClientIpProviderLabel: string;
   savedRootDomain: string;
@@ -127,9 +128,26 @@ const confirmRemoveAuthService = async () => {
             <Input
               id="root-domain"
               v-model="rootDomainModel"
+              :aria-describedby="
+                rootDomainValidationMessage
+                  ? 'root-domain-validation'
+                  : 'root-domain-hint'
+              "
+              :aria-invalid="Boolean(rootDomainValidationMessage)"
               placeholder="example.com"
             />
-            <p class="text-xs text-muted-foreground">
+            <p
+              v-if="rootDomainValidationMessage"
+              id="root-domain-validation"
+              class="text-xs text-destructive"
+            >
+              {{ rootDomainValidationMessage }}
+            </p>
+            <p
+              v-else
+              id="root-domain-hint"
+              class="text-xs text-muted-foreground"
+            >
               {{ t("admin.subdomainProxy.domainHint") }}
             </p>
           </div>

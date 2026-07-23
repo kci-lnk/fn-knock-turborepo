@@ -47,6 +47,7 @@ export const useSubdomainDiscoverFlow = ({
   canManageNewMappings,
   existingMappingTargets,
   runSaveMappings,
+  rootDomainValidationMessage,
   savedRootDomain,
   saveHostMappings,
   translate,
@@ -55,6 +56,7 @@ export const useSubdomainDiscoverFlow = ({
   canManageNewMappings: ComputedRef<boolean>;
   existingMappingTargets: ComputedRef<Set<string>>;
   runSaveMappings: RunAsyncAction;
+  rootDomainValidationMessage: ComputedRef<string>;
   savedRootDomain: ComputedRef<string>;
   saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
   translate: (key: string, params?: TranslationParams) => string;
@@ -262,9 +264,11 @@ export const useSubdomainDiscoverFlow = ({
   const openDiscoverDialog = () => {
     if (!canManageNewMappings.value) {
       toast.error(translate("admin.subdomainProxy.cannotDiscover"), {
-        description: !savedRootDomain.value
-          ? translate("admin.subdomainProxy.saveRootFirst")
-          : translate("admin.subdomainProxy.rootDirtyDiscover"),
+        description:
+          rootDomainValidationMessage.value ||
+          (!savedRootDomain.value
+            ? translate("admin.subdomainProxy.saveRootFirst")
+            : translate("admin.subdomainProxy.rootDirtyDiscover")),
       });
       return;
     }

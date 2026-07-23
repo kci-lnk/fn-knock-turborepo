@@ -137,7 +137,14 @@ pub(super) fn normalize_host_mappings_for_route(
         let Some(mut object) = mapping.as_object().cloned() else {
             return Err("Host mapping must be an object".to_string());
         };
-        let host = normalize_host_value(object.get("host").and_then(Value::as_str).unwrap_or(""));
+        let raw_host = object.get("host").and_then(Value::as_str).unwrap_or("");
+        if raw_host.contains('*') {
+            return Err(format!(
+                "Host mapping {} cannot contain wildcard",
+                raw_host.trim()
+            ));
+        }
+        let host = normalize_host_value(raw_host);
         if host.is_empty() {
             return Err("Host mapping host is required".to_string());
         }

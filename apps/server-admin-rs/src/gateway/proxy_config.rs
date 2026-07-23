@@ -354,6 +354,9 @@ fn localize_proxy_config_error(translator: &Translator, message: &str) -> String
         "Host mapping host is required" => {
             return admin_config_text(translator, "hostMappings.hostRequired");
         }
+        "Subdomain root domain cannot contain wildcard" => {
+            return admin_config_text(translator, "subdomainMode.rootDomainWildcardForbidden");
+        }
         "Only one auth service host mapping is allowed" => {
             return admin_config_text(translator, "hostMappings.singleAuthPortMapping");
         }
@@ -389,6 +392,13 @@ fn localize_proxy_config_error(translator: &Translator, message: &str) -> String
         return admin_config_text_params(
             translator,
             "hostMappings.duplicateHost",
+            &[("host", host.to_string())],
+        );
+    }
+    if let Some(host) = extract_between(message, "Host mapping ", " cannot contain wildcard") {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.hostWildcardForbidden",
             &[("host", host.to_string())],
         );
     }
@@ -1341,6 +1351,12 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         merged.insert(key.clone(), value.clone());
     }
     let next = normalize_subdomain_mode_config(&Value::Object(merged));
+    if let Err(message) = validate_subdomain_root_domain(&next) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_proxy_config_error(&translator, message),
+        );
+    }
 
     let mut updated_config = previous_config.clone();
     ensure_object(&mut updated_config).insert("subdomain_mode".to_string(), next.clone());

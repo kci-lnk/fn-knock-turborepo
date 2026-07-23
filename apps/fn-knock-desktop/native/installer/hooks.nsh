@@ -34,7 +34,11 @@ Function FnKnockProtectTransactionDirectory
   ${EndIf}
   Pop $2
 
-  nsExec::ExecToStack '"$SYSDIR\takeown.exe" /F "$FnKnockTransactionDir" /A /R /D Y'
+  ; This directory was just created below Program Files and was already checked
+  ; for reparse-point substitution. Only claim the root here. The recursive
+  ; ACL operations below use icacls /L so they never need takeown's
+  ; version-dependent, undocumented /SKIPSL option.
+  nsExec::ExecToStack '"$SYSDIR\takeown.exe" /F "$FnKnockTransactionDir" /A'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -145,6 +149,9 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "[CmdletBinding()]$\r$\n"
   FileWrite $R7 "param([Parameter(Mandatory=$$true)][ValidateSet('begin','stop','snapshot','rollback','protect-rollback','wait-ready')][string]$$Action, [Parameter(Mandatory=$$true)][string]$$InstallDir, [Parameter(Mandatory=$$true)][string]$$ProgramFilesDir)$\r$\n"
   FileWrite $R7 "$$ErrorActionPreference = 'Stop'$\r$\n"
+  ; Keep every initialization and action error within the concise diagnostic
+  ; boundary. This must begin after param(), which PowerShell requires first.
+  FileWrite $R7 "try {$\r$\n"
   FileWrite $R7 "function Assert-FnKnockInstallerAcl($$Acl, [string]$$Path, [string[]]$$AllowedSids) {$\r$\n"
   FileWrite $R7 "  if (-not $$Acl.AreAccessRulesProtected) { throw ('installer ACL inherits permissions: ' + $$Path) }$\r$\n"
   FileWrite $R7 "  if ($$Acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne 'S-1-5-18') { throw ('installer object is not owned by SYSTEM: ' + $$Path) }$\r$\n"
@@ -305,17 +312,33 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "}$\r$\n"
   FileWrite $R7 "$\r$\n"
   FileWrite $R7 "function Bootstrap-FnKnockDataTreeAccess([string]$$Path, [string]$$Takeown, [string]$$Icacls, [string]$$ServiceGrant) {$\r$\n"
-  ; The service SID has Modify access during normal operation and can create a
-  ; junction. Require the no-follow capability before any recursive ownership
-  ; change; unsupported Windows builds fail safely instead of touching a target
-  ; outside ProgramData\FnKnock.
-  FileWrite $R7 "  $$takeownHelp = (& $$Takeown /? 2>&1 | Out-String)$\r$\n"
-  FileWrite $R7 "  $$takeownHelpExitCode = $$LASTEXITCODE$\r$\n"
-  FileWrite $R7 "  if ($$takeownHelpExitCode -ne 0 -or $$takeownHelp -notmatch '(?im)(^|\s)/SKIPSL(\s|$$)') { throw 'takeown.exe does not provide the required /SKIPSL no-follow option' }$\r$\n"
-  FileWrite $R7 "  $$takeownArgs = @('/F', $$Path, '/A', '/R', '/D', 'Y', '/SKIPSL')$\r$\n"
-  FileWrite $R7 "  & $$Takeown @takeownArgs | Out-Null$\r$\n"
-  FileWrite $R7 "  $$takeownExitCode = $$LASTEXITCODE$\r$\n"
-  FileWrite $R7 "  if ($$takeownExitCode -ne 0) { throw ('unable to take ownership of ProgramData\FnKnock; takeown exited with code ' + $$takeownExitCode) }$\r$\n"
+  ; takeown's recursive no-follow switch is not documented and is absent on
+  ; otherwise supported Windows 10 builds. Claim only the already validated
+  ; root with portable takeown syntax. Every recursive operation is delegated
+  ; to documented icacls /L, which operates on links rather than their targets.
+  FileWrite $R7 "  $$rootAttributes = [IO.File]::GetAttributes($$Path)$\r$\n"
+  FileWrite $R7 "  if (($$rootAttributes -band [IO.FileAttributes]::Directory) -eq 0 -or ($$rootAttributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('refusing an untrusted ProgramData root: ' + $$Path) }$\r$\n"
+  FileWrite $R7 "  $$rootTakeownArgs = @('/F', $$Path, '/A')$\r$\n"
+  FileWrite $R7 "  & $$Takeown @rootTakeownArgs | Out-Null$\r$\n"
+  FileWrite $R7 "  $$rootTakeownExitCode = $$LASTEXITCODE$\r$\n"
+  FileWrite $R7 "  if ($$rootTakeownExitCode -ne 0) { throw ('unable to take ownership of the ProgramData\FnKnock root; takeown exited with code ' + $$rootTakeownExitCode) }$\r$\n"
+  ; Neutralize a stale explicit deny on the now-owned root, then make it
+  ; traversable before the recursive owner repair. Keep the live service SID
+  ; while begin runs so a failed preflight does not strand the existing runtime
+  ; without its normal ProgramData access.
+  FileWrite $R7 "  & $$Icacls $$Path /reset /L /Q | Out-Null$\r$\n"
+  FileWrite $R7 "  $$rootResetExitCode = $$LASTEXITCODE$\r$\n"
+  FileWrite $R7 "  if ($$rootResetExitCode -ne 0) { throw ('unable to reset the ProgramData\FnKnock root ACL; icacls exited with code ' + $$rootResetExitCode) }$\r$\n"
+  FileWrite $R7 "  $$rootGrantArgs = @($$Path, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F')$\r$\n"
+  FileWrite $R7 "  if (-not [string]::IsNullOrWhiteSpace($$ServiceGrant)) { $$rootGrantArgs += $$ServiceGrant }$\r$\n"
+  FileWrite $R7 "  $$rootGrantArgs += @('/L', '/Q')$\r$\n"
+  FileWrite $R7 "  & $$Icacls @rootGrantArgs | Out-Null$\r$\n"
+  FileWrite $R7 "  $$rootGrantExitCode = $$LASTEXITCODE$\r$\n"
+  FileWrite $R7 "  if ($$rootGrantExitCode -ne 0) { throw ('unable to grant bootstrap access to the ProgramData\FnKnock root; icacls exited with code ' + $$rootGrantExitCode) }$\r$\n"
+  FileWrite $R7 "  $$ownerArgs = @($$Path, '/setowner', '*S-1-5-32-544', '/T', '/L', '/Q')$\r$\n"
+  FileWrite $R7 "  & $$Icacls @ownerArgs | Out-Null$\r$\n"
+  FileWrite $R7 "  $$ownerExitCode = $$LASTEXITCODE$\r$\n"
+  FileWrite $R7 "  if ($$ownerExitCode -ne 0) { throw ('unable to repair ProgramData\FnKnock ownership; icacls exited with code ' + $$ownerExitCode) }$\r$\n"
   ; Ownership alone does not neutralize an explicit deny ACE left by an old or
   ; interrupted install. Reset the complete DACL before applying the allowlist.
   ; Do not use /C: a skipped child would fail later with an opaque .NET
@@ -529,8 +552,8 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "}$\r$\n"
   FileWrite $R7 "$\r$\n"
 
-  FileWrite $R7 "switch ($$Action) {$\r$\n"
-  FileWrite $R7 "  'begin' {$\r$\n"
+  FileWrite $R7 "  switch ($$Action) {$\r$\n"
+  FileWrite $R7 "    'begin' {$\r$\n"
   ; Do not inspect a stale transaction until ProgramData and its existing tree
   ; have an installer-owned ACL. Preserve the live service SID during upgrades.
   ; Directory.Exists returns false for some access-denied trees. Enumerate the
@@ -587,8 +610,8 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "    Set-FnKnockDataTreeAcl $$pending $$systemSid $$administratorsSid $$null$\r$\n"
   FileWrite $R7 "    Set-FnKnockDataTreeOwner $$pending $$icacls$\r$\n"
   FileWrite $R7 "  }$\r$\n"
-  FileWrite $R7 "  'stop' { Stop-FnKnock }$\r$\n"
-  FileWrite $R7 "  'snapshot' {$\r$\n"
+  FileWrite $R7 "    'stop' { Stop-FnKnock }$\r$\n"
+  FileWrite $R7 "    'snapshot' {$\r$\n"
   FileWrite $R7 "    if (-not (Test-Path -LiteralPath $$marker -PathType Leaf)) { throw 'the installer transaction marker is missing' }$\r$\n"
   FileWrite $R7 "    Assert-NoReparseTree $$root; Assert-NoReparseTree $$pending; Assert-NoReparseTree $$install$\r$\n"
   FileWrite $R7 "    $$kind = (Get-Content -Raw -LiteralPath $$marker).Trim()$\r$\n"
@@ -612,9 +635,15 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "      [IO.File]::WriteAllText($$snapshotReady, 'ready')$\r$\n"
   FileWrite $R7 "    } else { throw ('unknown installer transaction kind ' + $$kind) }$\r$\n"
   FileWrite $R7 "  }$\r$\n"
-  FileWrite $R7 "  'rollback' { Rollback-FnKnockTransaction }$\r$\n"
-  FileWrite $R7 "  'protect-rollback' { Repair-FnKnockDataTreeAfterServiceInstall }$\r$\n"
-  FileWrite $R7 "  'wait-ready' { Wait-FnKnockReady }$\r$\n"
+  FileWrite $R7 "    'rollback' { Rollback-FnKnockTransaction }$\r$\n"
+  FileWrite $R7 "    'protect-rollback' { Repair-FnKnockDataTreeAfterServiceInstall }$\r$\n"
+  FileWrite $R7 "    'wait-ready' { Wait-FnKnockReady }$\r$\n"
+  FileWrite $R7 "  }$\r$\n"
+  FileWrite $R7 "} catch {$\r$\n"
+  ; PowerShell's default non-interactive error record is much longer than an
+  ; NSIS string and used to hide the actionable exception behind formatting.
+  FileWrite $R7 "  [Console]::Error.WriteLine(('FnKnock installer ' + $$Action + ' failed: ' + $$_.Exception.Message))$\r$\n"
+  FileWrite $R7 "  exit 1$\r$\n"
   FileWrite $R7 "}$\r$\n"
 
   ${If} ${Errors}

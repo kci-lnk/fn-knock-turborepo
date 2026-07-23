@@ -389,6 +389,8 @@ export const jaJPServer = {
       payloadObjectRequired:
         "Host マッピングはオブジェクトである必要があります",
       hostRequired: "Host マッピングにはドメインが必要です",
+      hostWildcardForbidden:
+        "Host マッピング {host} にワイルドカード * は使用できません。完全なホスト名を入力してください",
       duplicateHost: "Host マッピングのドメイン {host} が重複しています",
       protocolModeInvalid:
         "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
@@ -469,6 +471,8 @@ export const jaJPServer = {
     subdomainMode: {
       payloadObjectRequired:
         "サブドメインモードのリクエスト本文はオブジェクトである必要があります",
+      rootDomainWildcardForbidden:
+        "ルートドメインにワイルドカード * は使用できません。*.example.com ではなく example.com を入力してください。",
       saveFailed: "サブドメインモード設定の保存に失敗しました",
       sslAutoSelected:
         "現在のサブドメインモードに適した証明書へ自動的に切り替えました。",

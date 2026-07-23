@@ -7,7 +7,7 @@ pub fn default_config() -> Value {
     let subdomain_mode = json!({
         "root_domain": "",
         "auth_host": "",
-        "auth_target": "http://127.0.0.1:7997",
+        "auth_target": crate::proxy_utils::default_auth_service_target(),
         "cookie_domain": "",
         "edge_client_ip_enabled": false,
         "aliyun_esa_enabled": false,

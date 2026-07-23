@@ -9,6 +9,7 @@
     },
     "server-admin-view#build": {
       "dependsOn": ["^build"],
+      "env": ["FN_KNOCK_FRONTEND_TARGET", "VITE_FN_KNOCK_DEFAULT_AUTH_PORT"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",

@@ -11,6 +11,7 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
+import { resolveRuntimeCapabilityRedirect } from "./runtime-access";
 
 NProgress.configure({
   showSpinner: false,
@@ -290,37 +291,15 @@ router.beforeEach(async (to, from) => {
     return "/system";
   }
 
-  if (to.path === "/terminal" && !configStore.canUseTerminal) {
-    return "/system";
-  }
-
-  if (
-    to.path === "/ssh-security" &&
-    (!configStore.canUseSshSecurity ||
-      configStore.config?.ssh_security?.enabled !== true)
-  ) {
-    return {
-      path: "/system",
-      query: {
-        tab: "features",
-      },
-    };
-  }
-
-  if (to.path === "/system/smart-connect" && !configStore.canUseSmartConnect) {
-    return {
-      path: "/system",
-      query: {
-        tab: "features",
-      },
-    };
-  }
-
-  if (
-    to.path === "/system/fnos-certificate-sync" &&
-    !configStore.canUseFnosCertificateSync
-  ) {
-    return { path: "/system", query: { tab: "fnos" } };
+  const runtimeCapabilityRedirect = resolveRuntimeCapabilityRedirect(to.path, {
+    canUseTerminal: configStore.canUseTerminal,
+    canUseSshSecurity: configStore.canUseSshSecurity,
+    sshSecurityEnabled: configStore.config?.ssh_security?.enabled === true,
+    canUseSmartConnect: configStore.canUseSmartConnect,
+    canUseFnosCertificateSync: configStore.canUseFnosCertificateSync,
+  });
+  if (runtimeCapabilityRedirect) {
+    return runtimeCapabilityRedirect;
   }
 
   const isProtocolMappingVisible =

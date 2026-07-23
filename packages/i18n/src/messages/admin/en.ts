@@ -45,6 +45,8 @@ export const enAdmin = {
       "Synology packages are upgraded manually in DSM Package Center. Open System Update to get the latest SPK.",
     windowsUpdateInfo:
       "Use the Knock Windows Manager to check for and install the update.",
+    liteUpdateInfo:
+      "Lite cannot update in app. Open System Update for release notes and the full-version download.",
     genericUpdateInfo:
       "Open System Update for version details and manual upgrade instructions.",
   },
@@ -90,6 +92,8 @@ export const enAdmin = {
       "View version details and OpenWrt IPK upgrade instructions",
     subtitleSynology:
       "View version details and Synology package upgrade instructions",
+    subtitleLite:
+      "View version details, release notes, and the full-version download",
     subtitleGeneric: "View version details and manual upgrade instructions",
     openGithub: "Open GitHub project",
     synologyUpdateTitle: "Manual Synology package upgrade",
@@ -106,6 +110,8 @@ export const enAdmin = {
       "For OpenWrt deployments, download the fn-knock IPK matching the device architecture and install it through LuCI Software upload, or upload it to /tmp and run opkg install --force-reinstall /tmp/fn-knock_*.ipk. Upgrades preserve /etc/config/fn-knock and /var/lib/fn-knock.",
     selfUpdateUnsupportedDescriptionGeneric:
       "Upgrade this deployment manually using the matching installation method. This page can still check the latest version and show release notes.",
+    selfUpdateUnsupportedDescriptionLite:
+      "Lite cannot download or install updates in app. This page can still check the latest version and show full release notes.",
     currentVersion: "Current version",
     latestVersion: "Latest version",
     newVersionSelfUpdate: "New version found. Update soon.",
@@ -115,6 +121,8 @@ export const enAdmin = {
       "New version found. Download the latest Synology package.",
     newVersionDesktop:
       "New version found. Upgrade in the Knock Windows Manager.",
+    newVersionLite:
+      "New version found. Download the full version from the official website.",
     newVersionGeneric:
       "New version found. Upgrade manually for this deployment.",
     alreadyLatest: "You are already on the latest version",
@@ -129,6 +137,8 @@ export const enAdmin = {
       "Use the button above to download the latest SPK, then upgrade it manually in DSM Package Center.",
     newVersionDesktopHint:
       "Open the Knock Windows Manager and use Runtime Status to check for and install the update.",
+    newVersionLiteHint:
+      "Export a Lite backup first, then uninstall Lite and install the full version.",
     newVersionGenericHint:
       "Download the matching package and upgrade using this deployment's installation method.",
     latestHint: "Thanks for using the latest version.",
@@ -142,8 +152,16 @@ export const enAdmin = {
       "When a new version is available, use the button above to get the latest Synology package.",
     versionCheckHintDesktop:
       "You can keep checking releases here; use the Knock Windows Manager to install updates.",
+    versionCheckHintLite:
+      "You can keep checking the latest release and full release notes.",
     versionCheckHintGeneric:
       "You can keep checking the latest release and manual upgrade notes.",
+    liteUpdateTitle: "Knock Lite is the streamlined non-root edition",
+    liteUpdateDescription:
+      "Lite keeps the core gateway features but cannot download or install updates in app. Download the full version from the official website for all features and future upgrades.",
+    liteMigrationSteps:
+      "Migration: export a Lite backup → stop and uninstall Lite → install the full version → import the backup.",
+    liteDownloadFull: "Download full version",
     checkUpdate: "Check for updates",
     installRestart: "Install and restart",
     checkFailed: "Update check failed",

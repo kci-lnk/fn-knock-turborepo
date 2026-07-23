@@ -45,6 +45,8 @@ export const jaJPAdmin = {
       "Synology パッケージは DSM のパッケージセンターから手動でアップグレードします。「システム更新」から最新の SPK を取得できます。",
     windowsUpdateInfo:
       "Knock Windows Manager でアップデートを確認してインストールしてください。",
+    liteUpdateInfo:
+      "Lite はアプリ内更新に対応していません。システム更新ページで更新履歴を確認し、完全版をダウンロードしてください。",
     genericUpdateInfo:
       "「システム更新」でバージョン情報と手動アップグレードの手順を確認できます。",
   },
@@ -90,6 +92,8 @@ export const jaJPAdmin = {
     subtitleOpenWrt: "バージョン情報と OpenWrt IPK のアップグレード手順を表示",
     subtitleSynology:
       "バージョン情報と Synology パッケージのアップグレード手順を表示",
+    subtitleLite:
+      "バージョン情報、更新履歴、完全版のダウンロード方法を表示",
     subtitleGeneric: "バージョン情報と手動アップグレードの手順を表示",
     openGithub: "GitHub プロジェクトを開く",
     synologyUpdateTitle: "Synology パッケージの手動アップグレード",
@@ -106,6 +110,8 @@ export const jaJPAdmin = {
       "OpenWrt 環境では、デバイスのアーキテクチャに合う fn-knock IPK をダウンロードし、LuCI の「ソフトウェア」からアップロードしてインストールしてください。または、/tmp にアップロードして opkg install --force-reinstall /tmp/fn-knock_*.ipk を実行します。アップグレード後も /etc/config/fn-knock と /var/lib/fn-knock は保持されます。",
     selfUpdateUnsupportedDescriptionGeneric:
       "この環境に対応する方法で手動アップグレードしてください。このページでは、引き続き最新バージョンとリリースノートを確認できます。",
+    selfUpdateUnsupportedDescriptionLite:
+      "Lite はアプリ内で更新をダウンロードまたはインストールできません。このページでは最新バージョンと完全な更新履歴を確認できます。",
     currentVersion: "現在のバージョン",
     latestVersion: "最新バージョン",
     newVersionSelfUpdate:
@@ -118,6 +124,8 @@ export const jaJPAdmin = {
       "新しいバージョンがあります。最新の Synology パッケージをダウンロードしてください。",
     newVersionDesktop:
       "新しいバージョンがあります。Knock Windows Manager からアップグレードしてください。",
+    newVersionLite:
+      "新しいバージョンがあります。公式サイトから完全版をダウンロードしてください。",
     newVersionGeneric:
       "新しいバージョンがあります。この環境に対応する方法で手動アップグレードしてください。",
     alreadyLatest: "最新バージョンを使用しています",
@@ -132,6 +140,8 @@ export const jaJPAdmin = {
       "上のボタンから最新の SPK をダウンロードし、DSM パッケージセンターで手動アップグレードしてください。",
     newVersionDesktopHint:
       "Knock Windows Manager を開き、「ランタイムの状態」からアップデートを確認してインストールしてください。",
+    newVersionLiteHint:
+      "先に Lite のバックアップをエクスポートし、Lite をアンインストールして完全版をインストールしてください。",
     newVersionGenericHint:
       "対応するインストールパッケージをダウンロードし、この環境に合う方法でアップグレードしてください。",
     latestHint: "最新バージョンをご利用いただいています。",
@@ -144,8 +154,16 @@ export const jaJPAdmin = {
       "新しいバージョンが利用可能になったら、上のボタンから最新の Synology パッケージを取得できます。",
     versionCheckHintDesktop:
       "最新リリースはこのページで確認し、アップデートは Knock Windows Manager からインストールしてください。",
+    versionCheckHintLite:
+      "最新リリースと完全な更新履歴を引き続き確認できます。",
     versionCheckHintGeneric:
       "今後も最新リリースと手動アップグレードの手順を確認できます。",
+    liteUpdateTitle: "Knock Lite は非 Root の簡易版です",
+    liteUpdateDescription:
+      "Lite は主要なゲートウェイ機能を維持しますが、アプリ内更新には対応していません。すべての機能と今後の更新には公式サイトから完全版をインストールしてください。",
+    liteMigrationSteps:
+      "移行手順：Lite のバックアップをエクスポート → Lite を停止してアンインストール → 完全版をインストール → バックアップをインポート。",
+    liteDownloadFull: "完全版をダウンロード",
     checkUpdate: "アップデートを確認",
     installRestart: "インストールして再起動",
     checkFailed: "アップデートの確認に失敗しました",

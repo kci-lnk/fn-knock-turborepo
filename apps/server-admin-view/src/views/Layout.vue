@@ -447,4 +447,12 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => configStore.isFpkLiteDeployment,
+  (isLite) => {
+    document.title = isLite ? "fn-knock Lite" : "fn-knock";
+  },
+  { immediate: true },
+);
 </script>

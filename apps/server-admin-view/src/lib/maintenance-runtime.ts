@@ -12,6 +12,7 @@ export const supportsSharedBackupForRuntime = (
 
   return (
     target === "fpk" ||
+    target === "fpk-lite" ||
     capabilities?.self_update_available === true ||
     capabilities?.shared_root_available === true
   );

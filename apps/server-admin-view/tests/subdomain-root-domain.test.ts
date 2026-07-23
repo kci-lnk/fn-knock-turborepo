@@ -11,6 +11,13 @@ import {
 import { useSubdomainModeConfig } from "../src/views/subdomain-proxy/useSubdomainModeConfig";
 
 describe("subdomain root domain validation", () => {
+  it("builds the Lite auth target from its 8997 runtime port", () => {
+    assert.equal(
+      createDefaultModeForm(8997).auth_target,
+      "http://localhost:8997",
+    );
+  });
+
   it("rejects wildcard roots before composing a Host rule", () => {
     assert.equal(hasSubdomainRootDomainWildcard("*.example.com"), true);
     assert.equal(composeHostFromSubdomain("auth", "*.example.com"), "");

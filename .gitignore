@@ -50,6 +50,13 @@ apps/fn-knock/app/server/server-admin-rs-linux-amd64
 apps/fn-knock/app/server/go-reauth-proxy-linux-*
 apps/fn-knock/app/server-auth-view/dist/
 apps/fn-knock/dist/
+apps/fn-knock-lite/app/ui/www/
+apps/fn-knock-lite/app/server/server-admin/
+apps/fn-knock-lite/app/server/server-admin-rs
+apps/fn-knock-lite/app/server/server-admin-rs-linux-*
+apps/fn-knock-lite/app/server/go-reauth-proxy-linux-*
+apps/fn-knock-lite/app/server-auth-view/dist/
+apps/fn-knock-lite/dist/
 deploy/docker/rust-backends/server-admin-rs-linux-*
 !deploy/docker/rust-backends/.gitkeep
 videos

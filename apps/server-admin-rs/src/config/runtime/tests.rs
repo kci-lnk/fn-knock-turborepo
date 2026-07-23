@@ -1,5 +1,23 @@
 use super::*;
 
+async fn fpk_lite_runtime_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("create FPK Lite runtime test directory");
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "fpk-lite".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.internal_rpc_token = "fpk-lite-runtime-test-token".to_string();
+    let state = AppState::new(settings)
+        .await
+        .expect("create FPK Lite runtime state");
+    (directory, state)
+}
+
 #[test]
 fn redis_json_keys_match_node_feature_section_store() {
     assert_eq!(CAPTCHA_SETTINGS_KEY, "fn_knock:captcha:settings");
@@ -7,6 +25,52 @@ fn redis_json_keys_match_node_feature_section_store() {
     assert_eq!(
         PROTOCOL_MAPPING_FEATURE_KEY,
         "fn_knock:protocol-mapping:feature"
+    );
+}
+
+#[tokio::test]
+async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+
+    assert_eq!(
+        update_run_type(State(state.clone()), Json(json!({ "run_type": 0 })))
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        update_terminal_feature(State(state.clone()), Json(json!({ "enabled": true })))
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        update_smart_connect(
+            State(state.clone()),
+            Json(json!({ "enabled": true, "selected_ipv4": "192.168.1.2" }))
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        update_auto_https(State(state.clone()), Json(json!({ "enabled": true })))
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        update_auto_manage_firewall(
+            State(state.clone()),
+            Json(json!({ "auto_manage_firewall": true }))
+        )
+        .await
+        .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        clear_firewall(State(state)).await.status(),
+        StatusCode::FORBIDDEN
     );
 }
 
@@ -266,6 +330,45 @@ fn direct_mode_auth_entry_route_matches_node_payload() {
             "use_root_mode": false,
             "strip_path": false,
         }])
+    );
+}
+
+#[test]
+fn fpk_lite_retargets_legacy_auth_service_without_touching_unrelated_mappings() {
+    let mut config = json!({
+        "subdomain_mode": {
+            "auth_host": "auth.example.com",
+            "auth_target": "http://127.0.0.1:7997"
+        },
+        "host_mappings": [
+            {
+                "host": "auth.example.com",
+                "target": "http://localhost:7997",
+                "service_role": "auth"
+            },
+            {
+                "host": "full.example.com",
+                "target": "http://127.0.0.1:7997",
+                "service_role": "app"
+            }
+        ]
+    });
+
+    assert!(retarget_fpk_lite_auth_service(
+        &mut config,
+        "http://127.0.0.1:8997"
+    ));
+    assert_eq!(
+        config.pointer("/subdomain_mode/auth_target"),
+        Some(&json!("http://127.0.0.1:8997"))
+    );
+    assert_eq!(
+        config.pointer("/host_mappings/0/target"),
+        Some(&json!("http://127.0.0.1:8997"))
+    );
+    assert_eq!(
+        config.pointer("/host_mappings/1/target"),
+        Some(&json!("http://127.0.0.1:7997"))
     );
 }
 

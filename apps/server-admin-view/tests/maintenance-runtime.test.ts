@@ -37,6 +37,13 @@ describe("maintenance runtime helpers", () => {
     );
   });
 
+  it("shows shared backup actions for the isolated FPK Lite data share", () => {
+    assert.equal(
+      supportsSharedBackupForRuntime(profile("fpk-lite"), capabilities()),
+      true,
+    );
+  });
+
   it("shows shared backup actions when FPK capability is present without a profile", () => {
     assert.equal(
       supportsSharedBackupForRuntime(

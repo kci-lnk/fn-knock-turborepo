@@ -58,6 +58,8 @@ export const enServer = {
           "The current process does not have the host permission required for system time sync",
       },
       self_update_available: {
+        lite:
+          "Knock Lite does not support in-app updates. Download the full version from the official website",
         docker:
           "Docker deployments do not support in-app FPK updates. Upgrade by pulling a new image",
         openwrt:
@@ -66,9 +68,24 @@ export const enServer = {
           "The current deployment type does not support in-app updates",
       },
       terminal_available: {
+        lite: "Knock Lite does not provide a Web terminal",
         docker: "Docker deployments do not support Web terminal",
         openwrt: "OpenWrt deployments do not support Web terminal yet",
         platform: "The current runtime does not support Web terminal",
+      },
+      auto_https_available: {
+        lite:
+          "Knock Lite cannot bind port 80 because it requires root privileges",
+        platform: "The current runtime does not support automatic HTTPS",
+        permission:
+          "The current process lacks permission to listen on port 80",
+      },
+      fnos_network_tuning_available: {
+        lite:
+          "Knock Lite does not provide FNOS network tuning that requires root privileges",
+        platform: "The current runtime does not support FNOS network tuning",
+        permission:
+          "The current process lacks root permission to change system network settings",
       },
       shared_root_available: {
         missing:
@@ -264,6 +281,8 @@ export const enServer = {
         rollbackFailed: "{message}; rollback failed: {error}",
       },
       blocked: {
+        lite:
+          "Knock Lite does not provide FNOS network tuning that requires root privileges",
         deployment:
           "FNOS FPK network optimization is only available in FPK deployments",
         platform: "FNOS FPK network optimization requires a Linux host",

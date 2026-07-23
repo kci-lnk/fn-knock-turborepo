@@ -210,6 +210,8 @@ export const getEffectiveRuntimeCapabilities = (
     system_clock_sync_available: false,
     self_update_available: false,
     terminal_available: false,
+    auto_https_available: false,
+    fnos_network_tuning_available: false,
     shared_root_available: capabilities?.shared_root_available ?? false,
     acme_available: capabilities?.acme_available ?? true,
     acme_resource_required: capabilities?.acme_resource_required ?? false,

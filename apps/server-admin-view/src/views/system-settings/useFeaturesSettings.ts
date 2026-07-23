@@ -62,7 +62,10 @@ export function useFeaturesSettings() {
     () => configStore.canUseSmartConnect && configStore.config?.run_type === 3,
   );
   const showSmartConnectEntry = computed(
-    () => !configStore.isDockerDeployment && !configStore.isSynologyDeployment,
+    () =>
+      !configStore.isFpkLiteDeployment &&
+      !configStore.isDockerDeployment &&
+      !configStore.isSynologyDeployment,
   );
   const isDashboardDisplaySwitchDisabled = computed(
     () => isSaving.value || configStore.isLoading || configStore.isError,
@@ -105,6 +108,7 @@ export function useFeaturesSettings() {
   });
   const showAutoHttpsEntry = computed(
     () =>
+      configStore.canUseAutoHttps &&
       !configStore.isDockerDeployment &&
       !configStore.isOpenWrtDeployment &&
       !configStore.isSynologyDeployment,

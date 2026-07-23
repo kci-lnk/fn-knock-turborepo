@@ -16,7 +16,7 @@ import { ConfigAPI } from "../lib/api";
 import {
   getEffectiveRuntimeCapabilities,
   getEffectiveRuntimeProfile,
-} from "../lib/docker-debug";
+} from "@runtime-debug";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 export const useConfigStore = defineStore("config", () => {
@@ -382,6 +382,9 @@ export const useConfigStore = defineStore("config", () => {
   const isFpkDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "fpk",
   );
+  const isFpkLiteDeployment = computed(
+    () => runtimeProfile.value?.deployment_target === "fpk-lite",
+  );
   const isOpenWrtDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "openwrt",
   );
@@ -424,6 +427,12 @@ export const useConfigStore = defineStore("config", () => {
   const canUseTerminal = computed(
     () => capabilities.value?.terminal_available === true,
   );
+  const canUseAutoHttps = computed(
+    () => capabilities.value?.auto_https_available !== false,
+  );
+  const canUseFnosNetworkTuning = computed(
+    () => capabilities.value?.fnos_network_tuning_available !== false,
+  );
   const hasSharedRoot = computed(
     () => capabilities.value?.shared_root_available === true,
   );
@@ -460,6 +469,7 @@ export const useConfigStore = defineStore("config", () => {
     capabilities,
     isDockerDeployment,
     isFpkDeployment,
+    isFpkLiteDeployment,
     isOpenWrtDeployment,
     isLinuxDeployment,
     isSynologyDeployment,
@@ -472,6 +482,8 @@ export const useConfigStore = defineStore("config", () => {
     canSelfUpdate,
     canSyncSystemClock,
     canUseTerminal,
+    canUseAutoHttps,
+    canUseFnosNetworkTuning,
     hasSharedRoot,
     canUseAcme,
     isAcmeResourceRequired,

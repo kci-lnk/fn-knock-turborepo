@@ -27,6 +27,7 @@ import {
 import { useConfigStore } from "@/store/config";
 import { useUpdateStore } from "@/store/update";
 import { orderSidebarNavItems, type SidebarNavItem } from "./sidebarNavigation";
+import { privilegedNavigationVisibility } from "./runtime-navigation";
 
 export const useLayoutNavigation = () => {
   const route = useRoute();
@@ -42,6 +43,12 @@ export const useLayoutNavigation = () => {
   };
 
   const navItems = computed(() => {
+    const privilegedNavigation = privilegedNavigationVisibility({
+      canUseSshSecurity: configStore.canUseSshSecurity,
+      sshSecurityEnabled: configStore.config?.ssh_security?.enabled === true,
+      canUseTerminal: configStore.canUseTerminal,
+      terminalEnabled: configStore.config?.terminal_feature?.enabled === true,
+    });
     const items: SidebarNavItem[] = [
       {
         id: "ip_whitelist",
@@ -129,10 +136,7 @@ export const useLayoutNavigation = () => {
       path: "/auth",
       icon: Fingerprint,
     });
-    if (
-      configStore.canUseSshSecurity &&
-      configStore.config?.ssh_security?.enabled === true
-    ) {
+    if (privilegedNavigation.sshSecurity) {
       items.push({
         id: "ssh_security",
         name: t("admin.nav.sshSecurity"),
@@ -162,10 +166,7 @@ export const useLayoutNavigation = () => {
         icon: ShieldAlert,
       });
     }
-    if (
-      configStore.canUseTerminal &&
-      configStore.config?.terminal_feature?.enabled
-    ) {
+    if (privilegedNavigation.terminal) {
       items.push({
         id: "web_terminal",
         name: t("admin.nav.webTerminal"),

@@ -1,0 +1,22 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "fn-knock-lite",
+        "permission": {
+          "rw": [
+            "fn-knock-lite"
+          ]
+        }
+      },
+      {
+        "name": "fn-knock-lite/data",
+        "permission": {
+          "rw": [
+            "fn-knock-lite"
+          ]
+        }
+      }
+    ]
+  }
+}

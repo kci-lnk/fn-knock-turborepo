@@ -77,6 +77,15 @@ pub(super) async fn apply_runtime_constraints_on_boot(
     let target = deployment_target(state);
     let host_runtime = host_runtime_available(state);
     let host_firewall = host_firewall_available(state);
+    let capabilities =
+        runtime_profile::get_runtime_capabilities(&runtime_profile::get_runtime_profile(state));
+
+    if target == "fpk-lite" {
+        let auth_target = crate::proxy_utils::default_auth_service_target();
+        if retarget_fpk_lite_auth_service(config, &auth_target) {
+            corrected.push(format!("subdomain auth service -> {auth_target}"));
+        }
+    }
 
     if !host_runtime && config.get("run_type").and_then(Value::as_i64) == Some(0) {
         ensure_config_object(config).insert("run_type".to_string(), json!(3));
@@ -94,7 +103,7 @@ pub(super) async fn apply_runtime_constraints_on_boot(
     }
 
     let terminal = normalize_terminal_feature(config.get("terminal_feature"));
-    if matches!(target.as_str(), "docker" | "openwrt")
+    if !capabilities.terminal_available
         && terminal.get("enabled").and_then(Value::as_bool) == Some(true)
     {
         let mut next = terminal;
@@ -106,7 +115,7 @@ pub(super) async fn apply_runtime_constraints_on_boot(
     }
 
     let auto_https = auto_https::normalize_auto_https_config(config.get("auto_https"));
-    if matches!(target.as_str(), "docker" | "openwrt")
+    if !capabilities.auto_https_available
         && auto_https.get("enabled").and_then(Value::as_bool) == Some(true)
     {
         let mut next = auto_https;
@@ -115,6 +124,26 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         }
         ensure_config_object(config).insert("auto_https".to_string(), next);
         corrected.push("auto_https.enabled -> false".to_string());
+    }
+
+    let fnos_network_tuning = normalize_fnos_network_tuning(config.get("fnos_network_tuning"));
+    if !capabilities.fnos_network_tuning_available
+        && (fnos_network_tuning
+            .get("bbr_enabled")
+            .and_then(Value::as_bool)
+            == Some(true)
+            || fnos_network_tuning
+                .get("mtu_probing_enabled")
+                .and_then(Value::as_bool)
+                == Some(true))
+    {
+        let mut next = fnos_network_tuning;
+        if let Some(object) = next.as_object_mut() {
+            object.insert("bbr_enabled".to_string(), Value::Bool(false));
+            object.insert("mtu_probing_enabled".to_string(), Value::Bool(false));
+        }
+        ensure_config_object(config).insert("fnos_network_tuning".to_string(), next);
+        corrected.push("fnos_network_tuning -> disabled".to_string());
     }
 
     let ssh_security = crate::ssh_security::normalize_config(config.get("ssh_security").cloned());
@@ -150,6 +179,76 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         state.store.save_config(config).await?;
     }
     Ok(corrected)
+}
+
+pub(super) fn retarget_fpk_lite_auth_service(config: &mut Value, auth_target: &str) -> bool {
+    let Some(auth_port) = crate::proxy_utils::parse_target_port_u16(auth_target) else {
+        return false;
+    };
+    if auth_port == 7997 {
+        return false;
+    }
+
+    let mut changed = false;
+    let auth_host = config
+        .pointer("/subdomain_mode/auth_host")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    if let Some(subdomain_mode) = config
+        .get_mut("subdomain_mode")
+        .and_then(Value::as_object_mut)
+        && subdomain_mode
+            .get("auth_target")
+            .and_then(Value::as_str)
+            .is_some_and(is_legacy_default_auth_service_target)
+    {
+        subdomain_mode.insert("auth_target".to_string(), json!(auth_target));
+        changed = true;
+    }
+
+    if let Some(mappings) = config
+        .get_mut("host_mappings")
+        .and_then(Value::as_array_mut)
+    {
+        for mapping in mappings {
+            let Some(object) = mapping.as_object_mut() else {
+                continue;
+            };
+            let is_auth_mapping = object.get("service_role").and_then(Value::as_str)
+                == Some("auth")
+                || (!auth_host.is_empty()
+                    && object
+                        .get("host")
+                        .and_then(Value::as_str)
+                        .is_some_and(|host| host.trim().eq_ignore_ascii_case(&auth_host)));
+            if is_auth_mapping
+                && object
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .is_some_and(is_legacy_default_auth_service_target)
+            {
+                object.insert("target".to_string(), json!(auth_target));
+                changed = true;
+            }
+        }
+    }
+
+    changed
+}
+
+fn is_legacy_default_auth_service_target(target: &str) -> bool {
+    let Ok(url) = url::Url::parse(target.trim()) else {
+        return false;
+    };
+    url.scheme() == "http"
+        && matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+        && url.port_or_known_default() == Some(7997)
+        && matches!(url.path(), "" | "/")
+        && url.query().is_none()
+        && url.fragment().is_none()
 }
 
 pub(super) fn legacy_reverse_proxy_throttle_matches(value: Option<&Value>) -> bool {

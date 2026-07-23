@@ -69,6 +69,14 @@ pub(super) async fn update_terminal_feature(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    if body.get("enabled").and_then(Value::as_bool) == Some(true)
+        && !runtime_profile::terminal_available(&state)
+    {
+        return response::error(
+            StatusCode::FORBIDDEN,
+            capability_blocked_text(&state, "terminal_available", &translator),
+        );
+    }
     match update_config_section(
         &state,
         "terminal_feature",
@@ -627,16 +635,11 @@ pub(super) async fn update_auto_https(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let requested_enabled = body.get("enabled").and_then(Value::as_bool);
-    if requested_enabled == Some(true) {
-        let target = deployment_target(&state);
-        if target == "docker" || target == "openwrt" {
-            let key = if target == "openwrt" {
-                "autoHttps.openWrtUnsupported"
-            } else {
-                "autoHttps.dockerUnsupported"
-            };
-            return response::error(StatusCode::FORBIDDEN, admin_text(&translator, key));
-        }
+    if requested_enabled == Some(true) && !runtime_profile::auto_https_available(&state) {
+        return response::error(
+            StatusCode::FORBIDDEN,
+            capability_blocked_text(&state, "auto_https_available", &translator),
+        );
     }
 
     if requested_enabled == Some(true) {

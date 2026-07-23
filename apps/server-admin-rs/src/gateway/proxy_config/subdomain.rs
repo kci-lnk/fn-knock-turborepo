@@ -219,11 +219,11 @@ pub(super) fn is_auth_service_target(target: &str) -> bool {
 pub(super) use crate::proxy_utils::parse_target_port_i64 as parse_target_port;
 
 pub(super) fn resolve_auth_service_port() -> i64 {
-    parse_env_port_with_fallback("AUTH_PORT", 7997)
+    i64::from(crate::proxy_utils::auth_service_port())
 }
 
 pub(super) fn default_subdomain_auth_target() -> String {
-    format!("http://localhost:{}", resolve_auth_service_port())
+    crate::proxy_utils::default_auth_service_target()
 }
 
 pub(super) fn normalize_host_value(value: &str) -> String {
@@ -421,7 +421,6 @@ pub(super) fn should_omit_public_access_entry_port(config: &Value) -> bool {
 
 pub(super) use crate::system_info::resolve_public_gateway_port;
 
-pub(super) use crate::proxy_utils::parse_env_port_i64_with_fallback as parse_env_port_with_fallback;
 #[cfg(test)]
 pub(super) use crate::proxy_utils::parse_env_port_i64_with_fallback_value as parse_env_port_with_fallback_value;
 
@@ -573,7 +572,7 @@ pub(super) fn default_subdomain_mode() -> Value {
     json!({
         "root_domain": "",
         "auth_host": "",
-        "auth_target": "http://127.0.0.1:7997",
+        "auth_target": default_subdomain_auth_target(),
         "cookie_domain": "",
         "edge_client_ip_enabled": false,
         "aliyun_esa_enabled": false,

@@ -18,6 +18,7 @@ REMOTE_UI_INDEX="/usr/local/apps/@appcenter/${APP_NAME}/ui/index.cgi"
 REMOTE_LOG_FILE="/usr/local/apps/@appdata/${APP_NAME}/info.log"
 REMOTE_INSTALL_ENV_PATH="${REMOTE_DIR}/install.env"
 REMOTE_APPCENTER_TMP_DIR="${FN_KNOCK_REMOTE_APPCENTER_TMP_DIR:-/tmp/appcenter}"
+WIZARD_ADMIN_VIEW_PORT="${FN_KNOCK_WIZARD_ADMIN_VIEW_PORT:-7991}"
 WIZARD_BACKEND_PORT="${FN_KNOCK_WIZARD_BACKEND_PORT:-7998}"
 WIZARD_AUTH_PORT="${FN_KNOCK_WIZARD_AUTH_PORT:-7997}"
 WIZARD_GO_BACKEND_PORT="${FN_KNOCK_WIZARD_GO_BACKEND_PORT:-7996}"
@@ -202,11 +203,16 @@ resolve_deploy_rust_builder() {
 
 run_local_package() {
   local rust_builder
+  local build_script="${LOCAL_APP_DIR}/scripts/build-package.sh"
 
   rust_builder="$(resolve_deploy_rust_builder)"
+  if [ ! -x "${build_script}" ]; then
+    echo "ERROR: local package build script is missing or not executable: ${build_script}" >&2
+    exit 1
+  fi
 
   log "Step 1/4: Build package assets locally (${FPK_ARCHES[*]}, Rust builder: ${rust_builder})"
-  FN_KNOCK_FPK_RUST_BUILDER="${rust_builder}" ./apps/fn-knock/scripts/build-package.sh
+  FN_KNOCK_FPK_RUST_BUILDER="${rust_builder}" "${build_script}"
 }
 
 run_remote_pack_for_arch() {
@@ -408,6 +414,7 @@ run_remote_install() {
 
   log "Step 3/4: Prepare wizard env file for CLI installation"
   ssh "${REMOTE_HOST}" "cat > '${REMOTE_INSTALL_ENV_PATH}' <<'EOF'
+wizard_admin_view_port=${WIZARD_ADMIN_VIEW_PORT}
 wizard_backend_port=${WIZARD_BACKEND_PORT}
 wizard_auth_port=${WIZARD_AUTH_PORT}
 wizard_go_backend_port=${WIZARD_GO_BACKEND_PORT}
@@ -548,6 +555,7 @@ Optional env overrides:
   FN_KNOCK_LOCAL_APP_DIR (default: apps/fn-knock)
   FN_KNOCK_LOCAL_FPK_PATH (default: apps/fn-knock/dist/fn-knock.fpk; downloads as -amd64/-arm64)
   FN_KNOCK_FPK_ARCHES (space/comma list: amd64/x86 and/or arm64; default: amd64 arm64)
+  FN_KNOCK_WIZARD_ADMIN_VIEW_PORT (default: 7991)
   FN_KNOCK_WIZARD_BACKEND_PORT (default: 7998)
   FN_KNOCK_WIZARD_AUTH_PORT (default: 7997)
   FN_KNOCK_WIZARD_GO_BACKEND_PORT (default: 7996)

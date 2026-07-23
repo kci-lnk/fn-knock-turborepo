@@ -1,0 +1,5 @@
+#!/bin/bash
+
+### fn-knock Lite never manages the host firewall or other privileged state.
+
+exit 0

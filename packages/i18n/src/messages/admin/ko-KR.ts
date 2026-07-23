@@ -45,6 +45,8 @@ export const koKRAdmin = {
       "Synology 패키지는 DSM 패키지 센터에서 수동으로 업그레이드합니다. 시스템 업데이트 페이지에서 최신 SPK를 받을 수 있습니다.",
     windowsUpdateInfo:
       "Knock Windows 관리 프로그램에서 업데이트를 확인하고 설치하세요.",
+    liteUpdateInfo:
+      "Lite는 앱 내 업데이트를 지원하지 않습니다. 시스템 업데이트 페이지에서 변경 내역을 확인하고 정식 버전을 다운로드하세요.",
     genericUpdateInfo:
       "시스템 업데이트를 열어 버전 정보와 수동 업그레이드 안내를 확인하세요.",
   },
@@ -88,6 +90,7 @@ export const koKRAdmin = {
     subtitleDocker: "버전 세부정보 및 Docker 업그레이드 지침 보기",
     subtitleOpenWrt: "버전 세부정보 및 OpenWrt IPK 업그레이드 지침 보기",
     subtitleSynology: "버전 정보 및 Synology 패키지 업그레이드 안내 보기",
+    subtitleLite: "버전 정보, 변경 내역 및 정식 버전 다운로드 보기",
     subtitleGeneric: "버전 세부정보 및 수동 업그레이드 지침 보기",
     openGithub: "GitHub 프로젝트 열기",
     synologyUpdateTitle: "Synology 패키지는 수동 업그레이드가 필요합니다",
@@ -103,6 +106,8 @@ export const koKRAdmin = {
       "OpenWrt에서는 기기 아키텍처에 맞는 fn-knock IPK를 다운로드하여 LuCI의 소프트웨어 패키지 업로드로 설치하세요. 또는 /tmp에 업로드한 뒤 opkg install --force-reinstall /tmp/fn-knock_*.ipk를 실행할 수 있습니다. 업그레이드해도 /etc/config/fn-knock와 /var/lib/fn-knock는 유지됩니다.",
     selfUpdateUnsupportedDescriptionGeneric:
       "현재 배포에 맞는 설치 방식으로 수동 업그레이드하세요. 이 페이지에서는 여전히 최신 버전과 릴리스 노트를 확인할 수 있습니다.",
+    selfUpdateUnsupportedDescriptionLite:
+      "Lite는 앱 내에서 업데이트를 다운로드하거나 설치할 수 없습니다. 이 페이지에서는 최신 버전과 전체 변경 내역을 계속 확인할 수 있습니다.",
     currentVersion: "현재 버전",
     latestVersion: "최신 버전",
     newVersionSelfUpdate:
@@ -115,6 +120,8 @@ export const koKRAdmin = {
       "새 버전이 발견되었습니다. 최신 Synology 패키지를 다운로드하세요.",
     newVersionDesktop:
       "새 버전이 발견되었습니다. Windows 관리 프로그램에서 업그레이드하세요.",
+    newVersionLite:
+      "새 버전이 있습니다. 공식 웹사이트에서 정식 버전을 다운로드하세요.",
     newVersionGeneric:
       "새 버전이 발견되었습니다. 현재 배포 방식에 맞게 수동 업그레이드하세요.",
     alreadyLatest: "이미 최신 버전을 사용 중입니다.",
@@ -129,6 +136,8 @@ export const koKRAdmin = {
       "위 버튼에서 최신 SPK를 다운로드하고 DSM 패키지 센터에서 수동으로 업그레이드하세요.",
     newVersionDesktopHint:
       "Knock Windows 관리 프로그램을 열고 실행 상태에서 업데이트를 확인하고 설치하세요.",
+    newVersionLiteHint:
+      "먼저 Lite 백업을 내보낸 다음 Lite를 제거하고 정식 버전을 설치하세요.",
     newVersionGenericHint:
       "맞는 설치 패키지를 다운로드하고 현재 배포 방식에 맞게 업그레이드하세요.",
     latestHint: "최신 버전을 사용해 주셔서 감사합니다.",
@@ -141,8 +150,16 @@ export const koKRAdmin = {
       "새 버전이 제공되면 위 버튼에서 최신 Synology 패키지를 받을 수 있습니다.",
     versionCheckHintDesktop:
       "여기에서 최신 릴리스를 계속 확인할 수 있으며 업데이트 설치는 Knock Windows 관리 프로그램을 사용하세요.",
+    versionCheckHintLite:
+      "최신 릴리스와 전체 변경 내역을 계속 확인할 수 있습니다.",
     versionCheckHintGeneric:
       "최신 릴리스와 수동 업그레이드 안내를 계속 확인할 수 있습니다.",
+    liteUpdateTitle: "Knock Lite는 비 Root 경량 버전입니다",
+    liteUpdateDescription:
+      "Lite는 핵심 게이트웨이 기능을 유지하지만 앱 내 업데이트는 지원하지 않습니다. 모든 기능과 향후 업데이트는 공식 웹사이트에서 정식 버전을 설치하세요.",
+    liteMigrationSteps:
+      "마이그레이션: Lite 백업 내보내기 → Lite 중지 및 제거 → 정식 버전 설치 → 백업 가져오기.",
+    liteDownloadFull: "정식 버전 다운로드",
     checkUpdate: "업데이트 확인",
     installRestart: "설치 및 다시 시작",
     checkFailed: "업데이트 확인 실패",

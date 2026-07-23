@@ -224,7 +224,7 @@
         />
       </label>
       <div
-        v-else-if="!isDockerDeployment"
+        v-else-if="!isDockerDeployment && !isFpkLiteDeployment"
         class="w-full text-sm leading-6 text-muted-foreground sm:max-w-xl"
       >
         {{ t("admin.runModeSettings.hostFirewallDisabled") }}
@@ -422,6 +422,7 @@ const {
   isBusy,
   isConfirmDialogOpen,
   isDockerDeployment,
+  isFpkLiteDeployment,
   isFirewallActionPending,
   isModeUnchanged,
   isSaving,

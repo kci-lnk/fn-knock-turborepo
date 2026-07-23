@@ -93,8 +93,14 @@ export const useRunModeSettingsController = () => {
     () => configStore.canManageHostFirewall,
   );
   const isDockerDeployment = computed(() => configStore.isDockerDeployment);
+  const isFpkLiteDeployment = computed(
+    () => configStore.isFpkLiteDeployment,
+  );
   const showHostFirewallUnavailableAlert = computed(
-    () => !canManageHostFirewall.value && !configStore.isDockerDeployment,
+    () =>
+      !canManageHostFirewall.value &&
+      !configStore.isDockerDeployment &&
+      !configStore.isFpkLiteDeployment,
   );
   const hostFirewallUnavailableDescription = computed(() =>
     configStore.isDockerDeployment
@@ -388,6 +394,7 @@ export const useRunModeSettingsController = () => {
     isConfirmDialogOpen,
     isAutoManageFirewallPending,
     isDockerDeployment,
+    isFpkLiteDeployment,
     isFirewallActionPending,
     isModeUnchanged,
     isSaving,

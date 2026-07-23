@@ -552,10 +552,23 @@ export const formatHostWithOptionalPort = (
   shouldOmitPort: boolean,
 ): string => (shouldOmitPort ? host : `${host}:${port}`);
 
-export const createDefaultModeForm = (): SubdomainModeConfig => ({
+const configuredDefaultAuthPort = Number.parseInt(
+  import.meta.env?.VITE_FN_KNOCK_DEFAULT_AUTH_PORT ?? "7997",
+  10,
+);
+const defaultAuthPort =
+  Number.isInteger(configuredDefaultAuthPort) &&
+  configuredDefaultAuthPort >= 1 &&
+  configuredDefaultAuthPort <= 65535
+    ? configuredDefaultAuthPort
+    : 7997;
+
+export const createDefaultModeForm = (
+  authPort = defaultAuthPort,
+): SubdomainModeConfig => ({
   root_domain: "",
   auth_host: "",
-  auth_target: "http://localhost:7997",
+  auth_target: `http://localhost:${authPort}`,
   cookie_domain: "",
   edge_client_ip_enabled: false,
   aliyun_esa_enabled: false,

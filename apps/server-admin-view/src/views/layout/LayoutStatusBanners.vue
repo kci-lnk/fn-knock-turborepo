@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useConfigStore } from "@/store/config";
 import { useSystemClockStore } from "@/store/systemClock";
 import { useUpdateStore } from "@/store/update";
+import { resolveUpdateDetailsAction } from "@/lib/update-presentation";
 
 const props = defineProps<{
   navigateTo: (path: string) => Promise<void>;
@@ -76,6 +77,9 @@ const updateBannerDescription = computed(() => {
   if (configStore.isOpenWrtDeployment) {
     return t("admin.banner.openWrtUpdateInfo");
   }
+  if (configStore.isFpkLiteDeployment) {
+    return t("admin.banner.liteUpdateInfo");
+  }
   if (configStore.isDockerDeployment) {
     return t("admin.banner.dockerUpdateInfo");
   }
@@ -87,6 +91,21 @@ const updateBannerDescription = computed(() => {
   }
   return t("admin.banner.genericUpdateInfo");
 });
+
+const updateDetailsLabel = computed(() =>
+  configStore.isFpkLiteDeployment
+    ? t("admin.aboutUpdate.liteDownloadFull")
+    : t("common.viewDetails"),
+);
+
+const openUpdateDetails = async () => {
+  const action = resolveUpdateDetailsAction(configStore.isFpkLiteDeployment);
+  if (action.type === "external") {
+    window.open(action.url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  await props.navigateTo(action.path);
+};
 
 const startUpdate = async () => {
   await props.navigateTo("/about");
@@ -177,9 +196,9 @@ const startUpdate = async () => {
           variant="outline"
           size="sm"
           class="bg-background/80"
-          @click="navigateTo('/about')"
+          @click="openUpdateDetails"
         >
-          {{ t("common.viewDetails") }}
+          {{ updateDetailsLabel }}
         </Button>
         <Button
           v-if="configStore.canSelfUpdate"

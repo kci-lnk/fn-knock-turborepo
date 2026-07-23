@@ -46,15 +46,27 @@ export const zhCNServer = {
         permission: "当前进程没有系统时间同步所需的宿主机权限",
       },
       self_update_available: {
+        lite: "敲门knock Lite 不支持应用内更新，请前往官网下载完整版",
         docker: "Docker 部署不支持应用内 FPK 更新，请通过拉取新镜像升级",
         openwrt:
           "OpenWrt 部署不支持应用内 FPK 更新，请安装匹配设备架构的 IPK 并通过 opkg 升级",
         deployment: "当前部署形态不支持应用内更新",
       },
       terminal_available: {
+        lite: "敲门knock Lite 不提供 Web 终端",
         docker: "Docker 部署不支持 Web 终端",
         openwrt: "OpenWrt 部署暂不支持 Web 终端",
         platform: "当前运行环境不支持 Web 终端",
+      },
+      auto_https_available: {
+        lite: "敲门knock Lite 无法绑定需要 Root 权限的 80 端口",
+        platform: "当前运行环境不支持自动 HTTPS",
+        permission: "当前进程没有监听 80 端口所需的权限",
+      },
+      fnos_network_tuning_available: {
+        lite: "敲门knock Lite 不提供需要 Root 权限的飞牛网络优化",
+        platform: "当前运行环境不支持飞牛网络优化",
+        permission: "当前进程没有修改系统网络参数所需的 Root 权限",
       },
       shared_root_available: {
         missing: "当前运行环境没有可用的共享目录挂载",
@@ -219,6 +231,7 @@ export const zhCNServer = {
         rollbackFailed: "{message}；回滚失败：{error}",
       },
       blocked: {
+        lite: "敲门knock Lite 不提供需要 Root 权限的飞牛网络优化",
         deployment: "飞牛 FPK 网络优化仅支持 FPK 部署",
         platform: "飞牛 FPK 网络优化需要 Linux 宿主环境",
         permission: "飞牛 FPK 网络优化需要 root 权限",

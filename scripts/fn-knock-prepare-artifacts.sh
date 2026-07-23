@@ -9,9 +9,10 @@ RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}"
 FPK_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_FPK_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/fpk-rust-backends}"
 MUSL_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
 LINUX_DIR="${FN_KNOCK_PREPARED_LINUX_DIR:-${ARTIFACTS_DIR}/linux}"
-APP_DIR="${ROOT_DIR}/apps/fn-knock/app"
+FPK_PACKAGE_DIR="${FN_KNOCK_FPK_PACKAGE_DIR:-${ROOT_DIR}/apps/fn-knock}"
+APP_DIR="${FPK_PACKAGE_DIR}/app"
 DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${ROOT_DIR}/deploy/docker/rust-backends}"
-MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
+MANIFEST_FILE="${FPK_PACKAGE_DIR}/manifest"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
 PREBUILT_ONLY="${FN_KNOCK_PREBUILT_ONLY:-0}"
 
@@ -671,7 +672,7 @@ sync_runtime_to_app() {
   [ "${SYNC_APP_RUNTIME}" = "1" ] || return 0
   require_cmd rsync
 
-  log "Syncing prepared runtime into apps/fn-knock/app"
+  log "Syncing prepared runtime into ${APP_DIR}"
   mkdir -p "${admin_www_dir}" "${auth_dist_dir}" "${server_admin_dir}" "${server_dir}"
   rsync -a --delete "${RUNTIME_DIR}/ui/www/" "${admin_www_dir}/"
   rsync -a --delete "${RUNTIME_DIR}/server-auth-view/dist/" "${auth_dist_dir}/"
@@ -689,7 +690,7 @@ sync_fpk_rust_to_app() {
   local arch
 
   [ "${SYNC_APP_FPK}" = "1" ] || return 0
-  log "Syncing FPK Rust backends into apps/fn-knock/app"
+  log "Syncing FPK Rust backends into ${APP_DIR}"
   mkdir -p "${server_dir}"
   rm -f "${server_dir}/server-admin-rs" "${server_dir}"/server-admin-rs-linux-*
 

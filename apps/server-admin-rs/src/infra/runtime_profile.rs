@@ -22,6 +22,8 @@ pub struct RuntimeCapabilities {
     pub system_clock_sync_available: bool,
     pub self_update_available: bool,
     pub terminal_available: bool,
+    pub auto_https_available: bool,
+    pub fnos_network_tuning_available: bool,
     pub shared_root_available: bool,
     pub acme_available: bool,
     pub acme_resource_required: bool,
@@ -54,6 +56,8 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             system_clock_sync_available: false,
             self_update_available: false,
             terminal_available: false,
+            auto_https_available: true,
+            fnos_network_tuning_available: false,
             shared_root_available: false,
             acme_available: true,
             acme_resource_required: false,
@@ -64,7 +68,9 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             desktop_update_managed: true,
         };
     }
-    let host_runtime_available = profile.deployment_target != "docker"
+    let is_fpk_lite = profile.deployment_target == "fpk-lite";
+    let host_runtime_available = !is_fpk_lite
+        && profile.deployment_target != "docker"
         && profile.deployment_target != "linux"
         && profile.deployment_target != "synology"
         && profile.is_linux
@@ -79,15 +85,23 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             && profile.is_root_process,
         system_clock_sync_available: host_runtime_available,
         self_update_available: profile.deployment_target == "fpk",
-        terminal_available: profile.deployment_target != "docker"
+        terminal_available: !is_fpk_lite
+            && profile.deployment_target != "docker"
             && profile.deployment_target != "openwrt"
             && profile.deployment_target != "synology",
+        auto_https_available: !is_fpk_lite
+            && profile.deployment_target != "docker"
+            && profile.deployment_target != "openwrt"
+            && profile.deployment_target != "synology",
+        fnos_network_tuning_available: profile.deployment_target == "fpk"
+            && profile.is_linux
+            && profile.is_root_process,
         shared_root_available: has_shared_root(),
         acme_available: true,
         acme_resource_required: false,
         cloudflared_available: true,
         frpc_available: true,
-        ssh_security_available: profile.deployment_target != "synology",
+        ssh_security_available: !is_fpk_lite && profile.deployment_target != "synology",
         system_resource_monitor_available: true,
         desktop_update_managed: false,
     }
@@ -122,6 +136,18 @@ pub fn terminal_available(state: &AppState) -> bool {
     capabilities.terminal_available
 }
 
+pub fn auto_https_available(state: &AppState) -> bool {
+    let profile = get_runtime_profile(state);
+    let capabilities = get_runtime_capabilities(&profile);
+    capabilities.auto_https_available
+}
+
+pub fn self_update_available(state: &AppState) -> bool {
+    let profile = get_runtime_profile(state);
+    let capabilities = get_runtime_capabilities(&profile);
+    capabilities.self_update_available
+}
+
 pub fn capability_unavailable_message(
     capability: &str,
     profile: &RuntimeProfile,
@@ -150,7 +176,9 @@ pub fn capability_unavailable_message(
             }
         }
         "self_update_available" => {
-            if profile.is_docker {
+            if profile.deployment_target == "fpk-lite" {
+                "lite"
+            } else if profile.is_docker {
                 "docker"
             } else if profile.deployment_target == "openwrt" {
                 "openwrt"
@@ -159,12 +187,23 @@ pub fn capability_unavailable_message(
             }
         }
         "terminal_available" => {
-            if profile.is_docker {
+            if profile.deployment_target == "fpk-lite" {
+                "lite"
+            } else if profile.is_docker {
                 "docker"
             } else if profile.deployment_target == "openwrt" {
                 "openwrt"
             } else {
                 "platform"
+            }
+        }
+        "auto_https_available" | "fnos_network_tuning_available" => {
+            if profile.deployment_target == "fpk-lite" {
+                "lite"
+            } else if !profile.is_linux {
+                "platform"
+            } else {
+                "permission"
             }
         }
         "shared_root_available" => "missing",
@@ -209,10 +248,11 @@ fn detect_fpk_environment() -> bool {
         || env_present("FN_KNOCK_CERT_SHARE_DIR")
 }
 
-fn normalize_deployment_target(value: &str) -> Option<&'static str> {
+pub(crate) fn normalize_deployment_target(value: &str) -> Option<&'static str> {
     match value.trim().to_ascii_lowercase().as_str() {
         "docker" => Some("docker"),
         "fpk" => Some("fpk"),
+        "fpk-lite" | "fpk_lite" => Some("fpk-lite"),
         "openwrt" => Some("openwrt"),
         "linux" => Some("linux"),
         "synology" | "dsm" => Some("synology"),
@@ -331,6 +371,28 @@ mod tests {
         assert!(capabilities.system_clock_sync_available);
         assert!(capabilities.self_update_available);
         assert!(capabilities.terminal_available);
+        assert!(capabilities.auto_https_available);
+        assert!(capabilities.fnos_network_tuning_available);
+    }
+
+    #[test]
+    fn fpk_lite_disables_every_privileged_or_review_sensitive_capability() {
+        let capabilities = get_runtime_capabilities(&profile("fpk-lite", true, true));
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
+        assert!(!capabilities.system_clock_sync_available);
+        assert!(!capabilities.self_update_available);
+        assert!(!capabilities.terminal_available);
+        assert!(!capabilities.auto_https_available);
+        assert!(!capabilities.fnos_network_tuning_available);
+        assert!(!capabilities.ssh_security_available);
+        assert!(capabilities.acme_available);
+        assert!(capabilities.cloudflared_available);
+        assert!(capabilities.frpc_available);
+        assert!(capabilities.system_resource_monitor_available);
+        assert_eq!(normalize_deployment_target("FPK_LITE"), Some("fpk-lite"));
     }
 
     #[test]

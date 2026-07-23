@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "${ROOT_DIR}/scripts/version.sh"
+APP_PACKAGE_DIR="${FN_KNOCK_FPK_PACKAGE_DIR:-${ROOT_DIR}/apps/fn-knock}"
 REMOTE_HOST="${FN_KNOCK_REMOTE_HOST:-root@192.168.31.98}"
 REMOTE_DIR="${FN_KNOCK_REMOTE_DIR:-/tmp/fn-knock-fpk}"
 LOCAL_FPK_PATH="${FN_KNOCK_LOCAL_FPK_PATH:-apps/fn-knock/dist/fn-knock.fpk}"
@@ -10,7 +11,7 @@ APP_NAME="${FN_KNOCK_APP_NAME:-fn-knock}"
 REMOTE_FPK_AMD64_PATH="${REMOTE_DIR}/${APP_NAME}-amd64.fpk"
 REMOTE_FPK_ARM64_PATH="${REMOTE_DIR}/${APP_NAME}-arm64.fpk"
 VERSION_FILE="${ROOT_DIR}/version.json"
-MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
+MANIFEST_FILE="${APP_PACKAGE_DIR}/manifest"
 
 derive_arch_fpk_path() {
   local base_path="$1"
@@ -124,8 +125,8 @@ configure_rust_build_parallelism() {
 }
 
 sync_manifest_version() {
-  fn_knock_sync_manifest_version "${ROOT_DIR}" "${MANIFEST_FILE}" "[fn-knock]"
-  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock]"
+  fn_knock_sync_manifest_version "${ROOT_DIR}" "${MANIFEST_FILE}" "[${APP_NAME}]"
+  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[${APP_NAME}]"
 }
 
 build_package_assets() {
@@ -138,12 +139,13 @@ build_package_assets() {
     echo "[fn-knock] Preparing shared artifacts for FPK package assets..."
     FN_KNOCK_FPK_ARCHES="${FPK_ARCHES[*]}" \
       FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${FPK_ARCHES[*]}" \
+      FN_KNOCK_FPK_PACKAGE_DIR="${APP_PACKAGE_DIR}" \
       bash "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh" fpk
   fi
   chmod +x \
-    "${ROOT_DIR}/apps/fn-knock/cmd/main" \
-    "${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi"
-  echo "[fn-knock] Package assets are ready under apps/fn-knock/app"
+    "${APP_PACKAGE_DIR}/cmd/main" \
+    "${APP_PACKAGE_DIR}/app/ui/index.cgi"
+  echo "[fn-knock] Package assets are ready under ${APP_PACKAGE_DIR}/app"
 }
 
 build_fpk_rust_backends() {

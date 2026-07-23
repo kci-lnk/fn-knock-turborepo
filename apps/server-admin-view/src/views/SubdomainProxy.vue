@@ -257,6 +257,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import {
+  createDefaultModeForm,
   getMappingDisplayTitle,
   isHttpTargetUrl,
   normalizeHostLike,
@@ -351,7 +352,10 @@ const {
   modeForm,
 });
 const authServicePort = computed(
-  () => parseTargetPort(currentModeConfig.value.auth_target) ?? 7997,
+  () =>
+    parseTargetPort(currentModeConfig.value.auth_target) ??
+    parseTargetPort(createDefaultModeForm().auth_target) ??
+    7997,
 );
 const isAuthServiceTarget = (target: string): boolean =>
   isHttpTargetUrl(target) && parseTargetPort(target) === authServicePort.value;

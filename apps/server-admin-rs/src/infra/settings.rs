@@ -237,6 +237,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
     match value.trim().to_ascii_lowercase().as_str() {
         "docker" => "docker".to_string(),
         "fpk" => "fpk".to_string(),
+        "fpk-lite" | "fpk_lite" => "fpk-lite".to_string(),
         "openwrt" => "openwrt".to_string(),
         "linux" => "linux".to_string(),
         "synology" | "dsm" => "synology".to_string(),
@@ -461,6 +462,7 @@ mod tests {
     #[test]
     fn normalizes_runtime_target_env_values() {
         assert_eq!(normalize_runtime_target_env(" FPK "), "fpk");
+        assert_eq!(normalize_runtime_target_env("FPK_LITE"), "fpk-lite");
         assert_eq!(normalize_runtime_target_env("development"), "dev");
         assert_eq!(normalize_runtime_target_env("linux"), "linux");
         assert_eq!(normalize_runtime_target_env("synology"), "synology");

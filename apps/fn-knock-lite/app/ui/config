@@ -1,6 +1,6 @@
 {
   ".url": {
-    "fn-knock-docker.Application": {
+    "fn-knock-lite.Application": {
       "noDisplay": false,
       "allUsers": false,
       "fileTypes": [],
@@ -8,11 +8,10 @@
         "accessPerm": "readonly"
       },
       "protocol": "http",
-      "port": "${wizard_admin_view_port}",
-      "title": "敲门knock",
+      "title": "敲门knock Lite",
       "icon": "images/ICON.PNG",
       "type": "iframe",
-      "url": "/"
+      "url": "/cgi/ThirdParty/fn-knock-lite/index.cgi/"
     }
   }
 }

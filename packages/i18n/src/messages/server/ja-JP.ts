@@ -59,6 +59,8 @@ export const jaJPServer = {
           "現在のプロセスにはシステム時刻の同期に必要なホスト権限がありません",
       },
       self_update_available: {
+        lite:
+          "Knock Lite はアプリ内更新に対応していません。公式サイトから完全版をダウンロードしてください",
         docker:
           "Docker 環境ではアプリ内 FPK アップデートを利用できません。新しいイメージを取得してアップグレードしてください",
         openwrt:
@@ -67,9 +69,25 @@ export const jaJPServer = {
           "現在のデプロイ形式ではアプリ内アップデートを利用できません",
       },
       terminal_available: {
+        lite: "Knock Lite は Web ターミナルを提供しません",
         docker: "Docker 環境では Web ターミナルを利用できません",
         openwrt: "OpenWrt 環境では Web ターミナルを利用できません",
         platform: "現在の実行環境では Web ターミナルを利用できません",
+      },
+      auto_https_available: {
+        lite:
+          "Knock Lite は Root 権限が必要なポート 80 を使用できません",
+        platform: "現在の実行環境では自動 HTTPS を利用できません",
+        permission:
+          "現在のプロセスにはポート 80 の待ち受けに必要な権限がありません",
+      },
+      fnos_network_tuning_available: {
+        lite:
+          "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
+        platform:
+          "現在の実行環境では FNOS ネットワーク最適化を利用できません",
+        permission:
+          "現在のプロセスにはシステムのネットワーク設定を変更する Root 権限がありません",
       },
       shared_root_available: {
         missing:
@@ -270,6 +288,8 @@ export const jaJPServer = {
         rollbackFailed: "{message}; ロールバック失敗: {error}",
       },
       blocked: {
+        lite:
+          "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
         deployment:
           "FNOS FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
         platform: "FNOS FPK ネットワーク最適化には Linux ホストが必要です",

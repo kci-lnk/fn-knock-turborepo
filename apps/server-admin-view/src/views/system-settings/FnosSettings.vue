@@ -140,11 +140,17 @@ const fetchSettings = async () => {
     const [shareBypass, iconHijack, networkTuning] = await Promise.all([
       SystemAPI.getFnosShareBypassConfig(),
       SystemAPI.getFnosPortIconHijackConfig(),
-      SystemAPI.getFnosNetworkTuningStatus(),
+      configStore.canUseFnosNetworkTuning
+        ? SystemAPI.getFnosNetworkTuningStatus()
+        : Promise.resolve(null),
     ]);
     applyFromSettings(shareBypass);
     applyIconHijackFromSettings(iconHijack);
-    applyNetworkTuningFromStatus(networkTuning);
+    if (networkTuning) {
+      applyNetworkTuningFromStatus(networkTuning);
+    } else {
+      networkTuningStatus.value = null;
+    }
     if (configStore.canUseFnosCertificateSync) {
       try {
         certificateSyncDetails.value =
@@ -379,7 +385,7 @@ onMounted(fetchSettings);
       </div>
 
       <div
-        v-if="isBbrSupported"
+        v-if="configStore.canUseFnosNetworkTuning && isBbrSupported"
         class="flex items-center justify-between bg-muted/10 p-6"
       >
         <div class="space-y-1 pr-6">
@@ -457,7 +463,7 @@ onMounted(fetchSettings);
       </div>
 
       <div
-        v-if="isMtuProbingSupported"
+        v-if="configStore.canUseFnosNetworkTuning && isMtuProbingSupported"
         class="flex items-center justify-between bg-muted/10 p-6"
       >
         <div class="space-y-1 pr-6">

@@ -46,15 +46,27 @@ export const zhHantServer = {
         permission: "目前進程沒有系統時間同步所需的宿主機權限",
       },
       self_update_available: {
+        lite: "敲門knock Lite 不支援應用程式內更新，請前往官網下載完整版",
         docker: "Docker 部署不支援應用內 FPK 更新，請透過拉取新鏡像升級",
         openwrt:
           "OpenWrt 部署不支援應用內 FPK 更新，請安裝匹配設備架構的 IPK 並透過 opkg 升級",
         deployment: "目前部署形態不支援應用內更新",
       },
       terminal_available: {
+        lite: "敲門knock Lite 不提供 Web 終端",
         docker: "Docker 部署不支援 Web 終端",
         openwrt: "OpenWrt 部署暫不支援 Web 終端",
         platform: "目前運行環境不支援 Web 終端",
+      },
+      auto_https_available: {
+        lite: "敲門knock Lite 無法綁定需要 Root 權限的 80 連接埠",
+        platform: "目前運行環境不支援自動 HTTPS",
+        permission: "目前進程沒有監聽 80 連接埠所需的權限",
+      },
+      fnos_network_tuning_available: {
+        lite: "敲門knock Lite 不提供需要 Root 權限的飛牛網路優化",
+        platform: "目前運行環境不支援飛牛網路優化",
+        permission: "目前進程沒有修改系統網路參數所需的 Root 權限",
       },
       shared_root_available: {
         missing: "目前運行環境沒有可用的共享目錄掛載",
@@ -219,6 +231,7 @@ export const zhHantServer = {
         rollbackFailed: "{message}；回滾失敗：{error}",
       },
       blocked: {
+        lite: "敲門knock Lite 不提供需要 Root 權限的飛牛網路優化",
         deployment: "飛牛 FPK 網路優化僅支援 FPK 部署",
         platform: "飛牛 FPK 網路優化需要 Linux 宿主環境",
         permission: "飛牛 FPK 網路優化需要 root 權限",

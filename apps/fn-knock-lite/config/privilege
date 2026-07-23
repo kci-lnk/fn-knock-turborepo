@@ -1,0 +1,7 @@
+{
+  "username": "fn-knock-lite",
+  "groupname": "fn-knock-lite",
+  "defaults": {
+    "run-as": "package"
+  }
+}

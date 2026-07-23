@@ -222,6 +222,10 @@ pub(crate) async fn migrate_if_available(
     }
 }
 
+pub(crate) fn migration_allowed_for_runtime_target(runtime_target: &str) -> bool {
+    crate::runtime_profile::normalize_deployment_target(runtime_target) != Some("fpk-lite")
+}
+
 async fn record_unavailable(
     store: &Store,
     reason: String,
@@ -659,6 +663,14 @@ mod tests {
         assert!(!should_migrate_legacy_key(
             "fn_knock:notifications:runtime:lock:dispatch"
         ));
+    }
+
+    #[test]
+    fn fpk_lite_never_reads_or_cleans_shared_legacy_redis() {
+        assert!(!migration_allowed_for_runtime_target("fpk-lite"));
+        assert!(!migration_allowed_for_runtime_target("FPK_LITE"));
+        assert!(migration_allowed_for_runtime_target("fpk"));
+        assert!(migration_allowed_for_runtime_target("docker"));
     }
 
     #[test]

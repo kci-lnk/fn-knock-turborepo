@@ -10,7 +10,7 @@ import {
   validateDockerAdminDebugPassword,
   writeDockerAdminDebugPassword,
   writeDockerAdminDebugStage,
-} from "../lib/docker-debug";
+} from "@runtime-debug";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {

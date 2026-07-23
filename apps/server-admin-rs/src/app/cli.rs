@@ -88,6 +88,9 @@ pub(super) async fn migrate_redis_to_sqlite_command() -> anyhow::Result<()> {
     }
 
     let settings = Settings::from_env();
+    if !legacy_redis_migration::migration_allowed_for_runtime_target(&settings.runtime_target) {
+        anyhow::bail!("legacy Redis migration is unavailable for fpk-lite");
+    }
     let store = Store::connect(&settings.sqlite_path)
         .await
         .context("open SQLite storage for legacy Redis migration")?;

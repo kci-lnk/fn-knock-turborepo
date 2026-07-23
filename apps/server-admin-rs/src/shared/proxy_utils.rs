@@ -1,6 +1,8 @@
 use serde_json::Value;
 use url::Url;
 
+const DEFAULT_AUTH_SERVICE_PORT: u16 = 7997;
+
 pub(crate) fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
     config.get("run_type").and_then(Value::as_i64) == Some(1)
         && config
@@ -51,10 +53,6 @@ pub(crate) fn parse_url_target_port_u16(target: &str) -> Option<u16> {
         .or_else(|| default_port_for_scheme(parsed.scheme()))
 }
 
-pub(crate) fn parse_env_port_i64_with_fallback(name: &str, fallback: i64) -> i64 {
-    parse_env_port_i64_with_fallback_value(std::env::var(name).ok(), fallback)
-}
-
 pub(crate) fn parse_env_port_i64_with_fallback_value(value: Option<String>, fallback: i64) -> i64 {
     let raw = value
         .filter(|value| !value.is_empty())
@@ -74,6 +72,14 @@ pub(crate) fn parse_env_port_u16_with_fallback_value(value: Option<String>, fall
         .ok()
         .filter(|port| *port > 0)
         .unwrap_or(fallback)
+}
+
+pub(crate) fn auth_service_port() -> u16 {
+    parse_env_port_u16_with_fallback("AUTH_PORT", DEFAULT_AUTH_SERVICE_PORT)
+}
+
+pub(crate) fn default_auth_service_target() -> String {
+    format!("http://127.0.0.1:{}", auth_service_port())
 }
 
 fn default_port_for_scheme(scheme: &str) -> Option<u16> {
@@ -138,5 +144,14 @@ mod tests {
             parse_env_port_u16_with_fallback_value(Some("65536".to_string()), 7997),
             7997
         );
+    }
+
+    #[test]
+    fn default_auth_target_follows_the_runtime_auth_port() {
+        let environment = crate::test_support::EnvGuard::new(&["AUTH_PORT"]);
+        environment.set("AUTH_PORT", "8997");
+
+        assert_eq!(auth_service_port(), 8997);
+        assert_eq!(default_auth_service_target(), "http://127.0.0.1:8997");
     }
 }

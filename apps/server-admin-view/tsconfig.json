@@ -7,6 +7,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@runtime-debug": ["./src/lib/docker-debug.ts"],
       "@/components/ui": ["../../packages/ui-vue/src/components/ui/index.ts"],
       "@/components/ui/*": ["../../packages/ui-vue/src/components/ui/*"],
       "@/lib/utils": ["../../packages/ui-vue/src/lib/utils.ts"],

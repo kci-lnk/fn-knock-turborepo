@@ -184,6 +184,8 @@ struct UpdateManager {
     package_download_dir: PathBuf,
     install_log_path: PathBuf,
     install_env_path: PathBuf,
+    #[cfg(test)]
+    test_manifest_url: Option<String>,
     inner: Mutex<UpdateInner>,
 }
 
@@ -268,8 +270,12 @@ pub fn start_update_tasks(state: AppState) {
 }
 
 async fn status(State(state): State<AppState>) -> Response {
-    let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
+    status_with_manager(state, manager).await
+}
+
+async fn status_with_manager(state: AppState, manager: &UpdateManager) -> Response {
+    let translator = Translator::from_state(&state).await;
     match manager.status(&state).await {
         Ok(data) => response::ok(data).into_response(),
         Err(error) => {
@@ -284,10 +290,14 @@ async fn status(State(state): State<AppState>) -> Response {
 
 async fn check(State(state): State<AppState>) -> Response {
     let manager = manager(&state);
+    check_with_manager(state, manager).await
+}
+
+async fn check_with_manager(state: AppState, manager: &UpdateManager) -> Response {
     if let Err(error) = manager.check_now_localized(state.clone(), "manual").await {
         tracing::warn!(%error, "manual update check failed");
     }
-    status(State(state)).await
+    status_with_manager(state, manager).await
 }
 
 async fn download(State(state): State<AppState>) -> Response {
@@ -396,8 +406,17 @@ impl UpdateManager {
             package_download_dir,
             install_log_path,
             install_env_path,
+            #[cfg(test)]
+            test_manifest_url: None,
             inner: Mutex::new(UpdateInner::default()),
         }
+    }
+
+    #[cfg(test)]
+    fn new_with_manifest_url(data_dir: &Path, manifest_url: String) -> Self {
+        let mut manager = Self::new(data_dir);
+        manager.test_manifest_url = Some(manifest_url);
+        manager
     }
 
     fn ensure_dirs(&self) {
@@ -712,8 +731,11 @@ impl UpdateManager {
     async fn fetch_manifest(&self) -> Result<OtaManifest, UpdateCheckError> {
         let client =
             update_http_client(UPDATE_CHECK_TIMEOUT_MS).map_err(UpdateCheckError::Message)?;
-        let response = client
-            .get(OTA_LATEST_URL)
+        #[cfg(not(test))]
+        let request = client.get(OTA_LATEST_URL);
+        #[cfg(test)]
+        let request = client.get(self.test_manifest_url.as_deref().unwrap_or(OTA_LATEST_URL));
+        let response = request
             .header(reqwest::header::ACCEPT, "application/json")
             .send()
             .await
@@ -1199,7 +1221,7 @@ fn shell_escape_path(path: &Path) -> String {
 }
 
 fn self_update_available(state: &AppState) -> bool {
-    runtime_profile::deployment_target(state) == "fpk"
+    runtime_profile::self_update_available(state)
 }
 
 fn self_update_unavailable_message(state: &AppState, translator: &Translator) -> String {
@@ -1241,6 +1263,28 @@ fn update_check_interval_from_values(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::to_bytes;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn fpk_lite_update_test_state(data_dir: &Path) -> AppState {
+        let mut settings = crate::settings::Settings::from_env();
+        settings.runtime_target = "fpk-lite".to_string();
+        settings.data_dir = data_dir.join("data");
+        settings.gateway_config_dir = data_dir.join("gateway");
+        settings.sqlite_path = data_dir.join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "fpk-lite-update-test-token".to_string();
+        AppState::new(settings)
+            .await
+            .expect("create FPK Lite state")
+    }
+
+    async fn response_json(response: Response) -> Value {
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body");
+        serde_json::from_slice(&body).expect("parse response body")
+    }
 
     #[test]
     fn compares_versions_like_node() {
@@ -1248,6 +1292,67 @@ mod tests {
         assert_eq!(compare_version("1.8.6", "1.8.6"), 0);
         assert_eq!(compare_version("1.8.6-beta", "1.8.7"), -1);
         assert_eq!(compare_version("v1.8.8", "1.8.8"), 0);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn fpk_lite_can_check_updates_but_cannot_mutate_install_state() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind update manifest fixture");
+        let address = listener.local_addr().expect("fixture address");
+        let fixture = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accept fixture request");
+            let mut request = vec![0_u8; 4096];
+            let _ = stream.read(&mut request).await;
+            let payload = json!({
+                "version": "99.0.0",
+                "update_available": true,
+                "force_update": false,
+                "download_url": "https://cdn.fnknock.cn/files/test.fpk",
+                "sha256": "a".repeat(64),
+                "download_url_arm64": "https://cdn.fnknock.cn/files/test-arm64.fpk",
+                "sha256_arm64": "b".repeat(64),
+                "release_notes": "Lite update-check fixture"
+            })
+            .to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                payload.len(),
+                payload
+            );
+            stream
+                .write_all(response.as_bytes())
+                .await
+                .expect("write fixture response");
+        });
+
+        let directory = tempfile::tempdir().expect("create update test directory");
+        let state = fpk_lite_update_test_state(directory.path()).await;
+        let manager = UpdateManager::new_with_manifest_url(
+            directory.path(),
+            format!("http://{address}/latest.json"),
+        );
+
+        let check_response = check_with_manager(state.clone(), &manager).await;
+        assert_eq!(check_response.status(), StatusCode::OK);
+        assert_eq!(
+            response_json(check_response).await["data"]["latest"]["release_notes"],
+            "Lite update-check fixture"
+        );
+        fixture.await.expect("update fixture task");
+
+        assert_eq!(
+            download(State(state.clone())).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            install(State(state.clone())).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            check_and_download(State(state)).await.status(),
+            StatusCode::FORBIDDEN
+        );
     }
 
     #[test]

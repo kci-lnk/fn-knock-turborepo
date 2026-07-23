@@ -39,6 +39,8 @@ export const zhHantAdmin = {
       "群暉套件需要在 DSM 套件中心手動升級，可前往系統更新頁取得最新版 SPK。",
     windowsUpdateInfo:
       "請前往「Knock 敲門 · Windows 管理程式」檢查並安裝更新。",
+    liteUpdateInfo:
+      "Lite 版不支援應用程式內更新，請前往系統更新頁查看更新日誌並下載完整版。",
     genericUpdateInfo: "可前往系統更新頁查看版本資訊與手動升級說明。",
   },
   route: {
@@ -78,6 +80,7 @@ export const zhHantAdmin = {
     subtitleDocker: "查看版本資訊與 Docker 升級方式",
     subtitleOpenWrt: "查看版本資訊與 OpenWrt IPK 升級方式",
     subtitleSynology: "查看版本資訊與群暉套件升級方式",
+    subtitleLite: "查看版本資訊、更新日誌與完整版下載方式",
     subtitleGeneric: "查看版本資訊與手動升級方式",
     openGithub: "打開 GitHub 專案頁",
     synologyUpdateTitle: "群暉套件需手動升級",
@@ -92,6 +95,8 @@ export const zhHantAdmin = {
       "OpenWrt 部署請下載匹配設備架構的 fn-knock IPK，通過 LuCI 軟體包上傳安裝，或上傳到 /tmp 後執行 opkg install --force-reinstall /tmp/fn-knock_*.ipk。升級會保留 /etc/config/fn-knock 與 /var/lib/fn-knock。",
     selfUpdateUnsupportedDescriptionGeneric:
       "當前部署請按對應安裝方式手動升級，頁面仍可用於檢查最新版本和查看發布說明。",
+    selfUpdateUnsupportedDescriptionLite:
+      "Lite 版不支援應用程式內下載或安裝更新，頁面仍可檢查最新版本和查看完整更新日誌。",
     currentVersion: "當前版本",
     latestVersion: "最新版本",
     newVersionSelfUpdate: "發現新版本，建議立即更新",
@@ -99,6 +104,7 @@ export const zhHantAdmin = {
     newVersionOpenWrt: "發現新版本，請通過更新 IPK 升級",
     newVersionSynology: "發現新版本，請下載最新版群暉套件",
     newVersionDesktop: "發現新版本，請在 Windows 管理程式中升級",
+    newVersionLite: "發現新版本，請前往官網下載完整版",
     newVersionGeneric: "發現新版本，請按部署方式手動升級",
     alreadyLatest: "目前已是最新版本",
     updateDisabled: "更新功能暫未啟用",
@@ -111,6 +117,7 @@ export const zhHantAdmin = {
       "請使用上方按鈕下載最新版 SPK，並在 DSM 套件中心手動升級。",
     newVersionDesktopHint:
       "開啟「Knock 敲門 · Windows 管理程式」，在「運行狀態」中檢查並安裝更新。",
+    newVersionLiteHint: "請先匯出 Lite 備份，再解除安裝 Lite 並安裝完整版。",
     newVersionGenericHint: "請下載對應安裝包並按當前部署方式升級。",
     latestHint: "感謝使用最新版本。",
     versionCheckHint: "可繼續檢查最新發布與更新說明。",
@@ -119,7 +126,14 @@ export const zhHantAdmin = {
     versionCheckHintSynology: "發現新版後，可使用上方按鈕取得最新版群暉套件。",
     versionCheckHintDesktop:
       "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
+    versionCheckHintLite: "可繼續檢查最新發布與完整更新日誌。",
     versionCheckHintGeneric: "可繼續檢查最新發布與手動升級說明。",
+    liteUpdateTitle: "敲門knock Lite 是非 Root 精簡版",
+    liteUpdateDescription:
+      "Lite 保留核心閘道能力，但不支援應用程式內下載和安裝更新。完整功能與後續升級請前往官網下載安裝完整版。",
+    liteMigrationSteps:
+      "遷移建議：匯出 Lite 備份 → 停止並解除安裝 Lite → 安裝完整版 → 匯入備份。",
+    liteDownloadFull: "前往官網下載完整版",
     checkUpdate: "檢查更新",
     installRestart: "安裝重啟",
     checkFailed: "更新檢查失敗",

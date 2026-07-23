@@ -623,6 +623,9 @@ pub(super) fn fnos_network_tuning_sysctl_path() -> std::path::PathBuf {
 
 pub(super) fn fnos_network_tuning_blocked_reason_code(state: &AppState) -> Option<String> {
     let profile = runtime_profile::get_runtime_profile(state);
+    if profile.deployment_target == "fpk-lite" {
+        return Some("lite".to_string());
+    }
     if profile.deployment_target != "fpk" {
         return Some("deployment".to_string());
     }
@@ -651,6 +654,7 @@ pub(super) fn fnos_network_tuning_blocked_reason(
 
 pub(super) fn fnos_network_tuning_blocked_reason_fallback(reason_code: &str) -> String {
     match reason_code {
+        "lite" => "敲门knock Lite 不提供需要 Root 权限的飞牛网络优化。",
         "deployment" => "飞牛 FPK 网络优化仅支持 FPK 部署。",
         "platform" => "飞牛 FPK 网络优化需要 Linux 宿主环境。",
         "permission" => "飞牛 FPK 网络优化需要 root 权限。",

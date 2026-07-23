@@ -27,6 +27,7 @@ export interface WelcomeGuideStatus {
 
 export type DeploymentTarget =
   | "fpk"
+  | "fpk-lite"
   | "docker"
   | "openwrt"
   | "linux"
@@ -50,6 +51,8 @@ export interface RuntimeCapabilities {
   system_clock_sync_available: boolean;
   self_update_available: boolean;
   terminal_available: boolean;
+  auto_https_available?: boolean;
+  fnos_network_tuning_available?: boolean;
   shared_root_available: boolean;
   acme_available?: boolean;
   acme_resource_required?: boolean;

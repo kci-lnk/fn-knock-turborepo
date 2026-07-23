@@ -57,18 +57,22 @@ impl AppState {
         let store = Store::connect(&settings.sqlite_path)
             .await
             .context("open sqlite storage")?;
-        let migration = legacy_redis_migration::migrate_if_available(
-            &store,
-            &settings.legacy_redis_url,
-            LegacyRedisMigrationOptions {
-                require_source: false,
-                force: false,
-                cleanup_source: true,
-            },
-        )
-        .await
-        .context("migrate legacy Redis data into SQLite")?;
-        tracing::info!("{}", migration.summary());
+        if legacy_redis_migration::migration_allowed_for_runtime_target(&settings.runtime_target) {
+            let migration = legacy_redis_migration::migrate_if_available(
+                &store,
+                &settings.legacy_redis_url,
+                LegacyRedisMigrationOptions {
+                    require_source: false,
+                    force: false,
+                    cleanup_source: true,
+                },
+            )
+            .await
+            .context("migrate legacy Redis data into SQLite")?;
+            tracing::info!("{}", migration.summary());
+        } else {
+            tracing::info!("legacy Redis migration disabled for fpk-lite runtime");
+        }
         let go_backend = GoBackendClient::new(
             settings.go_backend_grpc_addr.clone(),
             settings.internal_rpc_token.clone(),

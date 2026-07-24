@@ -143,6 +143,21 @@ mod tests {
                 .pointer("/paths/~1api~1admin~1maintenance~1backup~1export~1fnos/post")
                 .is_some()
         );
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1maintenance~1backup~1automatic/get")
+                .is_some()
+        );
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1maintenance~1backup~1automatic/put")
+                .is_some()
+        );
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1maintenance~1backup~1import~1automatic/post")
+                .is_some()
+        );
         assert!(document.pointer("/paths/~1api~1auth~1login").is_none());
     }
 

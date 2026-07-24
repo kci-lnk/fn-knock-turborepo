@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
@@ -12,18 +12,30 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { MaintenanceAPI } from "@/lib/api";
 import { supportsSharedBackupForRuntime } from "@/lib/maintenance-runtime";
+import {
+  automaticBackupSourceIsAvailable,
+  backupSourceMenuIsRequired,
+  buildAutomaticBackupSelectionSummary,
+} from "@/lib/automatic-backup";
 import type {
   BackupDirectoryFilesPayload,
+  AutomaticBackupFilesPayload,
   FnKnockBackupImportResult,
   SharedDataFileEntry,
 } from "@/types";
 import { useConfigStore } from "@/store/config";
 
-type BackupSelectionSource = "local" | "fnos";
+type BackupSelectionSource = "local" | "fnos" | "automatic";
 
 const defaultBackupFiles: BackupDirectoryFilesPayload = {
   shareName: "fn-knock / backup",
   available: false,
+  files: [],
+};
+
+const defaultAutomaticBackupFiles: AutomaticBackupFilesPayload = {
+  directoryPath: "",
+  available: true,
   files: [],
 };
 
@@ -33,12 +45,19 @@ export const useMaintenanceBackupWorkflow = () => {
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const selectedLocalFile = ref<File | null>(null);
   const selectedFnosFile = ref<SharedDataFileEntry | null>(null);
+  const selectedAutomaticFile = ref<SharedDataFileEntry | null>(null);
   const selectedSource = ref<BackupSelectionSource | null>(null);
   const isImportDialogOpen = ref(false);
   const isBackupPickerOpen = ref(false);
+  const isAutomaticBackupPickerOpen = ref(false);
   const backupFilesError = ref("");
   const hasLoadedBackupFiles = ref(false);
   const backupFiles = ref<BackupDirectoryFilesPayload>(defaultBackupFiles);
+  const automaticBackupFilesError = ref("");
+  const hasLoadedAutomaticBackupFiles = ref(false);
+  const automaticBackupFiles = ref<AutomaticBackupFilesPayload>(
+    defaultAutomaticBackupFiles,
+  );
 
   const supportsSharedBackup = computed(() =>
     supportsSharedBackupForRuntime(
@@ -98,6 +117,17 @@ export const useMaintenanceBackupWorkflow = () => {
         });
       },
     });
+  const {
+    isPending: isLoadingAutomaticBackupFiles,
+    run: runLoadAutomaticBackupFiles,
+  } = useAsyncAction({
+    onError: (error) => {
+      automaticBackupFilesError.value = extractErrorMessage(
+        error,
+        t("admin.maintenanceSettings.loadAutomaticDirFailedDescription"),
+      );
+    },
+  });
 
   const isBusy = computed(() => isExporting.value || isImporting.value);
   const hasSelectedBackup = computed(() => {
@@ -107,8 +137,20 @@ export const useMaintenanceBackupWorkflow = () => {
     if (selectedSource.value === "fnos") {
       return selectedFnosFile.value !== null;
     }
+    if (selectedSource.value === "automatic") {
+      return selectedAutomaticFile.value !== null;
+    }
     return false;
   });
+  const hasAutomaticBackups = computed(() =>
+    automaticBackupSourceIsAvailable(automaticBackupFiles.value.files.length),
+  );
+  const hasMultipleBackupSources = computed(() =>
+    backupSourceMenuIsRequired(
+      supportsSharedBackup.value,
+      automaticBackupFiles.value.files.length,
+    ),
+  );
 
   const formatFileSize = (size: number) => {
     if (!Number.isFinite(size) || size < 1024) {
@@ -135,12 +177,20 @@ export const useMaintenanceBackupWorkflow = () => {
         location: selectedFnosFile.value.relativePath,
       };
     }
+    if (selectedSource.value === "automatic" && selectedAutomaticFile.value) {
+      return buildAutomaticBackupSelectionSummary(
+        selectedAutomaticFile.value,
+        formatFileSize(selectedAutomaticFile.value.size),
+        t("admin.maintenanceSettings.automaticBackup"),
+      );
+    }
     return null;
   });
 
   const resetSelectedBackup = () => {
     selectedLocalFile.value = null;
     selectedFnosFile.value = null;
+    selectedAutomaticFile.value = null;
     selectedSource.value = null;
     if (fileInputRef.value) fileInputRef.value.value = "";
   };
@@ -167,6 +217,7 @@ export const useMaintenanceBackupWorkflow = () => {
     }
     selectedLocalFile.value = file;
     selectedFnosFile.value = null;
+    selectedAutomaticFile.value = null;
     selectedSource.value = "local";
   };
 
@@ -188,13 +239,47 @@ export const useMaintenanceBackupWorkflow = () => {
   };
   const refreshBackupFiles = () => loadBackupFiles(true);
 
+  const loadAutomaticBackupFiles = async (force = false) => {
+    if (hasLoadedAutomaticBackupFiles.value && !force) return;
+    automaticBackupFilesError.value = "";
+    const nextFiles = await runLoadAutomaticBackupFiles(() =>
+      MaintenanceAPI.getAutomaticBackupFiles(),
+    );
+    if (!nextFiles) return;
+    automaticBackupFiles.value = nextFiles;
+    hasLoadedAutomaticBackupFiles.value = true;
+  };
+
+  const openAutomaticBackupPicker = async () => {
+    if (isBusy.value) return;
+    await loadAutomaticBackupFiles(true);
+    if (!automaticBackupFilesError.value) {
+      isAutomaticBackupPickerOpen.value = true;
+    }
+  };
+  const refreshAutomaticBackupFiles = () => loadAutomaticBackupFiles(true);
+
   const handleFnosFileSelect = (file: SharedDataFileEntry) => {
     selectedFnosFile.value = file;
     selectedLocalFile.value = null;
+    selectedAutomaticFile.value = null;
     selectedSource.value = "fnos";
     isBackupPickerOpen.value = false;
     toast.success(
       t("admin.maintenanceSettings.fnosBackupSelected", { name: file.name }),
+    );
+  };
+
+  const handleAutomaticFileSelect = (file: SharedDataFileEntry) => {
+    selectedAutomaticFile.value = file;
+    selectedFnosFile.value = null;
+    selectedLocalFile.value = null;
+    selectedSource.value = "automatic";
+    isAutomaticBackupPickerOpen.value = false;
+    toast.success(
+      t("admin.maintenanceSettings.automaticBackupSelected", {
+        name: file.name,
+      }),
     );
   };
 
@@ -275,6 +360,14 @@ export const useMaintenanceBackupWorkflow = () => {
             selectedFnosFile.value.relativePath,
           );
         }
+        if (
+          selectedSource.value === "automatic" &&
+          selectedAutomaticFile.value
+        ) {
+          return MaintenanceAPI.importBackupFromAutomatic(
+            selectedAutomaticFile.value.relativePath,
+          );
+        }
         if (selectedSource.value === "local" && selectedLocalFile.value) {
           return MaintenanceAPI.importBackup({
             filename: selectedLocalFile.value.name,
@@ -301,27 +394,40 @@ export const useMaintenanceBackupWorkflow = () => {
     );
   };
 
+  onMounted(() => {
+    void loadAutomaticBackupFiles();
+  });
+
   return {
+    automaticBackupFiles,
+    automaticBackupFilesError,
     backupFiles,
     backupFilesError,
     exportBackupToFnos,
     exportBackupToLocal,
     fileInputRef,
     handleFileChange,
+    handleAutomaticFileSelect,
     handleFnosFileSelect,
     hasSelectedBackup,
+    hasAutomaticBackups,
+    hasMultipleBackupSources,
     importBackup,
     isBackupPickerOpen,
+    isAutomaticBackupPickerOpen,
     isBusy,
     isExporting,
     isImportDialogOpen,
     isImporting,
     isLoadingBackupFiles,
+    isLoadingAutomaticBackupFiles,
     localImportHintAfterKey,
     localImportHintBeforeKey,
     openFnosBackupPicker,
+    openAutomaticBackupPicker,
     openImportDialog,
     refreshBackupFiles,
+    refreshAutomaticBackupFiles,
     selectedSummary,
     supportsSharedBackup,
     triggerLocalFilePicker,

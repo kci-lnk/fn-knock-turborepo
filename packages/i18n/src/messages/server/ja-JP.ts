@@ -59,8 +59,7 @@ export const jaJPServer = {
           "現在のプロセスにはシステム時刻の同期に必要なホスト権限がありません",
       },
       self_update_available: {
-        lite:
-          "Knock Lite はアプリ内更新に対応していません。公式サイトから完全版をダウンロードしてください",
+        lite: "Knock Lite はアプリ内更新に対応していません。公式サイトから完全版をダウンロードしてください",
         docker:
           "Docker 環境ではアプリ内 FPK アップデートを利用できません。新しいイメージを取得してアップグレードしてください",
         openwrt:
@@ -75,17 +74,14 @@ export const jaJPServer = {
         platform: "現在の実行環境では Web ターミナルを利用できません",
       },
       auto_https_available: {
-        lite:
-          "Knock Lite は Root 権限が必要なポート 80 を使用できません",
+        lite: "Knock Lite は Root 権限が必要なポート 80 を使用できません",
         platform: "現在の実行環境では自動 HTTPS を利用できません",
         permission:
           "現在のプロセスにはポート 80 の待ち受けに必要な権限がありません",
       },
       fnos_network_tuning_available: {
-        lite:
-          "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
-        platform:
-          "現在の実行環境では FNOS ネットワーク最適化を利用できません",
+        lite: "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
+        platform: "現在の実行環境では FNOS ネットワーク最適化を利用できません",
         permission:
           "現在のプロセスにはシステムのネットワーク設定を変更する Root 権限がありません",
       },
@@ -288,8 +284,7 @@ export const jaJPServer = {
         rollbackFailed: "{message}; ロールバック失敗: {error}",
       },
       blocked: {
-        lite:
-          "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
+        lite: "Knock Lite は Root 権限が必要な FNOS ネットワーク最適化を提供しません",
         deployment:
           "FNOS FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
         platform: "FNOS FPK ネットワーク最適化には Linux ホストが必要です",
@@ -1569,6 +1564,16 @@ export const jaJPServer = {
     clearFailed: "すべてのデータを消去できませんでした",
   },
   maintenanceBackup: {
+    automaticIntervalInvalid:
+      "自動バックアップ間隔は 1～8760 時間で指定してください",
+    automaticRetentionInvalid:
+      "自動バックアップの保存日数は 1～3650 日で指定してください",
+    automaticDirectoryReadFailed:
+      "自動バックアップディレクトリを読み込めませんでした",
+    automaticSettingsReadFailed: "自動バックアップ設定を読み込めませんでした",
+    automaticSettingsSaveFailed: "自動バックアップ設定を保存できませんでした",
+    automaticSettingsInvalidRequest:
+      "自動バックアップ設定のリクエスト形式が無効です",
     commandMissing: "システム環境に {command} コマンドがありません",
     commandFailed: "{command} コマンドの実行に失敗しました",
     commandCheckFailed: "{command} コマンドの確認に失敗しました",

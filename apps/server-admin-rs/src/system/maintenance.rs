@@ -10,7 +10,7 @@ use std::{
 use axum::{
     Router,
     body::Body,
-    extract::{Json, State},
+    extract::{Json, State, rejection::JsonRejection},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -18,7 +18,11 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::DeflateEncoder};
 use serde_json::{Value, json};
-use tokio::{fs, process::Command};
+use tokio::{
+    fs,
+    io::{AsyncReadExt, AsyncWriteExt},
+    process::Command,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -38,6 +42,16 @@ const OPENWRT_APK_COMMAND: &str = "apk";
 const OPENWRT_OPKG_COMMAND: &str = "opkg";
 const DEBIAN_APT_GET_PATH: &str = "/usr/bin/apt-get";
 const BACKUP_DIRECTORY_NAME: &str = "backup";
+const AUTOMATIC_BACKUP_CONFIG_KEY: &str = "fn_knock:config:backup:automatic";
+const AUTOMATIC_BACKUP_RUNTIME_KEY: &str = "fn_knock:config:backup:automatic:runtime";
+const AUTOMATIC_BACKUP_DIRECTORY: [&str; 2] = ["backups", "automatic"];
+const AUTOMATIC_BACKUP_DEFAULT_INTERVAL_HOURS: i64 = 24;
+const AUTOMATIC_BACKUP_DEFAULT_RETENTION_DAYS: i64 = 7;
+const AUTOMATIC_BACKUP_MIN_INTERVAL_HOURS: i64 = 1;
+const AUTOMATIC_BACKUP_MAX_INTERVAL_HOURS: i64 = 24 * 365;
+const AUTOMATIC_BACKUP_MIN_RETENTION_DAYS: i64 = 1;
+const AUTOMATIC_BACKUP_MAX_RETENTION_DAYS: i64 = 3650;
+const AUTOMATIC_BACKUP_RECHECK_SECONDS: u64 = 60;
 const MAX_BACKUP_DIRECTORY_SCAN_DEPTH: usize = 5;
 const MAX_BACKUP_DIRECTORY_FILES: usize = 500;
 const MAX_BACKUP_ARCHIVE_SIZE: usize = 128 * 1024 * 1024;
@@ -110,6 +124,14 @@ pub fn maintenance_routes() -> Router<AppState> {
     Router::new()
         .route("/api/admin/maintenance/backup/export", get(export_backup))
         .route(
+            "/api/admin/maintenance/backup/automatic",
+            get(get_automatic_backup_details).put(update_automatic_backup_config),
+        )
+        .route(
+            "/api/admin/maintenance/backup/automatic/files",
+            get(list_automatic_backup_files),
+        )
+        .route(
             "/api/admin/maintenance/backup/files",
             get(list_backup_files),
         )
@@ -119,10 +141,18 @@ pub fn maintenance_routes() -> Router<AppState> {
         )
         .route("/api/admin/maintenance/backup/import", post(import_backup))
         .route(
+            "/api/admin/maintenance/backup/import/automatic",
+            post(import_backup_from_automatic_directory),
+        )
+        .route(
             "/api/admin/maintenance/backup/import/fnos",
             post(import_backup_from_directory),
         )
         .route("/api/admin/maintenance/data/clear", post(clear_all_data))
+}
+
+pub fn start_automatic_backup_tasks(state: AppState) {
+    spawn_automatic_backup_task(state);
 }
 
 #[derive(serde::Deserialize)]
@@ -134,6 +164,13 @@ struct ImportBackupBody {
 #[derive(serde::Deserialize)]
 struct ImportBackupFromDirectoryBody {
     path: String,
+}
+
+#[derive(serde::Deserialize)]
+struct UpdateAutomaticBackupBody {
+    enabled: bool,
+    interval_hours: i64,
+    retention_days: i64,
 }
 
 #[derive(serde::Deserialize)]
@@ -170,6 +207,7 @@ impl BackupImportError {
     }
 }
 
+mod automatic;
 mod commands;
 mod directory;
 mod export;
@@ -180,6 +218,7 @@ mod routes;
 mod sync;
 mod zip;
 
+use automatic::*;
 use commands::*;
 use directory::*;
 use export::*;

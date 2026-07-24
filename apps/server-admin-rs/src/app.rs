@@ -25,6 +25,7 @@ use crate::{
     frpc::start_frpc_tasks,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
+    maintenance::start_automatic_backup_tasks,
     memory,
     notifications::start_notification_tasks,
     runtime_profile,
@@ -112,6 +113,7 @@ pub(crate) async fn run_with_settings(
     start_traffic_tasks(state.clone());
     start_ip_location_worker(state.clone());
     start_notification_tasks(state.clone());
+    start_automatic_backup_tasks(state.clone());
     let profile = runtime_profile::get_runtime_profile(&state);
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
     start_update_tasks(state.clone());

@@ -73,8 +73,9 @@ const isDynamicWhiteActive = computed(
 const dockerAdminGateMode = computed(() =>
   dockerAdminAuthStore.needsPasswordSetup ? "setup" : "login",
 );
-const dockerAdminGateError = computed(
-  () => dockerAdminAuthStore.submitError || dockerAdminAuthStore.bootstrapError,
+const dockerAdminGateError = computed(() => dockerAdminAuthStore.submitError);
+const dockerAdminGateBootstrapError = computed(
+  () => dockerAdminAuthStore.bootstrapError,
 );
 const dockerAdminGateShowRetry = computed(() =>
   Boolean(dockerAdminAuthStore.bootstrapError),
@@ -264,8 +265,10 @@ watch(
       dockerAdminAuthStore.isBootstrapping || dockerAdminAuthStore.isSubmitting
     "
     :error-message="dockerAdminGateError"
+    :bootstrap-error-message="dockerAdminGateBootstrapError"
     :show-retry="dockerAdminGateShowRetry"
     :deployment-target="dockerAdminAuthStore.state?.deployment_target"
+    @password-input="dockerAdminAuthStore.clearSubmitError"
     @submit="handleDockerAdminSubmit"
     @retry="handleDockerAdminRetry"
   />

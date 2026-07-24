@@ -1322,6 +1322,12 @@ export const zhHantServer = {
     clearFailed: "清空所有資料失敗",
   },
   maintenanceBackup: {
+    automaticIntervalInvalid: "自動備份間隔必須為 1 到 8760 小時",
+    automaticRetentionInvalid: "自動備份保留天數必須為 1 到 3650 天",
+    automaticDirectoryReadFailed: "讀取自動備份目錄失敗",
+    automaticSettingsReadFailed: "讀取自動備份設定失敗",
+    automaticSettingsSaveFailed: "儲存自動備份設定失敗",
+    automaticSettingsInvalidRequest: "自動備份設定請求格式無效",
     commandMissing: "系統環境缺少 {command} 命令",
     commandFailed: "執行 {command} 命令失敗",
     commandCheckFailed: "檢測 {command} 命令失敗",

@@ -704,6 +704,33 @@ export interface BackupDirectoryFilesPayload {
   files: SharedDataFileEntry[];
 }
 
+export interface AutomaticBackupConfig {
+  enabled: boolean;
+  interval_hours: number;
+  retention_days: number;
+  updated_at: string | null;
+}
+
+export interface AutomaticBackupStatus {
+  directory_path: string;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  last_filename: string | null;
+  next_backup_at: string | null;
+}
+
+export interface AutomaticBackupDetails {
+  config: AutomaticBackupConfig;
+  status: AutomaticBackupStatus;
+}
+
+export interface AutomaticBackupFilesPayload {
+  directoryPath: string;
+  available: boolean;
+  files: SharedDataFileEntry[];
+}
+
 export interface FnKnockBackupExportToDirectoryResult {
   filename: string;
   relativePath: string;

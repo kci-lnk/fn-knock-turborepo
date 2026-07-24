@@ -27,22 +27,17 @@
         <CardContent class="pt-0">
           <form class="space-y-5" autocomplete="off" @submit.prevent="submit">
             <div class="space-y-3">
-              <Input
+              <DockerAdminPasswordInput
+                id="docker-admin-password"
                 :aria-label="placeholder"
-                :aria-describedby="
-                  errorMessage
-                    ? 'docker-admin-password-error'
-                    : helperText
-                      ? 'docker-admin-password-help'
-                      : undefined
-                "
-                :aria-invalid="Boolean(errorMessage)"
-                v-model="password"
-                type="password"
+                :aria-describedby="passwordDescribedBy"
+                :aria-invalid="Boolean(displayedErrorMessage)"
+                :model-value="password"
                 :placeholder="placeholder"
                 :autocomplete="autocomplete"
-                class="h-11 rounded-md"
+                input-class="h-11 rounded-md"
                 :disabled="loading"
+                @update:model-value="updatePassword"
               />
 
               <p
@@ -54,12 +49,20 @@
               </p>
 
               <div
-                v-if="errorMessage"
+                v-if="bootstrapErrorMessage"
+                class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm leading-6 text-destructive"
+                role="alert"
+              >
+                {{ bootstrapErrorMessage }}
+              </div>
+
+              <div
+                v-if="displayedErrorMessage"
                 id="docker-admin-password-error"
                 class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm leading-6 text-destructive"
                 role="alert"
               >
-                {{ errorMessage }}
+                {{ displayedErrorMessage }}
               </div>
 
               <div
@@ -97,7 +100,7 @@
             <Button
               type="submit"
               class="h-11 w-full"
-              :disabled="loading || !password.trim()"
+              :disabled="loading || !canSubmit"
             >
               <span
                 v-if="loading"
@@ -237,19 +240,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import DockerAdminPasswordInput from "./DockerAdminPasswordInput.vue";
 import {
   dockerAdminPanelResetCommands,
   openWrtAdminPanelResetCommands,
   windowsAdminPanelResetCommands,
 } from "../lib/docker-admin-panel-reset";
+import {
+  dockerAdminPasswordValidationMessageKeys,
+  validateDockerAdminPassword,
+} from "../lib/docker-admin-password";
 import type { DeploymentTarget } from "../types";
 
 const props = defineProps<{
   mode: "setup" | "login";
   loading: boolean;
   errorMessage?: string;
+  bootstrapErrorMessage?: string;
   showRetry?: boolean;
   deploymentTarget?: DeploymentTarget;
 }>();
@@ -257,6 +265,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   submit: [password: string, rememberMe: boolean];
   retry: [];
+  "password-input": [];
 }>();
 
 const password = ref("");
@@ -305,8 +314,33 @@ const autocomplete = computed(() =>
 );
 const showForgotPassword = computed(() => props.mode === "login");
 const showRememberMe = computed(() => props.mode === "login");
+const passwordValidationError = computed(() =>
+  password.value ? validateDockerAdminPassword(password.value) : null,
+);
+const localErrorMessage = computed(() => {
+  const error = passwordValidationError.value;
+  return error ? t(dockerAdminPasswordValidationMessageKeys[error]) : "";
+});
+const displayedErrorMessage = computed(
+  () => localErrorMessage.value || props.errorMessage || "",
+);
+const passwordDescribedBy = computed(() => {
+  const ids: string[] = [];
+  if (helperText.value) ids.push("docker-admin-password-help");
+  if (displayedErrorMessage.value) ids.push("docker-admin-password-error");
+  return ids.join(" ") || undefined;
+});
+const canSubmit = computed(
+  () => password.value.length > 0 && !passwordValidationError.value,
+);
+
+const updatePassword = (value: string) => {
+  password.value = value;
+  emit("password-input");
+};
 
 const submit = () => {
+  if (!canSubmit.value) return;
   emit("submit", password.value, showRememberMe.value && rememberMe.value);
 };
 

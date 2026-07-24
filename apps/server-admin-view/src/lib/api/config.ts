@@ -12,6 +12,8 @@ import type {
   AutoHttpsConfig,
   AutoHttpsDetails,
   BackupDirectoryFilesPayload,
+  AutomaticBackupDetails,
+  AutomaticBackupFilesPayload,
   CidrOperator,
   CidrCapabilitiesPayload,
   DashboardDisplayConfig,
@@ -769,6 +771,22 @@ export const ConfigAPI = {
 };
 
 export const MaintenanceAPI = {
+  async getAutomaticBackupDetails(): Promise<AutomaticBackupDetails> {
+    const res = await apiClient.get("/maintenance/backup/automatic");
+    return res.data.data;
+  },
+  async updateAutomaticBackupConfig(payload: {
+    enabled: boolean;
+    interval_hours: number;
+    retention_days: number;
+  }): Promise<AutomaticBackupDetails> {
+    const res = await apiClient.put("/maintenance/backup/automatic", payload);
+    return res.data.data;
+  },
+  async getAutomaticBackupFiles(): Promise<AutomaticBackupFilesPayload> {
+    const res = await apiClient.get("/maintenance/backup/automatic/files");
+    return res.data.data;
+  },
   async downloadBackup(): Promise<Blob> {
     const res = await apiClient.get("/maintenance/backup/export", {
       responseType: "blob",
@@ -793,6 +811,15 @@ export const MaintenanceAPI = {
     const res = await apiClient.post("/maintenance/backup/import/fnos", {
       path,
     });
+    return res.data.data;
+  },
+  async importBackupFromAutomatic(
+    path: string,
+  ): Promise<FnKnockBackupImportResult> {
+    const res = await apiClient.post(
+      "/maintenance/backup/import/automatic",
+      { path },
+    );
     return res.data.data;
   },
   async clearAllData(confirmation: string): Promise<{ cleared_keys: number }> {

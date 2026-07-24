@@ -445,6 +445,47 @@ export const enAdmin = {
     add: "Add",
   },
   maintenanceSettings: {
+    automaticTitle: "Automatic backups",
+    automaticDescription:
+      "Periodically back up system configuration to the server's local data directory. The first backup runs immediately after enabling.",
+    automaticDirectory: "Backup directory",
+    automaticEnabled: "Enable automatic backups",
+    automaticInterval: "Backup interval",
+    automaticRetention: "Maximum retention",
+    automaticLastSuccess: "Last successful backup",
+    automaticNextBackup: "Next backup",
+    automaticLastError: "Latest error",
+    automaticLoadFailed: "Failed to load automatic backup settings",
+    automaticLoadFailedDescription:
+      "Automatic backup configuration and status could not be loaded",
+    automaticSaveFailed: "Failed to save automatic backup settings",
+    automaticSaveFailedDescription:
+      "Automatic backup configuration could not be updated",
+    automaticValidationFailed:
+      "The backup interval or retention period is outside the allowed range",
+    automaticSaved: "Automatic backup settings saved",
+    resetAutomatic: "Reset",
+    saveAutomatic: "Save settings",
+    hoursUnit: "hours",
+    daysUnit: "days",
+    notAvailable: "Not available",
+    automaticBackup: "Automatic backup",
+    automaticBackupSelected: "Automatic backup selected: {name}",
+    importFromAutomatic: "Choose automatic backup",
+    loadAutomaticDirFailedDescription:
+      "The automatic backup directory could not be read",
+    automaticPickerTitle: "Choose an automatic backup",
+    automaticPickerDescription:
+      "Choose a .knock file from the server's local automatic backup directory.",
+    automaticPickerDirectory: "Automatic backup directory",
+    automaticPickerAlertTitle: "Failed to read automatic backups",
+    automaticPickerAvailableDescription:
+      "Reading automatic backups from {path}.",
+    automaticPickerUnavailableDescription:
+      "The automatic backup directory is currently unavailable.",
+    automaticPickerEmptyTitle: "No automatic backups yet",
+    automaticPickerEmptyDescription:
+      "Enable automatic backups and the first backup will appear here immediately.",
     exportFailed: "Export failed",
     exportFailedDescription: "Failed to export backup file",
     importFailed: "Import failed",
@@ -484,11 +525,14 @@ export const enAdmin = {
       "Shared-directory import reads the same shared root used by SSL import, under the",
     sharedImportHintBetween: "folder. Local import reads a",
     sharedImportHintAfter: "file from this device.",
-    dockerImportHintBefore: "Docker deployments can only choose a",
+    dockerImportHintBefore:
+      "Docker deployments can use an automatic backup or choose a",
     dockerImportHintAfter: "file from this device.",
-    openWrtImportHintBefore: "OpenWrt deployments can only choose a",
+    openWrtImportHintBefore:
+      "OpenWrt deployments can use an automatic backup or choose a",
     openWrtImportHintAfter: "file from this device.",
-    localImportHintBefore: "This environment can only choose a",
+    localImportHintBefore:
+      "This environment can use an automatic backup or choose a",
     localImportHintAfter: "file from this device.",
     reselectSource: "Choose source again",
     importFromFnos: "Import from FNOS",
@@ -2161,7 +2205,7 @@ export const enAdmin = {
     confirmPasswordPlaceholder: "Enter the new password again",
     passwordRulesTitle: "Password rules",
     passwordRulesDescription:
-      "The password is stored as a hash. Use a long, unique password that is not shared with other services.",
+      "The password is stored as a hash. It must be 6–128 UTF-8 bytes, contain no whitespace, and include both an ASCII letter and a number. Symbols are allowed.",
     changePassword: "Change password",
     clear: "Clear",
     forgotTitle: "If you forget the password",
@@ -3510,8 +3554,10 @@ export const enAdmin = {
       "You will need to enter the admin panel password again to continue.",
     logoutConfirm: "Sign out",
     logoutFailed: "Failed to sign out of the admin panel",
-    passwordMin: "Admin panel password must be at least 6 characters",
-    passwordMax: "Admin panel password must be at most 128 characters",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    passwordMin: "Admin panel password must be at least 6 UTF-8 bytes",
+    passwordMax: "Admin panel password must be at most 128 UTF-8 bytes",
     passwordNoWhitespace: "Admin panel password cannot contain whitespace",
     passwordRequireLetterNumber:
       "Admin panel password must include both letters and numbers",
@@ -3568,7 +3614,8 @@ export const enAdmin = {
       setupDescription: "Set an admin password before first entry.",
       loginDescription:
         "Enter the admin password to continue to the admin console.",
-      setupHelper: "At least 6 characters, with both letters and numbers.",
+      setupHelper:
+        "Use 6–128 UTF-8 bytes with no whitespace and include both an ASCII letter and a number. Symbols are allowed.",
       rememberMe: "Remember me",
       setupAction: "Set and enter",
       loginAction: "Sign in and enter",

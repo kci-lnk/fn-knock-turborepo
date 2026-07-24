@@ -2,7 +2,6 @@
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import DataShareFilePicker from "@admin-shared/components/common/DataShareFilePicker.vue";
 import {
   Dialog,
   DialogContent,
@@ -29,29 +28,41 @@ import {
 import { KNOCK_BACKUP_EXTENSION } from "@admin-shared/utils/maintenanceBackup";
 import { useMaintenanceBackupWorkflow } from "./useMaintenanceBackupWorkflow";
 import { useMaintenanceClearData } from "./useMaintenanceClearData";
+import AutomaticBackupPicker from "./AutomaticBackupPicker.vue";
+import AutomaticBackupSettings from "./AutomaticBackupSettings.vue";
+import FnosBackupPicker from "./FnosBackupPicker.vue";
 
 const { t } = useI18n();
 const {
+  automaticBackupFiles,
+  automaticBackupFilesError,
   backupFiles,
   backupFilesError,
   exportBackupToFnos,
   exportBackupToLocal,
   fileInputRef,
   handleFileChange,
+  handleAutomaticFileSelect,
   handleFnosFileSelect,
   hasSelectedBackup,
+  hasAutomaticBackups,
+  hasMultipleBackupSources,
   importBackup,
   isBackupPickerOpen,
+  isAutomaticBackupPickerOpen,
   isBusy,
   isExporting,
   isImportDialogOpen,
   isImporting,
   isLoadingBackupFiles,
+  isLoadingAutomaticBackupFiles,
   localImportHintAfterKey,
   localImportHintBeforeKey,
   openFnosBackupPicker,
+  openAutomaticBackupPicker,
   openImportDialog,
   refreshBackupFiles,
+  refreshAutomaticBackupFiles,
   selectedSummary,
   supportsSharedBackup,
   triggerLocalFilePicker,
@@ -193,7 +204,7 @@ void fileInputRef;
               </div>
 
               <div class="flex flex-wrap gap-3 lg:justify-end">
-                <DropdownMenu v-if="supportsSharedBackup">
+                <DropdownMenu v-if="hasMultipleBackupSources">
                   <DropdownMenuTrigger as-child>
                     <Button variant="outline" :disabled="isBusy">
                       <Upload class="mr-2 h-4 w-4" />
@@ -207,6 +218,15 @@ void fileInputRef;
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      v-if="hasAutomaticBackups"
+                      :disabled="isBusy"
+                      @select="openAutomaticBackupPicker"
+                    >
+                      <FolderTree class="mr-2 h-4 w-4" />
+                      {{ t("admin.maintenanceSettings.importFromAutomatic") }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      v-if="supportsSharedBackup"
                       :disabled="isBusy"
                       @select="openFnosBackupPicker"
                     >
@@ -287,6 +307,10 @@ void fileInputRef;
     </section>
 
     <section class="mt-6 overflow-hidden rounded-2xl border bg-background">
+      <AutomaticBackupSettings @files-changed="refreshAutomaticBackupFiles" />
+    </section>
+
+    <section class="mt-6 overflow-hidden rounded-2xl border bg-background">
       <div class="border-b px-6 py-5 sm:px-8">
         <h2 class="text-xl font-semibold tracking-tight">
           {{ t("admin.maintenanceSettings.dangerZoneTitle") }}
@@ -320,31 +344,25 @@ void fileInputRef;
       </div>
     </section>
 
-    <DataShareFilePicker
+    <FnosBackupPicker
       v-if="supportsSharedBackup"
       v-model:open="isBackupPickerOpen"
-      :title="t('admin.maintenanceSettings.pickerTitle')"
-      :description="t('admin.maintenanceSettings.pickerDescription')"
-      :directory-label="t('admin.maintenanceSettings.pickerDirectoryLabel')"
-      :share-name="backupFiles.shareName"
-      :files="backupFiles.files"
-      :supported-file-types="[KNOCK_BACKUP_EXTENSION]"
-      :available="backupFiles.available"
+      :files="backupFiles"
       :loading="isLoadingBackupFiles"
       :selecting="isImporting"
       :error-message="backupFilesError"
-      :alert-title="t('admin.maintenanceSettings.pickerAlertTitle')"
-      :available-description="
-        t('admin.maintenanceSettings.pickerAvailableDescription')
-      "
-      :unavailable-description="
-        t('admin.maintenanceSettings.pickerUnavailableDescription')
-      "
-      :empty-title="t('admin.maintenanceSettings.pickerEmptyTitle')"
-      :empty-description="t('admin.maintenanceSettings.pickerEmptyDescription')"
-      :confirm-text="t('admin.maintenanceSettings.pickerConfirmText')"
       @refresh="refreshBackupFiles"
       @select="handleFnosFileSelect"
+    />
+
+    <AutomaticBackupPicker
+      v-model:open="isAutomaticBackupPickerOpen"
+      :files="automaticBackupFiles"
+      :loading="isLoadingAutomaticBackupFiles"
+      :selecting="isImporting"
+      :error-message="automaticBackupFilesError"
+      @refresh="refreshAutomaticBackupFiles"
+      @select="handleAutomaticFileSelect"
     />
 
     <Dialog

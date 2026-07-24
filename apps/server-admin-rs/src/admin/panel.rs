@@ -1394,6 +1394,8 @@ mod tests {
         assert!(validate_password("abcdef").is_err());
         assert!(validate_password("123456").is_err());
         assert!(validate_password("abc 123").is_err());
+        assert!(validate_password("abc\u{0085}123").is_err());
+        assert!(validate_password("abc\u{feff}123").is_ok());
     }
 
     #[test]

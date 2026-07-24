@@ -58,8 +58,7 @@ export const enServer = {
           "The current process does not have the host permission required for system time sync",
       },
       self_update_available: {
-        lite:
-          "Knock Lite does not support in-app updates. Download the full version from the official website",
+        lite: "Knock Lite does not support in-app updates. Download the full version from the official website",
         docker:
           "Docker deployments do not support in-app FPK updates. Upgrade by pulling a new image",
         openwrt:
@@ -74,15 +73,12 @@ export const enServer = {
         platform: "The current runtime does not support Web terminal",
       },
       auto_https_available: {
-        lite:
-          "Knock Lite cannot bind port 80 because it requires root privileges",
+        lite: "Knock Lite cannot bind port 80 because it requires root privileges",
         platform: "The current runtime does not support automatic HTTPS",
-        permission:
-          "The current process lacks permission to listen on port 80",
+        permission: "The current process lacks permission to listen on port 80",
       },
       fnos_network_tuning_available: {
-        lite:
-          "Knock Lite does not provide FNOS network tuning that requires root privileges",
+        lite: "Knock Lite does not provide FNOS network tuning that requires root privileges",
         platform: "The current runtime does not support FNOS network tuning",
         permission:
           "The current process lacks root permission to change system network settings",
@@ -281,8 +277,7 @@ export const enServer = {
         rollbackFailed: "{message}; rollback failed: {error}",
       },
       blocked: {
-        lite:
-          "Knock Lite does not provide FNOS network tuning that requires root privileges",
+        lite: "Knock Lite does not provide FNOS network tuning that requires root privileges",
         deployment:
           "FNOS FPK network optimization is only available in FPK deployments",
         platform: "FNOS FPK network optimization requires a Linux host",
@@ -1506,6 +1501,16 @@ export const enServer = {
     clearFailed: "Failed to clear all data",
   },
   maintenanceBackup: {
+    automaticIntervalInvalid:
+      "Automatic backup interval must be between 1 and 8760 hours",
+    automaticRetentionInvalid:
+      "Automatic backup retention must be between 1 and 3650 days",
+    automaticDirectoryReadFailed:
+      "Failed to read the automatic backup directory",
+    automaticSettingsReadFailed: "Failed to read automatic backup settings",
+    automaticSettingsSaveFailed: "Failed to save automatic backup settings",
+    automaticSettingsInvalidRequest:
+      "The automatic backup settings request is invalid",
     commandMissing: "System command is missing: {command}",
     commandFailed: "Failed to run command: {command}",
     commandCheckFailed: "Failed to check command: {command}",

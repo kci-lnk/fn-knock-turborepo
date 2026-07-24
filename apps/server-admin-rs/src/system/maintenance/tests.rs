@@ -1,4 +1,5 @@
 use super::*;
+use tower::ServiceExt;
 
 async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().expect("create maintenance test directory");
@@ -23,6 +24,10 @@ async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
 #[tokio::test]
 async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     let (_directory, state) = maintenance_test_state().await;
+    let automatic_directory = automatic_backup_directory(&state);
+    std::fs::create_dir_all(&automatic_directory).expect("create automatic backup directory");
+    let automatic_file = automatic_directory.join("preserved.knock");
+    std::fs::write(&automatic_file, b"backup").expect("seed automatic backup file");
     state
         .store
         .set_string_value("fn_knock:test:clear-route", "value")
@@ -59,6 +64,11 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     .await;
     assert_eq!(accepted.status(), StatusCode::OK);
     assert!(state.store.scan_keys("", 100).await.unwrap().is_empty());
+    assert!(automatic_file.exists());
+    assert_eq!(
+        load_automatic_backup_config(&state).await.unwrap()["enabled"],
+        json!(false)
+    );
 }
 
 #[tokio::test]
@@ -391,6 +401,436 @@ fn localizes_backup_error_messages() {
         localize_backup_error_message(&translator, &command_error),
         "读取 .knock 备份归档失败（退出码: 9）: cannot find fn-knock-backup.json"
     );
+}
+
+#[test]
+fn automatic_backup_defaults_and_validation_are_stable() {
+    assert_eq!(
+        normalize_automatic_backup_config(None),
+        json!({
+            "enabled": false,
+            "interval_hours": 24,
+            "retention_days": 7,
+            "updated_at": null,
+        })
+    );
+    assert!(
+        validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 1,
+            retention_days: 1,
+        })
+        .is_ok()
+    );
+    assert!(
+        validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 8760,
+            retention_days: 3650,
+        })
+        .is_ok()
+    );
+    for (interval_hours, retention_days) in [(0, 7), (8761, 7), (24, 0), (24, 3651)] {
+        assert!(
+            validate_automatic_backup_config(&UpdateAutomaticBackupBody {
+                enabled: true,
+                interval_hours,
+                retention_days,
+            })
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn automatic_backup_rescheduling_runs_overdue_work_once() {
+    let now = time_utils::parse_iso_ms("2026-07-24T12:00:00Z").unwrap();
+    assert_eq!(
+        next_backup_after_last_success(Some("2026-07-24T11:30:00Z"), 1, now),
+        "2026-07-24T12:30:00Z"
+    );
+    assert_eq!(
+        next_backup_after_last_success(Some("2026-07-20T00:00:00Z"), 24, now),
+        "2026-07-24T12:00:00Z"
+    );
+    assert_eq!(
+        next_backup_after_last_success(None, 24, now),
+        "2026-07-24T12:00:00Z"
+    );
+    assert_eq!(
+        next_backup_after_failure(Some("2027-07-24T12:00:00Z"), 8760, now),
+        "2026-07-24T13:00:00Z"
+    );
+}
+
+#[tokio::test]
+async fn automatic_backup_writes_to_the_cross_platform_data_directory() {
+    let (_directory, state) = maintenance_test_state().await;
+    assert_eq!(
+        automatic_backup_directory(&state),
+        state.settings.data_dir.join("backups").join("automatic")
+    );
+    let details = save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 24,
+            retention_days: 7,
+        },
+    )
+    .await
+    .expect("enable automatic backups");
+    let next = details["status"]["next_backup_at"]
+        .as_str()
+        .and_then(time_utils::parse_iso_ms)
+        .expect("immediate next backup");
+    assert!(next <= time_utils::now_ms() + 1_000);
+
+    let result = run_automatic_backup_once(&state)
+        .await
+        .expect("run automatic backup");
+    let filename = result["filename"].as_str().expect("backup filename");
+    assert!(automatic_backup_directory(&state).join(filename).is_file());
+    assert!(
+        std::fs::read_dir(automatic_backup_directory(&state))
+            .unwrap()
+            .all(|entry| {
+                !entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(AUTOMATIC_BACKUP_TEMP_PREFIX)
+            })
+    );
+    let files = automatic_backup_files_payload(&state)
+        .await
+        .expect("list automatic backups");
+    assert_eq!(files["files"].as_array().unwrap().len(), 1);
+    let runtime = load_automatic_backup_runtime(&state).await.unwrap();
+    assert!(runtime["last_success_at"].is_string());
+    assert!(runtime["last_error"].is_null());
+    assert!(
+        time_utils::parse_iso_ms(runtime["next_backup_at"].as_str().unwrap()).unwrap()
+            > time_utils::now_ms()
+    );
+}
+
+#[tokio::test]
+async fn automatic_backup_scheduler_runs_the_first_backup_immediately() {
+    let (_directory, state) = maintenance_test_state().await;
+    save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 24,
+            retention_days: 7,
+        },
+    )
+    .await
+    .unwrap();
+
+    let worker_state = state.clone();
+    let worker = tokio::spawn(async move {
+        automatic_backup_scheduler(worker_state).await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let payload = automatic_backup_files_payload(&state).await.unwrap();
+            if !payload["files"].as_array().unwrap().is_empty() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("automatic scheduler should create the first backup");
+    state.shutdown.cancel();
+    worker.await.unwrap();
+}
+
+#[tokio::test]
+async fn automatic_backup_scheduler_honors_a_persisted_future_deadline() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_json_value(
+            AUTOMATIC_BACKUP_CONFIG_KEY,
+            &json!({
+                "enabled": true,
+                "interval_hours": 24,
+                "retention_days": 7,
+                "updated_at": time_utils::now_iso(),
+            }),
+        )
+        .await
+        .unwrap();
+    state
+        .store
+        .set_json_value(
+            AUTOMATIC_BACKUP_RUNTIME_KEY,
+            &json!({
+                "last_attempt_at": null,
+                "last_success_at": null,
+                "last_error": null,
+                "last_filename": null,
+                "next_backup_at": time_utils::iso_after_seconds(3600),
+            }),
+        )
+        .await
+        .unwrap();
+
+    let worker_state = state.clone();
+    let worker = tokio::spawn(async move {
+        automatic_backup_scheduler(worker_state).await;
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let payload = automatic_backup_files_payload(&state).await.unwrap();
+    assert!(payload["files"].as_array().unwrap().is_empty());
+    state.shutdown.cancel();
+    worker.await.unwrap();
+}
+
+#[tokio::test]
+async fn changing_the_interval_keeps_a_failed_backup_within_the_retry_cap() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_json_value(
+            AUTOMATIC_BACKUP_CONFIG_KEY,
+            &json!({
+                "enabled": true,
+                "interval_hours": 24,
+                "retention_days": 7,
+                "updated_at": time_utils::now_iso(),
+            }),
+        )
+        .await
+        .unwrap();
+    state
+        .store
+        .set_json_value(
+            AUTOMATIC_BACKUP_RUNTIME_KEY,
+            &json!({
+                "last_attempt_at": time_utils::now_iso(),
+                "last_success_at": "2026-01-01T00:00:00Z",
+                "last_error": "disk full",
+                "last_filename": "previous.knock",
+                "next_backup_at": time_utils::iso_after_seconds(3600),
+            }),
+        )
+        .await
+        .unwrap();
+    let before = time_utils::now_ms();
+
+    let details = save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 8760,
+            retention_days: 7,
+        },
+    )
+    .await
+    .unwrap();
+    let next = details["status"]["next_backup_at"]
+        .as_str()
+        .and_then(time_utils::parse_iso_ms)
+        .unwrap();
+    assert!(next >= before);
+    assert!(next <= before + 3_600_000);
+}
+
+#[tokio::test]
+async fn automatic_backup_file_listing_does_not_hide_retained_archives() {
+    let (_directory, state) = maintenance_test_state().await;
+    let directory = automatic_backup_directory(&state);
+    std::fs::create_dir_all(&directory).unwrap();
+    for index in 0..501 {
+        std::fs::write(directory.join(format!("{index:03}.knock")), b"backup").unwrap();
+    }
+
+    let payload = automatic_backup_files_payload(&state).await.unwrap();
+    assert_eq!(payload["files"].as_array().unwrap().len(), 501);
+}
+
+#[tokio::test]
+async fn automatic_backup_config_rejects_non_integer_json_with_bad_request() {
+    let (_directory, state) = maintenance_test_state().await;
+    let response = maintenance_routes()
+        .with_state(state)
+        .oneshot(
+            axum::http::Request::builder()
+                .method("PUT")
+                .uri("/api/admin/maintenance/backup/automatic")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"enabled":true,"interval_hours":1.5,"retention_days":7}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn automatic_backup_pruning_only_removes_expired_knock_files() {
+    let (_directory, state) = maintenance_test_state().await;
+    let directory = automatic_backup_directory(&state);
+    std::fs::create_dir_all(&directory).unwrap();
+    let expired = directory.join("expired.knock");
+    let recent = directory.join("recent.knock");
+    let unrelated = directory.join("expired.txt");
+    std::fs::write(&expired, b"old").unwrap();
+    std::fs::write(&recent, b"new").unwrap();
+    std::fs::write(&unrelated, b"old but unrelated").unwrap();
+    let old_time = SystemTime::now() - std::time::Duration::from_secs(2 * 24 * 3600);
+    std::fs::File::options()
+        .write(true)
+        .open(&expired)
+        .unwrap()
+        .set_modified(old_time)
+        .unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&unrelated)
+        .unwrap()
+        .set_modified(old_time)
+        .unwrap();
+
+    prune_automatic_backup_directory(&state, 1)
+        .await
+        .expect("prune automatic backups");
+    assert!(!expired.exists());
+    assert!(recent.exists());
+    assert!(unrelated.exists());
+}
+
+#[tokio::test]
+async fn automatic_backup_import_rejects_unsafe_paths_and_symlinks() {
+    let (_directory, state) = maintenance_test_state().await;
+    for value in [
+        "",
+        "..",
+        "../backup.knock",
+        "nested/backup.knock",
+        r"nested\backup.knock",
+        "/tmp/backup.knock",
+        "backup.zip",
+    ] {
+        let error = resolve_automatic_backup_archive_path(&state, value)
+            .await
+            .unwrap_err();
+        assert_eq!(error.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[cfg(unix)]
+    {
+        let directory = automatic_backup_directory(&state);
+        std::fs::create_dir_all(&directory).unwrap();
+        let target = directory.join("target.knock");
+        let link = directory.join("link.knock");
+        std::fs::write(&target, b"not an archive").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let translator = Translator::from_state(&state).await;
+        let error =
+            import_backup_archive_from_automatic_directory(&state, "link.knock", &translator)
+                .await
+                .unwrap_err();
+        assert_eq!(error.status, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
+async fn failed_automatic_backup_records_an_hourly_retry() {
+    let (_directory, state) = maintenance_test_state().await;
+    std::fs::write(&state.settings.data_dir, b"blocks directory creation").unwrap();
+    save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 24,
+            retention_days: 7,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(run_automatic_backup_once(&state).await.is_err());
+    let runtime = load_automatic_backup_runtime(&state).await.unwrap();
+    let next = time_utils::parse_iso_ms(runtime["next_backup_at"].as_str().unwrap()).unwrap();
+    let delay = next - time_utils::now_ms();
+    assert!(runtime["last_error"].is_string());
+    assert!(delay > 0 && delay <= 3_600_000);
+}
+
+#[tokio::test]
+async fn backup_restore_preserves_automatic_backup_settings_atomically() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_string_value("fn_knock:test:included", "original")
+        .await
+        .unwrap();
+    let archive = export_backup_archive(&state).await.unwrap();
+    save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 12,
+            retention_days: 30,
+        },
+    )
+    .await
+    .unwrap();
+    state
+        .store
+        .set_string_value("fn_knock:test:included", "changed")
+        .await
+        .unwrap();
+
+    let translator = Translator::from_state(&state).await;
+    let result = import_backup_archive_buffer(&state, archive.buffer, &translator)
+        .await
+        .expect("restore backup");
+    assert_eq!(result["imported_keys"], json!(1));
+    assert_eq!(
+        state
+            .store
+            .get_string_value("fn_knock:test:included")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("original")
+    );
+    let config = load_automatic_backup_config(&state).await.unwrap();
+    assert_eq!(config["enabled"], json!(true));
+    assert_eq!(config["interval_hours"], json!(12));
+    assert_eq!(config["retention_days"], json!(30));
+}
+
+#[tokio::test]
+async fn automatic_backup_waits_for_the_maintenance_mutex() {
+    let (_directory, state) = maintenance_test_state().await;
+    save_automatic_backup_config(
+        &state,
+        UpdateAutomaticBackupBody {
+            enabled: true,
+            interval_hours: 24,
+            retention_days: 7,
+        },
+    )
+    .await
+    .unwrap();
+    let guard = state.automatic_backup_lock.lock().await;
+    let worker_state = state.clone();
+    let mut worker = tokio::spawn(async move { run_automatic_backup_once(&worker_state).await });
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut worker)
+            .await
+            .is_err()
+    );
+    drop(guard);
+    worker.await.unwrap().unwrap();
 }
 
 #[test]

@@ -445,6 +445,45 @@ export const jaJPAdmin = {
     add: "追加",
   },
   maintenanceSettings: {
+    automaticTitle: "自動バックアップ",
+    automaticDescription:
+      "システム設定をサーバーのローカルデータディレクトリへ定期的にバックアップします。初回は有効化直後に実行されます。",
+    automaticDirectory: "バックアップディレクトリ",
+    automaticEnabled: "自動バックアップを有効にする",
+    automaticInterval: "バックアップ間隔",
+    automaticRetention: "最大保存期間",
+    automaticLastSuccess: "前回の成功",
+    automaticNextBackup: "次回のバックアップ",
+    automaticLastError: "最新のエラー",
+    automaticLoadFailed: "自動バックアップ設定を読み込めませんでした",
+    automaticLoadFailedDescription: "自動バックアップの設定と状態を読み込めません",
+    automaticSaveFailed: "自動バックアップ設定を保存できませんでした",
+    automaticSaveFailedDescription: "自動バックアップ設定を更新できません",
+    automaticValidationFailed:
+      "バックアップ間隔または保存日数が許容範囲外です",
+    automaticSaved: "自動バックアップ設定を保存しました",
+    resetAutomatic: "リセット",
+    saveAutomatic: "設定を保存",
+    hoursUnit: "時間",
+    daysUnit: "日",
+    notAvailable: "未実行",
+    automaticBackup: "自動バックアップ",
+    automaticBackupSelected: "自動バックアップを選択しました: {name}",
+    importFromAutomatic: "自動バックアップから選択",
+    loadAutomaticDirFailedDescription:
+      "自動バックアップディレクトリを読み込めません",
+    automaticPickerTitle: "自動バックアップを選択",
+    automaticPickerDescription:
+      "サーバーのローカル自動バックアップディレクトリから .knock ファイルを選択します。",
+    automaticPickerDirectory: "自動バックアップディレクトリ",
+    automaticPickerAlertTitle: "自動バックアップを読み込めません",
+    automaticPickerAvailableDescription:
+      "{path} から自動バックアップを読み込んでいます。",
+    automaticPickerUnavailableDescription:
+      "自動バックアップディレクトリは現在利用できません。",
+    automaticPickerEmptyTitle: "自動バックアップはまだありません",
+    automaticPickerEmptyDescription:
+      "自動バックアップを有効にすると、最初のバックアップがすぐに表示されます。",
     exportFailed: "エクスポートに失敗しました",
     exportFailedDescription:
       "バックアップファイルをエクスポートできませんでした",
@@ -490,12 +529,15 @@ export const jaJPAdmin = {
     sharedImportHintBetween:
       "フォルダーを読み込みます。ローカルからは、このデバイス上の",
     sharedImportHintAfter: "ファイルを読み込みます。",
-    dockerImportHintBefore: "Docker 環境では、このデバイス上の",
-    dockerImportHintAfter: "ファイルのみ選択できます。",
-    openWrtImportHintBefore: "OpenWrt 環境では、このデバイス上の",
-    openWrtImportHintAfter: "ファイルのみ選択できます。",
-    localImportHintBefore: "この環境では、このデバイス上の",
-    localImportHintAfter: "ファイルのみ選択できます。",
+    dockerImportHintBefore:
+      "Docker 環境では、自動バックアップまたはこのデバイス上の",
+    dockerImportHintAfter: "ファイルを選択できます。",
+    openWrtImportHintBefore:
+      "OpenWrt 環境では、自動バックアップまたはこのデバイス上の",
+    openWrtImportHintAfter: "ファイルを選択できます。",
+    localImportHintBefore:
+      "この環境では、自動バックアップまたはこのデバイス上の",
+    localImportHintAfter: "ファイルを選択できます。",
     reselectSource: "取得元を選び直す",
     importFromFnos: "FNOS からインポート",
     chooseFromLocal: "このデバイスから選択",
@@ -2165,7 +2207,7 @@ export const jaJPAdmin = {
     confirmPasswordPlaceholder: "新しいパスワードをもう一度入力してください",
     passwordRulesTitle: "パスワードルール",
     passwordRulesDescription:
-      "パスワードはハッシュ化された形式で保存されます。他のサービスと共有されない、長くて固有のパスワードを使用することをお勧めします。",
+      "パスワードはハッシュ化して保存されます。6～128 UTF-8 バイトで、空白を含めず、ASCII 英字と数字を両方含めてください。記号も使用できます。",
     changePassword: "パスワード変更",
     clear: "クリア",
     forgotTitle: "パスワードを忘れた場合",
@@ -3517,8 +3559,10 @@ export const jaJPAdmin = {
       "続行するには、管理パネルのパスワードを再入力する必要があります。",
     logoutConfirm: "ログアウト",
     logoutFailed: "管理パネルからログアウトできませんでした",
-    passwordMin: "管理パネルのパスワードは 6 文字以上にしてください",
-    passwordMax: "管理パネルのパスワードは 128 文字を超えることはできません",
+    showPassword: "パスワードを表示",
+    hidePassword: "パスワードを非表示",
+    passwordMin: "管理パネルのパスワードは 6 UTF-8 バイト以上にしてください",
+    passwordMax: "管理パネルのパスワードは 128 UTF-8 バイト以下にしてください",
     passwordNoWhitespace:
       "管理パネルのパスワードには空白文字を含めることはできません",
     passwordRequireLetterNumber:
@@ -3575,7 +3619,8 @@ export const jaJPAdmin = {
       setupDescription: "初回アクセス時に管理パスワードを設定してください。",
       loginDescription:
         "管理画面へ進むには、管理パスワードを入力してください。",
-      setupHelper: "6 文字以上で、英字と数字を両方含めてください。",
+      setupHelper:
+        "6～128 UTF-8 バイトで、空白を含めず、ASCII 英字と数字を両方含めてください。記号も使用できます。",
       rememberMe: "ログイン状態を保持",
       setupAction: "設定して進む",
       loginAction: "ログインして進む",

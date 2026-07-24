@@ -1322,6 +1322,12 @@ export const zhCNServer = {
     clearFailed: "清空所有数据失败",
   },
   maintenanceBackup: {
+    automaticIntervalInvalid: "自动备份间隔必须为 1 到 8760 小时",
+    automaticRetentionInvalid: "自动备份保留天数必须为 1 到 3650 天",
+    automaticDirectoryReadFailed: "读取自动备份目录失败",
+    automaticSettingsReadFailed: "读取自动备份设置失败",
+    automaticSettingsSaveFailed: "保存自动备份设置失败",
+    automaticSettingsInvalidRequest: "自动备份设置请求格式无效",
     commandMissing: "系统环境缺少 {command} 命令",
     commandFailed: "执行 {command} 命令失败",
     commandCheckFailed: "检测 {command} 命令失败",

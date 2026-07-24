@@ -87,7 +87,7 @@ pub(super) async fn import_backup_archive_buffer(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let importable_entries = entries
+    let mut importable_entries = entries
         .into_iter()
         .filter(|entry| {
             entry
@@ -96,6 +96,13 @@ pub(super) async fn import_backup_archive_buffer(
                 .is_some_and(should_export_backup_key)
         })
         .collect::<Vec<_>>();
+    let imported_keys = importable_entries.len();
+
+    // Automatic backup settings describe this installation rather than the
+    // imported snapshot. Preserve them inside the same atomic prefix
+    // replacement so a restore cannot silently disable the scheduler.
+    let _automatic_backup_guard = state.automatic_backup_lock.lock().await;
+    importable_entries.extend(preserved_automatic_backup_entries(state).await?);
 
     // Backup replacement clears the complete fn_knock: prefix. Serialize it
     // with Host Mapping config/runtime updates using a lease whose own key is
@@ -126,7 +133,7 @@ pub(super) async fn import_backup_archive_buffer(
     release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
     Ok(json!({
         "cleared_keys": cleared_keys,
-        "imported_keys": importable_entries.len(),
+        "imported_keys": imported_keys,
         "warnings": warnings,
         "synced_steps": synced_steps
     }))

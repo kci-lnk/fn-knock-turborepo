@@ -35,6 +35,12 @@ pub struct AppStateInner {
     pub fnos_certificate_sync_lock: Mutex<()>,
     pub fnos_certificate_sync_notify: Notify,
     pub fnos_certificate_sync_status: RwLock<Value>,
+    /// Serializes automatic-backup configuration, archive creation, restores,
+    /// and destructive maintenance so none of them can overwrite one another.
+    pub automatic_backup_lock: Mutex<()>,
+    /// Wakes the automatic-backup scheduler after settings or stored data
+    /// change, avoiding a polling delay after the feature is enabled.
+    pub automatic_backup_notify: Notify,
     /// Serializes the host-mapping config -> Go runtime transaction, including
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
@@ -111,6 +117,8 @@ impl AppState {
                     "last_error": null,
                     "failed_target_ids": []
                 })),
+                automatic_backup_lock: Mutex::new(()),
+                automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),
             }),

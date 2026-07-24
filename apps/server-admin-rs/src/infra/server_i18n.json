@@ -1306,7 +1306,13 @@
       "directoryImportExtensionOnly": "仅支持导入 {extension} 备份文件",
       "directoryImportTooLarge": "备份文件过大，无法从飞牛目录导入",
       "archiveContentMissing": "缺少备份归档内容",
-      "archiveBase64Invalid": "备份归档不是有效的 Base64 数据"
+      "archiveBase64Invalid": "备份归档不是有效的 Base64 数据",
+      "automaticIntervalInvalid": "自动备份间隔必须为 1 到 8760 小时",
+      "automaticRetentionInvalid": "自动备份保留天数必须为 1 到 3650 天",
+      "automaticDirectoryReadFailed": "读取自动备份目录失败",
+      "automaticSettingsReadFailed": "读取自动备份设置失败",
+      "automaticSettingsSaveFailed": "保存自动备份设置失败",
+      "automaticSettingsInvalidRequest": "自动备份设置请求格式无效"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 验证码尚未完成服务端配置",
@@ -4371,7 +4377,13 @@
       "directoryImportExtensionOnly": "僅支援導入 {extension} 備份文件",
       "directoryImportTooLarge": "備份文件過大，無法從飛牛目錄導入",
       "archiveContentMissing": "缺少備份歸檔內容",
-      "archiveBase64Invalid": "備份歸檔不是有效的 Base64 數據"
+      "archiveBase64Invalid": "備份歸檔不是有效的 Base64 數據",
+      "automaticIntervalInvalid": "自動備份間隔必須為 1 到 8760 小時",
+      "automaticRetentionInvalid": "自動備份保留天數必須為 1 到 3650 天",
+      "automaticDirectoryReadFailed": "讀取自動備份目錄失敗",
+      "automaticSettingsReadFailed": "讀取自動備份設定失敗",
+      "automaticSettingsSaveFailed": "儲存自動備份設定失敗",
+      "automaticSettingsInvalidRequest": "自動備份設定請求格式無效"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 驗證碼尚未完成服務端配置",
@@ -7436,7 +7448,13 @@
       "directoryImportExtensionOnly": "Only {extension} backup files can be imported",
       "directoryImportTooLarge": "Backup file is too large to import from the FNOS directory",
       "archiveContentMissing": "Backup archive content is missing",
-      "archiveBase64Invalid": "Backup archive is not valid Base64 data"
+      "archiveBase64Invalid": "Backup archive is not valid Base64 data",
+      "automaticIntervalInvalid": "Automatic backup interval must be between 1 and 8760 hours",
+      "automaticRetentionInvalid": "Automatic backup retention must be between 1 and 3650 days",
+      "automaticDirectoryReadFailed": "Failed to read the automatic backup directory",
+      "automaticSettingsReadFailed": "Failed to read automatic backup settings",
+      "automaticSettingsSaveFailed": "Failed to save automatic backup settings",
+      "automaticSettingsInvalidRequest": "The automatic backup settings request is invalid"
     },
     "captcha": {
       "powServerNotConfigured": "PoW captcha is not configured on the server",
@@ -10501,7 +10519,13 @@
       "directoryImportExtensionOnly": "{extension} 백업 파일만 가져올 수 있습니다.",
       "directoryImportTooLarge": "백업 파일이 너무 커서 FNOS 디렉터리에서 가져올 수 없습니다.",
       "archiveContentMissing": "백업 아카이브 콘텐츠가 누락되었습니다.",
-      "archiveBase64Invalid": "백업 아카이브가 유효한 Base64 데이터가 아닙니다."
+      "archiveBase64Invalid": "백업 아카이브가 유효한 Base64 데이터가 아닙니다.",
+      "automaticIntervalInvalid": "자동 백업 간격은 1~8760시간 사이여야 합니다",
+      "automaticRetentionInvalid": "자동 백업 보관 일수는 1~3650일 사이여야 합니다",
+      "automaticDirectoryReadFailed": "자동 백업 디렉터리를 읽지 못했습니다",
+      "automaticSettingsReadFailed": "자동 백업 설정을 읽지 못했습니다",
+      "automaticSettingsSaveFailed": "자동 백업 설정을 저장하지 못했습니다",
+      "automaticSettingsInvalidRequest": "자동 백업 설정 요청 형식이 올바르지 않습니다"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 보안 문자가 서버에 설정되어 있지 않습니다.",
@@ -13566,7 +13590,13 @@
       "directoryImportExtensionOnly": "{extension} バックアップファイルだけをインポートできます",
       "directoryImportTooLarge": "バックアップ ファイルが大きすぎるため、FNOS ディレクトリからインポートできません。",
       "archiveContentMissing": "バックアップ アーカイブ コンテンツが欠落しています",
-      "archiveBase64Invalid": "バックアップ アーカイブは有効な Base64 データではありません"
+      "archiveBase64Invalid": "バックアップ アーカイブは有効な Base64 データではありません",
+      "automaticIntervalInvalid": "自動バックアップ間隔は 1～8760 時間で指定してください",
+      "automaticRetentionInvalid": "自動バックアップの保存日数は 1～3650 日で指定してください",
+      "automaticDirectoryReadFailed": "自動バックアップディレクトリを読み込めませんでした",
+      "automaticSettingsReadFailed": "自動バックアップ設定を読み込めませんでした",
+      "automaticSettingsSaveFailed": "自動バックアップ設定を保存できませんでした",
+      "automaticSettingsInvalidRequest": "自動バックアップ設定のリクエスト形式が無効です"
     },
     "captcha": {
       "powServerNotConfigured": "サーバー側で PoW CAPTCHA が設定されていません",

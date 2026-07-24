@@ -10,9 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShieldAlert, ShieldCheck } from "lucide-vue-next";
+import DockerAdminPasswordInput from "../../components/DockerAdminPasswordInput.vue";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -23,6 +23,10 @@ import {
   dockerAdminPanelResetCommands,
   openWrtAdminPanelResetCommands,
 } from "../../lib/docker-admin-panel-reset";
+import {
+  dockerAdminPasswordValidationMessageKeys,
+  validateDockerAdminPassword,
+} from "../../lib/docker-admin-password";
 import { useConfigStore } from "../../store/config";
 import { useDockerAdminAuthStore } from "../../store/dockerAdminAuth";
 
@@ -46,10 +50,24 @@ const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
 const isPanelAuthMode = computed(
   () => configStore.isProtectedAdminPanelDeployment,
 );
-const isFormFilled = computed(
+const passwordValidationError = computed(() =>
+  newPassword.value ? validateDockerAdminPassword(newPassword.value) : null,
+);
+const newPasswordError = computed(() => {
+  const error = passwordValidationError.value;
+  return error ? t(dockerAdminPasswordValidationMessageKeys[error]) : "";
+});
+const confirmPasswordError = computed(() =>
+  confirmPassword.value && confirmPassword.value !== newPassword.value
+    ? t("admin.panelSettings.passwordMismatch")
+    : "",
+);
+const isFormValid = computed(
   () =>
-    newPassword.value.trim().length > 0 &&
-    confirmPassword.value.trim().length > 0,
+    newPassword.value.length > 0 &&
+    confirmPassword.value.length > 0 &&
+    !passwordValidationError.value &&
+    newPassword.value === confirmPassword.value,
 );
 
 const { isPending: isSaving, run: runSavePassword } = useAsyncAction({
@@ -69,11 +87,16 @@ const resetForm = () => {
 };
 
 const savePassword = async () => {
-  const password = newPassword.value.trim();
-  const confirm = confirmPassword.value.trim();
+  const password = newPassword.value;
+  const confirm = confirmPassword.value;
 
   if (!password) {
     toast.error(t("admin.panelSettings.passwordRequired"));
+    return;
+  }
+  const validationError = validateDockerAdminPassword(password);
+  if (validationError) {
+    toast.error(t(dockerAdminPasswordValidationMessageKeys[validationError]));
     return;
   }
   if (password !== confirm) {
@@ -104,58 +127,92 @@ const savePassword = async () => {
           {{ t("admin.panelSettings.description") }}
         </CardDescription>
       </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="space-y-2">
-          <Label for="docker-panel-password">
-            {{ t("admin.panelSettings.newPassword") }}
-          </Label>
-          <Input
-            id="docker-panel-password"
-            v-model="newPassword"
-            type="password"
-            autocomplete="new-password"
-            :placeholder="t('admin.panelSettings.newPasswordPlaceholder')"
-            :disabled="isSaving"
-          />
-        </div>
+      <CardContent>
+        <form
+          class="space-y-4"
+          autocomplete="off"
+          @submit.prevent="savePassword"
+        >
+          <div class="space-y-2">
+            <Label for="docker-panel-password">
+              {{ t("admin.panelSettings.newPassword") }}
+            </Label>
+            <DockerAdminPasswordInput
+              id="docker-panel-password"
+              v-model="newPassword"
+              autocomplete="new-password"
+              :placeholder="t('admin.panelSettings.newPasswordPlaceholder')"
+              :disabled="isSaving"
+              :aria-invalid="Boolean(newPasswordError)"
+              :aria-describedby="
+                newPasswordError ? 'docker-panel-password-error' : undefined
+              "
+            />
+            <p
+              v-if="newPasswordError"
+              id="docker-panel-password-error"
+              class="text-xs leading-5 text-destructive"
+              role="alert"
+            >
+              {{ newPasswordError }}
+            </p>
+          </div>
 
-        <div class="space-y-2">
-          <Label for="docker-panel-password-confirm">
-            {{ t("admin.panelSettings.confirmPassword") }}
-          </Label>
-          <Input
-            id="docker-panel-password-confirm"
-            v-model="confirmPassword"
-            type="password"
-            autocomplete="new-password"
-            :placeholder="t('admin.panelSettings.confirmPasswordPlaceholder')"
-            :disabled="isSaving"
-            @keyup.enter="savePassword"
-          />
-        </div>
+          <div class="space-y-2">
+            <Label for="docker-panel-password-confirm">
+              {{ t("admin.panelSettings.confirmPassword") }}
+            </Label>
+            <DockerAdminPasswordInput
+              id="docker-panel-password-confirm"
+              v-model="confirmPassword"
+              autocomplete="new-password"
+              :placeholder="t('admin.panelSettings.confirmPasswordPlaceholder')"
+              :disabled="isSaving"
+              :aria-invalid="Boolean(confirmPasswordError)"
+              :aria-describedby="
+                confirmPasswordError
+                  ? 'docker-panel-password-confirm-error'
+                  : undefined
+              "
+            />
+            <p
+              v-if="confirmPasswordError"
+              id="docker-panel-password-confirm-error"
+              class="text-xs leading-5 text-destructive"
+              role="alert"
+            >
+              {{ confirmPasswordError }}
+            </p>
+          </div>
 
-        <Alert>
-          <ShieldCheck class="h-4 w-4" />
-          <AlertTitle>{{
-            t("admin.panelSettings.passwordRulesTitle")
-          }}</AlertTitle>
-          <AlertDescription>
-            {{ t("admin.panelSettings.passwordRulesDescription") }}
-          </AlertDescription>
-        </Alert>
+          <Alert>
+            <ShieldCheck class="h-4 w-4" />
+            <AlertTitle>{{
+              t("admin.panelSettings.passwordRulesTitle")
+            }}</AlertTitle>
+            <AlertDescription>
+              {{ t("admin.panelSettings.passwordRulesDescription") }}
+            </AlertDescription>
+          </Alert>
 
-        <div class="flex items-center gap-3">
-          <Button :disabled="isSaving || !isFormFilled" @click="savePassword">
-            <span
-              v-if="isSaving"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-            ></span>
-            {{ t("admin.panelSettings.changePassword") }}
-          </Button>
-          <Button variant="outline" :disabled="isSaving" @click="resetForm">
-            {{ t("admin.panelSettings.clear") }}
-          </Button>
-        </div>
+          <div class="flex items-center gap-3">
+            <Button type="submit" :disabled="isSaving || !isFormValid">
+              <span
+                v-if="isSaving"
+                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+              ></span>
+              {{ t("admin.panelSettings.changePassword") }}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              :disabled="isSaving"
+              @click="resetForm"
+            >
+              {{ t("admin.panelSettings.clear") }}
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
 

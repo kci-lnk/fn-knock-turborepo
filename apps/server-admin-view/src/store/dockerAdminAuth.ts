@@ -162,6 +162,10 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     }
   };
 
+  const clearSubmitError = () => {
+    submitError.value = "";
+  };
+
   const logout = async () => {
     isSubmitting.value = true;
     submitError.value = "";
@@ -239,6 +243,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     canEnterApp,
     bootstrap,
     submitPassword,
+    clearSubmitError,
     logout,
     handleUnauthorized,
   };

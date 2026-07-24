@@ -9,6 +9,10 @@ import type {
   RuntimeCapabilities,
   RuntimeProfile,
 } from "../types";
+import {
+  dockerAdminPasswordValidationMessageKeys,
+  validateDockerAdminPassword,
+} from "./docker-admin-password";
 
 export const DOCKER_MODE_DEBUG_STORAGE_KEY = "fn_knock:debug:docker-mode";
 export const DOCKER_ADMIN_STAGE_DEBUG_STORAGE_KEY =
@@ -100,20 +104,10 @@ export const writeDockerAdminDebugPassword = (password: string | null) => {
 export const validateDockerAdminDebugPassword = (
   password: string,
 ): string | null => {
-  if (password.length < 6) {
-    return browserT("admin.dockerAdmin.passwordMin");
-  }
-  if (password.length > 128) {
-    return browserT("admin.dockerAdmin.passwordMax");
-  }
-  if (/\s/.test(password)) {
-    return browserT("admin.dockerAdmin.passwordNoWhitespace");
-  }
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return browserT("admin.dockerAdmin.passwordRequireLetterNumber");
-  }
-
-  return null;
+  const error = validateDockerAdminPassword(password);
+  return error
+    ? browserT(dockerAdminPasswordValidationMessageKeys[error])
+    : null;
 };
 
 export const createDockerAdminDebugState = (

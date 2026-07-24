@@ -443,6 +443,46 @@ export const koKRAdmin = {
     add: "추가",
   },
   maintenanceSettings: {
+    automaticTitle: "자동 백업",
+    automaticDescription:
+      "시스템 구성을 서버의 로컬 데이터 디렉터리에 주기적으로 백업합니다. 처음 활성화하면 즉시 첫 백업을 생성합니다.",
+    automaticDirectory: "백업 디렉터리",
+    automaticEnabled: "자동 백업 사용",
+    automaticInterval: "백업 간격",
+    automaticRetention: "최대 보관 기간",
+    automaticLastSuccess: "마지막 성공",
+    automaticNextBackup: "다음 백업",
+    automaticLastError: "최근 오류",
+    automaticLoadFailed: "자동 백업 설정을 불러오지 못했습니다",
+    automaticLoadFailedDescription:
+      "자동 백업 구성과 실행 상태를 불러올 수 없습니다",
+    automaticSaveFailed: "자동 백업 설정을 저장하지 못했습니다",
+    automaticSaveFailedDescription: "자동 백업 구성을 업데이트할 수 없습니다",
+    automaticValidationFailed:
+      "백업 간격 또는 보관 일수가 허용 범위를 벗어났습니다",
+    automaticSaved: "자동 백업 설정을 저장했습니다",
+    resetAutomatic: "재설정",
+    saveAutomatic: "설정 저장",
+    hoursUnit: "시간",
+    daysUnit: "일",
+    notAvailable: "없음",
+    automaticBackup: "자동 백업",
+    automaticBackupSelected: "자동 백업 선택됨: {name}",
+    importFromAutomatic: "자동 백업에서 선택",
+    loadAutomaticDirFailedDescription:
+      "자동 백업 디렉터리를 읽을 수 없습니다",
+    automaticPickerTitle: "자동 백업 선택",
+    automaticPickerDescription:
+      "서버의 로컬 자동 백업 디렉터리에서 .knock 파일을 선택합니다.",
+    automaticPickerDirectory: "자동 백업 디렉터리",
+    automaticPickerAlertTitle: "자동 백업을 읽지 못했습니다",
+    automaticPickerAvailableDescription:
+      "{path}에서 자동 백업을 읽고 있습니다.",
+    automaticPickerUnavailableDescription:
+      "자동 백업 디렉터리를 현재 사용할 수 없습니다.",
+    automaticPickerEmptyTitle: "아직 자동 백업이 없습니다",
+    automaticPickerEmptyDescription:
+      "자동 백업을 활성화하면 첫 백업이 즉시 여기에 표시됩니다.",
     exportFailed: "내보내기 실패",
     exportFailedDescription: "백업 파일을 내보내지 못했습니다.",
     importFailed: "가져오기 실패",
@@ -484,13 +524,14 @@ export const koKRAdmin = {
     sharedImportHintBetween: "폴더. 로컬 가져오기는 다음을 읽습니다.",
     sharedImportHintAfter: "이 기기의 파일입니다.",
     dockerImportHintBefore:
-      "Docker 배포에서는 다음 중 하나만 선택할 수 있습니다.",
-    dockerImportHintAfter: "이 기기의 파일입니다.",
+      "Docker 배포에서는 자동 백업을 사용하거나 이 기기에서",
+    dockerImportHintAfter: "파일을 선택할 수 있습니다.",
     openWrtImportHintBefore:
-      "OpenWrt 배포에서는 다음 중 하나만 선택할 수 있습니다.",
-    openWrtImportHintAfter: "이 기기의 파일입니다.",
-    localImportHintBefore: "이 환경에서는 다음 중 하나만 선택할 수 있습니다.",
-    localImportHintAfter: "이 기기의 파일입니다.",
+      "OpenWrt 배포에서는 자동 백업을 사용하거나 이 기기에서",
+    openWrtImportHintAfter: "파일을 선택할 수 있습니다.",
+    localImportHintBefore:
+      "이 환경에서는 자동 백업을 사용하거나 이 기기에서",
+    localImportHintAfter: "파일을 선택할 수 있습니다.",
     reselectSource: "소스를 다시 선택하세요",
     importFromFnos: "FNOS에서 가져오기",
     chooseFromLocal: "이 기기에서 선택",
@@ -2155,7 +2196,7 @@ export const koKRAdmin = {
     confirmPasswordPlaceholder: "새 비밀번호를 다시 입력하세요.",
     passwordRulesTitle: "비밀번호 규칙",
     passwordRulesDescription:
-      "비밀번호는 해시로 저장됩니다. 다른 서비스와 공유되지 않는 길고 고유한 비밀번호를 사용하세요.",
+      "비밀번호는 해시로 저장됩니다. 6~128 UTF-8바이트이고 공백이 없어야 하며 ASCII 문자와 숫자를 모두 포함해야 합니다. 기호도 사용할 수 있습니다.",
     changePassword: "비밀번호 변경",
     clear: "지우기",
     forgotTitle: "비밀번호를 잊어버린 경우",
@@ -3497,8 +3538,10 @@ export const koKRAdmin = {
       "계속하려면 관리자 패널 비밀번호를 다시 입력해야 합니다.",
     logoutConfirm: "로그아웃",
     logoutFailed: "관리자 패널에서 로그아웃하지 못했습니다.",
-    passwordMin: "관리자 패널 비밀번호는 6자 이상이어야 합니다.",
-    passwordMax: "관리자 패널 비밀번호는 128자 이하여야 합니다.",
+    showPassword: "비밀번호 표시",
+    hidePassword: "비밀번호 숨기기",
+    passwordMin: "관리자 패널 비밀번호는 6 UTF-8바이트 이상이어야 합니다.",
+    passwordMax: "관리자 패널 비밀번호는 128 UTF-8바이트 이하여야 합니다.",
     passwordNoWhitespace: "관리자 패널 비밀번호에는 공백을 포함할 수 없습니다.",
     passwordRequireLetterNumber:
       "관리자 패널 비밀번호에는 문자와 숫자가 모두 포함되어야 합니다.",
@@ -3554,7 +3597,8 @@ export const koKRAdmin = {
       setupDescription: "처음 접속하기 전에 관리자 비밀번호를 설정하세요.",
       loginDescription:
         "관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
-      setupHelper: "문자와 숫자를 모두 포함하여 6자 이상이어야 합니다.",
+      setupHelper:
+        "6~128 UTF-8바이트이고 공백이 없어야 하며 ASCII 문자와 숫자를 모두 포함해야 합니다. 기호도 사용할 수 있습니다.",
       rememberMe: "로그인 상태 유지",
       setupAction: "설정하고 계속",
       loginAction: "로그인하고 계속",

@@ -103,6 +103,12 @@ pub(super) fn localize_backup_error_message(translator: &Translator, message: &s
         "Backup share directory is not configured" => {
             maintenance_backup_text(translator, "shareDirectoryMissing")
         }
+        "Automatic backup interval is invalid" => {
+            maintenance_backup_text(translator, "automaticIntervalInvalid")
+        }
+        "Automatic backup retention is invalid" => {
+            maintenance_backup_text(translator, "automaticRetentionInvalid")
+        }
         "Invalid backup path" => maintenance_backup_text(translator, "invalidBackupPath"),
         "Backup file not found" => {
             maintenance_backup_text(translator, "directoryImportFileNotFound")

@@ -53,8 +53,7 @@ export const koKRServer = {
           "현재 프로세스에는 시스템 시간 동기화에 필요한 호스트 권한이 없습니다.",
       },
       self_update_available: {
-        lite:
-          "Knock Lite는 앱 내 업데이트를 지원하지 않습니다. 공식 웹사이트에서 정식 버전을 다운로드하세요.",
+        lite: "Knock Lite는 앱 내 업데이트를 지원하지 않습니다. 공식 웹사이트에서 정식 버전을 다운로드하세요.",
         docker:
           "Docker 배포에서는 앱 내 FPK 업데이트를 지원하지 않습니다. 새 이미지를 가져와 업그레이드하세요.",
         openwrt:
@@ -68,15 +67,12 @@ export const koKRServer = {
         platform: "현재 런타임은 웹 터미널을 지원하지 않습니다.",
       },
       auto_https_available: {
-        lite:
-          "Knock Lite는 Root 권한이 필요한 80 포트에 바인딩할 수 없습니다.",
+        lite: "Knock Lite는 Root 권한이 필요한 80 포트에 바인딩할 수 없습니다.",
         platform: "현재 런타임은 자동 HTTPS를 지원하지 않습니다.",
-        permission:
-          "현재 프로세스에는 80 포트를 수신할 권한이 없습니다.",
+        permission: "현재 프로세스에는 80 포트를 수신할 권한이 없습니다.",
       },
       fnos_network_tuning_available: {
-        lite:
-          "Knock Lite는 Root 권한이 필요한 FNOS 네트워크 최적화를 제공하지 않습니다.",
+        lite: "Knock Lite는 Root 권한이 필요한 FNOS 네트워크 최적화를 제공하지 않습니다.",
         platform: "현재 런타임은 FNOS 네트워크 최적화를 지원하지 않습니다.",
         permission:
           "현재 프로세스에는 시스템 네트워크 설정을 변경할 Root 권한이 없습니다.",
@@ -276,8 +272,7 @@ export const koKRServer = {
         rollbackFailed: "{message}; 롤백 실패: {error}",
       },
       blocked: {
-        lite:
-          "Knock Lite는 Root 권한이 필요한 FNOS 네트워크 최적화를 제공하지 않습니다.",
+        lite: "Knock Lite는 Root 권한이 필요한 FNOS 네트워크 최적화를 제공하지 않습니다.",
         deployment:
           "FNOS FPK 네트워크 최적화는 FPK 배포에서만 사용할 수 있습니다.",
         platform: "FNOS FPK 네트워크 최적화에는 Linux 호스트가 필요합니다.",
@@ -1522,6 +1517,13 @@ export const koKRServer = {
     clearFailed: "모든 데이터를 지우지 못했습니다",
   },
   maintenanceBackup: {
+    automaticIntervalInvalid: "자동 백업 간격은 1~8760시간 사이여야 합니다",
+    automaticRetentionInvalid: "자동 백업 보관 일수는 1~3650일 사이여야 합니다",
+    automaticDirectoryReadFailed: "자동 백업 디렉터리를 읽지 못했습니다",
+    automaticSettingsReadFailed: "자동 백업 설정을 읽지 못했습니다",
+    automaticSettingsSaveFailed: "자동 백업 설정을 저장하지 못했습니다",
+    automaticSettingsInvalidRequest:
+      "자동 백업 설정 요청 형식이 올바르지 않습니다",
     commandMissing: "시스템 명령이 누락되었습니다: {command}",
     commandFailed: "명령 실행 실패: {command}",
     commandCheckFailed: "명령 확인 실패: {command}",

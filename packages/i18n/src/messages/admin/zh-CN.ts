@@ -21,6 +21,7 @@ export const zhCNAdmin = {
     about: "关于",
     openNavigation: "打开导航菜单",
     navigationMenu: "导航菜单",
+    skipToContent: "跳到主要内容",
     openGithub: "打开 GitHub 项目页",
   },
   banner: {
@@ -2967,6 +2968,7 @@ export const zhCNAdmin = {
     noDefaultSession:
       "初始化时未能生成默认终端会话。点击左上角加号可重新创建一个可恢复的 tmux 会话。",
     connectionErrorTitle: "终端连接异常",
+    contextMenu: "终端操作",
     copy: "复制",
     paste: "粘贴",
     selectAll: "全选",
@@ -3847,6 +3849,7 @@ export const zhCNAdmin = {
     saveStatusFailed: "保存欢迎向导状态失败",
   },
   welcomeScreen: {
+    title: "欢迎使用 fn-knock",
     entering: "正在进入...",
     start: "开始使用",
   },

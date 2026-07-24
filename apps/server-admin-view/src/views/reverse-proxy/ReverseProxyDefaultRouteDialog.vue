@@ -43,7 +43,11 @@ const { t } = useI18n();
         <Button variant="outline" :disabled="saving" @click="emit('cancel')">
           {{ t("admin.reverseProxy.cancel") }}
         </Button>
-        <Button variant="destructive" :disabled="saving" @click="emit('confirm')">
+        <Button
+          variant="destructive"
+          :disabled="saving"
+          @click="emit('confirm')"
+        >
           {{
             saving
               ? t("admin.reverseProxy.processing")

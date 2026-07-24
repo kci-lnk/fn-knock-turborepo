@@ -8,12 +8,14 @@
       <div
         v-if="isLoading"
         class="py-8 text-center text-sm text-muted-foreground"
+        role="status"
       >
         {{ t("auth.oidcBind.checkingInvite") }}
       </div>
       <div
         v-else-if="errorMessage"
         class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        role="alert"
       >
         {{ errorMessage }}
       </div>

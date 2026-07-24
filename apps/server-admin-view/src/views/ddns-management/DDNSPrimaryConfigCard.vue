@@ -137,7 +137,7 @@ const { t } = useI18n();
           class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start"
         >
           <div class="space-y-1 mt-1.5">
-            <Label class="text-sm font-medium">
+            <Label for="ddns-provider" class="text-sm font-medium">
               {{ t("admin.ddns.providerLabel") }}
             </Label>
             <p class="text-xs text-muted-foreground hidden sm:block pr-4">

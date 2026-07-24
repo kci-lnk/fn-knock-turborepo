@@ -187,32 +187,34 @@ const { t } = useI18n();
                   handleAdminPanelAccessTooltipOpenChange(account.id, $event)
                 "
               >
-                <TooltipTrigger as-child>
-                  <div
-                    class="inline-flex cursor-help items-center gap-3"
-                    tabindex="0"
-                    @click="handleAdminPanelAccessTooltipClick(account.id)"
-                  >
-                    <Switch
-                      :model-value="hasDockerAdminPanelAccess(account)"
-                      :disabled="isAccessScopeUpdating(account.id)"
-                      :aria-label="t('admin.authSettings.adminPanelAccess')"
-                      @update:model-value="
-                        handleDockerAdminPanelAccessChange(
-                          account,
-                          $event === true,
-                        )
-                      "
-                    />
-                    <span class="text-xs leading-5 text-muted-foreground">
-                      {{
-                        hasDockerAdminPanelAccess(account)
-                          ? t("admin.authSettings.adminPanelAllowed")
-                          : t("admin.authSettings.adminPanelDenied")
-                      }}
-                    </span>
-                  </div>
-                </TooltipTrigger>
+                <div class="inline-flex items-center gap-3">
+                  <Switch
+                    :model-value="hasDockerAdminPanelAccess(account)"
+                    :disabled="isAccessScopeUpdating(account.id)"
+                    :aria-label="t('admin.authSettings.adminPanelAccess')"
+                    @update:model-value="
+                      handleDockerAdminPanelAccessChange(
+                        account,
+                        $event === true,
+                      )
+                    "
+                  />
+                  <TooltipTrigger as-child>
+                    <button
+                      type="button"
+                      class="cursor-help text-xs leading-5 text-muted-foreground underline-offset-4 hover:underline"
+                      @click="handleAdminPanelAccessTooltipClick(account.id)"
+                    >
+                      <span class="text-xs leading-5 text-muted-foreground">
+                        {{
+                          hasDockerAdminPanelAccess(account)
+                            ? t("admin.authSettings.adminPanelAllowed")
+                            : t("admin.authSettings.adminPanelDenied")
+                        }}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                </div>
                 <TooltipContent class="max-w-72 text-left">
                   <p>{{ t("admin.authSettings.adminPanelAccessTooltip") }}</p>
                 </TooltipContent>

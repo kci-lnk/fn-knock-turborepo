@@ -183,9 +183,9 @@ const {
     >
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-lg font-semibold tracking-tight">
+          <h2 class="text-lg font-semibold tracking-tight">
             {{ t("admin.wafLogs.title") }}
-          </h1>
+          </h2>
           <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
         </div>
         <p class="text-sm text-muted-foreground">
@@ -318,7 +318,7 @@ const {
               @update:model-value="handleDateChange"
             >
               <div class="w-[148px]">
-                <SelectTrigger>
+                <SelectTrigger :aria-label="t('admin.wafLogs.datePlaceholder')">
                   <SelectValue
                     :placeholder="t('admin.wafLogs.datePlaceholder')"
                   />
@@ -441,7 +441,7 @@ const {
                     @update:model-value="handleLimitChange"
                   >
                     <div class="w-[96px]">
-                      <SelectTrigger>
+                      <SelectTrigger :aria-label="t('admin.wafLogs.pageSize')">
                         <SelectValue />
                       </SelectTrigger>
                     </div>
@@ -505,6 +505,7 @@ const {
                 @update:model-value="handleLimitChange"
               >
                 <SelectTrigger
+                  :aria-label="t('admin.wafLogs.pageSize')"
                   class="h-9 w-[84px] rounded-xl border-white/10 bg-white/10 text-white shadow-none hover:bg-white/15 focus-visible:border-white/30 focus-visible:ring-white/20 [&_svg]:text-white"
                 >
                   <SelectValue />

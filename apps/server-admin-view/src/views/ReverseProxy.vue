@@ -15,6 +15,7 @@
                 <Button
                   variant="default"
                   size="icon"
+                  :aria-label="t('common.moreActions')"
                   class="rounded-l-none border-l border-primary-foreground/20 px-2"
                 >
                   <ChevronDown class="h-4 w-4" />

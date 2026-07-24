@@ -201,10 +201,7 @@ watch(
 
   <Teleport to="body">
     <Transition name="floating-action-dock">
-      <div
-        v-if="shouldRenderFloating"
-        :class="floatingFrameClasses"
-      >
+      <div v-if="shouldRenderFloating" :class="floatingFrameClasses">
         <div
           ref="floatingRef"
           role="region"
@@ -225,8 +222,7 @@ watch(
 
 <style scoped>
 .floating-action-dock-enter-active {
-  animation: floating-action-dock-rise 520ms cubic-bezier(0.2, 0.9, 0.2, 1)
-    both;
+  animation: floating-action-dock-rise 520ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
 }
 
 .floating-action-dock-leave-active {

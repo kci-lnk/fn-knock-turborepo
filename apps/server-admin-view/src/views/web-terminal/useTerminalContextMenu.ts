@@ -63,8 +63,7 @@ export const useTerminalContextMenu = ({
   const setTerminalContextMenuRef = (
     instance: Element | ComponentPublicInstance | null,
   ) => {
-    terminalContextMenuRef.value =
-      instance as TerminalContextMenuHandle | null;
+    terminalContextMenuRef.value = instance as TerminalContextMenuHandle | null;
   };
 
   const terminalContextMenuStyle = computed(() => ({
@@ -113,8 +112,11 @@ export const useTerminalContextMenu = ({
     terminalContextMenuY.value = menuPosition.y;
     terminalContextMenuOpen.value = true;
     void nextTick(() => {
+      const root = terminalContextMenuRef.value?.rootElement;
       focusElementWithoutScroll(
-        terminalContextMenuRef.value?.rootElement || document.body,
+        root?.querySelector<HTMLButtonElement>("button:not(:disabled)") ||
+          root ||
+          document.body,
       );
     });
   };
@@ -165,10 +167,13 @@ export const useTerminalContextMenu = ({
       getTerminal()?.paste(text);
       focusTerminal();
     } catch (error) {
-      console.warn("[terminal] clipboard read unavailable, using manual paste", {
-        error:
-          error instanceof Error ? error.message : String(error ?? "unknown"),
-      });
+      console.warn(
+        "[terminal] clipboard read unavailable, using manual paste",
+        {
+          error:
+            error instanceof Error ? error.message : String(error ?? "unknown"),
+        },
+      );
       openManualPasteDialog();
     }
   };

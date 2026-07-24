@@ -344,8 +344,10 @@ watch(
     <div
       class="rounded-md border bg-muted/20 px-3 py-2 text-xs leading-5 text-muted-foreground"
     >
-      <span v-if="previewing">{{ t("admin.ddns.selectorPreviewing") }}</span>
-      <span v-else-if="previewError" class="text-destructive">
+      <span v-if="previewing" role="status">{{
+        t("admin.ddns.selectorPreviewing")
+      }}</span>
+      <span v-else-if="previewError" class="text-destructive" role="alert">
         {{ previewError }}
       </span>
       <template v-else-if="preview?.selectedAddress">

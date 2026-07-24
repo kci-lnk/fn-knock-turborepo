@@ -428,6 +428,9 @@ onBeforeUnmount(() => {
                 <div
                   class="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/4"
                 />
+                <!-- The mounted terminal owns keyboard focus and dispatches
+                     Shift+F10/context-menu events through this capture boundary. -->
+                <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
                 <div
                   ref="terminalMountRef"
                   class="absolute inset-0 box-border min-h-0 min-w-0 overflow-hidden px-1.5 py-2.5 sm:px-2.5 sm:py-3"
@@ -439,6 +442,7 @@ onBeforeUnmount(() => {
                   :has-selection="terminalContextMenuHasSelection"
                   :menu-style="terminalContextMenuStyle"
                   :open="terminalContextMenuOpen"
+                  @close="closeTerminalContextMenu"
                   @copy="copyTerminalSelectionFromMenu"
                   @paste="pasteClipboardToTerminal"
                   @select-all="selectAllTerminalText"

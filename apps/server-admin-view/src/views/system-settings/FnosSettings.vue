@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { ChevronRight } from "lucide-vue-next";
@@ -23,6 +23,8 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
 import { useFnosNetworkTuningViewModel } from "./fnos-settings/useFnosNetworkTuningViewModel";
+
+const a11yId = useId();
 
 const configStore = useConfigStore();
 const router = useRouter();
@@ -264,22 +266,6 @@ const toggleIconHijack = () => {
   void saveIconHijackEnabled(!iconHijackForm.enabled);
 };
 
-const toggleBbr = () => {
-  if (!isBbrSupported.value) return;
-  void saveNetworkTuning(
-    { bbr_enabled: !networkTuningForm.bbr_enabled },
-    "admin.fnosSettings.bbrUpdated",
-  );
-};
-
-const toggleMtuProbing = () => {
-  if (!isMtuProbingSupported.value) return;
-  void saveNetworkTuning(
-    { mtu_probing_enabled: !networkTuningForm.mtu_probing_enabled },
-    "admin.fnosSettings.mtuUpdated",
-  );
-};
-
 const openCertificateSync = () => {
   void router.push("/system/fnos-certificate-sync");
 };
@@ -331,6 +317,7 @@ onMounted(fetchSettings);
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-fnossettings-1`"
             class="text-base font-medium"
             :class="
               isShareBypassMode
@@ -357,6 +344,7 @@ onMounted(fetchSettings);
           </div>
         </div>
         <Switch
+          :id="`${a11yId}-fnossettings-1`"
           :model-value="isShareBypassMode ? form.enabled : false"
           :disabled="!isShareBypassMode || isSaving"
           @update:model-value="saveShareBypassEnabled($event === true)"
@@ -366,6 +354,7 @@ onMounted(fetchSettings);
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-fnossettings-2`"
             class="cursor-pointer text-base font-medium"
             @click="toggleIconHijack"
           >
@@ -378,6 +367,7 @@ onMounted(fetchSettings);
           </div>
         </div>
         <Switch
+          :id="`${a11yId}-fnossettings-2`"
           :model-value="iconHijackForm.enabled"
           :disabled="isIconHijackSaving"
           @update:model-value="saveIconHijackEnabled($event === true)"
@@ -390,13 +380,13 @@ onMounted(fetchSettings);
       >
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-fnos-bbr`"
             class="text-base font-medium"
             :class="
               isNetworkTuningAvailable
                 ? 'cursor-pointer'
                 : 'cursor-not-allowed text-zinc-500'
             "
-            @click="toggleBbr"
           >
             {{ t("admin.fnosSettings.bbrTitle") }}
           </Label>
@@ -451,6 +441,7 @@ onMounted(fetchSettings);
           </div>
         </div>
         <Switch
+          :id="`${a11yId}-fnos-bbr`"
           :model-value="networkTuningForm.bbr_enabled"
           :disabled="!isNetworkTuningAvailable || isNetworkTuningSaving"
           @update:model-value="
@@ -468,13 +459,13 @@ onMounted(fetchSettings);
       >
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-fnos-mtu-probing`"
             class="text-base font-medium"
             :class="
               isNetworkTuningAvailable
                 ? 'cursor-pointer'
                 : 'cursor-not-allowed text-zinc-500'
             "
-            @click="toggleMtuProbing"
           >
             {{ t("admin.fnosSettings.mtuTitle") }}
           </Label>
@@ -508,6 +499,7 @@ onMounted(fetchSettings);
           </div>
         </div>
         <Switch
+          :id="`${a11yId}-fnos-mtu-probing`"
           :model-value="networkTuningForm.mtu_probing_enabled"
           :disabled="!isNetworkTuningAvailable || isNetworkTuningSaving"
           @update:model-value="

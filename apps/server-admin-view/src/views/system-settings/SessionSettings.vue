@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Info } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -34,6 +34,8 @@ import {
   type SessionDurationField as DurationField,
 } from "./session-settings/sessionDurationModel";
 import { useSessionCookieScope } from "./session-settings/useSessionCookieScope";
+
+const a11yId = useId();
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -353,15 +355,19 @@ onMounted(fetchSettings);
         </div>
 
         <div class="space-y-1">
-          <Label class="text-base">
+          <div class="text-base font-medium">
             {{ t("admin.sessionSettings.postLoginIpGrantMode") }}
-          </Label>
+          </div>
           <div class="text-sm text-muted-foreground">
             {{ t("admin.sessionSettings.postLoginIpGrantModeDescription") }}
           </div>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-3">
+        <div
+          role="group"
+          :aria-label="t('admin.sessionSettings.postLoginIpGrantMode')"
+          class="grid gap-3 md:grid-cols-3"
+        >
           <button
             v-for="option in postLoginIpGrantModeOptions"
             :key="option.value"
@@ -373,6 +379,7 @@ onMounted(fetchSettings);
                 : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
             "
             :disabled="isSaving"
+            :aria-pressed="form.postLoginIpGrantMode === option.value"
             @click="form.postLoginIpGrantMode = option.value"
           >
             <div class="text-sm font-medium text-foreground">
@@ -407,7 +414,7 @@ onMounted(fetchSettings);
             class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
           >
             <div class="space-y-1 pr-6">
-              <Label class="text-base">
+              <Label :for="`${a11yId}-sessionsettings-1`" class="text-base">
                 {{ t("admin.sessionSettings.sessionIpMobility") }}
               </Label>
               <div class="text-sm leading-6 text-muted-foreground">
@@ -416,6 +423,7 @@ onMounted(fetchSettings);
             </div>
 
             <Switch
+              :id="`${a11yId}-sessionsettings-1`"
               class="shrink-0 sm:justify-self-end"
               :model-value="form.sessionIpMobilityEnabled"
               :disabled="isSaving"

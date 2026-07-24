@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { Button } from '@/components/ui/button';
-import RefreshButton from '@/components/RefreshButton.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@admin-shared/utils/toast';
-import { BackoffAPI, type BackoffItem } from '../../lib/api';
-import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/RefreshButton.vue";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@admin-shared/utils/toast";
+import { BackoffAPI, type BackoffItem } from "../../lib/api";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
 
 const { t } = useI18n();
 const items = ref<BackoffItem[]>([]);
@@ -16,10 +26,10 @@ const items = ref<BackoffItem[]>([]);
 const { isPending: isLoading, run: runLoadBackoff } = useAsyncAction({
   onError: (error) => {
     items.value = [];
-    toast.error(t('admin.sessions.loginBackoff.loadFailed'), {
+    toast.error(t("admin.sessions.loginBackoff.loadFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.sessions.loginBackoff.loadFailed'),
+        t("admin.sessions.loginBackoff.loadFailed"),
       ),
     });
   },
@@ -27,10 +37,10 @@ const { isPending: isLoading, run: runLoadBackoff } = useAsyncAction({
 
 const { isPending: isResetting, run: runResetIp } = useAsyncAction({
   onError: (error) => {
-    toast.error(t('admin.sessions.loginBackoff.resetFailed'), {
+    toast.error(t("admin.sessions.loginBackoff.resetFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.sessions.loginBackoff.resetFailed'),
+        t("admin.sessions.loginBackoff.resetFailed"),
       ),
     });
   },
@@ -45,15 +55,12 @@ const load = async () => {
 };
 
 const resetIp = async (ip: string) => {
-  await runResetIp(
-    () => BackoffAPI.reset(ip),
-    {
-      onSuccess: async () => {
-        toast.success(t('admin.sessions.loginBackoff.resetSuccess', { ip }));
-        await load();
-      },
+  await runResetIp(() => BackoffAPI.reset(ip), {
+    onSuccess: async () => {
+      toast.success(t("admin.sessions.loginBackoff.resetSuccess", { ip }));
+      await load();
     },
-  );
+  });
 };
 
 onMounted(load);
@@ -63,7 +70,7 @@ onMounted(load);
   <div class="space-y-3">
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        {{ t('admin.sessions.loginBackoff.summary', { count: items.length }) }}
+        {{ t("admin.sessions.loginBackoff.summary", { count: items.length }) }}
       </div>
       <RefreshButton :loading="isLoading" :disabled="isLoading" @click="load" />
     </div>
@@ -74,14 +81,14 @@ onMounted(load);
           <TableRow>
             <TableHead class="w-[220px]">IP</TableHead>
             <TableHead class="w-[140px]">{{
-              t('admin.sessions.loginBackoff.attemptsInHour')
+              t("admin.sessions.loginBackoff.attemptsInHour")
             }}</TableHead>
-            <TableHead>{{ t('admin.sessions.loginBackoff.status') }}</TableHead>
+            <TableHead>{{ t("admin.sessions.loginBackoff.status") }}</TableHead>
             <TableHead>{{
-              t('admin.sessions.loginBackoff.remainingTime')
+              t("admin.sessions.loginBackoff.remainingTime")
             }}</TableHead>
             <TableHead class="text-right w-[160px]">{{
-              t('admin.sessions.table.actions')
+              t("admin.sessions.table.actions")
             }}</TableHead>
           </TableRow>
         </TableHeader>
@@ -93,14 +100,14 @@ onMounted(load);
               <Badge :variant="item.blocked ? 'destructive' : 'secondary'">
                 {{
                   item.blocked
-                    ? t('admin.sessions.loginBackoff.blocked')
-                    : t('admin.sessions.loginBackoff.notBlocked')
+                    ? t("admin.sessions.loginBackoff.blocked")
+                    : t("admin.sessions.loginBackoff.notBlocked")
                 }}
               </Badge>
             </TableCell>
             <TableCell>
               <span v-if="item.retryAfter">{{
-                t('admin.sessions.loginBackoff.seconds', {
+                t("admin.sessions.loginBackoff.seconds", {
                   seconds: item.retryAfter,
                 })
               }}</span>
@@ -126,7 +133,7 @@ onMounted(load);
                       size="sm"
                       :disabled="isResetting"
                     >
-                      {{ t('admin.sessions.loginBackoff.reset') }}
+                      {{ t("admin.sessions.loginBackoff.reset") }}
                     </Button>
                   </template>
                 </ConfirmDangerPopover>
@@ -136,8 +143,11 @@ onMounted(load);
         </TableBody>
         <TableBody v-else>
           <TableRow>
-            <TableCell colspan="5" class="text-center text-muted-foreground py-6">
-              {{ t('admin.sessions.loginBackoff.empty') }}
+            <TableCell
+              colspan="5"
+              class="text-center text-muted-foreground py-6"
+            >
+              {{ t("admin.sessions.loginBackoff.empty") }}
             </TableCell>
           </TableRow>
         </TableBody>

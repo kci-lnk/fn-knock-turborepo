@@ -1,15 +1,34 @@
 <template>
   <Transition name="fade-overlay">
-    <div v-if="visible" class="welcome-wrapper">
+    <dialog
+      v-if="visible"
+      ref="dialogRef"
+      class="welcome-wrapper"
+      open
+      aria-modal="true"
+      aria-labelledby="welcome-screen-title"
+      :aria-busy="pending"
+      tabindex="-1"
+    >
+      <h1 id="welcome-screen-title" class="sr-only">
+        {{ t("admin.welcomeScreen.title") }}
+      </h1>
       <div class="welcome-container">
         <div class="hello-box">
           <svg
             class="hello-svg"
             viewBox="-64 -56 1358.94 526.57"
             preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
           >
             <defs>
-              <linearGradient id="helloGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <linearGradient
+                id="helloGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
                 <stop offset="0%" style="stop-color: #76a4ff" />
                 <stop offset="50%" style="stop-color: #ff9fed" />
                 <stop offset="100%" style="stop-color: #ffbf8a" />
@@ -23,8 +42,13 @@
           </svg>
         </div>
 
-        <div class="action-box" :class="{ 'show-btn': showButton }">
-          <button class="ios-btn" :disabled="pending" @click="handleStart">
+        <div v-if="showButton" class="action-box show-btn">
+          <button
+            ref="actionRef"
+            class="ios-btn"
+            :disabled="pending"
+            @click="handleStart"
+          >
             {{
               pending
                 ? t("admin.welcomeScreen.entering")
@@ -33,12 +57,12 @@
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   </Transition>
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from "vue";
+import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const props = withDefaults(
@@ -58,6 +82,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const showButton = ref(false);
+const dialogRef = ref<HTMLElement | null>(null);
+const actionRef = ref<HTMLButtonElement | null>(null);
 let revealButtonTimer: number | null = null;
 
 const clearRevealButtonTimer = () => {
@@ -67,18 +93,47 @@ const clearRevealButtonTimer = () => {
   }
 };
 
+const focusAction = () => {
+  if (actionRef.value && !actionRef.value.disabled) {
+    actionRef.value.focus();
+    return;
+  }
+  dialogRef.value?.focus();
+};
+
+const handleDocumentKeydown = (event: KeyboardEvent) => {
+  if (!props.visible || event.key !== "Tab") return;
+  event.preventDefault();
+  focusAction();
+};
+
+onMounted(() => {
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
 watch(
   () => props.visible,
-  (visible) => {
+  async (visible) => {
     clearRevealButtonTimer();
     if (!visible) {
       showButton.value = false;
       return;
     }
 
+    await nextTick();
+    dialogRef.value?.focus();
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      showButton.value = true;
+      await nextTick();
+      focusAction();
+      return;
+    }
+
     showButton.value = false;
     revealButtonTimer = window.setTimeout(() => {
       showButton.value = true;
+      void nextTick(focusAction);
     }, 4500);
   },
   { immediate: true },
@@ -86,6 +141,7 @@ watch(
 
 onUnmounted(() => {
   clearRevealButtonTimer();
+  document.removeEventListener("keydown", handleDocumentKeydown);
 });
 
 const handleStart = () => {
@@ -101,6 +157,11 @@ const handleStart = () => {
   left: 0;
   width: 100vw;
   height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: rgba(5, 7, 14, 0.96);
   z-index: 9999;
   display: flex;
@@ -123,9 +184,21 @@ const handleStart = () => {
 .welcome-wrapper::before {
   inset: -18%;
   background:
-    radial-gradient(circle at 18% 18%, rgba(118, 164, 255, 0.44), transparent 34%),
-    radial-gradient(circle at 78% 24%, rgba(255, 159, 237, 0.34), transparent 30%),
-    radial-gradient(circle at 52% 78%, rgba(255, 191, 138, 0.28), transparent 34%);
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(118, 164, 255, 0.44),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 78% 24%,
+      rgba(255, 159, 237, 0.34),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 52% 78%,
+      rgba(255, 191, 138, 0.28),
+      transparent 34%
+    );
   opacity: 0.12;
   filter: blur(10px);
   transform: scale(1.08);
@@ -211,9 +284,15 @@ const handleStart = () => {
 }
 
 @keyframes draw-hello {
-  0% { stroke-dashoffset: 5800; }
-  20% { stroke-dashoffset: 5800; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 5800;
+  }
+  20% {
+    stroke-dashoffset: 5800;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 .action-box {
@@ -244,7 +323,11 @@ const handleStart = () => {
     transform 0.2s ease,
     background 0.3s ease,
     opacity 0.2s ease;
-  outline: none;
+}
+
+.ios-btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
 }
 
 .ios-btn:disabled {
@@ -267,6 +350,28 @@ const handleStart = () => {
 }
 .fade-overlay-leave-to {
   opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-wrapper,
+  .welcome-wrapper::before,
+  .hello-path {
+    animation: none;
+  }
+
+  .hello-path {
+    stroke-dashoffset: 0;
+  }
+
+  .action-box {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .fade-overlay-leave-active {
+    transition: none;
+  }
 }
 
 @media (max-width: 768px) {

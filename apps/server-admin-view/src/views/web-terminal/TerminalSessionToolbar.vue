@@ -78,12 +78,11 @@ const { t } = useI18n();
           :title="t('admin.webTerminal.renameSession')"
           @click="openRenameDialog"
         >
-          <LoaderCircle
-            v-if="isRenamingSession"
-            class="h-4 w-4 animate-spin"
-          />
+          <LoaderCircle v-if="isRenamingSession" class="h-4 w-4 animate-spin" />
           <Pencil v-else class="h-4 w-4" />
-          <span class="sr-only">{{ t("admin.webTerminal.renameSession") }}</span>
+          <span class="sr-only">{{
+            t("admin.webTerminal.renameSession")
+          }}</span>
         </Button>
         <Button
           variant="outline"

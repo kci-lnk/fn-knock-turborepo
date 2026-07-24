@@ -1,132 +1,134 @@
 <script setup lang="ts">
-import { computed, ref, useSlots, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { computed, ref, useSlots, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface Props {
-  title: string
-  configured: boolean
-  ready?: boolean
-  editLabel?: string
-  cardClass?: string
-  collapsedContentClass?: string
-  expandedContentClass?: string
-  summaryClass?: string
-  actionsClass?: string
+  title: string;
+  configured: boolean;
+  ready?: boolean;
+  editLabel?: string;
+  cardClass?: string;
+  collapsedContentClass?: string;
+  expandedContentClass?: string;
+  summaryClass?: string;
+  actionsClass?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   ready: true,
-  cardClass: '',
-  collapsedContentClass: 'h-[40px] flex items-center justify-between gap-3',
-  expandedContentClass: '',
-  summaryClass: 'text-xs text-muted-foreground truncate w-64 max-w-full',
-  actionsClass: '',
-})
+  cardClass: "",
+  collapsedContentClass: "h-[40px] flex items-center justify-between gap-3",
+  expandedContentClass: "",
+  summaryClass: "text-xs text-muted-foreground truncate w-64 max-w-full",
+  actionsClass: "",
+});
 
-const { t } = useI18n()
-const slots = useSlots()
-const resolvedEditLabel = computed(() => props.editLabel ?? t('shared.configCollapsibleCard.editConfig'))
+const { t } = useI18n();
+const slots = useSlots();
+const resolvedEditLabel = computed(
+  () => props.editLabel ?? t("shared.configCollapsibleCard.editConfig"),
+);
 
-const open = ref(false)
-const initialized = ref(false)
-const wrapperRef = ref<HTMLElement | null>(null)
+const open = ref(false);
+const initialized = ref(false);
+const wrapperRef = ref<HTMLElement | null>(null);
 
-const TRANSITION_DURATION = 250 
+const TRANSITION_DURATION = 250;
 
 function expand() {
-  open.value = true
-  initialized.value = true
+  open.value = true;
+  initialized.value = true;
 }
 
 function collapse() {
-  open.value = false
-  initialized.value = true
+  open.value = false;
+  initialized.value = true;
 }
 
 function toggle() {
-  open.value = !open.value
-  initialized.value = true
+  open.value = !open.value;
+  initialized.value = true;
 }
 
 function onBeforeEnter(element: Element) {
-  const el = element as HTMLElement
-  el.style.opacity = '0'
+  const el = element as HTMLElement;
+  el.style.opacity = "0";
 }
 
 function onEnter(element: Element, done: () => void) {
-  const el = element as HTMLElement
-  const wrapper = wrapperRef.value
-  if (!wrapper) return done()
-  el.style.width = '100%'
-  const targetHeight = el.offsetHeight
-  void wrapper.offsetHeight
+  const el = element as HTMLElement;
+  const wrapper = wrapperRef.value;
+  if (!wrapper) return done();
+  el.style.width = "100%";
+  const targetHeight = el.offsetHeight;
+  void wrapper.offsetHeight;
 
-  wrapper.style.overflow = 'hidden'
-  wrapper.style.height = `${targetHeight}px`
+  wrapper.style.overflow = "hidden";
+  wrapper.style.height = `${targetHeight}px`;
 
-  el.style.transition = `opacity ${TRANSITION_DURATION}ms ease`
-  el.style.opacity = '1'
+  el.style.transition = `opacity ${TRANSITION_DURATION}ms ease`;
+  el.style.opacity = "1";
 
-  setTimeout(done, TRANSITION_DURATION)
+  setTimeout(done, TRANSITION_DURATION);
 }
 
 function onAfterEnter(element: Element) {
-  const el = element as HTMLElement
-  el.style.opacity = ''
-  el.style.transition = ''
-  el.style.width = ''
+  const el = element as HTMLElement;
+  el.style.opacity = "";
+  el.style.transition = "";
+  el.style.width = "";
 
-  const wrapper = wrapperRef.value
+  const wrapper = wrapperRef.value;
   if (wrapper) {
-    wrapper.style.height = 'auto'
-    wrapper.style.overflow = ''
+    wrapper.style.height = "auto";
+    wrapper.style.overflow = "";
   }
 }
 
 function onBeforeLeave() {
-  const wrapper = wrapperRef.value
+  const wrapper = wrapperRef.value;
   if (wrapper) {
-    wrapper.style.height = `${wrapper.offsetHeight}px`
-    wrapper.style.overflow = 'hidden'
+    wrapper.style.height = `${wrapper.offsetHeight}px`;
+    wrapper.style.overflow = "hidden";
   }
 }
 
 function onLeave(element: Element, done: () => void) {
-  const el = element as HTMLElement
-  el.style.position = 'absolute'
-  el.style.top = '0'
-  el.style.left = '0'
-  el.style.width = '100%'
+  const el = element as HTMLElement;
+  el.style.position = "absolute";
+  el.style.top = "0";
+  el.style.left = "0";
+  el.style.width = "100%";
 
-  el.style.transition = `opacity ${TRANSITION_DURATION}ms ease`
-  void el.offsetHeight 
-  el.style.opacity = '0'
+  el.style.transition = `opacity ${TRANSITION_DURATION}ms ease`;
+  void el.offsetHeight;
+  el.style.opacity = "0";
 
-  setTimeout(done, TRANSITION_DURATION)
+  setTimeout(done, TRANSITION_DURATION);
 }
 
 function onAfterLeave(element: Element) {
-  const el = element as HTMLElement
-  el.style.position = ''
-  el.style.top = ''
-  el.style.left = ''
-  el.style.width = ''
-  el.style.opacity = ''
-  el.style.transition = ''
+  const el = element as HTMLElement;
+  el.style.position = "";
+  el.style.top = "";
+  el.style.left = "";
+  el.style.width = "";
+  el.style.opacity = "";
+  el.style.transition = "";
 }
 
 watch(
   () => props.ready,
   (ready) => {
     if (ready && !initialized.value) {
-      open.value = !props.configured
-      initialized.value = true
+      open.value = !props.configured;
+      initialized.value = true;
     }
   },
   { immediate: true },
-)
+);
 </script>
 
 <template>
@@ -145,12 +147,11 @@ watch(
         @after-leave="onAfterLeave"
       >
         <div v-if="!open" key="collapsed" class="w-full">
-          <CardContent 
+          <CardContent
             :class="[
-              collapsedContentClass, 
-              'cursor-pointer transition-colors duration-200 hover:bg-muted/50'
+              collapsedContentClass,
+              'transition-colors duration-200 hover:bg-muted/50',
             ]"
-            @click="expand"
           >
             <div class="min-w-0 flex-1 space-y-1">
               <div class="text-sm font-medium">{{ title }}</div>
@@ -158,7 +159,7 @@ watch(
                 <slot name="summary" />
               </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0" @click.stop>
+            <div class="flex items-center gap-2 shrink-0">
               <slot
                 v-if="slots['collapsed-actions']"
                 name="collapsed-actions"
@@ -167,16 +168,29 @@ watch(
                 :collapse="collapse"
                 :toggle="toggle"
               />
-              <Button variant="secondary" @click="expand">{{ resolvedEditLabel }}</Button>
+              <Button variant="secondary" @click="expand">{{
+                resolvedEditLabel
+              }}</Button>
             </div>
           </CardContent>
         </div>
 
         <div v-else key="expanded" class="w-full">
           <CardContent :class="expandedContentClass">
-            <slot :open="open" :expand="expand" :collapse="collapse" :toggle="toggle" />
+            <slot
+              :open="open"
+              :expand="expand"
+              :collapse="collapse"
+              :toggle="toggle"
+            />
             <div v-if="slots.actions" :class="actionsClass">
-              <slot name="actions" :open="open" :expand="expand" :collapse="collapse" :toggle="toggle" />
+              <slot
+                name="actions"
+                :open="open"
+                :expand="expand"
+                :collapse="collapse"
+                :toggle="toggle"
+              />
             </div>
           </CardContent>
         </div>

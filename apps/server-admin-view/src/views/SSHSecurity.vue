@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,8 @@ import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
 import SSHBlockListPanel from "./ssh-security/SSHBlockListPanel.vue";
 import SSHLoginLogsPanel from "./ssh-security/SSHLoginLogsPanel.vue";
 import { useSSHSecurityConfig } from "./ssh-security/useSSHSecurityConfig";
+
+const a11yId = useId();
 
 const {
   activeTab,
@@ -131,7 +134,10 @@ const {
             class="grid gap-3 p-4 sm:grid-cols-[200px_1fr] sm:p-6 md:grid-cols-[240px_1fr]"
           >
             <div class="space-y-1">
-              <Label class="text-sm font-medium">
+              <Label
+                :for="`${a11yId}-sshsecurity-1`"
+                class="text-sm font-medium"
+              >
                 {{ t("admin.sshSecurity.enableSshSecurity") }}
               </Label>
               <p
@@ -145,6 +151,7 @@ const {
                 {{ t("admin.sshSecurity.enableDescription") }}
               </p>
               <Switch
+                :id="`${a11yId}-sshsecurity-1`"
                 v-model="form.enabled"
                 class="mt-0.5 shrink-0"
                 :disabled="
@@ -232,7 +239,11 @@ const {
                 :disabled="isSaving"
               />
               <Select v-model="form.blockDurationUnit">
-                <SelectTrigger :disabled="isSaving"><SelectValue /></SelectTrigger>
+                <SelectTrigger
+                  :aria-label="t('admin.sshSecurity.blockDuration')"
+                  :disabled="isSaving"
+                  ><SelectValue
+                /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="minute">
                     {{ t("admin.sshSecurity.minute") }}
@@ -252,9 +263,9 @@ const {
             class="grid gap-3 p-4 transition-colors hover:bg-muted/10 sm:grid-cols-[200px_1fr] sm:p-6 md:grid-cols-[240px_1fr]"
           >
             <div class="space-y-1">
-              <Label class="text-sm font-medium">
+              <div class="text-sm font-medium">
                 {{ t("admin.sshSecurity.allowedRegions") }}
-              </Label>
+              </div>
             </div>
             <div class="w-full max-w-2xl space-y-3">
               <CidrRegionSelector
@@ -390,7 +401,9 @@ const {
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
-          :disabled="isSaving || isSyncingFirewall || Boolean(saveBlockedReason)"
+          :disabled="
+            isSaving || isSyncingFirewall || Boolean(saveBlockedReason)
+          "
           @click="saveConfig"
         >
           <Save class="h-4 w-4" />

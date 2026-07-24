@@ -1,16 +1,36 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Textarea } from '@/components/ui/textarea';
-import { ChevronRight, FolderTree, Laptop, Smartphone, Upload } from 'lucide-vue-next';
-import { useMediaQueryMatch } from '@admin-shared/composables/useMediaQueryMatch';
-import DataShareFilePicker from '../common/DataShareFilePicker.vue';
+import { computed, onBeforeUnmount, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ChevronRight,
+  FolderTree,
+  Laptop,
+  Smartphone,
+  Upload,
+} from "lucide-vue-next";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
+import DataShareFilePicker from "../common/DataShareFilePicker.vue";
 
-type CertFieldKey = 'cert' | 'sslKey';
+type CertFieldKey = "cert" | "sslKey";
 
 interface SharedDataFileEntry {
   name: string;
@@ -20,48 +40,55 @@ interface SharedDataFileEntry {
   modifiedAt: string;
 }
 
-const props = withDefaults(defineProps<{
-  id: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  accept: string;
-  fieldKey: CertFieldKey;
-  supportedFileTypes: string[];
-  shareName?: string;
-  sharedFiles?: SharedDataFileEntry[];
-  sharedFilesAvailable?: boolean;
-  sharedFilesLoading?: boolean;
-  sharedFilesError?: string;
-  sharedFileSelecting?: boolean;
-}>(), {
-  shareName: 'fn-knock',
-  sharedFiles: () => [],
-  sharedFilesAvailable: false,
-  sharedFilesLoading: false,
-  sharedFilesError: '',
-  sharedFileSelecting: false,
-});
+const props = withDefaults(
+  defineProps<{
+    id: string;
+    label: string;
+    value: string;
+    placeholder: string;
+    accept: string;
+    fieldKey: CertFieldKey;
+    supportedFileTypes: string[];
+    shareName?: string;
+    sharedFiles?: SharedDataFileEntry[];
+    sharedFilesAvailable?: boolean;
+    sharedFilesLoading?: boolean;
+    sharedFilesError?: string;
+    sharedFileSelecting?: boolean;
+  }>(),
+  {
+    shareName: "fn-knock",
+    sharedFiles: () => [],
+    sharedFilesAvailable: false,
+    sharedFilesLoading: false,
+    sharedFilesError: "",
+    sharedFileSelecting: false,
+  },
+);
 
 const emit = defineEmits<{
-  'update:value': [value: string];
-  'request-shared-files': [payload: { field: CertFieldKey; force?: boolean }];
-  'select-shared-file': [payload: { field: CertFieldKey; relativePath: string }];
+  "update:value": [value: string];
+  "request-shared-files": [payload: { field: CertFieldKey; force?: boolean }];
+  "select-shared-file": [
+    payload: { field: CertFieldKey; relativePath: string },
+  ];
 }>();
 
 const { t } = useI18n();
 const localFileInput = ref<HTMLInputElement | null>(null);
 const sourceChooserOpen = ref(false);
 const pickerOpen = ref(false);
-const isMobileViewport = useMediaQueryMatch('(max-width: 768px)');
+const isMobileViewport = useMediaQueryMatch("(max-width: 768px)");
 let overlayTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const uploadLabel = computed(() =>
   isMobileViewport.value
-    ? t('shared.certSourceField.uploadFromPhone')
-    : t('shared.certSourceField.uploadFromComputer'),
+    ? t("shared.certSourceField.uploadFromPhone")
+    : t("shared.certSourceField.uploadFromComputer"),
 );
-const supportedTypesLabel = computed(() => props.supportedFileTypes.join(' / '));
+const supportedTypesLabel = computed(() =>
+  props.supportedFileTypes.join(" / "),
+);
 
 onBeforeUnmount(() => {
   if (overlayTimer) {
@@ -70,7 +97,7 @@ onBeforeUnmount(() => {
 });
 
 function scheduleOverlayAction(action: () => void) {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     action();
     return;
   }
@@ -104,12 +131,12 @@ function chooseSharedFile() {
   sourceChooserOpen.value = false;
   scheduleOverlayAction(() => {
     pickerOpen.value = true;
-    emit('request-shared-files', { field: props.fieldKey });
+    emit("request-shared-files", { field: props.fieldKey });
   });
 }
 
 function refreshSharedFiles() {
-  emit('request-shared-files', { field: props.fieldKey, force: true });
+  emit("request-shared-files", { field: props.fieldKey, force: true });
 }
 
 function handleLocalFileUpload(event: Event) {
@@ -122,17 +149,17 @@ function handleLocalFileUpload(event: Event) {
   const reader = new FileReader();
   reader.onload = (loadEvent) => {
     const result = loadEvent.target?.result;
-    if (typeof result === 'string') {
-      emit('update:value', result);
+    if (typeof result === "string") {
+      emit("update:value", result);
     }
   };
   reader.readAsText(file);
-  target.value = '';
+  target.value = "";
 }
 
 function handleSharedFileSelect(file: SharedDataFileEntry) {
   pickerOpen.value = false;
-  emit('select-shared-file', {
+  emit("select-shared-file", {
     field: props.fieldKey,
     relativePath: file.relativePath,
   });
@@ -144,7 +171,9 @@ function setSourceChooserOpen(value: boolean) {
 </script>
 
 <template>
-  <div class="min-w-0 rounded-[10px] border border-border/60 bg-background/80 px-4 py-4 sm:px-5 sm:py-5">
+  <div
+    class="min-w-0 rounded-[10px] border border-border/60 bg-background/80 px-4 py-4 sm:px-5 sm:py-5"
+  >
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0 grid gap-1">
         <Label :for="id" class="text-sm font-medium">{{ label }}</Label>
@@ -168,7 +197,7 @@ function setSourceChooserOpen(value: boolean) {
         @click="openSourceChooser"
       >
         <Upload class="mr-2 h-4 w-4" />
-        {{ t('shared.certSourceField.uploadFile') }}
+        {{ t("shared.certSourceField.uploadFile") }}
       </Button>
     </div>
 
@@ -178,7 +207,7 @@ function setSourceChooserOpen(value: boolean) {
       @update:model-value="(next) => emit('update:value', String(next))"
       :placeholder="placeholder"
       wrap="soft"
-      style="field-sizing: fixed;"
+      style="field-sizing: fixed"
       class="mt-4 min-h-32 w-full min-w-0 max-w-full resize-y rounded-[10px] border-border/60 bg-muted/15 px-4 py-3 font-mono text-sm shadow-none"
     />
 
@@ -190,19 +219,23 @@ function setSourceChooserOpen(value: boolean) {
       <component
         :is="isMobileViewport ? SheetContent : DialogContent"
         v-bind="isMobileViewport ? { side: 'bottom' } : {}"
-        :class="isMobileViewport
-          ? 'flex flex-col gap-0 rounded-t-[10px] border-x-0 border-b-0 bg-background/98 px-0 pb-0'
-          : 'border-border/60 bg-background/98 sm:max-w-[420px]'"
+        :class="
+          isMobileViewport
+            ? 'flex flex-col gap-0 rounded-t-[10px] border-x-0 border-b-0 bg-background/98 px-0 pb-0'
+            : 'border-border/60 bg-background/98 sm:max-w-[420px]'
+        "
       >
         <component
           :is="isMobileViewport ? SheetHeader : DialogHeader"
           class="px-6 pb-0 pt-6"
         >
           <component :is="isMobileViewport ? SheetTitle : DialogTitle">
-            {{ t('shared.certSourceField.chooseSourceTitle') }}
+            {{ t("shared.certSourceField.chooseSourceTitle") }}
           </component>
-          <component :is="isMobileViewport ? SheetDescription : DialogDescription">
-            {{ t('shared.certSourceField.chooseSourceDescription', { label }) }}
+          <component
+            :is="isMobileViewport ? SheetDescription : DialogDescription"
+          >
+            {{ t("shared.certSourceField.chooseSourceDescription", { label }) }}
           </component>
         </component>
 
@@ -221,7 +254,7 @@ function setSourceChooserOpen(value: boolean) {
                 <span class="text-sm font-medium">{{ uploadLabel }}</span>
                 <span class="text-xs leading-5 text-muted-foreground">
                   {{
-                    t('shared.certSourceField.localFileDescription', {
+                    t("shared.certSourceField.localFileDescription", {
                       types: supportedTypesLabel,
                     })
                   }}
@@ -237,14 +270,16 @@ function setSourceChooserOpen(value: boolean) {
             @click="chooseSharedFile"
           >
             <div class="flex min-w-0 items-start gap-3">
-              <FolderTree class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <FolderTree
+                class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+              />
               <div class="grid gap-1">
                 <span class="text-sm font-medium">
-                  {{ t('shared.certSourceField.chooseFromFnos') }}
+                  {{ t("shared.certSourceField.chooseFromFnos") }}
                 </span>
                 <span class="text-xs leading-5 text-muted-foreground">
                   {{
-                    t('shared.certSourceField.sharedFileDescription', {
+                    t("shared.certSourceField.sharedFileDescription", {
                       shareName,
                     })
                   }}
@@ -259,8 +294,12 @@ function setSourceChooserOpen(value: boolean) {
           :is="isMobileViewport ? SheetFooter : DialogFooter"
           class="border-t border-border/50 bg-background/95 px-6 py-4"
         >
-          <Button type="button" variant="outline" @click="sourceChooserOpen = false">
-            {{ t('common.cancel') }}
+          <Button
+            type="button"
+            variant="outline"
+            @click="sourceChooserOpen = false"
+          >
+            {{ t("common.cancel") }}
           </Button>
         </component>
       </component>

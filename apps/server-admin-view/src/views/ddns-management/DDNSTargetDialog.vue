@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Eye, EyeOff, RefreshCw } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ import {
   type TargetDialogState,
 } from "./model";
 import DDNSInterfaceSelectorEditor from "./DDNSInterfaceSelectorEditor.vue";
+
+const a11yId = useId();
 
 type LabelKeyOption<TValue extends string> = {
   labelKey: string;
@@ -116,7 +119,10 @@ const { t } = useI18n();
           class="p-4 sm:p-5 grid gap-3 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
         >
           <div class="space-y-1 sm:mt-1.5">
-            <Label class="text-sm font-medium">
+            <Label
+              :for="`${a11yId}-ddnstargetdialog-1`"
+              class="text-sm font-medium"
+            >
               {{ t("admin.ddns.targetEnabledLabel") }}
             </Label>
             <p class="text-xs text-muted-foreground hidden sm:block pr-4">
@@ -127,7 +133,10 @@ const { t } = useI18n();
             <div
               class="flex min-h-10 w-full items-center justify-start gap-3 sm:justify-end sm:px-3"
             >
-              <Switch v-model="state.enabled" />
+              <Switch
+                :id="`${a11yId}-ddnstargetdialog-1`"
+                v-model="state.enabled"
+              />
               <span class="text-sm text-muted-foreground">
                 {{
                   state.enabled
@@ -451,9 +460,9 @@ const { t } = useI18n();
             class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label class="text-sm font-medium">
+              <div class="text-sm font-medium">
                 {{ t("admin.ddns.interfaceAddressHelpTitle") }}
-              </Label>
+              </div>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.interfaceAddressHelp") }}
               </p>
@@ -596,6 +605,11 @@ const { t } = useI18n();
                   />
                   <button
                     type="button"
+                    :aria-label="
+                      isFieldVisible(field.key)
+                        ? t('common.hideSecret')
+                        : t('common.showSecret')
+                    "
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     @click="toggleFieldVisibility(field.key)"
                   >

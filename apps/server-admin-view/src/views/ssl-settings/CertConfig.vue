@@ -129,7 +129,9 @@
             />
 
             <Alert v-if="errorMessage" variant="destructive">
-              <AlertTitle>{{ t("admin.certConfig.validationFailed") }}</AlertTitle>
+              <AlertTitle>{{
+                t("admin.certConfig.validationFailed")
+              }}</AlertTitle>
               <AlertDescription>{{ errorMessage }}</AlertDescription>
             </Alert>
           </div>
@@ -259,7 +261,9 @@ const { isPending: isSaving, run: runSaveSSL } = useAsyncAction({
 });
 const { isPending: isClearing, run: runClearSSL } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t("admin.certConfig.disableFailed")));
+    toast.error(
+      extractErrorMessage(error, t("admin.certConfig.disableFailed")),
+    );
   },
 });
 const { isPending: isLoading, run: runLoadSSLStatus } = useAsyncAction({

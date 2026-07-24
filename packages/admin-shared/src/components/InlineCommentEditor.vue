@@ -12,10 +12,10 @@
         v-else
         ref="inputRef"
         v-model="draft"
+        :aria-label="editLabel"
         class="h-7 min-w-0 flex-1 px-2 py-1 text-sm"
         :disabled="isSaving"
         :placeholder="placeholderText"
-        autofocus
         @keyup="handleKeyup"
       />
 

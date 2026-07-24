@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Calendar, Home, Inbox, Search, Settings } from 'lucide-vue-next'
+import { useI18n } from "vue-i18n";
+import { Calendar, Home, Inbox, Search, Settings } from "lucide-vue-next";
 import {
   Sidebar,
   SidebarContent,
@@ -10,44 +10,44 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from '@/components/ui/sidebar'
+} from "@/components/ui/sidebar";
 
 const items = [
   {
-    title: 'Home',
-    url: '#',
+    title: "Home",
+    url: "#",
     icon: Home,
   },
   {
-    title: 'Inbox',
-    url: '#',
+    title: "Inbox",
+    url: "#",
     icon: Inbox,
   },
   {
-    title: 'Calendar',
-    url: '#',
+    title: "Calendar",
+    url: "#",
     icon: Calendar,
   },
   {
-    title: 'Search',
-    url: '#',
+    title: "Search",
+    url: "#",
     icon: Search,
   },
   {
-    title: 'Settings',
-    url: '#',
+    title: "Settings",
+    url: "#",
     icon: Settings,
   },
-]
+];
 
-const { t } = useI18n()
+const { t } = useI18n();
 </script>
 
 <template>
   <Sidebar>
     <SidebarContent>
       <SidebarGroup>
-        <SidebarGroupLabel>{{ t('auth.menu') }}</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ t("auth.menu") }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">

@@ -112,14 +112,15 @@ const stripPathModel = computed({
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label class="text-right">
+          <div class="text-right">
             {{ t("admin.reverseProxy.optionsLabel") }}
-          </Label>
-          <div class="col-span-3 space-y-2">
-            <div
-              v-if="!isWebSocketTarget"
-              class="flex items-center space-x-2"
-            >
+          </div>
+          <div
+            role="group"
+            :aria-label="t('admin.reverseProxy.optionsLabel')"
+            class="col-span-3 space-y-2"
+          >
+            <div v-if="!isWebSocketTarget" class="flex items-center space-x-2">
               <Switch id="rewrite" v-model="rewriteHtmlModel" />
               <Label for="rewrite">
                 {{ t("admin.reverseProxy.rewriteHtmlContent") }}
@@ -131,10 +132,7 @@ const stripPathModel = computed({
                 {{ t("admin.reverseProxy.requireAuth") }}
               </Label>
             </div>
-            <div
-              v-if="!isWebSocketTarget"
-              class="flex items-center space-x-2"
-            >
+            <div v-if="!isWebSocketTarget" class="flex items-center space-x-2">
               <Switch id="root" v-model="useRootModeModel" />
               <Label for="root">
                 {{ t("admin.reverseProxy.useRootMode") }}

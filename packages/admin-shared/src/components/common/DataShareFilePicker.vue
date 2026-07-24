@@ -103,7 +103,6 @@ const confirmTextLabel = computed(
   () => props.confirmText ?? t("shared.dataShareFilePicker.confirmText"),
 );
 
-
 const normalizedSupportedTypes = computed(() =>
   props.supportedFileTypes
     .map((value) => normalizeExtension(value))
@@ -270,7 +269,9 @@ function setOpen(value: boolean) {
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <FolderOpen class="h-4 w-4 text-muted-foreground" />
-              <p class="truncate text-sm font-medium">{{ directoryLabelText }}</p>
+              <p class="truncate text-sm font-medium">
+                {{ directoryLabelText }}
+              </p>
             </div>
             <p class="mt-1 text-xs leading-5 text-muted-foreground">
               {{ directoryStatusDescription }}
@@ -352,7 +353,10 @@ function setOpen(value: boolean) {
                       variant="outline"
                       class="rounded-full text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
                     >
-                      {{ file.extension || t("shared.dataShareFilePicker.noExtension") }}
+                      {{
+                        file.extension ||
+                        t("shared.dataShareFilePicker.noExtension")
+                      }}
                     </Badge>
                   </div>
                   <p

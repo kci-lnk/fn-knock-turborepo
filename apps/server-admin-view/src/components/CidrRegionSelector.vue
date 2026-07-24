@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, toRef } from "vue";
+import { onMounted, toRef, useId } from "vue";
 import { AlertTriangle, Loader2, Plus } from "lucide-vue-next";
 import type { AcceptableValue } from "reka-ui";
 import { useI18n } from "vue-i18n";
@@ -36,6 +36,8 @@ import {
   getCidrRegionSelectionLabel,
 } from "@/types/cidr";
 import { createCidrRegionSelectorState } from "./cidr-region-selector-state";
+
+const a11yId = useId();
 
 interface CidrRegionSelectorText {
   add: string;
@@ -205,6 +207,7 @@ onMounted(() => {
     <div
       v-if="provincesLoadError"
       class="flex items-center justify-between gap-3 rounded-md bg-destructive/5 px-3 py-2 text-xs text-destructive"
+      role="alert"
     >
       <span>{{ provincesLoadError }}</span>
       <Button type="button" variant="ghost" size="sm" @click="loadProvinces">
@@ -217,6 +220,7 @@ onMounted(() => {
         capabilityLoadError || (capabilities && !operatorFilteringSupported)
       "
       class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"
+      :role="capabilityLoadError ? 'alert' : undefined"
     >
       <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
       <div class="min-w-0 flex-1 space-y-1">
@@ -293,12 +297,17 @@ onMounted(() => {
         <div class="space-y-4 border-t border-border/60 px-6 py-5">
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
-              <Label class="text-sm font-medium">{{ text.province }}</Label>
+              <Label
+                :for="`${a11yId}-cidrregionselector-1`"
+                class="text-sm font-medium"
+                >{{ text.province }}</Label
+              >
               <Select
                 :model-value="draft.province"
                 @update:model-value="handleProvinceChange"
               >
                 <SelectTrigger
+                  :id="`${a11yId}-cidrregionselector-1`"
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
                   :disabled="disabled || provinces.length === 0"
                 >
@@ -317,7 +326,10 @@ onMounted(() => {
             </div>
 
             <div class="space-y-2">
-              <Label class="text-sm font-medium">
+              <Label
+                :for="`${a11yId}-cidrregionselector-2`"
+                class="text-sm font-medium"
+              >
                 {{ t("admin.cidrSelector.operator") }}
               </Label>
               <Select
@@ -325,6 +337,7 @@ onMounted(() => {
                 @update:model-value="handleOperatorChange"
               >
                 <SelectTrigger
+                  :id="`${a11yId}-cidrregionselector-2`"
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
                   :disabled="disabled || capabilitiesLoading"
                 >
@@ -348,7 +361,7 @@ onMounted(() => {
 
             <div class="space-y-2 sm:col-span-2">
               <div class="flex min-h-5 items-center justify-between gap-3">
-                <Label class="text-sm font-medium">{{ text.scope }}</Label>
+                <div class="text-sm font-medium">{{ text.scope }}</div>
                 <span
                   v-if="draft.province && !cityOptionsLoading"
                   class="text-xs text-muted-foreground"
@@ -358,6 +371,8 @@ onMounted(() => {
               </div>
 
               <div
+                role="group"
+                :aria-label="text.scope"
                 class="min-h-44 overflow-hidden rounded-lg border border-border/70 bg-background"
               >
                 <div

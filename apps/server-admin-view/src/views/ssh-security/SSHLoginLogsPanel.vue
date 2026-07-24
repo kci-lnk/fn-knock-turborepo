@@ -61,7 +61,10 @@ onMounted(() => {
         @search="handleLogSearch"
       />
       <Select v-model="logOutcome">
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger
+          :aria-label="t('admin.sshSecurity.allResults')"
+          class="w-[140px]"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

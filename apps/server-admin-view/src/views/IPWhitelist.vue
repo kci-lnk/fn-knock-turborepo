@@ -216,6 +216,7 @@
                       <Button
                         variant="ghost"
                         size="icon"
+                        :aria-label="t('common.confirmDelete')"
                         class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         :disabled="removingId === record.id"
                       >
@@ -352,6 +353,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.confirmDelete')"
                   class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   :disabled="removingRegionGroupId === group.id"
                 >

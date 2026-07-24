@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { RefreshCw, TriangleAlert, Upload } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import WAFRuleList from "./waf-settings/WAFRuleList.vue";
 import { useWAFSettings } from "./waf-settings/useWAFSettings";
+
+const a11yId = useId();
 
 const {
   activateRuleActions,
@@ -120,6 +123,7 @@ void uploadInputRef;
         >
           <div class="space-y-1 pr-6">
             <Label
+              :for="`${a11yId}-wafsettings-1`"
               class="cursor-pointer text-base font-medium"
               @click="handleEnabledChange(!form.enabled)"
             >
@@ -130,6 +134,7 @@ void uploadInputRef;
             </div>
           </div>
           <Switch
+            :id="`${a11yId}-wafsettings-1`"
             :model-value="form.enabled"
             :disabled="isBusy"
             @update:model-value="(value) => handleEnabledChange(value === true)"
@@ -142,6 +147,7 @@ void uploadInputRef;
         >
           <div class="space-y-1 pr-6">
             <Label
+              :for="`${a11yId}-wafsettings-2`"
               class="cursor-pointer text-base font-medium"
               @click="
                 handleAutoUpdateChange(!form.system_rules_auto_update_enabled)
@@ -154,6 +160,7 @@ void uploadInputRef;
             </div>
           </div>
           <Switch
+            :id="`${a11yId}-wafsettings-2`"
             :model-value="form.system_rules_auto_update_enabled"
             :disabled="isBusy"
             @update:model-value="
@@ -168,6 +175,7 @@ void uploadInputRef;
         >
           <div class="space-y-1 pr-6">
             <Label
+              :for="`${a11yId}-wafsettings-3`"
               class="cursor-pointer text-base font-medium"
               @click="
                 handleCommonLocationExemptChange(
@@ -182,6 +190,7 @@ void uploadInputRef;
             </div>
           </div>
           <Switch
+            :id="`${a11yId}-wafsettings-3`"
             :model-value="form.common_location_exempt_enabled"
             :disabled="isBusy"
             @update:model-value="
@@ -195,7 +204,7 @@ void uploadInputRef;
             class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]"
           >
             <div class="space-y-1 pr-6">
-              <Label class="text-base">
+              <Label :for="`${a11yId}-wafsettings-4`" class="text-base">
                 {{ t("admin.wafSettings.protectionLevel") }}
               </Label>
               <div class="text-sm text-muted-foreground">
@@ -208,7 +217,7 @@ void uploadInputRef;
                 :disabled="isBusy"
                 @update:model-value="handleParanoiaLevelChange"
               >
-                <SelectTrigger>
+                <SelectTrigger :id="`${a11yId}-wafsettings-4`">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -230,9 +239,9 @@ void uploadInputRef;
             >
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
-                  <Label class="text-base">
+                  <div class="text-base font-medium">
                     {{ t("admin.wafSettings.systemRules") }}
-                  </Label>
+                  </div>
                   <Badge
                     v-if="details?.system.update_available"
                     variant="secondary"
@@ -301,7 +310,7 @@ void uploadInputRef;
               class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
             >
               <div class="space-y-1">
-                <Label class="text-base">
+                <Label :for="`${a11yId}-wafsettings-5`" class="text-base">
                   {{ t("admin.wafSettings.customRules") }}
                 </Label>
                 <div class="text-sm text-muted-foreground">
@@ -319,6 +328,7 @@ void uploadInputRef;
                   {{ t("admin.wafSettings.uploadRules") }}
                 </Button>
                 <input
+                  :id="`${a11yId}-wafsettings-5`"
                   ref="uploadInputRef"
                   type="file"
                   class="hidden"

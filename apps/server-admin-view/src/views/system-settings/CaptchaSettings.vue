@@ -1,43 +1,61 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { ExternalLink, Eye, EyeOff } from 'lucide-vue-next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@admin-shared/utils/toast';
-import FloatingActionDock from '@admin-shared/components/common/FloatingActionDock.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import { CaptchaAPI } from '../../lib/api';
-import type { CaptchaSettings as CaptchaSettingsModel } from '@frontend-core/captcha/types';
+import { computed, onMounted, reactive, ref, useId } from "vue";
+import { useI18n } from "vue-i18n";
+import { ExternalLink, Eye, EyeOff } from "lucide-vue-next";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@admin-shared/utils/toast";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { CaptchaAPI } from "../../lib/api";
+import type { CaptchaSettings as CaptchaSettingsModel } from "@frontend-core/captcha/types";
+
+const a11yId = useId();
 
 const { t } = useI18n();
 const settings = ref<CaptchaSettingsModel | null>(null);
-const turnstileSiteFieldId = 'captcha-turnstile-public-token';
-const turnstileSecretFieldId = 'captcha-turnstile-private-token';
-const turnstileGettingStartedUrl = 'https://www.cloudflare-cn.com/application-services/products/turnstile/';
+const turnstileSiteFieldId = "captcha-turnstile-public-token";
+const turnstileSecretFieldId = "captcha-turnstile-private-token";
+const turnstileGettingStartedUrl =
+  "https://www.cloudflare-cn.com/application-services/products/turnstile/";
 const isTurnstileSiteVisible = ref(false);
 const isTurnstileSecretVisible = ref(false);
 const form = reactive<CaptchaSettingsModel>({
-  provider: 'pow',
-  widget_mode: 'normal',
+  provider: "pow",
+  widget_mode: "normal",
   pow: {},
   turnstile: {
-    site_key: '',
-    secret_key: '',
+    site_key: "",
+    secret_key: "",
   },
 });
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error(t('admin.captchaSettings.loadFailed'), {
+    toast.error(t("admin.captchaSettings.loadFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.captchaSettings.loadDescription'),
+        t("admin.captchaSettings.loadDescription"),
       ),
     });
   },
@@ -45,10 +63,10 @@ const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error(t('admin.captchaSettings.saveFailed'), {
+    toast.error(t("admin.captchaSettings.saveFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.captchaSettings.saveDescription'),
+        t("admin.captchaSettings.saveDescription"),
       ),
     });
   },
@@ -66,7 +84,7 @@ const isDirty = computed(() => {
 const applyFromSettings = (data: CaptchaSettingsModel) => {
   settings.value = data;
   form.provider = data.provider;
-  form.widget_mode = 'normal';
+  form.widget_mode = "normal";
   form.pow = {};
   form.turnstile.site_key = data.turnstile.site_key;
   form.turnstile.secret_key = data.turnstile.secret_key;
@@ -84,29 +102,30 @@ const resetForm = () => {
 };
 
 const saveSettings = async () => {
-  if (form.provider === 'turnstile') {
+  if (form.provider === "turnstile") {
     if (!form.turnstile.site_key.trim() || !form.turnstile.secret_key.trim()) {
-      toast.error(t('admin.captchaSettings.incompleteTitle'), {
-        description: t('admin.captchaSettings.incompleteDescription'),
+      toast.error(t("admin.captchaSettings.incompleteTitle"), {
+        description: t("admin.captchaSettings.incompleteDescription"),
       });
       return;
     }
   }
 
   await runSaveSettings(
-    () => CaptchaAPI.updateSettings({
-      provider: form.provider,
-      widget_mode: 'normal',
-      pow: {},
-      turnstile: {
-        site_key: form.turnstile.site_key.trim(),
-        secret_key: form.turnstile.secret_key.trim(),
-      },
-    }),
+    () =>
+      CaptchaAPI.updateSettings({
+        provider: form.provider,
+        widget_mode: "normal",
+        pow: {},
+        turnstile: {
+          site_key: form.turnstile.site_key.trim(),
+          secret_key: form.turnstile.secret_key.trim(),
+        },
+      }),
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success(t('admin.captchaSettings.updated'));
+        toast.success(t("admin.captchaSettings.updated"));
       },
     },
   );
@@ -118,9 +137,11 @@ onMounted(fetchSettings);
 <template>
   <Card>
     <CardHeader>
-      <CardTitle class="text-md">{{ t('admin.captchaSettings.title') }}</CardTitle>
+      <CardTitle class="text-md">{{
+        t("admin.captchaSettings.title")
+      }}</CardTitle>
       <CardDescription class="mt-1.5">
-        {{ t('admin.captchaSettings.description') }}
+        {{ t("admin.captchaSettings.description") }}
       </CardDescription>
     </CardHeader>
 
@@ -132,19 +153,31 @@ onMounted(fetchSettings);
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <div class="flex flex-col gap-4 bg-muted/10 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        class="flex flex-col gap-4 bg-muted/10 p-6 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div class="min-w-0 space-y-1 sm:flex-1 sm:pr-6">
-          <Label class="text-base">{{ t('admin.captchaSettings.typeLabel') }}</Label>
+          <Label :for="`${a11yId}-captchasettings-1`" class="text-base">{{
+            t("admin.captchaSettings.typeLabel")
+          }}</Label>
           <div class="text-sm text-muted-foreground">
-            {{ t('admin.captchaSettings.typeDescription') }}
+            {{ t("admin.captchaSettings.typeDescription") }}
           </div>
         </div>
         <Select v-model="form.provider" :disabled="isSaving">
-          <SelectTrigger class="w-full sm:shrink-0" style="width: min(100%, 300px);">
-            <SelectValue :placeholder="t('admin.captchaSettings.typePlaceholder')" />
+          <SelectTrigger
+            :id="`${a11yId}-captchasettings-1`"
+            class="w-full sm:shrink-0"
+            style="width: min(100%, 300px)"
+          >
+            <SelectValue
+              :placeholder="t('admin.captchaSettings.typePlaceholder')"
+            />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="pow">{{ t('admin.captchaSettings.powOption') }}</SelectItem>
+            <SelectItem value="pow">{{
+              t("admin.captchaSettings.powOption")
+            }}</SelectItem>
             <SelectItem value="turnstile">Cloudflare Turnstile</SelectItem>
           </SelectContent>
         </Select>
@@ -155,36 +188,42 @@ onMounted(fetchSettings);
         class="divide-y animate-in fade-in slide-in-from-top-2 duration-300"
       >
         <div class="grid gap-4 bg-muted/10 p-6">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          >
             <div class="space-y-1">
-              <Label class="text-base">
-                {{ t('admin.captchaSettings.turnstileSetupTitle') }}
-              </Label>
+              <div class="text-base font-medium">
+                {{ t("admin.captchaSettings.turnstileSetupTitle") }}
+              </div>
               <div class="text-sm text-muted-foreground">
-                {{ t('admin.captchaSettings.turnstileSetupDescription') }}
+                {{ t("admin.captchaSettings.turnstileSetupDescription") }}
               </div>
             </div>
             <Button as-child variant="outline" class="shrink-0">
-              <a :href="turnstileGettingStartedUrl" target="_blank" rel="noreferrer noopener">
+              <a
+                :href="turnstileGettingStartedUrl"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
                 <ExternalLink class="mr-2 h-4 w-4" />
-                {{ t('admin.captchaSettings.openTurnstile') }}
+                {{ t("admin.captchaSettings.openTurnstile") }}
               </a>
             </Button>
           </div>
           <div class="grid gap-2 text-sm text-muted-foreground">
-            <div>{{ t('admin.captchaSettings.stepLogin') }}</div>
-            <div>{{ t('admin.captchaSettings.stepCreate') }}</div>
-            <div>{{ t('admin.captchaSettings.stepCopy') }}</div>
+            <div>{{ t("admin.captchaSettings.stepLogin") }}</div>
+            <div>{{ t("admin.captchaSettings.stepCreate") }}</div>
+            <div>{{ t("admin.captchaSettings.stepCopy") }}</div>
           </div>
         </div>
 
         <div class="captcha-key-row">
           <div class="captcha-key-copy min-w-0 space-y-1">
             <Label class="text-base" :for="turnstileSiteFieldId">
-              {{ t('admin.captchaSettings.siteKey') }}
+              {{ t("admin.captchaSettings.siteKey") }}
             </Label>
             <div class="text-sm leading-relaxed text-muted-foreground">
-              {{ t('admin.captchaSettings.siteKeyDescription') }}
+              {{ t("admin.captchaSettings.siteKeyDescription") }}
             </div>
           </div>
           <div class="captcha-key-input-wrap w-full">
@@ -217,7 +256,10 @@ onMounted(fetchSettings);
                 :disabled="isSaving"
                 @click="isTurnstileSiteVisible = !isTurnstileSiteVisible"
               >
-                <component :is="isTurnstileSiteVisible ? EyeOff : Eye" class="h-4 w-4" />
+                <component
+                  :is="isTurnstileSiteVisible ? EyeOff : Eye"
+                  class="h-4 w-4"
+                />
               </button>
             </div>
           </div>
@@ -226,10 +268,10 @@ onMounted(fetchSettings);
         <div class="captcha-key-row">
           <div class="captcha-key-copy min-w-0 space-y-1">
             <Label class="text-base" :for="turnstileSecretFieldId">
-              {{ t('admin.captchaSettings.secretKey') }}
+              {{ t("admin.captchaSettings.secretKey") }}
             </Label>
             <div class="text-sm leading-relaxed text-muted-foreground">
-              {{ t('admin.captchaSettings.secretKeyDescription') }}
+              {{ t("admin.captchaSettings.secretKeyDescription") }}
             </div>
           </div>
           <div class="captcha-key-input-wrap w-full">
@@ -262,7 +304,10 @@ onMounted(fetchSettings);
                 :disabled="isSaving"
                 @click="isTurnstileSecretVisible = !isTurnstileSecretVisible"
               >
-                <component :is="isTurnstileSecretVisible ? EyeOff : Eye" class="h-4 w-4" />
+                <component
+                  :is="isTurnstileSecretVisible ? EyeOff : Eye"
+                  class="h-4 w-4"
+                />
               </button>
             </div>
           </div>
@@ -278,27 +323,41 @@ onMounted(fetchSettings);
     >
       <template #inline>
         <div class="text-sm text-muted-foreground">
-          <span v-if="isDirty">{{ t('admin.captchaSettings.dirty') }}</span>
-          <span v-else>{{ t('admin.captchaSettings.clean') }}</span>
+          <span v-if="isDirty">{{ t("admin.captchaSettings.dirty") }}</span>
+          <span v-else>{{ t("admin.captchaSettings.clean") }}</span>
         </div>
         <div class="flex gap-3">
-          <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
-            {{ t('admin.captchaSettings.discard') }}
+          <Button
+            variant="ghost"
+            @click="resetForm"
+            :disabled="!isDirty || isSaving"
+          >
+            {{ t("admin.captchaSettings.discard") }}
           </Button>
           <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-            <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-            {{ t('admin.captchaSettings.saveChanges') }}
+            <span
+              v-if="isSaving"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ t("admin.captchaSettings.saveChanges") }}
           </Button>
         </div>
       </template>
 
       <template #floating>
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
-          {{ t('admin.captchaSettings.discard') }}
+        <Button
+          variant="ghost"
+          @click="resetForm"
+          :disabled="!isDirty || isSaving"
+        >
+          {{ t("admin.captchaSettings.discard") }}
         </Button>
         <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-          <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-          {{ t('admin.captchaSettings.saveChanges') }}
+          <span
+            v-if="isSaving"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("admin.captchaSettings.saveChanges") }}
         </Button>
       </template>
     </FloatingActionDock>

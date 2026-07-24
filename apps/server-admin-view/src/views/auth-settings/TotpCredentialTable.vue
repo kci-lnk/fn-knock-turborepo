@@ -191,32 +191,29 @@ const { t } = useI18n();
                   handleAdminPanelAccessTooltipOpenChange(totp.id, $event)
                 "
               >
-                <TooltipTrigger as-child>
-                  <div
-                    class="inline-flex cursor-help items-center gap-2"
-                    tabindex="0"
-                    @click="handleAdminPanelAccessTooltipClick(totp.id)"
-                  >
-                    <Switch
-                      :model-value="hasDockerAdminPanelAccess(totp)"
-                      :disabled="isAccessScopeUpdating(totp.id)"
-                      :aria-label="t('admin.authSettings.adminPanelAccess')"
-                      @update:model-value="
-                        handleDockerAdminPanelAccessChange(
-                          totp,
-                          $event === true,
-                        )
-                      "
-                    />
-                    <span class="text-xs text-muted-foreground">
+                <div class="inline-flex items-center gap-2">
+                  <Switch
+                    :model-value="hasDockerAdminPanelAccess(totp)"
+                    :disabled="isAccessScopeUpdating(totp.id)"
+                    :aria-label="t('admin.authSettings.adminPanelAccess')"
+                    @update:model-value="
+                      handleDockerAdminPanelAccessChange(totp, $event === true)
+                    "
+                  />
+                  <TooltipTrigger as-child>
+                    <button
+                      type="button"
+                      class="cursor-help text-xs text-muted-foreground underline-offset-4 hover:underline"
+                      @click="handleAdminPanelAccessTooltipClick(totp.id)"
+                    >
                       {{
                         hasDockerAdminPanelAccess(totp)
                           ? t("admin.authSettings.adminPanelAllowed")
                           : t("admin.authSettings.adminPanelDenied")
                       }}
-                    </span>
-                  </div>
-                </TooltipTrigger>
+                    </button>
+                  </TooltipTrigger>
+                </div>
                 <TooltipContent class="max-w-72 text-left">
                   <p>{{ t("admin.authSettings.adminPanelAccessTooltip") }}</p>
                 </TooltipContent>

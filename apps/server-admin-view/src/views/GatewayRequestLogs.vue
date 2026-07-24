@@ -195,9 +195,9 @@ const detailCopyText = computed(() =>
     >
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-lg font-semibold tracking-tight">
+          <h2 class="text-lg font-semibold tracking-tight">
             {{ t("admin.gatewayRequestLogs.title") }}
-          </h1>
+          </h2>
           <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
         </div>
         <p class="text-sm text-muted-foreground">
@@ -337,7 +337,7 @@ const detailCopyText = computed(() =>
               @update:model-value="handleDateChange"
             >
               <div class="w-full min-w-0 sm:w-[148px]">
-                <SelectTrigger class="w-full min-w-0">
+                <SelectTrigger :aria-label="t('admin.gatewayRequestLogs.datePlaceholder')" class="w-full min-w-0">
                   <SelectValue
                     :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')"
                   />
@@ -359,7 +359,10 @@ const detailCopyText = computed(() =>
               @update:model-value="handleStatusChange"
             >
               <div class="w-full min-w-0 sm:w-[156px]">
-                <SelectTrigger class="w-full min-w-0">
+                <SelectTrigger
+                  :aria-label="t('admin.gatewayRequestLogs.statusPlaceholder')"
+                  class="w-full min-w-0"
+                >
                   <SelectValue
                     :placeholder="
                       t('admin.gatewayRequestLogs.statusPlaceholder')
@@ -383,7 +386,10 @@ const detailCopyText = computed(() =>
               @update:model-value="handleLoggedInChange"
             >
               <div class="w-full min-w-0 sm:w-[168px]">
-                <SelectTrigger class="w-full min-w-0">
+                <SelectTrigger
+                  :aria-label="t('admin.gatewayRequestLogs.loginPlaceholder')"
+                  class="w-full min-w-0"
+                >
                   <SelectValue
                     :placeholder="
                       t('admin.gatewayRequestLogs.loginPlaceholder')
@@ -407,7 +413,12 @@ const detailCopyText = computed(() =>
               @update:model-value="handleCredentialChange"
             >
               <div class="w-full min-w-0 sm:w-[220px]">
-                <SelectTrigger class="w-full min-w-0">
+                <SelectTrigger
+                  :aria-label="
+                    t('admin.gatewayRequestLogs.credentialPlaceholder')
+                  "
+                  class="w-full min-w-0"
+                >
                   <SelectValue
                     :placeholder="
                       t('admin.gatewayRequestLogs.credentialPlaceholder')
@@ -437,7 +448,10 @@ const detailCopyText = computed(() =>
               @update:model-value="handleWAFStatusChange"
             >
               <div class="w-full min-w-0 sm:w-[144px]">
-                <SelectTrigger class="w-full min-w-0">
+                <SelectTrigger
+                  :aria-label="t('admin.gatewayRequestLogs.wafPlaceholder')"
+                  class="w-full min-w-0"
+                >
                   <SelectValue
                     :placeholder="t('admin.gatewayRequestLogs.wafPlaceholder')"
                   />
@@ -568,7 +582,9 @@ const detailCopyText = computed(() =>
                     @update:model-value="handleLimitChange"
                   >
                     <div class="w-[96px]">
-                      <SelectTrigger>
+                      <SelectTrigger
+                        :aria-label="t('admin.gatewayRequestLogs.pageSize')"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                     </div>
@@ -632,6 +648,7 @@ const detailCopyText = computed(() =>
                 @update:model-value="handleLimitChange"
               >
                 <SelectTrigger
+                  :aria-label="t('admin.gatewayRequestLogs.pageSize')"
                   class="h-9 w-[84px] rounded-xl border-white/10 bg-white/10 text-white shadow-none hover:bg-white/15 focus-visible:border-white/30 focus-visible:ring-white/20 [&_svg]:text-white"
                 >
                   <SelectValue />

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -32,6 +32,8 @@ import type {
   GatewayPortalIconDragMode,
   GatewaySettings,
 } from "../../types";
+
+const a11yId = useId();
 
 const { t } = useI18n();
 const configStore = useConfigStore();
@@ -228,11 +230,16 @@ onMounted(() => {
         <div
           v-if="isLoading"
           class="px-5 py-12 text-center text-sm text-muted-foreground"
+          role="status"
         >
           {{ t("admin.gatewayPortalSettings.loadingConfig") }}
         </div>
 
-        <div v-else-if="loadError" class="px-5 py-4 text-sm text-destructive">
+        <div
+          v-else-if="loadError"
+          class="px-5 py-4 text-sm text-destructive"
+          role="alert"
+        >
           {{ loadError }}
         </div>
 
@@ -243,14 +250,17 @@ onMounted(() => {
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0 space-y-1.5">
-                  <Label class="text-base font-medium">{{
-                    t("admin.gatewayPortalSettings.enabled")
-                  }}</Label>
+                  <Label
+                    :for="`${a11yId}-gatewayportalsettings-1`"
+                    class="text-base font-medium"
+                    >{{ t("admin.gatewayPortalSettings.enabled") }}</Label
+                  >
                   <div class="text-sm leading-6 text-muted-foreground">
                     {{ t("admin.gatewayPortalSettings.enabledDescription") }}
                   </div>
                 </div>
                 <Switch
+                  :id="`${a11yId}-gatewayportalsettings-1`"
                   class="mt-0.5 shrink-0"
                   :model-value="form.enabled"
                   :disabled="isSaving"
@@ -265,14 +275,16 @@ onMounted(() => {
               class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
             >
               <div class="space-y-1 pr-6">
-                <Label class="text-base">{{
-                  t("admin.gatewayPortalSettings.display")
-                }}</Label>
+                <div class="text-base font-medium">
+                  {{ t("admin.gatewayPortalSettings.display") }}
+                </div>
                 <div class="text-sm text-muted-foreground">
                   {{ t("admin.gatewayPortalSettings.displayDescription") }}
                 </div>
               </div>
               <div
+                role="group"
+                :aria-label="t('admin.gatewayPortalSettings.display')"
                 class="inline-flex w-fit rounded-md border bg-background p-1"
               >
                 <Button
@@ -306,14 +318,16 @@ onMounted(() => {
               class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
             >
               <div class="space-y-1 pr-6">
-                <Label class="text-base">{{
-                  t("admin.gatewayPortalSettings.iconDragMode")
-                }}</Label>
+                <div class="text-base font-medium">
+                  {{ t("admin.gatewayPortalSettings.iconDragMode") }}
+                </div>
                 <div class="text-sm text-muted-foreground">
                   {{ t("admin.gatewayPortalSettings.iconDragModeDescription") }}
                 </div>
               </div>
               <div
+                role="group"
+                :aria-label="t('admin.gatewayPortalSettings.iconDragMode')"
                 class="inline-flex w-fit rounded-md border bg-background p-1"
               >
                 <Button
@@ -345,14 +359,17 @@ onMounted(() => {
 
             <section class="flex items-center justify-between gap-4 p-6">
               <div class="space-y-1 pr-6">
-                <Label class="text-base">{{
-                  t("admin.gatewayPortalSettings.showAppIcon")
-                }}</Label>
+                <Label
+                  :for="`${a11yId}-gatewayportalsettings-2`"
+                  class="text-base"
+                  >{{ t("admin.gatewayPortalSettings.showAppIcon") }}</Label
+                >
                 <div class="text-sm text-muted-foreground">
                   {{ t("admin.gatewayPortalSettings.showAppIconDescription") }}
                 </div>
               </div>
               <Switch
+                :id="`${a11yId}-gatewayportalsettings-2`"
                 :model-value="form.show_app_icon"
                 :disabled="isSaving"
                 @update:model-value="saveShowAppIcon($event === true)"

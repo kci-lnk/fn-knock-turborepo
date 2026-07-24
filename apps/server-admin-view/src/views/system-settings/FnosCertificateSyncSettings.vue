@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Breadcrumb,
@@ -30,6 +30,8 @@ import type {
   FnosCertificateSyncItem,
   FnosCertificateSyncStatus,
 } from "../../types";
+
+const a11yId = useId();
 
 const { t, locale } = useI18n();
 const details = ref<FnosCertificateSyncDetails | null>(null);
@@ -213,9 +215,11 @@ onMounted(load);
             class="flex flex-col gap-4 rounded-xl border border-border/60 bg-muted/10 p-5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div class="space-y-1">
-              <Label class="text-base">{{
-                t("admin.fnosCertificateSync.autoSync")
-              }}</Label>
+              <Label
+                :for="`${a11yId}-fnoscertificatesyncsettings-1`"
+                class="text-base"
+                >{{ t("admin.fnosCertificateSync.autoSync") }}</Label
+              >
               <p class="text-sm text-muted-foreground">
                 {{ t("admin.fnosCertificateSync.autoSyncDescription") }}
               </p>
@@ -233,6 +237,7 @@ onMounted(load);
               </p>
             </div>
             <Switch
+              :id="`${a11yId}-fnoscertificatesyncsettings-1`"
               :model-value="details.config.auto_sync_enabled"
               :disabled="busy || !available"
               @update:model-value="updateAutoSync($event === true)"

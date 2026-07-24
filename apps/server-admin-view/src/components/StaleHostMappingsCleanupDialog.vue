@@ -87,6 +87,7 @@
                     <TableHead class="px-4 text-center">
                       <input
                         type="checkbox"
+                        :aria-label="t('common.selectAll')"
                         class="h-4 w-4 cursor-pointer"
                         :checked="isAllStaleSelected"
                         :disabled="staleResults.length === 0"
@@ -116,6 +117,9 @@
                     <TableCell class="px-4 py-3 text-center align-top">
                       <input
                         type="checkbox"
+                        :aria-label="
+                          t('common.selectItem', { item: result.host })
+                        "
                         class="h-4 w-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                         :checked="isHostSelected(result.host)"
                         :disabled="result.status !== 'stale'"
@@ -182,6 +186,7 @@
                 <div class="flex items-start gap-3">
                   <input
                     type="checkbox"
+                    :aria-label="t('common.selectItem', { item: result.host })"
                     class="mt-1 h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     :checked="isHostSelected(result.host)"
                     :disabled="result.status !== 'stale'"

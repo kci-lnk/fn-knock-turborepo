@@ -7,9 +7,9 @@
     >
       <div class="min-w-0 space-y-1">
         <div class="flex items-center justify-between gap-3">
-          <h1 class="text-lg font-semibold tracking-tight">
+          <h2 class="text-lg font-semibold tracking-tight">
             {{ authSettingsTitle }}
-          </h1>
+          </h2>
           <DocsLinkButton class="sm:hidden" :href="docsUrls.guides.auth" />
         </div>
         <p class="text-sm text-muted-foreground">

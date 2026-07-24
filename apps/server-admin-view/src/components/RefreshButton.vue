@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
-import type { HTMLAttributes } from 'vue';
-import type { ButtonVariants } from '@/components/ui/button';
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import type { HTMLAttributes } from "vue";
+import type { ButtonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-vue-next";
 
 interface Props {
   loading?: boolean;
   disabled?: boolean;
   label?: string;
-  size?: ButtonVariants['size'];
+  size?: ButtonVariants["size"];
   iconOnly?: boolean;
-  class?: HTMLAttributes['class'];
+  class?: HTMLAttributes["class"];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
-  size: 'sm',
+  size: "sm",
   iconOnly: false,
 });
 
@@ -55,7 +55,9 @@ watch(
       return;
     }
 
-    const elapsed = spinStartedAt.value ? Date.now() - spinStartedAt.value : MIN_SPIN_DURATION_MS;
+    const elapsed = spinStartedAt.value
+      ? Date.now() - spinStartedAt.value
+      : MIN_SPIN_DURATION_MS;
     const remaining = Math.max(MIN_SPIN_DURATION_MS - elapsed, 0);
 
     stopTimer = setTimeout(() => {
@@ -71,11 +73,11 @@ onBeforeUnmount(() => {
 });
 
 const iconClass = computed(() => ({
-  'mr-1.5': !props.iconOnly,
-  'animate-spin': animationActive.value,
+  "mr-1.5": !props.iconOnly,
+  "animate-spin": animationActive.value,
 }));
 const resolvedLabel = computed(
-  () => props.label || t('admin.components.refreshButton.label'),
+  () => props.label || t("admin.components.refreshButton.label"),
 );
 </script>
 
@@ -88,10 +90,7 @@ const resolvedLabel = computed(
     :aria-label="resolvedLabel"
     @click="$emit('click')"
   >
-    <RefreshCw
-      class="h-4 w-4"
-      :class="iconClass"
-    />
+    <RefreshCw class="h-4 w-4" :class="iconClass" />
     <span v-if="!props.iconOnly">{{ resolvedLabel }}</span>
   </Button>
 </template>

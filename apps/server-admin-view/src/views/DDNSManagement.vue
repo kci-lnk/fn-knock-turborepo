@@ -527,7 +527,7 @@ onUnmounted(() => {
         <span class="text-sm text-muted-foreground">{{
           enabled ? t("admin.ddns.enabled") : t("admin.ddns.disabled")
         }}</span>
-        <Switch v-model="enabled" :disabled="isEnabledSwitchDisabled" />
+        <Switch v-model="enabled" :aria-label="t('admin.ddns.enabled')" :disabled="isEnabledSwitchDisabled" />
       </div>
     </div>
 

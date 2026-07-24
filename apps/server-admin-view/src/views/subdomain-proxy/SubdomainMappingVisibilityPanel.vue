@@ -85,7 +85,9 @@ const visibilityCustomCidrsModel = computed({
 
     <template v-if="visibilityModeModel === 'custom'">
       <section class="space-y-3 rounded-lg border px-4 py-3">
-        <Label>{{ t("admin.subdomainProxy.visibilityRegions") }}</Label>
+        <div class="text-sm font-medium">
+          {{ t("admin.subdomainProxy.visibilityRegions") }}
+        </div>
         <CidrRegionSelector
           v-model="mappingForm.visibility.selections"
           :disabled="visibilityEditor.regionInputsDisabled"

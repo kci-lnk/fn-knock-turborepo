@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
-import { copyTextToClipboard } from '../../utils/copyTextToClipboard';
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-vue-next";
+import { toast } from "../../utils/toast";
+import { copyTextToClipboard } from "../../utils/copyTextToClipboard";
 
 const props = withDefaults(
   defineProps<{
@@ -15,7 +22,13 @@ const props = withDefaults(
     maxWidthClass?: string;
     loading?: boolean;
     closeText?: string;
-    closeVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+    closeVariant?:
+      | "default"
+      | "outline"
+      | "secondary"
+      | "ghost"
+      | "destructive"
+      | "link";
     showFooter?: boolean;
     copyText?: string | null;
     copyLabel?: string;
@@ -26,24 +39,24 @@ const props = withDefaults(
     copyDisabled?: boolean;
   }>(),
   {
-    description: '',
-    maxWidthClass: 'sm:max-w-[700px]',
+    description: "",
+    maxWidthClass: "sm:max-w-[700px]",
     loading: false,
-    closeVariant: 'outline',
+    closeVariant: "outline",
     showFooter: true,
     copyDisabled: false,
   },
 );
 
 const emit = defineEmits<{
-  'update:open': [value: boolean];
+  "update:open": [value: boolean];
 }>();
 
 const { t } = useI18n();
 
 const modelOpen = computed({
   get: () => props.open,
-  set: (value: boolean) => emit('update:open', value),
+  set: (value: boolean) => emit("update:open", value),
 });
 
 const close = () => {
@@ -52,21 +65,31 @@ const close = () => {
 
 const showCopyButton = computed(() => props.copyText !== undefined);
 const canCopy = computed(
-  () => !props.copyDisabled && String(props.copyText ?? '').length > 0,
+  () => !props.copyDisabled && String(props.copyText ?? "").length > 0,
 );
-const closeText = computed(() => props.closeText ?? t('shared.detailDialog.close'));
-const copyLabel = computed(() => props.copyLabel ?? t('shared.detailDialog.copyLog'));
-const copySuccessText = computed(() => props.copySuccessText ?? t('shared.detailDialog.copySuccess'));
+const closeText = computed(
+  () => props.closeText ?? t("shared.detailDialog.close"),
+);
+const copyLabel = computed(
+  () => props.copyLabel ?? t("shared.detailDialog.copyLog"),
+);
+const copySuccessText = computed(
+  () => props.copySuccessText ?? t("shared.detailDialog.copySuccess"),
+);
 const copyUnverifiedText = computed(
-  () => props.copyUnverifiedText ?? t('shared.detailDialog.copyUnverified'),
+  () => props.copyUnverifiedText ?? t("shared.detailDialog.copyUnverified"),
 );
 const copyUnverifiedDescription = computed(
-  () => props.copyUnverifiedDescription ?? t('shared.detailDialog.copyUnverifiedDescription'),
+  () =>
+    props.copyUnverifiedDescription ??
+    t("shared.detailDialog.copyUnverifiedDescription"),
 );
-const copyErrorText = computed(() => props.copyErrorText ?? t('shared.detailDialog.copyFailed'));
+const copyErrorText = computed(
+  () => props.copyErrorText ?? t("shared.detailDialog.copyFailed"),
+);
 
 const copyDetailText = async () => {
-  const text = String(props.copyText ?? '');
+  const text = String(props.copyText ?? "");
   if (!text) return;
 
   try {
@@ -82,7 +105,7 @@ const copyDetailText = async () => {
     });
   } catch {
     toast.error(copyErrorText.value, {
-      description: t('shared.detailDialog.manualCopyHint'),
+      description: t("shared.detailDialog.manualCopyHint"),
     });
   }
 };
@@ -104,7 +127,10 @@ const copyDetailText = async () => {
       </DialogHeader>
 
       <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
-        <div v-if="props.loading" class="py-10 text-center text-muted-foreground">
+        <div
+          v-if="props.loading"
+          class="py-10 text-center text-muted-foreground"
+        >
           <Loader2 class="h-6 w-6 animate-spin mx-auto" />
         </div>
         <slot v-else />
@@ -119,7 +145,9 @@ const copyDetailText = async () => {
         >
           {{ copyLabel }}
         </Button>
-        <Button :variant="props.closeVariant" @click="close">{{ closeText }}</Button>
+        <Button :variant="props.closeVariant" @click="close">{{
+          closeText
+        }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

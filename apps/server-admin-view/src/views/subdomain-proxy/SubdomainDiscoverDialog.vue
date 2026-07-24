@@ -25,6 +25,7 @@
             <Button
               variant="outline"
               size="icon"
+              :aria-label="t('common.settings')"
               class="h-11 w-11 sm:h-9 sm:w-9"
               :disabled="isDiscovering"
               @click="emit('toggleSettings')"
@@ -102,6 +103,7 @@
                   <TableHead class="w-[50px] text-center">
                     <input
                       type="checkbox"
+                      :aria-label="t('common.selectAll')"
                       class="h-4 w-4 cursor-pointer"
                       :checked="isAllSelected"
                       @change="emitToggleAll"
@@ -137,6 +139,11 @@
                     <input
                       v-model="selectedServicesModel"
                       type="checkbox"
+                      :aria-label="
+                        t('common.selectItem', {
+                          item: `${resolveDiscoveredServiceHost(svc, discoveredData.host)}:${svc.port}`,
+                        })
+                      "
                       class="h-4 w-4 cursor-pointer"
                       :value="svc"
                     />
@@ -180,6 +187,7 @@
                       class="flex min-w-[18rem] items-stretch rounded-md border"
                     >
                       <Input
+                        aria-label="service"
                         v-model="svc.suggestedSubdomain"
                         placeholder="service"
                         class="h-8 rounded-none border-0 text-sm shadow-none focus-visible:ring-0"
@@ -206,9 +214,7 @@
       <DialogFooter
         class="mt-2 shrink-0 items-center sm:flex-nowrap sm:justify-between"
       >
-        <span
-          class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1"
-        >
+        <span class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1">
           <template v-if="discoveredData">
             {{
               t("admin.subdomainProxy.selectedItems", {

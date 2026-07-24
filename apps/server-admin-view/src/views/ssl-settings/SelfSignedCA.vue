@@ -114,7 +114,7 @@
       </CardHeader>
       <CardContent class="grid gap-3">
         <div class="flex gap-2">
-          <Input v-model="newHost" :placeholder="t('admin.selfSignedCA.hostPlaceholder')" @keydown.enter.prevent="addHost" />
+          <Input :aria-label="t('admin.selfSignedCA.hostPlaceholder')" v-model="newHost" :placeholder="t('admin.selfSignedCA.hostPlaceholder')" @keydown.enter.prevent="addHost" />
           <Button @click="addHost" :disabled="!pendingHosts.length">{{ t('admin.selfSignedCA.add') }}</Button>
         </div>
         <div class="rounded-md border overflow-hidden">

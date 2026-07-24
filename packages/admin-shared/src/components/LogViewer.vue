@@ -1,46 +1,46 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 export interface LogViewerProps {
   /** Log lines, as strings or arbitrary objects. */
-  logs?: unknown[]
+  logs?: unknown[];
   /** Optional title. */
-  title?: string
+  title?: string;
   /** Whether to show newest first. */
-  reversed?: boolean
+  reversed?: boolean;
   /** Optional empty-state text. */
-  emptyText?: string
+  emptyText?: string;
   /** Container height class. */
-  heightClass?: string
+  heightClass?: string;
   /** Whether to wrap log lines. */
-  wrap?: boolean
+  wrap?: boolean;
   /** Whether to show the header. */
-  showHeader?: boolean
+  showHeader?: boolean;
   /** Theme: dark terminal style or light panel style. */
-  theme?: 'dark' | 'light'
+  theme?: "dark" | "light";
 }
 
 const props = withDefaults(defineProps<LogViewerProps>(), {
   logs: () => [],
   reversed: false,
-  heightClass: 'h-72',
+  heightClass: "h-72",
   wrap: false,
   showHeader: true,
-  theme: 'light',
-})
+  theme: "light",
+});
 
-const { t } = useI18n()
+const { t } = useI18n();
 
 const displayLogs = computed(() =>
   props.reversed ? [...props.logs].reverse() : props.logs,
-)
+);
 
-const isDark = computed(() => props.theme === 'dark')
-const titleText = computed(() => props.title ?? t('shared.logViewer.title'))
+const isDark = computed(() => props.theme === "dark");
+const titleText = computed(() => props.title ?? t("shared.logViewer.title"));
 const emptyTextLabel = computed(
-  () => props.emptyText ?? t('shared.logViewer.emptyText'),
-)
+  () => props.emptyText ?? t("shared.logViewer.emptyText"),
+);
 </script>
 
 <template>
@@ -53,8 +53,18 @@ const emptyTextLabel = computed(
       class="flex items-center justify-between gap-2 border-b px-3 py-2"
       :class="isDark ? 'border-white/10' : 'border-border'"
     >
-      <div class="text-xs font-medium" :class="isDark ? 'text-white/80' : 'text-foreground'">{{ titleText }}</div>
-      <div class="text-xs" :class="isDark ? 'text-white/40' : 'text-muted-foreground'">{{ t('shared.logViewer.lineCount', { count: logs.length }) }}</div>
+      <div
+        class="text-xs font-medium"
+        :class="isDark ? 'text-white/80' : 'text-foreground'"
+      >
+        {{ titleText }}
+      </div>
+      <div
+        class="text-xs"
+        :class="isDark ? 'text-white/40' : 'text-muted-foreground'"
+      >
+        {{ t("shared.logViewer.lineCount", { count: logs.length }) }}
+      </div>
     </div>
     <div
       :class="[
@@ -63,14 +73,21 @@ const emptyTextLabel = computed(
         isDark ? 'text-green-200' : 'text-foreground',
       ]"
     >
-      <div v-if="logs.length === 0" :class="isDark ? 'text-white/50' : 'text-muted-foreground'">{{ emptyTextLabel }}</div>
+      <div
+        v-if="logs.length === 0"
+        :class="isDark ? 'text-white/50' : 'text-muted-foreground'"
+      >
+        {{ emptyTextLabel }}
+      </div>
       <template v-else>
         <slot :logs="displayLogs">
           <div
             v-for="(line, idx) in displayLogs"
             :key="idx"
             :class="wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'"
-          >{{ line }}</div>
+          >
+            {{ line }}
+          </div>
         </slot>
       </template>
     </div>

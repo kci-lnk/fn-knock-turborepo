@@ -1,41 +1,53 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import type { HTMLAttributes } from 'vue';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { useMediaQueryMatch } from '@admin-shared/composables/useMediaQueryMatch';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import type { HTMLAttributes } from "vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 
-const props = withDefaults(defineProps<{
-  text: string | number | null | undefined;
-  emptyText?: string;
-  as?: string;
-  class?: HTMLAttributes['class'];
-  tooltipClass?: HTMLAttributes['class'];
-  tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
-  tooltipAlign?: 'start' | 'center' | 'end';
-}>(), {
-  emptyText: '-',
-  as: 'span',
-  tooltipSide: 'top',
-  tooltipAlign: 'center',
-});
+const props = withDefaults(
+  defineProps<{
+    text: string | number | null | undefined;
+    emptyText?: string;
+    as?: string;
+    class?: HTMLAttributes["class"];
+    tooltipClass?: HTMLAttributes["class"];
+    tooltipSide?: "top" | "right" | "bottom" | "left";
+    tooltipAlign?: "start" | "center" | "end";
+  }>(),
+  {
+    emptyText: "-",
+    as: "span",
+    tooltipSide: "top",
+    tooltipAlign: "center",
+  },
+);
 
 const open = ref(false);
 const isOverflowing = ref(false);
-const isTouchInteraction = useMediaQueryMatch('(hover: none), (pointer: coarse)');
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse)",
+);
 const textRef = ref<HTMLElement | null>(null);
 
 let resizeObserver: ResizeObserver | null = null;
 
 const resolvedText = computed(() => {
   const value = props.text;
-  if (value === null || value === undefined || value === '') {
+  if (value === null || value === undefined || value === "") {
     return props.emptyText;
   }
   return String(value);
 });
 
-const showTooltip = computed(() => isOverflowing.value && resolvedText.value !== props.emptyText);
+const showTooltip = computed(
+  () => isOverflowing.value && resolvedText.value !== props.emptyText,
+);
 
 const measureOverflow = async () => {
   await nextTick();
@@ -64,7 +76,7 @@ const handleTriggerClick = () => {
 const reconnectResizeObserver = (element: HTMLElement | null) => {
   resizeObserver?.disconnect();
 
-  if (!element || typeof ResizeObserver === 'undefined') {
+  if (!element || typeof ResizeObserver === "undefined") {
     return;
   }
 
@@ -74,9 +86,13 @@ const reconnectResizeObserver = (element: HTMLElement | null) => {
   resizeObserver.observe(element);
 };
 
-watch(() => resolvedText.value, () => {
-  void measureOverflow();
-}, { immediate: true });
+watch(
+  () => resolvedText.value,
+  () => {
+    void measureOverflow();
+  },
+  { immediate: true },
+);
 
 watch(textRef, (element) => {
   reconnectResizeObserver(element);
@@ -110,15 +126,14 @@ onUnmounted(() => {
   </component>
 
   <TooltipProvider v-else>
-    <Tooltip
-      :open="open"
-      @update:open="handleOpenChange"
-    >
+    <Tooltip :open="open" @update:open="handleOpenChange">
       <TooltipTrigger as-child>
         <component
           :is="as"
           ref="textRef"
-          :class="cn('block min-w-0 max-w-full truncate cursor-help', props.class)"
+          :class="
+            cn('block min-w-0 max-w-full truncate cursor-help', props.class)
+          "
           tabindex="0"
           @click="handleTriggerClick"
         >
@@ -128,7 +143,12 @@ onUnmounted(() => {
       <TooltipContent
         :side="tooltipSide"
         :align="tooltipAlign"
-        :class="cn('max-w-[min(32rem,calc(100vw-2rem))] break-all', props.tooltipClass)"
+        :class="
+          cn(
+            'max-w-[min(32rem,calc(100vw-2rem))] break-all',
+            props.tooltipClass,
+          )
+        "
       >
         <p>{{ resolvedText }}</p>
       </TooltipContent>

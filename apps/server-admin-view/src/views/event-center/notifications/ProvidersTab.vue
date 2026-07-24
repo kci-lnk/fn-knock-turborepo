@@ -144,6 +144,7 @@ const {
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.test')"
                   :disabled="testingId === provider.id"
                   @click="testProvider(provider)"
                 >
@@ -152,6 +153,7 @@ const {
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.edit')"
                   :disabled="editingId === provider.id"
                   @click="openEditDialog(provider)"
                 >
@@ -174,6 +176,7 @@ const {
                     <Button
                       variant="ghost"
                       size="icon"
+                      :aria-label="t('common.confirmDelete')"
                       class="text-destructive"
                       :disabled="deletingId === provider.id"
                     >

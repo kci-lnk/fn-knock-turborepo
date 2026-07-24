@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { AlertTriangle, Loader2, Send } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +25,8 @@ import { Switch } from "@/components/ui/switch";
 import type { NotificationProviderDefinition } from "@/types";
 import SchemaFieldsEditor from "./SchemaFieldsEditor.vue";
 import type { EditableProviderForm, ProviderDialogMode } from "./form-utils";
+
+const a11yId = useId();
 
 defineProps<{
   catalog: NotificationProviderDefinition[];
@@ -67,8 +70,11 @@ const { t } = useI18n();
       <div class="space-y-5 py-2">
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
-            <Label>{{ t("admin.notifications.providers.name") }}</Label>
+            <Label :for="`${a11yId}-providereditordialog-1`">{{
+              t("admin.notifications.providers.name")
+            }}</Label>
             <Input
+              :id="`${a11yId}-providereditordialog-1`"
               v-model="form.name"
               :placeholder="generatedProviderName"
               :disabled="saving"
@@ -85,7 +91,7 @@ const { t } = useI18n();
           </div>
 
           <div class="space-y-2">
-            <Label>
+            <Label :for="`${a11yId}-providereditordialog-2`">
               {{ t("admin.notifications.providers.providerType") }}
             </Label>
             <Select
@@ -93,7 +99,7 @@ const { t } = useI18n();
               :disabled="mode === 'edit'"
               @update:model-value="emit('type-change', $event)"
             >
-              <SelectTrigger>
+              <SelectTrigger :id="`${a11yId}-providereditordialog-2`">
                 <SelectValue
                   :placeholder="
                     t('admin.notifications.providers.selectProviderType')
@@ -131,7 +137,10 @@ const { t } = useI18n();
           <div class="text-sm font-medium">
             {{ t("admin.notifications.providers.enabledStatus") }}
           </div>
-          <Switch v-model="form.enabled" />
+          <Switch
+            v-model="form.enabled"
+            :aria-label="t('admin.notifications.providers.enabledStatus')"
+          />
         </div>
 
         <div v-if="selectedDefinition" class="space-y-3">

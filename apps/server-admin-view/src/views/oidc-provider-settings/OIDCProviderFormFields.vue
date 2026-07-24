@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { OIDCProviderCatalogItem } from "@/types";
 import type { OIDCProviderForm } from "./oidcProviderForm";
+
+const a11yId = useId();
 
 defineProps<{
   catalog: OIDCProviderCatalogItem[];
@@ -149,11 +152,17 @@ const { t } = useI18n();
       v-if="mode === 'edit'"
       class="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
     >
-      <Label class="text-sm font-medium">
+      <Label
+        :for="`${a11yId}-oidcproviderformfields-1`"
+        class="text-sm font-medium"
+      >
         {{ t("admin.oidcProviders.enabledStatus") }}
       </Label>
       <div class="flex items-center gap-3">
-        <Switch v-model="form.enabled" />
+        <Switch
+          :id="`${a11yId}-oidcproviderformfields-1`"
+          v-model="form.enabled"
+        />
         <span class="text-sm text-muted-foreground">
           {{
             form.enabled

@@ -59,7 +59,8 @@ const hintText = computed(
 );
 const resolvedSuggestionsLabel = computed(
   () =>
-    props.suggestionsLabel ?? t("shared.proxyTargetInputField.suggestionsLabel"),
+    props.suggestionsLabel ??
+    t("shared.proxyTargetInputField.suggestionsLabel"),
 );
 const shouldShowSuggestions = computed(
   () =>
@@ -170,7 +171,9 @@ defineExpose({
               role="combobox"
               aria-autocomplete="list"
               :aria-expanded="shouldShowSuggestions"
-              :aria-controls="shouldShowSuggestions ? suggestionListId : undefined"
+              :aria-controls="
+                shouldShowSuggestions ? suggestionListId : undefined
+              "
               class="w-full"
               @focus="handleEndpointFocus"
               @blur="handleEndpointBlur"
@@ -199,6 +202,7 @@ defineExpose({
               :key="suggestion"
               type="button"
               role="option"
+              aria-selected="false"
               class="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
               @mousedown.prevent
               @focus="handleSuggestionFocus"

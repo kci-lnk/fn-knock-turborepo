@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { Shield } from "lucide-vue-next";
@@ -28,6 +28,8 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import type { GatewayVisibilitySelection } from "../../types";
 import { getCidrRegionSelectionKey } from "../../types/cidr";
+
+const a11yId = useId();
 
 const settings = ref<ScannerSettings | null>(null);
 const baseWindowMinutes = 5;
@@ -213,6 +215,7 @@ const goToBlacklist = () => {
       <div class="flex items-center justify-between p-6 bg-muted/10">
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-scannerfirewallsettings-1`"
             class="text-base font-medium cursor-pointer"
             @click="form.enabled = !form.enabled"
           >
@@ -222,7 +225,10 @@ const goToBlacklist = () => {
             {{ t("admin.scannerFirewallSettings.enableDescription") }}
           </div>
         </div>
-        <Switch v-model="form.enabled" />
+        <Switch
+          :id="`${a11yId}-scannerfirewallsettings-1`"
+          v-model="form.enabled"
+        />
       </div>
 
       <div
@@ -232,6 +238,7 @@ const goToBlacklist = () => {
         <div class="flex items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
             <Label
+              :for="`${a11yId}-scannerfirewallsettings-2`"
               class="text-base font-medium cursor-pointer"
               @click="
                 form.commonLocationExemptEnabled =
@@ -248,13 +255,16 @@ const goToBlacklist = () => {
               }}
             </div>
           </div>
-          <Switch v-model="form.commonLocationExemptEnabled" />
+          <Switch
+            :id="`${a11yId}-scannerfirewallsettings-2`"
+            v-model="form.commonLocationExemptEnabled"
+          />
         </div>
 
         <div class="flex flex-col p-6 gap-4">
-          <Label class="text-base">
+          <div class="text-base font-medium">
             {{ t("admin.scannerFirewallSettings.cidrExemptionRegionsTitle") }}
-          </Label>
+          </div>
           <CidrRegionSelector
             v-model="form.cidrExemptionRegions"
             :disabled="regionInputsDisabled"
@@ -341,7 +351,10 @@ const goToBlacklist = () => {
           class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">
+            <Label
+              :for="`${a11yId}-scannerfirewallsettings-3`"
+              class="text-base"
+            >
               {{ t("admin.scannerFirewallSettings.windowTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
@@ -360,6 +373,7 @@ const goToBlacklist = () => {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input
+              :id="`${a11yId}-scannerfirewallsettings-3`"
               v-model.number="form.windowMinutes"
               type="number"
               min="1"
@@ -375,7 +389,10 @@ const goToBlacklist = () => {
           class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">
+            <Label
+              :for="`${a11yId}-scannerfirewallsettings-4`"
+              class="text-base"
+            >
               {{ t("admin.scannerFirewallSettings.thresholdTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
@@ -384,6 +401,7 @@ const goToBlacklist = () => {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input
+              :id="`${a11yId}-scannerfirewallsettings-4`"
               v-model.number="form.threshold"
               type="number"
               min="1"
@@ -399,7 +417,10 @@ const goToBlacklist = () => {
           class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">
+            <Label
+              :for="`${a11yId}-scannerfirewallsettings-5`"
+              class="text-base"
+            >
               {{ t("admin.scannerFirewallSettings.blacklistTtlTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
@@ -408,6 +429,7 @@ const goToBlacklist = () => {
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input
+              :id="`${a11yId}-scannerfirewallsettings-5`"
               v-model.number="form.blacklistTtlDays"
               type="number"
               min="1"

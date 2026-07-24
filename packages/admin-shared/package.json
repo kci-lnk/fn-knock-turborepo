@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "scripts": {
+    "lint": "eslint . --max-warnings=0"
+  },
   "dependencies": {
     "@fn-knock/frontend-core": "^0.0.0",
     "@fn-knock/ui-vue": "^0.0.0",
@@ -10,5 +13,9 @@
     "vue": "^3.5.25",
     "vue-i18n": "^10.0.8",
     "vue-sonner": "^2.0.9"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "^0.0.0",
+    "eslint": "^9.39.5"
   }
 }

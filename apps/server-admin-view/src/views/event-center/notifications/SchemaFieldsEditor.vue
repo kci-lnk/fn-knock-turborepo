@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { NotificationSchemaField } from "../../../types";
+
+const a11yId = useId();
 
 const { t } = useI18n();
 
@@ -75,7 +77,10 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
       class="grid gap-2 rounded-md border border-border/60 p-3"
     >
       <div class="space-y-1">
-        <Label class="text-sm font-medium">
+        <Label
+          :for="`${a11yId}-schemafieldseditor-1`"
+          class="text-sm font-medium"
+        >
           {{ field.label }}
           <span v-if="field.required" class="text-destructive">*</span>
         </Label>
@@ -85,6 +90,7 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
       </div>
 
       <Input
+        :id="`${a11yId}-schemafieldseditor-1`"
         v-if="field.type === 'string'"
         :type="
           field.sensitive && !props.revealSensitiveValues ? 'password' : 'text'
@@ -95,6 +101,7 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
       />
 
       <Input
+        :aria-label="resolvePlaceholder(field)"
         v-else-if="field.type === 'number'"
         type="number"
         :min="field.min"
@@ -109,7 +116,7 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
         :model-value="String(readFieldValue(field) ?? '')"
         @update:model-value="(value) => updateField(field.key, value)"
       >
-        <SelectTrigger>
+        <SelectTrigger :aria-label="resolvePlaceholder(field)" || field.label>
           <SelectValue
             :placeholder="resolvePlaceholder(field) || field.label"
           />
@@ -138,11 +145,13 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
         </div>
         <Switch
           :model-value="Boolean(readFieldValue(field))"
+          :aria-label="field.label"
           @update:model-value="(value) => updateField(field.key, value)"
         />
       </div>
 
       <Textarea
+        :aria-label="resolvePlaceholder(field)"
         v-else
         class="min-h-[110px] font-mono text-xs"
         :model-value="String(readFieldValue(field) ?? '')"

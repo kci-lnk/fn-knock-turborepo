@@ -198,7 +198,8 @@ const jobProgress = computed(() => {
 const jobStatusLabel = computed(() => {
   if (props.job.status === "queued") return t("admin.acmeJobPanel.queued");
   if (props.job.status === "running") return t("admin.acmeJobPanel.running");
-  if (props.job.status === "succeeded") return t("admin.acmeJobPanel.succeeded");
+  if (props.job.status === "succeeded")
+    return t("admin.acmeJobPanel.succeeded");
   if (props.job.status === "failed") return t("admin.acmeJobPanel.failed");
   if (props.job.status === "stopped") return t("admin.acmeJobPanel.stopped");
   return props.job.status || t("admin.acmeJobPanel.unknown");

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Card,
@@ -32,6 +32,8 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
 import { useConfigStore } from "../../store/config";
+
+const a11yId = useId();
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -105,8 +107,10 @@ const tmuxProgress = computed(() => {
 });
 const tmuxStatusLabel = computed(() => {
   const status = tmuxInstallState.value.status;
-  if (status === "installed") return t("admin.terminalSettings.statusInstalled");
-  if (status === "installing") return t("admin.terminalSettings.statusInstalling");
+  if (status === "installed")
+    return t("admin.terminalSettings.statusInstalled");
+  if (status === "installing")
+    return t("admin.terminalSettings.statusInstalling");
   if (status === "error") return t("admin.terminalSettings.statusError");
   return t("admin.terminalSettings.statusUninstalled");
 });
@@ -264,6 +268,7 @@ onMounted(loadSettings);
           >
             <div class="space-y-1 pr-6">
               <Label
+                :for="`${a11yId}-terminalsettings-1`"
                 class="cursor-pointer text-base font-medium"
                 @click="form.enabled = !form.enabled"
               >
@@ -273,7 +278,11 @@ onMounted(loadSettings);
                 {{ t("admin.terminalSettings.enableDescription") }}
               </p>
             </div>
-            <Switch v-model="form.enabled" :disabled="isSaving" />
+            <Switch
+              :id="`${a11yId}-terminalsettings-1`"
+              v-model="form.enabled"
+              :disabled="isSaving"
+            />
           </div>
         </template>
 
@@ -287,7 +296,8 @@ onMounted(loadSettings);
               <p>
                 <span class="text-foreground">{{
                   t("admin.terminalSettings.statusLabel")
-                }}</span>{{ tmuxStatusLabel }}
+                }}</span
+                >{{ tmuxStatusLabel }}
               </p>
               <p>
                 <span class="text-foreground">{{

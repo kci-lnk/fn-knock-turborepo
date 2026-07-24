@@ -176,6 +176,8 @@ onUnmounted(() => {
         :aria-expanded="open"
         @mouseenter="handleTriggerEnter"
         @mouseleave="handleTriggerLeave"
+        @focus="handleTriggerEnter"
+        @blur="handleTriggerLeave"
         @click="handleTriggerClick"
       >
         <img
@@ -198,6 +200,8 @@ onUnmounted(() => {
       class="w-[min(20rem,calc(100vw-1rem))] px-3 py-2.5"
       @mouseenter="handleContentEnter"
       @mouseleave="handleContentLeave"
+      @focusin="handleContentEnter"
+      @focusout="handleContentLeave"
     >
       <div class="flex items-center gap-2">
         <img
@@ -207,7 +211,9 @@ onUnmounted(() => {
         />
         <div class="text-sm font-medium">{{ resolvedTitle }}</div>
         <div class="ml-auto text-xs text-muted-foreground">
-          {{ t("admin.sessions.attachments.count", { count: attachmentCount }) }}
+          {{
+            t("admin.sessions.attachments.count", { count: attachmentCount })
+          }}
         </div>
       </div>
 

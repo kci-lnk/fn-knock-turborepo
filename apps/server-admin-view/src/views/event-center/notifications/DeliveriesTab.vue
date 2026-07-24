@@ -94,12 +94,24 @@ const {
         <Table class="min-w-[980px]">
           <TableHeader>
             <TableRow>
-              <TableHead>{{ t("admin.notifications.deliveries.time") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.deliveries.rule") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.deliveries.provider") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.deliveries.status") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.deliveries.message") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.deliveries.attempts") }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.time")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.rule")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.provider")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.status")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.message")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.notifications.deliveries.attempts")
+              }}</TableHead>
               <TableHead class="w-[110px] text-right">
                 {{ t("admin.notifications.deliveries.actions") }}
               </TableHead>
@@ -158,6 +170,7 @@ const {
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.viewDetails')"
                   :disabled="clearing"
                   @click="openDetails(delivery)"
                 >

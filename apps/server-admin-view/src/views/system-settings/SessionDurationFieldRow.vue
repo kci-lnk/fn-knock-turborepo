@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -73,9 +72,9 @@ const unitModel = computed({
     ]"
   >
     <div class="space-y-1 pr-6">
-      <Label class="text-base">
+      <div class="text-base font-medium">
         {{ title }}
-      </Label>
+      </div>
       <div class="text-sm text-muted-foreground">
         {{ description }}
       </div>
@@ -83,6 +82,7 @@ const unitModel = computed({
     <div class="flex shrink-0 items-center gap-2">
       <Input
         v-model.number="valueModel"
+        :aria-label="title"
         type="number"
         min="1"
         step="1"
@@ -90,7 +90,7 @@ const unitModel = computed({
         :disabled="disabled"
       />
       <Select v-model="unitModel" :disabled="disabled">
-        <SelectTrigger class="w-[110px]">
+        <SelectTrigger :aria-label="title" class="w-[110px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -88,6 +88,7 @@ const { t } = useI18n();
           <p
             v-else-if="gatewaySyncError"
             class="text-xs text-amber-600 dark:text-amber-400"
+            role="alert"
           >
             {{ gatewaySyncError }}
           </p>

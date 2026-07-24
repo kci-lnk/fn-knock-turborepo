@@ -12,7 +12,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watchEffect } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { ThemeModeToggle, useThemeMode } from "@/components/ui/theme-toggle";
 import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
 import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@frontend-core/appearance";
@@ -20,9 +22,21 @@ import { useAppearanceState } from "@admin-shared/composables/useAppearanceState
 
 const { activeThemeColorPreset } = useAppearanceState();
 const { resolvedMode } = useThemeMode();
+const route = useRoute();
+const { t } = useI18n();
 const isDynamicWhiteActive = computed(
   () =>
     resolvedMode.value === "light" &&
     activeThemeColorPreset.value === DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY,
 );
+
+watchEffect(() => {
+  const title =
+    route.name === "OidcBind"
+      ? t("auth.oidcBind.title")
+      : route.name === "NotFound"
+        ? "404"
+        : t("auth.title");
+  document.title = `${title} · fn-knock`;
+});
 </script>

@@ -89,11 +89,15 @@ const { t } = useI18n();
                 {{ t("admin.certConfig.fieldValidity") }}
               </span>
               <span class="min-w-0 text-xs">
-                <span>{{ formatDate(activeCertificate.certInfo.validFrom) }}</span>
+                <span>{{
+                  formatDate(activeCertificate.certInfo.validFrom)
+                }}</span>
                 <span class="mx-1 text-muted-foreground">
                   {{ t("admin.certConfig.to") }}
                 </span>
-                <span :class="isExpired ? 'font-semibold text-destructive' : ''">
+                <span
+                  :class="isExpired ? 'font-semibold text-destructive' : ''"
+                >
                   {{ formatDate(activeCertificate.certInfo.validTo) }}
                 </span>
                 <Badge
@@ -218,10 +222,7 @@ const { t } = useI18n();
               v-if="subdomainCoverage.warnings.length"
               class="grid gap-1 text-xs text-muted-foreground"
             >
-              <div
-                v-for="warning in subdomainCoverage.warnings"
-                :key="warning"
-              >
+              <div v-for="warning in subdomainCoverage.warnings" :key="warning">
                 {{ warning }}
               </div>
             </div>

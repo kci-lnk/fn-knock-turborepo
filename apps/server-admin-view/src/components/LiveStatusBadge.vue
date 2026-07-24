@@ -1,43 +1,49 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 interface Props {
-  active: boolean
-  activeLabel?: string
-  inactiveLabel?: string
-  pulse?: boolean
-  size?: 'xs' | 'sm' | 'md'
-  class?: string
+  active: boolean;
+  activeLabel?: string;
+  inactiveLabel?: string;
+  pulse?: boolean;
+  size?: "xs" | "sm" | "md";
+  class?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   pulse: true,
-  size: 'sm',
-  class: '',
-})
+  size: "sm",
+  class: "",
+});
 
-const { t } = useI18n()
+const { t } = useI18n();
 const label = computed(() =>
   props.active
-    ? props.activeLabel ?? t('common.active')
-    : props.inactiveLabel ?? t('common.inactive'),
-)
+    ? (props.activeLabel ?? t("common.active"))
+    : (props.inactiveLabel ?? t("common.inactive")),
+);
 const dotClass = computed(() =>
-  props.active ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]' : 'bg-zinc-300',
-)
+  props.active
+    ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]"
+    : "bg-zinc-300",
+);
 const sizeClass = computed(() => {
-  if (props.size === 'xs') return 'h-[6px] w-[6px]'
-  if (props.size === 'md') return 'h-2.5 w-2.5'
-  return 'h-2 w-2'
-})
+  if (props.size === "xs") return "h-[6px] w-[6px]";
+  if (props.size === "md") return "h-2.5 w-2.5";
+  return "h-2 w-2";
+});
 </script>
 
 <template>
   <span
     :aria-label="label"
     :title="label"
-    :class="['relative inline-flex shrink-0 align-middle', sizeClass, props.class]"
+    :class="[
+      'relative inline-flex shrink-0 align-middle',
+      sizeClass,
+      props.class,
+    ]"
     role="status"
   >
     <span

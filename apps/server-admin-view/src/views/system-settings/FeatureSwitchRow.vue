@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useId } from "vue";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+
+const a11yId = useId();
 
 const props = withDefaults(
   defineProps<{
@@ -30,7 +32,7 @@ const displayedValue = computed(() =>
   props.available ? props.modelValue : false,
 );
 const titleClass = computed(() => {
-  if (!props.available) return "cursor-not-allowed text-zinc-500";
+  if (!isInteractive.value) return "cursor-not-allowed text-zinc-500";
   if (props.error) return "cursor-pointer text-red-600";
   return "cursor-pointer";
 });
@@ -50,9 +52,9 @@ const requestChange = (value = !props.modelValue) => {
   <div class="flex items-center justify-between bg-muted/10 p-6">
     <div class="space-y-1 pr-6">
       <Label
+        :for="`${a11yId}-featureswitchrow-1`"
         class="text-base font-medium"
         :class="titleClass"
-        @click="requestChange()"
       >
         {{ title }}
       </Label>
@@ -61,15 +63,24 @@ const requestChange = (value = !props.modelValue) => {
       </div>
       <div
         v-if="error || (!available && disabledReason)"
+        :id="`${a11yId}-featureswitchrow-status`"
         class="text-xs leading-5"
         :class="error ? 'text-red-600' : 'text-zinc-500'"
+        :role="error ? 'alert' : undefined"
       >
         {{ error || disabledReason }}
       </div>
     </div>
     <Switch
+      :id="`${a11yId}-featureswitchrow-1`"
       :model-value="displayedValue"
       :disabled="!available || disabled"
+      :aria-describedby="
+        error || (!available && disabledReason)
+          ? `${a11yId}-featureswitchrow-status`
+          : undefined
+      "
+      :aria-invalid="Boolean(error)"
       @update:model-value="requestChange($event === true)"
     />
   </div>

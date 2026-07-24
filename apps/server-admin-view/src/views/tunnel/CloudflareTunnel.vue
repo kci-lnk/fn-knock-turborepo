@@ -140,6 +140,11 @@ const {
                   />
                   <button
                     type="button"
+                    :aria-label="
+                      showToken
+                        ? t('common.hideSecret')
+                        : t('common.showSecret')
+                    "
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                     @click="showToken = !showToken"
                   >
@@ -160,7 +165,8 @@ const {
                       target="_blank"
                       rel="noopener noreferrer"
                       class="font-medium text-primary hover:underline"
-                    >Cloudflare Zero Trust Dashboard</a>
+                      >Cloudflare Zero Trust Dashboard</a
+                    >
                   </p>
                   <p>{{ t("admin.cloudflareTunnel.createTunnelHint") }}</p>
                   <p>{{ t("admin.cloudflareTunnel.copyTokenHint") }}</p>

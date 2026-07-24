@@ -38,6 +38,7 @@ const { t } = useI18n();
       </DialogHeader>
 
       <Input
+        :aria-label="t('admin.webTerminal.renameDialogPlaceholder')"
         :model-value="value"
         :placeholder="t('admin.webTerminal.renameDialogPlaceholder')"
         :disabled="renaming"
@@ -53,7 +54,10 @@ const { t } = useI18n();
         >
           {{ t("common.cancel") }}
         </Button>
-        <Button :disabled="!value.trim().length || renaming" @click="emit('submit')">
+        <Button
+          :disabled="!value.trim().length || renaming"
+          @click="emit('submit')"
+        >
           <LoaderCircle v-if="renaming" class="mr-1.5 h-4 w-4 animate-spin" />
           {{ t("common.save") }}
         </Button>

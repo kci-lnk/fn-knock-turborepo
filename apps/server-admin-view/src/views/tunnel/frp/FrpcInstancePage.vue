@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 import {
   ConfigAPI,
   FrpcAPI,
   type FrpcInstanceStatus,
   type FrpcInstanceSummary,
-} from '../../../lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+} from "../../../lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,274 +16,296 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ArrowLeft, Play, Save, Square, Trash2 } from 'lucide-vue-next'
-import { toast } from '@admin-shared/utils/toast'
-import LogViewer from '@admin-shared/components/LogViewer.vue'
-import HumanFriendlyTime from '@admin-shared/components/common/HumanFriendlyTime.vue'
-import { extractErrorMessage } from '@admin-shared/composables/useAsyncAction'
-import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
-import { useConfigStore } from '../../../store/config'
-import LiveStatusBadge from '../../../components/LiveStatusBadge.vue'
-import FrpcInstanceEditor from './FrpcInstanceEditor.vue'
-import { summarizeFrpcContent } from './frpcInstanceModel'
+} from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Play, Save, Square, Trash2 } from "lucide-vue-next";
+import { toast } from "@admin-shared/utils/toast";
+import LogViewer from "@admin-shared/components/LogViewer.vue";
+import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
+import {
+  DEFAULT_LOG_WINDOW_SIZE,
+  mergePollingLogWindow,
+} from "@admin-shared/utils/log-window";
+import { useConfigStore } from "../../../store/config";
+import LiveStatusBadge from "../../../components/LiveStatusBadge.vue";
+import FrpcInstanceEditor from "./FrpcInstanceEditor.vue";
+import { summarizeFrpcContent } from "./frpcInstanceModel";
 
 type FrpcEditorExpose = {
-  getContent: () => string
-  resetFromRaw: (raw: string) => void
-}
+  getContent: () => string;
+  resetFromRaw: (raw: string) => void;
+};
 
-const route = useRoute()
-const router = useRouter()
-const configStore = useConfigStore()
-const { t } = useI18n()
+const route = useRoute();
+const router = useRouter();
+const configStore = useConfigStore();
+const { t } = useI18n();
 
-const instanceId = computed(() => String(route.params.id || ''))
-const isCreateMode = computed(() => route.name === 'FrpcInstanceCreate')
+const instanceId = computed(() => String(route.params.id || ""));
+const isCreateMode = computed(() => route.name === "FrpcInstanceCreate");
 const title = computed(() =>
   isCreateMode.value
-    ? t('admin.frpcInstancePage.newFrp')
+    ? t("admin.frpcInstancePage.newFrp")
     : getInstanceDisplayName(instance.value),
-)
-const defaults = ref<{ local_port: string }>({ local_port: '7999' })
-const instance = ref<FrpcInstanceStatus | null>(null)
-const content = ref('')
-const name = ref('')
-const logs = ref<string[]>([])
-const cursor = ref<number | undefined>(undefined)
-const editorRef = ref<FrpcEditorExpose | null>(null)
-const configSectionRef = ref<HTMLElement | null>(null)
-const isLoading = ref(false)
-const isSaving = ref(false)
-const isStarting = ref(false)
-const isStopping = ref(false)
-const isClearingLogs = ref(false)
+);
+const defaults = ref<{ local_port: string }>({ local_port: "7999" });
+const instance = ref<FrpcInstanceStatus | null>(null);
+const content = ref("");
+const name = ref("");
+const logs = ref<string[]>([]);
+const cursor = ref<number | undefined>(undefined);
+const editorRef = ref<FrpcEditorExpose | null>(null);
+const configSectionRef = ref<HTMLElement | null>(null);
+const isLoading = ref(false);
+const isSaving = ref(false);
+const isStarting = ref(false);
+const isStopping = ref(false);
+const isClearingLogs = ref(false);
 
-let pollTimer: number | null = null
+let pollTimer: number | null = null;
 
-const summary = computed(() =>
-  instance.value?.summary ??
+const summary = computed(
+  () =>
+    instance.value?.summary ??
     summarizeFrpcContent(content.value, defaults.value.local_port),
-)
-const shouldOpenLogs = computed(() => route.query.section === 'logs')
-const shouldOpenConfig = computed(() => route.query.section === 'config')
+);
+const shouldOpenLogs = computed(() => route.query.section === "logs");
+const shouldOpenConfig = computed(() => route.query.section === "config");
 
 function formatSummary(value: FrpcInstanceSummary) {
   const server = value.serverAddr
-    ? `${value.serverAddr}:${value.serverPort || '7000'}`
-    : t('admin.frpcInstancePage.notConfigured')
-  const local = value.localPort || defaults.value.local_port
-  const remote = value.remotePort || '0'
-  return t('admin.frpcInstancePage.summary', { server, local, remote })
+    ? `${value.serverAddr}:${value.serverPort || "7000"}`
+    : t("admin.frpcInstancePage.notConfigured");
+  const local = value.localPort || defaults.value.local_port;
+  const remote = value.remotePort || "0";
+  return t("admin.frpcInstancePage.summary", { server, local, remote });
 }
 
 function getInstanceDisplayName(value: FrpcInstanceStatus | null | undefined) {
-  if (!value) return t('admin.frpcInstancePage.frpInstance')
-  const displayName = value.name.trim()
-  if (displayName) return displayName
-  if (value.summary.serverAddr) return `${value.summary.serverAddr}:${value.summary.serverPort || '7000'}`
+  if (!value) return t("admin.frpcInstancePage.frpInstance");
+  const displayName = value.name.trim();
+  if (displayName) return displayName;
+  if (value.summary.serverAddr)
+    return `${value.summary.serverAddr}:${value.summary.serverPort || "7000"}`;
   return value.isPrimary
-    ? t('admin.frpcInstancePage.primaryFrp')
-    : t('admin.frpcInstancePage.frpInstance')
+    ? t("admin.frpcInstancePage.primaryFrp")
+    : t("admin.frpcInstancePage.frpInstance");
 }
 
 function backToList() {
-  router.push({ path: '/tunnel', query: { tab: 'frp' } })
+  router.push({ path: "/tunnel", query: { tab: "frp" } });
 }
 
 async function restoreInitialScrollPosition() {
-  await nextTick()
+  await nextTick();
   await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve())
-  })
+    window.requestAnimationFrame(() => resolve());
+  });
   if (shouldOpenLogs.value) {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
       left: 0,
-    })
-    return
+    });
+    return;
   }
   if (shouldOpenConfig.value && configSectionRef.value) {
-    configSectionRef.value.scrollIntoView({ block: 'start' })
-    return
+    configSectionRef.value.scrollIntoView({ block: "start" });
+    return;
   }
-  window.scrollTo({ top: 0, left: 0 })
+  window.scrollTo({ top: 0, left: 0 });
 }
 
 async function loadDefaults() {
-  const overview = await FrpcAPI.getInstances()
-  defaults.value = overview.defaults
+  const overview = await FrpcAPI.getInstances();
+  defaults.value = overview.defaults;
   if (!isCreateMode.value) {
-    const next = overview.items.find((item) => item.id === instanceId.value)
-    if (next) instance.value = next
+    const next = overview.items.find((item) => item.id === instanceId.value);
+    if (next) instance.value = next;
   }
 }
 
 async function loadPage() {
-  isLoading.value = true
+  isLoading.value = true;
   try {
-    await loadDefaults()
+    await loadDefaults();
     if (isCreateMode.value) {
-      content.value = await FrpcAPI.createDraft()
-      name.value = ''
-      logs.value = []
-      editorRef.value?.resetFromRaw(content.value)
-      await restoreInitialScrollPosition()
-      return
+      content.value = await FrpcAPI.createDraft();
+      name.value = "";
+      logs.value = [];
+      editorRef.value?.resetFromRaw(content.value);
+      await restoreInitialScrollPosition();
+      return;
     }
 
-    const detail = await FrpcAPI.getInstance(instanceId.value)
-    instance.value = detail.item
-    content.value = detail.content
-    name.value = detail.item.name
-    logs.value = detail.logs
-    cursor.value = undefined
-    editorRef.value?.resetFromRaw(detail.content)
-    startPolling()
-    await restoreInitialScrollPosition()
+    const detail = await FrpcAPI.getInstance(instanceId.value);
+    instance.value = detail.item;
+    content.value = detail.content;
+    name.value = detail.item.name;
+    logs.value = detail.logs;
+    cursor.value = undefined;
+    editorRef.value?.resetFromRaw(detail.content);
+    startPolling();
+    await restoreInitialScrollPosition();
   } catch (error) {
-    toast.error(t('admin.frpcInstancePage.loadFailed'), {
-      description: extractErrorMessage(error, t('admin.frpcInstancePage.loadFailed')),
-    })
+    toast.error(t("admin.frpcInstancePage.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.frpcInstancePage.loadFailed"),
+      ),
+    });
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
 }
 
 async function saveInstance() {
-  if (isSaving.value) return
-  isSaving.value = true
+  if (isSaving.value) return;
+  isSaving.value = true;
   try {
-    const nextContent = editorRef.value?.getContent() ?? content.value
+    const nextContent = editorRef.value?.getContent() ?? content.value;
     if (isCreateMode.value) {
       const created = await FrpcAPI.createInstance({
         name: name.value.trim(),
         content: nextContent,
-      })
-      toast.success(t('admin.frpcInstancePage.created'))
-      await router.replace({ path: `/tunnel/frp/instances/${encodeURIComponent(created.id)}` })
-      await loadPage()
-      return
+      });
+      toast.success(t("admin.frpcInstancePage.created"));
+      await router.replace({
+        path: `/tunnel/frp/instances/${encodeURIComponent(created.id)}`,
+      });
+      await loadPage();
+      return;
     }
 
-    if (!instance.value) return
-    const wasRunning = instance.value.running
+    if (!instance.value) return;
+    const wasRunning = instance.value.running;
     const updated = await FrpcAPI.updateInstance(instance.value.id, {
       name: name.value.trim(),
       content: nextContent,
-    })
-    instance.value = updated
-    content.value = nextContent
+    });
+    instance.value = updated;
+    content.value = nextContent;
     if (wasRunning) {
-      await FrpcAPI.restartInstance(updated.id)
-      toast.success(t('admin.frpcInstancePage.savedAndRestarted'))
-      await loadPage()
-      return
+      await FrpcAPI.restartInstance(updated.id);
+      toast.success(t("admin.frpcInstancePage.savedAndRestarted"));
+      await loadPage();
+      return;
     }
-    toast.success(t('admin.frpcInstancePage.saved'))
+    toast.success(t("admin.frpcInstancePage.saved"));
   } catch (error) {
-    toast.error(t('admin.frpcInstancePage.saveFailed'), {
-      description: extractErrorMessage(error, t('admin.frpcInstancePage.saveFailed')),
-    })
+    toast.error(t("admin.frpcInstancePage.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.frpcInstancePage.saveFailed"),
+      ),
+    });
   } finally {
-    isSaving.value = false
+    isSaving.value = false;
   }
 }
 
 async function startInstance() {
-  if (!instance.value || isStarting.value) return
-  isStarting.value = true
+  if (!instance.value || isStarting.value) return;
+  isStarting.value = true;
   try {
-    await FrpcAPI.startInstance(instance.value.id)
-    await ConfigAPI.updateDefaultTunnel('frp')
+    await FrpcAPI.startInstance(instance.value.id);
+    await ConfigAPI.updateDefaultTunnel("frp");
     if (configStore.config) {
-      configStore.config.default_tunnel = 'frp'
+      configStore.config.default_tunnel = "frp";
     }
-    toast.success(t('admin.frpcInstancePage.startSuccess'))
-    await loadPage()
+    toast.success(t("admin.frpcInstancePage.startSuccess"));
+    await loadPage();
   } catch (error) {
-    toast.error(t('admin.frpcInstancePage.startFailed'), {
-      description: extractErrorMessage(error, t('admin.frpcInstancePage.startFailed')),
-    })
+    toast.error(t("admin.frpcInstancePage.startFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.frpcInstancePage.startFailed"),
+      ),
+    });
   } finally {
-    isStarting.value = false
+    isStarting.value = false;
   }
 }
 
 async function stopInstance() {
-  if (!instance.value || isStopping.value) return
-  isStopping.value = true
+  if (!instance.value || isStopping.value) return;
+  isStopping.value = true;
   try {
-    await FrpcAPI.stopInstance(instance.value.id)
-    toast.success(t('admin.frpcInstancePage.stopSuccess'))
-    await loadPage()
+    await FrpcAPI.stopInstance(instance.value.id);
+    toast.success(t("admin.frpcInstancePage.stopSuccess"));
+    await loadPage();
   } catch (error) {
-    toast.error(t('admin.frpcInstancePage.stopFailed'), {
-      description: extractErrorMessage(error, t('admin.frpcInstancePage.stopFailed')),
-    })
+    toast.error(t("admin.frpcInstancePage.stopFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.frpcInstancePage.stopFailed"),
+      ),
+    });
   } finally {
-    isStopping.value = false
+    isStopping.value = false;
   }
 }
 
 async function clearLogs() {
-  if (!instance.value || isClearingLogs.value) return
-  isClearingLogs.value = true
+  if (!instance.value || isClearingLogs.value) return;
+  isClearingLogs.value = true;
   try {
-    await FrpcAPI.clearInstanceLogs(instance.value.id)
-    logs.value = []
-    cursor.value = undefined
-    toast.success(t('admin.frpcInstancePage.logsCleared'))
+    await FrpcAPI.clearInstanceLogs(instance.value.id);
+    logs.value = [];
+    cursor.value = undefined;
+    toast.success(t("admin.frpcInstancePage.logsCleared"));
   } catch (error) {
-    toast.error(t('admin.frpcInstancePage.clearLogsFailed'), {
-      description: extractErrorMessage(error, t('admin.frpcInstancePage.clearLogsFailed')),
-    })
+    toast.error(t("admin.frpcInstancePage.clearLogsFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.frpcInstancePage.clearLogsFailed"),
+      ),
+    });
   } finally {
-    isClearingLogs.value = false
+    isClearingLogs.value = false;
   }
 }
 
 async function pollLogs() {
-  if (isCreateMode.value || !instance.value) return
+  if (isCreateMode.value || !instance.value) return;
   try {
-    const payload = await FrpcAPI.pollInstance(instance.value.id, cursor.value)
-    cursor.value = payload.cursor
+    const payload = await FrpcAPI.pollInstance(instance.value.id, cursor.value);
+    cursor.value = payload.cursor;
     logs.value = mergePollingLogWindow(logs.value, payload.logs, {
       reset: payload.reset,
       max: DEFAULT_LOG_WINDOW_SIZE,
-    })
-    instance.value = payload.status
+    });
+    instance.value = payload.status;
   } catch {
-    stopPolling()
+    stopPolling();
   }
 }
 
 function startPolling() {
-  stopPolling()
-  cursor.value = undefined
-  void pollLogs()
+  stopPolling();
+  cursor.value = undefined;
+  void pollLogs();
   pollTimer = window.setInterval(() => {
-    void pollLogs()
-  }, 2000)
+    void pollLogs();
+  }, 2000);
 }
 
 function stopPolling() {
   if (pollTimer !== null) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
+    window.clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
 onMounted(() => {
-  void loadPage()
-})
+  void loadPage();
+});
 
 onUnmounted(() => {
-  stopPolling()
-})
+  stopPolling();
+});
 </script>
 
 <template>
@@ -292,7 +314,7 @@ onUnmounted(() => {
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink href="#/tunnel?tab=frp">{{
-            t('admin.frpcInstancePage.tunnel')
+            t("admin.frpcInstancePage.tunnel")
           }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
@@ -302,21 +324,30 @@ onUnmounted(() => {
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbPage>{{
-            isCreateMode ? t('admin.frpcInstancePage.newInstance') : title
+            isCreateMode ? t("admin.frpcInstancePage.newInstance") : title
           }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+    >
       <div class="space-y-2">
-        <Button variant="ghost" size="sm" class="w-fit px-2" @click="backToList">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="w-fit px-2"
+          @click="backToList"
+        >
           <ArrowLeft class="mr-1.5 h-4 w-4" />
-          {{ t('admin.frpcInstancePage.backToList') }}
+          {{ t("admin.frpcInstancePage.backToList") }}
         </Button>
         <div class="space-y-1">
           <h2 class="text-xl font-semibold">{{ title }}</h2>
-          <p class="text-sm text-muted-foreground">{{ formatSummary(summary) }}</p>
+          <p class="text-sm text-muted-foreground">
+            {{ formatSummary(summary) }}
+          </p>
         </div>
       </div>
 
@@ -330,8 +361,8 @@ onUnmounted(() => {
           <Play class="mr-1.5 h-4 w-4" />
           {{
             isStarting
-              ? t('admin.frpcInstancePage.starting')
-              : t('admin.frpcInstancePage.start')
+              ? t("admin.frpcInstancePage.starting")
+              : t("admin.frpcInstancePage.start")
           }}
         </Button>
         <Button
@@ -343,13 +374,13 @@ onUnmounted(() => {
           <Square class="mr-1.5 h-4 w-4" />
           {{
             isStopping
-              ? t('admin.frpcInstancePage.stopping')
-              : t('admin.frpcInstancePage.stop')
+              ? t("admin.frpcInstancePage.stopping")
+              : t("admin.frpcInstancePage.stop")
           }}
         </Button>
         <Button :disabled="isSaving || isLoading" @click="saveInstance">
           <Save class="mr-1.5 h-4 w-4" />
-          {{ isSaving ? t('admin.frpcInstancePage.saving') : t('common.save') }}
+          {{ isSaving ? t("admin.frpcInstancePage.saving") : t("common.save") }}
         </Button>
       </div>
     </div>
@@ -357,60 +388,66 @@ onUnmounted(() => {
     <Card v-if="!isCreateMode && instance">
       <CardHeader>
         <CardTitle class="text-base">{{
-          t('admin.frpcInstancePage.runtimeInfo')
+          t("admin.frpcInstancePage.runtimeInfo")
         }}</CardTitle>
       </CardHeader>
       <CardContent class="space-y-4">
         <div class="grid gap-3 text-sm sm:grid-cols-3">
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.status')
-            }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.status") }}
+            </p>
             <div class="mt-1 flex items-center gap-2">
               <LiveStatusBadge :active="instance.running" />
-              <span :class="instance.running ? 'text-green-600' : 'text-muted-foreground'">
+              <span
+                :class="
+                  instance.running ? 'text-green-600' : 'text-muted-foreground'
+                "
+              >
                 {{
                   instance.running
-                    ? t('admin.frpcInstancePage.running')
-                    : t('admin.frpcInstancePage.notRunning')
+                    ? t("admin.frpcInstancePage.running")
+                    : t("admin.frpcInstancePage.notRunning")
                 }}
               </span>
             </div>
           </div>
           <div class="rounded-lg border px-4 py-3">
             <p class="text-xs text-muted-foreground">PID</p>
-            <p class="mt-1 font-mono">{{ instance.pid ?? '-' }}</p>
+            <p class="mt-1 font-mono">{{ instance.pid ?? "-" }}</p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.logAttachment')
-            }}</p>
-            <p class="mt-1">{{
-              instance.attached
-                ? t('admin.frpcInstancePage.currentProcess')
-                : t('admin.frpcInstancePage.historyBuffer')
-            }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.logAttachment") }}
+            </p>
+            <p class="mt-1">
+              {{
+                instance.attached
+                  ? t("admin.frpcInstancePage.currentProcess")
+                  : t("admin.frpcInstancePage.historyBuffer")
+              }}
+            </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.lastStarted')
-            }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.lastStarted") }}
+            </p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.startedAt" />
             </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.lastStopped')
-            }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.lastStopped") }}
+            </p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.stoppedAt" />
             </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.createdAt')
-            }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.createdAt") }}
+            </p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.createdAt" />
             </p>
@@ -419,20 +456,27 @@ onUnmounted(() => {
 
         <div class="grid gap-3 text-sm md:grid-cols-2">
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.configPath')
-            }}</p>
-            <p class="mt-1 break-all font-mono text-xs">{{ instance.configPath }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.configPath") }}
+            </p>
+            <p class="mt-1 break-all font-mono text-xs">
+              {{ instance.configPath }}
+            </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">{{
-              t('admin.frpcInstancePage.workDir')
-            }}</p>
-            <p class="mt-1 break-all font-mono text-xs">{{ instance.workDir }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.frpcInstancePage.workDir") }}
+            </p>
+            <p class="mt-1 break-all font-mono text-xs">
+              {{ instance.workDir }}
+            </p>
           </div>
         </div>
 
-        <p v-if="instance.lastMessage" class="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        <p
+          v-if="instance.lastMessage"
+          class="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+        >
           {{ instance.lastMessage }}
         </p>
       </CardContent>
@@ -442,17 +486,17 @@ onUnmounted(() => {
       <Card>
         <CardHeader>
           <CardTitle class="text-base">{{
-            t('admin.frpcInstancePage.instanceConfig')
+            t("admin.frpcInstancePage.instanceConfig")
           }}</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="grid gap-2 sm:grid-cols-[160px_1fr] sm:items-start">
             <div class="space-y-1 mt-1.5">
               <Label for="frp-instance-name">{{
-                t('admin.frpcInstancePage.name')
+                t("admin.frpcInstancePage.name")
               }}</Label>
               <p class="hidden text-xs text-muted-foreground sm:block">
-                {{ t('admin.frpcInstancePage.nameHint') }}
+                {{ t("admin.frpcInstancePage.nameHint") }}
               </p>
             </div>
             <Input
@@ -466,7 +510,11 @@ onUnmounted(() => {
             ref="editorRef"
             v-model="content"
             :defaults="defaults"
-            :id-prefix="isCreateMode ? 'frp-instance-create' : `frp-instance-${instanceId}`"
+            :id-prefix="
+              isCreateMode
+                ? 'frp-instance-create'
+                : `frp-instance-${instanceId}`
+            "
           />
         </CardContent>
       </Card>
@@ -477,7 +525,7 @@ onUnmounted(() => {
         <CardHeader>
           <div class="flex items-center justify-between gap-3">
             <CardTitle class="text-base">{{
-              t('admin.frpcInstancePage.instanceLogs')
+              t("admin.frpcInstancePage.instanceLogs")
             }}</CardTitle>
             <Button
               variant="outline"
@@ -486,7 +534,7 @@ onUnmounted(() => {
               @click="clearLogs"
             >
               <Trash2 class="mr-1.5 h-3.5 w-3.5" />
-              {{ t('admin.frpcInstancePage.clear') }}
+              {{ t("admin.frpcInstancePage.clear") }}
             </Button>
           </div>
         </CardHeader>

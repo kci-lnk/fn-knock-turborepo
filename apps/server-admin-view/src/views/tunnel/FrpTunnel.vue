@@ -179,14 +179,10 @@ const {
             <div class="mt-1 flex items-center gap-2">
               <LiveStatusBadge :active="running" />
               <span
-                :class="
-                  running ? 'text-green-600' : 'text-muted-foreground'
-                "
+                :class="running ? 'text-green-600' : 'text-muted-foreground'"
               >
                 {{
-                  running
-                    ? t("common.active")
-                    : t("admin.frpTunnel.notRunning")
+                  running ? t("common.active") : t("admin.frpTunnel.notRunning")
                 }}
               </span>
             </div>

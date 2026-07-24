@@ -103,7 +103,10 @@ const {
       />
 
       <Select v-model="selectedType">
-        <SelectTrigger class="w-[160px]">
+        <SelectTrigger
+          :aria-label="t('admin.eventCenter.events.typePlaceholder')"
+          class="w-[160px]"
+        >
           <SelectValue
             :placeholder="t('admin.eventCenter.events.typePlaceholder')"
           />
@@ -120,7 +123,10 @@ const {
       </Select>
 
       <Select v-model="selectedLevel">
-        <SelectTrigger class="w-[140px]">
+        <SelectTrigger
+          :aria-label="t('admin.eventCenter.events.levelPlaceholder')"
+          class="w-[140px]"
+        >
           <SelectValue
             :placeholder="t('admin.eventCenter.events.levelPlaceholder')"
           />
@@ -137,7 +143,10 @@ const {
       </Select>
 
       <Select v-model="selectedSource">
-        <SelectTrigger class="w-[110px]">
+        <SelectTrigger
+          :aria-label="t('admin.eventCenter.events.sourcePlaceholder')"
+          class="w-[110px]"
+        >
           <SelectValue
             :placeholder="t('admin.eventCenter.events.sourcePlaceholder')"
           />
@@ -218,7 +227,10 @@ const {
           <TableHeader class="sticky top-0 z-10 bg-background shadow-sm">
             <TableRow>
               <TableHead class="w-[42px] pl-3 pr-1">
-                <Checkbox v-model="isAllSelected" />
+                <Checkbox
+                  v-model="isAllSelected"
+                  :aria-label="t('common.selectAll')"
+                />
               </TableHead>
               <TableHead class="w-[300px]">
                 {{ t("admin.eventCenter.events.tableEvent") }}
@@ -257,6 +269,7 @@ const {
               <TableCell class="w-[42px] pl-3 pr-1 align-top">
                 <Checkbox
                   :model-value="selectedKeys.has(event.id)"
+                  :aria-label="t('common.selectItem', { item: event.id })"
                   @update:model-value="toggleSelect(event.id)"
                 />
               </TableCell>
@@ -323,7 +336,12 @@ const {
                 {{ formatSystemEventSourceLabel(event.source) }}
               </TableCell>
               <TableCell class="space-x-2 pr-6 text-right">
-                <Button variant="ghost" size="icon" @click="viewDetails(event)">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  :aria-label="t('common.viewDetails')"
+                  @click="viewDetails(event)"
+                >
                   <Eye class="h-4 w-4" />
                 </Button>
                 <ConfirmDangerPopover
@@ -337,6 +355,7 @@ const {
                     <Button
                       variant="ghost"
                       size="icon"
+                      :aria-label="t('common.confirmDelete')"
                       class="text-destructive"
                       :disabled="isDeleting || isClearing"
                     >

@@ -31,7 +31,10 @@ const { t } = useI18n();
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[560px]" @close-auto-focus="onCloseAutoFocus">
+    <DialogContent
+      class="sm:max-w-[560px]"
+      @close-auto-focus="onCloseAutoFocus"
+    >
       <DialogHeader>
         <DialogTitle>
           {{ t("admin.webTerminal.sendDialogTitle") }}

@@ -22,10 +22,7 @@
       <p class="text-sm text-center text-muted-foreground">
         {{ logoutHint }}
       </p>
-      <div
-        v-if="canShowPasskeyBind"
-        class="flex flex-col gap-2"
-      >
+      <div v-if="canShowPasskeyBind" class="flex flex-col gap-2">
         <Button
           class="w-full"
           :disabled="isPasskeyBinding"
@@ -41,7 +38,11 @@
           {{ t(passkeyBindCopy.hint) }}
         </p>
       </div>
-      <p v-if="passkeyError" class="text-xs text-center text-destructive">
+      <p
+        v-if="passkeyError"
+        class="text-xs text-center text-destructive"
+        role="alert"
+      >
         {{ passkeyError }}
       </p>
       <p
@@ -127,10 +128,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type {
-  AuthAccessState,
-  AuthGrantType,
-} from "@frontend-core/auth/types";
+import type { AuthAccessState, AuthGrantType } from "@frontend-core/auth/types";
 import { apiClient, AuthAPI } from "@/lib/api";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
@@ -314,8 +312,9 @@ async function loadPasskeyBindStatus() {
       await rememberKnownPasskeyCredentialId(currentSessionCredentialId);
       currentBrowserHasKnownPasskey.value = true;
     } else {
-      currentBrowserHasKnownPasskey.value =
-        await hasKnownPasskeyCredential(bindStatus?.credential_ids);
+      currentBrowserHasKnownPasskey.value = await hasKnownPasskeyCredential(
+        bindStatus?.credential_ids,
+      );
     }
   } catch (e) {
     canBindPasskey.value = false;
@@ -362,10 +361,7 @@ async function handleLogout() {
 }
 
 async function handlePasskeyBind() {
-  if (
-    isPasskeyBinding.value ||
-    !canShowPasskeyBind.value
-  ) {
+  if (isPasskeyBinding.value || !canShowPasskeyBind.value) {
     return;
   }
   isPasskeyBinding.value = true;

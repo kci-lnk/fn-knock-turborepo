@@ -21,6 +21,7 @@ export const koKRAdmin = {
     about: "정보",
     openNavigation: "탐색 메뉴 열기",
     navigationMenu: "탐색 메뉴",
+    skipToContent: "주요 콘텐츠로 건너뛰기",
     openGithub: "GitHub 프로젝트 열기",
   },
   banner: {
@@ -3186,6 +3187,7 @@ export const koKRAdmin = {
     noDefaultSession:
       "초기화 중에 기본 터미널 세션을 생성할 수 없습니다. 복구 가능한 tmux 세션을 생성하려면 왼쪽 상단의 더하기 버튼을 사용하세요.",
     connectionErrorTitle: "터미널 연결 오류",
+    contextMenu: "터미널 작업",
     copy: "복사",
     paste: "붙여넣기",
     selectAll: "모두 선택",
@@ -4121,6 +4123,7 @@ export const koKRAdmin = {
     saveStatusFailed: "환영 가이드 상태를 저장하지 못했습니다.",
   },
   welcomeScreen: {
+    title: "fn-knock에 오신 것을 환영합니다",
     entering: "시작 중...",
     start: "시작하기",
   },

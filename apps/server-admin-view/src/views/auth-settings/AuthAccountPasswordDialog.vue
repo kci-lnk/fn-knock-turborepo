@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Eye, EyeOff } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const a11yId = useId();
 
 const props = defineProps<{
   description: string;
@@ -81,9 +83,12 @@ const handleOpenChange = (open: boolean) => {
         </div>
 
         <div class="space-y-2">
-          <Label>{{ t("admin.authSettings.password") }}</Label>
+          <Label :for="`${a11yId}-authaccountpassworddialog-1`">{{
+            t("admin.authSettings.password")
+          }}</Label>
           <div class="relative">
             <Input
+              :id="`${a11yId}-authaccountpassworddialog-1`"
               :model-value="password"
               :type="isPasswordVisible ? 'text' : 'password'"
               autocomplete="new-password"

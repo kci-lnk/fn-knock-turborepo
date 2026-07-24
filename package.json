@@ -6,6 +6,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "a11y:audit": "node ./scripts/a11y-runtime-audit.mjs",
     "security:audit": "node ./scripts/security-audit.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
@@ -66,8 +67,10 @@
     "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "cos-nodejs-sdk-v5": "3.0.0",
     "esbuild": "^0.28.1",
+    "playwright": "^1.61.1",
     "prettier": "^3.7.4",
     "tencentcloud-sdk-nodejs-cdn": "4.1.250",
     "tsx": "^4.23.1",

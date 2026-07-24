@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, useId } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -54,6 +54,8 @@ import type {
   AdvancedAuthOperator,
   AdvancedAuthRuleGroup,
 } from "../../types";
+
+const a11yId = useId();
 
 const route = useRoute();
 const router = useRouter();
@@ -674,14 +676,20 @@ onUnmounted(() =>
         <section class="rounded-xl bg-muted/30 p-4 sm:p-5">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <Label class="text-base">{{
-                t("admin.advancedAuth.enabled")
-              }}</Label>
+              <Label
+                :for="`${a11yId}-subdomainadvancedauth-1`"
+                class="text-base"
+                >{{ t("admin.advancedAuth.enabled") }}</Label
+              >
               <p class="mt-1 text-sm leading-6 text-muted-foreground">
                 {{ t("admin.advancedAuth.enabledDescription") }}
               </p>
             </div>
-            <Switch v-model:model-value="form.enabled" :disabled="saving" />
+            <Switch
+              :id="`${a11yId}-subdomainadvancedauth-1`"
+              v-model:model-value="form.enabled"
+              :disabled="saving"
+            />
           </div>
           <p class="mt-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
             {{ t("admin.advancedAuth.temporaryGrantNotice") }}
@@ -808,10 +816,15 @@ onUnmounted(() =>
                             "
                           >
                             <div class="min-w-0 space-y-1.5">
-                              <Label class="text-xs">{{
-                                t("admin.advancedAuth.matchTarget")
-                              }}</Label>
+                              <Label
+                                :for="`${a11yId}-subdomainadvancedauth-2`"
+                                class="text-xs"
+                                >{{
+                                  t("admin.advancedAuth.matchTarget")
+                                }}</Label
+                              >
                               <select
+                                :id="`${a11yId}-subdomainadvancedauth-2`"
                                 class="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                 :value="condition.target"
                                 :disabled="saving"
@@ -867,10 +880,15 @@ onUnmounted(() =>
                             </div>
 
                             <div class="min-w-0 space-y-1.5">
-                              <Label class="text-xs">{{
-                                t("admin.advancedAuth.matchOperator")
-                              }}</Label>
+                              <Label
+                                :for="`${a11yId}-subdomainadvancedauth-3`"
+                                class="text-xs"
+                                >{{
+                                  t("admin.advancedAuth.matchOperator")
+                                }}</Label
+                              >
                               <select
+                                :id="`${a11yId}-subdomainadvancedauth-3`"
                                 class="h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                 :value="condition.operator"
                                 :disabled="saving"
@@ -894,13 +912,13 @@ onUnmounted(() =>
                               </select>
                             </div>
 
-                          <div
-                            v-if="condition.target === 'source_region'"
-                            class="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1"
+                            <div
+                              v-if="condition.target === 'source_region'"
+                              class="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1"
                             >
-                              <Label class="text-xs">{{
-                                t("admin.advancedAuth.matchValue")
-                              }}</Label>
+                              <div class="text-xs font-medium">
+                                {{ t("admin.advancedAuth.matchValue") }}
+                              </div>
                               <CidrRegionSelector
                                 v-model="condition.selections"
                                 layout="compact"
@@ -918,11 +936,12 @@ onUnmounted(() =>
                               :class="
                                 condition.target === 'request_header' ||
                                 condition.target === 'query_parameter'
-                                ? 'xl:col-span-1'
-                                : 'sm:col-span-2 xl:col-span-1'
+                                  ? 'xl:col-span-1'
+                                  : 'sm:col-span-2 xl:col-span-1'
                               "
                             >
                               <Label
+                                :for="`${a11yId}-subdomainadvancedauth-4`"
                                 class="text-xs"
                                 :title="
                                   condition.target === 'http_method'
@@ -948,6 +967,7 @@ onUnmounted(() =>
                                 }}</Label
                               >
                               <Input
+                                :id="`${a11yId}-subdomainadvancedauth-4`"
                                 :model-value="valueInputText(condition)"
                                 :class="
                                   condition.target === 'source_ip'
@@ -990,10 +1010,10 @@ onUnmounted(() =>
                             </div>
                           </div>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          class="group absolute top-1.5 right-1.5 h-7 w-7 shrink-0 sm:static sm:mt-5.5 sm:h-8 sm:w-8"
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="group absolute top-1.5 right-1.5 h-7 w-7 shrink-0 sm:static sm:mt-5.5 sm:h-8 sm:w-8"
                             :disabled="saving"
                             :aria-label="
                               t('admin.advancedAuth.deleteCondition')
@@ -1044,9 +1064,12 @@ onUnmounted(() =>
 
             <div class="grid gap-5 sm:grid-cols-2">
               <div class="space-y-2">
-                <Label>{{ t("admin.advancedAuth.idleTtl") }}</Label>
+                <Label :for="`${a11yId}-subdomainadvancedauth-5`">{{
+                  t("admin.advancedAuth.idleTtl")
+                }}</Label>
                 <div class="relative">
                   <Input
+                    :id="`${a11yId}-subdomainadvancedauth-5`"
                     v-model.number="idleHours"
                     class="pr-16"
                     type="number"
@@ -1071,9 +1094,12 @@ onUnmounted(() =>
               </div>
 
               <div class="space-y-2">
-                <Label>{{ t("admin.advancedAuth.maxLifetime") }}</Label>
+                <Label :for="`${a11yId}-subdomainadvancedauth-6`">{{
+                  t("admin.advancedAuth.maxLifetime")
+                }}</Label>
                 <div class="relative">
                   <Input
+                    :id="`${a11yId}-subdomainadvancedauth-6`"
                     v-model.number="maxLifetimeHours"
                     class="pr-16"
                     type="number"

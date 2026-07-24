@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   siteKey: string;
@@ -16,11 +16,11 @@ const emit = defineEmits<{
 
 type TurnstileRenderOptions = {
   sitekey: string;
-  size: 'normal';
+  size: "normal";
   callback: (token: string) => void;
-  'expired-callback': () => void;
-  'error-callback': () => void;
-  'timeout-callback': () => void;
+  "expired-callback": () => void;
+  "error-callback": () => void;
+  "timeout-callback": () => void;
 };
 
 type TurnstileApi = {
@@ -35,15 +35,16 @@ declare global {
   }
 }
 
-const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const TURNSTILE_SCRIPT_LOAD_ERROR = 'TURNSTILE_SCRIPT_LOAD_ERROR';
+const TURNSTILE_SCRIPT_SRC =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const TURNSTILE_SCRIPT_LOAD_ERROR = "TURNSTILE_SCRIPT_LOAD_ERROR";
 
 const { t } = useI18n();
 
 let turnstileScriptPromise: Promise<void> | null = null;
 
 const ensureTurnstileScript = async () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   if (window.turnstile) return;
   if (turnstileScriptPromise) {
     await turnstileScriptPromise;
@@ -51,14 +52,20 @@ const ensureTurnstileScript = async () => {
   }
 
   turnstileScriptPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT_SRC}"]`);
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${TURNSTILE_SCRIPT_SRC}"]`,
+    );
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error(TURNSTILE_SCRIPT_LOAD_ERROR)), { once: true });
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error(TURNSTILE_SCRIPT_LOAD_ERROR)),
+        { once: true },
+      );
       return;
     }
 
-    const script = document.createElement('script');
+    const script = document.createElement("script");
     script.src = TURNSTILE_SCRIPT_SRC;
     script.async = true;
     script.defer = true;
@@ -75,27 +82,27 @@ let widgetId: string | null = null;
 let renderVersion = 0;
 
 const clearWidget = () => {
-  if (typeof window !== 'undefined' && window.turnstile && widgetId) {
+  if (typeof window !== "undefined" && window.turnstile && widgetId) {
     window.turnstile.remove(widgetId);
   }
   widgetId = null;
   if (containerRef.value) {
-    containerRef.value.innerHTML = '';
+    containerRef.value.innerHTML = "";
   }
 };
 
 const resetWidget = () => {
-  if (typeof window !== 'undefined' && window.turnstile && widgetId) {
+  if (typeof window !== "undefined" && window.turnstile && widgetId) {
     window.turnstile.reset(widgetId);
   }
-  emit('reset');
+  emit("reset");
 };
 
 const renderWidget = async () => {
   const siteKey = props.siteKey.trim();
   if (!siteKey || !containerRef.value) {
     clearWidget();
-    emit('reset');
+    emit("reset");
     return;
   }
 
@@ -105,49 +112,59 @@ const renderWidget = async () => {
     await ensureTurnstileScript();
   } catch (error: any) {
     emit(
-      'error',
+      "error",
       error?.message === TURNSTILE_SCRIPT_LOAD_ERROR
-        ? t('auth.turnstileScriptLoadFailed')
-        : error?.message || t('auth.turnstileScriptLoadFailed'),
+        ? t("auth.turnstileScriptLoadFailed")
+        : error?.message || t("auth.turnstileScriptLoadFailed"),
     );
     return;
   }
 
-  if (currentVersion !== renderVersion || !containerRef.value || !window.turnstile) {
+  if (
+    currentVersion !== renderVersion ||
+    !containerRef.value ||
+    !window.turnstile
+  ) {
     return;
   }
 
   clearWidget();
-  emit('reset');
+  emit("reset");
 
   widgetId = window.turnstile.render(containerRef.value, {
     sitekey: siteKey,
-    size: 'normal',
+    size: "normal",
     callback: (token: string) => {
-      emit('verified', token);
+      emit("verified", token);
     },
-    'expired-callback': () => {
-      emit('expired');
+    "expired-callback": () => {
+      emit("expired");
       resetWidget();
     },
-    'error-callback': () => {
-      emit('error', t('auth.turnstileRenderFailed'));
+    "error-callback": () => {
+      emit("error", t("auth.turnstileRenderFailed"));
     },
-    'timeout-callback': () => {
-      emit('error', t('auth.turnstileTimeout'));
+    "timeout-callback": () => {
+      emit("error", t("auth.turnstileTimeout"));
     },
   });
 };
 
-watch(() => props.siteKey, () => {
-  void renderWidget();
-});
+watch(
+  () => props.siteKey,
+  () => {
+    void renderWidget();
+  },
+);
 
-watch(() => props.disabled, (disabled) => {
-  if (disabled) {
-    resetWidget();
-  }
-});
+watch(
+  () => props.disabled,
+  (disabled) => {
+    if (disabled) {
+      resetWidget();
+    }
+  },
+);
 
 onMounted(() => {
   void renderWidget();

@@ -190,9 +190,9 @@ const dnsProviderDraft = computed({
 
         <section v-for="family in families" :key="family.key" class="space-y-3">
           <div class="flex items-center justify-between gap-3">
-            <Label class="text-sm font-medium">
+            <h3 class="text-sm font-medium">
               {{ t(family.labelKey) }}
-            </Label>
+            </h3>
             <Button
               type="button"
               variant="outline"
@@ -213,6 +213,7 @@ const dnsProviderDraft = computed({
             >
               <Input
                 :id="`ddns-public-check-${family.key}-${index}`"
+                :aria-label="`${t(family.labelKey)} ${index + 1}`"
                 :model-value="source"
                 :disabled="isBusy"
                 :placeholder="t('admin.ddns.publicCheckSourcePlaceholder')"

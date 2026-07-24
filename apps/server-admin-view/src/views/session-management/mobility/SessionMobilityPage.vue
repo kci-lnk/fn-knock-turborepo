@@ -9,7 +9,9 @@
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>{{ t("admin.sessions.mobilityPage.title") }}</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            t("admin.sessions.mobilityPage.title")
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -61,6 +63,7 @@
         <div
           v-if="isLoading"
           class="flex items-center justify-center py-16 text-sm text-muted-foreground"
+          role="status"
         >
           <span
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
@@ -71,6 +74,7 @@
         <div
           v-else-if="loadError"
           class="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-5"
+          role="alert"
         >
           <div class="text-sm font-medium text-destructive">
             {{ t("admin.sessions.mobilityPage.loadFailed") }}
@@ -190,7 +194,9 @@
                     v-if="entry.id === latestEntryId"
                     active
                     :pulse="false"
-                    :active-label="t('admin.sessions.mobilityPage.latestStatus')"
+                    :active-label="
+                      t('admin.sessions.mobilityPage.latestStatus')
+                    "
                     size="sm"
                     class="block"
                   />
@@ -215,7 +221,9 @@
                         >
                           {{
                             entry.event.kind === "login"
-                              ? t("admin.sessions.mobilityPage.loginEstablished")
+                              ? t(
+                                  "admin.sessions.mobilityPage.loginEstablished",
+                                )
                               : t("admin.sessions.mobilityPage.ipRecovered")
                           }}
                         </Badge>

@@ -48,9 +48,7 @@ const { t } = useI18n();
         >
           <RefreshCw v-if="isClearing" class="mr-2 h-4 w-4 animate-spin" />
           {{
-            isClearing
-              ? t("admin.ddns.clearing")
-              : t("admin.ddns.confirmClear")
+            isClearing ? t("admin.ddns.clearing") : t("admin.ddns.confirmClear")
           }}
         </Button>
       </DialogFooter>

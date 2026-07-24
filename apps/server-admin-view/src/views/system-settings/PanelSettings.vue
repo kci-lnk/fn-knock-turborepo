@@ -136,7 +136,9 @@ const savePassword = async () => {
 
         <Alert>
           <ShieldCheck class="h-4 w-4" />
-          <AlertTitle>{{ t("admin.panelSettings.passwordRulesTitle") }}</AlertTitle>
+          <AlertTitle>{{
+            t("admin.panelSettings.passwordRulesTitle")
+          }}</AlertTitle>
           <AlertDescription>
             {{ t("admin.panelSettings.passwordRulesDescription") }}
           </AlertDescription>
@@ -167,7 +169,9 @@ const savePassword = async () => {
       <CardContent class="space-y-4">
         <Alert>
           <ShieldAlert class="h-4 w-4" />
-          <AlertTitle>{{ t("admin.panelSettings.resetResultTitle") }}</AlertTitle>
+          <AlertTitle>{{
+            t("admin.panelSettings.resetResultTitle")
+          }}</AlertTitle>
           <AlertDescription>
             {{ t("admin.panelSettings.resetResultDescription") }}
           </AlertDescription>

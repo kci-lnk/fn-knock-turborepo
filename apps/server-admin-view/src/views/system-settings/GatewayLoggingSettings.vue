@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -26,6 +26,8 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
+
+const a11yId = useId();
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -139,6 +141,7 @@ onMounted(fetchSettings);
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label
+            :for="`${a11yId}-gatewayloggingsettings-1`"
             class="cursor-pointer text-base font-medium"
             @click="form.enabled = !form.enabled"
           >
@@ -148,14 +151,18 @@ onMounted(fetchSettings);
             {{ t("admin.gatewayLogging.enableDescription") }}
           </div>
         </div>
-        <Switch v-model="form.enabled" :disabled="isSaving" />
+        <Switch
+          :id="`${a11yId}-gatewayloggingsettings-1`"
+          v-model="form.enabled"
+          :disabled="isSaving"
+        />
       </div>
 
       <div
         class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">
+          <Label :for="`${a11yId}-gatewayloggingsettings-2`" class="text-base">
             {{ t("admin.gatewayLogging.retentionLabel") }}
           </Label>
           <div class="text-sm text-muted-foreground">
@@ -164,6 +171,7 @@ onMounted(fetchSettings);
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <Input
+            :id="`${a11yId}-gatewayloggingsettings-2`"
             v-model.number="form.max_days"
             type="number"
             min="1"

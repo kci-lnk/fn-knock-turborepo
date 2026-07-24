@@ -21,6 +21,7 @@ export const enAdmin = {
     about: "About",
     openNavigation: "Open navigation",
     navigationMenu: "Navigation",
+    skipToContent: "Skip to main content",
     openGithub: "Open GitHub project",
   },
   banner: {
@@ -3196,6 +3197,7 @@ export const enAdmin = {
     noDefaultSession:
       "The default terminal session could not be created during initialization. Use the plus button in the upper left to create a recoverable tmux session.",
     connectionErrorTitle: "Terminal connection error",
+    contextMenu: "Terminal actions",
     copy: "Copy",
     paste: "Paste",
     selectAll: "Select all",
@@ -4134,6 +4136,7 @@ export const enAdmin = {
     saveStatusFailed: "Failed to save welcome guide status",
   },
   welcomeScreen: {
+    title: "Welcome to fn-knock",
     entering: "Entering...",
     start: "Get started",
   },

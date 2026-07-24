@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronLeft, ChevronRight, Copy } from "lucide-vue-next";
 import QrcodeVue from "qrcode.vue";
@@ -135,10 +142,7 @@ onBeforeUnmount(() => {
         <DialogTitle>{{ title }}</DialogTitle>
         <DialogDescription>{{ description }}</DialogDescription>
       </DialogHeader>
-      <div
-        v-if="setupData && step === 'BIND'"
-        class="w-full py-4 max-sm:py-2"
-      >
+      <div v-if="setupData && step === 'BIND'" class="w-full py-4 max-sm:py-2">
         <Transition
           mode="out-in"
           enter-active-class="transition duration-150 ease-out"
@@ -187,9 +191,9 @@ onBeforeUnmount(() => {
                 class="flex items-start gap-2 rounded-md border bg-background px-2.5 py-2"
               >
                 <div class="min-w-0 flex-1 space-y-1">
-                  <Label class="text-xs text-muted-foreground">
+                  <span class="text-xs text-muted-foreground">
                     {{ t("admin.authSettings.manualSetupSecretLabel") }}
-                  </Label>
+                  </span>
                   <p
                     class="break-all font-mono text-xs leading-5 text-muted-foreground"
                   >
@@ -216,17 +220,24 @@ onBeforeUnmount(() => {
             ref="otpInputAreaRef"
             class="space-y-2 flex flex-col items-center scroll-mt-24"
           >
-            <Label class="text-sm text-muted-foreground self-center">
+            <Label
+              for="totp-setup-verification"
+              class="text-sm text-muted-foreground self-center"
+            >
               {{ t("admin.authSettings.otpLabel") }}
             </Label>
             <div class="w-full flex justify-center py-2">
               <InputOTP
+                id="totp-setup-verification"
+                :aria-describedby="
+                  bindErrorMessage ? 'totp-setup-verification-error' : undefined
+                "
+                :aria-invalid="Boolean(bindErrorMessage)"
                 v-model="verificationToken"
                 inputmode="numeric"
                 :maxlength="6"
                 :disabled="isBinding"
-                :autofocus="true"
-                autocomplete="off"
+                autocomplete="one-time-code"
                 data-form-type="other"
                 data-1p-ignore="true"
                 data-lpignore="true"
@@ -238,10 +249,19 @@ onBeforeUnmount(() => {
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            <p v-if="isBinding" class="text-sm text-muted-foreground">
+            <p
+              v-if="isBinding"
+              class="text-sm text-muted-foreground"
+              role="status"
+            >
               {{ t("admin.authSettings.verifying") }}
             </p>
-            <p v-if="bindErrorMessage" class="text-sm text-destructive">
+            <p
+              v-if="bindErrorMessage"
+              id="totp-setup-verification-error"
+              class="text-sm text-destructive"
+              role="alert"
+            >
               {{ bindErrorMessage }}
             </p>
           </div>
@@ -249,17 +269,31 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="step === 'NAME'" class="flex flex-col gap-4 py-4">
         <div class="space-y-2">
-          <Label>{{ t("admin.authSettings.nameSuccessLabel") }}</Label>
+          <Label for="totp-setup-name">{{
+            t("admin.authSettings.nameSuccessLabel")
+          }}</Label>
           <Input
+            id="totp-setup-name"
             v-model="setupComment"
             :placeholder="t('admin.authSettings.namePlaceholder')"
+            :aria-describedby="
+              bindErrorMessage
+                ? 'totp-setup-name-error'
+                : 'totp-setup-name-help'
+            "
+            :aria-invalid="Boolean(bindErrorMessage)"
             @keyup.enter="emit('saveName')"
           />
-          <p class="text-xs text-muted-foreground">
+          <p id="totp-setup-name-help" class="text-xs text-muted-foreground">
             {{ t("admin.authSettings.nameHelp") }}
           </p>
         </div>
-        <p v-if="bindErrorMessage" class="text-sm text-destructive">
+        <p
+          v-if="bindErrorMessage"
+          id="totp-setup-name-error"
+          class="text-sm text-destructive"
+          role="alert"
+        >
           {{ bindErrorMessage }}
         </p>
         <div class="flex justify-end gap-2 mt-4">
@@ -275,7 +309,8 @@ onBeforeUnmount(() => {
       <div v-else class="flex items-center justify-center py-12">
         <span
           class="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full mr-2"
-        ></span>{{ t("admin.authSettings.generating") }}
+        ></span
+        >{{ t("admin.authSettings.generating") }}
       </div>
     </DialogContent>
   </Dialog>

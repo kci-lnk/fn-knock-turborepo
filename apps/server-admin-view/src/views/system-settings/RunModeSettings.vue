@@ -36,82 +36,93 @@
 
       <div
         v-if="canUseDirectMode"
-        class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
+        class="group rounded-lg border transition-all hover:border-primary/50"
         :class="
           mode === 0
             ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
             : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
-        @click="mode = 0"
       >
-        <div
-          class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
-          :class="
-            mode === 0
-              ? 'border-primary'
-              : 'border-muted-foreground/40 group-hover:border-primary/60'
-          "
-        >
+        <label class="flex cursor-pointer items-start space-x-4 rounded-lg p-4">
           <div
-            v-show="mode === 0"
-            class="h-2.5 w-2.5 rounded-full bg-primary"
-          />
-        </div>
-        <div class="flex-1 space-y-2">
-          <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">
-              {{ t("admin.runModeSettings.directModeTitle") }}
-            </p>
-            <span
-              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
-            >
-              {{ t("admin.runModeSettings.directModeBadge") }}
-            </span>
+            class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors"
+            :class="
+              mode === 0
+                ? 'border-primary'
+                : 'border-muted-foreground/40 group-hover:border-primary/60'
+            "
+            aria-hidden="true"
+          >
+            <div
+              v-show="mode === 0"
+              class="h-2.5 w-2.5 rounded-full bg-primary"
+            />
           </div>
-          <p class="text-sm text-muted-foreground">
-            {{ t("admin.runModeSettings.directModeDescription") }}
-          </p>
-          <DocsLinkButton :href="docsUrls.runModes.direct" @click.stop />
+          <input v-model="mode" type="radio" name="run-mode" :value="0" class="sr-only" />
+          <span class="flex-1 space-y-2">
+            <span class="flex items-center gap-2">
+              <span class="text-base font-semibold leading-none">
+                {{ t("admin.runModeSettings.directModeTitle") }}
+              </span>
+              <span
+                class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              >
+                {{ t("admin.runModeSettings.directModeBadge") }}
+              </span>
+            </span>
+            <span class="block text-sm text-muted-foreground">
+              {{ t("admin.runModeSettings.directModeDescription") }}
+            </span>
+          </span>
+        </label>
+        <div class="px-4 pb-4 pl-12">
+          <DocsLinkButton :href="docsUrls.runModes.direct" />
         </div>
       </div>
 
       <div
-        class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
+        class="group rounded-lg border transition-all hover:border-primary/50"
         :class="
           mode === 1
             ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
             : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
-        @click="selectReverseProxyMode"
       >
-        <div
-          class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
-          :class="
-            mode === 1
-              ? 'border-primary'
-              : 'border-muted-foreground/40 group-hover:border-primary/60'
-          "
-        >
+        <label class="flex cursor-pointer items-start space-x-4 rounded-lg p-4">
           <div
-            v-show="mode === 1"
-            class="h-2.5 w-2.5 rounded-full bg-primary"
-          />
-        </div>
-        <div class="flex-1 space-y-2">
-          <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">
-              {{ t("admin.runModeSettings.reverseModeTitle") }}
-            </p>
-          </div>
-          <p class="text-sm text-muted-foreground">
-            {{ t("admin.runModeSettings.reverseModeDescription") }}
-          </p>
-          <DocsLinkButton :href="docsUrls.runModes.reverse" @click.stop />
-          <div
-            v-if="mode === 1"
-            class="grid gap-3 pt-2 sm:grid-cols-2"
-            @click.stop
+            class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors"
+            :class="
+              mode === 1
+                ? 'border-primary'
+                : 'border-muted-foreground/40 group-hover:border-primary/60'
+            "
+            aria-hidden="true"
           >
+            <div
+              v-show="mode === 1"
+              class="h-2.5 w-2.5 rounded-full bg-primary"
+            />
+          </div>
+          <input
+            v-model="mode"
+            type="radio"
+            name="run-mode"
+            :value="1"
+            class="sr-only"
+            @change="selectReverseProxyMode"
+          />
+          <span class="flex-1 space-y-2">
+            <span class="block text-base font-semibold leading-none">
+              {{ t("admin.runModeSettings.reverseModeTitle") }}
+            </span>
+            <span class="block text-sm text-muted-foreground">
+              {{ t("admin.runModeSettings.reverseModeDescription") }}
+            </span>
+          </span>
+        </label>
+        <div class="space-y-2 px-4 pb-4 pl-12">
+          <DocsLinkButton :href="docsUrls.runModes.reverse" />
+          <div v-if="mode === 1" class="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
               class="rounded-lg border px-3 py-3 text-left transition-colors"
@@ -158,42 +169,53 @@
       </div>
 
       <div
-        class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
+        class="group rounded-lg border transition-all hover:border-primary/50"
         :class="
           mode === 3
             ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
             : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
-        @click="mode = 3"
       >
-        <div
-          class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
-          :class="
-            mode === 3
-              ? 'border-primary'
-              : 'border-muted-foreground/40 group-hover:border-primary/60'
-          "
-        >
+        <label class="flex cursor-pointer items-start space-x-4 rounded-lg p-4">
           <div
-            v-show="mode === 3"
-            class="h-2.5 w-2.5 rounded-full bg-primary"
-          />
-        </div>
-        <div class="flex-1 space-y-2">
-          <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">
-              {{ t("admin.runModeSettings.subdomainModeTitle") }}
-            </p>
-            <span
-              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
-            >
-              {{ t("admin.runModeSettings.subdomainModeBadge") }}
-            </span>
+            class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors"
+            :class="
+              mode === 3
+                ? 'border-primary'
+                : 'border-muted-foreground/40 group-hover:border-primary/60'
+            "
+            aria-hidden="true"
+          >
+            <div
+              v-show="mode === 3"
+              class="h-2.5 w-2.5 rounded-full bg-primary"
+            />
           </div>
-          <p class="text-sm text-muted-foreground">
-            {{ t("admin.runModeSettings.subdomainModeDescription") }}
-          </p>
-          <DocsLinkButton :href="docsUrls.runModes.subdomain" @click.stop />
+          <input
+            v-model="mode"
+            type="radio"
+            name="run-mode"
+            :value="3"
+            class="sr-only"
+          />
+          <span class="flex-1 space-y-2">
+            <span class="flex items-center gap-2">
+              <span class="text-base font-semibold leading-none">
+                {{ t("admin.runModeSettings.subdomainModeTitle") }}
+              </span>
+              <span
+                class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              >
+                {{ t("admin.runModeSettings.subdomainModeBadge") }}
+              </span>
+            </span>
+            <span class="block text-sm text-muted-foreground">
+              {{ t("admin.runModeSettings.subdomainModeDescription") }}
+            </span>
+          </span>
+        </label>
+        <div class="px-4 pb-4 pl-12">
+          <DocsLinkButton :href="docsUrls.runModes.subdomain" />
         </div>
       </div>
     </CardContent>

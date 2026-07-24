@@ -127,6 +127,7 @@ const { t } = useI18n();
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.edit')"
                   :disabled="clearingAll"
                   @click="emit('edit', rule)"
                 >
@@ -134,7 +135,9 @@ const { t } = useI18n();
                 </Button>
                 <ConfirmDangerPopover
                   :title="t('admin.notifications.rules.deleteTitle')"
-                  :description="t('admin.notifications.rules.deleteDescription')"
+                  :description="
+                    t('admin.notifications.rules.deleteDescription')
+                  "
                   :loading="deletingId === rule.id"
                   :disabled="deletingId === rule.id || clearingAll"
                   :on-confirm="() => emit('delete-rule', rule)"
@@ -143,6 +146,7 @@ const { t } = useI18n();
                     <Button
                       variant="ghost"
                       size="icon"
+                      :aria-label="t('common.confirmDelete')"
                       class="text-destructive"
                       :disabled="deletingId === rule.id || clearingAll"
                     >

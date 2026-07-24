@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,8 @@ import {
 } from "./rule-form";
 import RulesListTable from "./RulesListTable.vue";
 import { useNotificationRules } from "./useNotificationRules";
+
+const a11yId = useId();
 
 const props = withDefaults(
   defineProps<{
@@ -119,6 +122,7 @@ const {
               <Button
                 variant="default"
                 size="icon"
+                :aria-label="t('common.moreActions')"
                 class="rounded-l-none border-l border-primary-foreground/20 px-2"
                 :disabled="loading || clearingAll"
               >
@@ -218,6 +222,7 @@ const {
               <div class="flex items-center gap-2 px-3 py-2">
                 <Checkbox
                   :model-value="isAllEventTypesSelected"
+                  :aria-label="t('admin.notifications.rules.selectAll')"
                   @update:model-value="toggleAllEventTypes"
                 />
                 <span class="text-xs text-muted-foreground">
@@ -275,8 +280,11 @@ const {
           </div>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div class="space-y-2">
-              <Label>{{ t("admin.notifications.rules.windowSeconds") }}</Label>
+              <Label :for="`${a11yId}-rulestab-1`">{{
+                t("admin.notifications.rules.windowSeconds")
+              }}</Label>
               <Input
+                :id="`${a11yId}-rulestab-1`"
                 v-model="ruleForm.window_seconds"
                 type="number"
                 min="1"
@@ -285,8 +293,11 @@ const {
             </div>
 
             <div class="space-y-2">
-              <Label>{{ t("admin.notifications.rules.thresholdCount") }}</Label>
+              <Label :for="`${a11yId}-rulestab-2`">{{
+                t("admin.notifications.rules.thresholdCount")
+              }}</Label>
               <Input
+                :id="`${a11yId}-rulestab-2`"
                 v-model="ruleForm.threshold_count"
                 type="number"
                 min="1"
@@ -295,9 +306,11 @@ const {
             </div>
 
             <div class="space-y-2">
-              <Label>{{ t("admin.notifications.rules.groupBy") }}</Label>
+              <Label :for="`${a11yId}-rulestab-3`">{{
+                t("admin.notifications.rules.groupBy")
+              }}</Label>
               <Select v-model="ruleForm.group_by">
-                <SelectTrigger>
+                <SelectTrigger :id="`${a11yId}-rulestab-3`">
                   <SelectValue
                     :placeholder="t('admin.notifications.rules.selectGroupBy')"
                   />
@@ -321,10 +334,11 @@ const {
             </div>
 
             <div class="space-y-2">
-              <Label>{{
+              <Label :for="`${a11yId}-rulestab-4`">{{
                 t("admin.notifications.rules.cooldownSeconds")
               }}</Label>
               <Input
+                :id="`${a11yId}-rulestab-4`"
                 v-model="ruleForm.cooldown_seconds"
                 type="number"
                 min="0"
@@ -428,6 +442,7 @@ const {
                 <Button
                   variant="ghost"
                   size="icon"
+                  :aria-label="t('common.confirmDelete')"
                   class="text-destructive"
                   :disabled="ruleForm.targets.length <= 1"
                   @click="removeTarget(index)"

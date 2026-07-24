@@ -10,10 +10,11 @@
 
       <div class="grid gap-6 py-1">
         <div class="grid gap-2">
-          <label class="text-sm text-muted-foreground">
+          <label :for="`${a11yId}-acmeapplicationdialog-1`" class="text-sm text-muted-foreground">
             {{ t("admin.acmeApplicationDialog.name") }}
           </label>
           <Input
+            :id="`${a11yId}-acmeapplicationdialog-1`"
             v-model.trim="name"
             :disabled="props.pending"
             :placeholder="t('admin.acmeApplicationDialog.namePlaceholder')"
@@ -22,12 +23,15 @@
 
         <div class="grid gap-2">
           <div class="flex items-center justify-between gap-3">
-            <label class="text-sm text-muted-foreground">
+            <label
+              :for="`${a11yId}-acmeapplicationdialog-2`"
+              class="text-sm text-muted-foreground"
+            >
               {{ t("admin.acmeApplicationDialog.domains") }}
             </label>
-            <span class="text-xs text-muted-foreground"
-              >{{ t("admin.acmeApplicationDialog.domainsHint") }}</span
-            >
+            <span class="text-xs text-muted-foreground">{{
+              t("admin.acmeApplicationDialog.domainsHint")
+            }}</span>
           </div>
           <TagsInput
             v-model="domains"
@@ -40,6 +44,7 @@
               <TagsInputItemDelete />
             </TagsInputItem>
             <TagsInputInput
+              :id="`${a11yId}-acmeapplicationdialog-2`"
               :disabled="props.pending"
               :placeholder="t('admin.acmeApplicationDialog.domainsPlaceholder')"
             />
@@ -48,7 +53,10 @@
 
         <div class="grid gap-2">
           <div class="flex items-center justify-between gap-3">
-            <label class="text-sm text-muted-foreground">
+            <label
+              :for="`${a11yId}-acmeapplicationdialog-3`"
+              class="text-sm text-muted-foreground"
+            >
               {{ t("admin.acmeApplicationDialog.dnsProvider") }}
             </label>
             <span
@@ -59,9 +67,14 @@
             </span>
           </div>
           <Select v-model="dnsType" :disabled="props.pending">
-            <SelectTrigger class="w-full">
+            <SelectTrigger
+              :id="`${a11yId}-acmeapplicationdialog-3`"
+              class="w-full"
+            >
               <SelectValue
-                :placeholder="t('admin.acmeApplicationDialog.selectDnsProvider')"
+                :placeholder="
+                  t('admin.acmeApplicationDialog.selectDnsProvider')
+                "
               />
             </SelectTrigger>
             <SelectContent class="max-h-[320px]">
@@ -113,7 +126,9 @@
                 v-if="hasMultipleCredentialSchemes"
                 class="text-xs text-muted-foreground"
               >
-                {{ t("admin.acmeApplicationDialog.multipleSchemesDescription") }}
+                {{
+                  t("admin.acmeApplicationDialog.multipleSchemesDescription")
+                }}
               </p>
             </div>
             <Button
@@ -206,6 +221,7 @@
                     </div>
                     <Input
                       v-model.trim="credentials[field.key]"
+                      :aria-label="field.key"
                       :type="isCredentialsVisible ? 'text' : 'password'"
                       class="font-mono"
                       :name="`acme-credential-${schemeIndex}-${fieldIndex}`"
@@ -239,7 +255,7 @@
               {{ t("admin.acmeApplicationDialog.autoRenewDescription") }}
             </div>
           </div>
-          <Switch v-model="renewEnabled" :disabled="props.pending" />
+          <Switch v-model="renewEnabled" :aria-label="t('admin.acmeApplicationDialog.autoRenew')" :disabled="props.pending" />
         </div>
       </div>
 
@@ -273,6 +289,7 @@
 </template>
 
 <script setup lang="ts">
+import { useId } from "vue";
 import { Eye, EyeOff } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
@@ -307,6 +324,8 @@ import {
   type AcmeApplicationDialogEmit,
   type AcmeApplicationDialogProps,
 } from "./acme-application/useAcmeApplicationForm";
+
+const a11yId = useId();
 
 const props = defineProps<AcmeApplicationDialogProps>();
 const emit = defineEmits<AcmeApplicationDialogEmit>();

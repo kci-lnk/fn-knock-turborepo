@@ -28,12 +28,17 @@
         <div
           v-if="oidcError"
           class="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          role="alert"
         >
           {{ oidcError }}
         </div>
       </template>
 
-      <form class="flex flex-col gap-6 items-center" autocomplete="off">
+      <form
+        class="flex flex-col gap-6 items-center"
+        autocomplete="off"
+        @submit.prevent="handleLogin"
+      >
         <div
           v-if="
             !isCaptchaVerified &&
@@ -168,24 +173,24 @@
           class="w-full space-y-3"
         >
           <div class="space-y-2">
-            <Label>{{ t("auth.username") }}</Label>
+            <Label for="login-username">{{ t("auth.username") }}</Label>
             <Input
+              id="login-username"
               v-model="username"
               autocomplete="username"
               :disabled="isLoading || isLoginCoolingDown"
-              @keyup.enter="handleLogin"
             />
           </div>
           <div class="space-y-2">
-            <Label>{{ t("auth.password") }}</Label>
+            <Label for="login-password">{{ t("auth.password") }}</Label>
             <div class="relative">
               <Input
+                id="login-password"
                 v-model="password"
                 :type="isPasswordVisible ? 'text' : 'password'"
                 autocomplete="current-password"
                 class="pr-10"
                 :disabled="isLoading || isLoginCoolingDown"
-                @keyup.enter="handleLogin"
               />
               <Button
                 type="button"
@@ -219,13 +224,13 @@
           v-if="isCaptchaVerified && loginMode === 'totp'"
         >
           <InputOTP
+            :aria-label="t('auth.otpPrompt')"
             inputmode="numeric"
             :maxlength="6"
             v-model="token"
             @complete="handleOtpComplete"
             :disabled="isLoading || isLoginCoolingDown"
-            :autofocus="true"
-            autocomplete="off"
+            autocomplete="one-time-code"
             data-form-type="other"
             data-1p-ignore="true"
             data-lpignore="true"
@@ -266,7 +271,11 @@
                 {{ t("auth.passkeyBindDescription") }}
               </DialogDescription>
             </DialogHeader>
-            <div v-if="passkeyBindError" class="text-sm text-destructive">
+            <div
+              v-if="passkeyBindError"
+              class="text-sm text-destructive"
+              role="alert"
+            >
               {{ passkeyBindError }}
             </div>
             <div
@@ -299,7 +308,7 @@
           </DialogContent>
         </Dialog>
         <Button
-          type="button"
+          type="submit"
           class="w-full"
           :disabled="isLoading || isLoginCoolingDown"
           v-if="isCaptchaVerified"
@@ -490,39 +499,31 @@ const {
 const powChallengeUrl = buildAuthApiPath("/challenge");
 const powChallengeFetch = (input: string | URL, init?: RequestInit) =>
   fetchNoStore(input, init);
-const {
-  handleLogin,
-  handleOtpComplete,
-  isLoading,
-  loginButtonLabel,
-} = useCredentialLogin({
-  captchaSubmission,
-  clearError: () => {
-    errorMessage.value = "";
-  },
-  handleLoginSuccess,
-  isCaptchaVerified,
-  isLoginCompletionPending,
-  isLoginCoolingDown,
-  isPasskeySupported,
-  loginCooldownSeconds,
-  loginMode,
-  password,
-  redirectUri,
-  rememberMe,
-  reportError: reportLoginError,
-  resetCaptchaWidgets,
-  resolveLoginCooldownMessage,
-  token,
-  translate: (key, params) => (params ? t(key, params) : t(key)),
-  username,
-});
+const { handleLogin, handleOtpComplete, isLoading, loginButtonLabel } =
+  useCredentialLogin({
+    captchaSubmission,
+    clearError: () => {
+      errorMessage.value = "";
+    },
+    handleLoginSuccess,
+    isCaptchaVerified,
+    isLoginCompletionPending,
+    isLoginCoolingDown,
+    isPasskeySupported,
+    loginCooldownSeconds,
+    loginMode,
+    password,
+    redirectUri,
+    rememberMe,
+    reportError: reportLoginError,
+    resetCaptchaWidgets,
+    resolveLoginCooldownMessage,
+    token,
+    translate: (key, params) => (params ? t(key, params) : t(key)),
+    username,
+  });
 
-const {
-  activeOidcProviderId,
-  handleOidcLogin,
-  isOidcLoading,
-} = useOidcLogin({
+const { activeOidcProviderId, handleOidcLogin, isOidcLoading } = useOidcLogin({
   clearError: () => {
     errorMessage.value = "";
   },
@@ -562,5 +563,4 @@ const passkeyButtonLabel = computed(() => {
   }
   return t("auth.passkeyLogin");
 });
-
 </script>

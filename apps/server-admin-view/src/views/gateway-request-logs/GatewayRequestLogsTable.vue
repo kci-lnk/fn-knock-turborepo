@@ -147,6 +147,7 @@ onUnmounted(disposeResizeObserver);
             >
               <Checkbox
                 :model-value="isAllDisplayedRowsSelected"
+                :aria-label="t('common.selectAll')"
                 :disabled="!hasSelectableDisplayedRows"
                 @update:model-value="
                   (value) =>
@@ -217,6 +218,11 @@ onUnmounted(disposeResizeObserver);
             <TableCell class="py-2.5">
               <Checkbox
                 :model-value="selectedLogEntryKeys.has(entry.selectionKey)"
+                :aria-label="
+                  t('common.selectItem', {
+                    item: entry.actionIp || entry.selectionKey,
+                  })
+                "
                 :disabled="!entry.actionIp"
                 @update:model-value="
                   toggleLogEntrySelection(entry.selectionKey)

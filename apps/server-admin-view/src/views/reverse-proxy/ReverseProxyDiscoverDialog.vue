@@ -80,6 +80,7 @@ defineExpose({
             <Button
               variant="outline"
               size="icon"
+              :aria-label="t('common.settings')"
               class="h-11 w-11 sm:h-9 sm:w-9"
               :disabled="isDiscovering"
               @click="emit('toggleSettings')"
@@ -152,6 +153,7 @@ defineExpose({
                   <TableHead class="w-[50px] text-center">
                     <input
                       type="checkbox"
+                      :aria-label="t('common.selectAll')"
                       class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary"
                       :checked="isAllSelected"
                       @change="emit('toggleAll', $event)"
@@ -183,6 +185,11 @@ defineExpose({
                     <input
                       v-model="selectedServicesModel"
                       type="checkbox"
+                      :aria-label="
+                        t('common.selectItem', {
+                          item: `${resolveServiceHost(service)}:${service.port}`,
+                        })
+                      "
                       class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary"
                       :value="service"
                     />
@@ -228,6 +235,9 @@ defineExpose({
                   </TableCell>
                   <TableCell>
                     <Input
+                      :aria-label="
+                        t('admin.reverseProxy.requiredPathPlaceholder')
+                      "
                       v-model="service.detail.rule.path"
                       :placeholder="
                         t('admin.reverseProxy.requiredPathPlaceholder')
@@ -250,9 +260,7 @@ defineExpose({
       <DialogFooter
         class="mt-2 shrink-0 items-center sm:flex-nowrap sm:justify-between"
       >
-        <span
-          class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1"
-        >
+        <span class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1">
           <template v-if="discoveredData">
             {{
               t("admin.reverseProxy.selectedItems", {

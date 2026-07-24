@@ -179,7 +179,7 @@
             </TableEmpty>
           </TableBody>
         </Table>
-        <div v-if="errorMessage" class="text-sm text-destructive">
+        <div v-if="errorMessage" class="text-sm text-destructive" role="alert">
           {{ errorMessage }}
         </div>
       </CardContent>

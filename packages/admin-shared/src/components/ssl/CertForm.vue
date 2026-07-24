@@ -41,8 +41,8 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-import CertSourceField from './CertSourceField.vue';
+import { useI18n } from "vue-i18n";
+import CertSourceField from "./CertSourceField.vue";
 
 interface SharedDataFileEntry {
   name: string;
@@ -66,9 +66,13 @@ defineProps<{
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  'update:cert': [value: string];
-  'update:sslKey': [value: string];
-  'request-shared-files': [payload: { field: 'cert' | 'sslKey'; force?: boolean }];
-  'select-shared-file': [payload: { field: 'cert' | 'sslKey'; relativePath: string }];
+  "update:cert": [value: string];
+  "update:sslKey": [value: string];
+  "request-shared-files": [
+    payload: { field: "cert" | "sslKey"; force?: boolean },
+  ];
+  "select-shared-file": [
+    payload: { field: "cert" | "sslKey"; relativePath: string },
+  ];
 }>();
 </script>

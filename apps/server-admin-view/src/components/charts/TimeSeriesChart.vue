@@ -19,20 +19,17 @@ const props = withDefaults(defineProps<TimeSeriesChartProps>(), {
   showLegend: true,
 });
 
-const {
-  hasRenderableData,
-  legendItems,
-  root,
-  shouldShowLegend,
-  tooltip,
-} = useTimeSeriesChart(props);
+const { hasRenderableData, legendItems, root, shouldShowLegend, tooltip } =
+  useTimeSeriesChart(props);
 
 // Vue assigns this string template ref at runtime.
 void root;
 </script>
 
 <template>
-  <div class="time-series-chart flex h-full w-full min-w-0 flex-col overflow-hidden">
+  <div
+    class="time-series-chart flex h-full w-full min-w-0 flex-col overflow-hidden"
+  >
     <div
       v-if="shouldShowLegend"
       class="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 px-1 pb-1 text-[11px] leading-4 text-muted-foreground"

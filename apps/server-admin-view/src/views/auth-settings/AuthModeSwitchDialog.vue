@@ -137,10 +137,7 @@ const shouldShowTotpPreparation = computed(
                   {{ account.username }}
                 </p>
                 <p class="truncate text-xs text-muted-foreground">
-                  {{
-                    account.sourceTotpName ||
-                    account.sourceTotpId
-                  }}
+                  {{ account.sourceTotpName || account.sourceTotpId }}
                 </p>
               </div>
               <div class="flex shrink-0 items-center gap-2">
@@ -159,7 +156,10 @@ const shouldShowTotpPreparation = computed(
             </div>
           </div>
         </div>
-        <div v-if="shouldShowTotpPreparation" class="overflow-hidden rounded-md border">
+        <div
+          v-if="shouldShowTotpPreparation"
+          class="overflow-hidden rounded-md border"
+        >
           <div class="border-b bg-muted/20 px-3 py-2">
             <div>
               <p class="font-medium">

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import CodeMirrorEditor from './CodeMirrorEditor.vue'
+import CodeMirrorEditor from "./CodeMirrorEditor.vue";
 
 interface Props {
-  modelValue: string
+  modelValue: string;
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: string): void
-}>()
+  (event: "update:modelValue", value: string): void;
+}>();
 </script>
 
 <template>

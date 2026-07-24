@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
@@ -34,6 +34,8 @@ import type {
   GatewayVisibilitySelection,
 } from "../../types";
 import { getCidrRegionSelectionKey } from "../../types/cidr";
+
+const a11yId = useId();
 
 const { t } = useI18n();
 const settings = ref<GatewayVisibilityDetails | null>(null);
@@ -209,6 +211,7 @@ onMounted(() => {
         <div
           v-if="isLoading"
           class="rounded-xl border border-border/60 bg-muted/20 px-5 py-12 text-center text-sm text-muted-foreground"
+          role="status"
         >
           {{ t("admin.gatewayVisibilitySettings.loadingConfig") }}
         </div>
@@ -216,6 +219,7 @@ onMounted(() => {
         <div
           v-else-if="loadError"
           class="rounded-xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive"
+          role="alert"
         >
           {{ loadError }}
         </div>
@@ -227,13 +231,18 @@ onMounted(() => {
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <Label class="text-base font-medium">{{
-                    t("admin.gatewayVisibilitySettings.visibilityConstraint")
-                  }}</Label>
+                  <Label
+                    :for="`${a11yId}-gatewayvisibilitysettings-1`"
+                    class="text-base font-medium"
+                    >{{
+                      t("admin.gatewayVisibilitySettings.visibilityConstraint")
+                    }}</Label
+                  >
                 </div>
               </div>
 
               <Switch
+                :id="`${a11yId}-gatewayvisibilitysettings-1`"
                 v-model="form.enabled"
                 class="mt-0.5 shrink-0"
                 :disabled="isSaving"
@@ -251,9 +260,9 @@ onMounted(() => {
               </div>
 
               <section class="space-y-4 p-5">
-                <Label class="text-base">{{
-                  t("admin.gatewayVisibilitySettings.regionScope")
-                }}</Label>
+                <div class="text-base font-medium">
+                  {{ t("admin.gatewayVisibilitySettings.regionScope") }}
+                </div>
                 <CidrRegionSelector
                   v-model="form.selections"
                   :disabled="visibilityInputsDisabled"
@@ -300,9 +309,13 @@ onMounted(() => {
 
               <section class="space-y-4 border-t border-border/60 p-5">
                 <div class="space-y-1">
-                  <Label class="text-base">{{
-                    t("admin.gatewayVisibilitySettings.customCidrs")
-                  }}</Label>
+                  <Label
+                    :for="`${a11yId}-gatewayvisibilitysettings-2`"
+                    class="text-base"
+                    >{{
+                      t("admin.gatewayVisibilitySettings.customCidrs")
+                    }}</Label
+                  >
                   <p class="text-sm leading-6 text-muted-foreground">
                     {{
                       t("admin.gatewayVisibilitySettings.customCidrsHintBefore")
@@ -321,6 +334,7 @@ onMounted(() => {
                 </div>
 
                 <Textarea
+                  :id="`${a11yId}-gatewayvisibilitysettings-2`"
                   v-model="form.customCidrsText"
                   :disabled="visibilityInputsDisabled"
                   class="min-h-36 font-mono text-sm"

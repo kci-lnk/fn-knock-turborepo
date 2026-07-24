@@ -14,10 +14,12 @@ import {
 import { resolveRuntimeCapabilityRedirect } from "./runtime-access";
 
 NProgress.configure({
+  barSelector: ".bar",
   showSpinner: false,
   minimum: 0.12,
   easing: "ease",
   speed: 420,
+  template: '<div class="bar" aria-hidden="true"><div class="peg"></div></div>',
   trickleSpeed: 160,
 });
 

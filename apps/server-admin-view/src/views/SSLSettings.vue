@@ -4,9 +4,9 @@
   >
     <div class="flex items-start justify-between gap-3">
       <div class="grid gap-1">
-        <h1 class="text-lg font-semibold tracking-tight">
+        <h2 class="text-lg font-semibold tracking-tight">
           {{ t("admin.sslSettings.title") }}
-        </h1>
+        </h2>
         <p class="text-sm text-muted-foreground">
           {{ t("admin.sslSettings.description") }}
         </p>

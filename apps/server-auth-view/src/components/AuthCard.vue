@@ -2,9 +2,9 @@
   <Card :class="['auth-glass-card w-full max-w-sm', cardClass]">
     <slot name="header">
       <CardHeader v-if="showDefaultHeader">
-        <CardTitle v-if="title" :class="titleClass">
+        <h1 v-if="title" :class="['leading-none font-semibold', titleClass]">
           {{ title }}
-        </CardTitle>
+        </h1>
         <CardDescription v-if="description" :class="descriptionClass">
           {{ description }}
         </CardDescription>
@@ -25,7 +25,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 
 const props = withDefaults(

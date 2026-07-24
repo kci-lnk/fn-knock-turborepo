@@ -197,7 +197,9 @@ const hasTargets = computed(() => props.targets.length > 0);
               :disabled="togglingTargetId === target.id"
               @click="toggleTarget(target, !target.enabled)"
             >
-              {{ target.enabled ? t("admin.ddns.stop") : t("admin.ddns.start") }}
+              {{
+                target.enabled ? t("admin.ddns.stop") : t("admin.ddns.start")
+              }}
             </Button>
             <ConfirmDangerPopover
               :title="t('admin.ddns.deleteExtraTitle')"

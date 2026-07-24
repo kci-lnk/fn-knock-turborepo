@@ -7,13 +7,22 @@
             ACME.sh
             <Badge :variant="statusBadgeVariant">{{ statusLabel }}</Badge>
           </CardTitle>
-          <CardDescription>{{ t("admin.acmeSsl.description") }}</CardDescription>
+          <CardDescription>{{
+            t("admin.acmeSsl.description")
+          }}</CardDescription>
         </div>
-        <RefreshButton :loading="isFetching" :disabled="isInitializing || isFetching || isSwitchingCa" @click="fetchStatus" />
+        <RefreshButton
+          :loading="isFetching"
+          :disabled="isInitializing || isFetching || isSwitchingCa"
+          @click="fetchStatus"
+        />
       </div>
     </CardHeader>
 
-    <CardContent v-if="isInitializing && showInitializingSkeleton" class="grid gap-6">
+    <CardContent
+      v-if="isInitializing && showInitializingSkeleton"
+      class="grid gap-6"
+    >
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="border p-4 rounded-lg">
           <Skeleton class="h-4 w-20 mb-2" />
@@ -40,7 +49,7 @@
           </div>
           <div class="font-medium">{{ statusLabel }}</div>
           <div class="mt-2 text-xs text-muted-foreground font-mono break-all">
-            {{ state?.message || '-' }}
+            {{ state?.message || "-" }}
           </div>
         </div>
 
@@ -49,28 +58,50 @@
             <div class="text-sm text-muted-foreground">
               {{ t("admin.acmeSsl.resourceStatus") }}
             </div>
-            <div v-if="isInstalled" :class="['px-2 py-0.5 rounded text-xs font-medium', 'bg-green-100 text-green-700 border border-green-200']">
+            <div
+              v-if="isInstalled"
+              :class="[
+                'px-2 py-0.5 rounded text-xs font-medium',
+                'bg-green-100 text-green-700 border border-green-200',
+              ]"
+            >
               {{ t("admin.acmeSsl.downloaded") }}
             </div>
-            <div v-else :class="['px-2 py-0.5 rounded text-xs font-medium', 'bg-yellow-100 text-yellow-700 border border-yellow-200']">
-              <span v-if="!isInstalling">{{ t("admin.acmeSsl.notDownloaded") }}</span>
+            <div
+              v-else
+              :class="[
+                'px-2 py-0.5 rounded text-xs font-medium',
+                'bg-yellow-100 text-yellow-700 border border-yellow-200',
+              ]"
+            >
+              <span v-if="!isInstalling">{{
+                t("admin.acmeSsl.notDownloaded")
+              }}</span>
               <span v-else>{{ t("admin.acmeSsl.downloading") }}</span>
             </div>
           </div>
           <div class="mt-4">
             <Progress v-if="progress < 100" :model-value="progress" />
           </div>
-          <div v-if="state?.status === 'error'" class="text-sm bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20 mt-3 break-all">
+          <div
+            v-if="state?.status === 'error'"
+            class="text-sm bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20 mt-3 break-all"
+          >
             {{ t("admin.acmeSsl.errorPrefix") }}{{ state?.message }}
           </div>
-          <div v-else-if="isInstalling" class="text-sm text-muted-foreground mt-3 animate-pulse">
+          <div
+            v-else-if="isInstalling"
+            class="text-sm text-muted-foreground mt-3 animate-pulse"
+          >
             {{ t("admin.acmeSsl.installingText") }}
           </div>
         </div>
       </div>
 
       <div v-if="isInstalled" class="rounded-lg border bg-muted/20 p-4">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+        >
           <div class="grid min-w-0 gap-1">
             <div class="text-sm font-medium">
               {{ t("admin.acmeSsl.caTitle") }}
@@ -79,7 +110,10 @@
               {{ t("admin.acmeSsl.caDescription") }}
             </div>
           </div>
-          <Badge variant="outline" class="shrink-0 self-start whitespace-nowrap">
+          <Badge
+            variant="outline"
+            class="shrink-0 self-start whitespace-nowrap"
+          >
             {{ currentCertificateAuthorityLabel }}
           </Badge>
         </div>
@@ -89,7 +123,12 @@
             v-for="option in certificateAuthorityOptions"
             :key="option.value"
             type="button"
-            :disabled="isSwitchingCa || isDeleting || isFetching || currentCertificateAuthority === option.value"
+            :disabled="
+              isSwitchingCa ||
+              isDeleting ||
+              isFetching ||
+              currentCertificateAuthority === option.value
+            "
             :class="[
               'rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
               currentCertificateAuthority === option.value
@@ -98,10 +137,14 @@
             ]"
             @click="switchCertificateAuthority(option.value)"
           >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div
+              class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+            >
               <div class="grid min-w-0 gap-1">
                 <div class="text-sm font-medium">{{ option.label }}</div>
-                <div class="text-xs text-muted-foreground">{{ option.description }}</div>
+                <div class="text-xs text-muted-foreground">
+                  {{ option.description }}
+                </div>
               </div>
               <span
                 :class="[
@@ -124,12 +167,18 @@
         <div class="mt-3 text-xs text-muted-foreground">
           {{ t("admin.acmeSsl.caHint") }}
         </div>
-        <div v-if="isSwitchingCa" class="mt-3 text-sm text-muted-foreground animate-pulse">
+        <div
+          v-if="isSwitchingCa"
+          class="mt-3 text-sm text-muted-foreground animate-pulse"
+        >
           {{ t("admin.acmeSsl.switchingCa") }}
         </div>
       </div>
 
-      <div v-if="!isInstalled && !isInstalling" class="rounded-lg border bg-muted/20 p-4">
+      <div
+        v-if="!isInstalled && !isInstalling"
+        class="rounded-lg border bg-muted/20 p-4"
+      >
         <div class="flex items-start justify-between gap-4">
           <div class="grid gap-1">
             <div class="text-sm font-medium">
@@ -142,21 +191,37 @@
         </div>
 
         <div class="mt-3">
-          <Button class="w-full md:w-auto" :disabled="isStartingInstall" @click="startInstall">
-            <span v-if="isStartingInstall" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+          <Button
+            class="w-full md:w-auto"
+            :disabled="isStartingInstall"
+            @click="startInstall"
+          >
+            <span
+              v-if="isStartingInstall"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
             {{ t("admin.acmeSsl.startInstall") }}
           </Button>
         </div>
       </div>
     </CardContent>
-    <CardContent v-else class="min-h-[220px]" aria-hidden="true" ></CardContent>
+    <CardContent v-else class="min-h-[220px]" aria-hidden="true"></CardContent>
 
-    <CardFooter v-if="!isInitializing" class="flex justify-end gap-3 border-t pt-6">
+    <CardFooter
+      v-if="!isInitializing"
+      class="flex justify-end gap-3 border-t pt-6"
+    >
       <template v-if="isInstalling">
-        <div class="text-sm text-muted-foreground animate-pulse flex items-center h-10 mr-auto">
+        <div
+          class="text-sm text-muted-foreground animate-pulse flex items-center h-10 mr-auto"
+        >
           {{ t("admin.acmeSsl.installingText") }}
         </div>
-        <RefreshButton :loading="isFetching" :disabled="isFetching" @click="fetchStatus" />
+        <RefreshButton
+          :loading="isFetching"
+          :disabled="isFetching"
+          @click="fetchStatus"
+        />
       </template>
       <template v-else>
         <ConfirmDangerPopover
@@ -169,7 +234,10 @@
           content-class="w-80 text-left"
         >
           <template #trigger>
-            <Button variant="destructive" :disabled="isDeleting || isSwitchingCa">
+            <Button
+              variant="destructive"
+              :disabled="isDeleting || isSwitchingCa"
+            >
               {{ t("admin.acmeSsl.delete") }}
             </Button>
           </template>
@@ -178,7 +246,10 @@
     </CardFooter>
   </Card>
 
-  <Dialog :open="showSwitchCaDialog" @update:open="handleSwitchCaDialogOpenChange">
+  <Dialog
+    :open="showSwitchCaDialog"
+    @update:open="handleSwitchCaDialogOpenChange"
+  >
     <DialogContent class="sm:max-w-[460px]">
       <DialogHeader>
         <DialogTitle>{{ t("admin.acmeSsl.switchDialogTitle") }}</DialogTitle>
@@ -205,7 +276,10 @@
         >
           {{ t("common.cancel") }}
         </Button>
-        <Button :disabled="isSwitchingCa" @click="confirmSwitchCertificateAuthority">
+        <Button
+          :disabled="isSwitchingCa"
+          @click="confirmSwitchCertificateAuthority"
+        >
           <span
             v-if="isSwitchingCa"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
@@ -218,25 +292,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import RefreshButton from '@/components/RefreshButton.vue';
-import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@admin-shared/utils/toast';
-import { AcmeAPI } from '../../lib/api';
-import { usePollingResourceStatus } from '@admin-shared/composables/usePollingResourceStatus';
-import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
+import { ref, computed } from "vue";
+import { useI18n } from "vue-i18n";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import RefreshButton from "@/components/RefreshButton.vue";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@admin-shared/utils/toast";
+import { AcmeAPI } from "../../lib/api";
+import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 
-type AcmeCertificateAuthority = 'zerossl' | 'letsencrypt';
+type AcmeCertificateAuthority = "zerossl" | "letsencrypt";
 type AcmeState = {
-  status: 'uninstalled' | 'installing' | 'installed' | 'error';
+  status: "uninstalled" | "installing" | "installed" | "error";
   progress: number;
   message: string;
   certificateAuthority: AcmeCertificateAuthority;
@@ -245,20 +336,22 @@ type AcmeState = {
 
 const { t } = useI18n();
 
-const certificateAuthorityOptions = computed<Array<{
-  value: AcmeCertificateAuthority;
-  label: string;
-  description: string;
-}>>(() => [
+const certificateAuthorityOptions = computed<
+  Array<{
+    value: AcmeCertificateAuthority;
+    label: string;
+    description: string;
+  }>
+>(() => [
   {
-    value: 'letsencrypt',
+    value: "letsencrypt",
     label: "Let's Encrypt",
-    description: t('admin.acmeSsl.caLetsEncryptDescription'),
+    description: t("admin.acmeSsl.caLetsEncryptDescription"),
   },
   {
-    value: 'zerossl',
-    label: 'ZeroSSL',
-    description: t('admin.acmeSsl.caZeroSslDescription'),
+    value: "zerossl",
+    label: "ZeroSSL",
+    description: t("admin.acmeSsl.caZeroSslDescription"),
   },
 ]);
 
@@ -268,40 +361,40 @@ const pendingCertificateAuthority = ref<AcmeCertificateAuthority | null>(null);
 const { isPending: isFetching, run: runFetchStatus } = useAsyncAction();
 const { isPending: isStartingInstall, run: runStartInstall } = useAsyncAction({
   onError: async (error) => {
-    toast.error(extractErrorMessage(error, t('admin.acmeSsl.installFailed')));
+    toast.error(extractErrorMessage(error, t("admin.acmeSsl.installFailed")));
     await fetchStatus();
   },
 });
 const { isPending: isDeleting, run: runUninstall } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t('admin.acmeSsl.deleteFailed')));
+    toast.error(extractErrorMessage(error, t("admin.acmeSsl.deleteFailed")));
     void fetchStatus();
   },
 });
 const { isPending: isSwitchingCa, run: runSwitchCa } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t('admin.acmeSsl.switchFailed')));
+    toast.error(extractErrorMessage(error, t("admin.acmeSsl.switchFailed")));
     void fetchStatus();
   },
 });
 
-const isInstalling = computed(() => state.value?.status === 'installing');
-const isInstalled = computed(() => state.value?.status === 'installed');
+const isInstalling = computed(() => state.value?.status === "installing");
+const isInstalled = computed(() => state.value?.status === "installed");
 const currentCertificateAuthority = computed<AcmeCertificateAuthority>(
-  () => state.value?.certificateAuthority || 'zerossl',
+  () => state.value?.certificateAuthority || "zerossl",
 );
 const currentCertificateAuthorityLabel = computed(() => {
   return (
     certificateAuthorityOptions.value.find(
       (option) => option.value === currentCertificateAuthority.value,
-    )?.label || 'ZeroSSL'
+    )?.label || "ZeroSSL"
   );
 });
 const pendingCertificateAuthorityLabel = computed(() => {
   return (
     certificateAuthorityOptions.value.find(
       (option) => option.value === pendingCertificateAuthority.value,
-    )?.label || '-'
+    )?.label || "-"
   );
 });
 
@@ -312,51 +405,49 @@ const progress = computed(() => {
 
 const statusLabel = computed(() => {
   const s = state.value?.status;
-  if (!s) return t('admin.acmeSsl.statusUnknown');
-  if (s === 'installed') return t('admin.acmeSsl.statusInstalled');
-  if (s === 'installing') return t('admin.acmeSsl.statusInstalling');
-  if (s === 'error') return t('admin.acmeSsl.statusError');
-  return t('admin.acmeSsl.statusUninstalled');
+  if (!s) return t("admin.acmeSsl.statusUnknown");
+  if (s === "installed") return t("admin.acmeSsl.statusInstalled");
+  if (s === "installing") return t("admin.acmeSsl.statusInstalling");
+  if (s === "error") return t("admin.acmeSsl.statusError");
+  return t("admin.acmeSsl.statusUninstalled");
 });
 
 const statusBadgeVariant = computed(() => {
   const s = state.value?.status;
-  if (s === 'installed') return 'default';
-  if (s === 'installing') return 'secondary';
-  if (s === 'error') return 'destructive';
-  return 'outline';
+  if (s === "installed") return "default";
+  if (s === "installing") return "secondary";
+  if (s === "error") return "destructive";
+  return "outline";
 });
 
-const { isInitializing, refresh: fetchStatus } = usePollingResourceStatus<AcmeState | null>({
-  fetcher: async () => {
-    const data = await runFetchStatus(() => AcmeAPI.status());
-    return data ?? state.value;
-  },
-  onData: (data) => {
-    state.value = data;
-  },
-  isDownloading: (data) => data?.status === 'installing',
-});
+const { isInitializing, refresh: fetchStatus } =
+  usePollingResourceStatus<AcmeState | null>({
+    fetcher: async () => {
+      const data = await runFetchStatus(() => AcmeAPI.status());
+      return data ?? state.value;
+    },
+    onData: (data) => {
+      state.value = data;
+    },
+    isDownloading: (data) => data?.status === "installing",
+  });
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
 
 async function startInstall() {
   if (isInstalling.value) return;
-  await runStartInstall(
-    () => AcmeAPI.init(),
-    {
-      onSuccess: async () => {
-        toast.success(t('admin.acmeSsl.installStarted'));
-        await fetchStatus();
-      },
+  await runStartInstall(() => AcmeAPI.init(), {
+    onSuccess: async () => {
+      toast.success(t("admin.acmeSsl.installStarted"));
+      await fetchStatus();
     },
-  );
+  });
 }
 
 async function uninstall() {
   if (!isInstalled.value) return;
   await runUninstall(async () => {
     await AcmeAPI.uninstall();
-    toast.success(t('admin.acmeSsl.deleted'));
+    toast.success(t("admin.acmeSsl.deleted"));
     await fetchStatus();
   });
 }
@@ -374,8 +465,11 @@ async function confirmSwitchCertificateAuthority() {
   await runSwitchCa(async () => {
     await AcmeAPI.updateClientSettings({ certificateAuthority: next });
     toast.success(
-      t('admin.acmeSsl.switchedTo', {
-        name: certificateAuthorityOptions.value.find((option) => option.value === next)?.label || next,
+      t("admin.acmeSsl.switchedTo", {
+        name:
+          certificateAuthorityOptions.value.find(
+            (option) => option.value === next,
+          )?.label || next,
       }),
     );
     showSwitchCaDialog.value = false;
@@ -390,5 +484,4 @@ function handleSwitchCaDialogOpenChange(open: boolean) {
     pendingCertificateAuthority.value = null;
   }
 }
-
 </script>

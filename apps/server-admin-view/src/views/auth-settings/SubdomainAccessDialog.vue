@@ -127,6 +127,7 @@ const updateSearch = (value: string | number) => {
             {{ t("admin.authSettings.permissionStreamIpNotice") }}
           </p>
           <Input
+            :aria-label="t('admin.authSettings.permissionSearchPlaceholder')"
             :model-value="search"
             :placeholder="t('admin.authSettings.permissionSearchPlaceholder')"
             @update:model-value="updateSearch"

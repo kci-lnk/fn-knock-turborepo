@@ -28,7 +28,11 @@ const { t } = useI18n();
     </AlertDescription>
   </Alert>
 
-  <Alert v-else-if="blockedReason" variant="destructive" class="border-destructive/40">
+  <Alert
+    v-else-if="blockedReason"
+    variant="destructive"
+    class="border-destructive/40"
+  >
     <AlertTriangle class="h-4 w-4" />
     <AlertTitle>{{ t("admin.webTerminal.unavailableTitle") }}</AlertTitle>
     <AlertDescription>{{ blockedReason }}</AlertDescription>

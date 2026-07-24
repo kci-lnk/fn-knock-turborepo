@@ -1,14 +1,11 @@
 <template>
   <div class="flex min-h-dvh w-full flex-col bg-muted/40">
-    <div
-      v-if="configStore.isLoading"
-      class="ml-4 text-sm text-muted-foreground animate-pulse"
-    >
-      {{ t("common.loadingConfig") }}
-    </div>
-    <div v-if="configStore.isError" class="ml-4 text-sm text-destructive">
-      {{ t("common.loadConfigFailed") }}
-    </div>
+    <RouteAccessibility
+      :route-path="route.path"
+      :page-label="currentNavLabel"
+      :is-lite="configStore.isFpkLiteDeployment"
+    />
+    <LayoutLoadStatus />
 
     <div
       class="sticky top-0 z-20 border-b bg-background/95 backdrop-blur sm:hidden"
@@ -210,7 +207,12 @@
         </div>
       </aside>
 
-      <main class="flex-1 w-full min-w-0" :aria-busy="isRouteNavigating">
+      <main
+        id="main-content"
+        class="flex-1 w-full min-w-0"
+        :aria-busy="isRouteNavigating" tabindex="-1"
+      >
+        <h1 class="sr-only">{{ currentNavLabel }}</h1>
         <LayoutStatusBanners :navigate-to="navigateTo" />
         <div
           v-if="isRouteNavigating"
@@ -218,6 +220,7 @@
         >
           <div
             class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/88 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur"
+            role="status"
           >
             <span
               class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
@@ -229,6 +232,7 @@
         <div
           v-else-if="configStore.isLoading"
           class="flex h-full min-h-[400px] items-center justify-center"
+          aria-hidden="true"
         >
           <div
             class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"
@@ -276,8 +280,10 @@ import {
 const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLocaleDialog from "./layout/LayoutLocaleDialog.vue";
+import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
+import RouteAccessibility from "../components/RouteAccessibility.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -448,11 +454,4 @@ watch(
   { immediate: true },
 );
 
-watch(
-  () => configStore.isFpkLiteDeployment,
-  (isLite) => {
-    document.title = isLite ? "fn-knock Lite" : "fn-knock";
-  },
-  { immediate: true },
-);
 </script>

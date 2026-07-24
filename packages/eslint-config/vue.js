@@ -1,8 +1,10 @@
 import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import vuePlugin from "eslint-plugin-vue";
+import vueAccessibilityPlugin from "eslint-plugin-vuejs-accessibility";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import { vueA11yProjectPlugin } from "./vue-a11y-project.js";
 
 /**
  * ESLint's flat configuration for the Vue applications in this repository.
@@ -20,6 +22,7 @@ export const vueConfig = [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...vuePlugin.configs["flat/essential"],
+  ...vueAccessibilityPlugin.configs["flat/recommended"],
   {
     files: ["**/*.{js,mjs,cjs,ts,vue}"],
     languageOptions: {
@@ -27,6 +30,9 @@ export const vueConfig = [
         ...globals.browser,
         ...globals.node,
       },
+    },
+    plugins: {
+      "project-a11y": vueA11yProjectPlugin,
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
@@ -66,6 +72,36 @@ export const vueConfig = [
           property: "confirm",
           message:
             "Use the project confirmation dialog. Browser-mandated leave prompts should use beforeunload.",
+        },
+      ],
+      "vuejs-accessibility/no-aria-hidden-on-focusable": "error",
+      "vuejs-accessibility/no-role-presentation-on-focusable": "error",
+      // The upstream rule lowercases Vue component names and mistakes our
+      // non-rendering <Select> root for a native <select>. The project rule
+      // checks the actual focusable primitives, including <SelectTrigger>.
+      "vuejs-accessibility/form-control-has-label": "off",
+      "project-a11y/form-control-has-accessible-name": "error",
+      "project-a11y/interactive-has-accessible-name": "error",
+      "vuejs-accessibility/label-has-for": [
+        "error",
+        {
+          // WCAG permits either an explicit `for`/`id` association or a
+          // control nested inside the label.
+          required: { some: ["nesting", "id"] },
+          controlComponents: [
+            "Checkbox",
+            "ComboboxInput",
+            "Input",
+            "InputGroupInput",
+            "InputGroupTextarea",
+            "InputOTP",
+            "RadioGroupItem",
+            "SelectTrigger",
+            "Slider",
+            "Switch",
+            "TagsInputInput",
+            "Textarea",
+          ],
         },
       ],
       "vue/multi-word-component-names": "off",

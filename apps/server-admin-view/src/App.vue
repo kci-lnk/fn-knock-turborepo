@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import "vue-sonner/style.css";
 import { useThemeMode } from "@/components/ui/theme-toggle";
@@ -149,10 +149,16 @@ const syncWelcomeGuideCompletion = async (showErrorToast: boolean) => {
   }
 };
 
-const handleWelcomeStart = () => {
+const focusMainContent = () => {
+  document.getElementById("main-content")?.focus();
+};
+
+const handleWelcomeStart = async () => {
   writeWelcomeGuideLocalFlag();
   isWelcomeResolved.value = true;
   isWelcomeVisible.value = false;
+  await nextTick();
+  focusMainContent();
   runAfterFirstPaint(() => {
     void syncWelcomeGuideCompletion(false);
   });
@@ -243,7 +249,14 @@ watch(
 
 <template>
   <DynamicWhiteBackground :active="isDynamicWhiteActive" />
-  <RouterView v-if="shouldRenderRouter" />
+  <div
+    v-if="shouldRenderRouter"
+    class="contents"
+    :aria-hidden="isWelcomeVisible ? 'true' : undefined"
+    :inert="isWelcomeVisible"
+  >
+    <RouterView />
+  </div>
   <DockerAdminAccessGate
     v-else-if="shouldShowDockerAdminGate"
     :mode="dockerAdminGateMode"

@@ -241,6 +241,7 @@
                               type="button"
                               size="sm"
                               variant="default"
+                              :aria-label="t('common.moreActions')"
                               class="rounded-l-none border-l border-primary-foreground/20 px-2"
                               :disabled="isSecondaryActionDisabled(application)"
                             >
@@ -316,6 +317,7 @@
                             type="button"
                             variant="ghost"
                             size="icon"
+                            :aria-label="t('common.confirmDelete')"
                             class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                             :disabled="isDeleteApplicationBlocked()"
                           >

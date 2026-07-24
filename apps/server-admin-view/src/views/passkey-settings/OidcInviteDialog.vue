@@ -80,7 +80,9 @@ const { t } = useI18n();
           v-if="inviteUrl"
           class="space-y-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
         >
-          <Label>{{ t("admin.passkeySettings.inviteLink") }}</Label>
+          <div class="text-sm font-medium">
+            {{ t("admin.passkeySettings.inviteLink") }}
+          </div>
           <div
             class="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-2"
           >

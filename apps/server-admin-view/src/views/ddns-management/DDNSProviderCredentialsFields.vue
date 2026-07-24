@@ -47,9 +47,9 @@ const { t } = useI18n();
       class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
     >
       <div class="space-y-1 mt-1.5">
-        <Label class="text-sm font-medium">
+        <div class="text-sm font-medium">
           {{ t("admin.ddns.credentialReuse") }}
-        </Label>
+        </div>
         <p class="text-xs text-muted-foreground hidden sm:block pr-4">
           {{ t("admin.ddns.credentialReuseHint") }}
         </p>
@@ -147,6 +147,11 @@ const { t } = useI18n();
           />
           <button
             type="button"
+            :aria-label="
+              fieldVisibility[field.key]
+                ? t('common.hideSecret')
+                : t('common.showSecret')
+            "
             class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             @click="toggleFieldVisibility(field.key)"
           >

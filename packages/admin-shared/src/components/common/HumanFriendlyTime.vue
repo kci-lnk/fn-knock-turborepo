@@ -128,9 +128,13 @@ onUnmounted(() => {
   <TooltipProvider v-else>
     <Tooltip :open="open" @update:open="handleOpenChange">
       <TooltipTrigger as-child>
-        <span class="cursor-help" tabindex="0" @click="handleTriggerClick">
+        <button
+          type="button"
+          class="cursor-help border-0 bg-transparent p-0 font-inherit text-inherit"
+          @click="handleTriggerClick"
+        >
           {{ displayText }}
-        </span>
+        </button>
       </TooltipTrigger>
       <TooltipContent>
         <p v-for="line in tooltipContentLines" :key="line">{{ line }}</p>

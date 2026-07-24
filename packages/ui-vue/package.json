@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "scripts": {
+    "lint": "eslint . --max-warnings=0"
+  },
   "dependencies": {
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^14.2.1",
@@ -15,5 +18,9 @@
     "vue-i18n": "^10.0.8",
     "vue-input-otp": "^0.3.2",
     "vue-sonner": "^2.0.9"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "^0.0.0",
+    "eslint": "^9.39.5"
   }
 }

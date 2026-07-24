@@ -249,9 +249,9 @@ onMounted(async () => {
       class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
     >
       <div class="max-w-3xl space-y-1.5">
-        <h1 class="text-2xl font-semibold tracking-normal">
+        <h2 class="text-2xl font-semibold tracking-normal">
           {{ t("admin.gatewayLocationsSettings.title") }}
-        </h1>
+        </h2>
         <p class="text-sm leading-6 text-muted-foreground">
           {{ t("admin.gatewayLocationsSettings.description") }}
         </p>

@@ -290,6 +290,7 @@ onMounted(() => {
         <div
           v-else-if="loadError && !details"
           class="rounded-xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive"
+          role="alert"
         >
           {{ loadError }}
         </div>
@@ -352,6 +353,7 @@ onMounted(() => {
                         <div class="flex justify-center">
                           <Switch
                             :model-value="getToggleValue(item)"
+                            :aria-label="item.host"
                             :disabled="isSaving || !isAvailable"
                             @update:model-value="
                               updateHostToggle(item.host, $event === true)

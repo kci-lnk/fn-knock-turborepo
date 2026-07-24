@@ -262,14 +262,13 @@ const mappingWafEnabledModel = computed({
                   </p>
                 </div>
                 <div
-                  role="radiogroup"
+                  role="group"
                   :aria-label="t('admin.subdomainProxy.hostInputModeAria')"
                   class="grid w-full grid-cols-2 rounded-lg bg-muted p-[3px] text-muted-foreground sm:w-[216px]"
                 >
                   <button
                     type="button"
-                    role="radio"
-                    :aria-checked="mappingInputMode === 'subdomain'"
+                    :aria-pressed="mappingInputMode === 'subdomain'"
                     :disabled="!canUseRootDomainSuffix"
                     class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
                     :class="
@@ -283,8 +282,7 @@ const mappingWafEnabledModel = computed({
                   </button>
                   <button
                     type="button"
-                    role="radio"
-                    :aria-checked="mappingInputMode === 'full_host'"
+                    :aria-pressed="mappingInputMode === 'full_host'"
                     class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     :class="
                       mappingInputMode === 'full_host'
@@ -387,18 +385,19 @@ const mappingWafEnabledModel = computed({
                     @update:open="handlePortalDisabledTooltipOpenChange"
                   >
                     <TooltipTrigger as-child>
-                      <span
-                        class="inline-flex cursor-help rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                        tabindex="0"
+                      <Switch
+                        id="mapping-toolbar"
+                        class="cursor-help"
+                        :model-value="showToolbar"
+                        aria-disabled="true"
                         @click="handlePortalDisabledTooltipTriggerClick"
-                      >
-                        <Switch
-                          id="mapping-toolbar"
-                          class="pointer-events-none"
-                          :model-value="showToolbar"
-                          disabled
-                        />
-                      </span>
+                        @keydown.enter.prevent="
+                          handlePortalDisabledTooltipTriggerClick
+                        "
+                        @keydown.space.prevent="
+                          handlePortalDisabledTooltipTriggerClick
+                        "
+                      />
                     </TooltipTrigger>
                     <TooltipContent side="top" align="end" class="max-w-xs">
                       <p>

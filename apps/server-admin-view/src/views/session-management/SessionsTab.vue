@@ -83,25 +83,28 @@ const detailFieldDefinitions = [
 const localizedDetailFieldDefinitions = computed(() =>
   detailFieldDefinitions.map((field) => ({
     key: field.key,
-    label:
-      field.labelKey === "User-Agent" ? field.labelKey : t(field.labelKey),
+    label: field.labelKey === "User-Agent" ? field.labelKey : t(field.labelKey),
   })),
 );
 
 const hasSessions = computed(() => sessions.value.length > 0);
 
 const detailItems = computed(() => {
-  return buildDetailFields(detailSession.value, localizedDetailFieldDefinitions.value, {
-    format: (key, value) => {
-      if (key === "loginTime" || key === "expiresAt") {
-        return formatDateTimeSafe(
-          value as string | number | Date | null | undefined,
-          { locale: locale.value },
-        );
-      }
-      return value;
+  return buildDetailFields(
+    detailSession.value,
+    localizedDetailFieldDefinitions.value,
+    {
+      format: (key, value) => {
+        if (key === "loginTime" || key === "expiresAt") {
+          return formatDateTimeSafe(
+            value as string | number | Date | null | undefined,
+            { locale: locale.value },
+          );
+        }
+        return value;
+      },
     },
-  });
+  );
 });
 
 const middleEllipsis = (text: string, max = 16) => {
@@ -248,7 +251,9 @@ watch(
                     :item-label="
                       t('admin.sessions.attachments.trimMediaItemLabel')
                     "
-                    :footer-text="t('admin.sessions.attachments.trimMediaFooter')"
+                    :footer-text="
+                      t('admin.sessions.attachments.trimMediaFooter')
+                    "
                   />
                 </div>
               </TableCell>

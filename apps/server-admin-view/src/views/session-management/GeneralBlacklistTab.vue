@@ -280,7 +280,10 @@ onMounted(() => {
             <TableHeader class="sticky top-0 bg-background z-10 shadow-sm">
               <TableRow>
                 <TableHead class="w-[50px]">
-                  <Checkbox v-model="isAllSelected" />
+                  <Checkbox
+                    v-model="isAllSelected"
+                    :aria-label="t('common.selectAll')"
+                  />
                 </TableHead>
                 <TableHead>{{
                   t("admin.sessions.generalBlacklist.ipLocationHeader")
@@ -322,6 +325,7 @@ onMounted(() => {
                 <TableCell>
                   <Checkbox
                     :model-value="selectedIps.has(record.ip)"
+                    :aria-label="t('common.selectItem', { item: record.ip })"
                     @update:model-value="toggleSelect(record.ip)"
                   />
                 </TableCell>
@@ -367,6 +371,7 @@ onMounted(() => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        :aria-label="t('common.confirmDelete')"
                         class="text-destructive"
                         :disabled="isDeleting"
                       >

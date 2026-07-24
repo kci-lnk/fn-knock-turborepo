@@ -81,7 +81,9 @@ const ruleActionsClass = (rule: WAFRuleFile) =>
         <Checkbox
           :model-value="isAllSelected"
           :disabled="isBusy"
-          @update:model-value="(value) => emit('setAllSelected', value === true)"
+          @update:model-value="
+            (value) => emit('setAllSelected', value === true)
+          "
         />
         <span>
           {{
@@ -156,6 +158,7 @@ const ruleActionsClass = (rule: WAFRuleFile) =>
       >
         <Checkbox
           :model-value="selectedFilenames.includes(rule.filename)"
+          :aria-label="t('common.selectItem', { item: rule.filename })"
           :disabled="isBusy"
           @update:model-value="
             (value) => emit('setRuleSelected', rule.filename, value === true)
@@ -234,6 +237,7 @@ const ruleActionsClass = (rule: WAFRuleFile) =>
           </span>
           <Switch
             :model-value="rule.enabled"
+            :aria-label="rule.filename"
             :disabled="isBusy"
             @update:model-value="
               (value) => emit('toggleRule', rule, value === true)
@@ -255,6 +259,7 @@ const ruleActionsClass = (rule: WAFRuleFile) =>
               <Button
                 variant="outline"
                 size="icon"
+                :aria-label="t('common.confirmDelete')"
                 class="h-8 w-8 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 :disabled="isBusy"
               >

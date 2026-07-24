@@ -59,6 +59,7 @@ const { locale, t } = useI18n();
           >
             <Checkbox
               :model-value="isAllDisplayedRowsSelected"
+              :aria-label="t('common.selectAll')"
               :disabled="!hasSelectableDisplayedRows"
               @update:model-value="
                 (value) =>
@@ -110,6 +111,11 @@ const { locale, t } = useI18n();
           <TableCell class="py-2.5">
             <Checkbox
               :model-value="selectedWafEntryKeys.has(entry.selectionKey)"
+              :aria-label="
+                t('common.selectItem', {
+                  item: entry.actionIp || entry.selectionKey,
+                })
+              "
               :disabled="!entry.actionIp"
               @update:model-value="toggleWafEntrySelection(entry.selectionKey)"
             />

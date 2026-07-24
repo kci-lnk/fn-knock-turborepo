@@ -234,6 +234,7 @@ defineExpose({
       <div
         v-if="visualSyncError"
         class="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm leading-relaxed text-destructive"
+        role="alert"
       >
         {{
           t("admin.frpcInstanceEditor.cannotSwitchToForm", {

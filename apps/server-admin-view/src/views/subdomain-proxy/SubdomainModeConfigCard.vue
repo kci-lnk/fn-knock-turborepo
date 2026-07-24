@@ -157,9 +157,9 @@ const confirmRemoveAuthService = async () => {
               class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div class="space-y-1">
-                <Label>
+                <div class="text-sm font-medium">
                   {{ t("admin.subdomainProxy.currentAuthService") }}
-                </Label>
+                </div>
                 <div class="text-sm">
                   <template v-if="authServiceMapping">
                     <div class="break-all font-medium">

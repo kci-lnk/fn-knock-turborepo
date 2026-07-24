@@ -113,8 +113,12 @@ const { t } = useI18n();
                 :title="t('admin.certConfig.deleteTitle')"
                 :description="t('admin.certConfig.deleteDescription')"
                 :confirm-text="t('admin.certConfig.deleteConfirm')"
-                :loading="isDeleting && deletingCertificateId === certificate.id"
-                :disabled="isDeleting && deletingCertificateId === certificate.id"
+                :loading="
+                  isDeleting && deletingCertificateId === certificate.id
+                "
+                :disabled="
+                  isDeleting && deletingCertificateId === certificate.id
+                "
                 :on-confirm="() => deleteCertificate(certificate.id)"
               >
                 <template #trigger>

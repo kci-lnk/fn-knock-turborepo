@@ -49,9 +49,9 @@ const currentDocsHref = computed(() =>
   >
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-1">
-        <h1 class="text-lg font-semibold tracking-tight">
+        <h2 class="text-lg font-semibold tracking-tight">
           {{ t("admin.sessions.page.title") }}
-        </h1>
+        </h2>
         <p class="text-sm text-muted-foreground">
           {{ t("admin.sessions.page.description") }}
         </p>

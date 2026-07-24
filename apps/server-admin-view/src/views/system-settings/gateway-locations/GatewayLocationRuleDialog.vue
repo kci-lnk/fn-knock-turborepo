@@ -113,8 +113,12 @@ const pathForwardingPreview = computed(() =>
         </div>
 
         <div class="space-y-2">
-          <Label>{{ t("admin.gatewayLocationsSettings.action") }}</Label>
+          <div class="text-sm font-medium">
+            {{ t("admin.gatewayLocationsSettings.action") }}
+          </div>
           <div
+            role="group"
+            :aria-label="t('admin.gatewayLocationsSettings.action')"
             class="grid grid-cols-2 rounded-lg bg-muted p-[3px] text-sm text-muted-foreground"
           >
             <button
@@ -125,6 +129,7 @@ const pathForwardingPreview = computed(() =>
                   ? 'bg-background text-foreground shadow-sm'
                   : 'hover:text-foreground'
               "
+              :aria-pressed="form.action === 'proxy'"
               @click="emit('setAction', 'proxy')"
             >
               {{ t("admin.gatewayLocationsSettings.proxyAction") }}
@@ -137,6 +142,7 @@ const pathForwardingPreview = computed(() =>
                   ? 'bg-background text-foreground shadow-sm'
                   : 'hover:text-foreground'
               "
+              :aria-pressed="form.action === 'response'"
               @click="emit('setAction', 'response')"
             >
               {{ t("admin.gatewayLocationsSettings.fixedResponse") }}
@@ -232,9 +238,9 @@ const pathForwardingPreview = computed(() =>
 
           <div class="space-y-3 rounded-md border px-4 py-3">
             <div class="flex items-center justify-between gap-3">
-              <Label>
+              <div class="text-sm font-medium">
                 {{ t("admin.gatewayLocationsSettings.responseHeaders") }}
-              </Label>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -255,8 +261,16 @@ const pathForwardingPreview = computed(() =>
               :key="index"
               class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem]"
             >
-              <Input v-model="header.name" placeholder="X-Example" />
-              <Input v-model="header.value" placeholder="value" />
+              <Input
+                aria-label="X-Example"
+                v-model="header.name"
+                placeholder="X-Example"
+              />
+              <Input
+                aria-label="value"
+                v-model="header.value"
+                placeholder="value"
+              />
               <ConfirmDangerPopover
                 :title="t('admin.gatewayLocationsSettings.deleteHeaderTitle')"
                 :description="

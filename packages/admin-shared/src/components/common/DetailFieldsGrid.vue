@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 interface DetailFieldItem {
   key: string;
@@ -10,16 +10,18 @@ interface DetailFieldItem {
 const props = withDefaults(
   defineProps<{
     items: DetailFieldItem[];
-    layout?: 'compact' | 'card';
+    layout?: "compact" | "card";
     cardGridClass?: string;
   }>(),
   {
-    layout: 'compact',
-    cardGridClass: 'md:grid-cols-2',
+    layout: "compact",
+    cardGridClass: "md:grid-cols-2",
   },
 );
 
-const visibleItems = computed(() => props.items.filter((item) => item.value !== undefined));
+const visibleItems = computed(() =>
+  props.items.filter((item) => item.value !== undefined),
+);
 </script>
 
 <template>
@@ -43,7 +45,9 @@ const visibleItems = computed(() => props.items.filter((item) => item.value !== 
       :key="item.key"
       class="grid grid-cols-4 items-start gap-4"
     >
-      <span class="text-right font-medium text-muted-foreground pt-1">{{ item.label }}</span>
+      <span class="text-right font-medium text-muted-foreground pt-1">{{
+        item.label
+      }}</span>
       <div class="col-span-3 text-sm bg-muted/50 p-2 rounded-md break-all">
         {{ item.value }}
       </div>

@@ -23,6 +23,7 @@ export const zhHantAdmin = {
     versionInfo: "版本資訊",
     openNavigation: "打開導航選單",
     navigationMenu: "導航選單",
+    skipToContent: "跳到主要內容",
     openGithub: "打開 GitHub 專案頁",
   },
   banner: {
@@ -2977,6 +2978,7 @@ export const zhHantAdmin = {
     noDefaultSession:
       "初始化時未能生成預設終端會話。點擊左上角加號可重新建立一個可恢復的 tmux 會話。",
     connectionErrorTitle: "終端連接異常",
+    contextMenu: "終端操作",
     copy: "複製",
     paste: "貼上",
     selectAll: "全選",
@@ -3841,6 +3843,7 @@ export const zhHantAdmin = {
     saveStatusFailed: "保存歡迎嚮導狀態失敗",
   },
   welcomeScreen: {
+    title: "歡迎使用 fn-knock",
     entering: "正在進入...",
     start: "開始使用",
   },

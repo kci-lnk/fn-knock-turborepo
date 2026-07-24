@@ -1,8 +1,8 @@
 <template>
   <div class="auth-safe-shell auth-visual-shell flex flex-col">
-    <div class="flex flex-1 items-center justify-center">
+    <main class="flex flex-1 items-center justify-center">
       <slot />
-    </div>
+    </main>
     <slot name="footer" />
   </div>
 </template>

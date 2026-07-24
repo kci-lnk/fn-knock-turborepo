@@ -18,6 +18,7 @@
         <Button
           variant="outline"
           size="sm"
+          :aria-label="t('common.refreshStatus')"
           :disabled="isLoading || isSaving"
           @click="loadTargets(true)"
         >
@@ -50,6 +51,7 @@
 
     <div class="mt-3 flex gap-2">
       <Input
+        :aria-label="t('admin.scanTargets.placeholder')"
         v-model="customInput"
         :disabled="isLoading || isSaving"
         :placeholder="t('admin.scanTargets.placeholder')"
@@ -80,19 +82,23 @@
     </div>
 
     <div v-else class="mt-3 max-h-56 space-y-2 overflow-auto pr-1">
-      <label
+      <div
         v-for="target in allTargets"
         :key="target.cidr"
-        class="flex cursor-pointer items-start gap-3 rounded-md border bg-background p-3 transition-colors hover:bg-muted/40"
+        class="flex items-start gap-3 rounded-md border bg-background p-3 transition-colors hover:bg-muted/40"
       >
         <input
+          :id="`scan-target-${target.cidr}`"
           type="checkbox"
           class="mt-0.5 h-4 w-4 cursor-pointer"
           :checked="selectedSet.has(target.cidr)"
           :disabled="isLoading || isSaving"
           @change="toggleCidr(target.cidr, $event)"
         />
-        <div class="min-w-0 flex-1 space-y-1">
+        <label
+          :for="`scan-target-${target.cidr}`"
+          class="min-w-0 flex-1 cursor-pointer space-y-1"
+        >
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-mono text-sm">{{ target.cidr }}</span>
             <Badge variant="secondary">{{
@@ -105,7 +111,7 @@
           <p class="truncate text-xs text-muted-foreground">
             {{ target.label }}
           </p>
-        </div>
+        </label>
         <div class="flex shrink-0 items-center gap-2">
           <span class="text-xs text-muted-foreground">
             {{
@@ -121,6 +127,7 @@
             type="button"
             variant="ghost"
             size="icon"
+            :aria-label="t('common.confirmDelete')"
             class="h-7 w-7"
             :disabled="isLoading || isSaving"
             @click.prevent="removeCustomCidr(target.cidr)"
@@ -128,7 +135,7 @@
             <Trash2 class="h-4 w-4" />
           </Button>
         </div>
-      </label>
+      </div>
     </div>
 
     <div

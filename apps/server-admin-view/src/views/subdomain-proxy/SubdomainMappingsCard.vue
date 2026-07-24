@@ -203,6 +203,7 @@ const handleMappingTableScroll = (event: Event) => {
                 <Button
                   :variant="discoverButtonVariant"
                   size="icon"
+                  :aria-label="t('common.moreActions')"
                   :class="[
                     'rounded-l-none border-l px-2',
                     discoverButtonDividerClass,
@@ -461,6 +462,10 @@ const handleMappingTableScroll = (event: Event) => {
                         @mouseleave="
                           scheduleCloseProtocolHeadersWarning(mapping.host)
                         "
+                        @focus="openProtocolHeadersWarning(mapping.host)"
+                        @blur="
+                          scheduleCloseProtocolHeadersWarning(mapping.host)
+                        "
                         @click="toggleProtocolHeadersWarning(mapping.host)"
                       >
                         <CircleAlert class="h-3.5 w-3.5" />
@@ -472,6 +477,10 @@ const handleMappingTableScroll = (event: Event) => {
                       class="w-72 border-destructive/20 text-left"
                       @mouseenter="openProtocolHeadersWarning(mapping.host)"
                       @mouseleave="
+                        scheduleCloseProtocolHeadersWarning(mapping.host)
+                      "
+                      @focusin="openProtocolHeadersWarning(mapping.host)"
+                      @focusout="
                         scheduleCloseProtocolHeadersWarning(mapping.host)
                       "
                     >
@@ -596,6 +605,7 @@ const handleMappingTableScroll = (event: Event) => {
                       <Button
                         variant="outline"
                         size="icon"
+                        :aria-label="t('common.moreActions')"
                         class="h-8 w-8 rounded-l-none border-l-0"
                       >
                         <ChevronDown class="h-4 w-4" />

@@ -84,7 +84,14 @@ const shouldFloatFooter = computed(() => props.floating && props.total > 0);
         <div class="flex items-center gap-6">
           <div class="flex items-center gap-2 text-sm">
             <Select v-model="currentLimit">
-              <SelectTrigger class="w-[80px]">
+              <SelectTrigger
+                :aria-label="
+                  t('shared.pagedTableFooter.pageSizeOption', {
+                    count: currentLimit,
+                  })
+                "
+                class="w-[80px]"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -145,19 +152,20 @@ const shouldFloatFooter = computed(() => props.floating && props.total > 0);
             :page="props.page"
             @update:page="handlePageUpdate"
           >
-            <PaginationContent
-              class="paged-table-footer-floating__pagination"
-            >
+            <PaginationContent class="paged-table-footer-floating__pagination">
               <PaginationFirst class="floating-page-control" />
-              <PaginationPrevious
-                class="floating-page-control"
-              />
+              <PaginationPrevious class="floating-page-control" />
               <PaginationNext class="floating-page-control is-primary" />
             </PaginationContent>
           </Pagination>
 
           <Select v-model="currentLimit">
             <SelectTrigger
+              :aria-label="
+                t('shared.pagedTableFooter.pageSizeOption', {
+                  count: currentLimit,
+                })
+              "
               class="h-9 w-[92px] rounded-xl border-white/10 bg-white/10 text-white shadow-none hover:bg-white/15 focus-visible:border-white/30 focus-visible:ring-white/20 [&_svg]:text-white"
             >
               <SelectValue>
@@ -197,7 +205,14 @@ const shouldFloatFooter = computed(() => props.floating && props.total > 0);
     <div class="flex items-center gap-6">
       <div class="flex items-center gap-2 text-sm">
         <Select v-model="currentLimit">
-          <SelectTrigger class="w-[80px]">
+          <SelectTrigger
+            :aria-label="
+              t('shared.pagedTableFooter.pageSizeOption', {
+                count: currentLimit,
+              })
+            "
+            class="w-[80px]"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

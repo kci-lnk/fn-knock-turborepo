@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
@@ -48,6 +48,8 @@ import {
   resolveSelectedIpv4,
 } from "./smart-connect/smartConnectModel";
 import { useSmartConnectViewModel } from "./smart-connect/useSmartConnectViewModel";
+
+const a11yId = useId();
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -277,6 +279,7 @@ const saveSettings = async () => {
         <div
           v-else-if="loadError && !details"
           class="rounded-xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive"
+          role="alert"
         >
           {{ loadError }}
         </div>
@@ -304,13 +307,16 @@ const saveSettings = async () => {
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <Label class="text-base font-medium">{{
-                    t("admin.smartConnectSettings.title")
-                  }}</Label>
+                  <Label
+                    :for="`${a11yId}-smartconnectsettings-1`"
+                    class="text-base font-medium"
+                    >{{ t("admin.smartConnectSettings.title") }}</Label
+                  >
                 </div>
               </div>
 
               <Switch
+                :id="`${a11yId}-smartconnectsettings-1`"
                 class="mt-0.5 shrink-0"
                 :model-value="form.enabled"
                 :disabled="
@@ -331,9 +337,9 @@ const saveSettings = async () => {
                 >
                   <div class="space-y-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <Label class="text-base">{{
-                        t("admin.smartConnectSettings.runtimeEnvironment")
-                      }}</Label>
+                      <div class="text-base font-medium">
+                        {{ t("admin.smartConnectSettings.runtimeEnvironment") }}
+                      </div>
                       <Badge :variant="dnsmasqStatusVariant">
                         {{ dnsmasqStatusLabel }}
                       </Badge>
@@ -385,9 +391,11 @@ const saveSettings = async () => {
                     class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] lg:items-start lg:gap-6"
                   >
                     <div class="space-y-1">
-                      <Label class="text-base">{{
-                        t("admin.smartConnectSettings.localLanIp")
-                      }}</Label>
+                      <Label
+                        :for="`${a11yId}-smartconnectsettings-2`"
+                        class="text-base"
+                        >{{ t("admin.smartConnectSettings.localLanIp") }}</Label
+                      >
                       <p class="text-sm leading-6 text-muted-foreground">
                         {{ t("admin.smartConnectSettings.localLanIpHint") }}
                       </p>
@@ -401,6 +409,7 @@ const saveSettings = async () => {
                         "
                       >
                         <SelectTrigger
+                          :id="`${a11yId}-smartconnectsettings-2`"
                           class="h-10 w-full rounded-lg border-border/70 bg-background px-3 text-sm shadow-none"
                         >
                           <SelectValue
@@ -432,9 +441,9 @@ const saveSettings = async () => {
 
                 <section class="space-y-4 border-t border-border/60 p-5">
                   <div class="space-y-1">
-                    <Label class="text-base">{{
-                      t("admin.smartConnectSettings.syncedDomains")
-                    }}</Label>
+                    <div class="text-base font-medium">
+                      {{ t("admin.smartConnectSettings.syncedDomains") }}
+                    </div>
                     <p class="text-sm leading-6 text-muted-foreground">
                       {{ t("admin.smartConnectSettings.syncedDomainsHint") }}
                     </p>
@@ -462,9 +471,9 @@ const saveSettings = async () => {
 
                 <section class="space-y-4 border-t border-border/60 p-5">
                   <div class="space-y-1">
-                    <Label class="text-base">{{
-                      t("admin.smartConnectSettings.notes")
-                    }}</Label>
+                    <div class="text-base font-medium">
+                      {{ t("admin.smartConnectSettings.notes") }}
+                    </div>
                     <p class="text-sm leading-6 text-muted-foreground">
                       {{
                         t("admin.smartConnectSettings.dnsInstruction", {

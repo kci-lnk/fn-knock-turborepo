@@ -28,6 +28,15 @@
           <form class="space-y-5" autocomplete="off" @submit.prevent="submit">
             <div class="space-y-3">
               <Input
+                :aria-label="placeholder"
+                :aria-describedby="
+                  errorMessage
+                    ? 'docker-admin-password-error'
+                    : helperText
+                      ? 'docker-admin-password-help'
+                      : undefined
+                "
+                :aria-invalid="Boolean(errorMessage)"
                 v-model="password"
                 type="password"
                 :placeholder="placeholder"
@@ -38,6 +47,7 @@
 
               <p
                 v-if="helperText"
+                id="docker-admin-password-help"
                 class="text-xs leading-5 text-muted-foreground"
               >
                 {{ helperText }}
@@ -45,7 +55,9 @@
 
               <div
                 v-if="errorMessage"
+                id="docker-admin-password-error"
                 class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm leading-6 text-destructive"
+                role="alert"
               >
                 {{ errorMessage }}
               </div>

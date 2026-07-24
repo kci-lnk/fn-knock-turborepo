@@ -11,7 +11,11 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <Alert v-if="message" variant="destructive" class="shrink-0 border-destructive/40">
+  <Alert
+    v-if="message"
+    variant="destructive"
+    class="shrink-0 border-destructive/40"
+  >
     <AlertTriangle class="h-4 w-4" />
     <AlertTitle>
       {{ t("admin.webTerminal.connectionErrorTitle") }}

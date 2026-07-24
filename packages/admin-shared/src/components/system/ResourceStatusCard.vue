@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { useSlots } from 'vue';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
+import { useSlots } from "vue";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 
 const props = defineProps<{
   title: string;
@@ -21,13 +28,16 @@ const showInitializingSkeleton = useDelayedLoading(() => props.isInitializing);
       <CardDescription>{{ props.description }}</CardDescription>
     </CardHeader>
 
-    <CardContent v-if="props.isInitializing && showInitializingSkeleton" class="grid gap-6">
+    <CardContent
+      v-if="props.isInitializing && showInitializingSkeleton"
+      class="grid gap-6"
+    >
       <slot name="initial" />
     </CardContent>
     <CardContent v-else-if="!props.isInitializing" class="grid gap-6">
       <slot />
     </CardContent>
-    <CardContent v-else class="min-h-[160px]" aria-hidden="true" ></CardContent>
+    <CardContent v-else class="min-h-[160px]" aria-hidden="true"></CardContent>
 
     <CardFooter
       v-if="props.isInitializing && slots.footer && showInitializingSkeleton"

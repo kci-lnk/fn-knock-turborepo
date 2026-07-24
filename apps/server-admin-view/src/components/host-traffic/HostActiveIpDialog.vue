@@ -133,6 +133,7 @@
         <div
           v-else-if="error"
           class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-6 text-center text-sm text-destructive"
+          role="alert"
         >
           {{ error }}
         </div>
@@ -151,6 +152,7 @@
                 <TableHead class="w-[44px] text-xs">
                   <Checkbox
                     v-model="isAllSelected"
+                    :aria-label="t('common.selectAll')"
                     :disabled="visibleIps.length === 0"
                   />
                 </TableHead>
@@ -174,6 +176,7 @@
                 <TableCell class="py-2.5">
                   <Checkbox
                     :model-value="selectedIps.has(item.ip)"
+                    :aria-label="t('common.selectItem', { item: item.ip })"
                     @update:model-value="toggleSelect(item.ip)"
                   />
                 </TableCell>

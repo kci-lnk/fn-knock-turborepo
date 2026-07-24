@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useId } from "vue";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const a11yId = useId();
 
 const props = withDefaults(
   defineProps<{
@@ -38,13 +40,16 @@ const localValue = computed({
     class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
   >
     <div class="space-y-1 pr-6">
-      <Label class="text-base">{{ title }}</Label>
+      <Label :for="`${a11yId}-gatewaynumbersettingrow-1`" class="text-base">{{
+        title
+      }}</Label>
       <div class="text-sm text-muted-foreground">
         <slot name="description" />
       </div>
     </div>
     <div class="flex shrink-0 items-center gap-2">
       <Input
+        :id="`${a11yId}-gatewaynumbersettingrow-1`"
         v-model.number="localValue"
         type="number"
         :min="min"

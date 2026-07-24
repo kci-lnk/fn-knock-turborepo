@@ -65,7 +65,10 @@ const { t } = useI18n();
             {{ t("admin.ipWhitelist.type") }}
           </Label>
           <Select v-model="newRecord.targetType">
-            <SelectTrigger class="col-span-3">
+            <SelectTrigger
+              :aria-label="t('admin.ipWhitelist.selectType')"
+              class="col-span-3"
+            >
               <SelectValue :placeholder="t('admin.ipWhitelist.selectType')" />
             </SelectTrigger>
             <SelectContent>
@@ -86,10 +89,12 @@ const { t } = useI18n();
           v-if="newRecord.targetType === 'cidr'"
           class="grid grid-cols-4 items-center gap-4"
         >
-          <Label class="text-right">
+          <div class="text-right">
             {{ t("admin.ipWhitelist.cidrInputMode") }}
-          </Label>
+          </div>
           <div
+            role="group"
+            :aria-label="t('admin.ipWhitelist.cidrInputMode')"
             class="col-span-3 inline-flex w-fit rounded-md border border-border bg-muted/20 p-1"
           >
             <Button
@@ -129,9 +134,9 @@ const { t } = useI18n();
         </div>
 
         <div v-else class="grid grid-cols-4 items-start gap-4">
-          <Label class="pt-2 text-right">
+          <div class="pt-2 text-right">
             {{ t("admin.ipWhitelist.regionScope") }}
-          </Label>
+          </div>
           <div class="col-span-3 space-y-3">
             <Alert variant="destructive" class="items-start">
               <AlertTriangle class="h-4 w-4" />
@@ -201,7 +206,10 @@ const { t } = useI18n();
             {{ t("admin.ipWhitelist.duration") }}
           </Label>
           <Select v-model="durationSetting">
-            <SelectTrigger class="col-span-3">
+            <SelectTrigger
+              :aria-label="t('admin.ipWhitelist.selectDuration')"
+              class="col-span-3"
+            >
               <SelectValue
                 :placeholder="t('admin.ipWhitelist.selectDuration')"
               />

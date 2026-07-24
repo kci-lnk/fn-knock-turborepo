@@ -1,12 +1,17 @@
 <template>
-  <footer class="flex justify-center px-4 pt-6 pb-2 text-xs text-muted-foreground/60">
+  <footer
+    class="flex justify-center px-4 pt-6 pb-2 text-xs text-muted-foreground/60"
+  >
     <div class="w-full max-w-sm flex flex-col items-center gap-2">
       <div
         v-if="props.clientIp"
         class="w-full flex flex-col items-center gap-1 text-center sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1.5 sm:gap-y-1"
       >
         <span class="inline-flex items-center gap-1.5 min-w-0 sm:shrink-0">
-          <span class="break-all text-center sm:break-normal sm:whitespace-nowrap">{{ props.clientIp }}</span>
+          <span
+            class="break-all text-center sm:break-normal sm:whitespace-nowrap"
+            >{{ props.clientIp }}</span
+          >
         </span>
         <span
           v-if="props.ipLocation"
@@ -15,16 +20,19 @@
           {{ props.ipLocation }}
         </span>
         <span
-          v-else-if="props.ipLocationStatus === 'queued' || props.ipLocationStatus === 'processing'"
+          v-else-if="
+            props.ipLocationStatus === 'queued' ||
+            props.ipLocationStatus === 'processing'
+          "
           class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
         >
-          {{ t('auth.locationResolving') }}
+          {{ t("auth.locationResolving") }}
         </span>
         <span
           v-else-if="props.ipLocationStatus === 'failed'"
           class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
         >
-          {{ t('auth.locationUnavailable') }}
+          {{ t("auth.locationUnavailable") }}
         </span>
       </div>
 
@@ -45,19 +53,22 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-import { Github } from 'lucide-vue-next';
-import type { AuthClientLocationStatus } from '@frontend-core/auth/types';
+import { useI18n } from "vue-i18n";
+import { Github } from "lucide-vue-next";
+import type { AuthClientLocationStatus } from "@frontend-core/auth/types";
 
-const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
+const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 const { t } = useI18n();
-const props = withDefaults(defineProps<{
-  clientIp?: string;
-  ipLocation?: string;
-  ipLocationStatus?: AuthClientLocationStatus;
-}>(), {
-  clientIp: '',
-  ipLocation: '',
-  ipLocationStatus: 'idle',
-});
+const props = withDefaults(
+  defineProps<{
+    clientIp?: string;
+    ipLocation?: string;
+    ipLocationStatus?: AuthClientLocationStatus;
+  }>(),
+  {
+    clientIp: "",
+    ipLocation: "",
+    ipLocationStatus: "idle",
+  },
+);
 </script>

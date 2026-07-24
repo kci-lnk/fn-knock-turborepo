@@ -21,6 +21,7 @@ export const jaJPAdmin = {
     about: "製品情報",
     openNavigation: "ナビゲーションを開く",
     navigationMenu: "ナビゲーション",
+    skipToContent: "メインコンテンツへ移動",
     openGithub: "GitHub プロジェクトを開く",
   },
   banner: {
@@ -3205,6 +3206,7 @@ export const jaJPAdmin = {
     noDefaultSession:
       "初期化時にデフォルトのターミナルセッションを作成できませんでした。左上の「+」ボタンから、再接続可能な tmux セッションを作成してください。",
     connectionErrorTitle: "ターミナル接続エラー",
+    contextMenu: "ターミナル操作",
     copy: "コピー",
     paste: "ペースト",
     selectAll: "すべて選択",
@@ -4150,6 +4152,7 @@ export const jaJPAdmin = {
     saveStatusFailed: "ウェルカムガイドの状態を保存できませんでした",
   },
   welcomeScreen: {
+    title: "fn-knock へようこそ",
     entering: "移動中...",
     start: "始めましょう",
   },

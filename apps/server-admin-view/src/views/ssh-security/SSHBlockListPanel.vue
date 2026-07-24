@@ -164,7 +164,10 @@ defineExpose({ loadBlocks });
             <TableHeader>
               <TableRow>
                 <TableHead class="h-11 w-[48px] px-3">
-                  <Checkbox v-model="isAllBlocksSelected" />
+                  <Checkbox
+                    v-model="isAllBlocksSelected"
+                    :aria-label="t('common.selectAll')"
+                  />
                 </TableHead>
                 <TableHead class="h-11 min-w-[220px] px-4">
                   {{ t("admin.sshSecurity.ipLocation") }}
@@ -202,14 +205,11 @@ defineExpose({ loadBlocks });
                   {{ t("admin.sshSecurity.noBlockRecords") }}
                 </TableCell>
               </TableRow>
-              <TableRow
-                v-for="record in blockRecords"
-                v-else
-                :key="record.ip"
-              >
+              <TableRow v-for="record in blockRecords" v-else :key="record.ip">
                 <TableCell class="px-3 py-3 align-top">
                   <Checkbox
                     :model-value="selectedBlockIps.has(record.ip)"
+                    :aria-label="t('common.selectItem', { item: record.ip })"
                     @update:model-value="toggleBlockSelect(record.ip)"
                   />
                 </TableCell>
@@ -250,6 +250,7 @@ defineExpose({ loadBlocks });
                       <Button
                         variant="ghost"
                         size="icon"
+                        :aria-label="t('common.confirmDelete')"
                         class="text-destructive"
                         :disabled="isDeleting"
                       >

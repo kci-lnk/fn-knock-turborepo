@@ -133,7 +133,7 @@ case "$METHOD" in
     POST|PUT|PATCH|DELETE)
         REQ_CONTENT_TYPE=${CONTENT_TYPE:-"application/json"}
         set -- "$@" -H "Content-Type: $REQ_CONTENT_TYPE"
-        set -- "$@" --data-binary @- 
+        set -- "$@" --data-binary @-
         ;;
 esac
 

@@ -7,7 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const themeColorPresets = [
   "default",
@@ -32,6 +35,7 @@ const adminRoutes = [
   "/request-logs",
   "/waf-logs",
   "/system",
+  "/system?tab=maintenance",
   "/system/gateway-visibility",
   "/system/gateway-portal",
   "/system/gateway-proxy-headers",
@@ -129,10 +133,7 @@ const startRuntime = async () => {
     getFreePort(),
   ]);
   const child = spawn(
-    path.join(
-      rootDir,
-      "apps/server-admin-rs/target/release/server-admin-rs",
-    ),
+    path.join(rootDir, "apps/server-admin-rs/target/release/server-admin-rs"),
     [],
     {
       cwd: rootDir,
@@ -202,9 +203,11 @@ const disableMotion = async (page) => {
   });
 };
 
-const auditPage = async (page, scope) => {
+const auditPage = async (page, scope, include) => {
   await disableMotion(page);
-  const result = await new AxeBuilder({ page }).withTags(wcagTags).analyze();
+  const builder = new AxeBuilder({ page }).withTags(wcagTags);
+  if (include) builder.include(include);
+  const result = await builder.analyze();
   for (const violation of result.violations) {
     failures.push({
       scope,
@@ -231,7 +234,11 @@ const assertDocumentStructure = async (page, scope, expectedMain = true) => {
     mainCount: document.querySelectorAll("main").length,
     title: document.title.trim(),
   }));
-  assert(structure.h1Count === 1, scope, `expected one h1, got ${structure.h1Count}`);
+  assert(
+    structure.h1Count === 1,
+    scope,
+    `expected one h1, got ${structure.h1Count}`,
+  );
   if (expectedMain) {
     assert(
       structure.mainCount === 1,
@@ -348,14 +355,18 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
   const dialog = page.getByRole("dialog");
   await dialog.waitFor({ state: "visible" });
   assert(
-    await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
+    await page.evaluate(() =>
+      Boolean(document.activeElement?.closest('[role="dialog"]')),
+    ),
     "admin locale dialog",
     "initial focus is outside the dialog",
   );
   for (let index = 0; index < 20; index += 1) {
     await page.keyboard.press("Tab");
     assert(
-      await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
+      await page.evaluate(() =>
+        Boolean(document.activeElement?.closest('[role="dialog"]')),
+      ),
       "admin locale dialog",
       `focus escaped after ${index + 1} Tab presses`,
     );
@@ -364,7 +375,9 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden" });
   assert(
-    await localeTrigger.evaluate((element) => document.activeElement === element),
+    await localeTrigger.evaluate(
+      (element) => document.activeElement === element,
+    ),
     "admin locale dialog",
     "focus was not restored to the trigger",
   );
@@ -377,9 +390,8 @@ const testWelcomeDialog = async (browser, adminUrl) => {
     viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
-  await page.route(
-    "**/api/admin/config/welcome_guide/complete",
-    (route) => route.fulfill(jsonResponse({ completed: true })),
+  await page.route("**/api/admin/config/welcome_guide/complete", (route) =>
+    route.fulfill(jsonResponse({ completed: true })),
   );
   await page.route("**/api/admin/config/welcome_guide", async (route) => {
     if (route.request().method() === "GET") {
@@ -396,11 +408,16 @@ const testWelcomeDialog = async (browser, adminUrl) => {
   const initialState = await page.evaluate(() => ({
     activeInside: Boolean(document.activeElement?.closest("dialog")),
     backgroundHidden:
-      document.querySelector(".contents")?.getAttribute("aria-hidden") === "true",
+      document.querySelector(".contents")?.getAttribute("aria-hidden") ===
+      "true",
     backgroundInert:
       document.querySelector(".contents")?.hasAttribute("inert") === true,
   }));
-  assert(initialState.activeInside, "admin welcome dialog", "initial focus is outside");
+  assert(
+    initialState.activeInside,
+    "admin welcome dialog",
+    "initial focus is outside",
+  );
   assert(
     initialState.backgroundHidden && initialState.backgroundInert,
     "admin welcome dialog",
@@ -409,7 +426,9 @@ const testWelcomeDialog = async (browser, adminUrl) => {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Shift+Tab");
   assert(
-    await page.evaluate(() => Boolean(document.activeElement?.closest("dialog"))),
+    await page.evaluate(() =>
+      Boolean(document.activeElement?.closest("dialog")),
+    ),
     "admin welcome dialog",
     "focus escaped the welcome dialog",
   );
@@ -426,6 +445,97 @@ const testWelcomeDialog = async (browser, adminUrl) => {
     "focus or background state was not restored",
   );
   await context.close();
+};
+
+const automaticBackupDetails = {
+  config: {
+    enabled: false,
+    interval_hours: 24,
+    retention_days: 7,
+    updated_at: null,
+  },
+  status: {
+    directory_path: "/data/backups/automatic",
+    last_attempt_at: null,
+    last_success_at: null,
+    last_error: null,
+    last_filename: null,
+    next_backup_at: null,
+  },
+};
+
+const testAutomaticBackupSettings = async (browser, adminUrl) => {
+  const selector = '[data-a11y-scope="automatic-backup-settings"]';
+  for (const colorScheme of ["light", "dark"]) {
+    const context = await browser.newContext({
+      colorScheme,
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
+    await installCompletedWelcomeMock(page);
+    await page.route(
+      "**/api/admin/maintenance/backup/automatic",
+      async (route) => {
+        if (route.request().method() === "GET") {
+          await route.fulfill(jsonResponse(automaticBackupDetails));
+          return;
+        }
+        await route.fallback();
+      },
+    );
+    const scope = `admin automatic backup ${colorScheme}`;
+    try {
+      await page.goto(`${adminUrl}/#/system?tab=maintenance`, {
+        waitUntil: "domcontentloaded",
+      });
+      const region = page.locator(selector);
+      await region.waitFor({ state: "visible" });
+
+      assert(
+        (await page.getByRole("region", { name: "自动备份" }).count()) === 1,
+        scope,
+        "settings region has no accessible name",
+      );
+      const backupSwitch = region.getByRole("switch");
+      await backupSwitch.press("Space");
+      assert(
+        (await backupSwitch.getAttribute("aria-checked")) === "true",
+        scope,
+        "switch could not be operated from the keyboard",
+      );
+
+      const numericInputs = region.locator('input[type="number"]');
+      assert(
+        (await numericInputs.count()) === 2,
+        scope,
+        "expected interval and retention numeric inputs",
+      );
+      const intervalInput = numericInputs.first();
+      await intervalInput.fill("0");
+      assert(
+        (await intervalInput.getAttribute("aria-invalid")) === "true",
+        scope,
+        "invalid interval is not exposed to assistive technology",
+      );
+      const describedBy = await intervalInput.getAttribute("aria-describedby");
+      assert(
+        Boolean(describedBy) &&
+          (await region
+            .locator(`[id="${describedBy}"][role="alert"]`)
+            .count()) === 1,
+        scope,
+        "invalid interval is not connected to its inline error",
+      );
+
+      for (const themeColorPreset of themeColorPresets) {
+        await applyThemeVariant(page, colorScheme, themeColorPreset);
+        await auditPage(page, `${scope} ${themeColorPreset}`, selector);
+      }
+    } catch (error) {
+      failures.push({ scope, message: error.message });
+    }
+    await context.close();
+  }
 };
 
 const authBootstrap = (loginMode) => ({
@@ -510,11 +620,16 @@ const scanAuthLoginStates = async (browser, authUrl) => {
             }),
           );
         });
-        await page.locator('button[type="submit"]').waitFor({ state: "visible" });
+        await page
+          .locator('button[type="submit"]')
+          .waitFor({ state: "visible" });
         if (loginMode === "password") {
           assert(
-            (await page.locator('input[autocomplete="username"]').count()) === 1 &&
-              (await page.locator('input[autocomplete="current-password"]').count()) === 1,
+            (await page.locator('input[autocomplete="username"]').count()) ===
+              1 &&
+              (await page
+                .locator('input[autocomplete="current-password"]')
+                .count()) === 1,
             scope,
             "password fields were not rendered",
           );
@@ -571,14 +686,18 @@ const testAuthHomeDialog = async (browser, authUrl) => {
   const dialog = page.getByRole("dialog");
   await dialog.waitFor({ state: "visible" });
   assert(
-    await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
+    await page.evaluate(() =>
+      Boolean(document.activeElement?.closest('[role="dialog"]')),
+    ),
     "auth logout dialog",
     "initial focus is outside the dialog",
   );
   for (let index = 0; index < 12; index += 1) {
     await page.keyboard.press("Tab");
     assert(
-      await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]'))),
+      await page.evaluate(() =>
+        Boolean(document.activeElement?.closest('[role="dialog"]')),
+      ),
       "auth logout dialog",
       `focus escaped after ${index + 1} Tab presses`,
     );
@@ -616,10 +735,7 @@ const scanAuthRoutes = async (browser, authUrl) => {
     const assetFailures = [];
     page.on("response", (response) => {
       const type = response.request().resourceType();
-      if (
-        ["script", "stylesheet"].includes(type) &&
-        response.status() >= 400
-      ) {
+      if (["script", "stylesheet"].includes(type) && response.status() >= 400) {
         assetFailures.push(`${response.status()} ${response.url()}`);
       }
     });
@@ -653,6 +769,7 @@ try {
   await scanAdminRoutes(browser, runtime.adminUrl);
   await testAdminKeyboardFlow(browser, runtime.adminUrl);
   await testWelcomeDialog(browser, runtime.adminUrl);
+  await testAutomaticBackupSettings(browser, runtime.adminUrl);
   await scanAuthLoginStates(browser, runtime.authUrl);
   await testAuthHomeDialog(browser, runtime.authUrl);
   await scanAuthRoutes(browser, runtime.authUrl);

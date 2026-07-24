@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   automaticBackupAttemptCompleted,
@@ -8,6 +9,14 @@ import {
   buildAutomaticBackupSelectionSummary,
   isAutomaticBackupConfigValid,
 } from "../src/lib/automatic-backup";
+
+const automaticBackupSettingsSource = readFileSync(
+  new URL(
+    "../src/views/system-settings/AutomaticBackupSettings.vue",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("automatic backup settings", () => {
   it("validates the documented interval and retention boundaries", () => {
@@ -56,6 +65,40 @@ describe("automatic backup settings", () => {
         sourceLabel: "Automatic backup",
         location: "backup.knock",
       },
+    );
+  });
+
+  it("keeps the settings card labelled and announces activity and errors", () => {
+    assert.match(
+      automaticBackupSettingsSource,
+      /data-a11y-scope="automatic-backup-settings"/,
+    );
+    assert.match(automaticBackupSettingsSource, /role="region"/);
+    assert.match(automaticBackupSettingsSource, /:aria-labelledby=/);
+    assert.match(automaticBackupSettingsSource, /:aria-describedby=/);
+    assert.match(automaticBackupSettingsSource, /:aria-busy=/);
+    assert.match(automaticBackupSettingsSource, /<h2/);
+    assert.match(automaticBackupSettingsSource, /role="status"/);
+    assert.match(automaticBackupSettingsSource, /aria-live="polite"/);
+    assert.match(automaticBackupSettingsSource, /role="alert"/);
+  });
+
+  it("connects both numeric fields to inline accessible validation", () => {
+    assert.match(
+      automaticBackupSettingsSource,
+      /:aria-invalid="intervalIsInvalid"/,
+    );
+    assert.match(
+      automaticBackupSettingsSource,
+      /:aria-describedby="`\$\{a11yId\}-interval-help`"/,
+    );
+    assert.match(
+      automaticBackupSettingsSource,
+      /:aria-invalid="retentionIsInvalid"/,
+    );
+    assert.match(
+      automaticBackupSettingsSource,
+      /:aria-describedby="`\$\{a11yId\}-retention-help`"/,
     );
   });
 });

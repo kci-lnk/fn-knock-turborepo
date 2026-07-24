@@ -463,6 +463,14 @@ export const enAdmin = {
       "Automatic backup configuration could not be updated",
     automaticValidationFailed:
       "The backup interval or retention period is outside the allowed range",
+    automaticLoading: "Loading automatic backup settings",
+    automaticSaving: "Saving automatic backup settings",
+    automaticIntervalHelp: "Enter a whole number from 1 to 8760 hours.",
+    automaticIntervalError:
+      "The backup interval must be a whole number from 1 to 8760.",
+    automaticRetentionHelp: "Enter a whole number from 1 to 3650 days.",
+    automaticRetentionError:
+      "The retention period must be a whole number from 1 to 3650.",
     automaticSaved: "Automatic backup settings saved",
     resetAutomatic: "Reset",
     saveAutomatic: "Save settings",

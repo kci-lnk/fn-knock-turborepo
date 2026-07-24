@@ -456,11 +456,18 @@ export const jaJPAdmin = {
     automaticNextBackup: "次回のバックアップ",
     automaticLastError: "最新のエラー",
     automaticLoadFailed: "自動バックアップ設定を読み込めませんでした",
-    automaticLoadFailedDescription: "自動バックアップの設定と状態を読み込めません",
+    automaticLoadFailedDescription:
+      "自動バックアップの設定と状態を読み込めません",
     automaticSaveFailed: "自動バックアップ設定を保存できませんでした",
     automaticSaveFailedDescription: "自動バックアップ設定を更新できません",
-    automaticValidationFailed:
-      "バックアップ間隔または保存日数が許容範囲外です",
+    automaticValidationFailed: "バックアップ間隔または保存日数が許容範囲外です",
+    automaticLoading: "自動バックアップ設定を読み込んでいます",
+    automaticSaving: "自動バックアップ設定を保存しています",
+    automaticIntervalHelp: "1～8760 の整数で時間数を入力してください。",
+    automaticIntervalError:
+      "バックアップ間隔は 1～8760 の整数で指定してください。",
+    automaticRetentionHelp: "1～3650 の整数で日数を入力してください。",
+    automaticRetentionError: "保存日数は 1～3650 の整数で指定してください。",
     automaticSaved: "自動バックアップ設定を保存しました",
     resetAutomatic: "リセット",
     saveAutomatic: "設定を保存",

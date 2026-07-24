@@ -17,7 +17,9 @@ import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { MaintenanceAPI } from "@/lib/api";
 import {
+  AUTOMATIC_BACKUP_INTERVAL_RANGE,
   AUTOMATIC_BACKUP_RESULT_POLL_LIMIT,
+  AUTOMATIC_BACKUP_RETENTION_RANGE,
   automaticBackupAttemptCompleted,
   automaticBackupAttemptSucceeded,
   isAutomaticBackupConfigValid,
@@ -30,6 +32,8 @@ const a11yId = useId();
 const details = ref<AutomaticBackupDetails | null>(null);
 const isLoading = ref(false);
 const isSaving = ref(false);
+const loadErrorMessage = ref("");
+const saveErrorMessage = ref("");
 let refreshTimer: number | null = null;
 
 const form = reactive({
@@ -40,6 +44,21 @@ const form = reactive({
 
 const isValid = computed(() =>
   isAutomaticBackupConfigValid(form.interval_hours, form.retention_days),
+);
+const intervalIsInvalid = computed(
+  () =>
+    !Number.isInteger(form.interval_hours) ||
+    form.interval_hours < AUTOMATIC_BACKUP_INTERVAL_RANGE.min ||
+    form.interval_hours > AUTOMATIC_BACKUP_INTERVAL_RANGE.max,
+);
+const retentionIsInvalid = computed(
+  () =>
+    !Number.isInteger(form.retention_days) ||
+    form.retention_days < AUTOMATIC_BACKUP_RETENTION_RANGE.min ||
+    form.retention_days > AUTOMATIC_BACKUP_RETENTION_RANGE.max,
+);
+const requestErrorMessage = computed(
+  () => saveErrorMessage.value || loadErrorMessage.value,
 );
 const isDirty = computed(() => {
   const config = details.value?.config;
@@ -60,14 +79,16 @@ function applyDetails(value: AutomaticBackupDetails) {
 
 async function load() {
   isLoading.value = true;
+  loadErrorMessage.value = "";
   try {
     applyDetails(await MaintenanceAPI.getAutomaticBackupDetails());
   } catch (error) {
+    loadErrorMessage.value = extractErrorMessage(
+      error,
+      t("admin.maintenanceSettings.automaticLoadFailedDescription"),
+    );
     toast.error(t("admin.maintenanceSettings.automaticLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.automaticLoadFailedDescription"),
-      ),
+      description: loadErrorMessage.value,
     });
   } finally {
     isLoading.value = false;
@@ -88,6 +109,7 @@ async function save() {
   const shouldWatchFirstBackup =
     form.enabled && details.value?.config.enabled !== true;
   isSaving.value = true;
+  saveErrorMessage.value = "";
   try {
     applyDetails(
       await MaintenanceAPI.updateAutomaticBackupConfig({
@@ -100,11 +122,12 @@ async function save() {
     if (shouldWatchFirstBackup)
       pollForBackupResult(previousAttempt, previousSuccess, 0);
   } catch (error) {
+    saveErrorMessage.value = extractErrorMessage(
+      error,
+      t("admin.maintenanceSettings.automaticSaveFailedDescription"),
+    );
     toast.error(t("admin.maintenanceSettings.automaticSaveFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.automaticSaveFailedDescription"),
-      ),
+      description: saveErrorMessage.value,
     });
   } finally {
     isSaving.value = false;
@@ -161,16 +184,44 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="px-6 py-6 sm:px-8">
+  <div
+    class="px-6 py-6 sm:px-8"
+    data-a11y-scope="automatic-backup-settings"
+    role="region"
+    :aria-labelledby="`${a11yId}-title`"
+    :aria-describedby="`${a11yId}-description`"
+    :aria-busy="isLoading || isSaving"
+  >
+    <p
+      :id="`${a11yId}-activity-status`"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {{
+        isLoading
+          ? t("admin.maintenanceSettings.automaticLoading")
+          : isSaving
+            ? t("admin.maintenanceSettings.automaticSaving")
+            : ""
+      }}
+    </p>
     <div
       class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between"
     >
       <div class="min-w-0 flex-1 space-y-2">
-        <div class="flex items-center gap-2 text-sm font-medium">
-          <DatabaseBackup class="h-4 w-4" />
+        <h2
+          :id="`${a11yId}-title`"
+          class="flex items-center gap-2 text-sm font-medium"
+        >
+          <DatabaseBackup class="h-4 w-4" aria-hidden="true" />
           <span>{{ t("admin.maintenanceSettings.automaticTitle") }}</span>
-        </div>
-        <p class="max-w-3xl text-sm text-muted-foreground">
+        </h2>
+        <p
+          :id="`${a11yId}-description`"
+          class="max-w-3xl text-sm text-muted-foreground"
+        >
           {{ t("admin.maintenanceSettings.automaticDescription") }}
         </p>
         <p
@@ -190,9 +241,19 @@ onBeforeUnmount(() => {
           :id="`${a11yId}-enabled`"
           v-model="form.enabled"
           :disabled="isLoading || isSaving || !details"
+          :aria-describedby="`${a11yId}-description`"
         />
       </div>
     </div>
+
+    <p
+      v-if="requestErrorMessage"
+      :id="`${a11yId}-request-error`"
+      class="mt-4 text-sm text-destructive"
+      role="alert"
+    >
+      {{ requestErrorMessage }}
+    </p>
 
     <div
       class="mt-5 grid gap-4 rounded-xl border bg-muted/[0.08] p-4 md:grid-cols-2"
@@ -210,11 +271,31 @@ onBeforeUnmount(() => {
             max="8760"
             step="1"
             :disabled="isLoading || isSaving || !details"
+            :aria-invalid="intervalIsInvalid"
+            :aria-describedby="`${a11yId}-interval-help`"
           />
-          <span class="shrink-0 text-sm text-muted-foreground">{{
-            t("admin.maintenanceSettings.hoursUnit")
-          }}</span>
+          <span
+            class="shrink-0 text-sm text-muted-foreground"
+            aria-hidden="true"
+            >{{ t("admin.maintenanceSettings.hoursUnit") }}</span
+          >
         </div>
+        <p
+          :id="`${a11yId}-interval-help`"
+          class="text-xs"
+          :class="
+            intervalIsInvalid ? 'text-destructive' : 'text-muted-foreground'
+          "
+          :role="intervalIsInvalid ? 'alert' : undefined"
+        >
+          {{
+            t(
+              intervalIsInvalid
+                ? "admin.maintenanceSettings.automaticIntervalError"
+                : "admin.maintenanceSettings.automaticIntervalHelp",
+            )
+          }}
+        </p>
       </div>
       <div class="space-y-2">
         <Label :for="`${a11yId}-retention`">{{
@@ -229,29 +310,54 @@ onBeforeUnmount(() => {
             max="3650"
             step="1"
             :disabled="isLoading || isSaving || !details"
+            :aria-invalid="retentionIsInvalid"
+            :aria-describedby="`${a11yId}-retention-help`"
           />
-          <span class="shrink-0 text-sm text-muted-foreground">{{
-            t("admin.maintenanceSettings.daysUnit")
-          }}</span>
+          <span
+            class="shrink-0 text-sm text-muted-foreground"
+            aria-hidden="true"
+            >{{ t("admin.maintenanceSettings.daysUnit") }}</span
+          >
         </div>
+        <p
+          :id="`${a11yId}-retention-help`"
+          class="text-xs"
+          :class="
+            retentionIsInvalid ? 'text-destructive' : 'text-muted-foreground'
+          "
+          :role="retentionIsInvalid ? 'alert' : undefined"
+        >
+          {{
+            t(
+              retentionIsInvalid
+                ? "admin.maintenanceSettings.automaticRetentionError"
+                : "admin.maintenanceSettings.automaticRetentionHelp",
+            )
+          }}
+        </p>
       </div>
     </div>
 
-    <div
-      v-if="details"
-      class="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2"
-    >
-      <p>
-        {{ t("admin.maintenanceSettings.automaticLastSuccess") }}:
-        {{ formatDate(details.status.last_success_at) }}
-      </p>
-      <p>
-        {{ t("admin.maintenanceSettings.automaticNextBackup") }}:
-        {{ formatDate(details.status.next_backup_at) }}
-      </p>
+    <div v-if="details" class="mt-4 space-y-2 text-xs text-muted-foreground">
+      <div
+        class="grid gap-2 sm:grid-cols-2"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <p>
+          {{ t("admin.maintenanceSettings.automaticLastSuccess") }}:
+          {{ formatDate(details.status.last_success_at) }}
+        </p>
+        <p>
+          {{ t("admin.maintenanceSettings.automaticNextBackup") }}:
+          {{ formatDate(details.status.next_backup_at) }}
+        </p>
+      </div>
       <p
         v-if="details.status.last_error"
-        class="sm:col-span-2 break-words text-destructive"
+        class="break-words text-destructive"
+        role="alert"
       >
         {{ t("admin.maintenanceSettings.automaticLastError") }}:
         {{ details.status.last_error }}
@@ -259,14 +365,33 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="mt-5 flex justify-end gap-3">
-      <Button variant="outline" :disabled="!isDirty || isSaving" @click="reset">
-        <RotateCcw class="mr-2 h-4 w-4" />
+      <Button
+        type="button"
+        variant="outline"
+        :disabled="!isDirty || isSaving"
+        @click="reset"
+      >
+        <RotateCcw class="mr-2 h-4 w-4" aria-hidden="true" />
         {{ t("admin.maintenanceSettings.resetAutomatic") }}
       </Button>
-      <Button :disabled="!isDirty || !isValid || isSaving" @click="save">
-        <Loader2 v-if="isSaving" class="mr-2 h-4 w-4 animate-spin" />
-        <Save v-else class="mr-2 h-4 w-4" />
-        {{ t("admin.maintenanceSettings.saveAutomatic") }}
+      <Button
+        type="button"
+        :disabled="!isDirty || !isValid || isSaving"
+        @click="save"
+      >
+        <Loader2
+          v-if="isSaving"
+          class="mr-2 h-4 w-4 animate-spin"
+          aria-hidden="true"
+        />
+        <Save v-else class="mr-2 h-4 w-4" aria-hidden="true" />
+        {{
+          t(
+            isSaving
+              ? "admin.maintenanceSettings.automaticSaving"
+              : "admin.maintenanceSettings.saveAutomatic",
+          )
+        }}
       </Button>
     </div>
   </div>

@@ -460,6 +460,12 @@ export const koKRAdmin = {
     automaticSaveFailedDescription: "자동 백업 구성을 업데이트할 수 없습니다",
     automaticValidationFailed:
       "백업 간격 또는 보관 일수가 허용 범위를 벗어났습니다",
+    automaticLoading: "자동 백업 설정을 불러오는 중입니다",
+    automaticSaving: "자동 백업 설정을 저장하는 중입니다",
+    automaticIntervalHelp: "1~8760 사이의 정수 시간 값을 입력하세요.",
+    automaticIntervalError: "백업 간격은 1~8760 사이의 정수여야 합니다.",
+    automaticRetentionHelp: "1~3650 사이의 정수 일수를 입력하세요.",
+    automaticRetentionError: "보관 일수는 1~3650 사이의 정수여야 합니다.",
     automaticSaved: "자동 백업 설정을 저장했습니다",
     resetAutomatic: "재설정",
     saveAutomatic: "설정 저장",
@@ -469,8 +475,7 @@ export const koKRAdmin = {
     automaticBackup: "자동 백업",
     automaticBackupSelected: "자동 백업 선택됨: {name}",
     importFromAutomatic: "자동 백업에서 선택",
-    loadAutomaticDirFailedDescription:
-      "자동 백업 디렉터리를 읽을 수 없습니다",
+    loadAutomaticDirFailedDescription: "자동 백업 디렉터리를 읽을 수 없습니다",
     automaticPickerTitle: "자동 백업 선택",
     automaticPickerDescription:
       "서버의 로컬 자동 백업 디렉터리에서 .knock 파일을 선택합니다.",
@@ -529,8 +534,7 @@ export const koKRAdmin = {
     openWrtImportHintBefore:
       "OpenWrt 배포에서는 자동 백업을 사용하거나 이 기기에서",
     openWrtImportHintAfter: "파일을 선택할 수 있습니다.",
-    localImportHintBefore:
-      "이 환경에서는 자동 백업을 사용하거나 이 기기에서",
+    localImportHintBefore: "이 환경에서는 자동 백업을 사용하거나 이 기기에서",
     localImportHintAfter: "파일을 선택할 수 있습니다.",
     reselectSource: "소스를 다시 선택하세요",
     importFromFnos: "FNOS에서 가져오기",

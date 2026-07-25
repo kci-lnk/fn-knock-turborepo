@@ -14,6 +14,8 @@ pub(super) async fn status(State(state): State<AppState>) -> Response {
                 "platform": overview.platform,
                 "running": primary.map(|item| item.running).unwrap_or(false),
                 "pid": primary.and_then(|item| item.pid),
+                "desiredRunning": primary.map(|item| item.desired_running).unwrap_or(false),
+                "supervisor": primary.map(|item| item.supervisor.clone()).unwrap_or_default(),
                 "config_path": primary.map(|item| item.config_path.clone()).unwrap_or_default(),
                 "defaults": overview.defaults,
                 "total": overview.total,
@@ -244,8 +246,7 @@ pub(super) async fn restart_instance(
     frpc_response(
         &state,
         async {
-            stop_instance_inner(&state, &id).await?;
-            let pid = start_instance_inner(&state, &id).await?;
+            let pid = restart_instance_inner(&state, &id).await?;
             Ok(json!({ "pid": pid }))
         }
         .await,

@@ -21,6 +21,7 @@ import {
 import { EyeIcon, EyeOffIcon, TriangleAlert, Trash2 } from "lucide-vue-next";
 import LogViewer from "@admin-shared/components/LogViewer.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import TunnelSupervisorStatus from "@/components/TunnelSupervisorStatus.vue";
 import { useCloudflareTunnelController } from "./cloudflare/useCloudflareTunnelController";
 
 const {
@@ -46,12 +47,12 @@ const {
   pid,
   protocol,
   publicWildcardHostname,
-  running,
   saveConfig,
   showInitDialog,
   showToken,
   startCloudflared,
   stopCloudflared,
+  supervisor,
   t,
   token,
 } = useCloudflareTunnelController();
@@ -65,7 +66,7 @@ const {
       </h2>
       <div class="flex gap-2">
         <Button
-          v-if="!running"
+          v-if="!supervisor.desiredRunning && !supervisor.running"
           :disabled="!canStart || isStarting"
           @click="startCloudflared"
         >
@@ -316,17 +317,8 @@ const {
         </div>
       </CardHeader>
       <CardContent>
-        <div class="mb-4 text-sm">
-          <span class="mr-4">
-            {{ t("admin.cloudflareTunnel.statusLabel") }}
-            <span :class="running ? 'text-green-600' : 'text-muted-foreground'">
-              {{
-                running
-                  ? t("common.active")
-                  : t("admin.cloudflareTunnel.notRunning")
-              }}
-            </span>
-          </span>
+        <div class="mb-4 flex flex-wrap items-start gap-4 text-sm">
+          <TunnelSupervisorStatus :supervisor="supervisor" />
           <span v-if="pid">PID：{{ pid }}</span>
         </div>
         <Alert

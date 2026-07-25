@@ -1233,6 +1233,7 @@ export const enServer = {
   },
   cloudflared: {
     configReadFailed: "Failed to read Cloudflared config",
+    statusLoadFailed: "Failed to load Cloudflared supervisor status",
     configWriteFailed: "Failed to save Cloudflared config",
     missingToken: "Configure the Cloudflare Token first",
     startFailedWithDetail: "Failed to start cloudflared: {detail}",

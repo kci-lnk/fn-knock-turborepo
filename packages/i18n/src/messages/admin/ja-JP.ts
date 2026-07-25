@@ -1,4 +1,13 @@
 export const jaJPAdmin = {
+  tunnelSupervisor: {
+    states: {
+      stopped: "停止",
+      starting: "起動中",
+      running: "実行中",
+      backoff: "再起動待ち",
+    },
+    nextRestart: "{count} 回連続失敗。次の再試行：",
+  },
   nav: {
     ipWhitelist: "ホワイトリスト",
     sslCert: "SSL",

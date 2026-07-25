@@ -38,6 +38,11 @@ import {
 } from "../src/views/tunnel/frp/frpcInstanceModel";
 import { analyzeCloudflaredLogs } from "../src/views/tunnel/cloudflare/cloudflaredLogAnalysis";
 import {
+  supervisorAllowsStart,
+  supervisorAllowsStop,
+  supervisorTone,
+} from "../src/views/tunnel/tunnelSupervisorModel";
+import {
   buildIpLocationSettingsPayload,
   isHttpUrl,
   normalizeIpLocationBaseUrl,
@@ -301,6 +306,20 @@ describe("FRP instance model", () => {
     stoppedAt: null,
     lastExitCode: null,
     lastMessage: null,
+    supervisor: {
+      state: running ? "running" : "stopped",
+      desiredRunning: running,
+      running,
+      attached: running,
+      pid: running ? 123 : null,
+      restartCount: 0,
+      consecutiveFailures: 0,
+      nextRestartAt: null,
+      startedAt: null,
+      stoppedAt: null,
+      lastFailure: null,
+      lastMessage: null,
+    },
     summary: {
       serverAddr: "frp.example.com",
       serverPort: "7000",
@@ -384,6 +403,40 @@ describe("Cloudflared log analysis", () => {
       ]),
       null,
     );
+  });
+});
+
+describe("tunnel supervisor model", () => {
+  it("keeps backoff controllable without presenting it as stopped", () => {
+    const backoff = {
+      state: "backoff",
+      desiredRunning: true,
+      running: false,
+    } as const;
+    assert.equal(supervisorTone(backoff), "warning");
+    assert.equal(supervisorAllowsStart(backoff), false);
+    assert.equal(supervisorAllowsStop(backoff), true);
+  });
+
+  it("allows start only after guarding has been explicitly stopped", () => {
+    const stopped = {
+      state: "stopped",
+      desiredRunning: false,
+      running: false,
+    } as const;
+    assert.equal(supervisorTone(stopped), "muted");
+    assert.equal(supervisorAllowsStart(stopped), true);
+    assert.equal(supervisorAllowsStop(stopped), false);
+  });
+
+  it("keeps a process controllable when termination failed after intent was cleared", () => {
+    const terminationFailed = {
+      state: "running",
+      desiredRunning: false,
+      running: true,
+    } as const;
+    assert.equal(supervisorAllowsStart(terminationFailed), false);
+    assert.equal(supervisorAllowsStop(terminationFailed), true);
   });
 });
 

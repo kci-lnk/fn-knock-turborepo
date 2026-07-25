@@ -1079,6 +1079,7 @@ export const zhCNServer = {
   },
   cloudflared: {
     configReadFailed: "读取 Cloudflared 配置失败",
+    statusLoadFailed: "读取 Cloudflared 守护状态失败",
     configWriteFailed: "保存 Cloudflared 配置失败",
     missingToken: "请先配置 Cloudflare Token",
     startFailedWithDetail: "启动 cloudflared 失败: {detail}",

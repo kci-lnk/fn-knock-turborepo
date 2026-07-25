@@ -1,4 +1,13 @@
 export const koKRAdmin = {
+  tunnelSupervisor: {
+    states: {
+      stopped: "중지됨",
+      starting: "시작 중",
+      running: "실행 중",
+      backoff: "재시작 대기",
+    },
+    nextRestart: "{count}회 연속 실패, 다음 재시도:",
+  },
   nav: {
     ipWhitelist: "허용 목록",
     sslCert: "SSL 인증서",

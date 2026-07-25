@@ -1,12 +1,9 @@
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::LazyLock,
-    time::Duration,
+    sync::Arc,
 };
 
-use anyhow::anyhow;
 use axum::{
     Json, Router,
     extract::{Path as AxumPath, Query, State},
@@ -16,13 +13,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tokio::{
-    fs,
-    io::{AsyncBufReadExt, BufReader},
-    process::Command,
-    sync::Mutex,
-    time::sleep,
-};
+use tokio::{fs, process::Command, sync::Mutex};
 use uuid::Uuid;
 
 use crate::{
@@ -31,6 +22,7 @@ use crate::{
     state::AppState,
     store::Store,
     system_events, time_utils,
+    tunnels::supervisor::{SupervisorFailure, SupervisorPhase, SupervisorSnapshot},
 };
 
 const FRPC_PRIMARY_INSTANCE_ID: &str = "primary";
@@ -48,11 +40,6 @@ const FRPC_DISCONNECTED_PATTERNS: &[&str] = &[
     "login to the server failed",
     "session shutdown",
 ];
-
-static ATTACHED_PIDS: LazyLock<Mutex<HashMap<String, u32>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-static CONNECTION_STATES: LazyLock<Mutex<HashMap<String, FrpcConnectionState>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Default)]
 struct FrpcConnectionState {
@@ -96,6 +83,7 @@ struct FrpcInstanceRuntime {
     stopped_at: Option<String>,
     last_exit_code: Option<i32>,
     last_message: Option<String>,
+    supervisor: SupervisorSnapshot,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -126,6 +114,7 @@ struct FrpcInstanceStatus {
     stopped_at: Option<String>,
     last_exit_code: Option<i32>,
     last_message: Option<String>,
+    supervisor: SupervisorSnapshot,
     summary: FrpcInstanceSummary,
 }
 
@@ -172,6 +161,7 @@ mod process;
 mod runtime;
 mod storage;
 mod summary;
+mod supervisor;
 
 use binary::*;
 use errors::*;
@@ -182,6 +172,7 @@ use process::*;
 use runtime::*;
 use storage::*;
 use summary::*;
+use supervisor::*;
 
 pub fn frpc_routes() -> Router<AppState> {
     Router::new()

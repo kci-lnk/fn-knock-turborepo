@@ -1,4 +1,13 @@
 export const zhCNAdmin = {
+  tunnelSupervisor: {
+    states: {
+      stopped: "已停止",
+      starting: "启动中",
+      running: "运行中",
+      backoff: "等待重启",
+    },
+    nextRestart: "连续失败 {count} 次，下次重试：",
+  },
   nav: {
     ipWhitelist: "IP白名单",
     sslCert: "SSL证书",

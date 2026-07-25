@@ -140,12 +140,6 @@ pub(crate) async fn run_with_settings(
     if capabilities.ssh_security_available {
         start_ssh_security_tasks(state.clone());
     }
-    if capabilities.cloudflared_available {
-        start_cloudflared_tasks(state.clone());
-    }
-    if capabilities.frpc_available {
-        start_frpc_tasks(state.clone());
-    }
     memory::trim_allocated_memory_after(Duration::from_secs(45));
 
     let backend_addr = settings.backend_addr()?;
@@ -185,6 +179,15 @@ pub(crate) async fn run_with_settings(
     } else {
         None
     };
+    // Tunnel supervisors are started only after every listener has bound.
+    // This keeps a startup bind error from dropping the runtime while managed
+    // tunnel children are already alive.
+    if capabilities.cloudflared_available {
+        start_cloudflared_tasks(state.clone());
+    }
+    if capabilities.frpc_available {
+        start_frpc_tasks(state.clone());
+    }
     let servers = async move {
         if let Some(admin_view) = admin_view {
             tokio::try_join!(backend.serve(), auth.serve(), admin_view.serve())?;
@@ -215,6 +218,10 @@ pub(crate) async fn run_with_settings(
     };
     if let Err(error) = readiness {
         runtime_shutdown.cancel();
+        state
+            .tunnel_supervisors
+            .shutdown_all(Duration::from_secs(10))
+            .await;
         stop_auth_bridge(auth_bridge).await;
         return Err(error);
     }
@@ -223,6 +230,10 @@ pub(crate) async fn run_with_settings(
     }
     let result = servers.await;
     runtime_shutdown.cancel();
+    state
+        .tunnel_supervisors
+        .shutdown_all(Duration::from_secs(10))
+        .await;
     stop_auth_bridge(auth_bridge).await;
     result
 }

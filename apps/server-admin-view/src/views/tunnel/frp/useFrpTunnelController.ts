@@ -69,8 +69,17 @@ export const useFrpTunnelController = () => {
   const isInit = computed(() => overview.value?.initialized ?? false);
   const running = computed(() => primaryInstance.value?.running ?? false);
   const pid = computed(() => primaryInstance.value?.pid ?? null);
-  const canStart = computed(() => isInit.value && !running.value);
-  const canStop = computed(() => running.value);
+  const canStart = computed(
+    () =>
+      isInit.value &&
+      !primaryInstance.value?.desiredRunning &&
+      !primaryInstance.value?.running,
+  );
+  const canStop = computed(
+    () =>
+      (primaryInstance.value?.desiredRunning ?? false) ||
+      (primaryInstance.value?.running ?? false),
+  );
   const primarySummary = computed(
     () =>
       primaryInstance.value?.summary ??
@@ -199,13 +208,10 @@ export const useFrpTunnelController = () => {
     await runSaveConfig(async () => {
       const content =
         primaryEditorRef.value?.getContent() ?? primaryConfig.value;
-      const shouldRestart = running.value;
+      const shouldRestart = primaryInstance.value?.desiredRunning ?? false;
       await FrpcAPI.saveConfig(content);
       primaryConfig.value = content;
       if (shouldRestart) {
-        await FrpcAPI.stop();
-        const result = await FrpcAPI.start();
-        markStarted(result.pid);
         toast.success(t("admin.frpTunnel.restartSuccess"));
       } else {
         toast.success(t("admin.frpTunnel.saveSuccess"));

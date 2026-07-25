@@ -49,6 +49,7 @@ tokio = { version = "1.48", features = ["fs", "io-util", "macros", "net", "proce
 tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["rt"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled", "serde_json"] }
+toml = "0.9.12"
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
 tonic-health = "0.12"
 prost = "0.13"

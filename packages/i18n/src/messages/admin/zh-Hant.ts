@@ -1,6 +1,15 @@
 import { zhCNAdmin } from "./zh-CN";
 
 export const zhHantAdmin = {
+  tunnelSupervisor: {
+    states: {
+      stopped: "已停止",
+      starting: "啟動中",
+      running: "運行中",
+      backoff: "等待重啟",
+    },
+    nextRestart: "連續失敗 {count} 次，下次重試：",
+  },
   nav: {
     ...zhCNAdmin.nav,
     ipWhitelist: "IP白名單",

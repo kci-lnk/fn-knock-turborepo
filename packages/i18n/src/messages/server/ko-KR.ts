@@ -1237,6 +1237,7 @@ export const koKRServer = {
   },
   cloudflared: {
     configReadFailed: "Cloudflared 설정을 읽지 못했습니다.",
+    statusLoadFailed: "Cloudflared 감독 상태를 불러오지 못했습니다.",
     configWriteFailed: "Cloudflared 설정을 저장하지 못했습니다.",
     missingToken: "Cloudflare 토큰을 먼저 설정하세요",
     startFailedWithDetail: "Cloudflared를 시작하지 못했습니다: {detail}",

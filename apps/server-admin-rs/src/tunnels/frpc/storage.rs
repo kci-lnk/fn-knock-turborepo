@@ -107,6 +107,7 @@ pub(super) fn default_runtime() -> FrpcInstanceRuntime {
         stopped_at: None,
         last_exit_code: None,
         last_message: None,
+        supervisor: SupervisorSnapshot::default(),
     }
 }
 
@@ -238,37 +239,70 @@ pub(super) fn normalize_meta(value: Value, fallback: FrpcInstanceMeta) -> FrpcIn
 }
 
 pub(super) fn normalize_runtime(value: Value) -> FrpcInstanceRuntime {
+    let desired_running = value
+        .get("desiredRunning")
+        .or_else(|| value.get("desired_running"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let pid = value
+        .get("pid")
+        .and_then(Value::as_u64)
+        .filter(|pid| *pid > 0)
+        .and_then(|pid| u32::try_from(pid).ok());
+    let started_at = value
+        .get("startedAt")
+        .or_else(|| value.get("started_at"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let stopped_at = value
+        .get("stoppedAt")
+        .or_else(|| value.get("stopped_at"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let last_exit_code = value
+        .get("lastExitCode")
+        .or_else(|| value.get("last_exit_code"))
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok());
+    let last_message = value
+        .get("lastMessage")
+        .or_else(|| value.get("last_message"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let supervisor = value
+        .get("supervisor")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<SupervisorSnapshot>(value).ok())
+        .unwrap_or_else(|| SupervisorSnapshot {
+            state: if pid.is_some() {
+                SupervisorPhase::Running
+            } else {
+                SupervisorPhase::Stopped
+            },
+            desired_running,
+            running: pid.is_some(),
+            attached: false,
+            pid,
+            started_at: started_at.clone(),
+            stopped_at: stopped_at.clone(),
+            last_failure: last_message.as_ref().map(|message| SupervisorFailure {
+                at: stopped_at.clone().unwrap_or_default(),
+                reason: message.clone(),
+                exit_code: last_exit_code,
+                ..SupervisorFailure::default()
+            }),
+            last_message: last_message.clone(),
+            ..SupervisorSnapshot::default()
+        })
+        .normalize();
     FrpcInstanceRuntime {
-        desired_running: value
-            .get("desiredRunning")
-            .or_else(|| value.get("desired_running"))
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
-        pid: value
-            .get("pid")
-            .and_then(Value::as_u64)
-            .filter(|pid| *pid > 0)
-            .and_then(|pid| u32::try_from(pid).ok()),
-        started_at: value
-            .get("startedAt")
-            .or_else(|| value.get("started_at"))
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        stopped_at: value
-            .get("stoppedAt")
-            .or_else(|| value.get("stopped_at"))
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        last_exit_code: value
-            .get("lastExitCode")
-            .or_else(|| value.get("last_exit_code"))
-            .and_then(Value::as_i64)
-            .and_then(|value| i32::try_from(value).ok()),
-        last_message: value
-            .get("lastMessage")
-            .or_else(|| value.get("last_message"))
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        desired_running,
+        pid,
+        started_at,
+        stopped_at,
+        last_exit_code,
+        last_message,
+        supervisor,
     }
 }
 
@@ -369,6 +403,10 @@ pub(super) async fn save_config_inner(
     write_config_for_meta(&meta, &content).await?;
     meta.updated_at = time_utils::now_iso();
     write_meta(&state.store, &meta).await?;
+    let handle = ensure_frpc_supervisor(state, &meta).await?;
+    if handle.snapshot().desired_running {
+        handle.restart().await.map_err(frpc_internal)?;
+    }
     Ok(())
 }
 
@@ -378,6 +416,7 @@ pub(super) async fn update_instance_inner(
     body: InstanceBody,
 ) -> FrpcResult<FrpcInstanceStatus> {
     let mut meta = get_meta_or_error(state, id).await?;
+    let mut config_changed = false;
     if let Some(name) = body.name {
         let name = name.trim();
         meta.name = if name.is_empty() {
@@ -393,9 +432,16 @@ pub(super) async fn update_instance_inner(
     if let Some(content) = body.content {
         verify_frpc_config(state, &meta, &content).await?;
         write_config_for_meta(&meta, &content).await?;
+        config_changed = true;
     }
     meta.updated_at = time_utils::now_iso();
     write_meta(&state.store, &meta).await?;
+    if config_changed {
+        let handle = ensure_frpc_supervisor(state, &meta).await?;
+        if handle.snapshot().desired_running {
+            handle.restart().await.map_err(frpc_internal)?;
+        }
+    }
     build_status(state, &meta).await
 }
 
@@ -455,9 +501,14 @@ pub(super) async fn delete_instance_inner(state: &AppState, id: &str) -> FrpcRes
         return Err(frpc_validation("Primary FRPC instance cannot be deleted"));
     }
     let status = build_status(state, &meta).await?;
-    if status.running {
+    if status.desired_running {
         stop_instance_inner(state, &meta.id).await?;
     }
+    state
+        .tunnel_supervisors
+        .remove(&supervisor_key(&meta.id))
+        .await
+        .map_err(frpc_internal)?;
     state
         .store
         .delete_keys(&[
@@ -476,7 +527,6 @@ pub(super) async fn delete_instance_inner(state: &AppState, id: &str) -> FrpcRes
     )
     .await?;
     let _ = fs::remove_dir_all(&meta.work_dir).await;
-    ATTACHED_PIDS.lock().await.remove(&meta.id);
     Ok(())
 }
 
@@ -500,5 +550,8 @@ pub(super) async fn cleanup_created_instance(
         .collect::<Vec<_>>();
     let _ = write_instance_ids(&state.store, &ids).await;
     let _ = fs::remove_dir_all(&meta.work_dir).await;
-    ATTACHED_PIDS.lock().await.remove(&meta.id);
+    let _ = state
+        .tunnel_supervisors
+        .remove(&supervisor_key(&meta.id))
+        .await;
 }

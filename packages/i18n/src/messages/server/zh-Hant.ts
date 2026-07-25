@@ -1079,6 +1079,7 @@ export const zhHantServer = {
   },
   cloudflared: {
     configReadFailed: "讀取 Cloudflared 配置失敗",
+    statusLoadFailed: "讀取 Cloudflared 守護狀態失敗",
     configWriteFailed: "保存 Cloudflared 配置失敗",
     missingToken: "請先配置 Cloudflare Token",
     startFailedWithDetail: "啟動 cloudflared 失敗: {detail}",

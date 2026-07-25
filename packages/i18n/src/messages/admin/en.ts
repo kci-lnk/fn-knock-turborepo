@@ -1,4 +1,13 @@
 export const enAdmin = {
+  tunnelSupervisor: {
+    states: {
+      stopped: "Stopped",
+      starting: "Starting",
+      running: "Running",
+      backoff: "Waiting to restart",
+    },
+    nextRestart: "{count} consecutive failures; next retry:",
+  },
   nav: {
     ipWhitelist: "Whitelist",
     sslCert: "SSL",

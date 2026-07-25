@@ -81,6 +81,7 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:backoff:",
     "fn_knock:cidr:",
     "fn_knock:cloudflared:logs",
+    "fn_knock:cloudflared:runtime:v2",
     "fn_knock:common_auth_locations:runtime",
     "fn_knock:config:backup:",
     "fn_knock:docker_admin:login_backoff:",

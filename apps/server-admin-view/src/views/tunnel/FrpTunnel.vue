@@ -22,7 +22,7 @@ import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCar
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
+import TunnelSupervisorStatus from "@/components/TunnelSupervisorStatus.vue";
 import { docsUrls } from "@/lib/docs";
 import FrpcInstanceEditor from "./frp/FrpcInstanceEditor.vue";
 import { useFrpTunnelController } from "./frp/useFrpTunnelController";
@@ -58,7 +58,6 @@ const {
   primaryInstance,
   primaryLogs,
   primarySummary,
-  running,
   saveConfig,
   setPrimaryEditorRef,
   showInitDialog,
@@ -96,7 +95,7 @@ const {
           class="shrink-0"
         />
         <Button
-          v-if="!running"
+          v-if="!primaryInstance?.desiredRunning && !primaryInstance?.running"
           :disabled="!canStart || isStarting"
           @click="startFrpc"
         >
@@ -177,14 +176,10 @@ const {
               {{ t("admin.frpTunnel.status") }}
             </div>
             <div class="mt-1 flex items-center gap-2">
-              <LiveStatusBadge :active="running" />
-              <span
-                :class="running ? 'text-green-600' : 'text-muted-foreground'"
-              >
-                {{
-                  running ? t("common.active") : t("admin.frpTunnel.notRunning")
-                }}
-              </span>
+              <TunnelSupervisorStatus
+                v-if="primaryInstance"
+                :supervisor="primaryInstance.supervisor"
+              />
             </div>
           </div>
           <div>
@@ -249,21 +244,9 @@ const {
                   <p class="text-sm font-medium">
                     {{ getInstanceDisplayName(instance) }}
                   </p>
-                  <span
-                    class="inline-flex items-center gap-1.5 text-xs"
-                    :class="
-                      instance.running
-                        ? 'text-green-600'
-                        : 'text-muted-foreground'
-                    "
-                  >
-                    <LiveStatusBadge :active="instance.running" size="xs" />
-                    {{
-                      instance.running
-                        ? t("common.active")
-                        : t("admin.frpTunnel.notRunning")
-                    }}
-                  </span>
+                  <TunnelSupervisorStatus
+                    :supervisor="instance.supervisor"
+                  />
                 </div>
                 <p class="break-all text-sm text-muted-foreground">
                   {{ formatSummary(instance.summary) }}
@@ -324,7 +307,7 @@ const {
                 {{ t("admin.frpTunnel.edit") }}
               </Button>
               <Button
-                v-if="!instance.running"
+                v-if="!instance.desiredRunning && !instance.running"
                 variant="outline"
                 size="sm"
                 :disabled="startingInstanceId === instance.id"

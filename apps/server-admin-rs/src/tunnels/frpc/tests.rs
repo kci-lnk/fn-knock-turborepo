@@ -37,39 +37,23 @@ remotePort = 443 # comment
 }
 
 #[test]
-fn detected_frpc_runtime_clears_stale_exit_state() {
-    let runtime = FrpcInstanceRuntime {
-        desired_running: true,
-        pid: Some(42),
-        started_at: Some("2026-01-01T00:00:00Z".to_string()),
-        stopped_at: Some("2026-01-01T00:01:00Z".to_string()),
-        last_exit_code: Some(1),
-        last_message: Some("frpc exited with code 1".to_string()),
-    };
-
-    let next = merge_detected_frpc_runtime(runtime.clone(), 42);
-    assert_eq!(next.pid, Some(42));
-    assert_eq!(next.started_at, runtime.started_at);
-    assert_eq!(next.stopped_at, None);
-    assert_eq!(next.last_exit_code, None);
-    assert_eq!(
-        next.last_message.as_deref(),
-        Some("frpc process detected pid=42")
-    );
-    assert!(should_persist_detected_runtime(&runtime, &next));
-}
-
-#[test]
-fn frpc_exit_watcher_only_handles_current_attached_pid_like_node() {
-    assert!(attached_pid_matches(Some(42), Some(42)));
-    assert!(!attached_pid_matches(Some(43), Some(42)));
-    assert!(!attached_pid_matches(None, Some(42)));
-    assert!(!attached_pid_matches(Some(42), None));
-}
-
-#[test]
 fn process_alive_rejects_pid_values_outside_pid_t_range() {
     assert!(!is_process_alive(u32::MAX));
+}
+
+#[test]
+fn legacy_runtime_is_promoted_to_a_supervisor_snapshot() {
+    let runtime = normalize_runtime(json!({
+        "desiredRunning": true,
+        "pid": 42,
+        "startedAt": "2026-01-01T00:00:00Z",
+        "lastExitCode": 1,
+        "lastMessage": "legacy message"
+    }));
+    assert!(runtime.supervisor.desired_running);
+    assert!(runtime.supervisor.running);
+    assert_eq!(runtime.supervisor.pid, Some(42));
+    assert_eq!(runtime.supervisor.state, SupervisorPhase::Running);
 }
 
 #[test]
@@ -167,4 +151,37 @@ fn localizes_frpc_errors_and_runtime_messages() {
         "frpc 进程已退出（退出码 1）"
     );
     assert_eq!(localized["legacy"]["last_message"], "frpc 已停止");
+}
+
+#[test]
+fn extracts_only_configured_frpc_secrets_for_log_redaction() {
+    assert_eq!(
+        extract_frpc_secrets(
+            r#"
+[auth]
+method = "token"
+token = "top-secret"
+oidcClientSecret = 'oidc-secret'
+serverAddr = "example.com"
+[webServer]
+password = "web-secret" # known credential
+[proxies.plugin]
+credentialFile = "/not/a/secret/value"
+"#
+        ),
+        vec![
+            "top-secret",
+            "oidc-secret",
+            "web-secret",
+            "/not/a/secret/value"
+        ]
+    );
+}
+
+#[test]
+fn verify_output_truncation_preserves_utf8_boundaries() {
+    let output = "一".repeat(4_001);
+    let normalized = normalize_verify_output(&output);
+    assert_eq!(normalized.chars().count(), 4_003);
+    assert!(normalized.ends_with("..."));
 }

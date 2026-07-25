@@ -1,10 +1,5 @@
 use super::*;
 
-#[cfg(unix)]
-const FORCE_TERMINATE_SIGNAL: libc::c_int = libc::SIGKILL;
-#[cfg(not(unix))]
-const FORCE_TERMINATE_SIGNAL: libc::c_int = libc::SIGTERM;
-
 pub(super) fn pid_path_for_meta(meta: &FrpcInstanceMeta) -> PathBuf {
     PathBuf::from(&meta.work_dir).join("frpc.pid")
 }
@@ -26,38 +21,6 @@ pub(super) async fn write_pid_file(path: &Path, pid: u32) {
 
 pub(super) async fn remove_pid_file(path: &Path) {
     let _ = fs::remove_file(path).await;
-}
-
-pub(super) async fn terminate_pid(pid: u32) -> FrpcResult<()> {
-    if pid == std::process::id() || !is_process_alive(pid) {
-        return Ok(());
-    }
-    send_signal(pid, libc::SIGTERM);
-    for _ in 0..20 {
-        if !is_process_alive(pid) {
-            return Ok(());
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-    send_signal(pid, FORCE_TERMINATE_SIGNAL);
-    for _ in 0..10 {
-        if !is_process_alive(pid) {
-            return Ok(());
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
-    if is_process_alive(pid) {
-        return Err(frpc_internal(format!(
-            "frpc process is still running: {pid}"
-        )));
-    }
-    Ok(())
-}
-
-pub(super) fn send_signal(pid: u32, signal: libc::c_int) {
-    if let Ok(pid) = i32::try_from(pid) {
-        let _ = crate::unix::send_signal(pid, signal);
-    }
 }
 
 pub(super) fn is_process_alive(pid: u32) -> bool {

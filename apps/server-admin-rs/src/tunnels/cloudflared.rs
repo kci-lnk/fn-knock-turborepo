@@ -1,11 +1,11 @@
 use std::{
     fs,
-    io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
-    sync::{Mutex, MutexGuard, OnceLock},
+    sync::Arc,
+    sync::RwLock,
 };
 
+use async_trait::async_trait;
 use axum::{
     Json, Router,
     extract::{Query, State},
@@ -15,14 +15,24 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::{runtime::Handle, task};
+use tokio::{fs as tokio_fs, process::Command, sync::Mutex};
 
-use crate::{i18n::Translator, response, state::AppState, system_events, time_utils};
+use crate::{
+    i18n::Translator,
+    response,
+    state::AppState,
+    system_events, time_utils,
+    tunnels::supervisor::{
+        OutputStream, ProcessLaunch, SupervisorFailure, SupervisorHandle, SupervisorSnapshot,
+        TunnelProcessAdapter,
+    },
+};
 
 const LOG_KEY: &str = "fn_knock:cloudflared:logs";
 const LOG_TTL_SECONDS: usize = 24 * 3600;
 const LOG_MAX_LEN: usize = 1000;
 const TUNNEL_RUNTIME_KEY: &str = "fn_knock:tunnel:runtime";
+const CLOUDFLARED_RUNTIME_KEY: &str = "fn_knock:cloudflared:runtime:v2";
 const CONNECTED_PATTERNS: &[&str] = &["registered tunnel connection", "connection "];
 const DISCONNECTED_PATTERNS: &[&str] = &[
     "serve tunnel error",
@@ -30,7 +40,7 @@ const DISCONNECTED_PATTERNS: &[&str] = &[
     "failed to serve tunnel",
 ];
 
-static CLOUDFLARED_MANAGER: OnceLock<CloudflaredManager> = OnceLock::new();
+const CLOUDFLARED_SUPERVISOR_KEY: &str = "cloudflared";
 
 fn cloudflared_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.cloudflared.{key}"))
@@ -55,9 +65,7 @@ fn localize_cloudflared_error(translator: &Translator, message: &str) -> String 
 }
 
 #[derive(Default)]
-struct RunState {
-    running: bool,
-    pid: Option<u32>,
+struct CloudflaredConnectionState {
     connected: bool,
     stop_requested: bool,
 }
@@ -66,7 +74,7 @@ struct CloudflaredManager {
     dir: PathBuf,
     config_path: PathBuf,
     bin_path: PathBuf,
-    state: Mutex<RunState>,
+    pid_path: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -105,25 +113,41 @@ pub fn start_cloudflared_tasks(state: AppState) {
                 {
                     tracing::warn!(%error, "failed to append cloudflared resume log");
                 }
-                if let Err(error) = manager(&state).start(state.clone()).await {
+                if let Err(error) = ensure_cloudflared_supervisor(&state).await {
                     let _ = append_logs(&state, vec![format!("resume error: {error}")]).await;
                 }
             }
-            Ok(false) => {}
+            Ok(false) => {
+                if let Err(error) = ensure_cloudflared_supervisor(&state).await {
+                    tracing::warn!(%error, "failed to initialize cloudflared supervisor");
+                }
+            }
             Err(error) => tracing::warn!(%error, "failed to load cloudflared resume state"),
         }
     });
 }
 
 async fn status(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
     let asset = manager.asset_status();
-    let run = manager.run_status();
+    let snapshot = match ensure_cloudflared_supervisor(&state).await {
+        Ok(handle) => handle.snapshot(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load cloudflared supervisor status");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                cloudflared_text(&translator, "statusLoadFailed"),
+            );
+        }
+    };
     response::ok(json!({
         "initialized": asset.get("downloaded").and_then(Value::as_bool).unwrap_or(false),
         "platform": asset.get("platform").cloned().unwrap_or_else(|| json!("unsupported")),
-        "running": run.0,
-        "pid": run.1,
+        "running": snapshot.running,
+        "pid": snapshot.pid,
+        "desiredRunning": snapshot.desired_running,
+        "supervisor": snapshot,
     }))
     .into_response()
 }
@@ -157,7 +181,23 @@ async fn save_config(State(state): State<AppState>, Json(body): Json<Value>) -> 
         protocol: normalize_protocol(body.get("protocol").and_then(Value::as_str)),
     };
     match manager(&state).write_config(&config) {
-        Ok(()) => response::success_empty().into_response(),
+        Ok(()) => {
+            let restart = match ensure_cloudflared_supervisor(&state).await {
+                Ok(handle) if handle.snapshot().desired_running => handle.restart().await.map(drop),
+                Ok(_) => Ok(()),
+                Err(error) => Err(error),
+            };
+            match restart {
+                Ok(()) => response::success_empty().into_response(),
+                Err(error) => {
+                    tracing::warn!(%error, "failed to restart cloudflared after config update");
+                    response::error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        localize_cloudflared_error(&translator, &error),
+                    )
+                }
+            }
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to write cloudflared config");
             response::error(
@@ -177,7 +217,16 @@ async fn start(State(state): State<AppState>) -> Response {
             cloudflared_text(&translator, "notInitialized"),
         );
     }
-    match manager.start(state.clone()).await {
+    let handle = match ensure_cloudflared_supervisor(&state).await {
+        Ok(handle) => handle,
+        Err(error) => {
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                localize_cloudflared_error(&translator, &error),
+            );
+        }
+    };
+    match handle.start().await {
         Ok(pid) => response::ok(json!({ "pid": pid })).into_response(),
         Err(error) => {
             let _ = append_logs(&state, vec![format!("start error: {error}")]).await;
@@ -191,7 +240,11 @@ async fn start(State(state): State<AppState>) -> Response {
 
 async fn stop(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match manager(&state).stop(&state).await {
+    let result = match ensure_cloudflared_supervisor(&state).await {
+        Ok(handle) => handle.stop().await,
+        Err(error) => Err(error),
+    };
+    match result {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to stop cloudflared");
@@ -244,7 +297,16 @@ async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
         .await
     {
         Ok(mut result) => {
-            let run = manager(&state).run_status();
+            let snapshot = match ensure_cloudflared_supervisor(&state).await {
+                Ok(handle) => handle.snapshot(),
+                Err(error) => {
+                    tracing::warn!(%error, "failed to poll cloudflared supervisor");
+                    return response::error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        cloudflared_text(&translator, "statusLoadFailed"),
+                    );
+                }
+            };
             let cursor = result.get("cursor").cloned().unwrap_or_else(|| json!(0));
             let reset = result.get("reset").cloned().unwrap_or(Value::Bool(false));
             let logs = result
@@ -256,8 +318,10 @@ async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
                 "reset": reset,
                 "logs": logs,
                 "status": {
-                    "running": run.0,
-                    "pid": run.1,
+                    "running": snapshot.running,
+                    "pid": snapshot.pid,
+                    "desiredRunning": snapshot.desired_running,
+                    "supervisor": snapshot,
                 }
             }))
             .into_response()
@@ -278,25 +342,13 @@ impl CloudflaredManager {
         Self {
             config_path: dir.join("cloudflared.json"),
             bin_path: dir.join("cloudflared"),
+            pid_path: dir.join("cloudflared.pid"),
             dir,
-            state: Mutex::new(RunState::default()),
         }
     }
 
     fn ensure_dir(&self) {
         let _ = fs::create_dir_all(&self.dir);
-    }
-
-    fn state_guard(&self) -> MutexGuard<'_, RunState> {
-        self.state.lock().unwrap_or_else(|error| error.into_inner())
-    }
-
-    fn run_status(&self) -> (bool, Value) {
-        let state = self.state_guard();
-        (
-            state.running,
-            state.pid.map(Value::from).unwrap_or(Value::Null),
-        )
     }
 
     fn asset_status(&self) -> Value {
@@ -371,200 +423,283 @@ impl CloudflaredManager {
         )
         .map_err(|error| error.to_string())
     }
+}
 
-    async fn start(&'static self, state: AppState) -> Result<u32, String> {
-        {
-            let run = self.state_guard();
-            if run.running {
-                return Ok(run.pid.unwrap_or_default());
-            }
-        }
-        let config = self.read_config()?;
+fn manager(state: &AppState) -> CloudflaredManager {
+    CloudflaredManager::new(&state.settings.data_dir)
+}
+
+async fn ensure_cloudflared_supervisor(state: &AppState) -> Result<SupervisorHandle, String> {
+    if let Some(handle) = state
+        .tunnel_supervisors
+        .get(CLOUDFLARED_SUPERVISOR_KEY)
+        .await
+    {
+        return Ok(handle);
+    }
+    let desired_running = should_resume_tunnel(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut initial = state
+        .store
+        .get_json_value(CLOUDFLARED_RUNTIME_KEY)
+        .await
+        .map_err(|error| error.to_string())?
+        .and_then(|value| serde_json::from_value::<SupervisorSnapshot>(value).ok())
+        .unwrap_or_default();
+    // The dedicated snapshot is the authoritative v2 record. The aggregate
+    // flag remains an old-storage compatibility source, so either record can
+    // restore an enabled tunnel after a partially completed legacy write.
+    initial.desired_running |= desired_running;
+    let adapter = Arc::new(CloudflaredProcessAdapter {
+        state: state.clone(),
+        manager: manager(state),
+        connection: Arc::new(Mutex::new(CloudflaredConnectionState::default())),
+        secret: RwLock::new(
+            manager(state)
+                .read_config()
+                .map(|config| config.token)
+                .unwrap_or_default(),
+        ),
+    });
+    Ok(state
+        .tunnel_supervisors
+        .ensure(adapter, initial, state.shutdown.clone())
+        .await)
+}
+
+struct CloudflaredProcessAdapter {
+    state: AppState,
+    manager: CloudflaredManager,
+    connection: Arc<Mutex<CloudflaredConnectionState>>,
+    secret: RwLock<String>,
+}
+
+#[async_trait]
+impl TunnelProcessAdapter for CloudflaredProcessAdapter {
+    fn key(&self) -> String {
+        CLOUDFLARED_SUPERVISOR_KEY.to_string()
+    }
+
+    fn label(&self) -> String {
+        "cloudflared".to_string()
+    }
+
+    async fn prepare_launch(&self) -> Result<ProcessLaunch, String> {
+        let config = self.manager.read_config()?;
         if !cloudflared_token_configured(&config.token) {
             return Err("Cloudflared token is required".to_string());
         }
-        let executable = self.executable()?;
-        let args = build_args(&config);
-        let mut child = Command::new(&executable)
-            .args(args)
-            .current_dir(&self.dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| error.to_string())?;
-        let pid = child.id();
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
-        {
-            let mut run = self.state_guard();
-            run.running = true;
-            run.pid = Some(pid);
-            run.stop_requested = false;
-        }
-        if let Err(error) = mark_tunnel_running(&state).await {
-            tracing::warn!(%error, "failed to persist cloudflared running state");
-        }
-        append_logs(&state, vec![format!("cloudflared started pid={pid}")])
-            .await
-            .map_err(|error| error.to_string())?;
-        if let Some(stdout) = stdout {
-            spawn_log_reader(state.clone(), stdout, "stdout");
-        }
-        if let Some(stderr) = stderr {
-            spawn_log_reader(state.clone(), stderr, "stderr");
-        }
-        let handle = Handle::current();
-        task::spawn_blocking(move || {
-            let exit_message = match child.wait() {
-                Ok(status) => format!(
-                    "cloudflared exited with code {}",
-                    status.code().unwrap_or_default()
-                ),
-                Err(error) => format!("cloudflared process error: {error}"),
-            };
-            let (expected_stop, was_connected) = {
-                let mut run = self.state_guard();
-                if run.pid != Some(pid) {
-                    return;
-                }
-                let expected_stop = run.stop_requested;
-                let was_connected = run.connected;
-                run.running = false;
-                run.pid = None;
-                run.connected = false;
-                run.stop_requested = false;
-                (expected_stop, was_connected)
-            };
-            let state_for_async = state.clone();
-            handle.block_on(async move {
-                let _ = mark_tunnel_stopped(&state_for_async).await;
-                let _ = append_logs(&state_for_async, vec![exit_message.clone()]).await;
-                if !expected_stop
-                    && was_connected
-                    && let Err(error) = system_events::publish_tunnel_connectivity_event(
-                        &state_for_async,
-                        "cloudflared",
-                        false,
-                        Some(pid),
-                        Some(&exit_message),
-                        None,
-                        None,
-                        None,
-                    )
-                    .await
-                {
-                    tracing::warn!(%error, pid, "failed to publish cloudflared disconnect event");
-                }
-                if !expected_stop {
-                    tracing::info!(pid, "cloudflared stopped unexpectedly");
-                }
-            });
-        });
-        Ok(pid)
+        *self
+            .secret
+            .write()
+            .unwrap_or_else(|error| error.into_inner()) = config.token.clone();
+        let executable = self.manager.executable()?;
+        Ok(ProcessLaunch {
+            executable: executable.into(),
+            args: build_args(&config).into_iter().map(Into::into).collect(),
+            current_dir: self.manager.dir.clone(),
+        })
     }
 
-    async fn stop(&'static self, state: &AppState) -> Result<(), String> {
-        let pid = {
-            let mut run = self.state_guard();
-            run.stop_requested = true;
-            run.connected = false;
-            run.running = false;
-            run.pid.take()
-        };
-        if let Some(pid) = pid {
-            let _ = Command::new("kill").arg(pid.to_string()).status();
+    async fn find_existing_pid(&self) -> Option<u32> {
+        let runtime_pid = self
+            .state
+            .store
+            .get_json_value(CLOUDFLARED_RUNTIME_KEY)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|value| serde_json::from_value::<SupervisorSnapshot>(value).ok())
+            .and_then(|snapshot| snapshot.pid);
+        for pid in [runtime_pid, read_pid_file(&self.manager.pid_path).await]
+            .into_iter()
+            .flatten()
+        {
+            if is_owned_cloudflared_pid(pid, &self.current_secret()).await {
+                return Some(pid);
+            }
         }
-        if let Err(error) = mark_tunnel_stopped(state).await {
-            tracing::warn!(%error, "failed to persist cloudflared stopped state");
+        None
+    }
+
+    async fn owns_live_pid(&self, pid: u32) -> bool {
+        is_owned_cloudflared_pid(pid, &self.current_secret()).await
+    }
+
+    async fn persist_snapshot(&self, snapshot: &SupervisorSnapshot) -> Result<(), String> {
+        let previous = self
+            .state
+            .store
+            .get_json_value(CLOUDFLARED_RUNTIME_KEY)
+            .await
+            .map_err(|error| error.to_string())?;
+        self.state
+            .store
+            .set_json_value(
+                CLOUDFLARED_RUNTIME_KEY,
+                &serde_json::to_value(snapshot).map_err(|error| error.to_string())?,
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        let aggregate_result = if snapshot.desired_running {
+            mark_tunnel_running(&self.state).await
+        } else {
+            mark_tunnel_stopped(&self.state).await
+        };
+        if let Err(error) = aggregate_result {
+            let rollback = match previous {
+                Some(value) => {
+                    self.state
+                        .store
+                        .set_json_value(CLOUDFLARED_RUNTIME_KEY, &value)
+                        .await
+                }
+                None => self.state.store.delete_key(CLOUDFLARED_RUNTIME_KEY).await,
+            };
+            return Err(match rollback {
+                Ok(()) => error,
+                Err(rollback_error) => {
+                    format!("{error}; failed to roll back cloudflared runtime: {rollback_error}")
+                }
+            });
         }
         Ok(())
     }
-}
 
-fn manager(state: &AppState) -> &'static CloudflaredManager {
-    CLOUDFLARED_MANAGER.get_or_init(|| CloudflaredManager::new(&state.settings.data_dir))
-}
+    fn sanitize_output(&self, line: &str) -> String {
+        let token = self.current_secret();
+        redact_cloudflared_line(line, &token)
+    }
 
-fn spawn_log_reader<R>(state: AppState, reader: R, source: &'static str)
-where
-    R: Read + Send + 'static,
-{
-    let handle = Handle::current();
-    task::spawn_blocking(move || {
-        let mut buffered = BufReader::new(reader);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            match buffered.read_line(&mut line) {
-                Ok(0) => break,
-                Ok(_) => {
-                    let normalized = line.trim_end().to_string();
-                    if normalized.is_empty() {
-                        continue;
-                    }
-                    let state_for_async = state.clone();
-                    let text = normalized.clone();
-                    handle.block_on(async move {
-                        let _ = append_logs(&state_for_async, vec![text]).await;
-                    });
-                }
-                Err(error) => {
-                    let state_for_async = state.clone();
-                    handle.block_on(async move {
-                        let _ = append_logs(
-                            &state_for_async,
-                            vec![format!("cloudflared {source} read error: {error}")],
-                        )
-                        .await;
-                    });
-                    break;
-                }
-            }
+    async fn append_output(&self, stream: OutputStream, line: String) {
+        let source = match stream {
+            OutputStream::Stdout => "stdout",
+            OutputStream::Stderr => "stderr",
+        };
+        let logged = format!("[{source}] {line}");
+        let _ = append_logs(&self.state, vec![logged]).await;
+        handle_cloudflared_runtime_signal(&self.state, &self.connection, &line).await;
+    }
+
+    async fn append_supervisor_log(&self, line: String) {
+        let _ = append_logs(&self.state, vec![line]).await;
+    }
+
+    async fn set_expected_stop(&self, expected: bool) {
+        let mut connection = self.connection.lock().await;
+        connection.stop_requested = expected;
+        if expected {
+            connection.connected = false;
         }
-    });
+    }
+
+    async fn on_unexpected_exit(&self, pid: Option<u32>, failure: &SupervisorFailure) {
+        let mut details = vec![
+            "cloudflared stopped unexpectedly".to_string(),
+            format!(
+                "pid={}",
+                pid.map_or_else(|| "-".to_string(), |pid| pid.to_string())
+            ),
+            format!("startedAt={}", failure.started_at.as_deref().unwrap_or("-")),
+            format!("exitedAt={}", failure.at),
+            format!("reason={}", failure.reason),
+            format!("uptimeMs={}", failure.uptime_ms),
+        ];
+        if let Some(signal) = failure.signal {
+            details.push(format!("signal={signal}"));
+        }
+        if let Some(code) = failure.exit_code {
+            details.push(format!("exitCode={code}"));
+        }
+        if let Some(diagnosis) = failure.diagnosis.as_deref() {
+            details.push(format!("diagnosis={diagnosis}"));
+        }
+        let mut lines = vec![details.join(" ")];
+        lines.extend(
+            failure
+                .recent_stdout
+                .iter()
+                .map(|line| format!("[LAST stdout] {line}")),
+        );
+        lines.extend(
+            failure
+                .recent_stderr
+                .iter()
+                .map(|line| format!("[LAST stderr] {line}")),
+        );
+        let _ = append_logs(&self.state, lines).await;
+        emit_cloudflared_connectivity_with_state(
+            &self.state,
+            &self.connection,
+            false,
+            Some(&failure.reason),
+            pid,
+        )
+        .await;
+    }
+
+    async fn remove_pid_file(&self) {
+        let _ = tokio_fs::remove_file(&self.manager.pid_path).await;
+    }
+
+    async fn write_pid_file(&self, pid: u32) {
+        let _ = tokio_fs::create_dir_all(&self.manager.dir).await;
+        let _ = tokio_fs::write(&self.manager.pid_path, format!("{pid}\n")).await;
+    }
+}
+
+impl CloudflaredProcessAdapter {
+    fn current_secret(&self) -> String {
+        self.secret
+            .read()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
+    }
 }
 
 async fn append_logs(state: &AppState, lines: Vec<String>) -> crate::storage::StorageResult<()> {
     let normalized = lines
         .into_iter()
-        .map(|line| line.trim_end().to_string())
+        .map(|line| crate::tunnels::supervisor::bounded_log_line(line.trim_end()))
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>();
     if normalized.is_empty() {
         return Ok(());
     }
-    handle_runtime_signals(state, &normalized).await;
     state
         .store
         .append_log_buffer(LOG_KEY, &normalized, LOG_TTL_SECONDS, LOG_MAX_LEN)
         .await
 }
 
-async fn handle_runtime_signals(state: &AppState, lines: &[String]) {
-    for line in lines {
-        let Some(message) = normalize_tunnel_event_message(line) else {
-            continue;
-        };
-        let normalized = message.to_ascii_lowercase();
-        if is_cloudflared_connected_message(&normalized) {
-            emit_cloudflared_connectivity(state, true, Some(&message), None).await;
-            continue;
-        }
-        if is_cloudflared_disconnected_message(&normalized) {
-            emit_cloudflared_connectivity(state, false, Some(&message), None).await;
-        }
+async fn handle_cloudflared_runtime_signal(
+    state: &AppState,
+    connection: &Arc<Mutex<CloudflaredConnectionState>>,
+    line: &str,
+) {
+    let Some(message) = normalize_tunnel_event_message(line) else {
+        return;
+    };
+    let normalized = message.to_ascii_lowercase();
+    if is_cloudflared_connected_message(&normalized) {
+        emit_cloudflared_connectivity_with_state(state, connection, true, Some(&message), None)
+            .await;
+    } else if is_cloudflared_disconnected_message(&normalized) {
+        emit_cloudflared_connectivity_with_state(state, connection, false, Some(&message), None)
+            .await;
     }
 }
 
-async fn emit_cloudflared_connectivity(
+async fn emit_cloudflared_connectivity_with_state(
     state: &AppState,
+    connection: &Arc<Mutex<CloudflaredConnectionState>>,
     connected: bool,
     message: Option<&str>,
     pid: Option<u32>,
 ) {
-    let (should_emit, event_pid) = {
-        let mut run = manager(state).state_guard();
+    {
+        let mut run = connection.lock().await;
         if connected {
             if run.connected {
                 return;
@@ -579,11 +714,16 @@ async fn emit_cloudflared_connectivity(
                 return;
             }
         }
-        (true, pid.or(run.pid))
-    };
-    if !should_emit {
-        return;
     }
+    let event_pid = if pid.is_some() {
+        pid
+    } else {
+        state
+            .tunnel_supervisors
+            .get(CLOUDFLARED_SUPERVISOR_KEY)
+            .await
+            .and_then(|handle| handle.snapshot().pid)
+    };
     if let Err(error) = system_events::publish_tunnel_connectivity_event(
         state,
         "cloudflared",
@@ -598,6 +738,74 @@ async fn emit_cloudflared_connectivity(
     {
         tracing::warn!(%error, "failed to publish cloudflared connectivity event");
     }
+}
+
+async fn read_pid_file(path: &Path) -> Option<u32> {
+    tokio_fs::read_to_string(path)
+        .await
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .filter(|pid| *pid > 0)
+}
+
+async fn is_owned_cloudflared_pid(pid: u32, token: &str) -> bool {
+    if pid == std::process::id() || !i32::try_from(pid).is_ok_and(crate::unix::process_exists) {
+        return false;
+    }
+    let args = read_process_args(pid).await;
+    args.as_deref()
+        .is_some_and(|args| is_cloudflared_process_args(args, token))
+}
+
+async fn read_process_args(pid: u32) -> Option<Vec<String>> {
+    if let Ok(bytes) = tokio_fs::read(format!("/proc/{pid}/cmdline")).await
+        && !bytes.is_empty()
+    {
+        let args = bytes
+            .split(|byte| *byte == 0)
+            .filter_map(|part| {
+                let value = String::from_utf8_lossy(part).trim().to_string();
+                (!value.is_empty()).then_some(value)
+            })
+            .collect::<Vec<_>>();
+        if !args.is_empty() {
+            return Some(args);
+        }
+    }
+    let output = Command::new("ps")
+        .args(["-ww", "-p", &pid.to_string(), "-o", "args="])
+        .output()
+        .await
+        .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    })
+}
+
+fn is_cloudflared_process_args(args: &[String], token: &str) -> bool {
+    let executable = args
+        .first()
+        .and_then(|value| Path::new(value).file_name())
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    (executable == "cloudflared" || executable == "cloudflared.exe")
+        && args.iter().any(|value| value == "tunnel")
+        && args.iter().any(|value| value == "run")
+        && !token.is_empty()
+        && args
+            .windows(2)
+            .any(|pair| pair[0] == "--token" && pair[1] == token)
+}
+
+fn redact_cloudflared_line(line: &str, token: &str) -> String {
+    if token.is_empty() {
+        return line.to_string();
+    }
+    line.replace(token, "[REDACTED]")
 }
 
 fn is_cloudflared_connected_message(normalized: &str) -> bool {
@@ -643,6 +851,7 @@ async fn should_resume_tunnel(state: &AppState) -> crate::storage::StorageResult
 }
 
 async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
+    let _guard = state.tunnel_runtime_update_lock.lock().await;
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
@@ -666,6 +875,7 @@ async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
 }
 
 async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
+    let _guard = state.tunnel_runtime_update_lock.lock().await;
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
@@ -771,7 +981,10 @@ fn command_exists(command: &str) -> bool {
 }
 
 fn which(command: &str) -> Option<String> {
-    let output = Command::new("which").arg(command).output().ok()?;
+    let output = std::process::Command::new("which")
+        .arg(command)
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -866,6 +1079,34 @@ mod tests {
         assert_eq!(
             cloudflared_text(&translator, "logsPollFailed"),
             "轮询 Cloudflared 日志失败"
+        );
+    }
+
+    #[test]
+    fn validates_process_shape_without_exposing_the_token() {
+        assert!(is_cloudflared_process_args(
+            &[
+                "/opt/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token".to_string(),
+                "secret".to_string(),
+            ],
+            "secret"
+        ));
+        assert!(!is_cloudflared_process_args(
+            &[
+                "/opt/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token".to_string(),
+                "other-secret".to_string(),
+            ],
+            "secret"
+        ));
+        assert_eq!(
+            redact_cloudflared_line("failed token=secret", "secret"),
+            "failed token=[REDACTED]"
         );
     }
 }

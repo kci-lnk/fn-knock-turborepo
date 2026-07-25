@@ -6,6 +6,7 @@ import {
   ConfigAPI,
   SystemAPI,
   type CloudflaredProtocol,
+  type TunnelSupervisorStatus,
 } from "@/lib/api";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -30,6 +31,21 @@ type CloudflaredProtocolOption = {
   description: string;
 };
 
+const stoppedSupervisor = (): TunnelSupervisorStatus => ({
+  state: "stopped",
+  desiredRunning: false,
+  running: false,
+  attached: false,
+  pid: null,
+  restartCount: 0,
+  consecutiveFailures: 0,
+  nextRestartAt: null,
+  startedAt: null,
+  stoppedAt: null,
+  lastFailure: null,
+  lastMessage: null,
+});
+
 export const useCloudflareTunnelController = () => {
   const { t } = useI18n();
   const router = useRouter();
@@ -37,6 +53,7 @@ export const useCloudflareTunnelController = () => {
   const isInit = ref(false);
   const running = ref(false);
   const pid = ref<number | null>(null);
+  const supervisor = ref<TunnelSupervisorStatus>(stoppedSupervisor());
   const logs = ref<string[]>([]);
   const cloudflaredLogAnalysis = ref<CloudflaredLogAnalysis | null>(null);
   const showInitDialog = ref(false);
@@ -131,8 +148,16 @@ export const useCloudflareTunnelController = () => {
     }
   });
 
-  const canStart = computed(() => isInit.value && !running.value && token.value);
-  const canStop = computed(() => running.value);
+  const canStart = computed(
+    () =>
+      isInit.value &&
+      !supervisor.value.desiredRunning &&
+      !supervisor.value.running &&
+      token.value,
+  );
+  const canStop = computed(
+    () => supervisor.value.desiredRunning || supervisor.value.running,
+  );
   const isReverseProxySubdomainMode = computed(
     () =>
       configStore.config?.run_type === 1 &&
@@ -197,6 +222,7 @@ export const useCloudflareTunnelController = () => {
       isInit.value = status.initialized;
       running.value = status.running;
       pid.value = status.pid;
+      supervisor.value = status.supervisor;
       if (!isInit.value) {
         const systemStatus = await SystemAPI.getCloudflaredStatus();
         if (!systemStatus?.data?.downloaded) showInitDialog.value = true;
@@ -224,6 +250,14 @@ export const useCloudflareTunnelController = () => {
       onSuccess: async (result) => {
         pid.value = result.pid;
         running.value = true;
+        supervisor.value = {
+          ...supervisor.value,
+          state: "running",
+          desiredRunning: true,
+          running: true,
+          pid: result.pid,
+          nextRestartAt: null,
+        };
         await selectAsDefaultTunnel();
         if (!options?.silent) {
           toast.success(t("admin.cloudflareTunnel.startSuccess"));
@@ -245,6 +279,7 @@ export const useCloudflareTunnelController = () => {
       onSuccess: () => {
         running.value = false;
         pid.value = null;
+        supervisor.value = stoppedSupervisor();
         if (!options?.silent) {
           toast.success(t("admin.cloudflareTunnel.stopSuccess"));
         }
@@ -262,13 +297,13 @@ export const useCloudflareTunnelController = () => {
   };
   const saveConfig = async () => {
     await runSaveConfig(async () => {
+      const shouldRestart = supervisor.value.desiredRunning;
       await CloudflaredAPI.saveConfig({
         token: token.value.trim(),
         protocol: protocol.value,
       });
-      if (running.value) {
-        await stopCloudflared({ silent: true });
-        await startCloudflared({ silent: true });
+      await loadStatus();
+      if (shouldRestart) {
         toast.success(t("admin.cloudflareTunnel.restartSuccess"));
         return;
       }
@@ -286,6 +321,7 @@ export const useCloudflareTunnelController = () => {
       });
       running.value = payload.status.running;
       pid.value = payload.status.pid;
+      supervisor.value = payload.status.supervisor;
       if (!hasCloudflaredLogBaseline.value) {
         hasCloudflaredLogBaseline.value = true;
         return;
@@ -351,6 +387,7 @@ export const useCloudflareTunnelController = () => {
     showToken,
     startCloudflared,
     stopCloudflared,
+    supervisor,
     t,
     token,
   };

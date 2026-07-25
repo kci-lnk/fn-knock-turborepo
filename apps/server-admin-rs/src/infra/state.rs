@@ -11,6 +11,7 @@ use crate::{
     settings::Settings,
     storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
     store::Store,
+    tunnels::supervisor::TunnelSupervisorRegistry,
 };
 
 #[derive(Clone)]
@@ -48,6 +49,11 @@ pub struct AppStateInner {
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
+    /// Owns all supervised tunnel process actors for this application state.
+    pub tunnel_supervisors: TunnelSupervisorRegistry,
+    /// Serializes read-modify-write updates to the legacy aggregate tunnel
+    /// runtime record shared by frpc and cloudflared supervisors.
+    pub tunnel_runtime_update_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -121,6 +127,8 @@ impl AppState {
                 automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),
+                tunnel_supervisors: TunnelSupervisorRegistry::default(),
+                tunnel_runtime_update_lock: Mutex::new(()),
             }),
         })
     }

@@ -30,7 +30,7 @@ import {
   mergePollingLogWindow,
 } from "@admin-shared/utils/log-window";
 import { useConfigStore } from "../../../store/config";
-import LiveStatusBadge from "../../../components/LiveStatusBadge.vue";
+import TunnelSupervisorStatus from "../../../components/TunnelSupervisorStatus.vue";
 import FrpcInstanceEditor from "./FrpcInstanceEditor.vue";
 import { summarizeFrpcContent } from "./frpcInstanceModel";
 
@@ -180,7 +180,7 @@ async function saveInstance() {
     }
 
     if (!instance.value) return;
-    const wasRunning = instance.value.running;
+    const wasRunning = instance.value.desiredRunning;
     const updated = await FrpcAPI.updateInstance(instance.value.id, {
       name: name.value.trim(),
       content: nextContent,
@@ -188,9 +188,7 @@ async function saveInstance() {
     instance.value = updated;
     content.value = nextContent;
     if (wasRunning) {
-      await FrpcAPI.restartInstance(updated.id);
       toast.success(t("admin.frpcInstancePage.savedAndRestarted"));
-      await loadPage();
       return;
     }
     toast.success(t("admin.frpcInstancePage.saved"));
@@ -353,7 +351,12 @@ onUnmounted(() => {
 
       <div class="flex flex-wrap items-center gap-2">
         <Button
-          v-if="!isCreateMode && instance && !instance.running"
+          v-if="
+            !isCreateMode &&
+            instance &&
+            !instance.desiredRunning &&
+            !instance.running
+          "
           variant="outline"
           :disabled="isStarting"
           @click="startInstance"
@@ -366,7 +369,11 @@ onUnmounted(() => {
           }}
         </Button>
         <Button
-          v-if="!isCreateMode && instance?.running"
+          v-if="
+            !isCreateMode &&
+            instance &&
+            (instance.desiredRunning || instance.running)
+          "
           variant="destructive"
           :disabled="isStopping"
           @click="stopInstance"
@@ -398,18 +405,7 @@ onUnmounted(() => {
               {{ t("admin.frpcInstancePage.status") }}
             </p>
             <div class="mt-1 flex items-center gap-2">
-              <LiveStatusBadge :active="instance.running" />
-              <span
-                :class="
-                  instance.running ? 'text-green-600' : 'text-muted-foreground'
-                "
-              >
-                {{
-                  instance.running
-                    ? t("admin.frpcInstancePage.running")
-                    : t("admin.frpcInstancePage.notRunning")
-                }}
-              </span>
+              <TunnelSupervisorStatus :supervisor="instance.supervisor" />
             </div>
           </div>
           <div class="rounded-lg border px-4 py-3">

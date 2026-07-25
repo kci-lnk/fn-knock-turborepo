@@ -17,6 +17,32 @@ export type FrpcInstanceSummary = {
   remotePort: string;
 };
 
+export type TunnelSupervisorFailure = {
+  at: string;
+  startedAt: string | null;
+  reason: string;
+  exitCode: number | null;
+  signal: number | null;
+  coreDumped: boolean;
+  uptimeMs: number;
+  diagnosis: string | null;
+};
+
+export type TunnelSupervisorStatus = {
+  state: "stopped" | "starting" | "running" | "backoff";
+  desiredRunning: boolean;
+  running: boolean;
+  attached: boolean;
+  pid: number | null;
+  restartCount: number;
+  consecutiveFailures: number;
+  nextRestartAt: string | null;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  lastFailure: TunnelSupervisorFailure | null;
+  lastMessage: string | null;
+};
+
 export type FrpcInstanceStatus = {
   id: string;
   name: string;
@@ -34,6 +60,7 @@ export type FrpcInstanceStatus = {
   stoppedAt: string | null;
   lastExitCode: number | null;
   lastMessage: string | null;
+  supervisor: TunnelSupervisorStatus;
   summary: FrpcInstanceSummary;
 };
 
@@ -83,6 +110,8 @@ export type CloudflaredConfig = {
 export type CloudflaredStatusPayload = {
   running: boolean;
   pid: number | null;
+  desiredRunning: boolean;
+  supervisor: TunnelSupervisorStatus;
 };
 
 export type CloudflaredPollPayload = {
@@ -98,6 +127,8 @@ export const FrpcAPI = {
     platform: string;
     running: boolean;
     pid: number | null;
+    desiredRunning: boolean;
+    supervisor: TunnelSupervisorStatus;
     config_path: string;
     defaults: { local_port: string };
   }> {
@@ -219,6 +250,8 @@ export const CloudflaredAPI = {
     platform: string;
     running: boolean;
     pid: number | null;
+    desiredRunning: boolean;
+    supervisor: TunnelSupervisorStatus;
   }> {
     const res = await apiClient.get("/cloudflared/status");
     return res.data.data;

@@ -359,28 +359,30 @@ const handleMappingTableScroll = (event: Event) => {
       >
         <CardTitle>{{ t("admin.subdomainProxy.mappingsTitle") }}</CardTitle>
         <div
-          class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end"
+          class="grid w-full grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
         >
           <DocsLinkButton
             :href="docsHref"
             size="default"
-            class="w-full sm:w-auto"
+            class="w-auto px-2 [&_svg]:hidden sm:px-3 sm:[&_svg]:block"
           />
           <Button
             :variant="isGroupedViewActive ? 'secondary' : 'outline'"
             :disabled="isSavingMappings"
             :aria-pressed="isGroupedViewActive"
-            class="w-full sm:w-auto"
+            class="min-w-0 px-2 sm:w-auto sm:px-3"
             @click="toggleGroupedView"
           >
-            <ListTree class="mr-2 h-4 w-4" />
-            {{ t("admin.subdomainProxy.groupedView") }}
+            <ListTree class="hidden h-4 w-4 sm:block" />
+            <span class="truncate">{{
+              t("admin.subdomainProxy.groupedView")
+            }}</span>
           </Button>
           <Button
             v-if="isGroupedViewActive"
             variant="outline"
             :disabled="isSavingMappings"
-            class="w-full sm:w-auto"
+            class="hidden sm:inline-flex"
             @click="isGroupManagerOpen = true"
           >
             <Folders class="mr-2 h-4 w-4" />
@@ -390,7 +392,7 @@ const handleMappingTableScroll = (event: Event) => {
             v-if="!authServiceMapping"
             :disabled="!canManageNewMappings || isSavingMappings"
             variant="default"
-            class="col-span-2 w-full sm:w-auto"
+            class="col-span-3 w-full sm:w-auto"
             @click="emit('add-auth-service')"
           >
             <ShieldCheck class="mr-2 h-4 w-4" />
@@ -398,33 +400,35 @@ const handleMappingTableScroll = (event: Event) => {
           </Button>
           <div
             v-if="authServiceMapping"
-            class="flex w-full items-center sm:w-auto"
-            :class="{ 'col-span-2': !isGroupedViewActive }"
+            class="flex min-w-0 w-full items-center sm:w-auto"
           >
             <Button
               :variant="discoverButtonVariant"
               :disabled="
                 !canManageNewMappings || isDiscovering || isSavingMappings
               "
-              class="min-w-0 flex-1 rounded-r-none sm:flex-none"
+              class="min-w-0 flex-1 rounded-r-none px-2 text-xs sm:flex-none sm:px-3 sm:text-sm"
               @click="emit('open-discover')"
             >
-              <Search class="mr-2 h-4 w-4" />
-              {{
-                isDiscovering
-                  ? t("admin.subdomainProxy.discovering")
-                  : t("admin.subdomainProxy.discover")
-              }}
+              <Search class="hidden h-4 w-4 sm:block" />
+              <span class="truncate">
+                {{
+                  isDiscovering
+                    ? t("admin.subdomainProxy.discovering")
+                    : t("admin.subdomainProxy.discover")
+                }}
+              </span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button
+                  data-testid="subdomain-discover-menu-trigger"
                   :variant="discoverButtonVariant"
                   size="icon"
                   :aria-label="t('common.moreActions')"
                   :disabled="isSavingMappings"
                   :class="[
-                    'rounded-l-none border-l px-2',
+                    'h-9 w-8 rounded-l-none border-l px-1 sm:w-9 sm:px-2',
                     discoverButtonDividerClass,
                   ]"
                 >
@@ -432,6 +436,20 @@ const handleMappingTableScroll = (event: Event) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  v-if="isGroupedViewActive"
+                  data-testid="mobile-manage-groups-menu-item"
+                  class="sm:hidden"
+                  :disabled="isSavingMappings"
+                  @select="isGroupManagerOpen = true"
+                >
+                  <Folders class="mr-2 h-4 w-4" />
+                  {{ t("admin.subdomainProxy.manageGroups") }}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator
+                  v-if="isGroupedViewActive"
+                  class="sm:hidden"
+                />
                 <DropdownMenuItem
                   :disabled="isDiscovering"
                   @select="emit('open-discover-settings')"

@@ -11,6 +11,7 @@ import {
   isHostMappingGroupNameLengthValid,
   moveHostMappingsToGroup,
   normalizeHostMappingGroupNameKey,
+  resolveHostMappingGroupSaveFeedback,
 } from "../src/views/subdomain-proxy/host-mapping-groups";
 import { useSubdomainMappingGroups } from "../src/views/subdomain-proxy/useSubdomainMappingGroups";
 
@@ -115,6 +116,42 @@ test("batch move only updates selected mappings", () => {
   assert.equal(next[1]?.group_id, groups[0].id);
 });
 
+test("selects a precise success message for a single group change", () => {
+  assert.equal(
+    resolveHostMappingGroupSaveFeedback(groups, [
+      ...groups,
+      { id: "33333333-3333-4333-8333-333333333333", name: "New" },
+    ]),
+    "created",
+  );
+  assert.equal(
+    resolveHostMappingGroupSaveFeedback(groups, [
+      { ...groups[0]!, name: "Streaming" },
+      groups[1]!,
+    ]),
+    "renamed",
+  );
+  assert.equal(
+    resolveHostMappingGroupSaveFeedback(groups, [groups[0]!]),
+    "deleted",
+  );
+  assert.equal(
+    resolveHostMappingGroupSaveFeedback(groups, [groups[1]!, groups[0]!]),
+    "reordered",
+  );
+});
+
+test("uses the generic saved message when group changes are combined", () => {
+  assert.equal(
+    resolveHostMappingGroupSaveFeedback(groups, [
+      { ...groups[1]!, name: "Utilities" },
+      groups[0]!,
+    ]),
+    "saved",
+  );
+  assert.equal(resolveHostMappingGroupSaveFeedback(groups, groups), "saved");
+});
+
 test("reports a failed group catalog save without closing its editor", async () => {
   let completed: boolean | undefined;
   const originalMappings = [mapping("media.example.test", groups[0].id)];
@@ -145,7 +182,35 @@ test("reports a failed group catalog save without closing its editor", async () 
   assert.equal(originalMappings[0]?.group_id, groups[0].id);
 });
 
-test("keeps mobile actions ordered and group headings visible while scrolling", () => {
+test("provides success toasts for every persisted group operation", () => {
+  const controller = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/useSubdomainMappingGroups.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  for (const key of [
+    "groupCreated",
+    "groupRenamed",
+    "groupDeleted",
+    "groupOrderUpdated",
+    "groupsSaved",
+    "mappingsMoved",
+    "groupedMappingOrderUpdated",
+    "groupedViewEnabled",
+    "groupedViewDisabled",
+  ]) {
+    assert.match(
+      controller,
+      new RegExp(`admin\\.subdomainProxy\\.${key}`, "u"),
+    );
+  }
+  assert.equal((controller.match(/toast\.success\(/gu) ?? []).length, 4);
+});
+
+test("keeps mobile actions on one row and group headings visible while scrolling", () => {
   const card = readFileSync(
     new URL(
       "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
@@ -158,7 +223,19 @@ test("keeps mobile actions ordered and group headings visible while scrolling", 
     "utf8",
   );
 
-  assert.match(card, /grid w-full grid-cols-2 gap-2 sm:flex/u);
+  assert.match(
+    card,
+    /grid w-full grid-cols-\[auto_auto_minmax\(0,1fr\)\] items-center gap-2 sm:flex/u,
+  );
+  assert.match(
+    card,
+    /class="hidden sm:inline-flex"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,
+  );
+  assert.match(
+    card,
+    /v-if="isGroupedViewActive"[\s\S]*?data-testid="mobile-manage-groups-menu-item"[\s\S]*?class="sm:hidden"[\s\S]*?@select="isGroupManagerOpen = true"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,
+  );
+  assert.match(card, /class="col-span-3 w-full sm:w-auto"/u);
   assert.match(card, /mapping-group-header-row/u);
   assert.match(card, /mapping-group-header-sticky/u);
   assert.match(

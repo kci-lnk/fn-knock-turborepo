@@ -10,6 +10,13 @@ export interface HostMappingGroupSection {
   isUngrouped: boolean;
 }
 
+export type HostMappingGroupSaveFeedback =
+  | "created"
+  | "renamed"
+  | "deleted"
+  | "reordered"
+  | "saved";
+
 export const normalizeHostMappingGroupNameKey = (name: string): string =>
   name.trim().toLowerCase();
 
@@ -132,3 +139,45 @@ export const moveHostMappingsToGroup = (
   mappings.map((mapping) =>
     hosts.has(mapping.host) ? { ...mapping, group_id: groupId } : mapping,
   );
+
+export const resolveHostMappingGroupSaveFeedback = (
+  previousGroups: HostMappingGroup[],
+  nextGroups: HostMappingGroup[],
+): HostMappingGroupSaveFeedback => {
+  const previousById = new Map(
+    previousGroups.map((group) => [group.id, group]),
+  );
+  const nextById = new Map(nextGroups.map((group) => [group.id, group]));
+  const changes = new Set<Exclude<HostMappingGroupSaveFeedback, "saved">>();
+
+  if (nextGroups.some((group) => !previousById.has(group.id))) {
+    changes.add("created");
+  }
+  if (previousGroups.some((group) => !nextById.has(group.id))) {
+    changes.add("deleted");
+  }
+  if (
+    nextGroups.some(
+      (group) =>
+        previousById.has(group.id) &&
+        previousById.get(group.id)?.name !== group.name,
+    )
+  ) {
+    changes.add("renamed");
+  }
+
+  const previousCommonIds = previousGroups
+    .filter((group) => nextById.has(group.id))
+    .map((group) => group.id);
+  const nextCommonIds = nextGroups
+    .filter((group) => previousById.has(group.id))
+    .map((group) => group.id);
+  if (
+    previousCommonIds.some((groupId, index) => nextCommonIds[index] !== groupId)
+  ) {
+    changes.add("reordered");
+  }
+
+  if (changes.size !== 1) return "saved";
+  return [...changes][0] ?? "saved";
+};

@@ -4,10 +4,31 @@ import type { HostMapping, HostMappingGroup } from "@/types";
 import {
   applyHostMappingGroupSections,
   moveHostMappingsToGroup,
+  resolveHostMappingGroupSaveFeedback,
+  type HostMappingGroupSaveFeedback,
   type HostMappingGroupSection,
 } from "./host-mapping-groups";
 
 type RunAsyncAction = <T>(action: () => Promise<T>) => Promise<T | undefined>;
+
+const groupSaveToastKeys: Record<HostMappingGroupSaveFeedback, string> = {
+  created: "admin.subdomainProxy.groupCreated",
+  renamed: "admin.subdomainProxy.groupRenamed",
+  deleted: "admin.subdomainProxy.groupDeleted",
+  reordered: "admin.subdomainProxy.groupOrderUpdated",
+  saved: "admin.subdomainProxy.groupsSaved",
+};
+
+const hasSameMappingOrderAndGroups = (
+  currentMappings: HostMapping[],
+  nextMappings: HostMapping[],
+): boolean =>
+  currentMappings.length === nextMappings.length &&
+  currentMappings.every(
+    (mapping, index) =>
+      mapping.host === nextMappings[index]?.host &&
+      mapping.group_id === nextMappings[index]?.group_id,
+  );
 
 export const useSubdomainMappingGroups = ({
   allMappings,
@@ -34,6 +55,10 @@ export const useSubdomainMappingGroups = ({
     nextGroups: HostMappingGroup[],
     onComplete?: (saved: boolean) => void,
   ) => {
+    const feedback = resolveHostMappingGroupSaveFeedback(
+      groups.value,
+      nextGroups,
+    );
     const validIds = new Set(nextGroups.map((group) => group.id));
     const nextMappings = allMappings.value.map((mapping) => ({
       ...mapping,
@@ -46,7 +71,7 @@ export const useSubdomainMappingGroups = ({
     }));
     const saved = await runSaveMappings(async () => {
       await saveCatalog(nextMappings, nextGroups);
-      toast.success(translate("admin.subdomainProxy.groupsSaved"));
+      toast.success(translate(groupSaveToastKeys[feedback]));
       return true;
     });
     onComplete?.(saved === true);
@@ -61,7 +86,25 @@ export const useSubdomainMappingGroups = ({
       sections,
       isAuthServiceTarget,
     );
-    await runSaveMappings(() => saveCatalog(nextMappings, groups.value));
+    if (hasSameMappingOrderAndGroups(allMappings.value, nextMappings)) return;
+
+    const previousGroupsByHost = new Map(
+      allMappings.value.map((mapping) => [mapping.host, mapping.group_id]),
+    );
+    const movedAcrossGroups = nextMappings.some(
+      (mapping) => previousGroupsByHost.get(mapping.host) !== mapping.group_id,
+    );
+    await runSaveMappings(async () => {
+      await saveCatalog(nextMappings, groups.value);
+      toast.success(
+        translate(
+          movedAcrossGroups
+            ? "admin.subdomainProxy.mappingsMoved"
+            : "admin.subdomainProxy.groupedMappingOrderUpdated",
+        ),
+      );
+      return true;
+    });
   };
 
   const moveMappingsToGroup = async (
@@ -73,14 +116,34 @@ export const useSubdomainMappingGroups = ({
       new Set(hosts),
       groupId,
     );
-    await runSaveMappings(() => saveCatalog(nextMappings, groups.value));
+    if (hasSameMappingOrderAndGroups(allMappings.value, nextMappings)) return;
+
+    const targetGroupName =
+      (groupId
+        ? groups.value.find((group) => group.id === groupId)?.name
+        : translate("admin.subdomainProxy.ungrouped")) || undefined;
+    await runSaveMappings(async () => {
+      await saveCatalog(nextMappings, groups.value);
+      toast.success(translate("admin.subdomainProxy.mappingsMoved"), {
+        description: targetGroupName,
+      });
+      return true;
+    });
   };
 
   const updateHostMappingGroupedView = async (value: boolean) => {
     if (value === groupedView.value) return;
-    await runSaveMappings(() =>
-      saveCatalog(allMappings.value, groups.value, value),
-    );
+    await runSaveMappings(async () => {
+      await saveCatalog(allMappings.value, groups.value, value);
+      toast.success(
+        translate(
+          value
+            ? "admin.subdomainProxy.groupedViewEnabled"
+            : "admin.subdomainProxy.groupedViewDisabled",
+        ),
+      );
+      return true;
+    });
   };
 
   return {

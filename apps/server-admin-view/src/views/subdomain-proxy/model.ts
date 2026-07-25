@@ -301,6 +301,7 @@ export const buildDiscoveredServiceMappings = ({
 }): HostMapping[] =>
   services.map((service) => ({
     host: composeHostFromSubdomain(service.suggestedSubdomain, rootDomain),
+    group_id: null,
     target: `http://${resolveDiscoveredServiceHost(service, fallbackHost)}:${service.port}/`,
     waf_enabled: true,
     use_auth: service.detail.rule.use_auth,
@@ -627,6 +628,7 @@ export const normalizeBasicAuthProbeTarget = (value: string): string => {
 
 export const createDefaultMapping = (): HostMapping => ({
   host: "",
+  group_id: null,
   target: "",
   waf_enabled: true,
   use_auth: true,
@@ -765,6 +767,7 @@ export const normalizeMappingForm = (
 
   return {
     host,
+    group_id: serviceRole === "auth" ? null : input.group_id || null,
     target: normalizedTarget,
     waf_enabled: serviceRole === "auth" ? true : input.waf_enabled !== false,
     use_auth: serviceRole === "auth" ? false : input.use_auth,

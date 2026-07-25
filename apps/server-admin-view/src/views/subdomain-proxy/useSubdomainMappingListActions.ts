@@ -2,6 +2,10 @@ import type { ComputedRef, Ref } from "vue";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { toast } from "@admin-shared/utils/toast";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
 import type { HostMapping } from "@/types";
 import {
   buildBookmarkExportFilename,
@@ -45,10 +49,7 @@ export const useSubdomainMappingListActions = ({
   navigateToGatewayLocations,
   refreshAllHostMappingTitles,
   resetFaviconErrors,
-  runExportBookmarks,
-  runRefreshTitles,
   runSaveMappings,
-  runSyncRoutes,
   saveHostMappings,
   savedRootDomain,
   syncDraggableVisibleMappings,
@@ -67,10 +68,7 @@ export const useSubdomainMappingListActions = ({
   navigateToGatewayLocations: (host: string) => void;
   refreshAllHostMappingTitles: () => Promise<RefreshTitlesSummary>;
   resetFaviconErrors: () => void;
-  runExportBookmarks: AsyncActionRun;
-  runRefreshTitles: AsyncActionRun;
   runSaveMappings: AsyncActionRun;
-  runSyncRoutes: AsyncActionRun;
   saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
   savedRootDomain: ComputedRef<string>;
   syncDraggableVisibleMappings: () => void;
@@ -78,6 +76,38 @@ export const useSubdomainMappingListActions = ({
   translate: Translate;
   visibleMappings: ComputedRef<HostMapping[]>;
 }) => {
+  const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
+    onError: (error) => {
+      toast.error(translate("admin.subdomainProxy.syncFailed"), {
+        description: extractErrorMessage(
+          error,
+          translate("admin.subdomainProxy.syncGatewayFailed"),
+        ),
+      });
+    },
+  });
+  const { isPending: isRefreshingTitles, run: runRefreshTitles } =
+    useAsyncAction({
+      onError: (error) => {
+        toast.error(translate("admin.subdomainProxy.refreshFailed"), {
+          description: extractErrorMessage(
+            error,
+            translate("admin.subdomainProxy.refreshAllTitlesFailed"),
+          ),
+        });
+      },
+    });
+  const { isPending: isExportingBookmarks, run: runExportBookmarks } =
+    useAsyncAction({
+      onError: (error) => {
+        toast.error(translate("admin.subdomainProxy.exportFailed"), {
+          description: extractErrorMessage(
+            error,
+            translate("admin.subdomainProxy.exportBookmarksFailed"),
+          ),
+        });
+      },
+    });
   const saveMappingOrder = async () => {
     const next = mergeFilteredMappingsOrder({
       allMappings: allMappings.value,
@@ -231,6 +261,9 @@ export const useSubdomainMappingListActions = ({
     clearDefaultMapping,
     copyMappingHost,
     exportBookmarks,
+    isExportingBookmarks,
+    isRefreshingTitles,
+    isSyncing,
     openGatewayLocations,
     refreshAllTitles,
     saveMappingOrder,

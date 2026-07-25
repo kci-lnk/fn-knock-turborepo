@@ -1067,6 +1067,87 @@ return 1
         Ok(None)
     }
 
+    /// Atomically replaces the Host mapping list and its UI grouping catalog.
+    /// The shared generation advances when either section changes so a stale
+    /// full-config writer cannot overwrite a concurrent organization update.
+    pub async fn compare_and_set_host_mapping_catalog(
+        &self,
+        expected_mappings: &[Value],
+        expected_groups: &[Value],
+        expected_grouped_view: bool,
+        replacement_mappings: &[Value],
+        replacement_groups: &[Value],
+        replacement_grouped_view: bool,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(current_object) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            let current_mappings = match current_object.get("host_mappings") {
+                None => &[][..],
+                Some(Value::Array(items)) => items.as_slice(),
+                Some(_) => return Ok(None),
+            };
+            let current_groups = match current_object.get("host_mapping_groups") {
+                None => &[][..],
+                Some(Value::Array(items)) => items.as_slice(),
+                Some(_) => return Ok(None),
+            };
+            let current_grouped_view = current_object
+                .get("host_mapping_grouped_view")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            if current_mappings != expected_mappings
+                || current_groups != expected_groups
+                || current_grouped_view != expected_grouped_view
+            {
+                return Ok(None);
+            }
+
+            let changed = current_mappings != replacement_mappings
+                || current_groups != replacement_groups
+                || current_grouped_view != replacement_grouped_view;
+            current_object.insert(
+                "host_mappings".to_string(),
+                Value::Array(replacement_mappings.to_vec()),
+            );
+            current_object.insert(
+                "host_mapping_groups".to_string(),
+                Value::Array(replacement_groups.to_vec()),
+            );
+            current_object.insert(
+                "host_mapping_grouped_view".to_string(),
+                Value::Bool(replacement_grouped_view),
+            );
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            let replacement_generation = if changed {
+                snapshot.generation.checked_add(1).ok_or_else(|| {
+                    crate::storage::storage_error("host mapping catalog generation overflow")
+                })?
+            } else {
+                snapshot.generation
+            };
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                replacement_generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, replacement_generation)?;
+                return Ok(Some(current_config));
+            }
+        }
+        Ok(None)
+    }
+
     /// Atomically merges the two gateway target configuration sections into
     /// the latest full config. Host runtime synchronization may overlap both
     /// a non-Host writer (for example a run_type update) and a newer writer of

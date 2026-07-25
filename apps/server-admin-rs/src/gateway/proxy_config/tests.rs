@@ -735,6 +735,33 @@ fn validates_go_backend_echoed_protocol_modes() {
 }
 
 #[test]
+fn validates_go_backend_echoed_host_rule_groups() {
+    let requested = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "auto",
+        "group_id": "11111111-1111-4111-8111-111111111111",
+        "group_name": "Media"
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{
+            "host": "video.example.com",
+            "protocol_mode": "auto",
+            "group_id": "11111111-1111-4111-8111-111111111111",
+            "group_name": "Media"
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let old_backend = json!({
+        "success": true,
+        "data": [{"host": "video.example.com", "protocol_mode": "auto"}]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply host rule group for video.example.com"));
+}
+
+#[test]
 fn validates_go_backend_echoed_host_visibility() {
     let requested = json!([{
         "host": "video.example.com",
@@ -1976,6 +2003,195 @@ fn gateway_portal_title_mode_defaults_like_node() {
 }
 
 #[test]
+fn validates_and_normalizes_host_mapping_groups() {
+    let groups = normalize_host_mapping_groups(vec![
+        json!({
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "  媒体服务  "
+        }),
+        json!({
+            "id": "22222222-2222-4222-8222-222222222222",
+            "name": "Tools"
+        }),
+    ])
+    .unwrap();
+    assert_eq!(groups[0]["name"], json!("媒体服务"));
+
+    let duplicate = normalize_host_mapping_groups(vec![
+        json!({
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "Tools"
+        }),
+        json!({
+            "id": "22222222-2222-4222-8222-222222222222",
+            "name": " tools "
+        }),
+    ])
+    .unwrap_err();
+    assert_eq!(duplicate, "Duplicate host mapping group name tools");
+}
+
+#[test]
+fn legacy_host_mapping_update_preserves_existing_group_assignment() {
+    let group_id = "11111111-1111-4111-8111-111111111111";
+    let previous = json!({
+        "host_mapping_groups": [{ "id": group_id, "name": "Media" }],
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "group_id": group_id
+        }]
+    });
+    let normalized = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8081",
+            "use_auth": true
+        })],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(normalized[0]["group_id"], json!(group_id));
+
+    let explicitly_ungrouped = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8081",
+            "use_auth": true,
+            "group_id": null
+        })],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(explicitly_ungrouped[0]["group_id"], Value::Null);
+
+    let renamed = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "renamed.example.com",
+            "target": "http://127.0.0.1:8080",
+            "use_auth": true
+        })],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(renamed[0]["group_id"], json!(group_id));
+
+    let added_alias = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+            json!({
+                "host": "alias.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+        ],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(added_alias[0]["group_id"], json!(group_id));
+    assert_eq!(added_alias[1]["group_id"], Value::Null);
+}
+
+#[test]
+fn host_rule_payload_uses_group_and_mapping_order_with_ungrouped_last() {
+    let media = "11111111-1111-4111-8111-111111111111";
+    let tools = "22222222-2222-4222-8222-222222222222";
+    let payload = build_host_rules_payload_for_config(&json!({
+        "host_mapping_grouped_view": true,
+        "host_mapping_groups": [
+            { "id": media, "name": "Media" },
+            { "id": tools, "name": "Tools" }
+        ],
+        "host_mappings": [
+            { "host": "tool.example.com", "target": "http://127.0.0.1:8081", "group_id": tools },
+            { "host": "loose.example.com", "target": "http://127.0.0.1:8082", "group_id": null },
+            { "host": "media.example.com", "target": "http://127.0.0.1:8080", "group_id": media }
+        ]
+    }));
+    let rules = payload.as_array().unwrap();
+    assert_eq!(
+        rules
+            .iter()
+            .map(|rule| rule["host"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["media.example.com", "tool.example.com", "loose.example.com"]
+    );
+    assert_eq!(rules[0]["group_name"], json!("Media"));
+    assert_eq!(rules[2]["group_id"], json!(""));
+}
+
+#[test]
+fn host_rule_payload_stays_flat_when_grouped_view_is_disabled() {
+    let group_id = "11111111-1111-4111-8111-111111111111";
+    let payload = build_host_rules_payload_for_config(&json!({
+        "host_mapping_grouped_view": false,
+        "host_mapping_groups": [{ "id": group_id, "name": "Media" }],
+        "host_mappings": [
+            { "host": "loose.example.com", "target": "http://127.0.0.1:8081", "group_id": null },
+            { "host": "media.example.com", "target": "http://127.0.0.1:8080", "group_id": group_id }
+        ]
+    }));
+    let rules = payload.as_array().unwrap();
+    assert_eq!(
+        rules
+            .iter()
+            .map(|rule| rule["host"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["loose.example.com", "media.example.com"]
+    );
+    assert_eq!(rules[0]["group_id"], json!(""));
+    assert_eq!(rules[1]["group_id"], json!(""));
+    assert_eq!(rules[1]["group_name"], json!(""));
+}
+
+#[test]
+fn catalog_revision_tracks_group_order_and_names() {
+    let mappings = vec![json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "group_id": "11111111-1111-4111-8111-111111111111"
+    })];
+    let first = vec![json!({
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Media"
+    })];
+    let renamed = vec![json!({
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Media apps"
+    })];
+    assert_ne!(
+        host_mapping_catalog_revision(&mappings, &first, false),
+        host_mapping_catalog_revision(&mappings, &renamed, false)
+    );
+    assert_ne!(
+        host_mapping_catalog_revision(&mappings, &first, false),
+        host_mapping_catalog_revision(&mappings, &first, true)
+    );
+}
+
+#[test]
+fn catalog_revision_normalizes_stored_group_shape() {
+    let config = json!({
+        "host_mapping_grouped_view": true,
+        "host_mapping_groups": [{
+            "id": "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+            "name": "  Media  "
+        }],
+        "host_mappings": []
+    });
+    let normalized_groups =
+        normalize_host_mapping_groups(host_mapping_groups_from_config(&config)).unwrap();
+    assert_eq!(
+        host_mapping_catalog_revision_from_config(&config),
+        host_mapping_catalog_revision(&[], &normalized_groups, true)
+    );
+}
+
+#[test]
 fn builds_i18n_bookmarks_document_without_auth_mapping() {
     let config = json!({
         "run_type": 3,
@@ -2015,6 +2231,40 @@ fn builds_i18n_bookmarks_document_without_auth_mapping() {
         build_bookmark_filename(&config),
         "fn-knock-bookmarks-example.com.html"
     );
+}
+
+#[test]
+fn builds_nested_group_bookmarks_with_escaping_and_ungrouped_last() {
+    let group_id = "11111111-1111-4111-8111-111111111111";
+    let config = json!({
+        "host_mapping_grouped_view": true,
+        "host_mapping_groups": [{
+            "id": group_id,
+            "name": "Media <script>"
+        }],
+        "host_mappings": [
+            {
+                "host": "loose.example.com",
+                "target": "http://127.0.0.1:8081",
+                "group_id": null
+            },
+            {
+                "host": "media.example.com",
+                "target": "http://127.0.0.1:8080",
+                "group_id": group_id
+            },
+            {
+                "host": "auth.example.com",
+                "target": "http://127.0.0.1:7997",
+                "group_id": null
+            }
+        ]
+    });
+    let document = build_bookmarks_document(&config, &crate::i18n::Translator::new("en"));
+    assert!(document.contains("Media &lt;script&gt;"));
+    assert!(!document.contains("auth.example.com"));
+    assert!(document.find("media.example.com").unwrap() < document.find("Ungrouped").unwrap());
+    assert!(document.find("Ungrouped").unwrap() < document.find("loose.example.com").unwrap());
 }
 
 #[test]

@@ -225,6 +225,8 @@ async fn config(State(state): State<AppState>) -> Response {
     match state.store.get_config().await {
         Ok(mut config) => {
             let host_mappings_revision = proxy_config::host_mappings_revision_from_config(&config);
+            let host_mapping_catalog_revision =
+                proxy_config::host_mapping_catalog_revision_from_config(&config);
             enrich_gateway_logging_config(&state, &mut config).await;
             let protocol_mapping_feature =
                 match runtime_config::load_protocol_mapping_feature(&state, Some(&config)).await {
@@ -246,6 +248,14 @@ async fn config(State(state): State<AppState>) -> Response {
                 response.headers_mut().insert(
                     axum::http::HeaderName::from_static(
                         proxy_config::HOST_MAPPINGS_REVISION_HEADER,
+                    ),
+                    value,
+                );
+            }
+            if let Ok(value) = HeaderValue::from_str(&host_mapping_catalog_revision) {
+                response.headers_mut().insert(
+                    axum::http::HeaderName::from_static(
+                        proxy_config::HOST_MAPPING_CATALOG_REVISION_HEADER,
                     ),
                     value,
                 );
@@ -315,6 +325,25 @@ pub(crate) fn build_safe_app_config(
     crate::store::strip_internal_config_metadata(&mut config);
     if !config.is_object() {
         config = crate::store::default_config();
+    }
+    if let Some(object) = config.as_object_mut() {
+        if !object
+            .get("host_mapping_groups")
+            .is_some_and(Value::is_array)
+        {
+            object.insert("host_mapping_groups".to_string(), json!([]));
+        }
+        let grouped_view = object
+            .get("host_mapping_grouped_view")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        object.insert("host_mapping_grouped_view".to_string(), json!(grouped_view));
+        if let Some(mappings) = object
+            .get_mut("host_mappings")
+            .and_then(Value::as_array_mut)
+        {
+            proxy_config::normalize_host_mapping_response_defaults(mappings);
+        }
     }
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
     let ssl = safe_ssl_config(config.get("ssl"));
@@ -1681,7 +1710,11 @@ mod tests {
                 "terminal_feature": { "enabled": true },
                 "protocol_mapping_feature": { "enabled": false },
                 "locale": { "default_locale": "en" },
-                "appearance": { "theme_color_preset": "prussian_blue" }
+                "appearance": { "theme_color_preset": "prussian_blue" },
+                "host_mappings": [{
+                    "host": "legacy.example.com",
+                    "target": "http://127.0.0.1:8080"
+                }]
             }),
             RuntimeProfile {
                 deployment_target: "fpk".to_string(),
@@ -1716,6 +1749,15 @@ mod tests {
         assert_eq!(
             config.pointer("/protocol_mapping_feature/enabled"),
             Some(&json!(true))
+        );
+        assert_eq!(config.pointer("/host_mapping_groups"), Some(&json!([])));
+        assert_eq!(
+            config.pointer("/host_mapping_grouped_view"),
+            Some(&json!(false))
+        );
+        assert_eq!(
+            config.pointer("/host_mappings/0/group_id"),
+            Some(&Value::Null)
         );
     }
 }

@@ -38,12 +38,7 @@ pub(super) fn host_rules_payload_for_config(config: &Value) -> Option<Value> {
     if !is_any_subdomain_routing_mode(config) {
         return None;
     }
-    let mappings = config
-        .get("host_mappings")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    Some(build_host_rules_payload(&mappings))
+    Some(build_host_rules_payload_for_config(config))
 }
 
 pub(crate) async fn sync_go_host_rules_for_config_locked(
@@ -69,6 +64,8 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     let echoed_visibilities = host_visibilities_by_host(echoed_payload)?;
     let requested_advanced_auth = host_advanced_auth_by_host(requested)?;
     let echoed_advanced_auth = host_advanced_auth_by_host(echoed_payload)?;
+    let requested_groups = host_groups_by_host(requested)?;
+    let echoed_groups = host_groups_by_host(echoed_payload)?;
     for (host, requested_mode) in &requested_modes {
         let Some(echoed_mode) = echoed_modes.get(host) else {
             return Err(format!(
@@ -78,6 +75,11 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         if echoed_mode != requested_mode {
             return Err(format!(
                 "Go backend did not apply HTTPS protocol mode {requested_mode} for {host} (reported {echoed_mode}); upgrade the gateway backend"
+            ));
+        }
+        if echoed_groups.get(host) != requested_groups.get(host) {
+            return Err(format!(
+                "Go backend did not apply host rule group for {host}; upgrade the gateway backend"
             ));
         }
         let requested_visibility = requested_visibilities
@@ -119,6 +121,33 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+fn host_groups_by_host(value: &Value) -> Result<HashMap<String, (String, String)>, String> {
+    let items = value
+        .as_array()
+        .ok_or_else(|| "Host-rules payload must be an array".to_string())?;
+    let mut groups = HashMap::with_capacity(items.len());
+    for item in items {
+        let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
+        if host.is_empty() {
+            return Err("Host-rules payload contains an empty host".to_string());
+        }
+        groups.insert(
+            host,
+            (
+                item.get("group_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                item.get("group_name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+            ),
+        );
+    }
+    Ok(groups)
 }
 
 /// The protobuf deliberately carries only fields the gateway evaluates.  A

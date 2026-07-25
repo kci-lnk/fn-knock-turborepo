@@ -2517,7 +2517,36 @@ export const enAdmin = {
     exportBookmarks: "Export as bookmarks",
     mappingsDescription:
       "Each subdomain maps directly to a local HTTP service. New mappings only need a subdomain prefix; the root domain is appended automatically.",
-    searchPlaceholder: "Search title, subdomain, or target address...",
+    groupedView: "Grouped view",
+    manageGroups: "Manage groups",
+    manageGroupsDescription:
+      "Create, rename, or reorder groups. Deleting a non-empty group moves its subdomains to Ungrouped.",
+    createGroup: "Create group",
+    newGroupDefault: "Group {number}",
+    groupName: "Group",
+    groupMappingsCount: "{count} subdomains",
+    dragGroupAria: "Drag to reorder group",
+    deleteGroup: "Delete group",
+    deleteGroupConfirm:
+      "This group is not empty. Confirm again to move every subdomain to Ungrouped.",
+    confirmDeleteGroup: "Delete group",
+    noGroups: "No groups yet. The existing flat layout remains in use.",
+    groupValidation:
+      "Group names must be 1–40 characters and unique (ignoring case).",
+    saveGroups: "Save groups",
+    groupsSaved: "Groups saved",
+    ungrouped: "Ungrouped",
+    emptyGroup: "No subdomains in this group. You can drop one here.",
+    addMappingToGroup: "Add mapping to this group",
+    moveToGroup: "Move to group",
+    batchActions: "Batch actions",
+    selectedMappingsCount: "{count} subdomains selected",
+    clearSelection: "Clear selection",
+    selectAllMappings: "Select all visible subdomains",
+    selectGroupMappings: "Select all subdomains in {group}",
+    selectMapping: "Select {host}",
+    searchPlaceholder:
+      "Search title, subdomain, target address, or group name...",
     orderHintPrefix:
       "Drag the left handle to adjust display order. If reverse proxying fails, try",
     disableProxyHeaders: "disabling proxy headers",
@@ -2537,6 +2566,7 @@ export const enAdmin = {
     },
     emptyMappings: "No Host mappings configured yet.",
     dragSortAria: "Drag to sort",
+    editMappingAria: "Edit {host}",
     homeAssistantWarningAria:
       "Home Assistant for {host} needs protocol headers disabled",
     homeAssistantWarningTitle: "Home Assistant needs protocol headers disabled",

@@ -130,19 +130,6 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-:root
-  :where(
-    a,
-    button,
-    input,
-    select,
-    textarea,
-    [tabindex]:not([tabindex="-1"])
-  ):focus-visible {
-  outline: 2px solid var(--foreground);
-  outline-offset: 2px;
-}
-
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -260,12 +247,81 @@
   @apply w-[7rem] min-w-[7rem] max-w-[7rem] overflow-hidden sm:w-[12rem] sm:min-w-[12rem] sm:max-w-[12rem];
 }
 
+.mapping-table-scroll--grouped .mapping-order-cell {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+}
+
+.mapping-table-scroll--grouped .mapping-favicon-cell {
+  left: 72px;
+}
+
+.mapping-table-scroll--grouped .mapping-title-cell {
+  left: 100px;
+}
+
 .mapping-table-scroll .mapping-title-cell .truncate {
   text-overflow: clip;
 }
 
 .mapping-table-scroll thead .mapping-sticky-cell {
   @apply z-20;
+}
+
+.mapping-table-scroll .mapping-group-header-row {
+  --mapping-group-header-background: color-mix(
+    in oklab,
+    var(--muted) 45%,
+    var(--background)
+  );
+
+  background-color: var(--mapping-group-header-background);
+}
+
+.mapping-table-scroll .mapping-group-header-row:hover {
+  --mapping-group-header-background: color-mix(
+    in oklab,
+    var(--muted) 55%,
+    var(--background)
+  );
+
+  background-color: var(--mapping-group-header-background);
+}
+
+.mapping-table-scroll .mapping-group-header-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 15;
+  box-sizing: border-box;
+  width: min(24rem, calc(100vw - 3rem));
+  max-width: min(24rem, calc(100vw - 3rem));
+  min-width: min(24rem, calc(100vw - 3rem));
+  background-color: var(--mapping-group-header-background);
+}
+
+.mapping-group-collapse-body {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+  clip-path: inset(0);
+  transform-origin: top;
+  transition:
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    clip-path 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, clip-path;
+}
+
+.mapping-group-collapse-body--collapsed {
+  opacity: 0;
+  transform: translateY(-0.375rem) scaleY(0.96);
+  clip-path: inset(0 0 100% 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapping-group-collapse-body {
+    transition-duration: 0.01ms;
+  }
 }
 
 #nprogress {

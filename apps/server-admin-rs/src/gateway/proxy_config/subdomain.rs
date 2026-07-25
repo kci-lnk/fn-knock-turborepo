@@ -77,6 +77,33 @@ pub(super) fn previous_host_mappings_by_host(config: &Value) -> HashMap<String, 
         .unwrap_or_default()
 }
 
+pub(super) fn previous_host_mappings_by_unique_target(config: &Value) -> HashMap<String, Value> {
+    let mut candidates = HashMap::<String, Option<Value>>::new();
+    for mapping in config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let target = mapping
+            .get("target")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or("");
+        if target.is_empty() {
+            continue;
+        }
+        candidates
+            .entry(target.to_string())
+            .and_modify(|candidate| *candidate = None)
+            .or_insert_with(|| Some(mapping.clone()));
+    }
+    candidates
+        .into_iter()
+        .filter_map(|(target, mapping)| mapping.map(|mapping| (target, mapping)))
+        .collect()
+}
+
 pub(super) fn get_auth_host_mapping(config: &Value) -> Option<&Value> {
     config
         .get("host_mappings")

@@ -401,6 +401,7 @@ export const jaJPServer = {
       startFailed: "自動 HTTPS 起動に失敗しました",
     },
     hostMappings: {
+      ungrouped: "未分類",
       payloadObjectRequired:
         "Host マッピングはオブジェクトである必要があります",
       hostRequired: "Host マッピングにはドメインが必要です",
@@ -1277,7 +1278,8 @@ export const jaJPServer = {
   },
   cloudflared: {
     configReadFailed: "Cloudflared 設定の読み込みに失敗しました",
-    statusLoadFailed: "Cloudflared スーパーバイザー状態の読み込みに失敗しました",
+    statusLoadFailed:
+      "Cloudflared スーパーバイザー状態の読み込みに失敗しました",
     configWriteFailed: "Cloudflared 設定の保存に失敗しました",
     missingToken: "先に Cloudflare トークンを設定してください",
     startFailedWithDetail: "Cloudflared の起動に失敗しました: {detail}",

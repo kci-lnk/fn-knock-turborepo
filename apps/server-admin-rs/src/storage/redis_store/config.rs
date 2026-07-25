@@ -203,6 +203,8 @@ pub fn default_config() -> Value {
         "whitelist_ips": [],
         "proxy_mappings": [],
         "host_mappings": [],
+        "host_mapping_groups": [],
+        "host_mapping_grouped_view": false,
         "stream_mappings": [],
         "subdomain_mode": subdomain_mode,
         "ssl": ssl,

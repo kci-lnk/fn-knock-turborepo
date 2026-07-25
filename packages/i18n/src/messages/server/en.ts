@@ -387,6 +387,7 @@ export const enServer = {
       startFailed: "Failed to start automatic HTTPS",
     },
     hostMappings: {
+      ungrouped: "Ungrouped",
       payloadObjectRequired: "Host mapping must be an object",
       hostRequired: "Host mapping host is required",
       hostWildcardForbidden:

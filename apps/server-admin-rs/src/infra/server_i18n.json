@@ -349,7 +349,8 @@
         "visibilityInvalid": "Host 映射 {host} 的可见性配置无效：{message}",
         "backendVisibilityUnsupported": "网关后端未应用 {host} 的可见性规则，请升级网关后端",
         "hostWildcardForbidden": "Host 映射 {host} 不能包含通配符 *，请填写精确域名",
-        "customIconInvalid": "Host 映射 {host} 的自定义图标无效或格式不受支持"
+        "customIconInvalid": "Host 映射 {host} 的自定义图标无效或格式不受支持",
+        "ungrouped": "未分组"
       },
       "streamMappings": {
         "payloadObjectRequired": "协议映射必须是对象",
@@ -1026,7 +1027,8 @@
       "stopFailed": "停止 Cloudflared 失败",
       "logsListFailed": "读取 Cloudflared 日志失败",
       "logsClearFailed": "清空 Cloudflared 日志失败",
-      "logsPollFailed": "轮询 Cloudflared 日志失败"
+      "logsPollFailed": "轮询 Cloudflared 日志失败",
+      "statusLoadFailed": "读取 Cloudflared 守护状态失败"
     },
     "dnsmasq": {
       "notDetectedInstallFirst": "未检测到 dnsmasq，请先完成安装",
@@ -3420,7 +3422,8 @@
         "visibilityInvalid": "Host 對應 {host} 的可見性設定無效：{message}",
         "backendVisibilityUnsupported": "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",
         "hostWildcardForbidden": "Host 映射 {host} 不能包含萬用字元 *，請填寫精確域名",
-        "customIconInvalid": "Host 映射 {host} 的自訂圖示無效或格式不受支援"
+        "customIconInvalid": "Host 映射 {host} 的自訂圖示無效或格式不受支援",
+        "ungrouped": "未分組"
       },
       "streamMappings": {
         "payloadObjectRequired": "協議映射必須是物件",
@@ -4097,7 +4100,8 @@
       "stopFailed": "停止 Cloudflared 失敗",
       "logsListFailed": "讀取 Cloudflared 日誌失敗",
       "logsClearFailed": "清空 Cloudflared 日誌失敗",
-      "logsPollFailed": "輪詢 Cloudflared 日誌失敗"
+      "logsPollFailed": "輪詢 Cloudflared 日誌失敗",
+      "statusLoadFailed": "讀取 Cloudflared 守護狀態失敗"
     },
     "dnsmasq": {
       "notDetectedInstallFirst": "未檢測到 dnsmasq，請先完成安裝",
@@ -6491,7 +6495,8 @@
         "visibilityInvalid": "Host mapping {host} has invalid visibility settings: {message}",
         "backendVisibilityUnsupported": "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend",
         "hostWildcardForbidden": "Host mapping {host} cannot contain the * wildcard; enter an exact host",
-        "customIconInvalid": "Host mapping {host} has an invalid or unsupported custom icon"
+        "customIconInvalid": "Host mapping {host} has an invalid or unsupported custom icon",
+        "ungrouped": "Ungrouped"
       },
       "streamMappings": {
         "payloadObjectRequired": "Stream mapping must be an object",
@@ -7168,7 +7173,8 @@
       "stopFailed": "Failed to stop Cloudflared",
       "logsListFailed": "Failed to list Cloudflared logs",
       "logsClearFailed": "Failed to clear Cloudflared logs",
-      "logsPollFailed": "Failed to poll Cloudflared logs"
+      "logsPollFailed": "Failed to poll Cloudflared logs",
+      "statusLoadFailed": "Failed to load Cloudflared supervisor status"
     },
     "dnsmasq": {
       "notDetectedInstallFirst": "dnsmasq was not detected. Install it first.",
@@ -9562,7 +9568,8 @@
         "visibilityInvalid": "호스트 매핑 {host}의 접근 범위 설정이 잘못되었습니다: {message}",
         "backendVisibilityUnsupported": "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
         "hostWildcardForbidden": "호스트 매핑 {host}에는 * 와일드카드를 사용할 수 없습니다. 정확한 호스트를 입력하세요.",
-        "customIconInvalid": "호스트 매핑 {host}의 사용자 지정 아이콘이 잘못되었거나 지원되지 않는 형식입니다."
+        "customIconInvalid": "호스트 매핑 {host}의 사용자 지정 아이콘이 잘못되었거나 지원되지 않는 형식입니다.",
+        "ungrouped": "미분류"
       },
       "streamMappings": {
         "payloadObjectRequired": "스트림 매핑은 객체여야 합니다.",
@@ -10239,7 +10246,8 @@
       "stopFailed": "Cloudflared를 중지하지 못했습니다.",
       "logsListFailed": "Cloudflared 로그를 불러오지 못했습니다.",
       "logsClearFailed": "Cloudflared 로그를 지우지 못했습니다.",
-      "logsPollFailed": "Cloudflared 로그를 폴링하지 못했습니다."
+      "logsPollFailed": "Cloudflared 로그를 폴링하지 못했습니다.",
+      "statusLoadFailed": "Cloudflared 감독 상태를 불러오지 못했습니다."
     },
     "dnsmasq": {
       "notDetectedInstallFirst": "dnsmasq가 감지되지 않았습니다. 먼저 설치하세요.",
@@ -12633,7 +12641,8 @@
         "visibilityInvalid": "Host マッピング {host} の公開範囲設定が無効です: {message}",
         "backendVisibilityUnsupported": "ゲートウェイバックエンドが {host} の公開範囲ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
         "hostWildcardForbidden": "Host マッピング {host} にワイルドカード * は使用できません。完全なホスト名を入力してください",
-        "customIconInvalid": "Host マッピング {host} のカスタムアイコンが無効か、形式がサポートされていません"
+        "customIconInvalid": "Host マッピング {host} のカスタムアイコンが無効か、形式がサポートされていません",
+        "ungrouped": "未分類"
       },
       "streamMappings": {
         "payloadObjectRequired": "ストリームマッピングはオブジェクトである必要があります",
@@ -13310,7 +13319,8 @@
       "stopFailed": "Cloudflared の停止に失敗しました",
       "logsListFailed": "Cloudflared ログの読み込みに失敗しました",
       "logsClearFailed": "Cloudflared ログの消去に失敗しました",
-      "logsPollFailed": "Cloudflared ログのポーリングに失敗しました"
+      "logsPollFailed": "Cloudflared ログのポーリングに失敗しました",
+      "statusLoadFailed": "Cloudflared スーパーバイザー状態の読み込みに失敗しました"
     },
     "dnsmasq": {
       "notDetectedInstallFirst": "dnsmasq が検出されません。最初にインストールを完了してください。",

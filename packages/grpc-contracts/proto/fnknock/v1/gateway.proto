@@ -106,6 +106,8 @@ message HostRule {
   string protocol_mode = 14;
   HostRuleVisibility visibility = 15;
   AdvancedAuthConfig advanced_auth = 16;
+  optional string group_id = 17;
+  optional string group_name = 18;
 }
 
 message StreamRule {

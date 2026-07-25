@@ -150,8 +150,9 @@ watch(
           <CardContent
             :class="[
               collapsedContentClass,
-              'transition-colors duration-200 hover:bg-muted/50',
+              'cursor-pointer transition-colors duration-200 hover:bg-muted/50',
             ]"
+            @click="expand"
           >
             <div class="min-w-0 flex-1 space-y-1">
               <div class="text-sm font-medium">{{ title }}</div>
@@ -159,7 +160,7 @@ watch(
                 <slot name="summary" />
               </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center gap-2 shrink-0" @click.stop>
               <slot
                 v-if="slots['collapsed-actions']"
                 name="collapsed-actions"

@@ -324,6 +324,7 @@ export const zhCNServer = {
       startFailed: "自动 HTTPS 启动失败",
     },
     hostMappings: {
+      ungrouped: "未分组",
       payloadObjectRequired: "Host 映射必须是对象",
       hostRequired: "Host 映射需要填写域名",
       hostWildcardForbidden:

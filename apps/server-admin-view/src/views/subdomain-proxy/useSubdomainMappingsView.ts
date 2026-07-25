@@ -1,5 +1,10 @@
 import { computed, type ComputedRef, type Ref } from "vue";
-import type { HostMapping, HostTrafficStats, TrafficStats } from "@/types";
+import type {
+  HostMapping,
+  HostMappingGroup,
+  HostTrafficStats,
+  TrafficStats,
+} from "@/types";
 import {
   buildMappingTargetKey,
   getMappingDisplayTitle,
@@ -10,6 +15,7 @@ export const useSubdomainMappingsView = ({
   allMappings,
   draggableVisibleMappings,
   formatHostWithAccessEntryPort,
+  groups,
   isAuthServiceTarget,
   searchQuery,
   trafficRealtimeStats,
@@ -17,6 +23,7 @@ export const useSubdomainMappingsView = ({
   allMappings: ComputedRef<HostMapping[]>;
   draggableVisibleMappings: Ref<HostMapping[]>;
   formatHostWithAccessEntryPort: (host: string) => string;
+  groups: ComputedRef<HostMappingGroup[]>;
   isAuthServiceTarget: (target: string) => boolean;
   searchQuery: Ref<string>;
   trafficRealtimeStats: Ref<TrafficStats | null>;
@@ -71,8 +78,14 @@ export const useSubdomainMappingsView = ({
   const filteredMappings = computed(() => {
     const query = searchQuery.value.trim().toLowerCase();
     if (!query) return visibleMappings.value;
+    const matchingGroupIds = new Set(
+      groups.value
+        .filter((group) => group.name.toLowerCase().includes(query))
+        .map((group) => group.id),
+    );
     return visibleMappings.value.filter(
       (mapping) =>
+        (mapping.group_id != null && matchingGroupIds.has(mapping.group_id)) ||
         getMappingDisplayTitle(mapping).toLowerCase().includes(query) ||
         formatHostWithAccessEntryPort(mapping.host)
           .toLowerCase()

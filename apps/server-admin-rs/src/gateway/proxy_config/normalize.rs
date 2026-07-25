@@ -127,7 +127,39 @@ pub(super) fn normalize_host_mappings_for_route(
     mappings: Vec<Value>,
     previous_config: &Value,
 ) -> Result<Vec<Value>, String> {
+    let groups = normalize_host_mapping_groups(host_mapping_groups_from_config(previous_config))?;
+    normalize_host_mappings_for_catalog(mappings, previous_config, &groups)
+}
+
+pub(super) fn normalize_host_mappings_for_catalog(
+    mappings: Vec<Value>,
+    previous_config: &Value,
+    groups: &[Value],
+) -> Result<Vec<Value>, String> {
     let previous_by_host = previous_host_mappings_by_host(previous_config);
+    let previous_by_unique_target = previous_host_mappings_by_unique_target(previous_config);
+    let submitted_hosts = mappings
+        .iter()
+        .filter_map(|mapping| mapping.get("host").and_then(Value::as_str))
+        .map(normalize_host_value)
+        .filter(|host| !host.is_empty())
+        .collect::<HashSet<_>>();
+    let mut submitted_target_counts = HashMap::<String, usize>::new();
+    for target in mappings
+        .iter()
+        .filter_map(|mapping| mapping.get("target").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|target| !target.is_empty())
+    {
+        *submitted_target_counts
+            .entry(target.to_string())
+            .or_default() += 1;
+    }
+    let valid_group_ids = groups
+        .iter()
+        .filter_map(|group| group.get("id").and_then(Value::as_str))
+        .map(ToString::to_string)
+        .collect::<HashSet<_>>();
     let mut normalized = Vec::with_capacity(mappings.len());
     let mut has_default_mapping = false;
     let mut auth_mapping_count = 0;
@@ -193,7 +225,35 @@ pub(super) fn normalize_host_mappings_for_route(
                 "Host mapping {host} Basic Auth settings are invalid"
             ));
         }
-        let previous = previous_by_host.get(&host);
+        // Legacy clients do not send group_id and have no stable mapping ID.
+        // A unique unchanged target is an identity fallback only when the old
+        // host disappeared and the submitted target is still unique. This
+        // distinguishes a rename from adding another host for the same app.
+        let previous = previous_by_host.get(&host).or_else(|| {
+            submitted_target_counts
+                .get(&target)
+                .is_some_and(|count| *count == 1)
+                .then(|| previous_by_unique_target.get(&target))
+                .flatten()
+                .filter(|mapping| {
+                    mapping
+                        .get("host")
+                        .and_then(Value::as_str)
+                        .map(normalize_host_value)
+                        .is_some_and(|previous_host| !submitted_hosts.contains(&previous_host))
+                })
+        });
+        let requested_group_id = object
+            .contains_key("group_id")
+            .then(|| object.get("group_id"))
+            .flatten();
+        let group_id = normalize_host_mapping_group_id(
+            requested_group_id,
+            previous.and_then(|value| value.get("group_id")),
+            &valid_group_ids,
+            service_role == "auth",
+        )
+        .map_err(|message| format!("Host mapping {host} {message}"))?;
         let disabled = service_role != "auth"
             && object
                 .get("disabled")
@@ -303,6 +363,7 @@ pub(super) fn normalize_host_mappings_for_route(
             ),
         );
         object.insert("is_default".to_string(), Value::Bool(is_default));
+        object.insert("group_id".to_string(), group_id);
         object.insert("disabled".to_string(), Value::Bool(disabled));
         object.insert("availability".to_string(), availability);
         object.insert("visibility".to_string(), visibility);

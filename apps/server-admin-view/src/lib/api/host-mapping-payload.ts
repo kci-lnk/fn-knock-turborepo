@@ -8,6 +8,7 @@ import { normalizeHostMappingAvailability } from "../host-mapping-availability";
 type HostMappingUpdatePayload = Pick<
   HostMapping,
   | "host"
+  | "group_id"
   | "target"
   | "waf_enabled"
   | "use_auth"
@@ -68,6 +69,7 @@ export const toHostMappingUpdatePayload = (
   options: { includeFavicon?: boolean; includeTitle?: boolean } = {},
 ): HostMappingUpdatePayload => ({
   host: mapping.host,
+  group_id: mapping.group_id || null,
   target: mapping.target,
   waf_enabled: mapping.waf_enabled !== false,
   use_auth: mapping.use_auth,

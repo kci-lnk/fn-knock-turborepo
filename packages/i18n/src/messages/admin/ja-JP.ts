@@ -2521,7 +2521,36 @@ export const jaJPAdmin = {
     exportBookmarks: "ブックマークとしてエクスポート",
     mappingsDescription:
       "各サブドメインをローカル HTTP サービスへ直接マッピングします。新規追加時はサブドメインのプレフィックスだけを入力すると、ルートドメインが自動的に付加されます。",
-    searchPlaceholder: "タイトル、サブドメイン、転送先を検索...",
+    groupedView: "グループ表示",
+    manageGroups: "グループを管理",
+    manageGroupsDescription:
+      "グループの作成、名前変更、並べ替えができます。空でないグループを削除すると、サブドメインは未分類へ移動します。",
+    createGroup: "グループを作成",
+    newGroupDefault: "グループ {number}",
+    groupName: "グループ",
+    groupMappingsCount: "{count} 件のサブドメイン",
+    dragGroupAria: "ドラッグしてグループを並べ替え",
+    deleteGroup: "グループを削除",
+    deleteGroupConfirm:
+      "このグループは空ではありません。もう一度確認すると、すべてのサブドメインが未分類へ移動します。",
+    confirmDeleteGroup: "グループを削除",
+    noGroups: "グループはまだありません。既存のフラット表示を維持します。",
+    groupValidation: "グループ名は 1～40 文字で、重複は使用できません。",
+    saveGroups: "グループを保存",
+    groupsSaved: "グループを保存しました",
+    ungrouped: "未分類",
+    emptyGroup:
+      "このグループにサブドメインはありません。ここへドロップできます。",
+    addMappingToGroup: "このグループにマッピングを追加",
+    moveToGroup: "グループへ移動",
+    batchActions: "一括操作",
+    selectedMappingsCount: "{count} 件のサブドメインを選択中",
+    clearSelection: "選択を解除",
+    selectAllMappings: "表示中のサブドメインをすべて選択",
+    selectGroupMappings: "{group} のサブドメインをすべて選択",
+    selectMapping: "{host} を選択",
+    searchPlaceholder:
+      "タイトル、サブドメイン、ターゲットアドレス、グループ名を検索...",
     orderHintPrefix:
       "左側のハンドルをドラッグして表示順を変更できます。リバースプロキシが正常に動作しない場合は、",
     disableProxyHeaders: "プロキシヘッダーを無効にする",
@@ -2541,6 +2570,7 @@ export const jaJPAdmin = {
     },
     emptyMappings: "Host マッピングはまだありません。",
     dragSortAria: "ドラッグして並べ替え",
+    editMappingAria: "{host} を編集",
     homeAssistantWarningAria:
       "{host} の Home Assistant ではプロキシヘッダーを無効にする必要があります",
     homeAssistantWarningTitle:

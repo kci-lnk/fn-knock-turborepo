@@ -10,7 +10,7 @@ use std::{
 use axum::{
     Json, Router,
     extract::{Path, State},
-    http::{HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -27,6 +27,7 @@ use crate::{
 mod advanced_auth;
 mod auth_payload;
 mod bookmarks;
+mod groups;
 mod metadata_fetch;
 mod metadata_html;
 mod metadata_refresh;
@@ -38,6 +39,7 @@ mod subdomain;
 use advanced_auth::*;
 pub(crate) use auth_payload::*;
 use bookmarks::*;
+use groups::*;
 use metadata_fetch::*;
 use metadata_html::*;
 use metadata_refresh::*;
@@ -66,6 +68,7 @@ const FALLBACK_FAVICON_FETCH_RESERVE: i32 = 3;
 const HEURISTIC_FAVICON_MIN_PRIORITY: i32 = 350;
 const STRONG_HEURISTIC_FAVICON_MIN_PRIORITY: i32 = 520;
 pub(crate) const HOST_MAPPINGS_REVISION_HEADER: &str = "x-host-mappings-revision";
+pub(crate) const HOST_MAPPING_CATALOG_REVISION_HEADER: &str = "x-host-mapping-catalog-revision";
 const MAX_FAVICON_BYTES: usize = 128 * 1024;
 const ONE_PANEL_TITLE: &str = "1Panel";
 const ONE_PANEL_LOADING_TITLE: &str = "loading...";
@@ -647,6 +650,17 @@ struct MappingsBody {
     revision: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct HostMappingCatalogBody {
+    mappings: Vec<Value>,
+    #[serde(default)]
+    groups: Vec<Value>,
+    #[serde(default)]
+    grouped_view: Option<bool>,
+    #[serde(default)]
+    revision: Option<String>,
+}
+
 #[derive(Clone)]
 struct HostMappingMetadataRefreshItem {
     mapping: Value,
@@ -706,6 +720,10 @@ pub fn proxy_config_routes() -> Router<AppState> {
             get(get_host_mappings).post(update_host_mappings),
         )
         .route(
+            "/api/admin/config/host_mapping_catalog",
+            get(get_host_mapping_catalog).post(update_host_mapping_catalog),
+        )
+        .route(
             "/api/admin/config/host_mappings/basic_auth_probe",
             post(basic_auth_probe),
         )
@@ -755,8 +773,39 @@ async fn get_host_mappings(State(state): State<AppState>) -> Response {
     host_mappings_response(mappings)
 }
 
-fn host_mappings_revision(mappings: &[Value]) -> String {
-    let semantic = mappings
+async fn get_host_mapping_catalog(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load host mapping catalog");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                load_config_failed(&translator),
+            );
+        }
+    };
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let groups = match normalize_host_mapping_groups(host_mapping_groups_from_config(&config)) {
+        Ok(groups) => groups,
+        Err(error) => {
+            tracing::warn!(%error, "stored host mapping groups are invalid");
+            Vec::new()
+        }
+    };
+    host_mapping_catalog_response(
+        mappings,
+        groups,
+        host_mapping_grouped_view_from_config(&config),
+    )
+}
+
+fn semantic_host_mappings(mappings: &[Value]) -> Vec<Value> {
+    mappings
         .iter()
         .map(|mapping| {
             let Some(mut object) = mapping.as_object().cloned() else {
@@ -768,9 +817,28 @@ fn host_mappings_revision(mappings: &[Value]) -> String {
             object.remove("favicon");
             Value::Object(object)
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
+
+fn host_mappings_revision(mappings: &[Value]) -> String {
+    let semantic = semantic_host_mappings(mappings);
     crate::crypto_utils::sha256_hex_bytes(
         serde_json::to_vec(&semantic).unwrap_or_else(|_| b"[]".to_vec()),
+    )
+}
+
+fn host_mapping_catalog_revision(
+    mappings: &[Value],
+    groups: &[Value],
+    grouped_view: bool,
+) -> String {
+    crate::crypto_utils::sha256_hex_bytes(
+        serde_json::to_vec(&json!({
+            "mappings": semantic_host_mappings(mappings),
+            "groups": groups,
+            "grouped_view": grouped_view,
+        }))
+        .unwrap_or_else(|_| b"{}".to_vec()),
     )
 }
 
@@ -781,6 +849,21 @@ pub(crate) fn host_mappings_revision_from_config(config: &Value) -> String {
         .map(Vec::as_slice)
         .unwrap_or(&[]);
     host_mappings_revision(mappings)
+}
+
+pub(crate) fn host_mapping_catalog_revision_from_config(config: &Value) -> String {
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let groups =
+        normalize_host_mapping_groups(host_mapping_groups_from_config(config)).unwrap_or_default();
+    host_mapping_catalog_revision(
+        mappings,
+        &groups,
+        host_mapping_grouped_view_from_config(config),
+    )
 }
 
 fn host_mappings_response(mut mappings: Vec<Value>) -> Response {
@@ -796,7 +879,37 @@ fn host_mappings_response(mut mappings: Vec<Value>) -> Response {
     response
 }
 
-fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
+fn host_mapping_catalog_response(
+    mut mappings: Vec<Value>,
+    groups: Vec<Value>,
+    grouped_view: bool,
+) -> Response {
+    let revision = host_mapping_catalog_revision(&mappings, &groups, grouped_view);
+    let mappings_revision = host_mappings_revision(&mappings);
+    normalize_host_mapping_response_defaults(&mut mappings);
+    let mut response = response::ok(json!({
+        "mappings": mappings,
+        "groups": groups,
+        "grouped_view": grouped_view,
+        "revision": revision,
+    }))
+    .into_response();
+    if let Ok(value) = HeaderValue::from_str(&revision) {
+        response.headers_mut().insert(
+            axum::http::HeaderName::from_static(HOST_MAPPING_CATALOG_REVISION_HEADER),
+            value,
+        );
+    }
+    if let Ok(value) = HeaderValue::from_str(&mappings_revision) {
+        response.headers_mut().insert(
+            axum::http::HeaderName::from_static(HOST_MAPPINGS_REVISION_HEADER),
+            value,
+        );
+    }
+    response
+}
+
+pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
     for mapping in mappings {
         let Some(object) = mapping.as_object_mut() else {
             continue;
@@ -822,6 +935,9 @@ fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
             });
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
         object.insert("visibility".to_string(), visibility);
+        if is_auth || !object.get("group_id").is_some_and(Value::is_string) {
+            object.insert("group_id".to_string(), Value::Null);
+        }
         if !object.contains_key("favicon_override") {
             object.insert("favicon_override".to_string(), Value::String(String::new()));
         }
@@ -947,10 +1063,6 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
     }
     if let Err(error) = transaction_lease.release().await {
         tracing::warn!(%error, "failed to release host mappings transaction lease");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "hostMappings.updateFailed"),
-        );
     }
     response::ok(summary).into_response()
 }
@@ -1252,10 +1364,6 @@ async fn update_host_mappings(
 
     if let Err(error) = transaction_lease.release().await {
         tracing::warn!(%error, "failed to release host mappings transaction lease");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "hostMappings.updateFailed"),
-        );
     }
 
     schedule_host_mappings_metadata_refresh(state.clone(), normalized.clone(), previous_mappings);
@@ -1265,6 +1373,236 @@ async fn update_host_mappings(
     );
 
     host_mappings_response(normalized)
+}
+
+async fn update_host_mapping_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<HostMappingCatalogBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
+        Ok(Some(lease)) => lease,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to acquire host mapping catalog transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
+
+    let previous_config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load host mapping catalog before update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                load_config_failed(&translator),
+            );
+        }
+    };
+    let previous_mappings = previous_config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let previous_groups = host_mapping_groups_from_config(&previous_config);
+    let previous_revision_groups =
+        normalize_host_mapping_groups(previous_groups.clone()).unwrap_or_default();
+    let previous_grouped_view = host_mapping_grouped_view_from_config(&previous_config);
+    let requested_revision = headers
+        .get(HOST_MAPPING_CATALOG_REVISION_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or_else(|| body.revision.as_deref().map(str::trim));
+    if let Some(revision) = requested_revision
+        && revision
+            != host_mapping_catalog_revision(
+                &previous_mappings,
+                &previous_revision_groups,
+                previous_grouped_view,
+            )
+    {
+        return response::error(
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
+        );
+    }
+
+    let groups = match normalize_host_mapping_groups(body.groups) {
+        Ok(groups) => groups,
+        Err(message) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                localize_proxy_config_error(&translator, &message),
+            );
+        }
+    };
+    let grouped_view = body.grouped_view.unwrap_or(previous_grouped_view);
+    let normalized =
+        match normalize_host_mappings_for_catalog(body.mappings, &previous_config, &groups) {
+            Ok(value) => value,
+            Err(message) => {
+                return response::error(
+                    StatusCode::BAD_REQUEST,
+                    localize_proxy_config_error(&translator, &message),
+                );
+            }
+        };
+    let normalized =
+        match compile_host_mapping_visibilities(&state, normalized, &previous_config).await {
+            Ok(value) => value,
+            Err(message) => {
+                return response::error(
+                    StatusCode::BAD_REQUEST,
+                    localize_proxy_config_error(&translator, &message),
+                );
+            }
+        };
+
+    let mut candidate_config = previous_config.clone();
+    let candidate_object = ensure_object(&mut candidate_config);
+    candidate_object.insert(
+        "host_mappings".to_string(),
+        Value::Array(normalized.clone()),
+    );
+    candidate_object.insert(
+        "host_mapping_groups".to_string(),
+        Value::Array(groups.clone()),
+    );
+    candidate_object.insert(
+        "host_mapping_grouped_view".to_string(),
+        Value::Bool(grouped_view),
+    );
+    if let Err(message) = validate_passkey_rp_config(&candidate_config) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_proxy_config_error(&translator, &message),
+        );
+    }
+
+    match transaction_lease.ensure_valid().await {
+        Ok(true) => {}
+        Ok(false) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to refresh host mapping catalog transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    }
+
+    let updated_config = match state
+        .store
+        .compare_and_set_host_mapping_catalog(
+            &previous_mappings,
+            &previous_groups,
+            previous_grouped_view,
+            &normalized,
+            &groups,
+            grouped_view,
+        )
+        .await
+    {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to save host mapping catalog");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
+
+    let rollback = || async {
+        let rolled_back = state
+            .store
+            .compare_and_set_host_mapping_catalog(
+                &normalized,
+                &groups,
+                grouped_view,
+                &previous_mappings,
+                &previous_groups,
+                previous_grouped_view,
+            )
+            .await;
+        if !matches!(rolled_back, Ok(Some(_))) {
+            tracing::warn!("failed to rollback host mapping catalog");
+            return;
+        }
+        if let Err(error) =
+            sync_host_mappings_runtime(&state, &updated_config, &previous_mappings).await
+        {
+            tracing::warn!(%error, "failed to restore host mapping runtime after catalog rollback");
+        }
+    };
+
+    if let Err(message) = validate_passkey_rp_config(&updated_config) {
+        tracing::warn!(%message, "persisted host mapping catalog is invalid; rolling back");
+        rollback().await;
+        return response::error(
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
+        );
+    }
+    if let Err(error) = transaction_lease.ensure_owned().await {
+        tracing::warn!(%error, "host mapping catalog lease was lost before runtime sync");
+        rollback().await;
+        return response::error(
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
+        );
+    }
+    if let Err(message) = sync_host_mappings_runtime(&state, &previous_config, &normalized).await {
+        rollback().await;
+        tracing::warn!(%message, "failed to sync host mapping catalog runtime");
+        return response::error(
+            StatusCode::BAD_GATEWAY,
+            localize_runtime_sync_error(
+                &translator,
+                &message,
+                "server.admin.hostMappings.syncHostRulesFailed",
+            ),
+        );
+    }
+    if let Err(error) = transaction_lease.release().await {
+        tracing::warn!(%error, "failed to release host mapping catalog transaction lease");
+    }
+
+    if normalized != previous_mappings {
+        schedule_host_mappings_metadata_refresh(
+            state.clone(),
+            normalized.clone(),
+            previous_mappings,
+        );
+        runtime_config::schedule_smart_connect_sync_after_host_mappings_change(
+            state.clone(),
+            updated_config,
+        );
+    }
+
+    host_mapping_catalog_response(normalized, groups, grouped_view)
 }
 
 async fn update_stream_mappings(

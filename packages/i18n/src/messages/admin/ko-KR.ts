@@ -2504,7 +2504,35 @@ export const koKRAdmin = {
     exportBookmarks: "북마크로 내보내기",
     mappingsDescription:
       "각 서브도메인은 로컬 HTTP 서비스에 직접 매핑됩니다. 새 매핑에는 서브도메인 접두사만 필요합니다. 루트 도메인은 자동으로 추가됩니다.",
-    searchPlaceholder: "제목, 서브도메인, 대상 주소 검색...",
+    groupedView: "그룹 보기",
+    manageGroups: "그룹 관리",
+    manageGroupsDescription:
+      "그룹을 만들고 이름이나 순서를 변경합니다. 비어 있지 않은 그룹을 삭제하면 서브도메인이 미분류로 이동합니다.",
+    createGroup: "그룹 만들기",
+    newGroupDefault: "그룹 {number}",
+    groupName: "그룹",
+    groupMappingsCount: "서브도메인 {count}개",
+    dragGroupAria: "드래그하여 그룹 순서 변경",
+    deleteGroup: "그룹 삭제",
+    deleteGroupConfirm:
+      "이 그룹은 비어 있지 않습니다. 다시 확인하면 모든 서브도메인이 미분류로 이동합니다.",
+    confirmDeleteGroup: "그룹 삭제",
+    noGroups: "아직 그룹이 없습니다. 기존의 평면 레이아웃을 유지합니다.",
+    groupValidation: "그룹 이름은 1–40자이며 중복될 수 없습니다.",
+    saveGroups: "그룹 저장",
+    groupsSaved: "그룹이 저장되었습니다",
+    ungrouped: "미분류",
+    emptyGroup:
+      "이 그룹에 서브도메인이 없습니다. 여기로 끌어 놓을 수 있습니다.",
+    addMappingToGroup: "이 그룹에 매핑 추가",
+    moveToGroup: "그룹으로 이동",
+    batchActions: "일괄 작업",
+    selectedMappingsCount: "서브도메인 {count}개 선택됨",
+    clearSelection: "선택 해제",
+    selectAllMappings: "표시된 모든 서브도메인 선택",
+    selectGroupMappings: "{group}의 모든 서브도메인 선택",
+    selectMapping: "{host} 선택",
+    searchPlaceholder: "제목, 서브도메인, 대상 주소 또는 그룹 이름 검색...",
     orderHintPrefix:
       "표시 순서를 조정하려면 왼쪽 핸들을 드래그하세요. 리버스 프록시가 실패하면 시도해 보세요.",
     disableProxyHeaders: "프록시 헤더 비활성화",
@@ -2524,6 +2552,7 @@ export const koKRAdmin = {
     },
     emptyMappings: "아직 설정된 호스트 매핑이 없습니다.",
     dragSortAria: "드래그하여 정렬",
+    editMappingAria: "{host} 편집",
     homeAssistantWarningAria:
       "{host}의 Home Assistant에는 프로토콜 헤더를 꺼야 합니다.",
     homeAssistantWarningTitle:

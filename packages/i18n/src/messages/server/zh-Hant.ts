@@ -324,6 +324,7 @@ export const zhHantServer = {
       startFailed: "自動 HTTPS 啟動失敗",
     },
     hostMappings: {
+      ungrouped: "未分組",
       payloadObjectRequired: "Host 映射必須是物件",
       hostRequired: "Host 映射需要填寫域名",
       hostWildcardForbidden:

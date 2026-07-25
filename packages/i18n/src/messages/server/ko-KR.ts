@@ -385,6 +385,7 @@ export const koKRServer = {
       startFailed: "자동 HTTPS를 시작하지 못했습니다.",
     },
     hostMappings: {
+      ungrouped: "미분류",
       payloadObjectRequired: "호스트 매핑은 객체여야 합니다.",
       hostRequired: "호스트 매핑에는 도메인이 필요합니다.",
       hostWildcardForbidden:

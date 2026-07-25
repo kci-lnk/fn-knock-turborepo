@@ -269,10 +269,6 @@ pub(super) async fn update_advanced_auth(
     }
     if let Err(error) = transaction_lease.release().await {
         tracing::warn!(%error, "failed to release advanced authentication transaction lease");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "hostMappings.updateFailed"),
-        );
     }
     response::ok(json!({
         "host": host,

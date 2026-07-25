@@ -214,15 +214,41 @@
       <DialogFooter
         class="mt-2 shrink-0 items-center sm:flex-nowrap sm:justify-between"
       >
-        <span class="w-full text-sm text-muted-foreground sm:min-w-0 sm:flex-1">
-          <template v-if="discoveredData">
-            {{
-              t("admin.subdomainProxy.selectedItems", {
-                count: `${selectedServices.length}/${discoveredData.services.length}`,
-              })
-            }}
-          </template>
-        </span>
+        <div class="flex w-full items-center gap-3 sm:min-w-0 sm:flex-1">
+          <span class="text-sm text-muted-foreground">
+            <template v-if="discoveredData">
+              {{
+                t("admin.subdomainProxy.selectedItems", {
+                  count: `${selectedServices.length}/${discoveredData.services.length}`,
+                })
+              }}
+            </template>
+          </span>
+          <Select
+            v-if="groups.length > 0"
+            v-model="groupModel"
+            :disabled="isSavingMappings"
+          >
+            <SelectTrigger
+              class="h-9 w-[160px]"
+              :aria-label="t('admin.subdomainProxy.groupName')"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__ungrouped__">
+                {{ t("admin.subdomainProxy.ungrouped") }}
+              </SelectItem>
+              <SelectItem
+                v-for="group in groups"
+                :key="group.id"
+                :value="group.id"
+              >
+                {{ group.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div class="flex shrink-0 items-center gap-2">
           <Button variant="outline" @click="emit('cancel')">
             {{ t("admin.subdomainProxy.cancel") }}
@@ -258,6 +284,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
 import {
   Table,
@@ -270,11 +303,14 @@ import {
 import type { DiscoveredHostResponse, DiscoveredHostService } from "./model";
 import { resolveDiscoveredServiceHost } from "./model";
 import type { ScanDiscoverProgress } from "@/lib/api";
+import type { HostMappingGroup } from "@/types";
 
 const props = defineProps<{
   discoverProgress: ScanDiscoverProgress | null;
   discoveredData: DiscoveredHostResponse | null;
   domain: string;
+  groupId: string | null;
+  groups: HostMappingGroup[];
   isAllSelected: boolean;
   isDiscovering: boolean;
   isSavingMappings: boolean;
@@ -293,6 +329,7 @@ const emit = defineEmits<{
   toggleAll: [checked: boolean];
   toggleSettings: [];
   "update:open": [open: boolean];
+  "update:groupId": [groupId: string | null];
   "update:selectedServices": [services: DiscoveredHostService[]];
 }>();
 
@@ -306,6 +343,11 @@ const selectedServicesModel = computed({
   set: (value: DiscoveredHostService[]) => {
     emit("update:selectedServices", value);
   },
+});
+const groupModel = computed({
+  get: () => props.groupId ?? "__ungrouped__",
+  set: (value: string) =>
+    emit("update:groupId", value === "__ungrouped__" ? null : value),
 });
 
 const emitToggleAll = (event: Event) => {

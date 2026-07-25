@@ -5,6 +5,7 @@ import type {
   AppearanceConfig,
   DashboardDisplayConfig,
   HostMapping,
+  HostMappingGroup,
   LocaleConfig,
   ProxyMapping,
   ReverseProxySubmode,
@@ -27,8 +28,10 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingsFollowUpRefreshAttempts = 0;
   let loadConfigPromise: Promise<AppConfig | null> | null = null;
   let loadConfigRequestId = 0;
-  let hostMappingsRevision: string | null = null;
+  let hostMappingCatalogRevision: string | null = null;
   let hostMappingsSnapshot: HostMapping[] | null = null;
+  let hostMappingGroupsSnapshot: HostMappingGroup[] | null = null;
+  let hostMappingGroupedViewSnapshot: boolean | null = null;
   let hostMappingsSnapshotRequestId = 0;
   let hostMappingsSavePromise: Promise<HostMapping[]> | null = null;
 
@@ -108,7 +111,6 @@ export const useConfigStore = defineStore("config", () => {
     const requestId = ++hostMappingsSnapshotRequestId;
     const snapshot = await ConfigAPI.getHostMappings();
     if (requestId === hostMappingsSnapshotRequestId) {
-      hostMappingsRevision = snapshot.revision;
       hostMappingsSnapshot = snapshot.mappings;
       if (config.value) {
         config.value = {
@@ -193,15 +195,28 @@ export const useConfigStore = defineStore("config", () => {
       };
     })()
       .then(({ snapshot, hostMappingsRequestId }) => {
-        let next = snapshot.config;
+        let next: AppConfig = {
+          ...snapshot.config,
+          host_mapping_groups: snapshot.config.host_mapping_groups ?? [],
+          host_mapping_grouped_view:
+            snapshot.config.host_mapping_grouped_view === true,
+        };
         if (requestId === loadConfigRequestId) {
           if (hostMappingsRequestId === hostMappingsSnapshotRequestId) {
-            hostMappingsRevision = snapshot.hostMappingsRevision;
+            hostMappingCatalogRevision = snapshot.hostMappingCatalogRevision;
             hostMappingsSnapshot = next.host_mappings;
+            hostMappingGroupsSnapshot = next.host_mapping_groups;
+            hostMappingGroupedViewSnapshot =
+              next.host_mapping_grouped_view;
           } else if (hostMappingsSnapshot) {
             next = {
               ...next,
               host_mappings: hostMappingsSnapshot,
+              host_mapping_groups:
+                hostMappingGroupsSnapshot ?? next.host_mapping_groups,
+              host_mapping_grouped_view:
+                hostMappingGroupedViewSnapshot ??
+                next.host_mapping_grouped_view,
             };
           }
           config.value = next;
@@ -280,15 +295,22 @@ export const useConfigStore = defineStore("config", () => {
     const requestId = ++hostMappingsSnapshotRequestId;
     let reloadConfigAfterSave = false;
     const request = (async () => {
-      const snapshot = await ConfigAPI.updateHostMappings(
+      const groups = config.value?.host_mapping_groups ?? [];
+      const groupedView =
+        config.value?.host_mapping_grouped_view === true;
+      const snapshot = await ConfigAPI.updateHostMappingCatalog(
         mappings,
-        hostMappingsRevision,
+        groups,
+        groupedView,
+        hostMappingCatalogRevision,
         refreshedFaviconHosts,
         refreshedTitleHosts,
       );
       if (requestId === hostMappingsSnapshotRequestId) {
-        hostMappingsRevision = snapshot.revision;
+        hostMappingCatalogRevision = snapshot.revision;
         hostMappingsSnapshot = snapshot.mappings;
+        hostMappingGroupsSnapshot = snapshot.groups;
+        hostMappingGroupedViewSnapshot = snapshot.groupedView;
       }
       const nextMappings = snapshot.mappings;
       if (!config.value) {
@@ -301,6 +323,8 @@ export const useConfigStore = defineStore("config", () => {
       config.value = {
         ...config.value,
         host_mappings: nextMappings,
+        host_mapping_groups: snapshot.groups,
+        host_mapping_grouped_view: snapshot.groupedView,
       };
       scheduleHostMappingsFollowUpRefresh(nextMappings, previousMappings);
       return nextMappings;
@@ -318,6 +342,55 @@ export const useConfigStore = defineStore("config", () => {
       await loadConfig({ force: true });
     }
     return nextMappings;
+  }
+
+  async function saveHostMappingCatalog(
+    mappings: HostMapping[],
+    groups: HostMappingGroup[],
+    groupedView = config.value?.host_mapping_grouped_view === true,
+  ) {
+    if (hostMappingsSavePromise) {
+      await hostMappingsSavePromise;
+    }
+    const requestId = ++hostMappingsSnapshotRequestId;
+    const request = (async () => {
+      const snapshot = await ConfigAPI.updateHostMappingCatalog(
+        mappings,
+        groups,
+        groupedView,
+        hostMappingCatalogRevision,
+      );
+      if (requestId === hostMappingsSnapshotRequestId) {
+        hostMappingCatalogRevision = snapshot.revision;
+        hostMappingsSnapshot = snapshot.mappings;
+        hostMappingGroupsSnapshot = snapshot.groups;
+        hostMappingGroupedViewSnapshot = snapshot.groupedView;
+      }
+      if (config.value) {
+        const previousMappings = config.value.host_mappings;
+        config.value = {
+          ...config.value,
+          host_mappings: snapshot.mappings,
+          host_mapping_groups: snapshot.groups,
+          host_mapping_grouped_view: snapshot.groupedView,
+        };
+        scheduleHostMappingsFollowUpRefresh(
+          snapshot.mappings,
+          previousMappings,
+        );
+      } else {
+        await loadConfig({ force: true });
+      }
+      return snapshot.mappings;
+    })();
+    hostMappingsSavePromise = request;
+    try {
+      return await request;
+    } finally {
+      if (hostMappingsSavePromise === request) {
+        hostMappingsSavePromise = null;
+      }
+    }
   }
 
   async function refreshAllHostMappingTitles() {
@@ -497,6 +570,7 @@ export const useConfigStore = defineStore("config", () => {
     saveAutoManageFirewall,
     saveProxyMappings,
     saveHostMappings,
+    saveHostMappingCatalog,
     refreshAllHostMappingTitles,
     saveStreamMappings,
     saveSubdomainMode,

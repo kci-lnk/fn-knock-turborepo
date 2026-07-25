@@ -47,47 +47,158 @@ pub(super) fn build_bookmarks_document(
         ),
         "  <DL><p>".to_string(),
     ];
-    if let Some(mappings) = config.get("host_mappings").and_then(Value::as_array) {
-        for mapping in mappings {
-            let Some(object) = mapping.as_object() else {
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let groups = if host_mapping_grouped_view_from_config(config) {
+        normalize_host_mapping_groups(host_mapping_groups_from_config(config)).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    if groups.is_empty() {
+        for mapping in &mappings {
+            append_bookmark_mapping(
+                &mut lines,
+                mapping,
+                "    ",
+                scheme,
+                &access_entry_port,
+                omit_access_entry_port,
+                add_date,
+            );
+        }
+    } else {
+        let valid_group_ids = groups
+            .iter()
+            .filter_map(|group| group.get("id").and_then(Value::as_str))
+            .collect::<HashSet<_>>();
+        for group in &groups {
+            let Some(group_id) = group.get("id").and_then(Value::as_str) else {
                 continue;
             };
-            if object
-                .get("target")
-                .and_then(Value::as_str)
-                .is_some_and(is_auth_service_target)
-            {
+            let members = mappings
+                .iter()
+                .filter(|mapping| {
+                    !mapping
+                        .get("target")
+                        .and_then(Value::as_str)
+                        .is_some_and(is_auth_service_target)
+                        && mapping.get("group_id").and_then(Value::as_str) == Some(group_id)
+                })
+                .collect::<Vec<_>>();
+            if members.is_empty() {
                 continue;
             }
-            let host = object
-                .get("host")
-                .and_then(Value::as_str)
-                .map(normalize_host_value)
-                .unwrap_or_default();
-            if host.is_empty() {
-                continue;
+            let name = group.get("name").and_then(Value::as_str).unwrap_or("");
+            append_bookmark_group_start(&mut lines, name, add_date);
+            for mapping in members {
+                append_bookmark_mapping(
+                    &mut lines,
+                    mapping,
+                    "      ",
+                    scheme,
+                    &access_entry_port,
+                    omit_access_entry_port,
+                    add_date,
+                );
             }
-            let href = build_bookmark_url(
-                &host,
-                scheme,
-                Some(&access_entry_port),
-                omit_access_entry_port,
+            append_bookmark_group_end(&mut lines);
+        }
+        let ungrouped = mappings
+            .iter()
+            .filter(|mapping| {
+                !mapping
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .is_some_and(is_auth_service_target)
+                    && mapping
+                        .get("group_id")
+                        .and_then(Value::as_str)
+                        .is_none_or(|id| !valid_group_ids.contains(id))
+            })
+            .collect::<Vec<_>>();
+        if !ungrouped.is_empty() {
+            append_bookmark_group_start(
+                &mut lines,
+                &translator.t("server.admin.hostMappings.ungrouped"),
+                add_date,
             );
-            let title = resolve_bookmark_title(object, &host);
-            let icon_attribute = resolve_bookmark_icon(object)
-                .map(|icon| format!(" ICON=\"{}\"", escape_html(icon)))
-                .unwrap_or_default();
-            lines.push(format!(
-                "    <DT><A HREF=\"{}\" ADD_DATE=\"{add_date}\"{icon_attribute}>{}</A>",
-                escape_html(&href),
-                escape_html(&title)
-            ));
+            for mapping in ungrouped {
+                append_bookmark_mapping(
+                    &mut lines,
+                    mapping,
+                    "      ",
+                    scheme,
+                    &access_entry_port,
+                    omit_access_entry_port,
+                    add_date,
+                );
+            }
+            append_bookmark_group_end(&mut lines);
         }
     }
     lines.push("  </DL><p>".to_string());
     lines.push("</DL><p>".to_string());
     lines.push(String::new());
     lines.join("\n")
+}
+
+fn append_bookmark_group_start(lines: &mut Vec<String>, name: &str, add_date: i64) {
+    lines.push(format!(
+        "    <DT><H3 ADD_DATE=\"{add_date}\" LAST_MODIFIED=\"{add_date}\">{}</H3>",
+        escape_html(name)
+    ));
+    lines.push("    <DL><p>".to_string());
+}
+
+fn append_bookmark_group_end(lines: &mut Vec<String>) {
+    lines.push("    </DL><p>".to_string());
+}
+
+fn append_bookmark_mapping(
+    lines: &mut Vec<String>,
+    mapping: &Value,
+    indent: &str,
+    scheme: &str,
+    access_entry_port: &str,
+    omit_access_entry_port: bool,
+    add_date: i64,
+) {
+    let Some(object) = mapping.as_object() else {
+        return;
+    };
+    if object
+        .get("target")
+        .and_then(Value::as_str)
+        .is_some_and(is_auth_service_target)
+    {
+        return;
+    }
+    let host = object
+        .get("host")
+        .and_then(Value::as_str)
+        .map(normalize_host_value)
+        .unwrap_or_default();
+    if host.is_empty() {
+        return;
+    }
+    let href = build_bookmark_url(
+        &host,
+        scheme,
+        Some(access_entry_port),
+        omit_access_entry_port,
+    );
+    let title = resolve_bookmark_title(object, &host);
+    let icon_attribute = resolve_bookmark_icon(object)
+        .map(|icon| format!(" ICON=\"{}\"", escape_html(icon)))
+        .unwrap_or_default();
+    lines.push(format!(
+        "{indent}<DT><A HREF=\"{}\" ADD_DATE=\"{add_date}\"{icon_attribute}>{}</A>",
+        escape_html(&href),
+        escape_html(&title)
+    ));
 }
 
 pub(super) fn resolve_bookmark_scheme(config: &Value) -> &'static str {

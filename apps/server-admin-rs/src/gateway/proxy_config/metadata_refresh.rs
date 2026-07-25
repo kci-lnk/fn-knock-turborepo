@@ -305,7 +305,10 @@ pub(super) async fn sync_gateway_portal_host_rules_if_title_mode(
     if !is_gateway_portal_title_mode(config) || !is_any_subdomain_routing_mode(config) {
         return Ok(false);
     }
-    sync_go_host_rules_locked(state, &build_host_rules_payload(mappings)).await?;
+    let mut next_config = config.clone();
+    ensure_object(&mut next_config)
+        .insert("host_mappings".to_string(), Value::Array(mappings.to_vec()));
+    sync_go_host_rules_locked(state, &build_host_rules_payload_for_config(&next_config)).await?;
     Ok(true)
 }
 

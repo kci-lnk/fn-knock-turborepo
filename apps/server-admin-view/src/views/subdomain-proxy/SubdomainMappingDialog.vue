@@ -36,7 +36,8 @@ import SubdomainMappingVisibilityPanel from "./SubdomainMappingVisibilityPanel.v
 import SubdomainMappingIconPanel from "./SubdomainMappingIconPanel.vue";
 import SubdomainMappingIconEntry from "./SubdomainMappingIconEntry.vue";
 import SubdomainMappingTargetField from "./SubdomainMappingTargetField.vue";
-import type { HostMapping } from "@/types";
+import SubdomainMappingGroupField from "./SubdomainMappingGroupField.vue";
+import type { HostMapping, HostMappingGroup } from "@/types";
 import type { MappingInputMode } from "./model";
 import { useMappingVisibility } from "./useMappingVisibility";
 import type { useMappingIcon } from "./useMappingIcon";
@@ -52,6 +53,7 @@ const props = defineProps<{
   gatewayHostResponseBlockedReason: string;
   gatewayProxyHeadersBlockedReason: string;
   globalWafEnabled: boolean;
+  groups: HostMappingGroup[];
   handleFocusIn: (event: FocusEvent) => void;
   handleInputModeChange: (mode: MappingInputMode) => void;
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
@@ -335,6 +337,14 @@ const mappingWafEnabledModel = computed({
               :model-value="mappingForm.target"
               :open="open"
               @update:model-value="updateMappingForm({ target: $event })"
+            />
+
+            <SubdomainMappingGroupField
+              v-if="groups.length > 0 && !isMappingAuthService"
+              :model-value="mappingForm.group_id"
+              :groups="groups"
+              :disabled="isSavingMappings"
+              @update:model-value="updateMappingForm({ group_id: $event })"
             />
 
             <div class="space-y-3 pt-2">

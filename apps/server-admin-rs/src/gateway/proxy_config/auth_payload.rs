@@ -1,11 +1,38 @@
 use super::*;
 
+#[cfg(test)]
 pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
+    build_host_rules_payload_with_groups(mappings, &[])
+}
+
+pub(crate) fn build_host_rules_payload_for_config(config: &Value) -> Value {
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if !host_mapping_grouped_view_from_config(config) {
+        return build_host_rules_payload_with_groups(&mappings, &[]);
+    }
+    let groups =
+        normalize_host_mapping_groups(host_mapping_groups_from_config(config)).unwrap_or_default();
+    let ordered = ordered_host_mappings_for_groups(&mappings, &groups);
+    build_host_rules_payload_with_groups(&ordered, &groups)
+}
+
+fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) -> Value {
+    let group_names = host_mapping_group_names(groups);
     Value::Array(
         mappings
             .iter()
             .filter_map(Value::as_object)
             .map(|object| {
+                let group_id = object
+                    .get("group_id")
+                    .and_then(Value::as_str)
+                    .filter(|id| group_names.contains_key(*id))
+                    .unwrap_or("");
+                let group_name = group_names.get(group_id).map(String::as_str).unwrap_or("");
                 let title = resolve_host_rule_title(object);
                 let favicon = object
                     .get("favicon_override")
@@ -37,6 +64,8 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
                     })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
                     "advanced_auth": object.get("advanced_auth").cloned().unwrap_or(Value::Null),
                     "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
+                    "group_id": group_id,
+                    "group_name": group_name,
                     "title": title,
                     "favicon": favicon,
                     "basic_auth": object.get("basic_auth").cloned().unwrap_or_else(disabled_host_basic_auth),

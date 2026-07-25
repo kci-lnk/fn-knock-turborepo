@@ -62,6 +62,7 @@ export const useSubdomainDiscoverFlow = ({
   translate: (key: string, params?: TranslationParams) => string;
 }) => {
   const discoverDialogRef = ref<DiscoverDialogHandle | null>(null);
+  const discoverGroupId = ref<string | null>(null);
   const discoverAbortController = ref<AbortController | null>(null);
   const discoverProgress = ref<ScanDiscoverProgress | null>(null);
   const setDiscoverDialogRef = (
@@ -325,7 +326,10 @@ export const useSubdomainDiscoverFlow = ({
           fallbackHost: discoveredData.value?.host,
           rootDomain: savedRootDomain.value,
           services: selectedServices.value,
-        }),
+        }).map((mapping) => ({
+          ...mapping,
+          group_id: discoverGroupId.value,
+        })),
       ];
 
       await saveHostMappings(next);
@@ -340,6 +344,7 @@ export const useSubdomainDiscoverFlow = ({
 
   return {
     discoveredData,
+    discoverGroupId,
     discoverProgress,
     dismissDiscoverDialog,
     handleDiscoverDialogOpenChange,

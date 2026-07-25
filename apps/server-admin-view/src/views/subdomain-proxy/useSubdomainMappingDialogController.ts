@@ -299,12 +299,15 @@ export const useSubdomainMappingDialogController = ({
     mappingIcon.resetIconEditor();
   }
 
-  function openCreateDialog() {
+  function openCreateDialog(groupId: string | null = null) {
     editingHost.value = null;
     resetMappingDraftInput();
     mappingMetadataTarget.value = "";
     faviconMetadataTarget.value = "";
-    Object.assign(mappingForm, createDefaultMapping());
+    Object.assign(mappingForm, {
+      ...createDefaultMapping(),
+      group_id: groupId,
+    });
     resetMappingAdvancedState("");
     isDialogOpen.value = true;
     void Promise.all([

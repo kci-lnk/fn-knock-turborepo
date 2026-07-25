@@ -122,6 +122,7 @@ export const useSubdomainDestructiveActions = ({
         ...allMappings.value,
         {
           host,
+          group_id: null,
           target,
           waf_enabled: true,
           use_auth: false,

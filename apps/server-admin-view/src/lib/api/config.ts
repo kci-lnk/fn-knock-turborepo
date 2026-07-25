@@ -36,6 +36,7 @@ import type {
   GatewayVisibilityDetails,
   HostMapping,
   HostMappingBasicAuth,
+  HostMappingGroup,
   HostMappingRefreshSummary,
   LocaleConfig,
   OIDCBinding,
@@ -70,6 +71,7 @@ import {
 } from "./host-mapping-payload";
 
 const HOST_MAPPINGS_REVISION_HEADER = "x-host-mappings-revision";
+const HOST_MAPPING_CATALOG_REVISION_HEADER = "x-host-mapping-catalog-revision";
 
 const hostMappingsRevisionFromHeaders = (
   headers: Record<string, unknown>,
@@ -81,11 +83,20 @@ const hostMappingsRevisionFromHeaders = (
 export interface RevisionedConfig {
   config: AppConfig;
   hostMappingsRevision: string | null;
+  hostMappingCatalogRevision: string | null;
 }
 
 export interface RevisionedHostMappings {
   mappings: HostMapping[];
   revision: string | null;
+}
+
+export interface RevisionedHostMappingCatalog {
+  mappings: HostMapping[];
+  groups: HostMappingGroup[];
+  groupedView: boolean;
+  revision: string | null;
+  hostMappingsRevision: string | null;
 }
 
 export interface AdvancedAuthDetails {
@@ -124,6 +135,7 @@ export type {
   GatewayVisibilityDetails,
   HostMapping,
   HostMappingBasicAuth,
+  HostMappingGroup,
   HostMappingRefreshSummary,
   LocaleConfig,
   OIDCBinding,
@@ -192,6 +204,10 @@ export const ConfigAPI = {
     return {
       config: res.data.data,
       hostMappingsRevision: hostMappingsRevisionFromHeaders(res.headers),
+      hostMappingCatalogRevision:
+        String(
+          res.headers[HOST_MAPPING_CATALOG_REVISION_HEADER] ?? "",
+        ).trim() || null,
     };
   },
   async getLocaleConfig(): Promise<LocaleConfig> {
@@ -279,6 +295,65 @@ export const ConfigAPI = {
     return {
       mappings: res.data.data,
       revision: hostMappingsRevisionFromHeaders(res.headers),
+    };
+  },
+  async getHostMappingCatalog(): Promise<RevisionedHostMappingCatalog> {
+    const res = await apiClient.get("/config/host_mapping_catalog");
+    const data = res.data.data;
+    return {
+      mappings: data.mappings,
+      groups: data.groups,
+      groupedView: data.grouped_view === true,
+      revision:
+        String(
+          res.headers[HOST_MAPPING_CATALOG_REVISION_HEADER] ??
+            data.revision ??
+            "",
+        ).trim() || null,
+      hostMappingsRevision: hostMappingsRevisionFromHeaders(res.headers),
+    };
+  },
+  async updateHostMappingCatalog(
+    mappings: HostMapping[],
+    groups: HostMappingGroup[],
+    groupedView: boolean,
+    revision: string | null,
+    refreshedFaviconHosts: ReadonlySet<string> = new Set(),
+    refreshedTitleHosts: ReadonlySet<string> = new Set(),
+  ): Promise<RevisionedHostMappingCatalog> {
+    const res = await apiClient.post(
+      "/config/host_mapping_catalog",
+      {
+        mappings: mappings.map((mapping) =>
+          toHostMappingUpdatePayload(mapping, {
+            includeFavicon: refreshedFaviconHosts.has(mapping.host),
+            includeTitle: refreshedTitleHosts.has(mapping.host),
+          }),
+        ),
+        groups,
+        grouped_view: groupedView,
+        ...(revision ? { revision } : {}),
+      },
+      revision
+        ? {
+            headers: {
+              [HOST_MAPPING_CATALOG_REVISION_HEADER]: revision,
+            },
+          }
+        : undefined,
+    );
+    const data = res.data.data;
+    return {
+      mappings: data.mappings,
+      groups: data.groups,
+      groupedView: data.grouped_view === true,
+      revision:
+        String(
+          res.headers[HOST_MAPPING_CATALOG_REVISION_HEADER] ??
+            data.revision ??
+            "",
+        ).trim() || null,
+      hostMappingsRevision: hostMappingsRevisionFromHeaders(res.headers),
     };
   },
   async updateHostMappings(
@@ -816,10 +891,9 @@ export const MaintenanceAPI = {
   async importBackupFromAutomatic(
     path: string,
   ): Promise<FnKnockBackupImportResult> {
-    const res = await apiClient.post(
-      "/maintenance/backup/import/automatic",
-      { path },
-    );
+    const res = await apiClient.post("/maintenance/backup/import/automatic", {
+      path,
+    });
     return res.data.data;
   },
   async clearAllData(confirmation: string): Promise<{ cleared_keys: number }> {

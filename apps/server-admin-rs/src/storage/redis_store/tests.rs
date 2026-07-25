@@ -156,7 +156,14 @@ async fn backup_prefix_replace_ignores_imported_host_generation_and_sets_trusted
         .await
         .expect("seed config and generation");
     let restored_config = json!({
-        "host_mappings": [{ "host": "restored.example.com" }],
+        "host_mapping_groups": [{
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "Restored"
+        }],
+        "host_mappings": [{
+            "host": "restored.example.com",
+            "group_id": "11111111-1111-4111-8111-111111111111"
+        }],
         "unrelated": { "restored": true }
     });
     let entries = vec![
@@ -189,6 +196,10 @@ async fn backup_prefix_replace_ignores_imported_host_generation_and_sets_trusted
     );
     let restored = store.get_config().await.unwrap();
     assert_eq!(restored["host_mappings"], restored_config["host_mappings"]);
+    assert_eq!(
+        restored["host_mapping_groups"],
+        restored_config["host_mapping_groups"]
+    );
     assert_eq!(restored["unrelated"], restored_config["unrelated"]);
 }
 
@@ -413,6 +424,53 @@ async fn host_mapping_section_cas_requires_an_exact_array_and_preserves_other_se
 }
 
 #[tokio::test]
+async fn host_mapping_catalog_cas_updates_both_sections_atomically() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let mappings = vec![json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "group_id": null
+    })];
+    store
+        .save_config(&json!({
+            "host_mappings": mappings,
+            "host_mapping_groups": [],
+            "unrelated": { "preserved": true }
+        }))
+        .await
+        .expect("seed config");
+    let groups = vec![json!({
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Media"
+    })];
+    let grouped = vec![json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "group_id": "11111111-1111-4111-8111-111111111111"
+    })];
+    let updated = store
+        .compare_and_set_host_mapping_catalog(&mappings, &[], false, &grouped, &groups, true)
+        .await
+        .expect("catalog CAS")
+        .expect("catalog matched");
+    assert_eq!(updated["host_mappings"], json!(grouped));
+    assert_eq!(updated["host_mapping_groups"], json!(groups));
+    assert_eq!(updated["host_mapping_grouped_view"], json!(true));
+    assert_eq!(updated["unrelated"]["preserved"], json!(true));
+
+    assert!(
+        store
+            .compare_and_set_host_mapping_catalog(&mappings, &[], false, &[], &[], false)
+            .await
+            .expect("stale catalog CAS")
+            .is_none()
+    );
+}
+
+#[tokio::test]
 async fn gateway_target_section_merge_preserves_newer_config_and_section_writes() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("fn-knock.sqlite3");
@@ -580,6 +638,10 @@ async fn config_generation_fence_handles_missing_reset_and_explicit_full_replace
     let host_b = vec![json!({ "host": "b.example.com" })];
     let host_c = vec![json!({ "host": "c.example.com" })];
     let host_d = vec![json!({ "host": "d.example.com" })];
+    let groups_d = vec![json!({
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Imported"
+    })];
 
     store
         .save_config(&json!({
@@ -655,12 +717,14 @@ async fn config_generation_fence_handles_missing_reset_and_explicit_full_replace
     store
         .replace_config(&json!({
             "host_mappings": host_d,
+            "host_mapping_groups": groups_d,
             "unrelated": { "generation": 4 }
         }))
         .await
         .expect("marker-free import remains an explicit replacement");
     let imported = store.get_config().await.unwrap();
     assert_eq!(imported["host_mappings"], json!(host_d));
+    assert_eq!(imported["host_mapping_groups"], json!(groups_d));
     assert_eq!(imported["unrelated"]["generation"], json!(4));
     assert_eq!(
         store
@@ -1236,6 +1300,8 @@ fn default_config_top_level_keys_match_node_default_config() {
         "whitelist_ips",
         "proxy_mappings",
         "host_mappings",
+        "host_mapping_groups",
+        "host_mapping_grouped_view",
         "stream_mappings",
         "subdomain_mode",
         "ssl",

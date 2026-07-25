@@ -180,6 +180,7 @@ export interface HostLocation {
 
 export interface HostMapping {
   host: string;
+  group_id: string | null;
   target: string;
   waf_enabled: boolean;
   use_auth: boolean;
@@ -199,6 +200,11 @@ export interface HostMapping {
   favicon: string;
   favicon_override: string;
   advanced_auth?: AdvancedAuthConfig;
+}
+
+export interface HostMappingGroup {
+  id: string;
+  name: string;
 }
 
 export interface HostMappingRefreshSummary {
@@ -833,6 +839,8 @@ export interface AppConfig {
   default_route: string;
   proxy_mappings: ProxyMapping[];
   host_mappings: HostMapping[];
+  host_mapping_groups: HostMappingGroup[];
+  host_mapping_grouped_view: boolean;
   stream_mappings: StreamMapping[];
   subdomain_mode: SubdomainModeConfig;
   default_tunnel?: "frp" | "cloudflared";

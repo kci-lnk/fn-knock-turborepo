@@ -362,9 +362,8 @@ function closeDialog() {
 }
 
 .scan-pressure-popup-action:focus-visible {
-  border-radius: 2px;
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+  outline: none;
+  text-decoration: underline;
 }
 
 .scan-pressure-popup-action:disabled {

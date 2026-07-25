@@ -39,6 +39,7 @@ const args = [
 const result = spawnSync("rg", args, {
   cwd: repoRoot,
   encoding: "utf8",
+  maxBuffer: 4 * 1024 * 1024,
 });
 
 if (result.status === 1) {

@@ -174,6 +174,7 @@ impl GoBackendClient {
             "blacklist",
             "logs",
             "lifecycle",
+            "host_rule_groups_v1",
         ] {
             if !capabilities
                 .iter()
@@ -1297,6 +1298,16 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                     visibility: parse_host_rule_visibility(item.get("visibility")),
                     advanced_auth: parse_advanced_auth(item.get("advanced_auth")),
                     protocol_mode: string_field(item, "protocol_mode"),
+                    group_id: item
+                        .get("group_id")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .map(ToString::to_string),
+                    group_name: item
+                        .get("group_name")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .map(ToString::to_string),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
                     basic_auth: item.get("basic_auth").map(parse_basic_auth),
@@ -1566,6 +1577,8 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                     })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
                     "advanced_auth": advanced_auth_to_json(item.advanced_auth),
                     "protocol_mode": item.protocol_mode,
+                    "group_id": item.group_id,
+                    "group_name": item.group_name,
                     "title": item.title,
                     "favicon": item.favicon,
                     "basic_auth": item.basic_auth.map(|auth| json!({
@@ -2042,5 +2055,18 @@ mod tests {
                 "upstream_error_detail": "more"
             })
         );
+    }
+
+    #[test]
+    fn flat_host_rule_payload_explicitly_clears_group_metadata() {
+        let rules = parse_host_rules(&json!([{
+            "host": "app.example.test",
+            "target": "http://127.0.0.1:8080",
+            "group_id": "",
+            "group_name": ""
+        }]));
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].group_id.as_deref(), Some(""));
+        assert_eq!(rules[0].group_name.as_deref(), Some(""));
     }
 }

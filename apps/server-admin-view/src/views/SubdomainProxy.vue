@@ -23,11 +23,11 @@
       :saved-root-domain="savedRootDomain"
       :select-edge-client-ip-provider="selectEdgeClientIpProvider"
     />
-
     <SubdomainMappingsCard
       v-model:draggable-mappings="draggableVisibleMappings"
       v-model:search-query="searchQuery"
       :all-mappings-count="allMappings.length"
+      :all-regular-mappings="visibleMappings"
       :auth-service-mapping="authServiceMapping"
       :can-manage-new-mappings="canManageNewMappings"
       :discover-button-divider-class="discoverButtonDividerClass"
@@ -41,6 +41,8 @@
       :get-mapping-title-for-display="getMappingTitleForDisplay"
       :global-visibility-enabled="globalVisibilityEnabled"
       :global-waf-enabled="globalWafEnabled"
+      :grouped-view="hostMappingGroupedView"
+      :groups="hostMappingGroups"
       :handle-mapping-status-tooltip-open-change="
         handleMappingStatusTooltipOpenChange
       "
@@ -83,6 +85,7 @@
       @delete="openDeleteMappingDialog"
       @edit="openEditDialog"
       @export-bookmarks="exportBookmarks"
+      @move-mappings="moveMappingsToGroup"
       @open-clear-all-config="openClearAllConfigDialog"
       @open-create="openCreateDialog"
       @open-discover="openDiscoverDialog"
@@ -93,9 +96,12 @@
       @open-stale-cleanup="openStaleCleanupDialog"
       @refresh-all-titles="refreshAllTitles"
       @save-order="saveMappingOrder"
+      @save-grouped-order="saveGroupedMappingOrder"
+      @save-groups="saveMappingGroups"
       @set-default="setDefaultMapping"
       @sync-routes="syncRoutes"
       @toggle-enabled="openToggleMappingDialog"
+      @update-grouped-view="updateHostMappingGroupedView"
     />
 
     <ScanDiscoveryIntensityDialog
@@ -115,6 +121,7 @@
       :gateway-host-response-blocked-reason="gatewayHostResponseBlockedReason"
       :gateway-proxy-headers-blocked-reason="gatewayProxyHeadersBlockedReason"
       :global-waf-enabled="globalWafEnabled"
+      :groups="hostMappingGroups"
       :handle-focus-in="handleMappingDialogFocusIn"
       :handle-input-mode-change="handleMappingInputModeChange"
       :handle-portal-disabled-tooltip-open-change="
@@ -203,9 +210,11 @@
     />
 
     <SubdomainDiscoverDialog
+      v-model:group-id="discoverGroupId"
       :ref="setDiscoverDialogRef"
       :open="isDiscoverDialogOpen"
       :domain="savedRootDomain"
+      :groups="hostMappingGroups"
       :is-settings-open="isDiscoverSettingsOpen"
       :is-discovering="isDiscovering"
       :discover-progress="discoverProgress"
@@ -228,7 +237,7 @@
     <StaleHostMappingsCleanupDialog
       ref="staleCleanupDialogRef"
       :mappings="allMappings"
-      :save-mappings="saveHostMappingsForCleanup"
+      :save-mappings="configStore.saveHostMappings"
       :is-auth-service-target="isAuthServiceTarget"
     />
   </div>
@@ -282,6 +291,7 @@ import { useSubdomainMappingListActions } from "./subdomain-proxy/useSubdomainMa
 import { useSubdomainModeConfig } from "./subdomain-proxy/useSubdomainModeConfig";
 import { useSubdomainDestructiveActions } from "./subdomain-proxy/useSubdomainDestructiveActions";
 import { useGatewayVisibilityStatus } from "./subdomain-proxy/useGatewayVisibilityStatus";
+import { useSubdomainMappingGroups } from "./subdomain-proxy/useSubdomainMappingGroups";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -366,6 +376,12 @@ const savedEdgeClientIpProviderLabel = computed(() =>
     : "",
 );
 const allMappings = computed(() => configStore.config?.host_mappings ?? []);
+const hostMappingGroups = computed(
+  () => configStore.config?.host_mapping_groups ?? [],
+);
+const hostMappingGroupedView = computed(
+  () => configStore.config?.host_mapping_grouped_view === true,
+);
 const {
   authServiceMapping,
   discoverButtonDividerClass,
@@ -380,6 +396,7 @@ const {
   allMappings,
   draggableVisibleMappings,
   formatHostWithAccessEntryPort,
+  groups: hostMappingGroups,
   isAuthServiceTarget,
   searchQuery,
   trafficRealtimeStats,
@@ -421,6 +438,11 @@ const isSubdomainModeConfigured = computed(() => {
 });
 const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
   onError: (error) => {
+    if (
+      (error as { response?: { status?: number } })?.response?.status === 409
+    ) {
+      void configStore.loadConfig({ force: true });
+    }
     toast.error(t("admin.subdomainProxy.saveFailed"), {
       description: extractErrorMessage(
         error,
@@ -428,6 +450,22 @@ const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
       ),
     });
   },
+});
+
+const {
+  moveMappingsToGroup,
+  saveGroupedMappingOrder,
+  saveMappingGroups,
+  updateHostMappingGroupedView,
+} = useSubdomainMappingGroups({
+  allMappings,
+  groupedView: hostMappingGroupedView,
+  groups: hostMappingGroups,
+  isAuthServiceTarget,
+  runSaveMappings,
+  saveCatalog: (mappings, groups, groupedView) =>
+    configStore.saveHostMappingCatalog(mappings, groups, groupedView),
+  translate: (key) => t(key),
 });
 const {
   advanceClearAllConfirmation,
@@ -599,6 +637,7 @@ const {
 
 const {
   discoveredData,
+  discoverGroupId,
   discoverProgress,
   dismissDiscoverDialog,
   handleDiscoverDialogOpenChange,
@@ -627,46 +666,13 @@ const {
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 
-const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.subdomainProxy.syncFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.subdomainProxy.syncGatewayFailed"),
-      ),
-    });
-  },
-});
-
-const { isPending: isRefreshingTitles, run: runRefreshTitles } = useAsyncAction(
-  {
-    onError: (error) => {
-      toast.error(t("admin.subdomainProxy.refreshFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.subdomainProxy.refreshAllTitlesFailed"),
-        ),
-      });
-    },
-  },
-);
-
-const { isPending: isExportingBookmarks, run: runExportBookmarks } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(t("admin.subdomainProxy.exportFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.subdomainProxy.exportBookmarksFailed"),
-        ),
-      });
-    },
-  });
-
 const {
   clearDefaultMapping,
   copyMappingHost,
   exportBookmarks,
+  isExportingBookmarks,
+  isRefreshingTitles,
+  isSyncing,
   openGatewayLocations,
   refreshAllTitles,
   saveMappingOrder,
@@ -689,10 +695,7 @@ const {
   },
   refreshAllHostMappingTitles: () => configStore.refreshAllHostMappingTitles(),
   resetFaviconErrors,
-  runExportBookmarks,
-  runRefreshTitles,
   runSaveMappings,
-  runSyncRoutes,
   saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
   savedRootDomain,
   syncDraggableVisibleMappings,
@@ -753,8 +756,4 @@ function openAdvancedAuth(host: string) {
     path: `/subdomains/${encodeURIComponent(host)}/advanced-auth`,
   });
 }
-
-const saveHostMappingsForCleanup = async (mappings: HostMapping[]) => {
-  await configStore.saveHostMappings(mappings);
-};
 </script>

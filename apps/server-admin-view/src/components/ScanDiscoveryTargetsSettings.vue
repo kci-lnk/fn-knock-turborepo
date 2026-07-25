@@ -85,34 +85,35 @@
       <div
         v-for="target in allTargets"
         :key="target.cidr"
-        class="flex items-start gap-3 rounded-md border bg-background p-3 transition-colors hover:bg-muted/40"
+        class="relative rounded-md border bg-background transition-colors hover:bg-muted/40"
       >
-        <input
-          :id="`scan-target-${target.cidr}`"
-          type="checkbox"
-          class="mt-0.5 h-4 w-4 cursor-pointer"
-          :checked="selectedSet.has(target.cidr)"
-          :disabled="isLoading || isSaving"
-          @change="toggleCidr(target.cidr, $event)"
-        />
         <label
           :for="`scan-target-${target.cidr}`"
-          class="min-w-0 flex-1 cursor-pointer space-y-1"
+          class="flex cursor-pointer items-start gap-3 p-3"
+          :class="{ 'pr-12': customCidrs.includes(target.cidr) }"
         >
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-mono text-sm">{{ target.cidr }}</span>
-            <Badge variant="secondary">{{
-              getSourceLabel(target.source)
-            }}</Badge>
-            <Badge v-if="target.isAutomatic" variant="outline">
-              {{ t("admin.scanTargets.automatic") }}
-            </Badge>
+          <input
+            :id="`scan-target-${target.cidr}`"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 cursor-pointer"
+            :checked="selectedSet.has(target.cidr)"
+            :disabled="isLoading || isSaving"
+            @change="toggleCidr(target.cidr, $event)"
+          />
+          <div class="min-w-0 flex-1 space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm">{{ target.cidr }}</span>
+              <Badge variant="secondary">{{
+                getSourceLabel(target.source)
+              }}</Badge>
+              <Badge v-if="target.isAutomatic" variant="outline">
+                {{ t("admin.scanTargets.automatic") }}
+              </Badge>
+            </div>
+            <p class="truncate text-xs text-muted-foreground">
+              {{ target.label }}
+            </p>
           </div>
-          <p class="truncate text-xs text-muted-foreground">
-            {{ target.label }}
-          </p>
-        </label>
-        <div class="flex shrink-0 items-center gap-2">
           <span class="text-xs text-muted-foreground">
             {{
               target.hostCount > 0
@@ -122,19 +123,19 @@
                 : t("admin.scanTargets.pendingSave")
             }}
           </span>
-          <Button
-            v-if="customCidrs.includes(target.cidr)"
-            type="button"
-            variant="ghost"
-            size="icon"
-            :aria-label="t('common.confirmDelete')"
-            class="h-7 w-7"
-            :disabled="isLoading || isSaving"
-            @click.prevent="removeCustomCidr(target.cidr)"
-          >
-            <Trash2 class="h-4 w-4" />
-          </Button>
-        </div>
+        </label>
+        <Button
+          v-if="customCidrs.includes(target.cidr)"
+          type="button"
+          variant="ghost"
+          size="icon"
+          :aria-label="t('common.confirmDelete')"
+          class="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
+          :disabled="isLoading || isSaving"
+          @click="removeCustomCidr(target.cidr)"
+        >
+          <Trash2 class="h-4 w-4" />
+        </Button>
       </div>
     </div>
 

@@ -6,6 +6,7 @@ import {
   buildGatewayUnmatchedRoutePatch,
   isDefaultDomainAvailableForBehavior,
   normalizeGatewayUnmatchedRouteBehavior,
+  normalizeGatewayUpstreamErrorDetail,
 } from "../src/lib/gatewayUnmatchedRoute";
 
 const readSource = (path: string) =>
@@ -21,9 +22,21 @@ test("gateway unmatched-route behavior normalizes legacy and invalid values", ()
 });
 
 test("gateway unmatched-route selection builds the unified-save patch", () => {
-  assert.deepEqual(buildGatewayUnmatchedRoutePatch("reset_connection"), {
-    unmatched_route: { behavior: "reset_connection" },
-  });
+  assert.deepEqual(
+    buildGatewayUnmatchedRoutePatch("reset_connection", "more"),
+    {
+      unmatched_route: {
+        behavior: "reset_connection",
+        upstream_error_detail: "more",
+      },
+    },
+  );
+});
+
+test("gateway upstream error detail defaults to less", () => {
+  assert.equal(normalizeGatewayUpstreamErrorDetail(), "less");
+  assert.equal(normalizeGatewayUpstreamErrorDetail("invalid"), "less");
+  assert.equal(normalizeGatewayUpstreamErrorDetail("more"), "more");
 });
 
 test("default-domain availability follows the behavior", () => {
@@ -43,9 +56,14 @@ test("gateway settings keeps unmatched-route selection inline and in unified sav
 
   assert.match(viewSource, /<GatewayUnmatchedRouteSettingRow/u);
   assert.match(viewSource, /v-model="form\.unmatched_route\.behavior"/u);
+  assert.match(viewSource, /<GatewayUpstreamErrorSettingRow/u);
+  assert.match(
+    viewSource,
+    /v-model="form\.unmatched_route\.upstream_error_detail"/u,
+  );
   assert.match(
     controllerSource,
-    /\.\.\.buildGatewayUnmatchedRoutePatch\(form\.unmatched_route\.behavior\)/u,
+    /\.\.\.buildGatewayUnmatchedRoutePatch\(\s*form\.unmatched_route\.behavior,\s*form\.unmatched_route\.upstream_error_detail,\s*\)/u,
   );
   assert.doesNotMatch(routerSource, /gateway-unmatched-route/u);
 });

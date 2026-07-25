@@ -175,6 +175,7 @@ message GatewayPortalConfig {
 
 message GatewayUnmatchedRouteConfig {
   string behavior = 1;
+  string upstream_error_detail = 2;
 }
 
 message FnosPortIconHijackConfig {

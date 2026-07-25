@@ -15,6 +15,7 @@ import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import GatewayEditorRow from "./GatewayEditorRow.vue";
 import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
 import GatewayUnmatchedRouteSettingRow from "./GatewayUnmatchedRouteSettingRow.vue";
+import GatewayUpstreamErrorSettingRow from "./GatewayUpstreamErrorSettingRow.vue";
 import { useGatewaySettingsController } from "./useGatewaySettingsController";
 
 const { t } = useI18n();
@@ -197,6 +198,11 @@ const {
         :error-page-label="t('admin.gatewaySettings.unmatchedRouteErrorPage')"
         :reset-connection-label="t('admin.gatewaySettings.unmatchedRouteReset')"
         :warning="t('admin.gatewaySettings.unmatchedRouteDefaultDomainWarning')"
+        :disabled="isGatewaySettingsBusy"
+      />
+
+      <GatewayUpstreamErrorSettingRow
+        v-model="form.unmatched_route.upstream_error_detail"
         :disabled="isGatewaySettingsBusy"
       />
 

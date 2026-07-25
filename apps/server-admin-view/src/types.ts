@@ -1301,9 +1301,11 @@ export type GatewayPortalConfig = {
 };
 
 export type GatewayUnmatchedRouteBehavior = "error_page" | "reset_connection";
+export type GatewayUpstreamErrorDetail = "less" | "more";
 
 export type GatewayUnmatchedRouteConfig = {
   behavior: GatewayUnmatchedRouteBehavior;
+  upstream_error_detail: GatewayUpstreamErrorDetail;
 };
 
 export type GatewayCrawlerBlockerConfig = {

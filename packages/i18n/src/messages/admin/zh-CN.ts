@@ -297,6 +297,11 @@ export const zhCNAdmin = {
       "阻断连接时，默认域名的兜底跳转会暂时停用；现有配置会保留，切回“展示错误页面”后自动恢复。",
     unmatchedRouteErrorPage: "展示错误页面",
     unmatchedRouteReset: "阻断连接",
+    upstreamErrorDetail: "上游异常时显示错误信息",
+    upstreamErrorDetailDescription:
+      "“显示更少”仅提示上游服务不可用，不向访问者暴露上游 IP、端口和底层连接错误；“显示更多”会展示完整连接错误，仅建议在排障时使用。",
+    upstreamErrorDetailLess: "显示更少",
+    upstreamErrorDetailMore: "显示更多",
     throttleTitle: "启用网关反代节流",
     throttleDescription:
       "按客户端 IP 做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。",

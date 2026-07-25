@@ -11,6 +11,7 @@ import { ConfigAPI } from "@/lib/api";
 import {
   buildGatewayUnmatchedRoutePatch,
   normalizeGatewayUnmatchedRouteBehavior,
+  normalizeGatewayUpstreamErrorDetail,
 } from "@/lib/gatewayUnmatchedRoute";
 import { useConfigStore } from "@/store/config";
 import type { GatewaySettings } from "@/types";
@@ -42,6 +43,7 @@ export const useGatewaySettingsController = () => {
     },
     unmatched_route: {
       behavior: "error_page",
+      upstream_error_detail: "less",
     },
     crawler_blocker: {
       enabled: false,
@@ -99,7 +101,10 @@ export const useGatewaySettingsController = () => {
       settings.value.reverse_proxy_throttle.block_seconds !==
         Number(form.reverse_proxy_throttle.block_seconds) ||
       settings.value.crawler_blocker.enabled !== form.crawler_blocker.enabled ||
-      settings.value.unmatched_route.behavior !== form.unmatched_route.behavior
+      settings.value.unmatched_route.behavior !==
+        form.unmatched_route.behavior ||
+      settings.value.unmatched_route.upstream_error_detail !==
+        form.unmatched_route.upstream_error_detail
     );
   });
 
@@ -181,6 +186,9 @@ export const useGatewaySettingsController = () => {
       behavior: normalizeGatewayUnmatchedRouteBehavior(
         data.unmatched_route?.behavior,
       ),
+      upstream_error_detail: normalizeGatewayUpstreamErrorDetail(
+        data.unmatched_route?.upstream_error_detail,
+      ),
     },
     reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
   });
@@ -196,6 +204,8 @@ export const useGatewaySettingsController = () => {
     form.portal.show_app_icon = snapshot.portal.show_app_icon;
     form.portal.icon_drag_mode = snapshot.portal.icon_drag_mode;
     form.unmatched_route.behavior = snapshot.unmatched_route.behavior;
+    form.unmatched_route.upstream_error_detail =
+      snapshot.unmatched_route.upstream_error_detail;
     form.crawler_blocker.enabled = snapshot.crawler_blocker.enabled;
     form.crawler_blocker.updated_at = snapshot.crawler_blocker.updated_at;
     form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
@@ -237,7 +247,10 @@ export const useGatewaySettingsController = () => {
           crawler_blocker: {
             enabled: form.crawler_blocker.enabled,
           },
-          ...buildGatewayUnmatchedRoutePatch(form.unmatched_route.behavior),
+          ...buildGatewayUnmatchedRoutePatch(
+            form.unmatched_route.behavior,
+            form.unmatched_route.upstream_error_detail,
+          ),
         }),
       {
         onSuccess: async (data) => {

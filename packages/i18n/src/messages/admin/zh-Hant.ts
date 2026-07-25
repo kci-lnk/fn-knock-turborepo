@@ -297,6 +297,11 @@ export const zhHantAdmin = {
       "阻斷連接時，預設域名的兜底跳轉會暫時停用；現有設定會保留，切回「顯示錯誤頁面」後自動恢復。",
     unmatchedRouteErrorPage: "顯示錯誤頁面",
     unmatchedRouteReset: "阻斷連接",
+    upstreamErrorDetail: "上游異常時顯示錯誤資訊",
+    upstreamErrorDetailDescription:
+      "「顯示更少」只提示上游服務不可用，不向訪問者暴露上游 IP、連接埠和底層連接錯誤；「顯示更多」會顯示完整連接錯誤，只建議在排障時使用。",
+    upstreamErrorDetailLess: "顯示更少",
+    upstreamErrorDetailMore: "顯示更多",
     throttleTitle: "啟用網關反代節流",
     throttleDescription:
       "按客戶端 IP 做限速與短時封禁，適合攔住高頻探測、錯誤重試風暴和異常刷請求。",

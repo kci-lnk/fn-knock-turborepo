@@ -58,6 +58,11 @@ pub(super) fn normalize_gateway_unmatched_route(value: &Value) -> Value {
         } else {
             "error_page"
         },
+        "upstream_error_detail": if value.get("upstream_error_detail").and_then(Value::as_str) == Some("more") {
+            "more"
+        } else {
+            "less"
+        },
     })
 }
 
@@ -199,7 +204,10 @@ pub(super) fn default_gateway_portal() -> Value {
 }
 
 pub(super) fn default_gateway_unmatched_route() -> Value {
-    json!({ "behavior": "error_page" })
+    json!({
+        "behavior": "error_page",
+        "upstream_error_detail": "less",
+    })
 }
 
 pub(super) fn default_subdomain_mode() -> Value {

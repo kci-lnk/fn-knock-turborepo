@@ -97,7 +97,10 @@ pub fn default_config() -> Value {
         "show_app_icon": true,
         "icon_drag_mode": "corners"
     });
-    let gateway_unmatched_route = json!({ "behavior": "error_page" });
+    let gateway_unmatched_route = json!({
+        "behavior": "error_page",
+        "upstream_error_detail": "less"
+    });
     let appearance = json!({ "theme_color_preset": "default" });
     let dashboard_display = json!({
         "show_entry_status_module": true,

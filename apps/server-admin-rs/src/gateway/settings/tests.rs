@@ -87,7 +87,10 @@ fn gateway_response_uses_node_defaults() {
     );
     assert_eq!(
         normalize_gateway_unmatched_route(&json!({})),
-        json!({ "behavior": "error_page" })
+        json!({
+            "behavior": "error_page",
+            "upstream_error_detail": "less"
+        })
     );
     assert_eq!(visible.len(), 1);
     assert_eq!(
@@ -106,6 +109,10 @@ async fn gateway_response_includes_default_unmatched_route_behavior() {
         response.pointer("/unmatched_route/behavior"),
         Some(&json!("error_page"))
     );
+    assert_eq!(
+        response.pointer("/unmatched_route/upstream_error_detail"),
+        Some(&json!("less"))
+    );
 }
 
 #[test]
@@ -119,7 +126,10 @@ fn gateway_patch_merges_and_normalizes_sections() {
         "auth_cache_ttl_seconds": 8,
         "reverse_proxy_throttle": { "burst": 250 },
         "portal": { "display_style": "domain", "show_app_icon": false },
-        "unmatched_route": { "behavior": "reset_connection" },
+        "unmatched_route": {
+            "behavior": "reset_connection",
+            "upstream_error_detail": "more"
+        },
         "crawler_blocker": { "enabled": true }
     });
     apply_gateway_patch(&mut config, patch.as_object().unwrap());
@@ -149,6 +159,12 @@ fn gateway_patch_merges_and_normalizes_sections() {
     );
     assert_eq!(
         config
+            .pointer("/gateway_unmatched_route/upstream_error_detail")
+            .and_then(Value::as_str),
+        Some("more")
+    );
+    assert_eq!(
+        config
             .pointer("/gateway_crawler_blocker/enabled")
             .and_then(Value::as_bool),
         Some(true)
@@ -175,6 +191,10 @@ fn gateway_unmatched_route_invalid_behavior_falls_back_to_error_page() {
     assert_eq!(
         config.pointer("/gateway_unmatched_route/behavior"),
         Some(&json!("error_page"))
+    );
+    assert_eq!(
+        config.pointer("/gateway_unmatched_route/upstream_error_detail"),
+        Some(&json!("less"))
     );
 }
 

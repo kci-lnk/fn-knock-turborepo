@@ -328,6 +328,11 @@ export const koKRAdmin = {
       "연결 차단 중에는 기본 도메인 대체 리디렉션이 일시 중지됩니다. 기존 설정은 유지되며 “오류 페이지 표시”로 돌아가면 자동 복원됩니다.",
     unmatchedRouteErrorPage: "오류 페이지 표시",
     unmatchedRouteReset: "연결 차단",
+    upstreamErrorDetail: "업스트림 오류 시 표시할 정보",
+    upstreamErrorDetailDescription:
+      "“간단히 표시”는 업스트림을 사용할 수 없다는 안내만 표시하며 방문자에게 업스트림 IP, 포트 또는 내부 연결 오류를 노출하지 않습니다. “자세히 표시”는 전체 연결 오류를 표시하므로 문제 해결 시에만 사용하는 것을 권장합니다.",
+    upstreamErrorDetailLess: "간단히 표시",
+    upstreamErrorDetailMore: "자세히 표시",
     throttleTitle: "게이트웨이 리버스 프록시 요청 제한",
     throttleDescription:
       "클라이언트 IP별 요청 속도를 제한하고 잠시 차단하여 잦은 탐색, 반복 재시도, 비정상적인 요청 폭주를 막습니다.",

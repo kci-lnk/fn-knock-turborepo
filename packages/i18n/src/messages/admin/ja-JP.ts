@@ -331,6 +331,11 @@ export const jaJPAdmin = {
       "接続を遮断するとデフォルトドメインへのフォールバック転送は一時停止します。設定は保持され、「エラーページを表示」に戻すと自動的に復元されます。",
     unmatchedRouteErrorPage: "エラーページを表示",
     unmatchedRouteReset: "接続を遮断",
+    upstreamErrorDetail: "上流異常時に表示するエラー情報",
+    upstreamErrorDetailDescription:
+      "「少なく表示」は上流サービスが利用できないことだけを通知し、上流の IP アドレス、ポート、内部の接続エラーを訪問者に公開しません。「詳しく表示」は接続エラー全体を表示するため、トラブルシューティング時のみ推奨します。",
+    upstreamErrorDetailLess: "少なく表示",
+    upstreamErrorDetailMore: "詳しく表示",
     throttleTitle: "ゲートウェイのリバースプロキシにレート制限を適用",
     throttleDescription:
       "クライアント IP ごとにレートを制限し、上限を超えた接続を一時的にブロックします。高頻度の探索、再試行の集中、異常な大量リクエストを防止できます。",

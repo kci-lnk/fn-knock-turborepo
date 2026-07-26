@@ -273,13 +273,12 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
             .get("gateway_portal")
             .unwrap_or(&default_gateway_portal()),
     );
-    ensure_go_success(
-        state
-            .go_backend
-            .set_gateway_portal_config(&portal)
-            .await
-            .map_err(|error| error.to_string())?,
-    )?;
+    let portal_response = state
+        .go_backend
+        .set_gateway_portal_config(&portal)
+        .await
+        .map_err(|error| error.to_string())?;
+    ensure_gateway_portal_applied(&portal, portal_response)?;
     let unmatched_route = normalize_gateway_unmatched_route(
         config
             .get("gateway_unmatched_route")
@@ -367,5 +366,25 @@ pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
     Err(crate::go_backend::response_message(
         &value,
         GO_BACKEND_UNSUCCESSFUL_RESPONSE,
+    ))
+}
+
+pub(super) fn ensure_gateway_portal_applied(
+    requested: &Value,
+    response: Value,
+) -> Result<(), String> {
+    ensure_go_success(response.clone())?;
+
+    let Some(applied) = response.get("data").filter(|value| value.is_object()) else {
+        return Err("Go backend did not return the applied gateway portal config".to_string());
+    };
+    let requested = normalize_gateway_portal(requested);
+    let applied = normalize_gateway_portal(applied);
+    if requested == applied {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Go backend did not apply gateway portal config (requested {requested}, reported {applied}); upgrade the gateway backend"
     ))
 }

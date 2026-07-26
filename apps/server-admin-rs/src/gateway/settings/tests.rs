@@ -178,6 +178,46 @@ fn gateway_patch_merges_and_normalizes_sections() {
 }
 
 #[test]
+fn gateway_portal_runtime_echo_accepts_disabled_config() {
+    let portal = json!({
+        "enabled": false,
+        "display_style": "title",
+        "show_app_icon": true,
+        "icon_drag_mode": "free",
+    });
+    let response = json!({
+        "success": true,
+        "data": portal.clone(),
+    });
+
+    assert!(super::runtime::ensure_gateway_portal_applied(&portal, response).is_ok());
+}
+
+#[test]
+fn gateway_portal_runtime_echo_rejects_reenabled_config() {
+    let portal = json!({
+        "enabled": false,
+        "display_style": "title",
+        "show_app_icon": true,
+        "icon_drag_mode": "free",
+    });
+    let response = json!({
+        "success": true,
+        "data": {
+            "enabled": true,
+            "display_style": "title",
+            "show_app_icon": true,
+            "icon_drag_mode": "free",
+        },
+    });
+
+    let error = super::runtime::ensure_gateway_portal_applied(&portal, response).unwrap_err();
+    assert!(error.contains("did not apply gateway portal config"));
+    assert!(error.contains(r#""enabled":false"#));
+    assert!(error.contains(r#""enabled":true"#));
+}
+
+#[test]
 fn gateway_unmatched_route_invalid_behavior_falls_back_to_error_page() {
     let mut config = json!({
         "gateway_unmatched_route": { "behavior": "reset_connection" }

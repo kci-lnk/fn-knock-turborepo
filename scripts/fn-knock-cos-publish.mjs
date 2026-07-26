@@ -18,7 +18,7 @@ const KNOWN_PACKAGE_TYPES = [
   "linux",
   "windows",
 ];
-const LATEST_HEADER = [
+const RELEASE_NOTES_HEADER = [
   "[**用户协议与隐私政策**](https://www.fnknock.cn/legal)",
   "如果您是在飞牛应用商店安装的Knock，建议在官网重新下载FPK版本，功能更全面",
   "我们推出了OpenWrt应用（IPK、Alpine APK），以及群晖SPK原生支持，欢迎在官网下载安装体验",
@@ -212,7 +212,7 @@ export const composeReleaseNotes = (currentNotes, currentVersion, releases) => {
     .sort(([left], [right]) => compareVersions(right, left))
     .slice(0, 5)
     .map(([, body]) => body);
-  return [current, ...history].join("\n\n---\n\n");
+  return `${RELEASE_NOTES_HEADER}\n\n${[current, ...history].join("\n\n---\n\n")}`;
 };
 
 const assertKeys = (record, expected, label) => {
@@ -572,7 +572,6 @@ export const buildReleasePlan = async ({
 
   const latestCore = {
     version,
-    header: LATEST_HEADER,
     update_available: true,
     force_update: false,
     download_url: packages.fpk.amd64.download_url,
@@ -594,6 +593,9 @@ export const buildReleasePlan = async ({
 
 export const mergeLatestDocument = (current, latestCore) => {
   const source = isRecord(current) ? current : {};
+  const preservedRoot = Object.fromEntries(
+    Object.entries(source).filter(([key]) => key !== "header"),
+  );
   const currentPackages = isRecord(source.packages) ? source.packages : {};
   const unknownPackages = Object.fromEntries(
     Object.entries(currentPackages).filter(
@@ -601,7 +603,7 @@ export const mergeLatestDocument = (current, latestCore) => {
     ),
   );
   return {
-    ...source,
+    ...preservedRoot,
     ...latestCore,
     packages: { ...unknownPackages, ...latestCore.packages },
   };

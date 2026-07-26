@@ -16,6 +16,13 @@ import {
 } from "../fn-knock-cos-publish.mjs";
 
 const VERSION = "3.4.5";
+const EXPECTED_RELEASE_NOTES_HEADER = [
+  "[**用户协议与隐私政策**](https://www.fnknock.cn/legal)",
+  "如果您是在飞牛应用商店安装的Knock，建议在官网重新下载FPK版本，功能更全面",
+  "我们推出了OpenWrt应用（IPK、Alpine APK），以及群晖SPK原生支持，欢迎在官网下载安装体验",
+  "[**官网**](https://www.fnknock.cn/)  、[**文档**](https://docs.fnknock.cn/) 、 [**Docker版**](https://hub.docker.com/r/kcilnk/fn-knock)、[**Windows版**](https://www.fnknock.cn/windows) 、 [**Linux一键脚本**](https://www.fnknock.cn/linux)、[**群晖套件**](https://www.fnknock.cn/synology)",
+  "QQ群：1081609274",
+].join("\n\n");
 
 const sha256 = (body) => createHash("sha256").update(body).digest("hex");
 
@@ -231,15 +238,11 @@ test("builds a complete 21-package COS plan", async (context) => {
 
   assert.equal(plan.manifest.artifacts.length, 21);
   assert.equal(plan.versionObjects.length, 24);
-  assert.equal(
-    plan.latestCore.header,
-    [
-      "[**用户协议与隐私政策**](https://www.fnknock.cn/legal)",
-      "如果您是在飞牛应用商店安装的Knock，建议在官网重新下载FPK版本，功能更全面",
-      "我们推出了OpenWrt应用（IPK、Alpine APK），以及群晖SPK原生支持，欢迎在官网下载安装体验",
-      "[**官网**](https://www.fnknock.cn/)  、[**文档**](https://docs.fnknock.cn/) 、 [**Docker版**](https://hub.docker.com/r/kcilnk/fn-knock)、[**Windows版**](https://www.fnknock.cn/windows) 、 [**Linux一键脚本**](https://www.fnknock.cn/linux)、[**群晖套件**](https://www.fnknock.cn/synology)",
-      "QQ群：1081609274",
-    ].join("\n\n"),
+  assert.equal("header" in plan.latestCore, false);
+  assert.ok(
+    plan.latestCore.release_notes.startsWith(
+      `${EXPECTED_RELEASE_NOTES_HEADER}\n\n# fn-knock ${VERSION}`,
+    ),
   );
   assert.deepEqual(Object.keys(plan.latestCore.packages.fpk).sort(), [
     "amd64",
@@ -292,8 +295,9 @@ test("composes current notes plus at most five earlier stable releases", () => {
     { tag_name: "v3.3.8", body: "prerelease", draft: false, prerelease: true },
   ];
   const notes = composeReleaseNotes("current", VERSION, releases);
+  assert.ok(notes.startsWith(`${EXPECTED_RELEASE_NOTES_HEADER}\n\ncurrent`));
   assert.deepEqual(notes.split("\n\n---\n\n"), [
-    "current",
+    `${EXPECTED_RELEASE_NOTES_HEADER}\n\ncurrent`,
     "notes-4",
     "notes-3",
     "notes-2",
@@ -329,7 +333,7 @@ test("validates the configured COS acceleration endpoint", () => {
   );
 });
 
-test("preserves unknown latest fields while replacing all known packages", () => {
+test("preserves unknown latest fields while removing the legacy root header", () => {
   const merged = mergeLatestDocument(
     {
       version: "1.0.0",
@@ -342,7 +346,6 @@ test("preserves unknown latest fields while replacing all known packages", () =>
     },
     {
       version: VERSION,
-      header: "current announcement",
       release_notes: "notes",
       packages: Object.fromEntries(
         ["fpk", "ipk", "apk", "synology", "linux", "windows"].map((type) => [
@@ -352,7 +355,7 @@ test("preserves unknown latest fields while replacing all known packages", () =>
       ),
     },
   );
-  assert.equal(merged.header, "current announcement");
+  assert.equal("header" in merged, false);
   assert.equal(merged.custom_root, "kept");
   assert.deepEqual(merged.packages.custom, { channel: "kept" });
   assert.deepEqual(merged.packages.fpk, {});

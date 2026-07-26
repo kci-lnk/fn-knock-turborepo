@@ -178,7 +178,7 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `apps/server-auth-view`   | Vue 3 认证页面                             |
 | `apps/fn-knock-desktop`   | Rust + Win32 Windows 管理程序与 NSIS 配置  |
 | `apps/fn-knock`           | 飞牛 fnOS 原生 FPK 适配                    |
-| `apps/fn-knock-docker`    | 飞牛 fnOS Docker FPK 适配                  |
+| `apps/fn-knock-lite`      | 飞牛 fnOS 非 Root 环境的原生精简 FPK 适配  |
 | `apps/fn-knock-synology`  | Synology DSM 7 原生 SPK 适配               |
 | `deploy/docker`           | Dockerfile、Compose 与镜像发布配置         |
 | `deploy/linux`            | systemd / OpenRC 通用 Linux 安装与管理脚本 |
@@ -191,6 +191,7 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | 命令                                           | 用途                                     |
 | ---------------------------------------------- | ---------------------------------------- |
 | `npm run fn-knock:build-package`               | 构建 fnOS FPK                            |
+| `npm run fn-knock:lite:build-package`          | 构建 fnOS Lite FPK                       |
 | `npm run fn-knock:linux:prepare`               | 构建通用 Linux 产物                      |
 | `npm run fn-knock:openwrt:build`               | 构建 OpenWrt APK 与 IPK                  |
 | `npm run fn-knock:spk:build`                   | 构建 Synology SPK                        |

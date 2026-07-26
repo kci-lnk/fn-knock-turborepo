@@ -178,7 +178,7 @@ By default, the Go gateway source is read from the adjacent `../Go-Reauth-Proxy`
 | `apps/server-auth-view`   | Vue 3 sign-in UI                                                                    |
 | `apps/fn-knock-desktop`   | Rust + Win32 Windows manager and NSIS configuration                                 |
 | `apps/fn-knock`           | Native FPK integration for fnOS                                                     |
-| `apps/fn-knock-docker`    | Docker-based FPK integration for fnOS                                               |
+| `apps/fn-knock-lite`      | Native lightweight FPK for non-root fnOS environments                              |
 | `apps/fn-knock-synology`  | Native SPK integration for Synology DSM 7                                           |
 | `deploy/docker`           | Dockerfile, Compose files, and image publishing configuration                       |
 | `deploy/linux`            | systemd / OpenRC installation and management scripts for general-purpose Linux      |
@@ -191,6 +191,7 @@ By default, the Go gateway source is read from the adjacent `../Go-Reauth-Proxy`
 | Command                                        | Purpose                                             |
 | ---------------------------------------------- | --------------------------------------------------- |
 | `npm run fn-knock:build-package`               | Build the fnOS FPK                                  |
+| `npm run fn-knock:lite:build-package`          | Build the fnOS Lite FPK                             |
 | `npm run fn-knock:linux:prepare`               | Build general-purpose Linux artifacts               |
 | `npm run fn-knock:openwrt:build`               | Build OpenWrt APK and IPK packages                  |
 | `npm run fn-knock:spk:build`                   | Build the Synology SPK                              |

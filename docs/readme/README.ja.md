@@ -178,7 +178,7 @@ npm run build
 | `apps/server-auth-view`   | Vue 3 サインイン UI                                               |
 | `apps/fn-knock-desktop`   | Rust + Win32 Windows 管理アプリと NSIS 設定                       |
 | `apps/fn-knock`           | fnOS 向けネイティブ FPK 対応                                      |
-| `apps/fn-knock-docker`    | fnOS 向け Docker ベース FPK 対応                                  |
+| `apps/fn-knock-lite`      | fnOS の非 Root 環境向けネイティブ軽量版 FPK 対応                  |
 | `apps/fn-knock-synology`  | Synology DSM 7 向けネイティブ SPK 対応                            |
 | `deploy/docker`           | Dockerfile、Compose ファイル、イメージ公開設定                    |
 | `deploy/linux`            | 汎用 Linux 向け systemd / OpenRC インストール・管理スクリプト     |
@@ -191,6 +191,7 @@ npm run build
 | コマンド                                       | 用途                                                  |
 | ---------------------------------------------- | ----------------------------------------------------- |
 | `npm run fn-knock:build-package`               | fnOS FPK をビルド                                     |
+| `npm run fn-knock:lite:build-package`          | fnOS Lite FPK をビルド                                |
 | `npm run fn-knock:linux:prepare`               | 汎用 Linux 向け成果物をビルド                         |
 | `npm run fn-knock:openwrt:build`               | OpenWrt APK / IPK パッケージをビルド                  |
 | `npm run fn-knock:spk:build`                   | Synology SPK をビルド                                 |

@@ -1,4 +1,7 @@
-use super::service::{apply_recommended_system_rule_state, should_sync_system_rules_for_restore};
+use super::service::{
+    apply_recommended_lfi_rule_patch_if_needed, apply_recommended_system_rule_state,
+    should_sync_system_rules_for_restore,
+};
 use super::*;
 use serde_json::json;
 
@@ -204,8 +207,94 @@ fn defaults_high_noise_system_rules_to_disabled() {
         "REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
     ));
     assert!(is_system_rule_enabled_by_default(
+        "REQUEST-930-APPLICATION-ATTACK-LFI.conf"
+    ));
+    assert!(is_system_rule_enabled_by_default(
         "REQUEST-949-BLOCKING-EVALUATION.conf"
     ));
+}
+
+#[tokio::test]
+async fn recommended_lfi_patch_enables_legacy_rule_once() {
+    let (_directory, state) = waf_test_state("127.0.0.1:1").await;
+    let legacy = WafRulesState {
+        system_enabled: BTreeMap::from([
+            (INITIALIZATION_RULE_FILENAME.to_string(), true),
+            (LFI_RULE_FILENAME.to_string(), false),
+        ]),
+        custom_enabled: BTreeMap::from([("custom.conf".to_string(), true)]),
+    };
+    write_rules_state(&state, &legacy).await.unwrap();
+
+    assert!(
+        apply_recommended_lfi_rule_patch_if_needed(&state)
+            .await
+            .unwrap()
+    );
+    let patched = read_rules_state(&state).await.unwrap();
+    assert_eq!(patched.system_enabled.get(LFI_RULE_FILENAME), Some(&true));
+    assert_eq!(patched.custom_enabled, legacy.custom_enabled);
+    assert_eq!(
+        state
+            .store
+            .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("1")
+    );
+
+    let mut user_updated = patched;
+    user_updated
+        .system_enabled
+        .insert(LFI_RULE_FILENAME.to_string(), false);
+    write_rules_state(&state, &user_updated).await.unwrap();
+
+    assert!(
+        !apply_recommended_lfi_rule_patch_if_needed(&state)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        read_rules_state(&state)
+            .await
+            .unwrap()
+            .system_enabled
+            .get(LFI_RULE_FILENAME),
+        Some(&false)
+    );
+}
+
+#[tokio::test]
+async fn recommended_lfi_patch_marks_pre_enabled_rule_without_rewriting_choice() {
+    let (_directory, state) = waf_test_state("127.0.0.1:1").await;
+    let current = WafRulesState {
+        system_enabled: BTreeMap::from([
+            (INITIALIZATION_RULE_FILENAME.to_string(), true),
+            (LFI_RULE_FILENAME.to_string(), true),
+        ]),
+        custom_enabled: BTreeMap::new(),
+    };
+    write_rules_state(&state, &current).await.unwrap();
+
+    assert!(
+        !apply_recommended_lfi_rule_patch_if_needed(&state)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        read_rules_state(&state).await.unwrap().system_enabled,
+        current.system_enabled
+    );
+    assert_eq!(
+        state
+            .store
+            .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("1")
+    );
 }
 
 #[test]

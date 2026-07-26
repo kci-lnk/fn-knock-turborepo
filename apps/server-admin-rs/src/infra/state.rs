@@ -33,6 +33,11 @@ pub struct AppStateInner {
     pub acme_install_state: RwLock<Option<Value>>,
     pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
+    /// Serializes the Go loopback listener, dual-stack firewall rules and
+    /// persisted FN Connect WAF preference as one fail-open transaction.
+    pub fnos_connect_waf_update_lock: Mutex<()>,
+    pub fnos_connect_waf_notify: Notify,
+    pub fnos_connect_waf_status: RwLock<Value>,
     pub fnos_certificate_sync_lock: Mutex<()>,
     pub fnos_certificate_sync_notify: Notify,
     pub fnos_certificate_sync_status: RwLock<Value>,
@@ -114,6 +119,21 @@ impl AppState {
                 acme_install_state: RwLock::new(None),
                 ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
+                fnos_connect_waf_update_lock: Mutex::new(()),
+                fnos_connect_waf_notify: Notify::new(),
+                fnos_connect_waf_status: RwLock::new(serde_json::json!({
+                    "effective": false,
+                    "protected": false,
+                    "detected_http_port": null,
+                    "listener_port": null,
+                    "ipv4_redirect_active": false,
+                    "ipv6_redirect_active": false,
+                    "waf_active": false,
+                    "waf_mode": null,
+                    "source": null,
+                    "last_sync_at": null,
+                    "last_error": null
+                })),
                 fnos_certificate_sync_lock: Mutex::new(()),
                 fnos_certificate_sync_notify: Notify::new(),
                 fnos_certificate_sync_status: RwLock::new(serde_json::json!({

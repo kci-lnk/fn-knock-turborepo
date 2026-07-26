@@ -39,6 +39,51 @@ log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
 }
 
+cleanup_fn_connect_waf_rules() {
+    local firewall=""
+    local chain="FNK_FNC_WAF"
+    local comment="fn-knock:fn-connect-waf"
+    local attempts=0
+    local cleanup_failed=0
+    local rules=""
+
+    for firewall in iptables ip6tables; do
+        if ! command -v "${firewall}" >/dev/null 2>&1; then
+            log_msg "FN Connect WAF cleanup skipped: ${firewall} is unavailable"
+            continue
+        fi
+        if ! rules="$("${firewall}" -w 5 -t nat -S 2>&1)"; then
+            log_msg "FN Connect WAF cleanup failed: unable to enumerate ${firewall} nat rules: ${rules}"
+            cleanup_failed=1
+            continue
+        fi
+        attempts=0
+        while [ "${attempts}" -lt 8 ] && "${firewall}" -w 5 -t nat -C OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; do
+            if ! "${firewall}" -w 5 -t nat -D OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+                log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} OUTPUT jump"
+                cleanup_failed=1
+                break
+            fi
+            attempts=$((attempts + 1))
+        done
+        if [ "${attempts}" -eq 8 ] && "${firewall}" -w 5 -t nat -C OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+            log_msg "FN Connect WAF cleanup failed: too many ${firewall} OUTPUT jumps"
+            cleanup_failed=1
+        fi
+        if printf '%s\n' "${rules}" | grep -Fxq -- "-N ${chain}"; then
+            if ! "${firewall}" -w 5 -t nat -F "${chain}" >/dev/null 2>&1; then
+                log_msg "FN Connect WAF cleanup failed: unable to flush ${firewall} chain ${chain}"
+                cleanup_failed=1
+            fi
+            if ! "${firewall}" -w 5 -t nat -X "${chain}" >/dev/null 2>&1; then
+                log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} chain ${chain}"
+                cleanup_failed=1
+            fi
+        fi
+    done
+    return "${cleanup_failed}"
+}
+
 generate_random_hex() {
     local bytes="${1:-32}"
 
@@ -702,6 +747,10 @@ start() {
     log_msg "=== fn-knock start ==="
     log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
     raise_nofile_limit "${NOFILE_LIMIT}" || true
+    if ! cleanup_fn_connect_waf_rules; then
+        write_temp_log "fn-knock refused to start because stale FN Connect WAF rules could not be verified or removed"
+        return 1
+    fi
 
     if ! start_gateway; then
         write_temp_log "fn-knock gateway start failed"
@@ -721,6 +770,10 @@ stop() {
     log_msg "=== fn-knock stop ==="
     resolve_gateway_bin >/dev/null 2>&1 || true
     stop_service "${BACKEND_PID_FILE}" "Backend"
+    if ! cleanup_fn_connect_waf_rules; then
+        log_msg "Gateway kept running because FN Connect WAF rules could not be safely removed"
+        return 1
+    fi
     stop_service "${GATEWAY_PID_FILE}" "Gateway"
     stop_external_resources
     return 0

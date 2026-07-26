@@ -1309,6 +1309,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "default_tunnel",
         "fnos_share_bypass",
         "fnos_port_icon_hijack",
+        "fnos_connect_waf",
         "fnos_network_tuning",
         "gateway_logging",
         "waf",

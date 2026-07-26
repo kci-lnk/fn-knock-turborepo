@@ -146,6 +146,16 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         corrected.push("fnos_network_tuning -> disabled".to_string());
     }
 
+    let fnos_connect_waf = normalize_fnos_connect_waf(config.get("fnos_connect_waf"));
+    if !capabilities.fnos_connect_waf_available
+        && fnos_connect_waf.get("enabled").and_then(Value::as_bool) == Some(true)
+    {
+        let mut next = fnos_connect_waf;
+        ensure_config_object(&mut next).insert("enabled".to_string(), Value::Bool(false));
+        ensure_config_object(config).insert("fnos_connect_waf".to_string(), next);
+        corrected.push("fnos_connect_waf.enabled -> false".to_string());
+    }
+
     let ssh_security = crate::ssh_security::normalize_config(config.get("ssh_security").cloned());
     if (!host_firewall || target == "openwrt")
         && ssh_security.get("enabled").and_then(Value::as_bool) == Some(true)

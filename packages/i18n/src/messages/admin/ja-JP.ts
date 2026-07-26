@@ -1795,6 +1795,22 @@ export const jaJPAdmin = {
       "この機能はリバースプロキシモードとサブドメインモードでのみ利用できます。直接接続モードでは、該当ポートを他のユーザーへ開放する前に認証を完了する必要があります。",
     shareBypassUpdated: "FNOS 共有リンクのパススルー設定を更新しました",
     iconHijackUpdated: "FNOS ポートリンクの自動置換設定を更新しました",
+    connectWafLoadFailed: "FN Connect WAF の状態を読み込めませんでした",
+    connectWafSaveFailed: "FN Connect WAF の設定を保存できませんでした",
+    connectWafUpdated: "FN Connect WAF の設定を更新しました",
+    connectWafTitle: "FN Connect トラフィックを WAF に接続",
+    connectWafDescription:
+      "FNOS リモートアクセスサービスからのループバック通信のみを対象にし、HTTP ポート変更を自動追従して IPv4 と IPv6 の両方を保護します。",
+    connectWafStatusDisabled: "現在は無効です。",
+    connectWafStatusProtected:
+      "保護中：FNOS ポート {source} → ローカル WAF 入口 {listener}。",
+    connectWafStatusDetection:
+      "通信は WAF 経由ですが、検出のみモードではブロックされません。",
+    connectWafStatusWafInactive:
+      "通信はゲートウェイ経由ですが、WAF が無効かルールが未読込です。",
+    connectWafStatusDegraded:
+      "設定済みですが、実行時に完全には有効ではありません。",
+    connectWafLastError: "前回の同期に失敗しました：{message}",
     bbrUpdated: "BBR 高速化設定を更新しました",
     mtuUpdated: "MTU プロービング設定を更新しました",
     shareBypassTitle: "FNOS 共有リンクのパススルー",
@@ -3369,6 +3385,7 @@ export const jaJPAdmin = {
       hostRule: "Host ルール",
       hostLocation: "Host パスルール",
       streamRule: "プロトコルマッピング",
+      fnConnect: "FN Connect",
       authProxy: "認証プロキシ",
       select: "選択ページ",
       preflight: "プリフライト",

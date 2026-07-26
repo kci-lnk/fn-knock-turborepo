@@ -15,15 +15,16 @@ use tonic_health::pb::{
 use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
-    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosPortIconHijackConfig,
-    GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig, GatewayUnmatchedRouteConfig,
-    GatewayVisibilityConfig, GeneralBlacklistListRequest, HostActiveIpStats, HostLocation,
-    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility,
-    HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig,
-    OmitTargetsConfig, ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule,
-    Rules, SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate,
-    StreamRule, StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig,
-    WafDrainRequest, firewall_service_client::FirewallServiceClient,
+    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosConnectIngressConfig,
+    FnosConnectIngressStatus, FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery,
+    GatewayPortalConfig, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
+    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
+    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
+    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
+    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
+    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
+    firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
@@ -553,6 +554,37 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("set_fnos_port_icon_hijack_config", result)
+    }
+
+    pub async fn get_fnos_connect_ingress_status(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .get_fnos_connect_ingress_status(self.request(()))
+            .await
+        {
+            Ok(response) => ok(fnos_connect_ingress_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("get_fnos_connect_ingress_status", result)
+    }
+
+    pub async fn set_fnos_connect_ingress_config(
+        &self,
+        enabled: bool,
+        upstream_http_port: u16,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_fnos_connect_ingress_config(self.request(FnosConnectIngressConfig {
+                enabled,
+                upstream_http_port: i32::from(upstream_http_port),
+            }))
+            .await
+        {
+            Ok(response) => ok(fnos_connect_ingress_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_fnos_connect_ingress_config", result)
     }
 
     pub async fn set_reverse_proxy_throttle_exempt_ips(
@@ -1679,6 +1711,20 @@ fn gateway_unmatched_route_to_json(config: GatewayUnmatchedRouteConfig) -> Value
 
 fn fnos_port_icon_hijack_to_json(config: FnosPortIconHijackConfig) -> Value {
     json!({ "enabled": config.enabled, "updated_at": config.updated_at })
+}
+
+fn fnos_connect_ingress_status_to_json(status: FnosConnectIngressStatus) -> Value {
+    json!({
+        "enabled": status.enabled,
+        "listener_active": status.listener_active,
+        "listen_port": status.listen_port,
+        "upstream_http_port": status.upstream_http_port,
+        "ipv4_active": status.ipv4_active,
+        "ipv6_active": status.ipv6_active,
+        "waf_active": status.waf_active,
+        "waf_mode": status.waf_mode,
+        "last_error": status.last_error,
+    })
 }
 
 fn throttle_exempt_to_json(config: ReverseProxyThrottleExemptIpsRuntime) -> Value {

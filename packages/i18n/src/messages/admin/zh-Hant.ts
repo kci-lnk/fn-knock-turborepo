@@ -1670,6 +1670,20 @@ export const zhHantAdmin = {
       "此功能僅在内网穿透和子域模式下可用。直連模式下，需要完成鑒權後才能開啟對應端口供其他人訪問。",
     shareBypassUpdated: "飛牛分享直通設定已更新",
     iconHijackUpdated: "飛牛端口圖標接管設定已更新",
+    connectWafLoadFailed: "FN Connect WAF 狀態載入失敗",
+    connectWafSaveFailed: "儲存 FN Connect WAF 設定失敗",
+    connectWafUpdated: "FN Connect WAF 設定已更新",
+    connectWafTitle: "FN Connect 流量接入 WAF",
+    connectWafDescription:
+      "僅攔截飛牛遠端存取服務程序送往本機的流量，自動跟隨飛牛 HTTP 連接埠變更，並同時保護 IPv4 與 IPv6 回環路徑。",
+    connectWafStatusDisabled: "目前未啟用。",
+    connectWafStatusProtected:
+      "保護已生效：飛牛連接埠 {source} → WAF 本機入口 {listener}。",
+    connectWafStatusDetection: "流量已接入 WAF，但目前為僅偵測模式，不會阻擋。",
+    connectWafStatusWafInactive:
+      "流量已接入閘道，但 WAF 目前未啟用或規則未載入。",
+    connectWafStatusDegraded: "已設定，但執行階段未完全生效。",
+    connectWafLastError: "上次同步失敗：{message}",
     bbrUpdated: "BBR 加速設定已更新",
     mtuUpdated: "MTU 探測設定已更新",
     shareBypassTitle: "飛牛分享直通",
@@ -3126,6 +3140,7 @@ export const zhHantAdmin = {
       hostRule: "Host 規則",
       hostLocation: "Host 路徑規則",
       streamRule: "協議映射",
+      fnConnect: "FN Connect",
       authProxy: "鑒權代理",
       select: "選擇頁",
       preflight: "預檢",

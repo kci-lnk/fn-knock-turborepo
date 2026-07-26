@@ -45,6 +45,8 @@ pub(crate) use service::{
 mod tests;
 
 const INITIALIZATION_RULE_FILENAME: &str = "REQUEST-901-INITIALIZATION.conf";
+const LFI_RULE_FILENAME: &str = "REQUEST-930-APPLICATION-ATTACK-LFI.conf";
+const RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY: &str = "fn_knock:patch:waf-recommended-lfi-rule:v1";
 const MANIFEST_URL: &str = "https://cor.fnknock.cn/waf/manifest.json";
 const MANIFEST_REFRESH_MS: i64 = 2 * 24 * 60 * 60 * 1000;
 const MAX_RULE_FILE_BYTES: usize = 1024 * 1024;
@@ -59,7 +61,6 @@ const UNFILTERED_QUERY_SCAN_CHUNK_SIZE: isize = 500;
 const FILTERED_QUERY_SCAN_CHUNK_SIZE: isize = 500;
 const DEFAULT_DISABLED_SYSTEM_RULE_FILENAMES: &[&str] = &[
     "REQUEST-920-PROTOCOL-ENFORCEMENT.conf",
-    "REQUEST-930-APPLICATION-ATTACK-LFI.conf",
     "REQUEST-932-APPLICATION-ATTACK-RCE.conf",
     "REQUEST-941-APPLICATION-ATTACK-XSS.conf",
     "REQUEST-942-APPLICATION-ATTACK-SQLI.conf",

@@ -18,6 +18,7 @@ import {
   getEffectiveRuntimeCapabilities,
   getEffectiveRuntimeProfile,
 } from "@runtime-debug";
+import { canUseFnosConnectWafForRuntime } from "../lib/fnos-connect-waf";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 export const useConfigStore = defineStore("config", () => {
@@ -206,8 +207,7 @@ export const useConfigStore = defineStore("config", () => {
             hostMappingCatalogRevision = snapshot.hostMappingCatalogRevision;
             hostMappingsSnapshot = next.host_mappings;
             hostMappingGroupsSnapshot = next.host_mapping_groups;
-            hostMappingGroupedViewSnapshot =
-              next.host_mapping_grouped_view;
+            hostMappingGroupedViewSnapshot = next.host_mapping_grouped_view;
           } else if (hostMappingsSnapshot) {
             next = {
               ...next,
@@ -296,8 +296,7 @@ export const useConfigStore = defineStore("config", () => {
     let reloadConfigAfterSave = false;
     const request = (async () => {
       const groups = config.value?.host_mapping_groups ?? [];
-      const groupedView =
-        config.value?.host_mapping_grouped_view === true;
+      const groupedView = config.value?.host_mapping_grouped_view === true;
       const snapshot = await ConfigAPI.updateHostMappingCatalog(
         mappings,
         groups,
@@ -506,6 +505,9 @@ export const useConfigStore = defineStore("config", () => {
   const canUseFnosNetworkTuning = computed(
     () => capabilities.value?.fnos_network_tuning_available !== false,
   );
+  const canUseFnosConnectWaf = computed(() =>
+    canUseFnosConnectWafForRuntime(runtimeProfile.value, capabilities.value),
+  );
   const hasSharedRoot = computed(
     () => capabilities.value?.shared_root_available === true,
   );
@@ -557,6 +559,7 @@ export const useConfigStore = defineStore("config", () => {
     canUseTerminal,
     canUseAutoHttps,
     canUseFnosNetworkTuning,
+    canUseFnosConnectWaf,
     hasSharedRoot,
     canUseAcme,
     isAcmeResourceRequired,

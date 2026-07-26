@@ -1795,6 +1795,22 @@ export const enAdmin = {
       "This feature is only available in reverse proxy mode and subdomain mode. In direct mode, authentication must complete before the corresponding port can be exposed to others.",
     shareBypassUpdated: "FNOS share bypass settings updated",
     iconHijackUpdated: "FNOS port icon takeover settings updated",
+    connectWafLoadFailed: "Failed to load FN Connect WAF status",
+    connectWafSaveFailed: "Failed to save FN Connect WAF settings",
+    connectWafUpdated: "FN Connect WAF settings updated",
+    connectWafTitle: "Route FN Connect traffic through WAF",
+    connectWafDescription:
+      "Intercepts only loopback traffic from the FNOS remote-access service, follows FNOS HTTP port changes automatically, and protects both IPv4 and IPv6 paths.",
+    connectWafStatusDisabled: "Currently disabled.",
+    connectWafStatusProtected:
+      "Protection active: FNOS port {source} → local WAF ingress {listener}.",
+    connectWafStatusDetection:
+      "Traffic is routed through WAF, but detection-only mode does not block requests.",
+    connectWafStatusWafInactive:
+      "Traffic is routed through the gateway, but WAF is disabled or its rules are not loaded.",
+    connectWafStatusDegraded:
+      "Configured, but the runtime is not fully active.",
+    connectWafLastError: "Last synchronization failed: {message}",
     bbrUpdated: "BBR acceleration settings updated",
     mtuUpdated: "MTU probing settings updated",
     shareBypassTitle: "FNOS share bypass",
@@ -3364,6 +3380,7 @@ export const enAdmin = {
       hostRule: "Host rule",
       hostLocation: "Host location",
       streamRule: "Protocol mapping",
+      fnConnect: "FN Connect",
       authProxy: "Auth proxy",
       select: "Select page",
       preflight: "Preflight",

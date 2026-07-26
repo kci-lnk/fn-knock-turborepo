@@ -24,6 +24,7 @@ pub struct RuntimeCapabilities {
     pub terminal_available: bool,
     pub auto_https_available: bool,
     pub fnos_network_tuning_available: bool,
+    pub fnos_connect_waf_available: bool,
     pub shared_root_available: bool,
     pub acme_available: bool,
     pub acme_resource_required: bool,
@@ -58,6 +59,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             terminal_available: false,
             auto_https_available: true,
             fnos_network_tuning_available: false,
+            fnos_connect_waf_available: false,
             shared_root_available: false,
             acme_available: true,
             acme_resource_required: false,
@@ -94,6 +96,9 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             && profile.deployment_target != "openwrt"
             && profile.deployment_target != "synology",
         fnos_network_tuning_available: profile.deployment_target == "fpk"
+            && profile.is_linux
+            && profile.is_root_process,
+        fnos_connect_waf_available: profile.deployment_target == "fpk"
             && profile.is_linux
             && profile.is_root_process,
         shared_root_available: has_shared_root(),
@@ -197,7 +202,7 @@ pub fn capability_unavailable_message(
                 "platform"
             }
         }
-        "auto_https_available" | "fnos_network_tuning_available" => {
+        "auto_https_available" | "fnos_network_tuning_available" | "fnos_connect_waf_available" => {
             if profile.deployment_target == "fpk-lite" {
                 "lite"
             } else if !profile.is_linux {
@@ -373,6 +378,7 @@ mod tests {
         assert!(capabilities.terminal_available);
         assert!(capabilities.auto_https_available);
         assert!(capabilities.fnos_network_tuning_available);
+        assert!(capabilities.fnos_connect_waf_available);
     }
 
     #[test]
@@ -387,6 +393,7 @@ mod tests {
         assert!(!capabilities.terminal_available);
         assert!(!capabilities.auto_https_available);
         assert!(!capabilities.fnos_network_tuning_available);
+        assert!(!capabilities.fnos_connect_waf_available);
         assert!(!capabilities.ssh_security_available);
         assert!(capabilities.acme_available);
         assert!(capabilities.cloudflared_available);

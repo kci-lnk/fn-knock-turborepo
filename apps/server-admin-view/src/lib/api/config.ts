@@ -25,6 +25,7 @@ import type {
   FnKnockBackupImportResult,
   FnosCertificateSyncDetails,
   FnosCertificateSyncResponse,
+  FnosConnectWafDetails,
   FnosNetworkTuningStatus,
   FnosNetworkTuningUpdatePayload,
   FnosPortIconHijackConfig,
@@ -125,6 +126,7 @@ export type {
   FnKnockBackupImportResult,
   FnosNetworkTuningStatus,
   FnosNetworkTuningUpdatePayload,
+  FnosConnectWafDetails,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayHostResponseDetails,
@@ -1104,6 +1106,16 @@ export const SystemAPI = {
     payload: Partial<FnosPortIconHijackConfig>,
   ): Promise<FnosPortIconHijackConfig> {
     const res = await apiClient.post("/config/fnos_port_icon_hijack", payload);
+    return res.data.data;
+  },
+  async getFnosConnectWafDetails(): Promise<FnosConnectWafDetails> {
+    const res = await apiClient.get("/config/fnos_connect_waf");
+    return res.data.data;
+  },
+  async updateFnosConnectWafConfig(
+    enabled: boolean,
+  ): Promise<FnosConnectWafDetails> {
+    const res = await apiClient.post("/config/fnos_connect_waf", { enabled });
     return res.data.data;
   },
   async getFnosNetworkTuningStatus(): Promise<FnosNetworkTuningStatus> {

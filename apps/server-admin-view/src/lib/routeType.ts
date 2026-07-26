@@ -3,6 +3,7 @@ export const ROUTE_TYPE_TRANSLATION_KEYS = {
   host_rule: "admin.wafLogs.routeTypes.hostRule",
   host_location: "admin.wafLogs.routeTypes.hostLocation",
   stream_rule: "admin.wafLogs.routeTypes.streamRule",
+  fn_connect: "admin.wafLogs.routeTypes.fnConnect",
   auth_proxy: "admin.wafLogs.routeTypes.authProxy",
   select: "admin.wafLogs.routeTypes.select",
   preflight: "admin.wafLogs.routeTypes.preflight",

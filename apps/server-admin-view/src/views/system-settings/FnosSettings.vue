@@ -23,6 +23,7 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
 import { useFnosNetworkTuningViewModel } from "./fnos-settings/useFnosNetworkTuningViewModel";
+import FnosConnectWafSetting from "./fnos-settings/FnosConnectWafSetting.vue";
 
 const a11yId = useId();
 
@@ -373,6 +374,8 @@ onMounted(fetchSettings);
           @update:model-value="saveIconHijackEnabled($event === true)"
         />
       </div>
+
+      <FnosConnectWafSetting v-if="configStore.canUseFnosConnectWaf" />
 
       <div
         v-if="configStore.canUseFnosNetworkTuning && isBbrSupported"

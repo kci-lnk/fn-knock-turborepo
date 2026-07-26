@@ -11,6 +11,7 @@ const gatewayRouteTypes = [
   "crawler_blocker",
   "default_host_redirect",
   "favicon",
+  "fn_connect",
   "general_blacklist",
   "host_location",
   "host_rule",

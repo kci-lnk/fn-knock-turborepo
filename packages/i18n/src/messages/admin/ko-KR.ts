@@ -1782,6 +1782,22 @@ export const koKRAdmin = {
       "이 기능은 리버스 프록시 모드와 서브도메인 모드에서만 사용할 수 있습니다. 직접 연결 모드에서는 해당 포트가 다른 사람에게 노출되기 전에 인증이 완료되어야 합니다.",
     shareBypassUpdated: "FNOS 공유 우회 설정이 업데이트되었습니다.",
     iconHijackUpdated: "FNOS 포트 아이콘 인계 설정이 업데이트되었습니다.",
+    connectWafLoadFailed: "FN Connect WAF 상태를 불러오지 못했습니다",
+    connectWafSaveFailed: "FN Connect WAF 설정을 저장하지 못했습니다",
+    connectWafUpdated: "FN Connect WAF 설정이 업데이트되었습니다",
+    connectWafTitle: "FN Connect 트래픽을 WAF로 전달",
+    connectWafDescription:
+      "FNOS 원격 접속 서비스의 루프백 트래픽만 가로채며 HTTP 포트 변경을 자동으로 따라가 IPv4와 IPv6 경로를 모두 보호합니다.",
+    connectWafStatusDisabled: "현재 비활성화되어 있습니다.",
+    connectWafStatusProtected:
+      "보호 활성화: FNOS 포트 {source} → 로컬 WAF 입구 {listener}.",
+    connectWafStatusDetection:
+      "트래픽은 WAF를 통과하지만 탐지 전용 모드에서는 차단되지 않습니다.",
+    connectWafStatusWafInactive:
+      "트래픽은 게이트웨이를 통과하지만 WAF가 꺼져 있거나 규칙이 로드되지 않았습니다.",
+    connectWafStatusDegraded:
+      "설정되었지만 런타임이 완전히 활성화되지 않았습니다.",
+    connectWafLastError: "마지막 동기화 실패: {message}",
     bbrUpdated: "BBR 가속 설정이 업데이트되었습니다.",
     mtuUpdated: "MTU 탐지 설정이 업데이트되었습니다.",
     shareBypassTitle: "FNOS 공유 우회",
@@ -3345,6 +3361,7 @@ export const koKRAdmin = {
       hostRule: "호스트 규칙",
       hostLocation: "호스트 경로 규칙",
       streamRule: "프로토콜 매핑",
+      fnConnect: "FN Connect",
       authProxy: "인증 프록시",
       select: "페이지 선택",
       preflight: "사전 검사",

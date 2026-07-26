@@ -69,6 +69,12 @@ async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
         StatusCode::FORBIDDEN
     );
     assert_eq!(
+        update_fnos_connect_waf(State(state.clone()), Json(json!({ "enabled": true })))
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
         clear_firewall(State(state)).await.status(),
         StatusCode::FORBIDDEN
     );

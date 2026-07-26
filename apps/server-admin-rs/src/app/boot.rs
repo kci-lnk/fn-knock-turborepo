@@ -8,8 +8,8 @@ use crate::{
 
 const CLEAN_SCRIPT_CONTENT: &str = r#"#!/bin/bash
 
-CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH")
-PARENTS=("INPUT" "DOCKER-USER")
+CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH" "FNK_FNC_WAF")
+PARENTS=("INPUT" "DOCKER-USER" "OUTPUT")
 TABLES=("iptables" "ip6tables")
 
 remove_parent_jumps() {
@@ -174,5 +174,16 @@ async fn sync_locale_config_on_boot(state: &AppState) {
         Err(error) => {
             tracing::warn!(%error, "failed to sync locale config on boot");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn firewall_cleanup_script_covers_fn_connect_waf_chain_and_output_parent() {
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_WAF\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"OUTPUT\""));
     }
 }

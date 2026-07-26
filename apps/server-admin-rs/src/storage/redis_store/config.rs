@@ -40,6 +40,10 @@ pub fn default_config() -> Value {
         "enabled": false,
         "updated_at": null
     });
+    let fnos_connect_waf = json!({
+        "enabled": false,
+        "updated_at": null
+    });
     let fnos_network_tuning = json!({
         "bbr_enabled": false,
         "mtu_probing_enabled": false,
@@ -212,6 +216,7 @@ pub fn default_config() -> Value {
         "default_tunnel": "frp",
         "fnos_share_bypass": fnos_share_bypass,
         "fnos_port_icon_hijack": fnos_port_icon_hijack,
+        "fnos_connect_waf": fnos_connect_waf,
         "fnos_network_tuning": fnos_network_tuning,
         "gateway_logging": gateway_logging,
         "waf": waf,

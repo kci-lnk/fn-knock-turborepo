@@ -701,6 +701,26 @@ message AuthBridgeEnvelope {
   }
 }
 
+// FnosConnectIngressConfig controls the private loopback-only HTTP ingress
+// used by the fnOS Connect relay. The listener port is intentionally allocated
+// by the gateway and returned through FnosConnectIngressStatus.
+message FnosConnectIngressConfig {
+  bool enabled = 1;
+  int32 upstream_http_port = 2;
+}
+
+message FnosConnectIngressStatus {
+  bool enabled = 1;
+  bool listener_active = 2;
+  int32 listen_port = 3;
+  int32 upstream_http_port = 4;
+  bool ipv4_active = 5;
+  bool ipv6_active = 6;
+  bool waf_active = 7;
+  string waf_mode = 8;
+  string last_error = 9;
+}
+
 service GatewayControlService {
   rpc GetServerInfo(google.protobuf.Empty) returns (ServerInfo);
   rpc GetGatewayListenerConfig(google.protobuf.Empty) returns (GatewayListenerConfig);
@@ -744,6 +764,8 @@ service GatewayControlService {
   rpc SetGatewayUnmatchedRouteConfig(GatewayUnmatchedRouteConfig) returns (GatewayUnmatchedRouteConfig);
   rpc GetFnosPortIconHijackConfig(google.protobuf.Empty) returns (FnosPortIconHijackConfig);
   rpc SetFnosPortIconHijackConfig(FnosPortIconHijackConfig) returns (FnosPortIconHijackConfig);
+  rpc GetFnosConnectIngressStatus(google.protobuf.Empty) returns (FnosConnectIngressStatus);
+  rpc SetFnosConnectIngressConfig(FnosConnectIngressConfig) returns (FnosConnectIngressStatus);
   rpc GetReverseProxyThrottleExemptIps(google.protobuf.Empty) returns (ReverseProxyThrottleExemptIpsRuntime);
   rpc SetReverseProxyThrottleExemptIps(ReverseProxyThrottleExemptIpsRuntime) returns (ReverseProxyThrottleExemptIpsRuntime);
   rpc GetCommonLocationExemptions(google.protobuf.Empty) returns (CommonLocationExemptionsRuntime);

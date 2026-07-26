@@ -20,6 +20,7 @@ use crate::{
     time_utils, waf, whitelist,
 };
 
+mod fnos_connect_waf;
 mod fnos_network;
 mod handlers;
 mod migrations;
@@ -28,6 +29,10 @@ mod smart_connect;
 mod store;
 mod utils;
 
+pub(crate) use fnos_connect_waf::normalize_fnos_connect_waf;
+use fnos_connect_waf::{
+    get_fnos_connect_waf, start_fnos_connect_waf_reconciler, update_fnos_connect_waf,
+};
 use fnos_network::*;
 use handlers::*;
 use migrations::*;
@@ -95,6 +100,10 @@ pub fn runtime_config_routes() -> Router<AppState> {
         .route(
             "/api/admin/config/fnos_port_icon_hijack",
             get(get_fnos_port_icon_hijack).post(update_fnos_port_icon_hijack),
+        )
+        .route(
+            "/api/admin/config/fnos_connect_waf",
+            get(get_fnos_connect_waf).post(update_fnos_connect_waf),
         )
         .route(
             "/api/admin/config/auto_https",
@@ -221,4 +230,6 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
     {
         tracing::warn!(%error, "failed to sync FnOS port icon hijack config on boot");
     }
+
+    start_fnos_connect_waf_reconciler(state);
 }

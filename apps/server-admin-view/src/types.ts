@@ -53,6 +53,7 @@ export interface RuntimeCapabilities {
   terminal_available: boolean;
   auto_https_available?: boolean;
   fnos_network_tuning_available?: boolean;
+  fnos_connect_waf_available?: boolean;
   shared_root_available: boolean;
   acme_available?: boolean;
   acme_resource_required?: boolean;
@@ -356,6 +357,31 @@ export interface FnosShareBypassConfig {
 export interface FnosPortIconHijackConfig {
   enabled: boolean;
   updated_at: string | null;
+}
+
+export interface FnosConnectWafDetails {
+  availability: {
+    available: boolean;
+    reason_code: "standard_fpk_required" | null;
+  };
+  config: {
+    enabled: boolean;
+    updated_at: string | null;
+  };
+  runtime: {
+    effective: boolean;
+    protected: boolean;
+    detected_http_port: number | null;
+    listener_port: number | null;
+    ipv4_redirect_active: boolean;
+    ipv6_redirect_active: boolean;
+    waf_active: boolean;
+    waf_mode: string | null;
+    cgroup_path?: string;
+    source: string | null;
+    last_sync_at: string | null;
+    last_error: string | null;
+  };
 }
 
 export type FnosCertificateSyncStatus =
@@ -846,6 +872,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   fnos_port_icon_hijack?: FnosPortIconHijackConfig;
+  fnos_connect_waf?: FnosConnectWafDetails["config"];
   fnos_network_tuning?: FnosNetworkTuningConfig;
   fnos_certificate_sync?: { auto_sync_enabled: boolean };
   gateway_logging?: GatewayLoggingConfig;

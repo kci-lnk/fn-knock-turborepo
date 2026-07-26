@@ -155,6 +155,12 @@ pub(super) fn should_sync_system_rules_for_restore(
 pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
     let full_config = state.store.get_config().await?;
     let config = normalize_waf_config_for_full_config(&full_config, state);
+    if apply_recommended_lfi_rule_patch_if_needed(state).await? {
+        tracing::info!(
+            rule = LFI_RULE_FILENAME,
+            "enabled newly recommended WAF rule during upgrade"
+        );
+    }
     let enabled = config
         .get("enabled")
         .and_then(Value::as_bool)
@@ -181,6 +187,47 @@ pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
     }
     sync_waf_config_to_gateway(state, &full_config).await?;
     Ok(())
+}
+
+pub(super) async fn apply_recommended_lfi_rule_patch_if_needed(
+    state: &AppState,
+) -> anyhow::Result<bool> {
+    if state
+        .store
+        .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
+        .await?
+        .as_deref()
+        == Some("1")
+    {
+        return Ok(false);
+    }
+
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    // The boot WAF task can overlap other startup work. Recheck after taking
+    // the rule-state lock so only one caller applies and marks this patch.
+    if state
+        .store
+        .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
+        .await?
+        .as_deref()
+        == Some("1")
+    {
+        return Ok(false);
+    }
+
+    let mut rules_state = read_rules_state(state).await?;
+    let changed = rules_state.system_enabled.get(LFI_RULE_FILENAME).copied() != Some(true);
+    if changed {
+        rules_state
+            .system_enabled
+            .insert(LFI_RULE_FILENAME.to_string(), true);
+        write_rules_state(state, &rules_state).await?;
+    }
+    state
+        .store
+        .set_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY, "1")
+        .await?;
+    Ok(changed)
 }
 
 pub(super) async fn check_and_sync_system_waf_rules_if_needed(

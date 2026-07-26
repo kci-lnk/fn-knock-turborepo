@@ -1,78 +1,239 @@
-# fn-knock Docker Deployment
+# fn-knock Docker 部署与维护
 
-`deploy/docker` 用来承载 `fn-knock` 的 Docker 本地测试和远端发布。
+本目录包含 fn-knock 的镜像定义、本地 Compose 环境和维护者发布脚本。
 
-当前构建链路已经按“多阶段 + 持久化缓存”设计：
+- 普通用户：使用已发布镜像，推荐在 Linux 主机上采用 HOST 网络部署。
+- 项目维护者：使用仓库内的 Compose 和 `scripts/fn-knock-docker.sh` 构建、测试及发布镜像。
 
-- `deps` 阶段只根据 workspace manifests 安装依赖
-- `admin-view-builder`、`auth-view-builder`、`server-builder` 分别独立构建各自产物
-- `runtime` 阶段只带最终运行文件
-- 本地和远端发布统一通过 `docker buildx` 构建
-- 脚本默认会自动创建并复用 `fn-knock-buildx` 这个 `docker-container` builder
-- 默认持久化缓存目录为 `~/.cache/fn-knock-buildx`
+面向最终用户的最新部署说明以
+[Docker Compose 部署文档](https://docs.fnknock.cn/quick-start/docker-deployment)
+为准。
 
-## 目录说明
+## 使用已发布镜像部署
 
-- `Dockerfile`：多阶段构建镜像，构建共享运行时产物并打包到最终镜像
-- `compose.yaml`：本地 compose 主文件，包含 `build` 配置
-- `compose.override.yaml`：本地调试覆盖项
-- `compose.remote.yaml`：远端发布专用 compose 文件，只使用已加载镜像，不在远端构建
-- `entrypoint.sh`：在单容器内启动 Go 网关和 Rust 后端
-- `.env.example`：本地与远端通用的环境变量模板
+### 环境要求
 
-## 从 Docker Hub 直接安装并运行
-
-[官网](https://www.fnknock.cn) / [文档](https://docs.fnknock.cn)
-
-fnknock 是一款鉴权网关，帮助你更方便地暴露公网服务，支持 SSL、DDNS、反代鉴权和内网穿透。
-
-当前 Docker 镜像已经切换为 Rust 后端，并使用内置 SQLite 兼容存储；新部署只需要 `fn-knock` 一个容器，不需要 Redis，也不需要在 compose 里再配置 `redis` 服务。
-
-发布版 Compose 保持独立 bridge 网络，同时启用 IPv6，并将 Linux 宿主机的 `/proc/net/if_inet6` 只读映射进容器。这样 DDNS 可以在“从网卡获取”时选择宿主机真实 IPv6 接口，无需使用 host 网络模式。
-
-### 1. 准备运行目录
+需要 Linux 主机或基于 Linux 的 NAS，并已安装 Docker Engine 和 Docker
+Compose 插件：
 
 ```bash
-mkdir -p /opt/fn-knock-docker
-cd /opt/fn-knock-docker
+docker version
+docker compose version
 ```
 
-### 2. 拉取最新镜像
+下文的推荐配置使用 HOST 网络，让容器直接访问宿主机网络。
+
+### 选择镜像源
+
+| 镜像源     | 镜像地址                                | 适用网络                                  |
+| ---------- | --------------------------------------- | ----------------------------------------- |
+| 官方镜像源 | `hub.fnknock.cn/kcilnk/fn-knock:latest` | 中国大陆网络；`latest` 每 30 分钟同步一次 |
+| Docker Hub | `kcilnk/fn-knock:latest`                | 可稳定访问 Docker Hub 的网络              |
+
+下文默认使用官方镜像源。切换镜像源时，只需同时修改拉取命令和
+`.env` 中的 `FN_KNOCK_IMAGE`。如需锁定版本，可将 `latest` 改为已发布的固定
+标签。
+
+### 选择网络模式
+
+| 网络模式  | 推荐程度   | 说明                                                                  |
+| --------- | ---------- | --------------------------------------------------------------------- |
+| HOST 网络 | 推荐、默认 | 容器直接使用宿主机网络，可识别真实网卡与 IPv6                         |
+| 桥接网络  | 可选       | 使用隔离的双栈 bridge 并映射端口，但 DDNS 可能找不到宿主机网卡或 IPv6 |
+
+需要使用 DDNS“从网卡获取”或依赖宿主机 IPv6 时，请使用 HOST 网络。桥接网络
+适合更看重网络隔离、并且不依赖宿主机网卡识别的部署。
+
+### 一键安装
+
+在目标 Linux 主机的 root 终端中粘贴下面整段脚本。脚本会检查 Docker
+环境，在 `/opt/fn-knock-docker` 写入 HOST 网络配置并启动 fn-knock。
+
+如果目标目录中已经存在 `.env` 或 `docker-compose.yml`，脚本会停止，不会
+覆盖原配置。
 
 ```bash
-docker pull kcilnk/fn-knock:latest
-```
+sh <<'FN_KNOCK_INSTALL'
+set -eu
 
-### 3. 准备 `.env`
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Please run this installer in a root terminal." >&2
+  exit 1
+fi
 
-下面这份配置适合绝大多数场景，默认直接使用正式发布镜像：
+command -v docker >/dev/null 2>&1 || { echo "Docker is not installed." >&2; exit 1; }
+docker compose version >/dev/null 2>&1 || { echo "Docker Compose is not available." >&2; exit 1; }
 
-```dotenv
-FN_KNOCK_IMAGE=kcilnk/fn-knock:latest
+install_dir=/opt/fn-knock-docker
+mkdir -p "$install_dir"
+cd "$install_dir"
+
+if [ -e .env ] || [ -e docker-compose.yml ]; then
+  echo "Existing .env or docker-compose.yml found; installation stopped." >&2
+  exit 1
+fi
+
+cat > .env <<'FN_KNOCK_ENV'
+FN_KNOCK_IMAGE=hub.fnknock.cn/kcilnk/fn-knock:latest
 TZ=Asia/Shanghai
 ADMIN_VIEW_PORT=7991
 BACKEND_PORT=7998
 AUTH_PORT=7997
 GO_BACKEND_PORT=7996
 GO_REPROXY_PORT=7999
-FN_KNOCK_DOCKER_IPV4_SUBNET=172.30.0.0/16
-FN_KNOCK_DOCKER_IPV6_SUBNET=fd42:fb33:7f7a:100::/64
+DOCKER_ADMIN_TRUSTED_PROXY_CIDRS=
+DOCKER_DISCOVER_LAN_IP=
+FN_KNOCK_ENV
+
+cat > docker-compose.yml <<'FN_KNOCK_COMPOSE'
+services:
+  fn-knock:
+    image: ${FN_KNOCK_IMAGE}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_DATA_DIR: /var/lib/fn-knock
+      FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
+      ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
+      BACKEND_PORT: ${BACKEND_PORT:-7998}
+      AUTH_PORT: ${AUTH_PORT:-7997}
+      GO_BACKEND_PORT: ${GO_BACKEND_PORT:-7996}
+      GO_REPROXY_PORT: ${GO_REPROXY_PORT:-7999}
+      DOCKER_ADMIN_TRUSTED_PROXY_CIDRS: ${DOCKER_ADMIN_TRUSTED_PROXY_CIDRS:-}
+      DOCKER_DISCOVER_LAN_IP: ${DOCKER_DISCOVER_LAN_IP:-}
+      ADMIN_VIEW_HOST: 0.0.0.0
+      BACKEND_HOST: 127.0.0.1
+    volumes:
+      - fn_knock_data:/var/lib/fn-knock
+      - fn_knock_gateway:/usr/local/etc/fn-knock
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:${ADMIN_VIEW_PORT:-7991}/api/admin/healthz || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  fn_knock_data:
+  fn_knock_gateway:
+FN_KNOCK_COMPOSE
+
+docker compose pull
+docker compose up -d
+docker compose ps
+FN_KNOCK_INSTALL
+```
+
+### 手动安装
+
+#### 1. 准备目录并拉取镜像
+
+```bash
+mkdir -p /opt/fn-knock-docker
+cd /opt/fn-knock-docker
+docker pull hub.fnknock.cn/kcilnk/fn-knock:latest
+```
+
+#### 2. 创建 `.env`
+
+将以下内容保存为 `/opt/fn-knock-docker/.env`：
+
+```dotenv
+FN_KNOCK_IMAGE=hub.fnknock.cn/kcilnk/fn-knock:latest
+TZ=Asia/Shanghai
+ADMIN_VIEW_PORT=7991
+BACKEND_PORT=7998
+AUTH_PORT=7997
+GO_BACKEND_PORT=7996
+GO_REPROXY_PORT=7999
 DOCKER_ADMIN_TRUSTED_PROXY_CIDRS=
 DOCKER_DISCOVER_LAN_IP=
 ```
 
-配置建议：
+关键配置：
 
-- `FN_KNOCK_IMAGE`：推荐默认使用 `:latest`，这样用户可以始终更新到最新版本；如果需要锁版本，也可以改成 `:1.4.3` 这样的固定 tag
-- `ADMIN_VIEW_PORT`：管理后台入口端口，默认 `7991`
-- `GO_REPROXY_PORT`：网关对外服务端口，默认 `7999`
-- `FN_KNOCK_DOCKER_IPV4_SUBNET`：Docker bridge 的容器 IPv4 子网；如果同机网络冲突，可换成其它私网 CIDR
-- `FN_KNOCK_DOCKER_IPV6_SUBNET`：Docker bridge 的容器 IPv6 子网，默认启用 ULA `/64`
-- `BACKEND_PORT` / `AUTH_PORT` / `GO_BACKEND_PORT`：容器内部组件端口，通常保持默认即可
-- `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`：如果 `7991` 需要挂在可信反代后面，填反代出口 IP 或 CIDR
-- `DOCKER_DISCOVER_LAN_IP`：仅第三方反代无法自动识别宿主机局域网地址时作为兜底
+| 配置项                             | 默认值                                  | 说明                                                      |
+| ---------------------------------- | --------------------------------------- | --------------------------------------------------------- |
+| `FN_KNOCK_IMAGE`                   | `hub.fnknock.cn/kcilnk/fn-knock:latest` | 可改为 Docker Hub 地址或固定版本标签                      |
+| `ADMIN_VIEW_PORT`                  | `7991`                                  | 管理面板的宿主机端口                                      |
+| `GO_REPROXY_PORT`                  | `7999`                                  | 网关入口的宿主机端口                                      |
+| `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS` | 留空                                    | 仅当 `7991` 位于可信反向代理后时，填写代理出口 IP 或 CIDR |
+| `DOCKER_DISCOVER_LAN_IP`           | 留空                                    | 仅在第三方反代无法自动识别宿主机局域网地址时填写          |
 
-### 4. 准备 `docker-compose.yml`
+`BACKEND_PORT`、`AUTH_PORT` 和 `GO_BACKEND_PORT` 是内部组件端口，通常保持默认值。
+
+#### 3. 创建 `docker-compose.yml`
+
+推荐的 HOST 网络配置只需要一个 `fn-knock` 容器：
+
+```yaml
+services:
+  fn-knock:
+    image: ${FN_KNOCK_IMAGE}
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_DATA_DIR: /var/lib/fn-knock
+      FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
+      ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
+      BACKEND_PORT: ${BACKEND_PORT:-7998}
+      AUTH_PORT: ${AUTH_PORT:-7997}
+      GO_BACKEND_PORT: ${GO_BACKEND_PORT:-7996}
+      GO_REPROXY_PORT: ${GO_REPROXY_PORT:-7999}
+      DOCKER_ADMIN_TRUSTED_PROXY_CIDRS: ${DOCKER_ADMIN_TRUSTED_PROXY_CIDRS:-}
+      DOCKER_DISCOVER_LAN_IP: ${DOCKER_DISCOVER_LAN_IP:-}
+      ADMIN_VIEW_HOST: 0.0.0.0
+      BACKEND_HOST: 127.0.0.1
+    volumes:
+      - fn_knock_data:/var/lib/fn-knock
+      - fn_knock_gateway:/usr/local/etc/fn-knock
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:${ADMIN_VIEW_PORT:-7991}/api/admin/healthz || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  fn_knock_data:
+  fn_knock_gateway:
+```
+
+HOST 网络下不需要声明 `ports` 或自定义 bridge，容器直接监听宿主机端口。
+
+#### 4. 启动并检查
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose logs -f fn-knock
+```
+
+最后一条命令会持续显示日志，可按 `Ctrl+C` 退出。
+
+### 可选：使用桥接网络
+
+桥接网络可能导致 DDNS 找不到宿主机网卡或 IPv6。确认业务不依赖“从网卡
+获取”后，在 `.env` 中增加：
+
+```dotenv
+FN_KNOCK_DOCKER_IPV4_SUBNET=172.30.0.0/16
+FN_KNOCK_DOCKER_IPV6_SUBNET=fd42:fb33:7f7a:100::/64
+```
+
+并将 `docker-compose.yml` 改为：
 
 ```yaml
 services:
@@ -91,25 +252,16 @@ services:
       GO_REPROXY_PORT: ${GO_REPROXY_PORT:-7999}
       DOCKER_ADMIN_TRUSTED_PROXY_CIDRS: ${DOCKER_ADMIN_TRUSTED_PROXY_CIDRS:-}
       DOCKER_DISCOVER_LAN_IP: ${DOCKER_DISCOVER_LAN_IP:-}
-      DDNS_HOST_IF_INET6_PATH: /host/proc/net/if_inet6
       ADMIN_VIEW_HOST: 0.0.0.0
       BACKEND_HOST: 127.0.0.1
     ports:
       - "${ADMIN_VIEW_PORT:-7991}:${ADMIN_VIEW_PORT:-7991}"
       - "${GO_REPROXY_PORT:-7999}:${GO_REPROXY_PORT:-7999}"
-    ulimits:
-      nofile:
-        soft: 1048576
-        hard: 1048576
     networks:
       - fn_knock_net
     volumes:
       - fn_knock_data:/var/lib/fn-knock
       - fn_knock_gateway:/usr/local/etc/fn-knock
-      - type: bind
-        source: /proc/net/if_inet6
-        target: /host/proc/net/if_inet6
-        read_only: true
     healthcheck:
       test:
         [
@@ -120,6 +272,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
 volumes:
   fn_knock_data:
   fn_knock_gateway:
@@ -133,454 +286,282 @@ networks:
         - subnet: ${FN_KNOCK_DOCKER_IPV6_SUBNET:-fd42:fb33:7f7a:100::/64}
 ```
 
-这份 compose 配置的要点：
+如果子网与同机现有网络冲突，请将 `FN_KNOCK_DOCKER_IPV4_SUBNET` 换成其他
+私网 CIDR；IPv6 子网应保持为 ULA `/64`。
 
-- `fn-knock` 使用 `unless-stopped`，重启后会自动拉起
-- 保持 Docker bridge 隔离，只向宿主机开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`
-- 为 bridge 显式启用 IPv6；宿主机本身仍需启用 IPv6 并获得可用地址
-- 只读映射宿主机 `/proc/net/if_inet6`，让 DDNS 可以选择宿主机真实 IPv6 网卡；不会共享整个宿主机网络命名空间
-- `/proc/net/if_inet6` 是 procfs 虚拟文件，文件大小始终显示为 `0`；不要用 `test -s` 判断，应读取内容并检查 scope `00` 的全局 IPv6 条目
-- 不再启动 Redis；默认数据会写入 `fn_knock_gateway` 卷中的 SQLite 数据库
-- `fn_knock_data` 保存 secret、备份、FRP/Cloudflared 资源等运行数据
-- `fn_knock_gateway` 保存网关配置和默认 SQLite 数据库（`storage/fn-knock.sqlite3`）
+### 首次访问与端口
 
-### 5. 启动
+默认端口如下：
 
-```bash
-docker compose up -d
-docker compose ps
-docker compose logs -f fn-knock
-```
+| 端口   | 服务            | 暴露范围                | 用途                               |
+| ------ | --------------- | ----------------------- | ---------------------------------- |
+| `7991` | 管理后台入口    | HOST 网络或 bridge 映射 | 首次访问时设置 Docker 管理面板密码 |
+| `7999` | 网关 / 代理入口 | HOST 网络或 bridge 映射 | 外部用户访问代理服务时使用         |
+| `7998` | Rust 后端       | 宿主机回环或容器内部    | 通常保持默认值                     |
+| `7997` | 认证前端        | 宿主机回环或容器内部    | 通常保持默认值                     |
+| `7996` | Go 网关管理     | 宿主机回环或容器内部    | 通常保持默认值                     |
 
-### 6. 端口说明
+当前镜像使用内置 SQLite 存储，只需运行一个 `fn-knock` 容器，不需要 Redis。
 
-- `7991`：管理后台入口。首次访问会进入 Docker 管理面板密码设置流程
-- `7999`：网关 / 代理入口。最终用户访问代理服务时通常使用这个端口
-- `7998`：Rust 后端内部端口，不对宿主机暴露
-- `7997`：认证前端内部端口，不对宿主机暴露
-- `7996`：Go 后端内部端口，不对宿主机暴露
-- 当前版本不再提供 `6379` Redis 端口
+1. 打开 `http://<宿主机IP>:7991`，设置管理面板密码并登录。
+2. 在管理后台完成反向代理、子域名、证书和鉴权配置。
+3. 让外部业务流量访问 `7999` 对应的网关入口。
+4. 如果 `7991` 位于可信反向代理后，在 `.env` 设置
+   `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`。
+5. 仅当第三方反代无法自动识别宿主机局域网地址时，才设置
+   `DOCKER_DISCOVER_LAN_IP`。
 
-### 7. 请求来源 IP
+### 数据卷
 
-Docker bridge 发布端口时，本机回环访问会经过 Docker 的本地转发层，因此 `curl http://127.0.0.1:7999` 这类探测日志可能显示 `172.30.0.1` 或其它 Docker 网关地址。局域网或公网 IPv4 从宿主机网卡进入时，通常会保留真实 TCP 来源；如果经过上游反代，真实访问者需要由可信反代写入 `X-Forwarded-For`、`X-Real-IP` 或云厂商真实 IP 头。
+| 数据卷             | 容器路径                  | 内容                                       |
+| ------------------ | ------------------------- | ------------------------------------------ |
+| `fn_knock_data`    | `/var/lib/fn-knock`       | 密钥、备份以及 FRP、Cloudflared 等运行数据 |
+| `fn_knock_gateway` | `/usr/local/etc/fn-knock` | 网关配置和默认 SQLite 数据库               |
 
-请求日志中的“客户端 IP”会优先展示由上游真实 IP 头推断出的访问者；“连接来源 IP”保留网关实际看到的 TCP 对端，便于排查 Docker 端口发布、本机探测和反代链路。
+执行 `docker compose pull` 或重新创建容器不会删除具名卷。删除卷前应先备份，
+具体操作请参考
+[备份、恢复与数据清理](https://docs.fnknock.cn/guide/backup-and-restore)。
 
-### 8. 首次配置与后续更新
+### 更新镜像
 
-首次运行后：
-
-1. 打开 `http://<宿主机IP>:7991`
-2. 设置并登录 Docker 管理面板密码
-3. 在管理后台中继续配置代理规则、鉴权、证书、白名单等业务项
-4. 对外提供服务时，让流量进入 `7999`
-5. 如果 `7991` 需要放到可信反向代理后面，设置 `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`
-6. 只有在第三方反向代理无法自动识别宿主机局域网地址时，才额外设置 `DOCKER_DISCOVER_LAN_IP`
-
-后续升级：
+保持 `.env` 中使用 `latest`，然后重新拉取并创建容器：
 
 ```bash
+cd /opt/fn-knock-docker
 docker compose pull
 docker compose up -d
+docker compose ps
 ```
 
-如果你使用的是 `latest`，这个流程会直接更新到最新镜像；如果你要固定版本，修改 `.env` 里的 `FN_KNOCK_IMAGE=kcilnk/fn-knock:<version>` 后再执行同样的命令。
+持久化卷不会被删除。固定版本标签只会重新拉取同一标签；如需升级，请先修改
+`FN_KNOCK_IMAGE`。
 
-### 9. 旧版 Redis 数据迁移
+### 使用 Watchtower 自动更新
 
-这一节只适用于历史 compose 曾经包含 Redis、并且需要保留旧数据的用户；全新安装可以跳过。
-
-从旧版本升级时，先在旧 Redis 服务仍可访问的 compose 网络里执行一次迁移：
+当 `.env` 使用 `latest` 时，可以在同一台 Docker 主机上运行 Watchtower：
 
 ```bash
-docker compose exec -e FN_KNOCK_LEGACY_REDIS_URL=redis://redis:6379/ fn-knock \
-  /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  nickfedor/watchtower --cleanup
 ```
 
-迁移成功后会删除源 Redis 中的 `fn_knock:*` key，避免旧 Redis 残留数据被误用。确认 SQLite 数据正常后，再使用当前无 Redis 的 compose 文件重建服务；如需覆盖已有 SQLite keyspace，可在迁移命令末尾追加 `--force`。
+默认情况下，Watchtower 每 24 小时检查所有运行中的容器。发现同一镜像标签的
+摘要变化后，它会拉取镜像并按原配置重新创建容器，更新期间会有短暂重启。
+固定版本标签不会自动跨标签升级。
 
-默认 SQLite 路径为 `${FN_KNOCK_GATEWAY_CONFIG_DIR:-$GATEWAY_CONFIG_DIR}/storage/fn-knock.sqlite3`，也可用 `FN_KNOCK_SQLITE_PATH` 显式覆盖。
+`--cleanup` 只清理已被替换的旧镜像，不会删除 fn-knock 的具名数据卷。
 
-## 本地测试
+```bash
+docker ps --filter name=watchtower
+docker logs watchtower
+```
 
-### 准备环境
+> 此基础配置会管理主机上的所有运行中容器，并通过 Docker Socket 获得管理
+> Docker 的高权限。仅在可信主机上使用；启用前先备份 fn-knock 数据。如果
+> 其他容器不应自动更新，请按
+> [Watchtower 官方文档](https://watchtower.nickfedor.com/)
+> 使用容器名称、标签或 Scope 限制更新范围。
+
+### 重设管理面板密码
+
+忘记密码时，在运行 Docker 的主机上执行：
+
+```bash
+cd /opt/fn-knock-docker
+docker compose exec -T fn-knock fn-knock-reset-panel-password
+```
+
+再次访问 `7991` 时会重新进入首次设置密码流程。该命令只清除管理面板密码、
+登录会话和密码输错后的退避状态，不会删除业务配置、反代规则、证书、白名单、
+日志或数据卷。
+
+## 仓库内开发与发布
+
+以下内容面向 fn-knock 项目维护者，不是最终用户安装已发布镜像所必需的步骤。
+
+### 目录说明
+
+| 文件                      | 用途                                                          |
+| ------------------------- | ------------------------------------------------------------- |
+| `Dockerfile`              | 组装预构建的前端、Go 网关和 Rust 后端，生成 Alpine 运行时镜像 |
+| `compose.yaml`            | 本地构建与测试的 Compose 主文件                               |
+| `compose.override.yaml`   | 本地调试覆盖项，启用运行时 HMAC secret 输出                   |
+| `compose.remote.yaml`     | SSH 测试部署使用的 Compose 模板，只运行已加载镜像             |
+| `.env.example`            | 本地和 SSH 测试部署的默认环境变量                             |
+| `entrypoint.sh`           | 在单容器内启动 Go 网关和 Rust 后端                            |
+| `reset-panel-password.sh` | 镜像内的管理面板密码重置入口                                  |
+| `rust-backends/`          | 各目标架构的 Rust 后端二进制                                  |
+
+仓库内 `compose.yaml` 和 `compose.remote.yaml` 使用 bridge 网络，便于开发和
+测试；普通用户部署仍应优先使用上文的 HOST 网络配置。
+
+### 本地构建与测试
+
+在仓库根目录执行：
 
 ```bash
 cp deploy/docker/.env.example deploy/docker/.env
 ```
 
-默认变量：
-
-```dotenv
-FN_KNOCK_IMAGE=fn-knock:local
-TZ=Asia/Shanghai
-ADMIN_VIEW_PORT=7991
-BACKEND_PORT=7998
-AUTH_PORT=7997
-GO_BACKEND_PORT=7996
-GO_REPROXY_PORT=7999
-FN_KNOCK_DOCKER_IPV4_SUBNET=172.30.0.0/16
-FN_KNOCK_DOCKER_IPV6_SUBNET=fd42:fb33:7f7a:100::/64
-DOCKER_ADMIN_TRUSTED_PROXY_CIDRS=
-DOCKER_DISCOVER_LAN_IP=
-```
-
-### 常用命令
+常用命令：
 
 ```bash
-# 构建镜像
+# 构建当前主机架构的本地镜像
 npm run fn-knock:docker:build
 
-# 启动本地环境
+# 构建并以前台方式启动本地 Compose 环境
 npm run fn-knock:docker:up
 
-# 查看日志
+# 查看容器日志
 npm run fn-knock:docker:logs
 
-# 忘记管理面板密码时重置
+# 重设本地管理面板密码
 npm run fn-knock:docker:reset-panel-password
 
-# 单台远端主机快速部署（只构建远端实际架构）
-npm run fn-knock:docker:local-deploy-fast
-
-# 发布到 Docker Hub（推 amd64 / arm64 / arm32 + manifest）
-npm run fn-knock:docker:hub-publish
-
-# 停止环境
+# 停止本地环境
 npm run fn-knock:docker:down
 ```
 
-启动后默认访问地址：
+默认访问地址：
 
-- 管理后台入口：`http://127.0.0.1:7991`
-- 网关代理入口：`http://127.0.0.1:7999`
+- 管理后台：`http://127.0.0.1:7991`
+- 网关入口：`http://127.0.0.1:7999`
 
-本地测试特点：
+脚本会优先读取 `deploy/docker/.env`，不存在时回退到
+`deploy/docker/.env.example`。本地环境会自动加载
+`compose.override.yaml`，并把 buildx 缓存写入
+`~/.cache/fn-knock-buildx/<arch>`。
 
-- 自动读取 `deploy/docker/.env`，不存在时回退到 `deploy/docker/.env.example`
-- 容器默认时区为 `Asia/Shanghai`，可通过 `TZ` 环境变量覆盖
-- 自动加载 `compose.override.yaml`
-- 默认附加 `EXPOSE_RUNTIME_HMAC_SECRET=1`，便于本地调试
-- 只对外开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`，`BACKEND_PORT` 仅保留在容器内部
-- 通过只读映射 `/proc/net/if_inet6` 将宿主机 IPv6 网卡信息提供给 DDNS，不启用 host 网络模式
-- 首次访问 `ADMIN_VIEW_PORT` 需要设置管理面板密码，后续访问需要先输入该密码
-- 成功登录后，可在“系统设置 -> 面板”里直接修改管理面板密码
-- `ADMIN_VIEW_PORT` 默认只允许宿主机本地、局域网或 VPN 等内网来源访问，公网直连会直接收到拒绝页面
-- 如果需要让外部用户经反向代理访问 `ADMIN_VIEW_PORT`，请把反代节点的出口 IP / CIDR 写入 `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`；这样仍会拒绝公网直连，但会放行来自可信反代的请求
-- 可信反代需要继续透传 `X-Forwarded-For` 或 `X-Real-IP`；`go-reauth-proxy` 当前转发逻辑已经会附带这些头
-- 如果你是通过 `go-reauth-proxy` 反代 `ADMIN_VIEW_PORT`，`一键发现本地服务` 会自动识别 Docker 宿主机对应的局域网 IPv4
-- `DOCKER_DISCOVER_LAN_IP` 仅作为第三方反代场景下的兜底覆盖项；正常走 `go-reauth-proxy` 时不需要手工填写
-- `ADMIN_VIEW_PORT` 会把通过认证的请求内部代理到 `BACKEND_PORT`
-- 构建通过 `docker buildx` 执行，并将缓存写入 `~/.cache/fn-knock-buildx/<arch>`
-- 如果当前活动 builder 是 `docker` driver，脚本会自动切到托管的 `fn-knock-buildx`
+默认托管 builder 名称为 `fn-knock-buildx`。如果它不存在，脚本会以
+`docker-container` driver 创建；如构建代理配置发生变化，脚本会重新创建
+托管 builder 以应用新配置。
 
-### 忘记管理面板密码
+### SSH 测试部署
 
-如果你是在开发仓库里操作本地 compose 环境，可以直接执行：
+快速部署只构建远端主机实际使用的架构：
 
 ```bash
-npm run fn-knock:docker:reset-panel-password
-```
-
-如果是最终客户机上的 Docker 主机，先登录到主机：
-
-```bash
-ssh root@<docker-host>
-```
-
-然后执行推荐命令：
-
-```bash
-cd /opt/fn-knock-docker && docker compose exec -T fn-knock fn-knock-reset-panel-password
-```
-
-如果只知道容器已经在跑 Docker，但不确定 compose 目录，也可以直接执行：
-
-```bash
-docker exec -it "$(docker ps --filter label=com.docker.compose.service=fn-knock --format '{{.Names}}' | head -n 1)" fn-knock-reset-panel-password
-```
-
-当前 `root@192.168.31.135` 上我已实际确认可用的命令就是：
-
-```bash
-cd /opt/fn-knock-docker && docker compose exec -T fn-knock fn-knock-reset-panel-password
-```
-
-这个命令只会清除：
-
-- Docker 管理面板密码
-- 管理面板登录会话
-- 密码输错后的退避状态
-
-不会删除业务配置、反代规则、证书、白名单、日志目录或数据卷内容。执行完成后，下次访问 `ADMIN_VIEW_PORT` 会重新进入“首次设置密码”流程。
-
-### 本地前端调试 Docker 模式
-
-如果当前本地运行的是普通开发环境，但需要调试 Docker 模式下的管理面板密码页、Docker 专属文案或能力限制提示，可以直接在浏览器 DevTools 中设置前端调试标记：
-
-```js
-localStorage.setItem("fn_knock:debug:docker-mode", "1");
-localStorage.setItem("fn_knock:debug:docker-admin-stage", "setup"); // setup | login | authenticated
-location.reload();
-```
-
-调试标记说明：
-
-- `fn_knock:debug:docker-mode=1`
-  开启前端 Docker 模式调试覆盖
-- `fn_knock:debug:docker-admin-stage=setup`
-  模拟首次进入，需要先设置管理面板密码
-- `fn_knock:debug:docker-admin-stage=login`
-  模拟密码已设置，但当前还未登录
-- `fn_knock:debug:docker-admin-stage=authenticated`
-  模拟已经通过管理面板密码验证
-
-行为说明：
-
-- 该调试方式只覆盖 `apps/server-admin-view` 的前端判断，不会修改 Rust 后端的真实 `deployment_target`
-- 开启后，前端会按 Docker 模式展示对应的能力限制，例如禁用直连模式、宿主机防火墙能力、Smart Connect 等
-- 当阶段为 `setup` 时，前端提交成功的密码会自动保存到 `fn_knock:debug:docker-admin-password`
-- 当阶段为 `login` 时，前端会使用 `fn_knock:debug:docker-admin-password` 作为本地校验密码
-- 如果没有保存过调试密码，`login` 会自动回退到 `setup`
-
-清理调试标记：
-
-```js
-localStorage.removeItem("fn_knock:debug:docker-mode");
-localStorage.removeItem("fn_knock:debug:docker-admin-stage");
-localStorage.removeItem("fn_knock:debug:docker-admin-password");
-location.reload();
-```
-
-## 发布新版本到远端 Docker
-
-### 默认目标
-
-发布命令默认将镜像发布到：
-
-- SSH 主机：`root@192.168.31.135`
-- 远端部署目录：`/opt/fn-knock-docker`
-
-### 发布命令
-
-单台远端主机推荐使用快速部署命令：
-
-```bash
+FN_KNOCK_DOCKER_REMOTE_HOST=root@<docker-host> \
 npm run fn-knock:docker:local-deploy-fast
 ```
 
-快速部署脚本会自动完成以下事情：
-
-1. SSH 检测远端主机架构
-2. 只使用 `docker buildx build` 构建远端实际运行的架构镜像
-3. 生成对应架构的镜像 tag
-4. 用 `docker save | ssh ... docker load` 把这一套镜像传到远端
-5. 上传 `compose.remote.yaml` 和远端 `.env`
-6. 远端执行 `docker compose up -d --remove-orphans --force-recreate`
-7. 等待健康检查通过
-
-如果需要一次性把三套架构镜像都同步到远端 Docker，仍然可以使用完整部署命令：
+完整部署会构建并传输 `amd64`、`arm64` 和 `arm32` 三套镜像：
 
 ```bash
+FN_KNOCK_DOCKER_REMOTE_HOST=root@<docker-host> \
 npm run fn-knock:docker:local-deploy
 ```
 
-完整部署脚本会自动完成以下事情：
+两种流程都会：
 
-1. SSH 检测远端主机架构
-2. 同时使用 `docker buildx build` 本地构建 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7`
-3. 生成一组镜像 tag
-4. 用 `docker save | ssh ... docker load` 把三套镜像都传到远端
-5. 上传 `compose.remote.yaml` 和远端 `.env`
-6. 远端根据主机架构自动选择对应 tag 启动
-7. 远端执行 `docker compose up -d --remove-orphans --force-recreate`
-8. 等待健康检查通过
+1. 通过 SSH 检测远端架构。
+2. 使用 buildx 构建镜像。
+3. 通过 `docker save | ssh ... docker load` 传输镜像。
+4. 上传 `compose.remote.yaml` 和环境文件。
+5. 重新创建远端 Compose 服务并等待健康检查通过。
 
-构建缓存说明：
-
-- `deps` 阶段只要 `package.json` / workspace `package.json` 不变，就能直接复用依赖层
-- 三个构建阶段相互独立，修改后端代码时不会强制重建两个前端阶段
-- Docker 内不再依赖 `assemble-runtime.sh` 的聚合构建路径，而是直接构建各自工作区产物
-- Node 构建阶段会在构建机原生平台执行，避免前端和服务端 JS 产物在非本机架构仿真环境里重复编译
-- `local-deploy-fast` 只会使用远端实际架构对应的 `~/.cache/fn-knock-buildx/<arch>` 缓存
-- `local-deploy` 仍会分别复用 `~/.cache/fn-knock-buildx/amd64`、`arm64` 和 `arm32` 下的 buildx 缓存
-- 如果依赖声明变化、Dockerfile 变化、或源码真实影响产物，仍然会触发对应层重建，这是正常行为
-
-### 镜像 tag 规则
-
-如果没有手工指定 `FN_KNOCK_DOCKER_IMAGE_TAG`，脚本会从根目录 `version.json` 读取 `version`，先生成基础 tag：
+默认远端目录为 `/opt/fn-knock-docker`。未指定
+`FN_KNOCK_DOCKER_IMAGE_TAG` 时，远端测试镜像的基础标签为：
 
 ```text
-<version>-<YYYYMMDDHHMMSS>
+<version.json 中的 version>-<YYYYMMDDHHMMSS>
 ```
 
-然后自动产出三套镜像：
-
-```text
-fn-knock:<base-tag>-amd64
-fn-knock:<base-tag>-arm64
-fn-knock:<base-tag>-arm32
-```
-
-例如：
-
-```text
-fn-knock:1.4.1-20260409094530-amd64
-fn-knock:1.4.1-20260409094530-arm64
-fn-knock:1.4.1-20260409094530-arm32
-```
-
-推荐发布新版本时先更新根目录 `version.json`，再执行部署命令。快速部署只会产出远端架构对应的 tag；完整部署会产出三套架构 tag。
-
-如果希望手工指定基础 tag：
+随后追加 `-amd64`、`-arm64` 或 `-arm32`。可以显式覆盖标签：
 
 ```bash
-FN_KNOCK_DOCKER_IMAGE_TAG=1.4.2 npm run fn-knock:docker:local-deploy-fast
+FN_KNOCK_DOCKER_REMOTE_HOST=root@<docker-host> \
+FN_KNOCK_DOCKER_IMAGE_TAG=<version-or-tag> \
+npm run fn-knock:docker:local-deploy-fast
 ```
 
-如果远端是 `amd64`，快速部署实际发布镜像会变成：
-
-```text
-fn-knock:1.4.2-amd64
-```
-
-完整部署实际发布镜像会变成：
-
-```text
-fn-knock:1.4.2-amd64
-fn-knock:1.4.2-arm64
-fn-knock:1.4.2-arm32
-```
-
-当前默认远端 `root@192.168.31.135` 已确认是 `x86_64`，因此实际运行的是 `-amd64` 镜像，但 `-arm64` 和 `-arm32` 也会同步上传到远端 Docker。
-
-### 发布后排查
+远端排查和密码重置：
 
 ```bash
-# 查看远端容器状态
 npm run fn-knock:docker:remote-ps
-
-# 查看远端日志
 npm run fn-knock:docker:remote-logs
+npm run fn-knock:docker:remote-reset-panel-password
 ```
 
-## 发布到 Docker Hub
+这些命令同样读取 `FN_KNOCK_DOCKER_REMOTE_HOST` 和
+`FN_KNOCK_DOCKER_REMOTE_DIR`。
 
-### 登录与仓库名
+### 发布到 Docker Hub
 
-发布前先确保本机已经登录 Docker Hub：
+先登录 Docker Hub：
 
 ```bash
 docker login
 ```
 
-`fn-knock:docker:hub-publish` 会直接推送目标镜像仓库，所以需要显式指定：
-
-```bash
-FN_KNOCK_DOCKER_IMAGE_REPO=kcilnk/fn-knock
-```
-
-### 默认 tag 规则
-
-如果没有手工指定 `FN_KNOCK_DOCKER_IMAGE_TAG`，Docker Hub 发布会直接沿用项目当前版本号：
-
-```text
-version.json -> version
-```
-
-例如当前版本为 `1.4.3` 时，发布命令会推送：
-
-```text
-kcilnk/fn-knock:1.4.3-amd64
-kcilnk/fn-knock:1.4.3-arm64
-kcilnk/fn-knock:1.4.3-arm32
-kcilnk/fn-knock:1.4.3
-kcilnk/fn-knock:latest
-```
-
-其中：
-
-- `:1.4.3-amd64`、`:1.4.3-arm64` 和 `:1.4.3-arm32` 是显式架构 tag
-- `:1.4.3` 是多架构 manifest tag，`docker pull` 时会自动选择合适的平台
-- `:latest` 也会同步更新为同一组多架构镜像，方便用户始终拉取最新版
-
-### 发布命令
-
-最常见的发布方式：
+然后从仓库根目录发布：
 
 ```bash
 FN_KNOCK_DOCKER_IMAGE_REPO=kcilnk/fn-knock \
 npm run fn-knock:docker:hub-publish
 ```
 
-如果要手工覆盖版本号：
+默认版本标签取自 `version.json`。发布流程会：
+
+1. 构建并推送 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7` 镜像。
+2. 分别创建 `-amd64`、`-arm64` 和 `-arm32` 架构标签。
+3. 创建版本号对应的多架构 manifest。
+4. 将 `latest` 指向同一 manifest。
+5. 校验 manifest 包含全部三个目标平台。
+
+如需覆盖版本标签：
 
 ```bash
 FN_KNOCK_DOCKER_IMAGE_REPO=kcilnk/fn-knock \
-FN_KNOCK_DOCKER_IMAGE_TAG=1.4.4 \
+FN_KNOCK_DOCKER_IMAGE_TAG=<version-or-tag> \
 npm run fn-knock:docker:hub-publish
 ```
 
-### 发布流程
+### 构建与发布环境变量
 
-`fn-knock:docker:hub-publish` 会自动完成：
+| 环境变量                               | 默认值或用途                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| `FN_KNOCK_DOCKER_ENV_FILE`             | 指定环境文件；默认 `deploy/docker/.env`，不存在时使用 `.env.example`     |
+| `FN_KNOCK_DOCKER_IMAGE`                | 覆盖本地构建镜像名                                                       |
+| `FN_KNOCK_DOCKER_IMAGE_REPO`           | SSH 部署默认 `fn-knock`；发布 Docker Hub 时必须显式提供 `namespace/repo` |
+| `FN_KNOCK_DOCKER_IMAGE_TAG`            | 覆盖发布基础标签                                                         |
+| `FN_KNOCK_DOCKER_LOCAL_ARCH`           | 覆盖本地构建架构；默认使用当前主机架构                                   |
+| `FN_KNOCK_DOCKER_CACHE_DIR`            | buildx 缓存根目录，默认 `~/.cache/fn-knock-buildx`                       |
+| `FN_KNOCK_DOCKER_BUILDER`              | 使用指定的现有 buildx builder                                            |
+| `FN_KNOCK_DOCKER_MANAGED_BUILDER`      | 托管 builder 名称，默认 `fn-knock-buildx`                                |
+| `FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS`  | `auto`、`0` 或 `1`，默认 `auto`                                          |
+| `FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR` | 指定预构建 Rust 后端目录                                                 |
+| `FN_KNOCK_USE_PREPARED_ARTIFACTS`      | 默认 `1`，使用共享的预构建产物                                           |
+| `FN_KNOCK_ARTIFACTS_DIR`               | 共享产物目录，默认 `dist/fn-knock-artifacts`                             |
+| `FN_KNOCK_DOCKER_REMOTE_HOST`          | 远端 SSH 地址                                                            |
+| `FN_KNOCK_DOCKER_REMOTE_DIR`           | 远端 Compose 目录，默认 `/opt/fn-knock-docker`                           |
+| `FN_KNOCK_DOCKER_SERVICE_NAME`         | Compose 服务名，默认 `fn-knock`                                          |
+| `FN_KNOCK_DOCKER_WAIT_TIMEOUT`         | 远端健康检查超时秒数，默认 `180`                                         |
 
-1. 使用现有 `docker buildx` builder 分别构建 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7`
-2. 将三个架构镜像直接推送到 Docker Hub
-3. 创建版本号对应的多架构 manifest tag
-4. 同步更新 `latest` 多架构 manifest tag
-5. 校验 manifest 内同时包含 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7`
+构建代理变量：
 
-## 可配置环境变量
+- `FN_KNOCK_DOCKER_HTTP_PROXY`
+- `FN_KNOCK_DOCKER_HTTPS_PROXY`
+- `FN_KNOCK_DOCKER_ALL_PROXY`
+- `FN_KNOCK_DOCKER_NO_PROXY`
+- `FN_KNOCK_DOCKER_PROXY_HOST_ALIAS`
 
-### 本地构建/测试
+未设置专用代理变量时，脚本会回退到标准的 `HTTP_PROXY`、`HTTPS_PROXY`、
+`ALL_PROXY` 和 `NO_PROXY`。本机代理地址中的 `127.0.0.1`、`localhost` 或
+`::1` 会被改写为容器可访问的 `host.docker.internal`；可以通过
+`FN_KNOCK_DOCKER_PROXY_HOST_ALIAS` 覆盖该别名。
 
-- `FN_KNOCK_DOCKER_ENV_FILE`：指定 env 文件路径
-- `FN_KNOCK_DOCKER_IMAGE`：覆盖本地构建镜像名
-- `TZ`：容器时区，默认 `Asia/Shanghai`
-- `FN_KNOCK_DOCKER_LOCAL_ARCH`：覆盖本地构建架构
-- `FN_KNOCK_DOCKER_CACHE_DIR`：指定 buildx 本地缓存目录
-- `FN_KNOCK_DOCKER_BUILDER`：指定 buildx builder 名称
-- `FN_KNOCK_DOCKER_MANAGED_BUILDER`：托管 builder 名称，默认 `fn-knock-buildx`
-- `FN_KNOCK_DOCKER_HTTP_PROXY` / `FN_KNOCK_DOCKER_HTTPS_PROXY` / `FN_KNOCK_DOCKER_ALL_PROXY`：覆盖 Docker 构建代理；未设置时会回退到标准 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`
-- `FN_KNOCK_DOCKER_NO_PROXY`：覆盖 Docker 构建时的 `NO_PROXY`
-- `FN_KNOCK_DOCKER_PROXY_HOST_ALIAS`：容器访问宿主机代理的地址别名，默认 `host.docker.internal`
+### Docker 运行时限制
 
-### 发布/远端部署
+容器会设置 `FN_KNOCK_RUNTIME_TARGET=docker`，并收敛以下能力：
 
-- `FN_KNOCK_DOCKER_IMAGE_REPO`：镜像仓库名，默认 `fn-knock`
-- `FN_KNOCK_DOCKER_IMAGE_TAG`：手工指定发布基础 tag；快速远端部署时会扩展为远端实际架构，完整远端部署时会扩展为 `-amd64`、`-arm64` 和 `-arm32`
-- `FN_KNOCK_DOCKER_REMOTE_HOST`：远端 SSH 地址，默认 `root@192.168.31.135`
-- `FN_KNOCK_DOCKER_REMOTE_DIR`：远端 compose 落地目录，默认 `/opt/fn-knock-docker`
-- `FN_KNOCK_DOCKER_WAIT_TIMEOUT`：远端健康检查等待秒数，默认 `180`
+- 禁用 `run_type=0`。
+- 禁用宿主机防火墙管理。
+- 禁用 Smart Connect 和 dnsmasq 相关能力。
+- 禁用应用内 FPK 更新。
 
-示例：
-
-```bash
-FN_KNOCK_DOCKER_REMOTE_HOST=root@192.168.31.136 \
-FN_KNOCK_DOCKER_REMOTE_DIR=/srv/fn-knock \
-FN_KNOCK_DOCKER_IMAGE_TAG=1.4.2 \
-npm run fn-knock:docker:local-deploy-fast
-```
-
-如果你的本机代理监听在 `127.0.0.1:7890`，可以直接这样执行：
-
-```bash
-HTTP_PROXY=http://127.0.0.1:7890 \
-HTTPS_PROXY=http://127.0.0.1:7890 \
-npm run fn-knock:docker:local-deploy
-```
-
-脚本会在 `docker buildx` builder 和实际构建阶段自动注入代理，并把 `127.0.0.1` / `localhost` 改写成容器内可访问的 `host.docker.internal`。如果你手工指定了 `FN_KNOCK_DOCKER_BUILDER`，则需要确保那个 builder 自己已经带上相同的代理环境。
-
-## 运行时限制
-
-Docker 模式下后端会自动识别 `FN_KNOCK_RUNTIME_TARGET=docker`，并收敛能力边界：
-
-- 禁用 `run_type=0`
-- 禁用宿主机防火墙管理
-- 禁用 Smart Connect / dnsmasq 相关能力
-- 禁用应用内 FPK 更新
-
-管理端在 Docker 中会保留 `127.0.0.1:${BACKEND_PORT}` 作为容器内部后端接口，并在 `0.0.0.0:${ADMIN_VIEW_PORT}` 提供一个只允许内网访问的管理入口。用户浏览器访问 `ADMIN_VIEW_PORT` 后，请求会先完成管理面板密码验证，再由该入口内部代理到 `BACKEND_PORT`。
+管理入口监听 `ADMIN_VIEW_PORT`，并在完成管理面板密码验证后，把请求代理到
+仅监听 `127.0.0.1:${BACKEND_PORT}` 的内部 Rust 后端。

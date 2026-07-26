@@ -41,45 +41,89 @@ log_msg() {
 
 cleanup_fn_connect_waf_rules() {
     local firewall=""
-    local chain="FNK_FNC_WAF"
     local comment="fn-knock:fn-connect-waf"
     local attempts=0
     local cleanup_failed=0
-    local rules=""
+    local table=""
+    local parent=""
+    local parent_chain=""
+    local chain=""
 
     for firewall in iptables ip6tables; do
         if ! command -v "${firewall}" >/dev/null 2>&1; then
             log_msg "FN Connect WAF cleanup skipped: ${firewall} is unavailable"
             continue
         fi
-        if ! rules="$("${firewall}" -w 5 -t nat -S 2>&1)"; then
-            log_msg "FN Connect WAF cleanup failed: unable to enumerate ${firewall} nat rules: ${rules}"
-            cleanup_failed=1
-            continue
-        fi
-        attempts=0
-        while [ "${attempts}" -lt 8 ] && "${firewall}" -w 5 -t nat -C OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; do
-            if ! "${firewall}" -w 5 -t nat -D OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
-                log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} OUTPUT jump"
-                cleanup_failed=1
-                break
+
+        for table_parent_chain in \
+            "nat|PREROUTING|FNK_FNC_PRE" \
+            "nat|OUTPUT|FNK_FNC_OUT" \
+            "nat|OUTPUT|FNK_FNC_WAF" \
+            "filter|INPUT|FNK_FNC_IN"; do
+            table="${table_parent_chain%%|*}"
+            parent_chain="${table_parent_chain#*|}"
+            parent="${parent_chain%%|*}"
+            chain="${parent_chain#*|}"
+            attempts=0
+            while [ "${attempts}" -lt 8 ]; do
+                if [ "${parent}" = "PREROUTING" ]; then
+                    "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                        -m addrtype --dst-type LOCAL \
+                        -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1 || break
+                    if ! "${firewall}" -w 5 -t "${table}" -D "${parent}" \
+                        -m addrtype --dst-type LOCAL \
+                        -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+                        log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} ${parent} jump"
+                        cleanup_failed=1
+                        break
+                    fi
+                else
+                    "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                        -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1 || break
+                    if ! "${firewall}" -w 5 -t "${table}" -D "${parent}" \
+                        -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+                        log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} ${parent} jump"
+                        cleanup_failed=1
+                        break
+                    fi
+                fi
+                attempts=$((attempts + 1))
+            done
+            if [ "${attempts}" -eq 8 ]; then
+                if [ "${parent}" = "PREROUTING" ]; then
+                    if "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                        -m addrtype --dst-type LOCAL \
+                        -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+                        log_msg "FN Connect WAF cleanup failed: too many ${firewall} ${table} ${parent} jumps to ${chain}"
+                        cleanup_failed=1
+                    fi
+                elif "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                    -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
+                    log_msg "FN Connect WAF cleanup failed: too many ${firewall} ${table} ${parent} jumps to ${chain}"
+                    cleanup_failed=1
+                fi
             fi
-            attempts=$((attempts + 1))
         done
-        if [ "${attempts}" -eq 8 ] && "${firewall}" -w 5 -t nat -C OUTPUT -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
-            log_msg "FN Connect WAF cleanup failed: too many ${firewall} OUTPUT jumps"
-            cleanup_failed=1
-        fi
-        if printf '%s\n' "${rules}" | grep -Fxq -- "-N ${chain}"; then
-            if ! "${firewall}" -w 5 -t nat -F "${chain}" >/dev/null 2>&1; then
-                log_msg "FN Connect WAF cleanup failed: unable to flush ${firewall} chain ${chain}"
+
+        for table_chain in \
+            "nat|FNK_FNC_PRE" \
+            "nat|FNK_FNC_OUT" \
+            "nat|FNK_FNC_WAF" \
+            "filter|FNK_FNC_IN"; do
+            table="${table_chain%%|*}"
+            chain="${table_chain#*|}"
+            if ! "${firewall}" -w 5 -t "${table}" -S "${chain}" >/dev/null 2>&1; then
+                continue
+            fi
+            if ! "${firewall}" -w 5 -t "${table}" -F "${chain}" >/dev/null 2>&1; then
+                log_msg "FN Connect WAF cleanup failed: unable to flush ${firewall} ${table} chain ${chain}"
                 cleanup_failed=1
             fi
-            if ! "${firewall}" -w 5 -t nat -X "${chain}" >/dev/null 2>&1; then
-                log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} chain ${chain}"
+            if ! "${firewall}" -w 5 -t "${table}" -X "${chain}" >/dev/null 2>&1; then
+                log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} chain ${chain}"
                 cleanup_failed=1
             fi
-        fi
+        done
     done
     return "${cleanup_failed}"
 }

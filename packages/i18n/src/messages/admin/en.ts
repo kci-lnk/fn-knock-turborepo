@@ -1800,7 +1800,7 @@ export const enAdmin = {
     connectWafUpdated: "FN Connect WAF settings updated",
     connectWafTitle: "Route FN Connect traffic through WAF",
     connectWafDescription:
-      "Intercepts only loopback traffic from the FNOS remote-access service, follows FNOS HTTP port changes automatically, and protects both IPv4 and IPv6 paths.",
+      "Routes both FN Connect relay and public direct (P2P) traffic through WAF, follows FNOS HTTP port changes, and protects IPv4 and IPv6 while leaving LAN access unchanged.",
     connectWafStatusDisabled: "Currently disabled.",
     connectWafStatusProtected:
       "Protection active: FNOS port {source} → local WAF ingress {listener}.",

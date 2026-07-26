@@ -701,9 +701,9 @@ message AuthBridgeEnvelope {
   }
 }
 
-// FnosConnectIngressConfig controls the private loopback-only HTTP ingress
-// used by the fnOS Connect relay. The listener port is intentionally allocated
-// by the gateway and returned through FnosConnectIngressStatus.
+// FnosConnectIngressConfig controls the protected HTTP ingress used by fnOS
+// Connect relay and direct P2P traffic. The listener port is intentionally
+// allocated by the gateway and returned through FnosConnectIngressStatus.
 message FnosConnectIngressConfig {
   bool enabled = 1;
   int32 upstream_http_port = 2;

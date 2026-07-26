@@ -1800,7 +1800,7 @@ export const jaJPAdmin = {
     connectWafUpdated: "FN Connect WAF の設定を更新しました",
     connectWafTitle: "FN Connect トラフィックを WAF に接続",
     connectWafDescription:
-      "FNOS リモートアクセスサービスからのループバック通信のみを対象にし、HTTP ポート変更を自動追従して IPv4 と IPv6 の両方を保護します。",
+      "FN Connect のリレー通信とパブリック直接接続（P2P）を WAF に通し、HTTP ポート変更を自動追従して IPv4 と IPv6 を保護します。LAN 直接接続は変更しません。",
     connectWafStatusDisabled: "現在は無効です。",
     connectWafStatusProtected:
       "保護中：FNOS ポート {source} → ローカル WAF 入口 {listener}。",

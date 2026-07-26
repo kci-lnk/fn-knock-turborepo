@@ -8,16 +8,19 @@ use crate::{
 
 const CLEAN_SCRIPT_CONTENT: &str = r#"#!/bin/bash
 
-CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH" "FNK_FNC_WAF")
-PARENTS=("INPUT" "DOCKER-USER" "OUTPUT")
-TABLES=("iptables" "ip6tables")
+FILTER_CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH" "FNK_FNC_IN")
+NAT_CHAINS=("FNK_FNC_PRE" "FNK_FNC_OUT" "FNK_FNC_WAF")
+FILTER_PARENTS=("INPUT" "DOCKER-USER")
+NAT_PARENTS=("PREROUTING" "OUTPUT")
+FIREWALLS=("iptables" "ip6tables")
 
 remove_parent_jumps() {
     local cmd="$1"
-    local parent="$2"
-    local chain="$3"
+    local table="$2"
+    local parent="$3"
+    local chain="$4"
 
-    if ! "$cmd" -L "$parent" -n >/dev/null 2>&1; then
+    if ! "$cmd" -t "$table" -L "$parent" -n >/dev/null 2>&1; then
         return
     fi
 
@@ -26,20 +29,43 @@ remove_parent_jumps() {
         [[ "$line" == *" -j $chain"* ]] || continue
 
         local rule_args="${line#-A $parent }"
+        rule_args="${rule_args//\"/}"
         # shellcheck disable=SC2086
-        if "$cmd" -D "$parent" $rule_args 2>/dev/null; then
-            echo "Removed jump rule from $parent -> $chain: $rule_args"
+        if "$cmd" -t "$table" -D "$parent" $rule_args 2>/dev/null; then
+            echo "Removed $table jump rule from $parent -> $chain: $rule_args"
         fi
-    done < <("$cmd" -S "$parent" 2>/dev/null || true)
+    done < <("$cmd" -t "$table" -S "$parent" 2>/dev/null || true)
 
-    while "$cmd" -D "$parent" -j "$chain" 2>/dev/null; do
-        echo "Removed legacy jump rule from $parent -> $chain"
+    while "$cmd" -t "$table" -D "$parent" -j "$chain" 2>/dev/null; do
+        echo "Removed legacy $table jump rule from $parent -> $chain"
     done
 }
 
-echo "Starting firewall cleanup for chains: ${CHAINS[*]}..."
+cleanup_chain() {
+    local cmd="$1"
+    local table="$2"
+    local chain="$3"
+    shift 3
 
-for cmd in "${TABLES[@]}"; do
+    local parent=""
+    for parent in "$@"; do
+        remove_parent_jumps "$cmd" "$table" "$parent" "$chain"
+    done
+
+    if "$cmd" -t "$table" -L "$chain" -n >/dev/null 2>&1; then
+        "$cmd" -t "$table" -F "$chain"
+        echo "Flushed all rules inside $table/$chain"
+
+        "$cmd" -t "$table" -X "$chain"
+        echo "Deleted custom chain $table/$chain"
+    else
+        echo "Chain $table/$chain does not exist in $cmd (already clean)."
+    fi
+}
+
+echo "Starting firewall cleanup..."
+
+for cmd in "${FIREWALLS[@]}"; do
     if ! command -v "$cmd" &> /dev/null; then
         echo "$cmd is not installed or not in PATH, skipping..."
         continue
@@ -47,20 +73,11 @@ for cmd in "${TABLES[@]}"; do
 
     echo "--- Processing $cmd ---"
 
-    for chain in "${CHAINS[@]}"; do
-        for parent in "${PARENTS[@]}"; do
-            remove_parent_jumps "$cmd" "$parent" "$chain"
-        done
-
-        if "$cmd" -L "$chain" -n >/dev/null 2>&1; then
-            "$cmd" -F "$chain"
-            echo "Flushed all rules inside $chain"
-
-            "$cmd" -X "$chain"
-            echo "Deleted custom chain $chain"
-        else
-            echo "Chain $chain does not exist in $cmd (already clean)."
-        fi
+    for chain in "${FILTER_CHAINS[@]}"; do
+        cleanup_chain "$cmd" filter "$chain" "${FILTER_PARENTS[@]}"
+    done
+    for chain in "${NAT_CHAINS[@]}"; do
+        cleanup_chain "$cmd" nat "$chain" "${NAT_PARENTS[@]}"
     done
 done
 
@@ -182,8 +199,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn firewall_cleanup_script_covers_fn_connect_waf_chain_and_output_parent() {
+    fn firewall_cleanup_script_covers_all_fn_connect_waf_chains_and_parents() {
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_WAF\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_OUT\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_PRE\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_IN\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"OUTPUT\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"PREROUTING\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"INPUT\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("-t \"$table\""));
     }
 }

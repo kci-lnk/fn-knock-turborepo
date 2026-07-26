@@ -1665,7 +1665,7 @@ export const zhCNAdmin = {
     connectWafUpdated: "FN Connect WAF 设置已更新",
     connectWafTitle: "FN Connect 流量接入 WAF",
     connectWafDescription:
-      "仅拦截飞牛远程访问服务进程发往本机的流量，自动跟随飞牛 HTTP 端口变化，并同时保护 IPv4 与 IPv6 回环路径。",
+      "同时接管 FN Connect 中继和公网直连（P2P）流量，自动跟随飞牛 HTTP 端口变化，并保护 IPv4 与 IPv6 路径；局域网直连保持不变。",
     connectWafStatusDisabled: "当前未启用。",
     connectWafStatusProtected:
       "保护已生效：飞牛端口 {source} → WAF 本地入口 {listener}。",

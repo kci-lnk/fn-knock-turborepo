@@ -375,6 +375,15 @@ export interface FnosConnectWafDetails {
     listener_port: number | null;
     ipv4_redirect_active: boolean;
     ipv6_redirect_active: boolean;
+    ipv4_relay_redirect_active: boolean;
+    ipv6_relay_redirect_active: boolean;
+    ipv4_direct_redirect_active: boolean;
+    ipv6_direct_redirect_active: boolean;
+    listener_guard_active: boolean;
+    local_networks: {
+      ipv4: string[];
+      ipv6: string[];
+    } | null;
     waf_active: boolean;
     waf_mode: string | null;
     cgroup_path?: string;

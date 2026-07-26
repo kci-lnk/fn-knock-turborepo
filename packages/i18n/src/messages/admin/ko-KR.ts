@@ -1787,7 +1787,7 @@ export const koKRAdmin = {
     connectWafUpdated: "FN Connect WAF 설정이 업데이트되었습니다",
     connectWafTitle: "FN Connect 트래픽을 WAF로 전달",
     connectWafDescription:
-      "FNOS 원격 접속 서비스의 루프백 트래픽만 가로채며 HTTP 포트 변경을 자동으로 따라가 IPv4와 IPv6 경로를 모두 보호합니다.",
+      "FN Connect 릴레이와 공용 직접 연결(P2P) 트래픽을 모두 WAF로 전달하고 HTTP 포트 변경을 자동으로 따라가며, LAN 직접 연결은 유지한 채 IPv4와 IPv6를 보호합니다.",
     connectWafStatusDisabled: "현재 비활성화되어 있습니다.",
     connectWafStatusProtected:
       "보호 활성화: FNOS 포트 {source} → 로컬 WAF 입구 {listener}.",

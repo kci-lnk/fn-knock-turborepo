@@ -2,6 +2,7 @@
   "extends": "@vue/tsconfig/tsconfig.dom.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "lib": ["ES2020", "ES2022.Error", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "paths": {
       "@runtime-debug": ["./src/lib/docker-debug.ts"],

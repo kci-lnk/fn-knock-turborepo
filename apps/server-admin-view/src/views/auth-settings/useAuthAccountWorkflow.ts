@@ -192,6 +192,7 @@ export const useAuthAccountWorkflow = ({
     } catch (error) {
       throw new Error(
         extractErrorMessage(error, t("admin.authSettings.accountSaveFailed")),
+        { cause: error },
       );
     }
   };

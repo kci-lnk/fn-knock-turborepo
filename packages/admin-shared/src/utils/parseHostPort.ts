@@ -79,9 +79,9 @@ export const parseHostPort = (value: string): ParsedHostPort | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  let host = "";
-  let portText = "";
-  let isIPv6 = false;
+  let host: string;
+  let portText: string;
+  let isIPv6: boolean;
 
   if (trimmed.startsWith("[")) {
     const closingBracketIndex = trimmed.indexOf("]");
@@ -102,6 +102,7 @@ export const parseHostPort = (value: string): ParsedHostPort | null => {
 
     host = trimmed.slice(0, separatorIndex);
     portText = trimmed.slice(separatorIndex + 1);
+    isIPv6 = false;
 
     if (!isValidHostname(host)) return null;
   }

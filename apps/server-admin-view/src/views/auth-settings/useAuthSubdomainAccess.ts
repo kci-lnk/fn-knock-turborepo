@@ -53,7 +53,7 @@ export const normalizeAuthSubdomainHost = (value: unknown) => {
     return BUILTIN_SELECT_PAGE_ACCESS_HOST;
   }
 
-  let host = raw;
+  let host: string;
   try {
     const parsed = new URL(raw.includes("://") ? raw : `https://${raw}`);
     host = parsed.hostname;

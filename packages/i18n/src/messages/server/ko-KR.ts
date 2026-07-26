@@ -1758,6 +1758,8 @@ export const koKRServer = {
       "{family} 선택기가 {count}개 후보와 일치하여 {address}을(를) 선택했습니다({reason}).",
     interfaceSelectorResolved:
       "{family} 주소 선택: {mode} 모드, {count}개 일치, {address} 선택({reason})",
+    interfacePreferredRecoveryDeferred:
+      "{family} 기본 주소 {preferred} 복구를 연속 확인 중입니다({count}/{required}). 반복 전환을 방지하기 위해 현재 {current}을(를) 유지합니다.",
     ipv4FailedContinueIpv6: "IPv4 감지에 실패해 IPv6로 계속합니다({error}).",
     ipv4Failed: "IPv4 감지 실패({error})",
     ipv6FailedContinueIpv4: "IPv6 감지에 실패해 IPv4로 계속합니다({error}).",

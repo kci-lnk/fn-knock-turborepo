@@ -145,6 +145,7 @@ pub(super) async fn delete_ddns_target(state: &AppState, id: &str) -> anyhow::Re
             target_config_key(id),
             target_last_ip_key(id),
             target_selection_anchor_key(id),
+            target_interface_recovery_key(id),
             target_last_check_key(id),
         ])
         .await?;
@@ -409,6 +410,10 @@ pub(super) async fn reset_target_runtime_state(
     state
         .store
         .replace_hash_string_map(&target_last_check_key(&meta.id), &HashMap::new())
+        .await?;
+    state
+        .store
+        .replace_hash_string_map(&target_interface_recovery_key(&meta.id), &HashMap::new())
         .await?;
     if meta.is_primary {
         state

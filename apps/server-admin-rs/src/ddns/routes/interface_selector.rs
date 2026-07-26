@@ -53,6 +53,28 @@ pub(super) struct InterfaceSelection {
     pub reason: &'static str,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct InterfaceAddressResolution {
+    pub address: Option<String>,
+    pub selection_logs: Vec<String>,
+    pub selection: Option<InterfaceSelection>,
+    pub selector: Option<InterfaceAddressSelector>,
+    pub mode: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PreferredRecoveryState {
+    pub address: String,
+    pub confirmations: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PreferredRecoveryDecision {
+    pub selected: Option<String>,
+    pub state: Option<PreferredRecoveryState>,
+    pub deferred: bool,
+}
+
 pub(super) fn selector_field(family: &str) -> &'static str {
     if family == "ipv4" {
         DDNS_INTERFACE_IPV4_SELECTOR_FIELD
@@ -299,6 +321,70 @@ fn find_candidate(candidates: &[Value], expected: Option<&str>) -> Option<String
 
 fn candidate_address(value: &Value) -> Option<&str> {
     value.get("address").and_then(Value::as_str)
+}
+
+pub(super) fn stabilize_preferred_recovery(
+    selection: &InterfaceSelection,
+    selector: &InterfaceAddressSelector,
+    current_address: Option<&str>,
+    previous_state: Option<&PreferredRecoveryState>,
+    required_confirmations: u8,
+) -> PreferredRecoveryDecision {
+    let selected = selection.selected.clone();
+    let Some(preferred) = selector
+        .preferred_address
+        .as_deref()
+        .and_then(canonical_ip_address)
+    else {
+        return PreferredRecoveryDecision {
+            selected,
+            state: None,
+            deferred: false,
+        };
+    };
+    let Some(current) = current_address.and_then(canonical_ip_address) else {
+        return PreferredRecoveryDecision {
+            selected,
+            state: None,
+            deferred: false,
+        };
+    };
+    let should_confirm_recovery = preferred != current
+        && selected.as_deref() == Some(preferred.as_str())
+        && find_candidate(&selection.eligible, Some(current.as_str())).is_some();
+
+    if !should_confirm_recovery {
+        return PreferredRecoveryDecision {
+            selected,
+            state: None,
+            deferred: false,
+        };
+    }
+
+    let confirmations = previous_state
+        .filter(|state| state.address == preferred)
+        .map(|state| state.confirmations)
+        .unwrap_or(0)
+        .saturating_add(1);
+    let state = PreferredRecoveryState {
+        address: preferred,
+        confirmations,
+    };
+    let deferred = confirmations < required_confirmations.max(1);
+
+    PreferredRecoveryDecision {
+        selected: if deferred {
+            Some(current)
+        } else {
+            selection.selected.clone()
+        },
+        state: Some(state),
+        deferred,
+    }
+}
+
+fn canonical_ip_address(value: &str) -> Option<String> {
+    value.trim().parse::<IpAddr>().ok().map(|ip| ip.to_string())
 }
 
 fn compare_interface_candidates(left: &Value, right: &Value) -> Ordering {

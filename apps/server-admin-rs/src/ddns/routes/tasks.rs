@@ -146,7 +146,8 @@ pub(super) async fn run_automatic_ddns_target(
     )
     .await?;
 
-    let ips = resolve_target_ips(target, settings, translator).await?;
+    let mut ips = resolve_target_ips(target, settings, translator).await?;
+    stabilize_automatic_interface_ips(state, target, &mut ips, translator).await?;
     for warning in &ips.warnings {
         append_target_log(
             state,
@@ -490,6 +491,7 @@ pub(super) async fn resolve_target_ips(
             source_label: ddns_text(translator, "staticSourceLabel", &[]),
             warnings: Vec::new(),
             selection_logs: Vec::new(),
+            interface_resolutions: HashMap::new(),
             update_scope,
         }),
         "domain" => {
@@ -516,6 +518,7 @@ pub(super) async fn resolve_target_ips(
                 },
                 warnings: Vec::new(),
                 selection_logs: Vec::new(),
+                interface_resolutions: HashMap::new(),
                 update_scope,
             })
         }
@@ -529,8 +532,8 @@ pub(super) async fn resolve_target_ips(
             if interface.is_empty() {
                 anyhow::bail!("{}", ddns_text(translator, "interfaceRequired", &[]));
             }
-            let (ipv4, ipv4_warnings, ipv4_logs) = if enable_ipv4 {
-                select_interface_address(
+            let ipv4_resolution = if enable_ipv4 {
+                Some(select_interface_address_detailed(
                     &interface,
                     "ipv4",
                     target
@@ -543,12 +546,12 @@ pub(super) async fn resolve_target_ips(
                         .map(String::as_str),
                     target.selection_anchor.get("ipv4").and_then(Value::as_str),
                     translator,
-                )?
+                )?)
             } else {
-                (None, Vec::new(), Vec::new())
+                None
             };
-            let (ipv6, ipv6_warnings, ipv6_logs) = if enable_ipv6 {
-                select_interface_address(
+            let ipv6_resolution = if enable_ipv6 {
+                Some(select_interface_address_detailed(
                     &interface,
                     "ipv6",
                     target
@@ -561,17 +564,39 @@ pub(super) async fn resolve_target_ips(
                         .map(String::as_str),
                     target.selection_anchor.get("ipv6").and_then(Value::as_str),
                     translator,
-                )?
+                )?)
             } else {
-                (None, Vec::new(), Vec::new())
+                None
             };
+            let mut interface_resolutions = HashMap::new();
+            if let Some(resolution) = ipv4_resolution.clone() {
+                interface_resolutions.insert("ipv4".to_string(), resolution);
+            }
+            if let Some(resolution) = ipv6_resolution.clone() {
+                interface_resolutions.insert("ipv6".to_string(), resolution);
+            }
             Ok(ResolvedTargetIps {
-                ipv4,
-                ipv6,
+                ipv4: ipv4_resolution
+                    .as_ref()
+                    .and_then(|resolution| resolution.address.clone()),
+                ipv6: ipv6_resolution
+                    .as_ref()
+                    .and_then(|resolution| resolution.address.clone()),
                 source,
                 source_label: ddns_text(translator, "interfaceSourceLabel", &[("name", interface)]),
-                warnings: ipv4_warnings.into_iter().chain(ipv6_warnings).collect(),
-                selection_logs: ipv4_logs.into_iter().chain(ipv6_logs).collect(),
+                warnings: Vec::new(),
+                selection_logs: ipv4_resolution
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|resolution| resolution.selection_logs.clone())
+                    .chain(
+                        ipv6_resolution
+                            .as_ref()
+                            .into_iter()
+                            .flat_map(|resolution| resolution.selection_logs.clone()),
+                    )
+                    .collect(),
+                interface_resolutions,
                 update_scope,
             })
         }
@@ -639,9 +664,202 @@ pub(super) async fn resolve_target_ips(
                 source_label: ddns_text(translator, "publicSourceLabel", &[]),
                 warnings,
                 selection_logs: Vec::new(),
+                interface_resolutions: HashMap::new(),
                 update_scope,
             })
         }
+    }
+}
+
+pub(super) async fn stabilize_automatic_interface_ips(
+    state: &AppState,
+    target: &DDNSTargetRecord,
+    ips: &mut ResolvedTargetIps,
+    translator: &Translator,
+) -> anyhow::Result<()> {
+    if ips.source != "interface" {
+        return Ok(());
+    }
+
+    let interface = normalize_network_interface(
+        target
+            .config
+            .get(DDNS_NETWORK_INTERFACE_FIELD)
+            .map(String::as_str),
+    );
+    let mut recovery_data = state
+        .store
+        .hgetall_string_map(&target_interface_recovery_key(&target.meta.id))
+        .await?;
+    let original_recovery_data = recovery_data.clone();
+
+    for family in ["ipv4", "ipv6"] {
+        let Some(mut resolution) = ips.interface_resolutions.get(family).cloned() else {
+            continue;
+        };
+        let Some(selector) = resolution.selector.clone() else {
+            clear_preferred_recovery_state(&mut recovery_data, family);
+            continue;
+        };
+        let Some(preferred) = selector.preferred_address.as_deref() else {
+            clear_preferred_recovery_state(&mut recovery_data, family);
+            continue;
+        };
+        let current_address = target.selection_anchor.get(family).and_then(Value::as_str);
+        let published_address = target.last_ip.get(family).and_then(Value::as_str);
+        let recovery_current = current_address.filter(|current| {
+            published_address.is_some_and(|published| ip_addresses_equal(current, published))
+        });
+
+        if let Some(current) = recovery_current
+            && ip_addresses_equal(current, preferred)
+            && resolution
+                .address
+                .as_deref()
+                .is_some_and(|selected| !ip_addresses_equal(selected, current))
+        {
+            tokio_time::sleep(Duration::from_millis(
+                DDNS_INTERFACE_FAILOVER_RECHECK_DELAY_MILLIS,
+            ))
+            .await;
+            if let Ok(fresh) = select_interface_address_detailed(
+                &interface,
+                family,
+                target
+                    .config
+                    .get(selector_field(family))
+                    .map(String::as_str),
+                target
+                    .config
+                    .get(if family == "ipv4" {
+                        DDNS_INTERFACE_IPV4_INDEX_FIELD
+                    } else {
+                        DDNS_INTERFACE_IPV6_INDEX_FIELD
+                    })
+                    .map(String::as_str),
+                current_address,
+                translator,
+            ) {
+                resolution = fresh;
+            }
+        }
+
+        let Some(selection) = resolution.selection.as_ref() else {
+            clear_preferred_recovery_state(&mut recovery_data, family);
+            continue;
+        };
+        let previous_state = preferred_recovery_state(&recovery_data, family);
+        let decision = stabilize_preferred_recovery(
+            selection,
+            &selector,
+            recovery_current,
+            previous_state.as_ref(),
+            DDNS_INTERFACE_PREFERRED_RECOVERY_CONFIRMATIONS,
+        );
+
+        if let Some(previous) = ips.interface_resolutions.get(family) {
+            ips.selection_logs
+                .retain(|message| !previous.selection_logs.contains(message));
+        }
+        if decision.deferred {
+            if let (Some(current), Some(next_state)) = (recovery_current, decision.state.as_ref()) {
+                ips.selection_logs.push(ddns_text(
+                    translator,
+                    "interfacePreferredRecoveryDeferred",
+                    &[
+                        ("family", family_label(family)),
+                        ("preferred", next_state.address.clone()),
+                        ("current", current.to_string()),
+                        ("count", next_state.confirmations.to_string()),
+                        (
+                            "required",
+                            DDNS_INTERFACE_PREFERRED_RECOVERY_CONFIRMATIONS.to_string(),
+                        ),
+                    ],
+                ));
+            }
+        } else {
+            ips.selection_logs.extend(interface_address_switch_logs(
+                translator,
+                family,
+                &resolution.mode,
+                selection.eligible.len(),
+                decision.selected.as_deref(),
+                selection.reason,
+                current_address,
+            ));
+        }
+
+        set_preferred_recovery_state(&mut recovery_data, family, decision.state.as_ref());
+        if family == "ipv4" {
+            ips.ipv4 = decision.selected.clone();
+        } else {
+            ips.ipv6 = decision.selected.clone();
+        }
+        resolution.address = decision.selected;
+        resolution.selection_logs = Vec::new();
+        ips.interface_resolutions
+            .insert(family.to_string(), resolution);
+    }
+
+    if recovery_data != original_recovery_data {
+        state
+            .store
+            .replace_hash_string_map(
+                &target_interface_recovery_key(&target.meta.id),
+                &recovery_data,
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+fn preferred_recovery_state(
+    data: &HashMap<String, String>,
+    family: &str,
+) -> Option<PreferredRecoveryState> {
+    let address = data
+        .get(&format!("{family}_address"))
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())?
+        .to_string();
+    let confirmations = data
+        .get(&format!("{family}_confirmations"))
+        .and_then(|value| value.parse::<u8>().ok())
+        .unwrap_or(0);
+    Some(PreferredRecoveryState {
+        address,
+        confirmations,
+    })
+}
+
+fn set_preferred_recovery_state(
+    data: &mut HashMap<String, String>,
+    family: &str,
+    state: Option<&PreferredRecoveryState>,
+) {
+    clear_preferred_recovery_state(data, family);
+    if let Some(state) = state {
+        data.insert(format!("{family}_address"), state.address.clone());
+        data.insert(
+            format!("{family}_confirmations"),
+            state.confirmations.to_string(),
+        );
+    }
+}
+
+fn clear_preferred_recovery_state(data: &mut HashMap<String, String>, family: &str) {
+    data.remove(&format!("{family}_address"));
+    data.remove(&format!("{family}_confirmations"));
+}
+
+fn ip_addresses_equal(left: &str, right: &str) -> bool {
+    match (
+        left.trim().parse::<IpAddr>(),
+        right.trim().parse::<IpAddr>(),
+    ) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left.trim() == right.trim(),
     }
 }
 
@@ -814,6 +1032,7 @@ pub(super) fn is_valid_source_domain(domain: &str) -> bool {
     })
 }
 
+#[cfg(test)]
 pub(super) fn select_interface_address(
     interface: &str,
     family: &str,
@@ -822,6 +1041,25 @@ pub(super) fn select_interface_address(
     current_address: Option<&str>,
     translator: &Translator,
 ) -> anyhow::Result<(Option<String>, Vec<String>, Vec<String>)> {
+    let resolution = select_interface_address_detailed(
+        interface,
+        family,
+        selector,
+        index,
+        current_address,
+        translator,
+    )?;
+    Ok((resolution.address, Vec::new(), resolution.selection_logs))
+}
+
+pub(super) fn select_interface_address_detailed(
+    interface: &str,
+    family: &str,
+    selector: Option<&str>,
+    index: Option<&str>,
+    current_address: Option<&str>,
+    translator: &Translator,
+) -> anyhow::Result<InterfaceAddressResolution> {
     let Some(item) = list_ddns_network_interfaces()
         .into_iter()
         .find(|item| item.get("name").and_then(Value::as_str) == Some(interface))
@@ -883,7 +1121,13 @@ pub(super) fn select_interface_address(
             selection.reason,
             current_address,
         );
-        return Ok((selection.selected, Vec::new(), selection_logs));
+        return Ok(InterfaceAddressResolution {
+            address: selection.selected.clone(),
+            selection_logs,
+            selection: Some(selection),
+            selector: Some(selector.clone()),
+            mode: format!("{:?}", selector.mode).to_ascii_lowercase(),
+        });
     }
     if let Some((address, reason)) =
         legacy_select_interface_address(&candidates, family, index, current_address)
@@ -904,7 +1148,13 @@ pub(super) fn select_interface_address(
             reason,
             current_address,
         );
-        return Ok((Some(address), Vec::new(), selection_logs));
+        return Ok(InterfaceAddressResolution {
+            address: Some(address),
+            selection_logs,
+            selection: None,
+            selector: None,
+            mode: "legacy".to_string(),
+        });
     }
 
     // A missing or stale legacy index must not stop unattended DDNS updates.
@@ -921,7 +1171,7 @@ pub(super) fn select_interface_address(
         reason = selection.reason,
         "resolved DDNS interface address with implicit auto selector"
     );
-    let Some(address) = selection.selected else {
+    let Some(address) = selection.selected.clone() else {
         anyhow::bail!(
             "{}",
             ddns_text(
@@ -940,7 +1190,13 @@ pub(super) fn select_interface_address(
         selection.reason,
         current_address,
     );
-    Ok((Some(address), Vec::new(), selection_logs))
+    Ok(InterfaceAddressResolution {
+        address: Some(address),
+        selection_logs,
+        selection: Some(selection),
+        selector: Some(selector),
+        mode: "auto".to_string(),
+    })
 }
 
 fn interface_address_switch_logs(

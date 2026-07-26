@@ -1536,6 +1536,8 @@ export const zhHantServer = {
       "{family} 地址規則匹配到 {count} 個候選，已選擇 {address}（{reason}）",
     interfaceSelectorResolved:
       "{family} 地址選擇：模式 {mode}，命中 {count} 個候選，選擇 {address}（{reason}）",
+    interfacePreferredRecoveryDeferred:
+      "{family} 優選位址 {preferred} 已恢復，連續確認 {count}/{required}；暫時維持 {current}，避免頻繁切回",
     ipv4FailedContinueIpv6: "IPv4 取得失敗，將繼續使用 IPv6 ({error})",
     ipv4Failed: "IPv4 取得失敗 ({error})",
     ipv6FailedContinueIpv4: "IPv6 取得失敗，將繼續使用 IPv4 ({error})",

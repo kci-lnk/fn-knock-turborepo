@@ -560,6 +560,10 @@ pub(super) fn target_selection_anchor_key(id: &str) -> String {
     format!("{DDNS_TARGET_PREFIX}{id}:selection_anchor")
 }
 
+pub(super) fn target_interface_recovery_key(id: &str) -> String {
+    format!("{DDNS_TARGET_PREFIX}{id}:interface_recovery")
+}
+
 pub(super) fn target_last_check_key(id: &str) -> String {
     format!("{DDNS_TARGET_PREFIX}{id}:last_check")
 }

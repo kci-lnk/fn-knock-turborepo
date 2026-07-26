@@ -70,6 +70,8 @@ const DDNS_LOG_MAX_LEN: usize = 1000;
 const DDNS_UPDATE_LOCK_NAME: &str = "ddns-update";
 const DDNS_UPDATE_LOCK_TTL_SECONDS: usize = 600;
 const DDNS_STARTUP_CHECK_DELAY_SECONDS: u64 = 30;
+const DDNS_INTERFACE_FAILOVER_RECHECK_DELAY_MILLIS: u64 = 1_500;
+const DDNS_INTERFACE_PREFERRED_RECOVERY_CONFIRMATIONS: u8 = 3;
 const DDNS_UPDATE_SCOPE_FIELD: &str = "update_scope";
 const DDNS_NETWORK_INTERFACE_FIELD: &str = "network_interface";
 const DDNS_IP_SOURCE_FIELD: &str = "ip_source";
@@ -184,6 +186,7 @@ struct ResolvedTargetIps {
     source_label: String,
     warnings: Vec<String>,
     selection_logs: Vec<String>,
+    interface_resolutions: HashMap<String, InterfaceAddressResolution>,
     update_scope: &'static str,
 }
 

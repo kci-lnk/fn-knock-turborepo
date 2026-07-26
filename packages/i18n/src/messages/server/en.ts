@@ -1746,6 +1746,8 @@ export const enServer = {
       "The {family} selector matched {count} candidates; selected {address} ({reason})",
     interfaceSelectorResolved:
       "{family} address selection: mode {mode}, matched {count}, selected {address} ({reason})",
+    interfacePreferredRecoveryDeferred:
+      "{family} preferred address {preferred} recovered ({count}/{required} consecutive checks); keeping {current} temporarily to prevent flapping",
     ipv4FailedContinueIpv6:
       "IPv4 detection failed; continuing with IPv6 ({error})",
     ipv4Failed: "IPv4 detection failed ({error})",

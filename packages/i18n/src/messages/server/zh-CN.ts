@@ -1536,6 +1536,8 @@ export const zhCNServer = {
       "{family} 地址规则匹配到 {count} 个候选，已选择 {address}（{reason}）",
     interfaceSelectorResolved:
       "{family} 地址选择：模式 {mode}，命中 {count} 个候选，选择 {address}（{reason}）",
+    interfacePreferredRecoveryDeferred:
+      "{family} 优选地址 {preferred} 已恢复，连续确认 {count}/{required}；暂时保持 {current}，避免频繁回切",
     ipv4FailedContinueIpv6: "IPv4 获取失败，将继续使用 IPv6 ({error})",
     ipv4Failed: "IPv4 获取失败 ({error})",
     ipv6FailedContinueIpv4: "IPv6 获取失败，将继续使用 IPv4 ({error})",

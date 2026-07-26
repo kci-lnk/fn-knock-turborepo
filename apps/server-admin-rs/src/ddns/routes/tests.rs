@@ -40,6 +40,17 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
         .replace_hash_string_map(&target_selection_anchor_key(&meta.id), &last_ip)
         .await
         .unwrap();
+    state
+        .store
+        .replace_hash_string_map(
+            &target_interface_recovery_key(&meta.id),
+            &HashMap::from([
+                ("ipv6_address".to_string(), "2001:4860::10".to_string()),
+                ("ipv6_confirmations".to_string(), "2".to_string()),
+            ]),
+        )
+        .await
+        .unwrap();
 
     reset_target_runtime_state(&state, &meta).await.unwrap();
 
@@ -58,6 +69,14 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
             .await
             .unwrap(),
         last_ip
+    );
+    assert!(
+        state
+            .store
+            .hgetall_string_map(&target_interface_recovery_key(&meta.id))
+            .await
+            .unwrap()
+            .is_empty()
     );
 
     let target = DDNSTargetRecord {
@@ -1053,6 +1072,205 @@ fn interface_selector_prefers_manual_address_before_current() {
     let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::20"));
     assert_eq!(selection.selected.as_deref(), Some("2001:db8::10"));
     assert_eq!(selection.reason, "preferred");
+}
+
+#[test]
+fn preferred_address_recovery_waits_for_consecutive_confirmations() {
+    let network = selector_network(vec![
+        ipv6_candidate("2001:db8::10", json!(false)),
+        ipv6_candidate("2001:db8::20", json!(false)),
+    ]);
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("2001:db8::10".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::20"));
+
+    let first = stabilize_preferred_recovery(&selection, &selector, Some("2001:db8::20"), None, 3);
+    assert_eq!(first.selected.as_deref(), Some("2001:db8::20"));
+    assert!(first.deferred);
+    assert_eq!(first.state.as_ref().unwrap().confirmations, 1);
+
+    let second = stabilize_preferred_recovery(
+        &selection,
+        &selector,
+        Some("2001:db8::20"),
+        first.state.as_ref(),
+        3,
+    );
+    assert_eq!(second.selected.as_deref(), Some("2001:db8::20"));
+    assert!(second.deferred);
+    assert_eq!(second.state.as_ref().unwrap().confirmations, 2);
+
+    let third = stabilize_preferred_recovery(
+        &selection,
+        &selector,
+        Some("2001:db8::20"),
+        second.state.as_ref(),
+        3,
+    );
+    assert_eq!(third.selected.as_deref(), Some("2001:db8::10"));
+    assert!(!third.deferred);
+    assert_eq!(third.state.as_ref().unwrap().confirmations, 3);
+}
+
+#[test]
+fn preferred_address_recovery_is_immediate_when_fallback_is_unavailable() {
+    let network = selector_network(vec![ipv6_candidate("2001:db8::10", json!(false))]);
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("2001:db8::10".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::20"));
+    let decision =
+        stabilize_preferred_recovery(&selection, &selector, Some("2001:db8::20"), None, 3);
+
+    assert_eq!(decision.selected.as_deref(), Some("2001:db8::10"));
+    assert!(!decision.deferred);
+    assert!(decision.state.is_none());
+}
+
+#[test]
+fn preferred_address_loss_fails_over_without_recovery_delay() {
+    let network = selector_network(vec![ipv6_candidate("2001:db8::20", json!(false))]);
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("2001:db8::10".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::10"));
+    let previous_state = PreferredRecoveryState {
+        address: "2001:db8::10".to_string(),
+        confirmations: 2,
+    };
+    let decision = stabilize_preferred_recovery(
+        &selection,
+        &selector,
+        Some("2001:db8::10"),
+        Some(&previous_state),
+        3,
+    );
+
+    assert_eq!(decision.selected.as_deref(), Some("2001:db8::20"));
+    assert!(!decision.deferred);
+    assert!(decision.state.is_none());
+}
+
+#[tokio::test]
+async fn automatic_preferred_recovery_confirmations_persist_across_checks() {
+    let (_directory, state) = ddns_test_state().await;
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("2001:db8::10".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let network = selector_network(vec![
+        ipv6_candidate("2001:db8::10", json!(false)),
+        ipv6_candidate("2001:db8::20", json!(false)),
+    ]);
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::20"));
+    let target = DDNSTargetRecord {
+        meta: DDNSTargetMeta {
+            id: "preferred-recovery-persistence".to_string(),
+            name: "Preferred recovery".to_string(),
+            is_primary: false,
+            enabled: true,
+            provider: Some("cloudflare".to_string()),
+            created_at: time_utils::now_iso(),
+            updated_at: time_utils::now_iso(),
+            sort_order: 1,
+        },
+        config: HashMap::from([
+            (DDNS_IP_SOURCE_FIELD.to_string(), "interface".to_string()),
+            (
+                DDNS_NETWORK_INTERFACE_FIELD.to_string(),
+                "test0".to_string(),
+            ),
+        ]),
+        last_ip: json!({
+            "ipv4": null,
+            "ipv6": "2001:db8::20",
+            "updated_at": time_utils::now_iso()
+        }),
+        selection_anchor: json!({
+            "ipv4": null,
+            "ipv6": "2001:db8::20",
+            "updated_at": time_utils::now_iso()
+        }),
+        last_check: empty_last_check(),
+    };
+
+    for (index, expected) in ["2001:db8::20", "2001:db8::20", "2001:db8::10"]
+        .into_iter()
+        .enumerate()
+    {
+        let resolution = InterfaceAddressResolution {
+            address: selection.selected.clone(),
+            selection_logs: Vec::new(),
+            selection: Some(selection.clone()),
+            selector: Some(selector.clone()),
+            mode: "auto".to_string(),
+        };
+        let mut ips = ResolvedTargetIps {
+            ipv4: None,
+            ipv6: selection.selected.clone(),
+            source: "interface",
+            source_label: "test0".to_string(),
+            warnings: Vec::new(),
+            selection_logs: Vec::new(),
+            interface_resolutions: HashMap::from([("ipv6".to_string(), resolution)]),
+            update_scope: "ipv6_only",
+        };
+
+        stabilize_automatic_interface_ips(&state, &target, &mut ips, &Translator::new("zh-CN"))
+            .await
+            .unwrap();
+
+        assert_eq!(ips.ipv6.as_deref(), Some(expected), "check {}", index + 1);
+    }
+
+    let recovery = state
+        .store
+        .hgetall_string_map(&target_interface_recovery_key(&target.meta.id))
+        .await
+        .unwrap();
+    assert_eq!(
+        recovery.get("ipv6_confirmations").map(String::as_str),
+        Some("3")
+    );
+
+    let mut reset_target = target.clone();
+    reset_target.meta.id = "preferred-recovery-after-config-change".to_string();
+    reset_target.last_ip = empty_last_ip();
+    let resolution = InterfaceAddressResolution {
+        address: selection.selected.clone(),
+        selection_logs: Vec::new(),
+        selection: Some(selection.clone()),
+        selector: Some(selector),
+        mode: "auto".to_string(),
+    };
+    let mut ips = ResolvedTargetIps {
+        ipv4: None,
+        ipv6: selection.selected.clone(),
+        source: "interface",
+        source_label: "test0".to_string(),
+        warnings: Vec::new(),
+        selection_logs: Vec::new(),
+        interface_resolutions: HashMap::from([("ipv6".to_string(), resolution)]),
+        update_scope: "ipv6_only",
+    };
+
+    stabilize_automatic_interface_ips(&state, &reset_target, &mut ips, &Translator::new("zh-CN"))
+        .await
+        .unwrap();
+
+    assert_eq!(ips.ipv6.as_deref(), Some("2001:db8::10"));
+    assert!(
+        state
+            .store
+            .hgetall_string_map(&target_interface_recovery_key(&reset_target.meta.id))
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]

@@ -1831,6 +1831,8 @@ export const jaJPServer = {
       "{family} 選択ルールは {count} 件に一致し、{address} を選択しました（{reason}）",
     interfaceSelectorResolved:
       "{family} アドレス選択: モード {mode}、{count} 件一致、{address} を選択（{reason}）",
+    interfacePreferredRecoveryDeferred:
+      "{family} の優先アドレス {preferred} の復旧を連続確認中です（{count}/{required}）。頻繁な切り替えを防ぐため、現在の {current} を一時的に維持します。",
     ipv4FailedContinueIpv6:
       "IPv4 の検出に失敗したため、IPv6 で続行します（{error}）",
     ipv4Failed: "IPv4 の検出に失敗しました（{error}）",

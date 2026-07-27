@@ -25,11 +25,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ConfigAPI } from "../../lib/api";
+import {
+  buildGatewayPortalVersionPatch,
+  normalizeGatewayPortalConfig,
+} from "../../lib/gatewayPortal";
 import { useConfigStore } from "../../store/config";
 import type {
   GatewayPortalConfig,
   GatewayPortalDisplayStyle,
   GatewayPortalIconDragMode,
+  GatewayPortalVersion,
   GatewaySettings,
 } from "../../types";
 
@@ -45,23 +50,16 @@ const form = reactive<GatewayPortalConfig>({
   display_style: "title",
   show_app_icon: true,
   icon_drag_mode: "corners",
-});
-
-const normalizePortal = (
-  portal?: Partial<GatewayPortalConfig> | null,
-): GatewayPortalConfig => ({
-  enabled: portal?.enabled !== false,
-  display_style: portal?.display_style === "domain" ? "domain" : "title",
-  show_app_icon: portal?.show_app_icon !== false,
-  icon_drag_mode: portal?.icon_drag_mode === "free" ? "free" : "corners",
+  version: "v1",
 });
 
 const applyPortal = (portal?: Partial<GatewayPortalConfig> | null) => {
-  const normalized = normalizePortal(portal);
+  const normalized = normalizeGatewayPortalConfig(portal);
   settings.value = normalized;
   form.display_style = normalized.display_style;
   form.show_app_icon = normalized.show_app_icon;
   form.icon_drag_mode = normalized.icon_drag_mode;
+  form.version = normalized.version;
   form.enabled = normalized.enabled;
 };
 
@@ -121,6 +119,21 @@ const saveDisplayStyle = async (style: GatewayPortalDisplayStyle) => {
         display_style: style,
       },
     }),
+  );
+
+  if (!(await applySavedSettings(data))) {
+    applyPortal(previous);
+  }
+};
+
+const saveVersion = async (version: GatewayPortalVersion) => {
+  if (isSaving.value || form.version === version) return;
+
+  const previous = { ...form };
+  form.version = version;
+
+  const data = await runSave(() =>
+    ConfigAPI.updateGatewaySettings(buildGatewayPortalVersionPatch(version)),
   );
 
   if (!(await applySavedSettings(data))) {
@@ -276,6 +289,57 @@ onMounted(() => {
             >
               <div class="space-y-1 pr-6">
                 <div class="text-base font-medium">
+                  {{ t("admin.gatewayPortalSettings.version") }}
+                </div>
+                <div class="text-sm text-muted-foreground">
+                  {{ t("admin.gatewayPortalSettings.versionDescription") }}
+                </div>
+              </div>
+              <div
+                role="group"
+                :aria-label="t('admin.gatewayPortalSettings.version')"
+                class="inline-flex w-fit rounded-md border bg-background p-1"
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  :aria-pressed="form.version === 'v1'"
+                  :class="[
+                    'h-8 px-3',
+                    form.version === 'v1'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
+                  :disabled="isSaving"
+                  @click="saveVersion('v1')"
+                >
+                  {{ t("admin.gatewayPortalSettings.versionV1") }}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  :aria-pressed="form.version === 'v2'"
+                  :class="[
+                    'h-8 px-3',
+                    form.version === 'v2'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
+                  :disabled="isSaving"
+                  @click="saveVersion('v2')"
+                >
+                  {{ t("admin.gatewayPortalSettings.versionV2") }}
+                </Button>
+              </div>
+            </section>
+
+            <section
+              class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+            >
+              <div class="space-y-1 pr-6">
+                <div class="text-base font-medium">
                   {{ t("admin.gatewayPortalSettings.display") }}
                 </div>
                 <div class="text-sm text-muted-foreground">
@@ -290,10 +354,14 @@ onMounted(() => {
                 <Button
                   type="button"
                   size="sm"
-                  :variant="
-                    form.display_style === 'domain' ? 'default' : 'ghost'
-                  "
-                  class="h-8 px-3"
+                  variant="ghost"
+                  :aria-pressed="form.display_style === 'domain'"
+                  :class="[
+                    'h-8 px-3',
+                    form.display_style === 'domain'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
                   :disabled="isSaving"
                   @click="saveDisplayStyle('domain')"
                 >
@@ -302,10 +370,14 @@ onMounted(() => {
                 <Button
                   type="button"
                   size="sm"
-                  :variant="
-                    form.display_style === 'title' ? 'default' : 'ghost'
-                  "
-                  class="h-8 px-3"
+                  variant="ghost"
+                  :aria-pressed="form.display_style === 'title'"
+                  :class="[
+                    'h-8 px-3',
+                    form.display_style === 'title'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
                   :disabled="isSaving"
                   @click="saveDisplayStyle('title')"
                 >
@@ -333,10 +405,14 @@ onMounted(() => {
                 <Button
                   type="button"
                   size="sm"
-                  :variant="
-                    form.icon_drag_mode === 'corners' ? 'default' : 'ghost'
-                  "
-                  class="h-8 px-3"
+                  variant="ghost"
+                  :aria-pressed="form.icon_drag_mode === 'corners'"
+                  :class="[
+                    'h-8 px-3',
+                    form.icon_drag_mode === 'corners'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
                   :disabled="isSaving"
                   @click="saveIconDragMode('corners')"
                 >
@@ -345,10 +421,14 @@ onMounted(() => {
                 <Button
                   type="button"
                   size="sm"
-                  :variant="
-                    form.icon_drag_mode === 'free' ? 'default' : 'ghost'
-                  "
-                  class="h-8 px-3"
+                  variant="ghost"
+                  :aria-pressed="form.icon_drag_mode === 'free'"
+                  :class="[
+                    'h-8 px-3',
+                    form.icon_drag_mode === 'free'
+                      ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+                      : '',
+                  ]"
                   :disabled="isSaving"
                   @click="saveIconDragMode('free')"
                 >

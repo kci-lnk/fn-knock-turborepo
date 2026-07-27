@@ -8,6 +8,7 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "@/lib/api";
+import { normalizeGatewayPortalConfig } from "@/lib/gatewayPortal";
 import {
   buildGatewayUnmatchedRoutePatch,
   normalizeGatewayUnmatchedRouteBehavior,
@@ -35,12 +36,7 @@ export const useGatewaySettingsController = () => {
   const form = reactive<GatewaySettingsForm>({
     auth_cache_ttl_seconds: 1,
     auth_cache_unauthorized_ttl_seconds: 1,
-    portal: {
-      enabled: true,
-      display_style: "title",
-      show_app_icon: true,
-      icon_drag_mode: "corners",
-    },
+    portal: normalizeGatewayPortalConfig(),
     unmatched_route: {
       behavior: "error_page",
       upstream_error_detail: "less",
@@ -140,6 +136,11 @@ export const useGatewaySettingsController = () => {
       ? t("admin.gatewaySettings.enabled")
       : t("admin.gatewaySettings.disabled"),
   );
+  const portalVersionSummary = computed(() =>
+    portalSummary.value?.version === "v2"
+      ? t("admin.gatewaySettings.portalVersionV2")
+      : t("admin.gatewaySettings.portalVersionV1"),
+  );
   const {
     isProxyHeadersAvailable,
     proxyHeadersDisabledReason,
@@ -170,14 +171,7 @@ export const useGatewaySettingsController = () => {
 
   const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
     ...data,
-    portal: {
-      enabled: data.portal?.enabled !== false,
-      display_style:
-        data.portal?.display_style === "domain" ? "domain" : "title",
-      show_app_icon: data.portal?.show_app_icon !== false,
-      icon_drag_mode:
-        data.portal?.icon_drag_mode === "free" ? "free" : "corners",
-    },
+    portal: normalizeGatewayPortalConfig(data.portal),
     crawler_blocker: {
       enabled: data.crawler_blocker?.enabled === true,
       updated_at: data.crawler_blocker?.updated_at ?? null,
@@ -203,6 +197,7 @@ export const useGatewaySettingsController = () => {
     form.portal.display_style = snapshot.portal.display_style;
     form.portal.show_app_icon = snapshot.portal.show_app_icon;
     form.portal.icon_drag_mode = snapshot.portal.icon_drag_mode;
+    form.portal.version = snapshot.portal.version;
     form.unmatched_route.behavior = snapshot.unmatched_route.behavior;
     form.unmatched_route.upstream_error_detail =
       snapshot.unmatched_route.upstream_error_detail;
@@ -286,6 +281,7 @@ export const useGatewaySettingsController = () => {
     portalEnabledSummary,
     portalIconSummary,
     portalSummary,
+    portalVersionSummary,
     proxyHeadersDisabledReason,
     resetForm,
     saveSettings,

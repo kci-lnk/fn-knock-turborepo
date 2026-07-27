@@ -1336,12 +1336,14 @@ export type GatewayHostResponseDetails = {
 
 export type GatewayPortalDisplayStyle = "domain" | "title";
 export type GatewayPortalIconDragMode = "corners" | "free";
+export type GatewayPortalVersion = "v1" | "v2";
 
 export type GatewayPortalConfig = {
   enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon: boolean;
   icon_drag_mode: GatewayPortalIconDragMode;
+  version: GatewayPortalVersion;
 };
 
 export type GatewayUnmatchedRouteBehavior = "error_page" | "reset_connection";

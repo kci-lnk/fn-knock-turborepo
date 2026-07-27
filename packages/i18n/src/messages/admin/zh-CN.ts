@@ -298,6 +298,8 @@ export const zhCNAdmin = {
     portal: "传送门设置",
     portalDescription: "控制访问入口在传送门与工具栏中的展示方式。",
     portalIconSummary: "图标：{state}",
+    portalVersionV1: "v1 · 经典",
+    portalVersionV2: "v2 · 启动台",
     editPortal: "编辑传送门",
     unmatchedRoute: "无匹配路由时行为",
     unmatchedRouteDescription:
@@ -357,6 +359,11 @@ export const zhCNAdmin = {
     enabled: "启用传送门",
     enabledDescription:
       "开启后，已登录用户访问子域名应用时会显示用于快速切换应用的传送门工具栏。",
+    version: "传送门版本",
+    versionDescription:
+      "v1 使用经典工具栏，v2 使用全屏毛玻璃启动台；可随时切换。",
+    versionV1: "v1 经典",
+    versionV2: "v2 启动台",
     display: "传送门显示",
     displayDescription: "Host 类入口显示域名或站点标题；标题为空时显示域名。",
     displayDomain: "域名",
@@ -368,7 +375,7 @@ export const zhCNAdmin = {
     iconDragModeFree: "自由",
     showAppIcon: "显示应用图标",
     showAppIconDescription:
-      "开启后，传送门和工具栏会显示已采集到的应用图标；没有图标的入口不会占位。",
+      "开启后，传送门和工具栏会显示已采集到的应用图标；v2 会为没有图标的入口生成占位图标。",
   },
   gatewayVisibilitySettings: {
     loading: "正在加载...",

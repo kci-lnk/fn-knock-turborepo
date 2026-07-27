@@ -332,6 +332,8 @@ export const jaJPAdmin = {
     portalDescription:
       "ポータルとツールバーでアクセス先を表示する方法を設定します。",
     portalIconSummary: "アイコン: {state}",
+    portalVersionV1: "v1 · クラシック",
+    portalVersionV2: "v2 · Launchpad",
     editPortal: "ポータルを編集",
     unmatchedRoute: "ルート未一致時の動作",
     unmatchedRouteDescription:
@@ -394,6 +396,11 @@ export const jaJPAdmin = {
     enabled: "ポータルを有効化",
     enabledDescription:
       "有効にすると、ログイン済みユーザーがサブドメインアプリへアクセスしたとき、アプリをすばやく切り替えられるポータルツールバーを表示します。",
+    version: "ポータルバージョン",
+    versionDescription:
+      "v1 はクラシックツールバー、v2 はフルスクリーンのガラス調 Launchpad を使用します。いつでも切り替えられます。",
+    versionV1: "v1 クラシック",
+    versionV2: "v2 Launchpad",
     display: "ポータル表示",
     displayDescription:
       "ホスト項目にはドメインまたはサイトタイトルを表示します。タイトルが空の場合はドメインを表示します。",
@@ -406,7 +413,7 @@ export const jaJPAdmin = {
     iconDragModeFree: "自由配置",
     showAppIcon: "アプリアイコンを表示",
     showAppIconDescription:
-      "有効にすると、ポータルとツールバーに取得済みのアプリアイコンを表示します。アイコンのない項目には余白を確保しません。",
+      "有効にすると、ポータルとツールバーに取得済みのアプリアイコンを表示します。v2 では、アイコンのない項目にプレースホルダーアイコンを生成します。",
   },
   gatewayVisibilitySettings: {
     loading: "読み込み中...",

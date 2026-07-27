@@ -173,6 +173,7 @@ message GatewayPortalConfig {
   string display_style = 2;
   bool show_app_icon = 3;
   string icon_drag_mode = 4;
+  string version = 5;
 }
 
 message GatewayUnmatchedRouteConfig {

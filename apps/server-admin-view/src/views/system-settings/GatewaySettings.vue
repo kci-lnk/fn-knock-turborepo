@@ -40,6 +40,7 @@ const {
   portalEnabledSummary,
   portalIconSummary,
   portalSummary,
+  portalVersionSummary,
   proxyHeadersDisabledReason,
   resetForm,
   saveSettings,
@@ -176,6 +177,7 @@ const {
           <Badge variant="secondary" class="rounded-full px-2.5">
             {{ portalDisplaySummary }}
           </Badge>
+          <Badge variant="secondary" class="rounded-full px-2.5">{{ portalVersionSummary }}</Badge>
           <Badge
             :variant="
               portalSummary?.show_app_icon !== false ? 'default' : 'secondary'

@@ -99,7 +99,8 @@ pub fn default_config() -> Value {
         "enabled": true,
         "display_style": "title",
         "show_app_icon": true,
-        "icon_drag_mode": "corners"
+        "icon_drag_mode": "corners",
+        "version": "v1"
     });
     let gateway_unmatched_route = json!({
         "behavior": "error_page",

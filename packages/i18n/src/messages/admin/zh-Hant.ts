@@ -298,6 +298,8 @@ export const zhHantAdmin = {
     portal: "傳送門設定",
     portalDescription: "控制訪問入口在傳送門與工具列中的展示方式。",
     portalIconSummary: "圖示：{state}",
+    portalVersionV1: "v1 · 經典",
+    portalVersionV2: "v2 · 啟動台",
     editPortal: "編輯傳送門",
     unmatchedRoute: "無匹配路由時行為",
     unmatchedRouteDescription:
@@ -358,6 +360,11 @@ export const zhHantAdmin = {
     enabled: "啟用傳送門",
     enabledDescription:
       "開啟後，已登入使用者訪問子域名應用時會顯示用於快速切換應用的傳送門工具列。",
+    version: "傳送門版本",
+    versionDescription:
+      "v1 使用經典工具列，v2 使用全螢幕毛玻璃啟動台；可隨時切換。",
+    versionV1: "v1 經典",
+    versionV2: "v2 啟動台",
     display: "傳送門顯示",
     displayDescription: "Host 類入口顯示域名或站點標題；標題為空時顯示域名。",
     displayDomain: "域名",
@@ -369,7 +376,7 @@ export const zhHantAdmin = {
     iconDragModeFree: "自由",
     showAppIcon: "顯示應用圖示",
     showAppIconDescription:
-      "開啟後，傳送門和工具列會顯示已採集到的應用圖示；沒有圖示的入口不會占位。",
+      "開啟後，傳送門和工具列會顯示已採集到的應用圖示；v2 會為沒有圖示的入口產生占位圖示。",
   },
   gatewayVisibilitySettings: {
     ...zhCNAdmin.gatewayVisibilitySettings,

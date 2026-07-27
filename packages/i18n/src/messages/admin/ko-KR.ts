@@ -329,6 +329,8 @@ export const koKRAdmin = {
     portalDescription:
       "포털과 도구 모음에 접속 항목을 표시하는 방식을 설정합니다.",
     portalIconSummary: "아이콘: {state}",
+    portalVersionV1: "v1 · 클래식",
+    portalVersionV2: "v2 · Launchpad",
     editPortal: "포털 편집",
     unmatchedRoute: "일치하는 경로가 없을 때 동작",
     unmatchedRouteDescription:
@@ -391,6 +393,11 @@ export const koKRAdmin = {
     enabled: "포털 활성화",
     enabledDescription:
       "사용하면 로그인한 사용자가 서브도메인 앱에 접속할 때 앱을 빠르게 전환할 수 있는 포털 도구 모음이 표시됩니다.",
+    version: "포털 버전",
+    versionDescription:
+      "v1은 클래식 도구 모음을, v2는 전체 화면 글래스 Launchpad를 사용합니다. 언제든 전환할 수 있습니다.",
+    versionV1: "v1 클래식",
+    versionV2: "v2 Launchpad",
     display: "포털 표시",
     displayDescription:
       "Host 접속 항목에 도메인 또는 사이트 제목을 표시합니다. 제목이 비어 있으면 도메인을 표시합니다.",
@@ -403,7 +410,7 @@ export const koKRAdmin = {
     iconDragModeFree: "자유",
     showAppIcon: "앱 아이콘 표시",
     showAppIconDescription:
-      "활성화하면 포털과 도구 모음에 수집된 앱 아이콘이 표시됩니다. 아이콘이 없는 항목은 공간을 차지하지 않습니다.",
+      "활성화하면 포털과 도구 모음에 수집된 앱 아이콘이 표시됩니다. v2에서는 아이콘이 없는 항목에 자리 표시자 아이콘을 생성합니다.",
   },
   gatewayVisibilitySettings: {
     loading: "불러오는 중...",

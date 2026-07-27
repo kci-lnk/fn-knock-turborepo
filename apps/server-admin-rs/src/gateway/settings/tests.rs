@@ -92,6 +92,24 @@ fn gateway_response_uses_node_defaults() {
             "upstream_error_detail": "less"
         })
     );
+    assert_eq!(
+        normalize_gateway_portal(&json!({})),
+        json!({
+            "enabled": true,
+            "display_style": "title",
+            "show_app_icon": true,
+            "icon_drag_mode": "corners",
+            "version": "v1"
+        })
+    );
+    assert_eq!(
+        normalize_gateway_portal(&json!({ "version": "v2" }))["version"],
+        json!("v2")
+    );
+    assert_eq!(
+        normalize_gateway_portal(&json!({ "version": "future" }))["version"],
+        json!("v1")
+    );
     assert_eq!(visible.len(), 1);
     assert_eq!(
         proxy_items[0]
@@ -113,6 +131,7 @@ async fn gateway_response_includes_default_unmatched_route_behavior() {
         response.pointer("/unmatched_route/upstream_error_detail"),
         Some(&json!("less"))
     );
+    assert_eq!(response.pointer("/portal/version"), Some(&json!("v1")));
 }
 
 #[test]
@@ -120,12 +139,12 @@ fn gateway_patch_merges_and_normalizes_sections() {
     let mut config = json!({
         "subdomain_mode": { "auth_cache_ttl_seconds": 1 },
         "reverse_proxy_throttle": { "enabled": true, "requests_per_second": 10, "burst": 20, "block_seconds": 30 },
-        "gateway_portal": { "enabled": true, "display_style": "title", "show_app_icon": true, "icon_drag_mode": "corners" }
+        "gateway_portal": { "enabled": true, "display_style": "title", "show_app_icon": true, "icon_drag_mode": "corners", "version": "v1" }
     });
     let patch = json!({
         "auth_cache_ttl_seconds": 8,
         "reverse_proxy_throttle": { "burst": 250 },
-        "portal": { "display_style": "domain", "show_app_icon": false },
+        "portal": { "display_style": "domain", "show_app_icon": false, "version": "v2" },
         "unmatched_route": {
             "behavior": "reset_connection",
             "upstream_error_detail": "more"
@@ -150,6 +169,12 @@ fn gateway_patch_merges_and_normalizes_sections() {
             .pointer("/gateway_portal/display_style")
             .and_then(Value::as_str),
         Some("domain")
+    );
+    assert_eq!(
+        config
+            .pointer("/gateway_portal/version")
+            .and_then(Value::as_str),
+        Some("v2")
     );
     assert_eq!(
         config
@@ -184,6 +209,7 @@ fn gateway_portal_runtime_echo_accepts_disabled_config() {
         "display_style": "title",
         "show_app_icon": true,
         "icon_drag_mode": "free",
+        "version": "v2",
     });
     let response = json!({
         "success": true,
@@ -208,6 +234,7 @@ fn gateway_portal_runtime_echo_rejects_reenabled_config() {
             "display_style": "title",
             "show_app_icon": true,
             "icon_drag_mode": "free",
+            "version": "v2",
         },
     });
 
@@ -215,6 +242,53 @@ fn gateway_portal_runtime_echo_rejects_reenabled_config() {
     assert!(error.contains("did not apply gateway portal config"));
     assert!(error.contains(r#""enabled":false"#));
     assert!(error.contains(r#""enabled":true"#));
+}
+
+#[test]
+fn gateway_portal_runtime_echo_accepts_legacy_backend_for_v1() {
+    let portal = json!({
+        "enabled": true,
+        "display_style": "title",
+        "show_app_icon": true,
+        "icon_drag_mode": "corners",
+        "version": "v1",
+    });
+    let response = json!({
+        "success": true,
+        "data": {
+            "enabled": true,
+            "display_style": "title",
+            "show_app_icon": true,
+            "icon_drag_mode": "corners",
+        },
+    });
+
+    assert!(super::runtime::ensure_gateway_portal_applied(&portal, response).is_ok());
+}
+
+#[test]
+fn gateway_portal_runtime_echo_rejects_legacy_backend_for_v2() {
+    let portal = json!({
+        "enabled": true,
+        "display_style": "title",
+        "show_app_icon": true,
+        "icon_drag_mode": "corners",
+        "version": "v2",
+    });
+    let response = json!({
+        "success": true,
+        "data": {
+            "enabled": true,
+            "display_style": "title",
+            "show_app_icon": true,
+            "icon_drag_mode": "corners",
+        },
+    });
+
+    let error = super::runtime::ensure_gateway_portal_applied(&portal, response).unwrap_err();
+    assert!(error.contains("upgrade the gateway backend"));
+    assert!(error.contains(r#""version":"v2""#));
+    assert!(error.contains(r#""version":"v1""#));
 }
 
 #[test]

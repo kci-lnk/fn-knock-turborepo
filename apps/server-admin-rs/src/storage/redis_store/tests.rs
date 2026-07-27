@@ -1366,6 +1366,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
         Some(&json!("title"))
     );
     assert_eq!(
+        config.pointer("/gateway_portal/version"),
+        Some(&json!("v1"))
+    );
+    assert_eq!(
         config.pointer("/gateway_unmatched_route/behavior"),
         Some(&json!("error_page"))
     );

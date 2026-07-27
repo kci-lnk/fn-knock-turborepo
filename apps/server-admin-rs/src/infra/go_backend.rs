@@ -1443,6 +1443,7 @@ fn parse_portal(value: &Value) -> GatewayPortalConfig {
         display_style: string_field(value, "display_style"),
         show_app_icon: bool_field(value, "show_app_icon", false),
         icon_drag_mode: string_field(value, "icon_drag_mode"),
+        version: string_field(value, "version"),
     }
 }
 
@@ -1698,7 +1699,8 @@ fn portal_to_json(config: GatewayPortalConfig) -> Value {
         "enabled": config.enabled,
         "display_style": config.display_style,
         "show_app_icon": config.show_app_icon,
-        "icon_drag_mode": config.icon_drag_mode
+        "icon_drag_mode": config.icon_drag_mode,
+        "version": config.version
     })
 }
 

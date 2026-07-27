@@ -332,6 +332,8 @@ export const enAdmin = {
     portalDescription:
       "Control how access entries appear in the portal and toolbar.",
     portalIconSummary: "Icon: {state}",
+    portalVersionV1: "v1 · Classic",
+    portalVersionV2: "v2 · Launchpad",
     editPortal: "Edit portal",
     unmatchedRoute: "No-match route behavior",
     unmatchedRouteDescription:
@@ -394,6 +396,11 @@ export const enAdmin = {
     enabled: "Enable portal",
     enabledDescription:
       "When enabled, signed-in users see the portal toolbar for quickly switching apps while visiting subdomain applications.",
+    version: "Portal version",
+    versionDescription:
+      "v1 uses the classic toolbar; v2 uses a full-screen glass Launchpad. You can switch at any time.",
+    versionV1: "v1 Classic",
+    versionV2: "v2 Launchpad",
     display: "Portal display",
     displayDescription:
       "Host entries show either the domain or site title. Empty titles fall back to the domain.",
@@ -406,7 +413,7 @@ export const enAdmin = {
     iconDragModeFree: "Free",
     showAppIcon: "Show app icons",
     showAppIconDescription:
-      "When enabled, the portal and toolbar show collected app icons. Entries without an icon do not reserve space.",
+      "When enabled, the portal and toolbar show collected app icons. In v2, entries without one receive a generated placeholder icon.",
   },
   gatewayVisibilitySettings: {
     loading: "Loading...",

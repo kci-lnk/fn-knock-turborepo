@@ -251,11 +251,17 @@ watch(
       props.filteredMappings,
       props.groups,
       props.searchQuery,
-      props.isSavingMappings,
       showGroupedView.value,
     ] as const,
   syncGroupSections,
   { deep: true, immediate: true },
+);
+
+watch(
+  () => props.isSavingMappings,
+  (isSaving, wasSaving) => {
+    if (wasSaving && !isSaving) syncGroupSections();
+  },
 );
 
 const updateSectionMappings = (key: string, mappings: HostMapping[]) => {
@@ -697,79 +703,85 @@ const handleMappingTableScroll = (event: Event) => {
             <template #header>
               <TableRow class="mapping-group-header-row group">
                 <TableCell colspan="8" class="p-0">
-                  <div
-                    class="mapping-group-header-sticky flex min-h-11 items-center gap-2 px-3 py-2"
-                  >
-                    <Checkbox
-                      :class="[
-                        mappingSelectionCheckboxClass,
-                        mappingSelectionVisibilityClass,
-                      ]"
-                      :model-value="
-                        isSectionPartiallySelected(section)
-                          ? 'indeterminate'
-                          : isSectionSelected(section)
-                      "
-                      :aria-label="
-                        t('admin.subdomainProxy.selectGroupMappings', {
-                          group: section.name,
-                        })
-                      "
-                      @update:model-value="
-                        (value) => setSectionSelected(section, value === true)
-                      "
-                    />
-                    <button
-                      type="button"
-                      class="inline-flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      :aria-expanded="!isSectionCollapsed(section)"
-                      @click="toggleSectionCollapsed(section)"
+                  <div class="mapping-group-header-layout">
+                    <div
+                      class="mapping-group-header-sticky flex min-h-11 items-center gap-2 px-3 py-2"
                     >
-                      <ChevronRight
-                        class="h-4 w-4 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none"
-                        :class="{
-                          'rotate-90': !isSectionCollapsed(section),
-                        }"
+                      <Checkbox
+                        :class="[
+                          mappingSelectionCheckboxClass,
+                          mappingSelectionVisibilityClass,
+                        ]"
+                        :model-value="
+                          isSectionPartiallySelected(section)
+                            ? 'indeterminate'
+                            : isSectionSelected(section)
+                        "
+                        :aria-label="
+                          t('admin.subdomainProxy.selectGroupMappings', {
+                            group: section.name,
+                          })
+                        "
+                        @update:model-value="
+                          (value) => setSectionSelected(section, value === true)
+                        "
                       />
-                      <span class="truncate font-medium">{{
-                        section.name
-                      }}</span>
-                      <span
-                        class="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground"
+                      <button
+                        type="button"
+                        class="inline-flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :aria-expanded="!isSectionCollapsed(section)"
+                        @click="toggleSectionCollapsed(section)"
                       >
-                        {{ section.mappings.length }}
-                      </span>
-                    </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          :aria-label="t('common.moreActions')"
+                        <ChevronRight
+                          class="h-4 w-4 shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none"
+                          :class="{
+                            'rotate-90': !isSectionCollapsed(section),
+                          }"
+                        />
+                        <span class="truncate font-medium">{{
+                          section.name
+                        }}</span>
+                        <span
+                          class="rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground"
                         >
-                          <MoreHorizontal class="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          :disabled="isSavingMappings"
-                          @select="emit('open-create', section.groupId)"
-                        >
-                          <FolderPlus class="mr-2 h-4 w-4" />
-                          {{ t("admin.subdomainProxy.addMappingToGroup") }}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem @select="isGroupManagerOpen = true">
-                          <Folders class="mr-2 h-4 w-4" />
-                          {{ t("admin.subdomainProxy.manageGroups") }}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          {{ section.mappings.length }}
+                        </span>
+                      </button>
+                    </div>
+                    <div class="mapping-group-header-actions">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            :aria-label="t('common.moreActions')"
+                          >
+                            <MoreHorizontal class="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            :disabled="isSavingMappings"
+                            @select="emit('open-create', section.groupId)"
+                          >
+                            <FolderPlus class="mr-2 h-4 w-4" />
+                            {{ t("admin.subdomainProxy.addMappingToGroup") }}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem @select="isGroupManagerOpen = true">
+                            <Folders class="mr-2 h-4 w-4" />
+                            {{ t("admin.subdomainProxy.manageGroups") }}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>
             </template>
             <template #default="{ mapping }">
               <TableRow
+                :key="mapping.host"
+                :data-host-mapping="mapping.host"
                 class="mapping-row"
                 :class="[
                   'group',

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import type { HostMapping } from "@/types";
+import { buildHostMappingDragRenderKey } from "./host-mapping-groups";
 
 const props = defineProps<{
   collapsed: boolean;
@@ -20,6 +21,9 @@ const model = computed({
   get: () => props.mappings,
   set: (value: HostMapping[]) => emit("update:mappings", value),
 });
+const draggableRenderKey = computed(() =>
+  buildHostMappingDragRenderKey(props.mappings),
+);
 
 const isBodyRendered = ref(!props.collapsed);
 const isBodyVisuallyCollapsed = ref(props.collapsed);
@@ -92,6 +96,7 @@ onBeforeUnmount(cancelPendingAnimation);
   </tbody>
   <VueDraggable
     v-if="isBodyRendered"
+    :key="draggableRenderKey"
     v-model="model"
     tag="tbody"
     :class="[

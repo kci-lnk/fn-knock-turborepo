@@ -289,6 +289,13 @@
   background-color: var(--mapping-group-header-background);
 }
 
+.mapping-table-scroll .mapping-group-header-layout {
+  display: flex;
+  min-height: 2.75rem;
+  width: 100%;
+  align-items: stretch;
+}
+
 .mapping-table-scroll .mapping-group-header-sticky {
   position: sticky;
   left: 0;
@@ -298,6 +305,16 @@
   max-width: min(24rem, calc(100vw - 3rem));
   min-width: min(24rem, calc(100vw - 3rem));
   background-color: var(--mapping-group-header-background);
+}
+
+.mapping-table-scroll .mapping-group-header-actions {
+  display: flex;
+  width: 8rem;
+  min-width: 8rem;
+  margin-left: auto;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
 }
 
 .mapping-group-collapse-body {

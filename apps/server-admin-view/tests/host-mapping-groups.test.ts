@@ -6,6 +6,7 @@ import type { HostMapping, HostMappingGroup } from "../src/types";
 import { createDefaultMapping } from "../src/views/subdomain-proxy/model";
 import {
   applyHostMappingGroupSections,
+  buildHostMappingDragRenderKey,
   buildHostMappingGroupSections,
   createHostMappingGroupId,
   isHostMappingGroupNameLengthValid,
@@ -75,6 +76,24 @@ test("keeps the flat projection when no groups exist", () => {
   assert.equal(sections.length, 1);
   assert.equal(sections[0]?.name, "");
   assert.deepEqual(sections[0]?.mappings, mappings);
+});
+
+test("changes the draggable render identity when membership or order changes", () => {
+  const first = mapping("one.example.test", groups[0].id);
+  const second = mapping("two.example.test", groups[0].id);
+
+  assert.equal(
+    buildHostMappingDragRenderKey([first, second]),
+    '["one.example.test","two.example.test"]',
+  );
+  assert.notEqual(
+    buildHostMappingDragRenderKey([first, second]),
+    buildHostMappingDragRenderKey([second, first]),
+  );
+  assert.notEqual(
+    buildHostMappingDragRenderKey([first, second]),
+    buildHostMappingDragRenderKey([first]),
+  );
 });
 
 test("applies a cross-group drag while preserving the auth mapping slot", () => {
@@ -237,7 +256,13 @@ test("keeps mobile actions on one row and group headings visible while scrolling
   );
   assert.match(card, /class="col-span-3 w-full sm:w-auto"/u);
   assert.match(card, /mapping-group-header-row/u);
+  assert.match(card, /class="mapping-group-header-layout"/u);
   assert.match(card, /mapping-group-header-sticky/u);
+  assert.match(card, /class="mapping-group-header-actions"/u);
+  assert.match(
+    card,
+    /class="mapping-group-header-sticky[\s\S]*?<\/div>\s*<div class="mapping-group-header-actions">[\s\S]*?<MoreHorizontal/u,
+  );
   assert.match(
     styles,
     /\.mapping-table-scroll \.mapping-group-header-sticky \{[\s\S]*?position: sticky;[\s\S]*?left: 0;[\s\S]*?width: min\(24rem, calc\(100vw - 3rem\)\);/u,
@@ -249,6 +274,10 @@ test("keeps mobile actions on one row and group headings visible while scrolling
   assert.match(
     styles,
     /\.mapping-table-scroll \.mapping-group-header-sticky \{[\s\S]*?background-color: var\(--mapping-group-header-background\);/u,
+  );
+  assert.match(
+    styles,
+    /\.mapping-table-scroll \.mapping-group-header-actions \{[\s\S]*?width: 8rem;[\s\S]*?margin-left: auto;[\s\S]*?justify-content: flex-end;/u,
   );
 });
 
@@ -287,5 +316,40 @@ test("animates grouped rows and the disclosure chevron", () => {
   assert.match(
     styles,
     /@media \(prefers-reduced-motion: reduce\)[\s\S]*?mapping-group-collapse-body/u,
+  );
+});
+
+test("reconciles draggable table rows after a cross-group move", () => {
+  const card = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const groupRows = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/SubdomainMappingGroupRows.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(groupRows, /:key="draggableRenderKey"/u);
+  assert.match(
+    groupRows,
+    /buildHostMappingDragRenderKey\(props\.mappings\)/u,
+  );
+  assert.match(
+    card,
+    /<TableRow[\s\S]*?:key="mapping\.host"[\s\S]*?:data-host-mapping="mapping\.host"[\s\S]*?class="mapping-row"/u,
+  );
+  assert.match(
+    card,
+    /\(isSaving, wasSaving\) => \{[\s\S]*?if \(wasSaving && !isSaving\) syncGroupSections\(\);/u,
+  );
+  assert.doesNotMatch(
+    card,
+    /props\.searchQuery,\s*props\.isSavingMappings,\s*showGroupedView\.value/u,
   );
 });

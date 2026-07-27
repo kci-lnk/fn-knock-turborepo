@@ -25,6 +25,10 @@ export const isHostMappingGroupNameLengthValid = (name: string): boolean => {
   return length >= 1 && length <= 40;
 };
 
+export const buildHostMappingDragRenderKey = (
+  mappings: HostMapping[],
+): string => JSON.stringify(mappings.map((mapping) => mapping.host));
+
 interface HostMappingGroupCrypto {
   randomUUID?: () => string;
   getRandomValues?: (array: Uint8Array) => Uint8Array;

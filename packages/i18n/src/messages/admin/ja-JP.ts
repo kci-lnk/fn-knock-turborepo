@@ -4545,6 +4545,7 @@ export const jaJPAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "スキャナーをブロック",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新完了",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "ゲートウェイのレート制限",
+      FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "ゲートウェイ公開範囲によるブロック",
       FN_EVENT_WAF_BLOCKED: "WAF によるブロック",
       FN_EVENT_SSH_LOGIN_SUCCESS: "SSH ログイン成功",
       FN_EVENT_SSH_LOGIN_FAILURE: "SSH ログイン失敗",
@@ -4651,6 +4652,8 @@ export const jaJPAdmin = {
         "{ip} が通常とは異なるパスへ {count} 回アクセスしたためブロックしました",
       ddnsUpdated: "{provider} {result}: {message}",
       gatewayThrottleBlocked: "{ip} に {seconds}秒間のレート制限を適用しました",
+      gatewayVisibilityBlocked:
+        "{ip} から {host}{path} へのアクセスを公開範囲ルールがブロックしました",
       wafBlocked: "{ip} のリクエストを WAF が {outcome} と判定しました{rules}",
       wafRuleSuffix: "、ルール {rules}",
       sshLoginSuccess: "SSH ユーザー {username} が {ip} からログインしました",
@@ -4697,6 +4700,10 @@ export const jaJPAdmin = {
         retry_after_seconds: "リトライ待ち時間（秒）",
         blocked_until: "ブロック期限",
         method: "失敗した認証方式",
+        request_method: "リクエストメソッド",
+        scheme: "スキーム",
+        visibility_scope: "公開範囲",
+        visibility_mode: "公開モード",
         drift_source: "IP 変更の検出元",
         from_ip: "変更前の IP",
         from_ip_location: "変更前の IP 位置情報",
@@ -4773,6 +4780,14 @@ export const jaJPAdmin = {
       postLoginGrantMode: {
         follow_session: "セッションに追従",
         disabled: "無効",
+        custom: "カスタム",
+      },
+      visibilityScope: {
+        gateway: "ゲートウェイ全体",
+        host: "現在のホスト",
+      },
+      visibilityMode: {
+        inherit: "全体設定を継承",
         custom: "カスタム",
       },
       updateScope: {

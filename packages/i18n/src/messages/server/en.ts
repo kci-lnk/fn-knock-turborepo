@@ -2431,6 +2431,7 @@ export const enServer = {
         securityScannerBlocked: "Scanner blocked",
         ddnsUpdateCompleted: "DDNS updated",
         gatewayThrottleBlocked: "Gateway throttling blocked",
+        gatewayVisibilityBlocked: "Gateway visibility blocked",
         wafBlocked: "WAF blocked",
         sshLoginSuccess: "SSH login succeeded",
         sshLoginFailure: "SSH login failed",
@@ -2589,8 +2590,13 @@ export const enServer = {
           rateLimit: "Rate limit",
           burstCapacity: "Burst capacity",
           targetHost: "Target host",
+          requestMethod: "Request method",
+          requestScheme: "Request scheme",
           requestPath: "Request path",
           routeType: "Route type",
+          routeKey: "Route key",
+          visibilityScope: "Visibility scope",
+          visibilityMode: "Visibility mode",
           authRoute: "Auth route",
           traceId: "Trace ID",
           requestAddress: "Request address",
@@ -2702,6 +2708,20 @@ export const enServer = {
           advice:
             "Review access logs to determine whether this was burst traffic, a false positive, or malicious traffic, then adjust throttling as needed.",
         },
+        gatewayVisibilityBlocked: {
+          summary:
+            "{ip} was blocked by visibility rules while accessing {host}",
+          overview:
+            "Source {ip} was blocked by the visibility policy while accessing {host}{pathPart}{methodPart}. The effective scope was {scope} and the mode was {mode}.",
+          pathPart: " at {path}",
+          methodPart: " ({method})",
+          scopeGateway: "gateway-wide",
+          scopeHost: "this host",
+          modeInherit: "inherit gateway",
+          modeCustom: "custom",
+          advice:
+            "Confirm whether this source should be allowed. If the block was unexpected, review the region and CIDR visibility settings for the gateway or host.",
+        },
         wafBlocked: {
           summary: "{ip}'s request was {outcome} by WAF",
           overview:
@@ -2786,6 +2806,7 @@ export const enServer = {
           failure: "Failure",
           blockSeconds: "Blocked {seconds}s",
           blockTriggered: "Block triggered",
+          visibilityBlocked: "Visibility blocked",
           rules: "Rules {rules}",
           sshLoginSuccess: "SSH login succeeded",
           sshLoginFailure: "SSH login failed",

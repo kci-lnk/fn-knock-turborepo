@@ -4511,6 +4511,7 @@ export const koKRAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "스캐너 차단",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 업데이트",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "게이트웨이 요청 제한",
+      FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "게이트웨이 공개 범위 차단",
       FN_EVENT_WAF_BLOCKED: "WAF가 차단됨",
       FN_EVENT_SSH_LOGIN_SUCCESS: "SSH 로그인 성공",
       FN_EVENT_SSH_LOGIN_FAILURE: "SSH 로그인 실패",
@@ -4618,6 +4619,8 @@ export const koKRAdmin = {
       ddnsUpdated: "{provider} {result}: {message}",
       gatewayThrottleBlocked:
         "{ip}(이)가 요청 제한에 걸려 {seconds}초 동안 차단되었습니다.",
+      gatewayVisibilityBlocked:
+        "{ip}의 {host}{path} 접근이 공개 범위 규칙으로 차단되었습니다.",
       wafBlocked: "{ip}의 요청이 WAF에서 {outcome} 처리되었습니다{rules}",
       wafRuleSuffix: ", {rules} 규칙",
       sshLoginSuccess: "SSH 로그인 성공: 사용자 {username} · 출발지 {ip}",
@@ -4664,6 +4667,10 @@ export const koKRAdmin = {
         retry_after_seconds: "재시도 대기(초)",
         blocked_until: "차단 해제 시각",
         method: "실패 방법",
+        request_method: "요청 메서드",
+        scheme: "스킴",
+        visibility_scope: "공개 범위",
+        visibility_mode: "공개 모드",
         drift_source: "IP 변경 출처",
         from_ip: "이전 IP",
         from_ip_location: "이전 IP 위치",
@@ -4740,6 +4747,14 @@ export const koKRAdmin = {
       postLoginGrantMode: {
         follow_session: "세션에 맞춤",
         disabled: "사용 안 함",
+        custom: "사용자 지정",
+      },
+      visibilityScope: {
+        gateway: "게이트웨이 전체",
+        host: "현재 호스트",
+      },
+      visibilityMode: {
+        inherit: "전체 설정 상속",
         custom: "사용자 지정",
       },
       updateScope: {

@@ -2448,6 +2448,7 @@ export const koKRServer = {
         securityScannerBlocked: "스캐너 차단",
         ddnsUpdateCompleted: "DDNS 업데이트",
         gatewayThrottleBlocked: "게이트웨이 요청 제한",
+        gatewayVisibilityBlocked: "게이트웨이 공개 범위 차단",
         wafBlocked: "WAF 차단",
         sshLoginSuccess: "SSH 로그인 성공",
         sshLoginFailure: "SSH 로그인 실패",
@@ -2606,8 +2607,13 @@ export const koKRServer = {
           rateLimit: "요청 속도 제한",
           burstCapacity: "버스트 용량",
           targetHost: "대상 호스트",
+          requestMethod: "요청 메서드",
+          requestScheme: "요청 스킴",
           requestPath: "요청 경로",
           routeType: "라우트 유형",
+          routeKey: "라우트 식별자",
+          visibilityScope: "공개 범위",
+          visibilityMode: "공개 모드",
           authRoute: "인증 라우트",
           traceId: "Trace ID",
           requestAddress: "요청 주소",
@@ -2720,6 +2726,19 @@ export const koKRServer = {
           advice:
             "접근 로그에서 순간적인 트래픽 증가, 오탐 또는 악성 요청인지 확인한 뒤 필요에 따라 속도 제한 정책을 조정하세요.",
         },
+        gatewayVisibilityBlocked: {
+          summary: "{ip}의 {host} 접근이 공개 범위 규칙으로 차단되었습니다",
+          overview:
+            "{ip}에서 {host}{pathPart}{methodPart}로의 접근이 공개 범위 정책으로 차단되었습니다. 적용 범위는 {scope}, 모드는 {mode}입니다.",
+          pathPart: "의 {path}",
+          methodPart: " ({method})",
+          scopeGateway: "게이트웨이 전체",
+          scopeHost: "현재 호스트",
+          modeInherit: "전체 설정 상속",
+          modeCustom: "사용자 지정",
+          advice:
+            "이 출처를 허용해야 하는지 확인하세요. 예상치 못한 차단이라면 게이트웨이 또는 호스트의 지역 및 CIDR 공개 범위 설정을 검토하세요.",
+        },
         wafBlocked: {
           summary: "{ip}의 요청이 WAF에서 {outcome} 처리되었습니다.",
           overview:
@@ -2805,6 +2824,7 @@ export const koKRServer = {
           failure: "실패",
           blockSeconds: "{seconds}초 차단",
           blockTriggered: "차단이 실행됨",
+          visibilityBlocked: "공개 범위 차단",
           rules: "규칙 {rules}",
           sshLoginSuccess: "SSH 로그인 성공",
           sshLoginFailure: "SSH 로그인 실패",

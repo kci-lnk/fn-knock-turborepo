@@ -1354,6 +1354,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
         Some(&json!(5))
     );
     assert_eq!(
+        config.pointer("/event_system/rules/gateway_visibility_block/enabled"),
+        Some(&json!(true))
+    );
+    assert_eq!(
         config.pointer("/terminal_feature/idle_timeout_seconds"),
         Some(&json!(86400))
     );

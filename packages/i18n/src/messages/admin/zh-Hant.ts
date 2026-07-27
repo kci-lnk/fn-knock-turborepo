@@ -4215,6 +4215,7 @@ export const zhHantAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "掃描器攔截",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "網關節流封鎖",
+      FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "網關可見性攔截",
       FN_EVENT_WAF_BLOCKED: "WAF 阻斷",
       FN_EVENT_SSH_LOGIN_SUCCESS: "SSH 登入成功",
       FN_EVENT_SSH_LOGIN_FAILURE: "SSH 登入失敗",
@@ -4315,6 +4316,7 @@ export const zhHantAdmin = {
       scannerBlocked: "{ip} 因非常規路徑命中 {count} 次被攔截",
       ddnsUpdated: "{provider} {result}：{message}",
       gatewayThrottleBlocked: "{ip} 觸發節流封鎖 {seconds} 秒",
+      gatewayVisibilityBlocked: "{ip} 存取 {host}{path} 時被可見性規則攔截",
       wafBlocked: "{ip} 的請求被 WAF {outcome}{rules}",
       wafRuleSuffix: "，規則 {rules}",
       sshLoginSuccess: "SSH 使用者 {username} 從 {ip} 登入成功",
@@ -4354,6 +4356,7 @@ export const zhHantAdmin = {
         retry_after_seconds: "重試等待（秒）",
         blocked_until: "封禁截止時間",
         method: "失敗方式",
+        request_method: "請求方法",
         drift_source: "漂移來源",
         from_ip: "原 IP",
         from_ip_location: "原 IP 屬地",
@@ -4377,6 +4380,9 @@ export const zhHantAdmin = {
         previous_ipv6: "原 IPv6",
         next_ipv6: "目前 IPv6",
         block_seconds: "封鎖時長（秒）",
+        scheme: "協定",
+        visibility_scope: "可見性範圍",
+        visibility_mode: "可見性模式",
         requests_per_second: "每秒請求數",
         burst: "突發容量",
         action: "WAF 動作",
@@ -4420,6 +4426,14 @@ export const zhHantAdmin = {
       postLoginGrantMode: {
         follow_session: "跟隨會話",
         disabled: "禁用",
+        custom: "自訂",
+      },
+      visibilityScope: {
+        gateway: "網關全域",
+        host: "目前網域",
+      },
+      visibilityMode: {
+        inherit: "繼承全域",
         custom: "自訂",
       },
       updateScope: {

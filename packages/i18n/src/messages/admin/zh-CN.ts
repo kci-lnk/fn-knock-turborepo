@@ -4220,6 +4220,7 @@ export const zhCNAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "扫描器拦截",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "网关节流封锁",
+      FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "网关可见性拦截",
       FN_EVENT_WAF_BLOCKED: "WAF 阻断",
       FN_EVENT_SSH_LOGIN_SUCCESS: "SSH 登录成功",
       FN_EVENT_SSH_LOGIN_FAILURE: "SSH 登录失败",
@@ -4322,6 +4323,7 @@ export const zhCNAdmin = {
       scannerBlocked: "{ip} 因非常规路径命中 {count} 次被拦截",
       ddnsUpdated: "{provider} {result}：{message}",
       gatewayThrottleBlocked: "{ip} 触发节流封锁 {seconds} 秒",
+      gatewayVisibilityBlocked: "{ip} 访问 {host}{path} 时被可见性规则拦截",
       wafBlocked: "{ip} 的请求被 WAF {outcome}{rules}",
       wafRuleSuffix: "，规则 {rules}",
       sshLoginSuccess: "SSH 用户 {username} 从 {ip} 登录成功",
@@ -4367,6 +4369,10 @@ export const zhCNAdmin = {
         retry_after_seconds: "重试等待（秒）",
         blocked_until: "封禁截止时间",
         method: "失败方式",
+        request_method: "请求方法",
+        scheme: "协议",
+        visibility_scope: "可见性范围",
+        visibility_mode: "可见性模式",
         drift_source: "漂移来源",
         from_ip: "原 IP",
         from_ip_location: "原 IP 属地",
@@ -4443,6 +4449,14 @@ export const zhCNAdmin = {
       postLoginGrantMode: {
         follow_session: "跟随会话",
         disabled: "禁用",
+        custom: "自定义",
+      },
+      visibilityScope: {
+        gateway: "网关全局",
+        host: "当前域名",
+      },
+      visibilityMode: {
+        inherit: "继承全局",
         custom: "自定义",
       },
       updateScope: {

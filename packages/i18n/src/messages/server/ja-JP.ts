@@ -2539,6 +2539,7 @@ export const jaJPServer = {
         securityScannerBlocked: "スキャナーをブロック",
         ddnsUpdateCompleted: "DDNS 更新",
         gatewayThrottleBlocked: "ゲートウェイのレート制限",
+        gatewayVisibilityBlocked: "ゲートウェイ公開範囲によるブロック",
         wafBlocked: "WAF がブロック",
         sshLoginSuccess: "SSH ログイン成功",
         sshLoginFailure: "SSH ログイン失敗",
@@ -2697,8 +2698,13 @@ export const jaJPServer = {
           rateLimit: "レート制限",
           burstCapacity: "バースト容量",
           targetHost: "対象ホスト",
+          requestMethod: "リクエストメソッド",
+          requestScheme: "リクエストスキーム",
           requestPath: "リクエストパス",
           routeType: "ルート種別",
+          routeKey: "ルート識別子",
+          visibilityScope: "公開範囲",
+          visibilityMode: "公開モード",
           authRoute: "認証ルート",
           traceId: "トレース ID",
           requestAddress: "リクエストアドレス",
@@ -2811,6 +2817,20 @@ export const jaJPServer = {
           advice:
             "アクセスログで、急激なトラフィック、誤検知、悪意のあるリクエストのいずれかを確認し、必要に応じてレート制限を調整してください",
         },
+        gatewayVisibilityBlocked: {
+          summary:
+            "{ip} から {host} へのアクセスが公開範囲ルールでブロックされました",
+          overview:
+            "{ip} から {host}{pathPart}{methodPart} へのアクセスが公開範囲ポリシーでブロックされました。有効範囲は{scope}、モードは{mode}です。",
+          pathPart: " の {path}",
+          methodPart: "（{method}）",
+          scopeGateway: "ゲートウェイ全体",
+          scopeHost: "このホスト",
+          modeInherit: "全体設定を継承",
+          modeCustom: "カスタム",
+          advice:
+            "この送信元を許可すべきか確認してください。想定外のブロックの場合は、ゲートウェイまたはホストの地域・CIDR 公開範囲設定を確認してください。",
+        },
         wafBlocked: {
           summary: "{ip} のリクエストを WAF が{outcome}しました",
           overview:
@@ -2898,6 +2918,7 @@ export const jaJPServer = {
           failure: "失敗",
           blockSeconds: "{seconds} 秒間ブロック",
           blockTriggered: "ブロック発動",
+          visibilityBlocked: "公開範囲でブロック",
           rules: "ルール {rules}",
           sshLoginSuccess: "SSH ログイン成功",
           sshLoginFailure: "SSH ログイン失敗",

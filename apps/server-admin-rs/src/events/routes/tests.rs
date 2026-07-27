@@ -6,8 +6,16 @@ fn maps_event_rules_and_default_levels() {
         event_rule_key("FN_EVENT_GATEWAY_THROTTLE_BLOCKED"),
         Some("gateway_throttle_block")
     );
+    assert_eq!(
+        event_rule_key("FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"),
+        Some("gateway_visibility_block")
+    );
     assert_eq!(default_event_level("FN_EVENT_AUTH_LOGIN_SUCCESS"), "INFO");
     assert_eq!(default_event_level("FN_EVENT_WAF_BLOCKED"), "WARN");
+    assert_eq!(
+        default_event_level("FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"),
+        "WARN"
+    );
     assert_eq!(
         default_event_level("FN_EVENT_TUNNEL_FRP_DISCONNECTED"),
         "WARN"
@@ -64,6 +72,10 @@ fn system_event_ip_field_mapping_matches_node_hydration() {
     );
     assert_eq!(
         system_event_ip_fields(Some("FN_EVENT_WAF_BLOCKED")),
+        &[("ip", "ip_location")]
+    );
+    assert_eq!(
+        system_event_ip_fields(Some("FN_EVENT_GATEWAY_VISIBILITY_BLOCKED")),
         &[("ip", "ip_location")]
     );
     assert!(system_event_ip_fields(Some("FN_EVENT_DDNS_UPDATE_COMPLETED")).is_empty());
@@ -125,6 +137,10 @@ fn honors_event_rule_defaults() {
         &config,
         "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
     ));
+    assert!(is_event_type_enabled(
+        &config,
+        "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
+    ));
     assert!(is_event_type_enabled(&config, "FN_EVENT_AUTH_LOGOUT"));
 }
 
@@ -165,6 +181,33 @@ fn dedupe_ttl_seconds_matches_node_number_ceiling() {
     assert_eq!(normalize_dedupe_ttl_seconds(Some(0.0)), 0);
     assert_eq!(normalize_dedupe_ttl_seconds(Some(f64::NAN)), 0);
     assert_eq!(normalize_dedupe_ttl_seconds(None), 0);
+}
+
+#[test]
+fn gateway_visibility_event_enforces_global_minute_dedupe() {
+    let body = InternalSystemEventBody {
+        event_type: "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED".to_string(),
+        source: "GO_REAUTH_PROXY".to_string(),
+        level: Some("WARN".to_string()),
+        happened_at: None,
+        dedupe_key: Some("producer-specific-key".to_string()),
+        dedupe_ttl_seconds: Some(5.0),
+        subject: Some(json!({ "kind": "IP", "id": "203.0.113.8" })),
+        tags: Some(vec![
+            "gateway".to_string(),
+            "visibility".to_string(),
+            "security".to_string(),
+        ]),
+        payload: json!({ "ip": "203.0.113.8", "status": 499 }),
+    };
+
+    assert_eq!(
+        resolve_system_event_dedupe(&body),
+        (
+            Some(GATEWAY_VISIBILITY_EVENT_DEDUPE_KEY.to_string()),
+            GATEWAY_VISIBILITY_EVENT_DEDUPE_TTL_SECONDS
+        )
+    );
 }
 
 #[test]

@@ -42,7 +42,10 @@ pub(in crate::notifications::routes) fn build_text_body(message: &Value) -> Stri
 
 pub(in crate::notifications::routes) fn build_markdown_body(message: &Value, tail: &str) -> String {
     let mut sections = Vec::new();
-    push_if_non_empty(&mut sections, message_summary(message));
+    push_if_non_empty(
+        &mut sections,
+        escape_notification_markdown_text(&message_summary(message)),
+    );
     let body_markdown = message_text(message, "body_markdown");
     if body_markdown.is_empty() {
         push_if_non_empty(
@@ -681,8 +684,14 @@ pub(in crate::notifications::routes) fn fact_fullwidth_plain_line(fact: &Value) 
 }
 
 pub(in crate::notifications::routes) fn fact_markdown_line(fact: &Value) -> Option<String> {
-    let label = fact.get("label").map(value_to_trimmed_string)?;
-    let value = fact.get("value").map(value_to_trimmed_string)?;
+    let label = fact
+        .get("label")
+        .map(value_to_trimmed_string)
+        .map(|value| escape_notification_markdown_text(&value))?;
+    let value = fact
+        .get("value")
+        .map(value_to_trimmed_string)
+        .map(|value| escape_notification_markdown_text(&value))?;
     if label.is_empty() && value.is_empty() {
         None
     } else {

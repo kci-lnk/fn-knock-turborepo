@@ -2180,6 +2180,7 @@ export const zhCNServer = {
         securityScannerBlocked: "扫描器拦截",
         ddnsUpdateCompleted: "DDNS 更新",
         gatewayThrottleBlocked: "网关节流封锁",
+        gatewayVisibilityBlocked: "网关可见性拦截",
         wafBlocked: "WAF 阻断",
         sshLoginSuccess: "SSH 登录成功",
         sshLoginFailure: "SSH 登录失败",
@@ -2337,8 +2338,13 @@ export const zhCNServer = {
           rateLimit: "限流阈值",
           burstCapacity: "突发容量",
           targetHost: "目标主机",
+          requestMethod: "请求方法",
+          requestScheme: "请求协议",
           requestPath: "请求路径",
           routeType: "路由类型",
+          routeKey: "路由标识",
+          visibilityScope: "可见性范围",
+          visibilityMode: "可见性模式",
           authRoute: "认证路由",
           traceId: "Trace ID",
           requestAddress: "请求地址",
@@ -2447,6 +2453,19 @@ export const zhCNServer = {
           advice:
             "请结合访问日志确认是否为突发流量、误伤或恶意请求，并按需调整限流策略。",
         },
+        gatewayVisibilityBlocked: {
+          summary: "{ip} 访问 {host} 时被可见性规则拦截",
+          overview:
+            "来源 {ip} 访问 {host}{pathPart}{methodPart} 时被可见性策略拦截，生效范围为{scope}，模式为{mode}。",
+          pathPart: " 的 {path}",
+          methodPart: "（{method}）",
+          scopeGateway: "网关全局",
+          scopeHost: "当前域名",
+          modeInherit: "继承全局",
+          modeCustom: "自定义",
+          advice:
+            "请确认该来源是否应被允许；如属误拦截，请检查网关或当前域名的地区与 CIDR 可见性配置。",
+        },
         wafBlocked: {
           summary: "{ip} 的请求被 WAF {outcome}",
           overview:
@@ -2528,6 +2547,7 @@ export const zhCNServer = {
           failure: "失败",
           blockSeconds: "封锁{seconds}s",
           blockTriggered: "触发封锁",
+          visibilityBlocked: "可见性拦截",
           rules: "规则 {rules}",
           sshLoginSuccess: "SSH 登录成功",
           sshLoginFailure: "SSH 登录失败",

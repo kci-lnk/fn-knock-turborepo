@@ -289,6 +289,106 @@ fn notification_group_keys_coerce_payload_values_like_node() {
 }
 
 #[test]
+fn gateway_visibility_event_matches_rules_and_builds_localized_notification() {
+    let event = json!({
+        "id": "evt_visibility_1",
+        "type": "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
+        "source": "GO_REAUTH_PROXY",
+        "level": "WARN",
+        "happened_at": "2026-07-27T10:11:12Z",
+        "dedupe_key": "gateway-visibility:global",
+        "subject": { "kind": "IP", "id": "203.0.113.8" },
+        "payload": {
+            "ip": "203.0.113.8",
+            "blocked_at": "2026-07-27T10:11:12Z",
+            "method": "GET",
+            "scheme": "https",
+            "host": "app.example.test",
+            "path": "/private",
+            "route_type": "host_rule",
+            "route_key": "app.example.test",
+            "visibility_scope": "host",
+            "visibility_mode": "custom",
+            "status": 499
+        }
+    });
+    let rule = json!({
+        "id": "ntfrule_visibility",
+        "enabled": true,
+        "event_type": "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
+        "window_seconds": 60,
+        "threshold_count": 1,
+        "group_by": "GLOBAL"
+    });
+
+    assert!(SYSTEM_EVENT_TYPES.contains(&"FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"));
+    assert!(event_matches_notification_rule(&event, &rule));
+    assert_eq!(build_notification_group_key(&event, "GLOBAL"), "global");
+    assert_eq!(
+        notification_event_label_key("FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"),
+        Some("events.gatewayVisibilityBlocked")
+    );
+
+    let translator = Translator::new("zh-CN");
+    let details = build_notification_details(&event, &rule, 1, &translator);
+    assert!(details.summary.contains("203.0.113.8"));
+    assert!(details.summary.contains("app.example.test"));
+    assert!(details.body_text.contains("/private"));
+    assert!(details.body_text.contains("当前域名"));
+    assert!(details.body_text.contains("自定义"));
+    assert!(
+        details
+            .facts
+            .iter()
+            .any(|fact| fact.get("value") == Some(&json!("https")))
+    );
+    assert!(
+        details
+            .facts
+            .iter()
+            .any(|fact| fact.get("value") == Some(&json!("499")))
+    );
+    let aggregated_message = build_notification_message(&event, &rule, 3, "global", &translator);
+    assert_eq!(
+        aggregated_message.get("dedupe_key"),
+        Some(&json!("ntfrule_visibility:global"))
+    );
+    assert_eq!(
+        aggregated_message.pointer("/metadata/matched_count"),
+        Some(&json!(3))
+    );
+    assert!(
+        aggregated_message
+            .get("body_text")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("聚合 3 条相似事件"))
+    );
+
+    let malicious_event = json!({
+        "type": "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
+        "source": "GO_REAUTH_PROXY",
+        "level": "WARN",
+        "payload": {
+            "ip": "203.0.113.8",
+            "method": "GET",
+            "host": "app.example.test",
+            "path": "/[open](https://evil.test)\n# injected",
+            "visibility_scope": "gateway",
+            "visibility_mode": "inherit",
+            "status": 499
+        }
+    });
+    let malicious_details = build_notification_details(&malicious_event, &rule, 1, &translator);
+    assert!(
+        malicious_details
+            .body_markdown
+            .contains("/\\[open\\]\\(https://evil.test\\) \\# injected")
+    );
+    assert!(!malicious_details.body_markdown.contains("[open]("));
+    assert!(!malicious_details.body_markdown.contains("\n# injected"));
+}
+
+#[test]
 fn notification_delivery_ready_time_matches_node_fallbacks() {
     let next_retry = "2026-07-07T10:00:00.000Z";
     let triggered = "2026-07-07T09:00:00.000Z";
@@ -379,6 +479,16 @@ fn notification_provider_payload_helpers_match_node_edges() {
         build_bark_payload(&message, &json!({ "target_config": { "badge": 0 } })).get("badge"),
         Some(&json!(0))
     );
+
+    let untrusted = json!({
+        "summary": "[fake](https://evil.test)",
+        "facts": [{ "label": "Path", "value": "/[open](https://evil.test)\n# injected" }],
+    });
+    let rendered = build_markdown_body(&untrusted, "");
+    assert!(rendered.contains("\\[fake\\]\\(https://evil.test\\)"));
+    assert!(rendered.contains("/\\[open\\]\\(https://evil.test\\) \\# injected"));
+    assert!(!rendered.contains("[fake]("));
+    assert!(!rendered.contains("\n# injected"));
 }
 
 #[test]

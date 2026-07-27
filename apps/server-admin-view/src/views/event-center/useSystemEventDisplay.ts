@@ -104,6 +104,15 @@ const detailFieldDefinitions = [
     labelKey: "admin.eventCenter.events.detailFields.blocked_until",
   },
   { key: "method", labelKey: "admin.eventCenter.events.detailFields.method" },
+  { key: "scheme", labelKey: "admin.eventCenter.events.detailFields.scheme" },
+  {
+    key: "visibility_scope",
+    labelKey: "admin.eventCenter.events.detailFields.visibility_scope",
+  },
+  {
+    key: "visibility_mode",
+    labelKey: "admin.eventCenter.events.detailFields.visibility_mode",
+  },
   {
     key: "drift_source",
     labelKey: "admin.eventCenter.events.detailFields.drift_source",
@@ -300,7 +309,12 @@ export const useSystemEventDisplay = ({
   const localizedDetailFieldDefinitions = computed(() =>
     detailFieldDefinitions.map((field) => ({
       key: field.key,
-      label: translate(field.labelKey),
+      label: translate(
+        field.key === "method" &&
+          activeEvent.value?.type === "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
+          ? "admin.eventCenter.events.detailFields.request_method"
+          : field.labelKey,
+      ),
     })),
   );
 
@@ -499,6 +513,11 @@ export const useSystemEventDisplay = ({
           if (key === "subject") return formatSubject(event.subject, false);
           if (key === "logout_source")
             return formatLogoutSourceLabel(value) || String(value);
+          if (
+            key === "method" &&
+            event.type === "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
+          )
+            return String(value);
           if (key === "auth_method" || key === "method")
             return formatAuthMethodLabel(value) || String(value);
           if (key === "drift_source")
@@ -522,6 +541,22 @@ export const useSystemEventDisplay = ({
             return value.join(", ");
           if (key === "route_type")
             return routeTypeLabel(String(value || ""), translate);
+          if (key === "visibility_scope") {
+            const normalized = String(value || "");
+            return normalized
+              ? translate(
+                  `admin.eventCenter.events.visibilityScope.${normalized}`,
+                )
+              : "-";
+          }
+          if (key === "visibility_mode") {
+            const normalized = String(value || "");
+            return normalized
+              ? translate(
+                  `admin.eventCenter.events.visibilityMode.${normalized}`,
+                )
+              : "-";
+          }
           if (key === "status")
             return formatTunnelStatusLabel(value) || String(value);
           if (key === "remember_me" || key === "is_auth_route")
@@ -729,6 +764,12 @@ export const useSystemEventDisplay = ({
         return translate("admin.eventCenter.events.gatewayThrottleBlocked", {
           ip: formatIpDisplay(payload.ip),
           seconds: String(payload.block_seconds || "-"),
+        });
+      case "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED":
+        return translate("admin.eventCenter.events.gatewayVisibilityBlocked", {
+          ip: formatIpDisplay(payload.ip),
+          host: String(payload.host || "-"),
+          path: String(payload.path || "-"),
         });
       case "FN_EVENT_WAF_BLOCKED": {
         const outcomeLabel = formatWAFOutcomeLabel(payload.action, payload.mode);

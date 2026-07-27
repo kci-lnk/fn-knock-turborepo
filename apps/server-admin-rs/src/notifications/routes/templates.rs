@@ -42,24 +42,63 @@ pub(super) fn build_notification_body_markdown(
         sections.push(format!(
             "**{}**\n{}",
             notification_template_text(translator, "sections.overview", &[]),
-            overview.trim()
+            escape_notification_markdown_text(overview.trim())
         ));
     }
     if !aggregation.trim().is_empty() {
         sections.push(format!(
             "**{}**\n{}",
             notification_template_text(translator, "sections.aggregation", &[]),
-            aggregation.trim()
+            escape_notification_markdown_text(aggregation.trim())
         ));
     }
     if !advice.trim().is_empty() {
         sections.push(format!(
             "**{}**\n{}",
             notification_template_text(translator, "sections.advice", &[]),
-            advice.trim()
+            escape_notification_markdown_text(advice.trim())
         ));
     }
     sections.join("\n\n")
+}
+
+pub(super) fn escape_notification_markdown_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    let mut previous_was_space = false;
+    for character in value.chars() {
+        if character.is_control() {
+            if !previous_was_space {
+                escaped.push(' ');
+                previous_was_space = true;
+            }
+            continue;
+        }
+        previous_was_space = character.is_whitespace();
+        if matches!(
+            character,
+            '\\' | '`'
+                | '*'
+                | '_'
+                | '{'
+                | '}'
+                | '['
+                | ']'
+                | '('
+                | ')'
+                | '<'
+                | '>'
+                | '#'
+                | '+'
+                | '-'
+                | '!'
+                | '|'
+                | '@'
+        ) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 pub(super) fn read_payload_value(event: &Value, key: &str) -> String {
@@ -423,6 +462,11 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
                 },
             ])
         }
+        "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" => join_compact_parts(&[
+            read_payload_value(event, "ip"),
+            read_payload_value(event, "host"),
+            notification_detail_text(translator, "short.visibilityBlocked", &[]),
+        ]),
         "FN_EVENT_WAF_BLOCKED" => {
             let rule_ids = read_payload_value(event, "rule_ids");
             let outcome = format_waf_outcome_label(

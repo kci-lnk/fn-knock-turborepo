@@ -156,6 +156,7 @@ pub fn default_config() -> Value {
             "scanner_blocked": { "enabled": true },
             "ddns_update": { "enabled": true },
             "gateway_throttle_block": { "enabled": true },
+            "gateway_visibility_block": { "enabled": true },
             "waf_blocked": { "enabled": true },
             "app_update_available": { "enabled": true },
             "frp_tunnel": { "enabled": true },

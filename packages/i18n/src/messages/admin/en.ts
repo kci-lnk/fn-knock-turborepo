@@ -4534,6 +4534,7 @@ export const enAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "Scanner blocked",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS updated",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "Gateway throttle blocked",
+      FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "Gateway visibility blocked",
       FN_EVENT_WAF_BLOCKED: "WAF blocked",
       FN_EVENT_SSH_LOGIN_SUCCESS: "SSH login success",
       FN_EVENT_SSH_LOGIN_FAILURE: "SSH login failure",
@@ -4636,6 +4637,8 @@ export const enAdmin = {
       scannerBlocked: "{ip} hit uncommon paths {count} times and was blocked",
       ddnsUpdated: "{provider} {result}: {message}",
       gatewayThrottleBlocked: "{ip} triggered throttling for {seconds}s",
+      gatewayVisibilityBlocked:
+        "{ip} was blocked by visibility rules while accessing {host}{path}",
       wafBlocked: "{ip}'s request was {outcome} by WAF{rules}",
       wafRuleSuffix: ", rules {rules}",
       sshLoginSuccess: "SSH user {username} signed in from {ip}",
@@ -4682,6 +4685,10 @@ export const enAdmin = {
         retry_after_seconds: "Retry wait (seconds)",
         blocked_until: "Blocked until",
         method: "Failure method",
+        request_method: "Request method",
+        scheme: "Scheme",
+        visibility_scope: "Visibility scope",
+        visibility_mode: "Visibility mode",
         drift_source: "Drift source",
         from_ip: "Previous IP",
         from_ip_location: "Previous IP location",
@@ -4758,6 +4765,14 @@ export const enAdmin = {
       postLoginGrantMode: {
         follow_session: "Follow session",
         disabled: "Disabled",
+        custom: "Custom",
+      },
+      visibilityScope: {
+        gateway: "Gateway-wide",
+        host: "Current host",
+      },
+      visibilityMode: {
+        inherit: "Inherit gateway",
         custom: "Custom",
       },
       updateScope: {

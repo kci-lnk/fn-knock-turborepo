@@ -2058,7 +2058,8 @@
           "frpConnected": "FRP 已连上",
           "frpDisconnected": "FRP 已断开",
           "cloudflaredConnected": "Cloudflared 已连上",
-          "cloudflaredDisconnected": "Cloudflared 已断开"
+          "cloudflaredDisconnected": "Cloudflared 已断开",
+          "gatewayVisibilityBlocked": "网关可见性拦截"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -2240,7 +2241,12 @@
             "riskLevel": "风险级别",
             "eventSource": "事件来源",
             "happenedAt": "发生时间",
-            "aggregationStats": "聚合统计"
+            "aggregationStats": "聚合统计",
+            "requestMethod": "请求方法",
+            "routeKey": "路由标识",
+            "visibilityScope": "可见性范围",
+            "visibilityMode": "可见性模式",
+            "requestScheme": "请求协议"
           },
           "authLoginSuccess": {
             "loginViaProvider": "通过 {provider} 登录",
@@ -2368,13 +2374,25 @@
             "sshLoginFailure": "SSH 登录失败",
             "regionNotAllowed": "地区不允许",
             "failureThreshold": "失败阈值",
-            "currentVersion": "当前 {version}"
+            "currentVersion": "当前 {version}",
+            "visibilityBlocked": "可见性拦截"
           },
           "titles": {
             "ddnsUpdateSuccess": "{target} 更新成功",
             "ddnsUpdateFailure": "{target} 更新失败",
             "credentialIpDrift": "凭证「{credential}」IP 漂移",
             "appUpdateAvailable": "发现新版本 {version}"
+          },
+          "gatewayVisibilityBlocked": {
+            "summary": "{ip} 访问 {host} 时被可见性规则拦截",
+            "overview": "来源 {ip} 访问 {host}{pathPart}{methodPart} 时被可见性策略拦截，生效范围为{scope}，模式为{mode}。",
+            "pathPart": " 的 {path}",
+            "methodPart": "（{method}）",
+            "scopeGateway": "网关全局",
+            "scopeHost": "当前域名",
+            "modeInherit": "继承全局",
+            "modeCustom": "自定义",
+            "advice": "请确认该来源是否应被允许；如属误拦截，请检查网关或当前域名的地区与 CIDR 可见性配置。"
           }
         }
       },
@@ -5132,7 +5150,8 @@
           "frpConnected": "FRP 已連上",
           "frpDisconnected": "FRP 已斷開",
           "cloudflaredConnected": "Cloudflared 已連上",
-          "cloudflaredDisconnected": "Cloudflared 已斷開"
+          "cloudflaredDisconnected": "Cloudflared 已斷開",
+          "gatewayVisibilityBlocked": "網關可見性攔截"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -5314,7 +5333,12 @@
             "riskLevel": "風險級別",
             "eventSource": "事件來源",
             "happenedAt": "發生時間",
-            "aggregationStats": "聚合統計"
+            "aggregationStats": "聚合統計",
+            "requestMethod": "請求方法",
+            "routeKey": "路由識別",
+            "visibilityScope": "可見性範圍",
+            "visibilityMode": "可見性模式",
+            "requestScheme": "請求協定"
           },
           "authLoginSuccess": {
             "loginViaProvider": "透過 {provider} 登入",
@@ -5442,13 +5466,25 @@
             "sshLoginFailure": "SSH 登入失敗",
             "regionNotAllowed": "地區不允許",
             "failureThreshold": "失敗閾值",
-            "currentVersion": "目前 {version}"
+            "currentVersion": "目前 {version}",
+            "visibilityBlocked": "可見性攔截"
           },
           "titles": {
             "ddnsUpdateSuccess": "{target} 更新成功",
             "ddnsUpdateFailure": "{target} 更新失敗",
             "credentialIpDrift": "憑證「{credential}」IP 漂移",
             "appUpdateAvailable": "發現新版本 {version}"
+          },
+          "gatewayVisibilityBlocked": {
+            "summary": "{ip} 存取 {host} 時被可見性規則攔截",
+            "overview": "來源 {ip} 存取 {host}{pathPart}{methodPart} 時被可見性策略攔截，生效範圍為{scope}，模式為{mode}。",
+            "pathPart": " 的 {path}",
+            "methodPart": "（{method}）",
+            "scopeGateway": "網關全域",
+            "scopeHost": "目前網域",
+            "modeInherit": "繼承全域",
+            "modeCustom": "自訂",
+            "advice": "請確認該來源是否應被允許；如屬誤攔截，請檢查網關或目前網域的地區與 CIDR 可見性設定。"
           }
         }
       },
@@ -8206,7 +8242,8 @@
           "frpConnected": "FRP connected",
           "frpDisconnected": "FRP disconnected",
           "cloudflaredConnected": "Cloudflared connected",
-          "cloudflaredDisconnected": "Cloudflared disconnected"
+          "cloudflaredDisconnected": "Cloudflared disconnected",
+          "gatewayVisibilityBlocked": "Gateway visibility blocked"
         },
         "ruleName": "{event} notification",
         "levels": {
@@ -8388,7 +8425,12 @@
             "riskLevel": "Risk level",
             "eventSource": "Event source",
             "happenedAt": "Occurred at",
-            "aggregationStats": "Aggregation"
+            "aggregationStats": "Aggregation",
+            "requestMethod": "Request method",
+            "routeKey": "Route key",
+            "visibilityScope": "Visibility scope",
+            "visibilityMode": "Visibility mode",
+            "requestScheme": "Request scheme"
           },
           "authLoginSuccess": {
             "loginViaProvider": "Signed in through {provider}",
@@ -8516,13 +8558,25 @@
             "sshLoginFailure": "SSH login failed",
             "regionNotAllowed": "Region not allowed",
             "failureThreshold": "Failure threshold",
-            "currentVersion": "Current {version}"
+            "currentVersion": "Current {version}",
+            "visibilityBlocked": "Visibility blocked"
           },
           "titles": {
             "ddnsUpdateSuccess": "{target} update succeeded",
             "ddnsUpdateFailure": "{target} update failed",
             "credentialIpDrift": "Credential \"{credential}\" IP drift",
             "appUpdateAvailable": "New version {version} available"
+          },
+          "gatewayVisibilityBlocked": {
+            "summary": "{ip} was blocked by visibility rules while accessing {host}",
+            "overview": "Source {ip} was blocked by the visibility policy while accessing {host}{pathPart}{methodPart}. The effective scope was {scope} and the mode was {mode}.",
+            "pathPart": " at {path}",
+            "methodPart": " ({method})",
+            "scopeGateway": "gateway-wide",
+            "scopeHost": "this host",
+            "modeInherit": "inherit gateway",
+            "modeCustom": "custom",
+            "advice": "Confirm whether this source should be allowed. If the block was unexpected, review the region and CIDR visibility settings for the gateway or host."
           }
         }
       },
@@ -11280,7 +11334,8 @@
           "frpConnected": "FRP 연결됨",
           "frpDisconnected": "FRP 연결 끊김",
           "cloudflaredConnected": "Cloudflared 연결됨",
-          "cloudflaredDisconnected": "Cloudflared 연결 끊김"
+          "cloudflaredDisconnected": "Cloudflared 연결 끊김",
+          "gatewayVisibilityBlocked": "게이트웨이 공개 범위 차단"
         },
         "ruleName": "{event} 알림",
         "levels": {
@@ -11462,7 +11517,12 @@
             "riskLevel": "위험 수준",
             "eventSource": "이벤트 출처",
             "happenedAt": "발생 시간",
-            "aggregationStats": "집계"
+            "aggregationStats": "집계",
+            "requestMethod": "요청 메서드",
+            "routeKey": "라우트 식별자",
+            "visibilityScope": "공개 범위",
+            "visibilityMode": "공개 모드",
+            "requestScheme": "요청 스킴"
           },
           "authLoginSuccess": {
             "loginViaProvider": "{provider}(으)로 로그인",
@@ -11590,13 +11650,25 @@
             "sshLoginFailure": "SSH 로그인 실패",
             "regionNotAllowed": "허용되지 않는 지역",
             "failureThreshold": "실패 임계값",
-            "currentVersion": "현재 {version}"
+            "currentVersion": "현재 {version}",
+            "visibilityBlocked": "공개 범위 차단"
           },
           "titles": {
             "ddnsUpdateSuccess": "{target} 업데이트 성공",
             "ddnsUpdateFailure": "{target} 업데이트 실패",
             "credentialIpDrift": "자격 증명 \"{credential}\"의 접속 IP 변경",
             "appUpdateAvailable": "새 버전 {version} 사용 가능"
+          },
+          "gatewayVisibilityBlocked": {
+            "summary": "{ip}의 {host} 접근이 공개 범위 규칙으로 차단되었습니다",
+            "overview": "{ip}에서 {host}{pathPart}{methodPart}로의 접근이 공개 범위 정책으로 차단되었습니다. 적용 범위는 {scope}, 모드는 {mode}입니다.",
+            "pathPart": "의 {path}",
+            "methodPart": " ({method})",
+            "scopeGateway": "게이트웨이 전체",
+            "scopeHost": "현재 호스트",
+            "modeInherit": "전체 설정 상속",
+            "modeCustom": "사용자 지정",
+            "advice": "이 출처를 허용해야 하는지 확인하세요. 예상치 못한 차단이라면 게이트웨이 또는 호스트의 지역 및 CIDR 공개 범위 설정을 검토하세요."
           }
         }
       },
@@ -14354,7 +14426,8 @@
           "frpConnected": "FRP 接続",
           "frpDisconnected": "FRP 切断",
           "cloudflaredConnected": "Cloudflared 接続",
-          "cloudflaredDisconnected": "Cloudflared 切断"
+          "cloudflaredDisconnected": "Cloudflared 切断",
+          "gatewayVisibilityBlocked": "ゲートウェイ公開範囲によるブロック"
         },
         "ruleName": "{event}通知",
         "levels": {
@@ -14536,7 +14609,12 @@
             "riskLevel": "リスクレベル",
             "eventSource": "イベントソース",
             "happenedAt": "発生時刻",
-            "aggregationStats": "集計統計"
+            "aggregationStats": "集計統計",
+            "requestMethod": "リクエストメソッド",
+            "routeKey": "ルート識別子",
+            "visibilityScope": "公開範囲",
+            "visibilityMode": "公開モード",
+            "requestScheme": "リクエストスキーム"
           },
           "authLoginSuccess": {
             "loginViaProvider": "{provider} からログイン",
@@ -14664,13 +14742,25 @@
             "sshLoginFailure": "SSH ログイン失敗",
             "regionNotAllowed": "許可地域外",
             "failureThreshold": "失敗しきい値",
-            "currentVersion": "現在 {version}"
+            "currentVersion": "現在 {version}",
+            "visibilityBlocked": "公開範囲でブロック"
           },
           "titles": {
             "ddnsUpdateSuccess": "{target} の更新に成功しました",
             "ddnsUpdateFailure": "{target} の更新に失敗しました",
             "credentialIpDrift": "認証情報「{credential}」の IP が変化しました",
             "appUpdateAvailable": "新しいバージョン {version} が利用可能です"
+          },
+          "gatewayVisibilityBlocked": {
+            "summary": "{ip} から {host} へのアクセスが公開範囲ルールでブロックされました",
+            "overview": "{ip} から {host}{pathPart}{methodPart} へのアクセスが公開範囲ポリシーでブロックされました。有効範囲は{scope}、モードは{mode}です。",
+            "pathPart": " の {path}",
+            "methodPart": "（{method}）",
+            "scopeGateway": "ゲートウェイ全体",
+            "scopeHost": "このホスト",
+            "modeInherit": "全体設定を継承",
+            "modeCustom": "カスタム",
+            "advice": "この送信元を許可すべきか確認してください。想定外のブロックの場合は、ゲートウェイまたはホストの地域・CIDR 公開範囲設定を確認してください。"
           }
         }
       },

@@ -825,6 +825,124 @@ pub(super) fn build_notification_details(
                 format_notification_bool(&read_payload_value(event, "is_auth_route"), translator),
             );
         }
+        "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" => {
+            let ip = default_string(
+                read_payload_value(event, "ip"),
+                &notification_detail_text(translator, "unknownIp", &[]),
+            );
+            let host = read_payload_value(event, "host");
+            let path = read_payload_value(event, "path");
+            let method = read_payload_value(event, "method");
+            let visibility_scope = match read_payload_value(event, "visibility_scope").as_str() {
+                "host" => {
+                    notification_detail_text(translator, "gatewayVisibilityBlocked.scopeHost", &[])
+                }
+                _ => notification_detail_text(
+                    translator,
+                    "gatewayVisibilityBlocked.scopeGateway",
+                    &[],
+                ),
+            };
+            let visibility_mode = match read_payload_value(event, "visibility_mode").as_str() {
+                "custom" => {
+                    notification_detail_text(translator, "gatewayVisibilityBlocked.modeCustom", &[])
+                }
+                _ => notification_detail_text(
+                    translator,
+                    "gatewayVisibilityBlocked.modeInherit",
+                    &[],
+                ),
+            };
+
+            summary = notification_detail_text(
+                translator,
+                "gatewayVisibilityBlocked.summary",
+                &[("ip", ip.clone()), ("host", host.clone())],
+            );
+            let path_part = if path.is_empty() {
+                String::new()
+            } else {
+                notification_detail_text(
+                    translator,
+                    "gatewayVisibilityBlocked.pathPart",
+                    &[("path", path.clone())],
+                )
+            };
+            let method_part = if method.is_empty() {
+                String::new()
+            } else {
+                notification_detail_text(
+                    translator,
+                    "gatewayVisibilityBlocked.methodPart",
+                    &[("method", method.clone())],
+                )
+            };
+            overview = notification_detail_text(
+                translator,
+                "gatewayVisibilityBlocked.overview",
+                &[
+                    ("ip", ip.clone()),
+                    ("host", host.clone()),
+                    ("pathPart", path_part),
+                    ("methodPart", method_part),
+                    ("scope", visibility_scope.clone()),
+                    ("mode", visibility_mode.clone()),
+                ],
+            );
+            advice = notification_detail_text(translator, "gatewayVisibilityBlocked.advice", &[]);
+
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "sourceIp"),
+                ip,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "blockedAt"),
+                format_notification_datetime(&read_payload_value(event, "blocked_at")),
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "requestMethod"),
+                method,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "requestScheme"),
+                read_payload_value(event, "scheme"),
+            );
+            push_notification_fact(&mut facts, "Host".to_string(), host);
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "requestPath"),
+                path,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "routeType"),
+                read_payload_value(event, "route_type"),
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "routeKey"),
+                read_payload_value(event, "route_key"),
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "visibilityScope"),
+                visibility_scope,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "visibilityMode"),
+                visibility_mode,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "statusCode"),
+                read_payload_value(event, "status"),
+            );
+        }
         "FN_EVENT_WAF_BLOCKED" => {
             let ip = default_string(
                 read_payload_value(event, "ip"),

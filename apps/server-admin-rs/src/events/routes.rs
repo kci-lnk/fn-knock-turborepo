@@ -21,6 +21,7 @@ const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_SECURITY_SCANNER_BLOCKED",
     "FN_EVENT_DDNS_UPDATE_COMPLETED",
     "FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
+    "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
     "FN_EVENT_WAF_BLOCKED",
     "FN_EVENT_SSH_LOGIN_SUCCESS",
     "FN_EVENT_SSH_LOGIN_FAILURE",
@@ -40,6 +41,8 @@ const SYSTEM_EVENT_SOURCES: &[&str] = &["SERVER_ADMIN", "GO_REAUTH_PROXY", "SYST
 const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] =
     &["IP", "SESSION", "DDNS", "RESOURCE", "APPLICATION", "TUNNEL"];
 const APP_UPDATE_EVENT_DEDUPE_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
+const GATEWAY_VISIBILITY_EVENT_DEDUPE_KEY: &str = "gateway-visibility:global";
+const GATEWAY_VISIBILITY_EVENT_DEDUPE_TTL_SECONDS: i64 = 60;
 
 fn system_event_route_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.systemEvents.routes.{key}"))
@@ -697,12 +700,7 @@ async fn publish_system_event_body(
         return Ok(false);
     }
 
-    let dedupe_key = body
-        .dedupe_key
-        .as_ref()
-        .filter(|value| !value.is_empty())
-        .cloned();
-    let dedupe_ttl_seconds = normalize_dedupe_ttl_seconds(body.dedupe_ttl_seconds);
+    let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
     let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
         dedupe_ttl_seconds > 0
             && state
@@ -790,12 +788,7 @@ async fn publish_internal_event(
             .into_response();
     }
 
-    let dedupe_key = body
-        .dedupe_key
-        .as_ref()
-        .filter(|value| !value.is_empty())
-        .cloned();
-    let dedupe_ttl_seconds = normalize_dedupe_ttl_seconds(body.dedupe_ttl_seconds);
+    let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
     let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
         if dedupe_ttl_seconds > 0 {
             match state
@@ -1103,6 +1096,22 @@ fn normalize_dedupe_ttl_seconds(value: Option<f64>) -> i64 {
         .unwrap_or_default()
 }
 
+fn resolve_system_event_dedupe(body: &InternalSystemEventBody) -> (Option<String>, i64) {
+    if body.event_type == "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" {
+        return (
+            Some(GATEWAY_VISIBILITY_EVENT_DEDUPE_KEY.to_string()),
+            GATEWAY_VISIBILITY_EVENT_DEDUPE_TTL_SECONDS,
+        );
+    }
+    (
+        body.dedupe_key
+            .as_ref()
+            .filter(|value| !value.is_empty())
+            .cloned(),
+        normalize_dedupe_ttl_seconds(body.dedupe_ttl_seconds),
+    )
+}
+
 fn normalize_subject(value: Option<Value>) -> Result<Option<Value>, &'static str> {
     let Some(value) = value else {
         return Ok(None);
@@ -1179,6 +1188,7 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         "FN_EVENT_SECURITY_SCANNER_BLOCKED" => Some("scanner_blocked"),
         "FN_EVENT_DDNS_UPDATE_COMPLETED" => Some("ddns_update"),
         "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" => Some("gateway_throttle_block"),
+        "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" => Some("gateway_visibility_block"),
         "FN_EVENT_WAF_BLOCKED" => Some("waf_blocked"),
         "FN_EVENT_SSH_LOGIN_SUCCESS" => Some("ssh_login_success"),
         "FN_EVENT_SSH_LOGIN_FAILURE" => Some("ssh_login_failure"),
@@ -1211,6 +1221,7 @@ fn default_event_level(event_type: &str) -> &'static str {
         | "FN_EVENT_AUTH_SESSION_IP_DRIFT"
         | "FN_EVENT_SECURITY_SCANNER_BLOCKED"
         | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
+        | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
         | "FN_EVENT_WAF_BLOCKED"
         | "FN_EVENT_SSH_LOGIN_FAILURE"
         | "FN_EVENT_SSH_IP_BLOCKED" => "WARN",
@@ -1329,6 +1340,7 @@ fn system_event_ip_fields(event_type: Option<&str>) -> &'static [(&'static str, 
         | "FN_EVENT_AUTH_LOGIN_FAILURE"
         | "FN_EVENT_SECURITY_SCANNER_BLOCKED"
         | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
+        | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
         | "FN_EVENT_WAF_BLOCKED"
         | "FN_EVENT_SSH_LOGIN_SUCCESS"
         | "FN_EVENT_SSH_LOGIN_FAILURE"

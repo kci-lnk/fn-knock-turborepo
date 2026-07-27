@@ -2180,6 +2180,7 @@ export const zhHantServer = {
         securityScannerBlocked: "掃描器攔截",
         ddnsUpdateCompleted: "DDNS 更新",
         gatewayThrottleBlocked: "網關節流封鎖",
+        gatewayVisibilityBlocked: "網關可見性攔截",
         wafBlocked: "WAF 阻斷",
         sshLoginSuccess: "SSH 登入成功",
         sshLoginFailure: "SSH 登入失敗",
@@ -2337,8 +2338,13 @@ export const zhHantServer = {
           rateLimit: "限流閾值",
           burstCapacity: "突發容量",
           targetHost: "目標主機",
+          requestMethod: "請求方法",
+          requestScheme: "請求協定",
           requestPath: "請求路徑",
           routeType: "路由類型",
+          routeKey: "路由識別",
+          visibilityScope: "可見性範圍",
+          visibilityMode: "可見性模式",
           authRoute: "認證路由",
           traceId: "Trace ID",
           requestAddress: "請求地址",
@@ -2447,6 +2453,19 @@ export const zhHantServer = {
           advice:
             "請結合存取日誌確認是否為突發流量、誤傷或惡意請求，並按需調整限流策略。",
         },
+        gatewayVisibilityBlocked: {
+          summary: "{ip} 存取 {host} 時被可見性規則攔截",
+          overview:
+            "來源 {ip} 存取 {host}{pathPart}{methodPart} 時被可見性策略攔截，生效範圍為{scope}，模式為{mode}。",
+          pathPart: " 的 {path}",
+          methodPart: "（{method}）",
+          scopeGateway: "網關全域",
+          scopeHost: "目前網域",
+          modeInherit: "繼承全域",
+          modeCustom: "自訂",
+          advice:
+            "請確認該來源是否應被允許；如屬誤攔截，請檢查網關或目前網域的地區與 CIDR 可見性設定。",
+        },
         wafBlocked: {
           summary: "{ip} 的請求被 WAF {outcome}",
           overview:
@@ -2528,6 +2547,7 @@ export const zhHantServer = {
           failure: "失敗",
           blockSeconds: "封鎖{seconds}s",
           blockTriggered: "觸發封鎖",
+          visibilityBlocked: "可見性攔截",
           rules: "規則 {rules}",
           sshLoginSuccess: "SSH 登入成功",
           sshLoginFailure: "SSH 登入失敗",

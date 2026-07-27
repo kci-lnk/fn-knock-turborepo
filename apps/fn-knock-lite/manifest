@@ -1,5 +1,5 @@
 appname=fn-knock-lite
-version=2.0.10
+version=2.1.1
 display_name=敲门knock Lite
 desc="""敲门knock Lite 是面向 fnOS 非 Root 环境的原生精简版，保留反向代理、身份认证、DDNS、SSL 证书、访问控制、WAF、内网穿透和运维监控等核心能力；不含主机防火墙、系统网络优化、飞牛证书同步、Web 终端及应用内一键更新。完整功能请前往官网下载安装。官网：https://www.fnknock.cn/ 文档：https://docs.fnknock.cn/ QQ群：1081609274"""
 platform=x86

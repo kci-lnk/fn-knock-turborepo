@@ -542,21 +542,19 @@ mod tests {
 
     #[test]
     fn distinguishes_new_and_legacy_operator_probe_responses() {
-        assert_eq!(
+        assert!(
             classify_operator_probe(
                 reqwest::StatusCode::BAD_REQUEST,
                 "invalid operator: __fn_knock_operator_probe__",
             )
-            .unwrap(),
-            true
+            .unwrap()
         );
-        assert_eq!(
-            classify_operator_probe(
+        assert!(
+            !classify_operator_probe(
                 reqwest::StatusCode::NOT_FOUND,
                 "city not found: __fn_knock_operator_probe__",
             )
-            .unwrap(),
-            false
+            .unwrap()
         );
         assert!(
             classify_operator_probe(reqwest::StatusCode::BAD_GATEWAY, "upstream failed").is_err()

@@ -497,6 +497,9 @@ async fn matched_rule_takes_precedence_over_automatic_ip_grant() {
         "203.0.113.31",
         &normal_access,
         Some(&matched),
+        None,
+        None,
+        None,
     )
     .await
     .expect("resolve matched rule");

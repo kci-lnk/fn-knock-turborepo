@@ -1,14 +1,13 @@
 use std::{
-    collections::{BTreeSet, HashMap},
-    env,
-    sync::{Mutex, OnceLock},
+    collections::HashMap,
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 
-use axum::http::{HeaderMap, Uri, header};
+use axum::http::{HeaderMap, HeaderValue, Uri, header};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tokio::time::sleep;
+use tokio::{sync::Mutex as AsyncMutex, time::sleep};
 use url::Url;
 
 use crate::{cookies, runtime_config, state::AppState, time_utils};
@@ -19,7 +18,9 @@ const CACHE_KEY_PREFIX: &str = "fn_knock:fnos-share:validation:";
 const SESSION_KEY_PREFIX: &str = "fn_knock:fnos-share:session:";
 const LOCK_KEY_PREFIX: &str = "fn_knock:lock:fnos-share:validation:";
 const FNOS_DETECTION_PATH: &str = "/locales/zh-CN/os.json";
-const FNOS_DETECTION_CACHE_TTL_MS: i64 = 30_000;
+const FNOS_DETECTION_SUCCESS_CACHE_TTL_MS: i64 = 30_000;
+const FNOS_DETECTION_FAILURE_CACHE_TTL_MS: i64 = 3_000;
+const FNOS_DETECTION_MAX_CACHE_ENTRIES: usize = 1_024;
 const FNOS_DETECTION_TIMEOUT_MS: u64 = 1_000;
 const FNOS_DETECTION_MIN_MATCHED_APP_KEYS: usize = 4;
 const FNOS_DETECTION_APP_KEYS: &[&str] = &[
@@ -61,7 +62,14 @@ struct SharePolicy {
 #[derive(Debug, Clone)]
 struct ResolvedFnosShareConfig {
     policy: SharePolicy,
-    upstream_base_url: Option<Url>,
+    backend: Option<FnosBackend>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FnosBackend {
+    base_url: Url,
+    host_header: String,
+    identity: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +80,8 @@ struct ShareValidationCacheRecord {
     validation_state: String,
     #[serde(rename = "shareId")]
     share_id: String,
+    #[serde(rename = "backendId", default)]
+    backend_id: String,
     #[serde(rename = "cleanPath")]
     clean_path: String,
     token: Option<String>,
@@ -88,6 +98,8 @@ struct ShareSessionRecord {
     version: i64,
     #[serde(rename = "shareId")]
     share_id: String,
+    #[serde(rename = "backendId", default)]
+    backend_id: String,
     #[serde(rename = "cleanPath")]
     clean_path: String,
     token: Option<String>,
@@ -120,24 +132,32 @@ struct ProbeCacheRecord {
 }
 
 static PROBE_CACHE: OnceLock<Mutex<HashMap<String, ProbeCacheRecord>>> = OnceLock::new();
+static PROBE_LOCKS: OnceLock<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>> = OnceLock::new();
+static PROBE_CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
 
 pub(crate) async fn resolve_preflight(
     state: &AppState,
     headers: &HeaderMap,
     uri: &Uri,
     app_config: &Value,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<FnosSharePreflightDecision> {
-    let config = get_resolved_config(state, app_config).await?;
-    if !config.policy.enabled {
-        return Ok(not_handled());
-    }
-
-    let Some(request_url) = parse_request_url(&request_target(headers, uri)) else {
+    let Some((request_url, policy)) = resolve_enabled_share_request(headers, uri, app_config)
+    else {
         return Ok(not_handled());
     };
-    if !is_share_path(&request_url) {
+    let config = get_resolved_config(
+        policy,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await;
+    let Some(backend) = config.backend.as_ref() else {
         return Ok(not_handled());
-    }
+    };
 
     if let Some(share_entry) = extract_share_entry(&request_url) {
         let validation = validate_share_link(state, &share_entry.share_id, &config).await;
@@ -156,12 +176,13 @@ pub(crate) async fn resolve_preflight(
         None => None,
     };
     if current_session.is_some_and(|session| {
-        is_session_resource_path(&request_url, &session.clean_path, &session.share_id)
+        session_matches_backend(&session, backend)
+            && is_session_resource_path(&request_url, &session.clean_path, &session.share_id)
     }) {
         return Ok(handled());
     }
 
-    Ok(handled_redirect("/"))
+    Ok(not_handled())
 }
 
 pub(crate) async fn authorize(
@@ -169,20 +190,27 @@ pub(crate) async fn authorize(
     headers: &HeaderMap,
     uri: &Uri,
     app_config: &Value,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<FnosShareAuthorizationResult> {
-    let config = get_resolved_config(state, app_config).await?;
-    if !config.policy.enabled {
-        return Ok(share_unauthorized());
-    }
-
-    let Some(request_url) = parse_request_url(&request_target(headers, uri)) else {
+    let Some((request_url, policy)) = resolve_enabled_share_request(headers, uri, app_config)
+    else {
         return Ok(share_unauthorized());
     };
-    if !is_share_path(&request_url) {
-        return Ok(share_unauthorized());
-    }
-
     let share_session_id = read_share_cookie(headers, cookies::FNOS_SHARE_SESSION_COOKIE_NAME);
+    let config = get_resolved_config(
+        policy,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await;
+    let Some(backend) = config.backend.as_ref() else {
+        return Ok(share_unauthorized_with_cookie_clear(
+            share_session_id.is_some(),
+        ));
+    };
     let current_session = match share_session_id.as_deref() {
         Some(session_id) => get_share_session(state, session_id).await?,
         None => None,
@@ -197,6 +225,7 @@ pub(crate) async fn authorize(
         if let (Some(session_id), Some(session)) =
             (share_session_id.as_deref(), current_session.as_ref())
             && session.share_id == validation.share_id
+            && session_matches_backend(session, backend)
         {
             save_share_session(
                 state,
@@ -214,8 +243,9 @@ pub(crate) async fn authorize(
         let session_id = hex::encode(rand::random::<[u8; 18]>());
         let now = time_utils::now_iso();
         let session = ShareSessionRecord {
-            version: 1,
+            version: 2,
             share_id: validation.share_id.clone(),
+            backend_id: backend.identity.clone(),
             clean_path: validation.clean_path.clone(),
             token: validation.token.clone(),
             name: validation.name.clone(),
@@ -243,8 +273,10 @@ pub(crate) async fn authorize(
         return Ok(share_redirect_unauthorized("/", false));
     };
 
-    if !is_session_resource_path(&request_url, &session.clean_path, &session.share_id) {
-        return Ok(share_redirect_unauthorized("/", true));
+    if !session_matches_backend(&session, backend)
+        || !is_session_resource_path(&request_url, &session.clean_path, &session.share_id)
+    {
+        return Ok(share_unauthorized_with_cookie_clear(true));
     }
 
     save_share_session(
@@ -260,6 +292,10 @@ pub(crate) async fn authorize(
     ))
 }
 
+fn session_matches_backend(session: &ShareSessionRecord, backend: &FnosBackend) -> bool {
+    !session.backend_id.is_empty() && session.backend_id == backend.identity
+}
+
 fn not_handled() -> FnosSharePreflightDecision {
     FnosSharePreflightDecision {
         handled: false,
@@ -271,6 +307,17 @@ fn share_unauthorized() -> FnosShareAuthorizationResult {
     FnosShareAuthorizationResult {
         authorized: false,
         set_cookies: Vec::new(),
+        response_headers: Vec::new(),
+    }
+}
+
+fn share_unauthorized_with_cookie_clear(clear_cookie: bool) -> FnosShareAuthorizationResult {
+    FnosShareAuthorizationResult {
+        authorized: false,
+        set_cookies: clear_cookie
+            .then(|| cookies::fnos_share_clear_cookie(None))
+            .into_iter()
+            .collect(),
         response_headers: Vec::new(),
     }
 }
@@ -319,21 +366,21 @@ fn handled_redirect(location: &str) -> FnosSharePreflightDecision {
 }
 
 async fn get_resolved_config(
-    _state: &AppState,
-    app_config: &Value,
-) -> anyhow::Result<ResolvedFnosShareConfig> {
-    let policy = share_policy_from_config(app_config);
-    let matched_target = resolve_fnos_target(app_config).await;
-    Ok(ResolvedFnosShareConfig {
-        policy,
-        upstream_base_url: matched_target
-            .as_deref()
-            .and_then(to_upstream_origin)
-            .or_else(|| {
-                tracing::debug!("FNOS share bypass did not find a matching FNOS upstream");
-                None
-            }),
-    })
+    policy: SharePolicy,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> ResolvedFnosShareConfig {
+    let backend = resolve_fnos_target(
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await;
+    if backend.is_none() {
+        tracing::debug!("FNOS share bypass did not find a matching FNOS routed upstream");
+    }
+    ResolvedFnosShareConfig { policy, backend }
 }
 
 fn share_policy_from_config(config: &Value) -> SharePolicy {
@@ -366,68 +413,106 @@ fn share_policy_from_config(config: &Value) -> SharePolicy {
     }
 }
 
-async fn resolve_fnos_target(app_config: &Value) -> Option<String> {
-    let candidates = collect_fnos_target_candidates(app_config);
-    if candidates.is_empty() {
+fn resolve_enabled_share_request(
+    headers: &HeaderMap,
+    uri: &Uri,
+    app_config: &Value,
+) -> Option<(Url, SharePolicy)> {
+    let request_url = parse_request_url(&request_target(headers, uri))?;
+    if !is_share_path(&request_url) {
         return None;
     }
-
-    for candidate in &candidates {
-        if get_cached_fnos_target_probe(candidate) == Some(true) {
-            return Some(candidate.clone());
-        }
-    }
-
-    for candidate in &candidates {
-        if get_cached_fnos_target_probe(candidate).is_none() {
-            let _ = probe_fnos_target(candidate).await;
-        }
-    }
-
-    candidates
-        .into_iter()
-        .find(|candidate| get_cached_fnos_target_probe(candidate) == Some(true))
+    let policy = share_policy_from_config(app_config);
+    policy.enabled.then_some((request_url, policy))
 }
 
-fn collect_fnos_target_candidates(app_config: &Value) -> Vec<String> {
-    let mut raw_targets = Vec::new();
-    let is_subdomain_routing = is_any_subdomain_routing_mode(app_config);
-
-    if !is_subdomain_routing
-        && let Some(default_route) = app_config
-            .get("default_route")
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty() && *value != "/__select__")
-        && let Some(mapping) = app_config
-            .get("proxy_mappings")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .find(|mapping| mapping.get("path").and_then(Value::as_str) == Some(default_route))
-        && let Some(target) = mapping.get("target").and_then(Value::as_str)
-        && !is_auth_service_target(target)
-    {
-        raw_targets.push(target.to_string());
+async fn resolve_fnos_target(
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> Option<FnosBackend> {
+    let candidate = resolve_routed_backend(
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )?;
+    match get_cached_fnos_target_probe(&candidate.identity) {
+        Some(true) => return Some(candidate),
+        Some(false) => return None,
+        None => {}
     }
 
-    raw_targets.extend(
-        app_config
-            .get("host_mappings")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|mapping| mapping.get("target").and_then(Value::as_str))
-            .filter(|target| !is_auth_service_target(target))
-            .map(ToString::to_string),
-    );
+    let probe_lock = fnos_target_probe_lock(&candidate.identity);
+    let _probe_guard = probe_lock.lock().await;
+    match get_cached_fnos_target_probe(&candidate.identity) {
+        Some(true) => return Some(candidate),
+        Some(false) => return None,
+        None => {}
+    }
 
-    let mut seen = BTreeSet::new();
-    raw_targets
-        .into_iter()
-        .filter_map(|target| to_upstream_origin(&target))
-        .map(|url| url.origin().ascii_serialization())
-        .filter(|origin| seen.insert(origin.clone()))
-        .collect()
+    let probe_result = probe_fnos_target(&candidate).await;
+    release_fnos_target_probe_lock(&candidate.identity, &probe_lock);
+    if probe_result == Some(true) {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+fn release_fnos_target_probe_lock(identity: &str, probe_lock: &Arc<AsyncMutex<()>>) {
+    let Some(locks) = PROBE_LOCKS.get() else {
+        return;
+    };
+    let Ok(mut guard) = locks.lock() else {
+        return;
+    };
+    if guard
+        .get(identity)
+        .is_some_and(|current| Arc::ptr_eq(current, probe_lock))
+    {
+        guard.remove(identity);
+    }
+}
+
+fn fnos_target_probe_lock(origin: &str) -> Arc<AsyncMutex<()>> {
+    let locks = PROBE_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let Ok(mut guard) = locks.lock() else {
+        return Arc::new(AsyncMutex::new(()));
+    };
+    guard
+        .entry(origin.to_string())
+        .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+        .clone()
+}
+
+fn resolve_routed_backend(
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> Option<FnosBackend> {
+    let target = routed_upstream?.trim();
+    if target.is_empty() {
+        return None;
+    }
+    let host_header = routed_upstream_host?.trim();
+    if host_header.is_empty() || HeaderValue::try_from(host_header).is_err() {
+        return None;
+    }
+    let route_id = routed_upstream_route_id?.trim();
+    if route_id.is_empty() || route_id.len() > 128 {
+        return None;
+    }
+    let base_url = to_upstream_base_url(target)?;
+    let normalized_host = host_header.to_ascii_lowercase();
+    let identity = crate::crypto_utils::sha256_hex_str(&format!(
+        "{}\n{normalized_host}\n{route_id}",
+        base_url.as_str()
+    ));
+    Some(FnosBackend {
+        base_url,
+        host_header: host_header.to_string(),
+        identity,
+    })
 }
 
 fn get_cached_fnos_target_probe(origin: &str) -> Option<bool> {
@@ -442,37 +527,60 @@ fn get_cached_fnos_target_probe(origin: &str) -> Option<bool> {
 }
 
 fn set_cached_fnos_target_probe(origin: &str, is_fnos: bool) {
+    let ttl_ms = if is_fnos {
+        FNOS_DETECTION_SUCCESS_CACHE_TTL_MS
+    } else {
+        FNOS_DETECTION_FAILURE_CACHE_TTL_MS
+    };
     let cache = PROBE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Ok(mut guard) = cache.lock() {
+        let now = time_utils::now_ms();
+        guard.retain(|_, record| record.expires_at > now);
+        if guard.len() >= FNOS_DETECTION_MAX_CACHE_ENTRIES
+            && let Some(oldest) = guard
+                .iter()
+                .min_by_key(|(_, record)| record.expires_at)
+                .map(|(key, _)| key.clone())
+        {
+            guard.remove(&oldest);
+        }
         guard.insert(
             origin.to_string(),
             ProbeCacheRecord {
                 is_fnos,
-                expires_at: time_utils::now_ms() + FNOS_DETECTION_CACHE_TTL_MS,
+                expires_at: now + ttl_ms,
             },
         );
     }
 }
 
-async fn probe_fnos_target(origin: &str) -> Option<bool> {
-    let origin_url = Url::parse(origin).ok()?;
-    let target = origin_url.join(FNOS_DETECTION_PATH).ok()?;
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .timeout(Duration::from_millis(FNOS_DETECTION_TIMEOUT_MS))
-        .build()
-        .ok()?;
+async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
+    let target = join_upstream_path(&backend.base_url, FNOS_DETECTION_PATH)?;
+    let client = PROBE_CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .timeout(Duration::from_millis(FNOS_DETECTION_TIMEOUT_MS))
+                .build()
+                .ok()
+        })
+        .as_ref()?;
     let response = match client
         .get(target)
+        .header(reqwest::header::HOST, &backend.host_header)
         .header(reqwest::header::ACCEPT, "application/json")
         .send()
         .await
     {
         Ok(response) => response,
-        Err(_) => return None,
+        Err(error) => {
+            tracing::debug!(%error, backend_id = %backend.identity, "FNOS target probe failed");
+            set_cached_fnos_target_probe(&backend.identity, false);
+            return Some(false);
+        }
     };
     if response.status() != reqwest::StatusCode::OK {
-        set_cached_fnos_target_probe(origin, false);
+        set_cached_fnos_target_probe(&backend.identity, false);
         return Some(false);
     }
     let content_type = response
@@ -482,18 +590,18 @@ async fn probe_fnos_target(origin: &str) -> Option<bool> {
         .unwrap_or("")
         .to_ascii_lowercase();
     if !content_type.contains("application/json") {
-        set_cached_fnos_target_probe(origin, false);
+        set_cached_fnos_target_probe(&backend.identity, false);
         return Some(false);
     }
     let payload = match response.json::<Value>().await {
         Ok(payload) => payload,
         Err(_) => {
-            set_cached_fnos_target_probe(origin, false);
+            set_cached_fnos_target_probe(&backend.identity, false);
             return Some(false);
         }
     };
     let is_fnos = is_fnos_locale_payload(&payload);
-    set_cached_fnos_target_probe(origin, is_fnos);
+    set_cached_fnos_target_probe(&backend.identity, is_fnos);
     Some(is_fnos)
 }
 
@@ -502,12 +610,15 @@ async fn validate_share_link(
     share_id: &str,
     config: &ResolvedFnosShareConfig,
 ) -> ShareValidationCacheRecord {
-    let cache_key = validation_cache_key(share_id);
+    let Some(backend) = config.backend.as_ref() else {
+        return unknown_validation(share_id, "");
+    };
+    let cache_key = validation_cache_key(&backend.identity, share_id);
     if let Ok(Some(cached)) = get_cached_validation(state, &cache_key).await {
         return cached;
     }
 
-    let lock_key = validation_lock_key(share_id);
+    let lock_key = validation_lock_key(&backend.identity, share_id);
     let lock_token = hex::encode(rand::random::<[u8; 12]>());
     let acquired = state
         .store
@@ -546,25 +657,15 @@ async fn fetch_validation(
     share_id: &str,
     config: &ResolvedFnosShareConfig,
 ) -> ShareValidationFetchResult {
-    let clean_path = format!("/s/{share_id}");
-    let fallback = ShareValidationCacheRecord {
-        version: 1,
-        valid: false,
-        validation_state: "unknown".to_string(),
-        share_id: share_id.to_string(),
-        clean_path: clean_path.clone(),
-        token: None,
-        name: None,
-        kind: None,
-        checked_at: time_utils::now_iso(),
-    };
-    let Some(upstream_base_url) = config.upstream_base_url.as_ref() else {
+    let Some(backend) = config.backend.as_ref() else {
         return ShareValidationFetchResult {
             cacheable: false,
-            data: fallback,
+            data: unknown_validation(share_id, ""),
         };
     };
-    let Ok(target_url) = upstream_base_url.join(&clean_path) else {
+    let clean_path = format!("/s/{share_id}");
+    let fallback = unknown_validation(share_id, &backend.identity);
+    let Some(target_url) = join_upstream_path(&backend.base_url, &clean_path) else {
         return ShareValidationFetchResult {
             cacheable: false,
             data: fallback,
@@ -585,6 +686,7 @@ async fn fetch_validation(
     };
     let response = match client
         .get(target_url)
+        .header(reqwest::header::HOST, &backend.host_header)
         .header(reqwest::header::ACCEPT, "text/html,application/xhtml+xml")
         .send()
         .await
@@ -599,7 +701,7 @@ async fn fetch_validation(
         }
     };
     let html = response.text().await.unwrap_or_default();
-    match parse_share_data(&html, share_id) {
+    match parse_share_data(&html, share_id, &backend.identity) {
         Some(data) => ShareValidationFetchResult {
             cacheable: true,
             data,
@@ -608,6 +710,21 @@ async fn fetch_validation(
             cacheable: false,
             data: fallback,
         },
+    }
+}
+
+fn unknown_validation(share_id: &str, backend_id: &str) -> ShareValidationCacheRecord {
+    ShareValidationCacheRecord {
+        version: 2,
+        valid: false,
+        validation_state: "unknown".to_string(),
+        share_id: share_id.to_string(),
+        backend_id: backend_id.to_string(),
+        clean_path: format!("/s/{share_id}"),
+        token: None,
+        name: None,
+        kind: None,
+        checked_at: time_utils::now_iso(),
     }
 }
 
@@ -674,7 +791,7 @@ async fn save_share_session(
     ttl_seconds: i64,
 ) -> anyhow::Result<()> {
     let mut next = session.clone();
-    next.version = 1;
+    next.version = 2;
     if next.issued_at.trim().is_empty() {
         next.issued_at = time_utils::now_iso();
     }
@@ -692,8 +809,9 @@ async fn save_share_session(
 
 fn normalize_share_session(value: ShareSessionRecord) -> ShareSessionRecord {
     ShareSessionRecord {
-        version: 1,
+        version: 2,
         share_id: value.share_id,
+        backend_id: value.backend_id,
         clean_path: value.clean_path,
         token: value.token.filter(|value| !value.trim().is_empty()),
         name: value.name.filter(|value| !value.trim().is_empty()),
@@ -722,7 +840,11 @@ fn read_share_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     None
 }
 
-fn parse_share_data(html: &str, share_id: &str) -> Option<ShareValidationCacheRecord> {
+fn parse_share_data(
+    html: &str,
+    share_id: &str,
+    backend_id: &str,
+) -> Option<ShareValidationCacheRecord> {
     let lower = html.to_ascii_lowercase();
     let mut offset = 0_usize;
     while let Some(relative_start) = lower[offset..].find("<script") {
@@ -744,7 +866,7 @@ fn parse_share_data(html: &str, share_id: &str) -> Option<ShareValidationCacheRe
         let has_usable_token = code == Some(0) && token.is_some();
         let requires_password = code == Some(FNOS_SHARE_NEED_PASSWORD_CODE);
         return Some(normalize_share_validation(ShareValidationCacheRecord {
-            version: 1,
+            version: 2,
             valid: has_usable_token || requires_password,
             validation_state: if has_usable_token {
                 "valid"
@@ -755,6 +877,7 @@ fn parse_share_data(html: &str, share_id: &str) -> Option<ShareValidationCacheRe
             }
             .to_string(),
             share_id: share_id.to_string(),
+            backend_id: backend_id.to_string(),
             clean_path: format!("/s/{share_id}"),
             token,
             name,
@@ -772,10 +895,11 @@ fn normalize_share_validation(value: ShareValidationCacheRecord) -> ShareValidat
         _ => "invalid".to_string(),
     };
     ShareValidationCacheRecord {
-        version: 1,
+        version: 2,
         valid: value.valid,
         validation_state,
         share_id: value.share_id,
+        backend_id: value.backend_id,
         clean_path: value.clean_path,
         token: value.token.filter(|value| !value.trim().is_empty()),
         name: value.name.filter(|value| !value.trim().is_empty()),
@@ -848,35 +972,31 @@ fn is_session_resource_path(request_url: &Url, clean_path: &str, share_id: &str)
         || pathname.starts_with(&format!("{thumb_path}/"))
 }
 
-fn to_upstream_origin(target: &str) -> Option<Url> {
-    let parsed = Url::parse(target.trim()).ok()?;
-    if parsed.scheme() != "http" && parsed.scheme() != "https" {
-        return None;
+fn to_upstream_base_url(target: &str) -> Option<Url> {
+    let mut parsed = Url::parse(target.trim()).ok()?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        "ws" => {
+            parsed.set_scheme("http").ok()?;
+        }
+        "wss" => {
+            parsed.set_scheme("https").ok()?;
+        }
+        _ => return None,
     }
-    Url::parse(&parsed.origin().ascii_serialization()).ok()
+    parsed.set_fragment(None);
+    let mut base_path = parsed.path().trim_end_matches('/').to_string();
+    base_path.push('/');
+    parsed.set_path(&base_path);
+    Some(parsed)
 }
 
-fn is_auth_service_target(target: &str) -> bool {
-    let Ok(parsed) = Url::parse(target.trim()) else {
-        return false;
-    };
-    if !matches!(parsed.scheme(), "http" | "https" | "ws" | "wss") || parsed.host_str().is_none() {
-        return false;
-    }
-    parse_target_port(target) == Some(resolve_auth_service_port())
+fn join_upstream_path(base_url: &Url, path: &str) -> Option<Url> {
+    let base_query = base_url.query().map(ToString::to_string);
+    let mut target = base_url.join(path.trim_start_matches('/')).ok()?;
+    target.set_query(base_query.as_deref());
+    Some(target)
 }
-
-use crate::proxy_utils::parse_target_port_u16 as parse_target_port;
-
-fn resolve_auth_service_port() -> u16 {
-    env::var("AUTH_PORT")
-        .ok()
-        .and_then(|value| value.trim().parse::<u16>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(7997)
-}
-
-use crate::proxy_utils::is_any_subdomain_routing_mode;
 
 fn is_fnos_locale_payload(value: &Value) -> bool {
     let Some(app) = value.get("app").and_then(Value::as_object) else {
@@ -900,12 +1020,12 @@ fn is_fnos_locale_payload(value: &Value) -> bool {
             .is_some_and(|value| !value.trim().is_empty())
 }
 
-fn validation_cache_key(share_id: &str) -> String {
-    format!("{CACHE_KEY_PREFIX}{share_id}")
+fn validation_cache_key(backend_id: &str, share_id: &str) -> String {
+    format!("{CACHE_KEY_PREFIX}{backend_id}:{share_id}")
 }
 
-fn validation_lock_key(share_id: &str) -> String {
-    format!("{LOCK_KEY_PREFIX}{share_id}")
+fn validation_lock_key(backend_id: &str, share_id: &str) -> String {
+    format!("{LOCK_KEY_PREFIX}{backend_id}:{share_id}")
 }
 
 fn share_session_key(session_id: &str) -> String {
@@ -915,6 +1035,10 @@ fn share_session_key(session_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use axum::http::{HeaderValue, header};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     use super::*;
 
@@ -934,6 +1058,7 @@ mod tests {
         let parsed = parse_share_data(
             r#"<html><script id="share-data">{"code":0,"data":{"token":" t ","name":"n","type":1}}</script></html>"#,
             "abc123abc123abc123",
+            "backend-a",
         )
         .unwrap();
         assert!(parsed.valid);
@@ -953,6 +1078,223 @@ mod tests {
             "appApiErrors": { "AuthFailed": "auth failed" }
         });
         assert!(is_fnos_locale_payload(&payload));
+    }
+
+    #[test]
+    fn ordinary_and_disabled_requests_never_enter_fnos_detection() {
+        let headers = HeaderMap::new();
+        let enabled = json!({
+            "fnos_share_bypass": { "enabled": true },
+            "host_mappings": [{
+                "host": "offline.example.com",
+                "target": "http://192.0.2.1:5666"
+            }]
+        });
+        assert!(
+            resolve_enabled_share_request(&headers, &Uri::from_static("/"), &enabled).is_none()
+        );
+
+        let disabled = json!({
+            "fnos_share_bypass": { "enabled": false },
+            "host_mappings": [{
+                "host": "offline.example.com",
+                "target": "http://192.0.2.1:5666"
+            }]
+        });
+        assert!(
+            resolve_enabled_share_request(
+                &headers,
+                &Uri::from_static("/s/abc123abc123abc123"),
+                &disabled,
+            )
+            .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn ordinary_preflight_with_offline_mappings_returns_without_probe_delay() {
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "fnos-share-fast-path-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        let config = json!({
+            "fnos_share_bypass": { "enabled": true },
+            "host_mappings": [{
+                "host": "offline.example.com",
+                "target": "http://192.0.2.1:5666"
+            }]
+        });
+
+        let decision = tokio::time::timeout(
+            Duration::from_millis(100),
+            resolve_preflight(
+                &state,
+                &HeaderMap::new(),
+                &Uri::from_static("/"),
+                &config,
+                None,
+                None,
+                None,
+            ),
+        )
+        .await
+        .expect("ordinary preflight must not wait for FNOS detection")
+        .expect("ordinary preflight");
+        assert!(!decision.handled);
+
+        let share_decision = tokio::time::timeout(
+            Duration::from_millis(100),
+            resolve_preflight(
+                &state,
+                &HeaderMap::new(),
+                &Uri::from_static("/s/abc123abc123abc123"),
+                &config,
+                None,
+                None,
+                None,
+            ),
+        )
+        .await
+        .expect("missing trusted route metadata must not trigger configuration probing")
+        .expect("share preflight without routed backend");
+        assert!(!share_decision.handled);
+    }
+
+    #[test]
+    fn routed_backend_requires_target_host_and_route_identity() {
+        let resolved = resolve_routed_backend(
+            Some(" http://10.0.0.9:8000/base "),
+            Some("NAS.EXAMPLE.COM"),
+            Some("route-generation-a"),
+        )
+        .unwrap();
+        assert_eq!(resolved.base_url.as_str(), "http://10.0.0.9:8000/base/");
+        assert_eq!(resolved.host_header, "NAS.EXAMPLE.COM");
+
+        assert!(
+            resolve_routed_backend(
+                Some("http://10.0.0.9:8000"),
+                None,
+                Some("route-generation-a")
+            )
+            .is_none(),
+            "missing routed Host metadata must fail closed"
+        );
+        assert!(
+            resolve_routed_backend(None, None, None).is_none(),
+            "missing routed target must not fall back to configuration guessing"
+        );
+        assert!(
+            resolve_routed_backend(Some("http://10.0.0.9:8000"), Some("NAS.EXAMPLE.COM"), None)
+                .is_none(),
+            "missing route lifecycle identity must fail closed"
+        );
+        assert!(
+            resolve_routed_backend(
+                Some("http://192.0.2.10:7997"),
+                Some("NAS.EXAMPLE.COM"),
+                Some("route-generation-auth-port"),
+            )
+            .is_some(),
+            "a remote FNOS target may legitimately use the auth service port number"
+        );
+    }
+
+    #[tokio::test]
+    async fn target_probe_preserves_base_path_and_actual_host() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let read = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]).to_ascii_lowercase();
+            assert!(request.starts_with("get /fnos/locales/zh-cn/os.json "));
+            assert!(request.contains("\r\nhost: nas.example.com\r\n"));
+            let body = r#"{"app":{"account":"a","docker":"d","fileManager":"f","photos":"p"},"appApiErrors":{"AuthFailed":"failed"}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let backend = resolve_routed_backend(
+            Some(&format!("http://{address}/fnos")),
+            Some("nas.example.com"),
+            Some("route-generation-a"),
+        )
+        .unwrap();
+
+        assert_eq!(probe_fnos_target(&backend).await, Some(true));
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn validation_and_sessions_are_scoped_to_the_backend() {
+        assert_ne!(
+            validation_cache_key("backend-a", "abc123abc123abc123"),
+            validation_cache_key("backend-b", "abc123abc123abc123")
+        );
+        assert_ne!(
+            validation_lock_key("backend-a", "abc123abc123abc123"),
+            validation_lock_key("backend-b", "abc123abc123abc123")
+        );
+
+        let backend = resolve_routed_backend(
+            Some("http://10.0.0.8:5666"),
+            Some("nas.example.com"),
+            Some("route-generation-a"),
+        )
+        .unwrap();
+        let readded_backend = resolve_routed_backend(
+            Some("http://10.0.0.8:5666"),
+            Some("nas.example.com"),
+            Some("route-generation-b"),
+        )
+        .unwrap();
+        assert_ne!(
+            backend.identity, readded_backend.identity,
+            "re-added mapping must not reuse the previous backend identity"
+        );
+        let mut session = ShareSessionRecord {
+            version: 2,
+            share_id: "abc123abc123abc123".to_string(),
+            backend_id: backend.identity.clone(),
+            clean_path: "/s/abc123abc123abc123".to_string(),
+            token: None,
+            name: None,
+            kind: None,
+            issued_at: "issued".to_string(),
+            last_seen_at: "seen".to_string(),
+        };
+        assert!(session_matches_backend(&session, &backend));
+        session.backend_id = "another-backend".to_string();
+        assert!(!session_matches_backend(&session, &backend));
+    }
+
+    #[tokio::test]
+    async fn target_probe_connection_failures_are_negative_cached() {
+        let backend = resolve_routed_backend(
+            Some("http://127.0.0.1:0"),
+            Some("nas.example.com"),
+            Some("route-generation-negative-cache"),
+        )
+        .unwrap();
+        if let Some(cache) = PROBE_CACHE.get()
+            && let Ok(mut guard) = cache.lock()
+        {
+            guard.remove(&backend.identity);
+        }
+
+        assert_eq!(probe_fnos_target(&backend).await, Some(false));
+        assert_eq!(get_cached_fnos_target_probe(&backend.identity), Some(false));
     }
 
     #[test]
@@ -999,6 +1341,7 @@ mod tests {
         let session = normalize_share_session(ShareSessionRecord {
             version: 0,
             share_id: "abc123abc123abc123".to_string(),
+            backend_id: "backend-a".to_string(),
             clean_path: "/s/abc123abc123abc123".to_string(),
             token: Some(" token ".to_string()),
             name: Some(" ".to_string()),
@@ -1007,7 +1350,8 @@ mod tests {
             last_seen_at: "seen".to_string(),
         });
 
-        assert_eq!(session.version, 1);
+        assert_eq!(session.version, 2);
+        assert_eq!(session.backend_id, "backend-a");
         assert_eq!(session.token.as_deref(), Some(" token "));
         assert_eq!(session.name, None);
         assert_eq!(session.kind, Some(1));
@@ -1022,6 +1366,7 @@ mod tests {
             valid: true,
             validation_state: "other".to_string(),
             share_id: "abc123abc123abc123".to_string(),
+            backend_id: "backend-a".to_string(),
             clean_path: "/s/abc123abc123abc123".to_string(),
             token: Some(" token ".to_string()),
             name: Some(" ".to_string()),
@@ -1029,7 +1374,8 @@ mod tests {
             checked_at: "checked".to_string(),
         });
 
-        assert_eq!(validation.version, 1);
+        assert_eq!(validation.version, 2);
+        assert_eq!(validation.backend_id, "backend-a");
         assert_eq!(validation.validation_state, "valid");
         assert_eq!(validation.token.as_deref(), Some(" token "));
         assert_eq!(validation.name, None);

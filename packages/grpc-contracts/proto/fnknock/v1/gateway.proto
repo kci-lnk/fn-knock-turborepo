@@ -590,6 +590,9 @@ message AuthContext {
   repeated Header extra_headers = 15;
   string access_token = 16;
   string access_token_hyphenated = 17;
+  optional string routed_upstream = 18;
+  optional string routed_upstream_host = 19;
+  optional string routed_upstream_route_id = 20;
 }
 
 enum HttpAuthMode {

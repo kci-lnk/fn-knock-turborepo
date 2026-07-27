@@ -184,6 +184,19 @@ pub(super) async fn resolve_auth_access(
     uri: &Uri,
     translator: &Translator,
 ) -> anyhow::Result<AuthAccess> {
+    resolve_auth_access_with_routed_upstream(state, headers, uri, translator, None, None, None)
+        .await
+}
+
+pub(super) async fn resolve_auth_access_with_routed_upstream(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    translator: &Translator,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> anyhow::Result<AuthAccess> {
     let client_ip = client_ip_for_auth(headers);
     let config = state.store.get_config().await?;
     let access_mode = requested_access_mode(headers);
@@ -191,7 +204,7 @@ pub(super) async fn resolve_auth_access(
         resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
             .await?;
 
-    resolve_auth_access_with_normal_access(
+    resolve_auth_access_with_normal_access_and_rule_match(
         state,
         headers,
         uri,
@@ -199,28 +212,10 @@ pub(super) async fn resolve_auth_access(
         &config,
         &client_ip,
         &normal_access,
-    )
-    .await
-}
-
-pub(super) async fn resolve_auth_access_with_normal_access(
-    state: &AppState,
-    headers: &HeaderMap,
-    uri: &Uri,
-    translator: &Translator,
-    config: &Value,
-    client_ip: &str,
-    normal_access: &PreflightNormalAccess,
-) -> anyhow::Result<AuthAccess> {
-    resolve_auth_access_with_normal_access_and_rule_match(
-        state,
-        headers,
-        uri,
-        translator,
-        config,
-        client_ip,
-        normal_access,
         None,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
     )
     .await
 }
@@ -235,6 +230,9 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
     client_ip: &str,
     normal_access: &PreflightNormalAccess,
     matched: Option<&SubdomainRuleMatch>,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
     let invalid_session_cookies = if normal_access.invalid_session_cookie {
         resolve_cookie_clear_domains(Some(config), headers)
@@ -348,7 +346,16 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
         });
     }
 
-    let share_access = fnos_share_bypass::authorize(state, headers, uri, config).await?;
+    let share_access = fnos_share_bypass::authorize(
+        state,
+        headers,
+        uri,
+        config,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await?;
     if share_access.authorized {
         let mut set_cookies = invalid_session_cookies;
         set_cookies.extend(share_access.set_cookies);

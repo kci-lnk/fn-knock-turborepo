@@ -179,6 +179,8 @@ async fn handle_authorize_http(
     let (run_preflight, run_verify) = http_auth_stages(request.mode);
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());
+    let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
+        routed_upstream_from_auth_context(request.context.as_ref());
     let client_ip = client_ip_for_auth(&headers);
     let access_mode = requested_access_mode(&headers);
     let mut response = empty_authorize_http_response();
@@ -253,6 +255,9 @@ async fn handle_authorize_http(
             &client_ip,
             access_mode,
             &normal_access,
+            routed_upstream,
+            routed_upstream_host,
+            routed_upstream_route_id,
         )
         .await
         {
@@ -286,6 +291,9 @@ async fn handle_authorize_http(
             &client_ip,
             &normal_access,
             request.subdomain_rule_match.as_ref(),
+            routed_upstream,
+            routed_upstream_host,
+            routed_upstream_route_id,
         )
         .await
         {
@@ -339,8 +347,20 @@ fn http_auth_stages(mode: i32) -> (bool, bool) {
 async fn handle_verify_auth(state: AppState, request: VerifyAuthRequest) -> VerifyAuthResponse {
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());
+    let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
+        routed_upstream_from_auth_context(request.context.as_ref());
     let translator = Translator::from_state(&state).await;
-    match resolve_auth_access(&state, &headers, &uri, &translator).await {
+    match resolve_auth_access_with_routed_upstream(
+        &state,
+        &headers,
+        &uri,
+        &translator,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await
+    {
         Ok(access) => verify_auth_response_from_access(access),
         Err(error) => {
             tracing::warn!(%error, "auth bridge verify failed");
@@ -459,9 +479,21 @@ async fn handle_preflight_auth(
 ) -> PreflightAuthResponse {
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());
+    let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
+        routed_upstream_from_auth_context(request.context.as_ref());
     let mut response = new_preflight_response();
 
-    if let Err(error) = apply_preflight_behavior(&state, &headers, &uri, &mut response).await {
+    if let Err(error) = apply_preflight_behavior_with_routed_upstream(
+        &state,
+        &headers,
+        &uri,
+        &mut response,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await
+    {
         tracing::warn!(%error, "auth bridge preflight failed");
     }
     preflight_auth_response_from_http(&response)
@@ -678,6 +710,18 @@ fn headers_from_auth_context(context: Option<&AuthContext>) -> HeaderMap {
     headers
 }
 
+fn routed_upstream_from_auth_context(
+    context: Option<&AuthContext>,
+) -> (Option<&str>, Option<&str>, Option<&str>) {
+    context.map_or((None, None, None), |context| {
+        (
+            context.routed_upstream.as_deref(),
+            context.routed_upstream_host.as_deref(),
+            context.routed_upstream_route_id.as_deref(),
+        )
+    })
+}
+
 fn uri_from_auth_context(context: Option<&AuthContext>) -> Uri {
     let Some(context) = context else {
         return Uri::from_static("/");
@@ -817,6 +861,25 @@ mod tests {
         let headers = headers_from_auth_context(Some(&context));
         assert_eq!(headers["accesstoken"], "compact-token");
         assert_eq!(headers["access-token"], "hyphenated-token");
+    }
+
+    #[test]
+    fn routed_backend_metadata_preserves_optional_presence() {
+        let context = AuthContext {
+            routed_upstream: Some("http://10.0.0.8:5666/fnos".to_string()),
+            routed_upstream_host: Some("nas.example.com".to_string()),
+            routed_upstream_route_id: Some("route-generation-a".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            routed_upstream_from_auth_context(Some(&context)),
+            (
+                Some("http://10.0.0.8:5666/fnos"),
+                Some("nas.example.com"),
+                Some("route-generation-a")
+            )
+        );
+        assert_eq!(routed_upstream_from_auth_context(None), (None, None, None));
     }
 
     #[test]

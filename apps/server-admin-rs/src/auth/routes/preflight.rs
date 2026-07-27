@@ -30,6 +30,19 @@ pub(super) async fn apply_preflight_behavior(
     uri: &Uri,
     response: &mut Response,
 ) -> anyhow::Result<()> {
+    apply_preflight_behavior_with_routed_upstream(state, headers, uri, response, None, None, None)
+        .await
+}
+
+pub(super) async fn apply_preflight_behavior_with_routed_upstream(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    response: &mut Response,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> anyhow::Result<()> {
     let client_ip = client_ip_for_auth(headers);
     let access_mode = requested_access_mode(headers);
     let config = state.store.get_config().await?;
@@ -46,6 +59,9 @@ pub(super) async fn apply_preflight_behavior(
         &client_ip,
         access_mode,
         &normal_access,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
     )
     .await
 }
@@ -60,6 +76,9 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
     client_ip: &str,
     access_mode: RequestedAccessMode,
     normal_access: &PreflightNormalAccess,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
     let forwarded_path = preflight_forwarded_path(headers);
     let mut share_decision_handled = false;
@@ -112,7 +131,16 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
             HeaderValue::from_static(REAUTH_SCOPE_DENIED),
         );
     } else if !normal_access.authorized {
-        let decision = fnos_share_bypass::resolve_preflight(state, headers, uri, config).await?;
+        let decision = fnos_share_bypass::resolve_preflight(
+            state,
+            headers,
+            uri,
+            config,
+            routed_upstream,
+            routed_upstream_host,
+            routed_upstream_route_id,
+        )
+        .await?;
         share_decision_handled = decision.handled;
         if let Some(location) = decision.redirect_location {
             insert_header_value(response, "X-Reauth-Redirect-Location", &location);

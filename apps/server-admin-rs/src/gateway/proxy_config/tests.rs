@@ -2324,14 +2324,32 @@ fn validates_stream_mapping_duplicates() {
     ])
     .unwrap_err();
     assert!(error.contains("Duplicate stream mapping"));
-    assert!(
+    assert_eq!(
         normalize_stream_mappings(vec![json!({
             "protocol": "udp",
             "listen_port": 5353,
             "target": "[::1]:53",
-            "use_auth": false
+            "use_auth": false,
+            "comment": "  Local DNS  "
         })])
-        .is_ok()
+        .unwrap(),
+        vec![json!({
+            "protocol": "udp",
+            "listen_port": 5353,
+            "target": "[::1]:53",
+            "use_auth": false,
+            "comment": "Local DNS"
+        })]
+    );
+    assert_eq!(
+        normalize_stream_mappings(vec![json!({
+            "protocol": "tcp",
+            "listen_port": 2222,
+            "target": "127.0.0.1:22"
+        })])
+        .unwrap()[0]
+            .get("comment"),
+        Some(&json!(""))
     );
 }
 

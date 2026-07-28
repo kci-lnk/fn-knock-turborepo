@@ -225,6 +225,7 @@ export interface StreamMapping {
   listen_port: number;
   target: string;
   use_auth: boolean;
+  comment?: string;
 }
 
 export type PasskeyRpMode = "auth_host" | "parent_domain";

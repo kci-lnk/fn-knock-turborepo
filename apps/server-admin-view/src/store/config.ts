@@ -14,6 +14,7 @@ import type {
   SubdomainModeConfig,
 } from "../types";
 import { ConfigAPI } from "../lib/api";
+import { createSerialTaskQueue } from "../lib/serialTaskQueue";
 import {
   getEffectiveRuntimeCapabilities,
   getEffectiveRuntimeProfile,
@@ -35,6 +36,7 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingGroupedViewSnapshot: boolean | null = null;
   let hostMappingsSnapshotRequestId = 0;
   let hostMappingsSavePromise: Promise<HostMapping[]> | null = null;
+  const runStreamMappingsSave = createSerialTaskQueue();
 
   const normalizeComparableBasicAuth = (
     value: HostMapping["basic_auth"],
@@ -398,9 +400,22 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
-  async function saveStreamMappings(mappings: StreamMapping[]) {
-    await ConfigAPI.updateStreamMappings(mappings);
-    await loadConfig({ force: true });
+  async function saveStreamMappings(
+    update: (current: readonly StreamMapping[]) => StreamMapping[],
+  ) {
+    return runStreamMappingsSave(async () => {
+      const current =
+        config.value?.stream_mappings ?? (await ConfigAPI.getStreamMappings());
+      const next = update(current);
+      await ConfigAPI.updateStreamMappings(next);
+      if (config.value) {
+        config.value = {
+          ...config.value,
+          stream_mappings: next,
+        };
+      }
+      await loadConfig({ force: true });
+    });
   }
 
   async function saveSubdomainMode(next: Partial<SubdomainModeConfig>) {

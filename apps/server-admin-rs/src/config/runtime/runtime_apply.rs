@@ -144,14 +144,7 @@ async fn apply_run_type_config_inner(
                 .map_err(|error| error.to_string()),
             "enable proxy protocol force",
         );
-        log_go_value_result(
-            state
-                .go_backend
-                .flush_stream_rules()
-                .await
-                .map_err(|error| error.to_string()),
-            "flush stream rules",
-        );
+        disable_stream_rules(state).await?;
 
         if is_reverse_proxy_subdomain_mode(config) {
             log_go_value_result(
@@ -198,18 +191,12 @@ async fn apply_run_type_config_inner(
                 .map_err(|error| error.to_string()),
             "flush path rules",
         );
+        if !protocol_mapping_enabled {
+            disable_stream_rules(state).await?;
+        }
         sync_host_rules(state, config, host_rules_lock_held).await?;
         if protocol_mapping_enabled {
-            sync_stream_rules(state, config).await;
-        } else {
-            log_go_value_result(
-                state
-                    .go_backend
-                    .flush_stream_rules()
-                    .await
-                    .map_err(|error| error.to_string()),
-                "flush stream rules",
-            );
+            sync_stream_rules(state, config).await?;
         }
         sync_default_route(state, config).await;
         maybe_apply_host_firewall(state, config, run_type, protocol_mapping_enabled).await?;
@@ -217,14 +204,7 @@ async fn apply_run_type_config_inner(
     }
 
     sync_host_rules(state, config, host_rules_lock_held).await?;
-    log_go_value_result(
-        state
-            .go_backend
-            .flush_stream_rules()
-            .await
-            .map_err(|error| error.to_string()),
-        "flush stream rules",
-    );
+    disable_stream_rules(state).await?;
     sync_path_rules(state, config).await;
     sync_default_route(state, config).await;
     if run_type == 0 {
@@ -260,8 +240,8 @@ pub(super) async fn sync_host_rules(
     }
 }
 
-pub(super) async fn sync_stream_rules(state: &AppState, config: &Value) {
-    log_go_value_result(
+pub(super) async fn sync_stream_rules(state: &AppState, config: &Value) -> Result<(), String> {
+    ensure_go_success(
         state
             .go_backend
             .set_stream_rules(
@@ -270,9 +250,20 @@ pub(super) async fn sync_stream_rules(state: &AppState, config: &Value) {
                     .unwrap_or(&Value::Array(Vec::new())),
             )
             .await
-            .map_err(|error| error.to_string()),
-        "sync stream rules",
-    );
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
+}
+
+pub(super) async fn disable_stream_rules(state: &AppState) -> Result<(), String> {
+    ensure_go_success(
+        state
+            .go_backend
+            .flush_stream_rules()
+            .await
+            .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(super) async fn sync_auth_entry_route(state: &AppState) {
@@ -397,6 +388,23 @@ pub(super) async fn rollback_config_protocol_feature_and_runtime(
     }
     if let Err(error) = apply_run_type_config(state, previous_config, run_type).await {
         tracing::warn!(%error, "failed to rollback runtime state");
+    }
+}
+
+pub(super) async fn rollback_protocol_mapping_feature_and_runtime(
+    state: &AppState,
+    config: &Value,
+    previous_protocol_mapping_feature: &Value,
+    run_type: i64,
+) {
+    if let Err(error) =
+        save_protocol_mapping_feature(state, previous_protocol_mapping_feature).await
+    {
+        tracing::warn!(%error, "failed to rollback protocol mapping feature");
+        return;
+    }
+    if let Err(error) = apply_run_type_config(state, config, run_type).await {
+        tracing::warn!(%error, "failed to rollback protocol mapping runtime state");
     }
 }
 

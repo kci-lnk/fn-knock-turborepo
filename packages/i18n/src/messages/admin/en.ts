@@ -712,7 +712,7 @@ export const enAdmin = {
       "Shows the SSH security entry and automatically blocks abnormal sources from SSH login logs",
     protocolMapping: "Protocol mapping",
     protocolMappingHint:
-      "Shows the Protocol mapping entry and enables TCP/UDP forwarding",
+      "Shows Protocol mappings and enables TCP/UDP forwarding. Turning it off disables mappings but keeps their configuration.",
     sidebarMenuOrder: "Sidebar menu order",
     sidebarMenuOrderHint: "Customize the order of the left navigation menu",
     smartConnect: "Smart Connect",
@@ -2434,9 +2434,15 @@ export const enAdmin = {
     accessTitle: "Public access and router setup",
     accessDescription:
       "The external port is the port this host actually listens on. For example, if the software maps external port 6789 to 127.0.0.1:3306, configure the router to forward public port 6789 to port 6789 on this host, then connect to demo.example.com:6789. Do not forward the router directly to port 3306. If authentication is enabled, sign in on the web first, otherwise the connection is rejected directly.",
-    searchPlaceholder: "Search protocol, external port, target address...",
+    searchPlaceholder:
+      "Search protocol, external port, comment, target address...",
     protocol: "Protocol",
     listenPort: "External port",
+    comment: "Comment",
+    commentPlaceholder: "Example: SSH service",
+    commentHint: "Use this to identify and find a mapping. Optional.",
+    commentUpdated: "Comment updated",
+    commentUpdateFailed: "Failed to update comment",
     target: "Target address",
     authStatus: "Auth status",
     empty: "No protocol mappings configured yet.",

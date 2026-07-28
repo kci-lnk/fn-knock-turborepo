@@ -30,6 +30,7 @@ export const normalizeStreamMapping = (
 ): StreamMapping => ({
   ...mapping,
   protocol: normalizeProtocol(mapping.protocol),
+  comment: mapping.comment?.trim() ?? "",
 });
 
 export const createMappingKey = (
@@ -47,6 +48,44 @@ export const compareStreamMappings = (
   a.listen_port === b.listen_port
     ? a.protocol.localeCompare(b.protocol)
     : a.listen_port - b.listen_port;
+
+const normalizeStreamMappings = (
+  mappings: readonly StreamMapping[],
+): StreamMapping[] =>
+  [...mappings].map(normalizeStreamMapping).sort(compareStreamMappings);
+
+export const applyStreamMappingSubmission = (
+  mappings: readonly StreamMapping[],
+  submission: StreamMappingEditorSubmission,
+): StreamMapping[] => {
+  const next = normalizeStreamMappings(mappings);
+  const existingIndex = next.findIndex(
+    (mapping) => getMappingKey(mapping) === submission.editingKey,
+  );
+  if (existingIndex >= 0) {
+    next.splice(existingIndex, 1, ...submission.mappings);
+  } else {
+    next.push(...submission.mappings);
+  }
+  return next;
+};
+
+export const removeStreamMapping = (
+  mappings: readonly StreamMapping[],
+  key: string,
+): StreamMapping[] =>
+  normalizeStreamMappings(mappings).filter(
+    (mapping) => getMappingKey(mapping) !== key,
+  );
+
+export const updateStreamMappingComment = (
+  mappings: readonly StreamMapping[],
+  key: string,
+  comment: string,
+): StreamMapping[] =>
+  normalizeStreamMappings(mappings).map((mapping) =>
+    getMappingKey(mapping) === key ? { ...mapping, comment } : mapping,
+  );
 
 export const formatProtocolLabel = (protocol: StreamMappingProtocol): string =>
   protocol.toUpperCase();

@@ -57,7 +57,6 @@
             </AlertDescription>
           </div>
         </Alert>
-
         <div
           class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
         >
@@ -67,7 +66,6 @@
             class="max-w-xs"
           />
         </div>
-
         <div class="overflow-hidden rounded-md border">
           <Table>
             <TableHeader>
@@ -76,6 +74,7 @@
                 <TableHead>{{
                   t("admin.streamMappings.listenPort")
                 }}</TableHead>
+                <TableHead>{{ t("admin.streamMappings.comment") }}</TableHead>
                 <TableHead>{{ t("admin.streamMappings.target") }}</TableHead>
                 <TableHead>{{
                   t("admin.streamMappings.authStatus")
@@ -88,7 +87,7 @@
             <TableBody>
               <TableRow v-if="filteredMappings.length === 0">
                 <TableCell
-                  colspan="5"
+                  colspan="6"
                   class="py-8 text-center text-muted-foreground"
                 >
                   {{ t("admin.streamMappings.empty") }}
@@ -113,6 +112,12 @@
                   >
                     <span>{{ mapping.listen_port }}</span>
                   </div>
+                </TableCell>
+                <TableCell class="min-w-[180px]">
+                  <InlineCommentEditor
+                    :text="mapping.comment"
+                    :save="(value) => updateComment(mapping, value)"
+                  />
                 </TableCell>
                 <TableCell class="font-mono text-sm">{{
                   mapping.target
@@ -208,6 +213,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
@@ -224,12 +230,15 @@ import { useConfigStore } from "../store/config";
 import type { StreamMapping } from "../types";
 import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
 import {
+  applyStreamMappingSubmission,
   compareStreamMappings,
   formatMappingLabel,
   formatProtocolLabel,
   getMappingKey,
   normalizeStreamMapping,
+  removeStreamMapping,
   type StreamMappingEditorSubmission,
+  updateStreamMappingComment,
 } from "./stream-mappings/streamMappingModel";
 
 const configStore = useConfigStore();
@@ -260,6 +269,7 @@ const filteredMappings = computed(() => {
       mapping.protocol.includes(query) ||
       formatProtocolLabel(mapping.protocol).toLowerCase().includes(query) ||
       String(mapping.listen_port).includes(query) ||
+      (mapping.comment ?? "").toLowerCase().includes(query) ||
       mapping.target.toLowerCase().includes(query) ||
       authStatus.includes(query)
     );
@@ -279,18 +289,9 @@ function openEditDialog(mapping: StreamMapping) {
 async function saveMapping(submission: StreamMappingEditorSubmission) {
   isSaving.value = true;
   try {
-    const next = [...allMappings.value];
-    const existingIndex = next.findIndex(
-      (mapping) => getMappingKey(mapping) === submission.editingKey,
+    await configStore.saveStreamMappings((current) =>
+      applyStreamMappingSubmission(current, submission),
     );
-
-    if (existingIndex >= 0) {
-      next.splice(existingIndex, 1, ...submission.mappings);
-    } else {
-      next.push(...submission.mappings);
-    }
-
-    await configStore.saveStreamMappings(next);
     toast.success(
       getSaveSuccessMessage(
         submission.mappings.length,
@@ -319,10 +320,8 @@ function getSaveSuccessMessage(savedCount: number, isEditing: boolean): string {
 async function removeMapping(mapping: StreamMapping) {
   removingMappingKey.value = getMappingKey(mapping);
   try {
-    await configStore.saveStreamMappings(
-      allMappings.value.filter(
-        (item) => getMappingKey(item) !== getMappingKey(mapping),
-      ),
+    await configStore.saveStreamMappings((current) =>
+      removeStreamMapping(current, getMappingKey(mapping)),
     );
     toast.success(
       t("admin.streamMappings.removeSuccess", {
@@ -338,6 +337,20 @@ async function removeMapping(mapping: StreamMapping) {
   }
 }
 
+async function updateComment(mapping: StreamMapping, comment: string) {
+  try {
+    const key = getMappingKey(mapping);
+    await configStore.saveStreamMappings((current) =>
+      updateStreamMappingComment(current, key, comment),
+    );
+    toast.success(t("admin.streamMappings.commentUpdated"));
+  } catch (error: any) {
+    throw new Error(
+      extractErrorMessage(error, t("admin.streamMappings.commentUpdateFailed")),
+      { cause: error },
+    );
+  }
+}
 async function syncRoutes() {
   isSyncing.value = true;
   try {

@@ -12,6 +12,8 @@ async fn fpk_lite_runtime_test_state() -> (tempfile::TempDir, AppState) {
     settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
     settings.legacy_redis_url = String::new();
     settings.internal_rpc_token = "fpk-lite-runtime-test-token".to_string();
+    settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+    settings.request_timeout = std::time::Duration::from_millis(100);
     let state = AppState::new(settings)
         .await
         .expect("create FPK Lite runtime state");
@@ -77,6 +79,49 @@ async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
     assert_eq!(
         clear_firewall(State(state)).await.status(),
         StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mappings = json!([{
+        "protocol": "tcp",
+        "listen_port": 2222,
+        "target": "127.0.0.1:22",
+        "use_auth": true,
+        "comment": "SSH"
+    }]);
+    let mut config = state.store.get_config().await.expect("load config");
+    config
+        .as_object_mut()
+        .expect("config object")
+        .insert("stream_mappings".to_string(), mappings.clone());
+    state.store.save_config(&config).await.expect("save config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
+        .await
+        .expect("enable protocol mapping feature");
+    assert!(disable_stream_rules(&state).await.is_err());
+
+    let response =
+        update_protocol_mapping_feature(State(state.clone()), Json(json!({ "enabled": false })))
+            .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("stream_mappings"),
+        Some(&mappings)
+    );
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("reload feature"),
+        json!({ "enabled": true })
     );
 }
 
@@ -322,6 +367,11 @@ fn firewall_exempt_ports_include_stream_and_smart_connect_ports() {
     assert!(ports.contains(&"2222".to_string()));
     assert!(ports.contains(&"53".to_string()));
     assert!(!ports.contains(&"70000".to_string()));
+
+    let disabled_ports = exempt_ports(&config, false, 3);
+    assert!(disabled_ports.contains(&gateway_port().to_string()));
+    assert!(disabled_ports.contains(&"53".to_string()));
+    assert!(!disabled_ports.contains(&"2222".to_string()));
 }
 
 #[test]

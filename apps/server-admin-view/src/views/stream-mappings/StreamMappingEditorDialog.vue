@@ -45,11 +45,13 @@ const hasTargetBlurred = ref(false);
 const form = reactive<{
   protocols: StreamMappingProtocol[];
   listenPort: string;
+  comment: string;
   target: string;
   useAuth: boolean;
 }>({
   protocols: [DEFAULT_STREAM_PROTOCOL],
   listenPort: "",
+  comment: "",
   target: "",
   useAuth: true,
 });
@@ -137,6 +139,7 @@ const resetForm = () => {
   const mapping = props.mapping ? normalizeStreamMapping(props.mapping) : null;
   form.protocols = mapping ? [mapping.protocol] : [DEFAULT_STREAM_PROTOCOL];
   form.listenPort = mapping ? String(mapping.listen_port) : "";
+  form.comment = mapping?.comment ?? "";
   form.target = mapping?.target ?? "";
   form.useAuth = mapping?.use_auth ?? true;
   hasAttemptedSubmit.value = false;
@@ -154,6 +157,7 @@ const submit = () => {
     mappings: selectedProtocols.value.map((protocol) => ({
       protocol,
       listen_port: port,
+      comment: form.comment.trim(),
       target: form.target.trim(),
       use_auth: form.useAuth,
     })),
@@ -227,6 +231,20 @@ watch(
           />
           <p class="text-xs text-muted-foreground">
             {{ t("admin.streamMappings.targetHint") }}
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <Label for="stream-comment">
+            {{ t("admin.streamMappings.comment") }}
+          </Label>
+          <Input
+            id="stream-comment"
+            v-model="form.comment"
+            :placeholder="t('admin.streamMappings.commentPlaceholder')"
+          />
+          <p class="text-xs text-muted-foreground">
+            {{ t("admin.streamMappings.commentHint") }}
           </p>
         </div>
 

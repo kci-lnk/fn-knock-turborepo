@@ -7,11 +7,14 @@ import {
   DEFAULT_RESPONSE_CONTENT_TYPE,
 } from "../src/views/system-settings/gateway-locations/gatewayLocationModel";
 import {
+  applyStreamMappingSubmission,
   compareStreamMappings,
   formatMappingLabel,
   getMappingKey,
   normalizeProtocolSelection,
   normalizeStreamMapping,
+  removeStreamMapping,
+  updateStreamMappingComment,
 } from "../src/views/stream-mappings/streamMappingModel";
 import {
   durationUnits,
@@ -132,12 +135,57 @@ describe("stream mapping model", () => {
       "udp:443",
     ]);
     assert.equal(formatMappingLabel(mappings[2]!), "UDP/443");
+    const normalized = normalizeStreamMapping({
+      ...mappings[0]!,
+      protocol: undefined as unknown as "tcp",
+      comment: "  Web service  ",
+    });
+    assert.equal(normalized.protocol, "tcp");
+    assert.equal(normalized.comment, "Web service");
+    assert.equal(normalizeStreamMapping(mappings[1]!).comment, "");
+  });
+
+  it("rebases queued edits on the latest mapping collection", () => {
+    const mappings: StreamMapping[] = [
+      {
+        protocol: "tcp",
+        listen_port: 22,
+        target: "a:22",
+        use_auth: true,
+        comment: "",
+      },
+      {
+        protocol: "tcp",
+        listen_port: 80,
+        target: "a:80",
+        use_auth: true,
+        comment: "",
+      },
+    ];
+    const first = updateStreamMappingComment(mappings, "tcp:22", "SSH");
+    const second = updateStreamMappingComment(first, "tcp:80", "Web");
+    assert.deepEqual(
+      second.map((mapping) => mapping.comment),
+      ["SSH", "Web"],
+    );
+    assert.deepEqual(
+      removeStreamMapping(second, "tcp:22").map(getMappingKey),
+      ["tcp:80"],
+    );
     assert.equal(
-      normalizeStreamMapping({
-        ...mappings[0]!,
-        protocol: undefined as unknown as "tcp",
-      }).protocol,
-      "tcp",
+      applyStreamMappingSubmission(second, {
+        editingKey: "tcp:80",
+        mappings: [
+          {
+            protocol: "tcp",
+            listen_port: 8080,
+            target: "a:8080",
+            use_auth: false,
+            comment: "Web",
+          },
+        ],
+      }).map(getMappingKey)[1],
+      "tcp:8080",
     );
   });
 });

@@ -642,7 +642,8 @@ export const zhCNAdmin = {
     sshSecurityHint:
       "开启后显示“SSH安全”入口，并根据 SSH 登录日志自动封锁异常来源",
     protocolMapping: "协议映射",
-    protocolMappingHint: "开启后，显示“协议映射”入口并启用 TCP/UDP 转发",
+    protocolMappingHint:
+      "开启后显示“协议映射”入口并启用 TCP/UDP 转发；关闭仅停用映射，已有配置会继续保留",
     sidebarMenuOrder: "侧边栏菜单排序",
     sidebarMenuOrderHint: "自定义左侧导航菜单的显示顺序",
     smartConnect: "智能连接",
@@ -2266,9 +2267,14 @@ export const zhCNAdmin = {
     accessTitle: "公网访问与路由器设置",
     accessDescription:
       "软件中的“对外端口”是本机实际监听的端口。例如设置“对外端口 6789 → 目标地址 127.0.0.1:3306”时，路由器应配置“公网 6789 → 本机 6789”，客户端访问 demo.example.com:6789；不要将路由器直接转发到本机 3306。如果映射开启了鉴权，需要先在网页端完成登录，否则连接会被直接拒绝。",
-    searchPlaceholder: "搜索协议、对外端口、目标地址...",
+    searchPlaceholder: "搜索协议、对外端口、备注、目标地址...",
     protocol: "协议",
     listenPort: "对外端口",
+    comment: "备注",
+    commentPlaceholder: "例如 SSH 服务",
+    commentHint: "用于区分和查找映射，可留空。",
+    commentUpdated: "备注已更新",
+    commentUpdateFailed: "更新备注失败",
     target: "目标地址",
     authStatus: "鉴权状态",
     empty: "还没有配置任何协议映射。",

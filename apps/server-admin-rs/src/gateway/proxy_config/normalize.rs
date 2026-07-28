@@ -844,6 +844,11 @@ pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Valu
             "listen_port": listen_port,
             "target": target,
             "use_auth": object.get("use_auth").and_then(Value::as_bool).unwrap_or(true),
+            "comment": object
+                .get("comment")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim(),
         }));
     }
     Ok(normalized)

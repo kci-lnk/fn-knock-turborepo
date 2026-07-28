@@ -647,7 +647,8 @@ export const zhHantAdmin = {
     sshSecurityHint:
       "開啟後顯示「SSH安全」入口，並根據 SSH 登入日誌自動封鎖異常來源",
     protocolMapping: "協議映射",
-    protocolMappingHint: "開啟後，顯示「協議映射」入口並啟用 TCP/UDP 轉發",
+    protocolMappingHint:
+      "開啟後顯示「協議映射」入口並啟用 TCP/UDP 轉發；關閉只會停用映射，現有配置會繼續保留",
     sidebarMenuOrder: "側邊欄選單排序",
     sidebarMenuOrderHint: "自訂左側導覽選單的顯示順序",
     smartConnect: "智能連接",
@@ -2276,9 +2277,14 @@ export const zhHantAdmin = {
     accessTitle: "公網訪問與路由器設定",
     accessDescription:
       "軟體中的「對外端口」是本機實際監聽的端口。例如設定「對外端口 6789 → 目標地址 127.0.0.1:3306」時，路由器應設定「公網 6789 → 本機 6789」，用戶端訪問 demo.example.com:6789；不要將路由器直接轉發到本機 3306。如果映射開啟了鑒權，需要先在網頁端完成登入，否則連接會被直接拒絕。",
-    searchPlaceholder: "搜尋協議、對外端口、目標地址...",
+    searchPlaceholder: "搜尋協議、對外端口、備註、目標地址...",
     protocol: "協議",
     listenPort: "對外端口",
+    comment: "備註",
+    commentPlaceholder: "例如 SSH 服務",
+    commentHint: "用於區分和搜尋映射，可留空。",
+    commentUpdated: "備註已更新",
+    commentUpdateFailed: "更新備註失敗",
     target: "目標地址",
     authStatus: "鑒權狀態",
     empty: "還沒有配置任何協議映射。",

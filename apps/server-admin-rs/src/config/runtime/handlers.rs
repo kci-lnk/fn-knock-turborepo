@@ -286,11 +286,6 @@ pub(super) async fn update_protocol_mapping_feature(
     let mut current = previous_settings.clone();
     merge_object(&mut current, &body);
     let next = normalize_protocol_mapping_feature(Some(&current));
-    let mut next_config = previous_config.clone();
-    if next.get("enabled").and_then(Value::as_bool) == Some(false) {
-        let object = ensure_config_object(&mut next_config);
-        object.insert("stream_mappings".to_string(), Value::Array(Vec::new()));
-    }
 
     if let Err(error) = save_protocol_mapping_feature(&state, &next).await {
         tracing::warn!(%error, "failed to save protocol mapping feature key");
@@ -299,27 +294,11 @@ pub(super) async fn update_protocol_mapping_feature(
             admin_text(&translator, "protocolMapping.updateFeatureFailed"),
         );
     }
-    if next.get("enabled").and_then(Value::as_bool) == Some(false)
-        && let Err(error) = state.store.save_config(&next_config).await
-    {
-        tracing::warn!(%error, "failed to clear stream mappings after protocol mapping disabled");
-        if let Err(rollback_error) = save_protocol_mapping_feature(&state, &previous_settings).await
-        {
-            tracing::warn!(
-                %rollback_error,
-                "failed to rollback protocol mapping feature key"
-            );
-        }
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_text(&translator, "protocolMapping.updateFeatureFailed"),
-        );
-    }
 
-    match apply_run_type_config(&state, &next_config, run_type).await {
+    match apply_run_type_config(&state, &previous_config, run_type).await {
         Ok(()) => response::ok(next).into_response(),
         Err(error) => {
-            rollback_config_protocol_feature_and_runtime(
+            rollback_protocol_mapping_feature_and_runtime(
                 &state,
                 &previous_config,
                 &previous_settings,

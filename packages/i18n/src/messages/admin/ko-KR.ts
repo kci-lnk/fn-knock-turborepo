@@ -1374,7 +1374,7 @@ export const koKRAdmin = {
     regionsLoadDescription:
       "선택한 광역 지역의 시·군 목록을 불러오지 못했습니다.",
     cannotSave: "저장할 수 없습니다",
-    saved: "SSH 보안 설정을 저장했습니다.",
+    saved: "SSH 보안 설정을 저장하고 방화벽에 적용했습니다.",
     cannotSync: "동기화할 수 없습니다",
     unavailableToSync: "이 환경은 방화벽을 동기화할 수 없습니다.",
     firewallSynced: "SSH 방화벽이 동기화되었습니다.",
@@ -1408,12 +1408,12 @@ export const koKRAdmin = {
     day: "일",
     allowedRegions: "SSH 접근 허용 지역",
     allowedRegionsDescription:
-      "지역을 추가하지 않으면 지역 제한이 적용되지 않습니다. 지역이 추가된 후에는 해당 지역과 사용자 지정 CIDR만 SSH에 접근할 수 있습니다.",
+      "지역을 추가하지 않으면 지역 제한이 적용되지 않습니다. 지역을 추가한 후에는 해당 지역, 사용자 지정 CIDR 및 기본 로컬 출발지만 SSH에 접근할 수 있습니다.",
     addRegion: "지역 추가",
     noRegions: "아직 지역 제한이 없습니다.",
     customCidrs: "사용자 지정 CIDR",
     customCidrsDescription:
-      "VPN이나 사무실의 공인 출구 IP 대역처럼 고정된 네트워크 범위를 한 줄에 하나씩 추가하세요.",
+      "비표준 VPN이나 사무실 공인 출구의 고정 대역을 한 줄에 하나씩 추가하세요. Tailscale과 호스트 루프백은 자동으로 예외 처리됩니다.",
     customCidrsInvalid: "형식 오류: {items}",
     customCidrsRecognized: "{count} 사용자 지정 CIDR이 인식되었습니다.",
     collapse: "접기",

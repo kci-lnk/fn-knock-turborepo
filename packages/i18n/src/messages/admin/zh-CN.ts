@@ -1270,7 +1270,7 @@ export const zhCNAdmin = {
     regionsLoadFailed: "地区列表加载失败",
     regionsLoadDescription: "无法获取省份下的城市列表",
     cannotSave: "无法保存",
-    saved: "SSH 安全配置已保存",
+    saved: "SSH 安全配置已保存并应用到防火墙",
     cannotSync: "无法同步",
     unavailableToSync: "当前环境不可同步防火墙",
     firewallSynced: "SSH 防火墙已同步",
@@ -1301,11 +1301,12 @@ export const zhCNAdmin = {
     day: "天",
     allowedRegions: "允许访问 SSH 的地区",
     allowedRegionsDescription:
-      "未添加地区时不做地区限制；添加后，仅允许这些地区和自定义 CIDR 访问 SSH。",
+      "未添加地区时不做地区限制；添加后，仅允许这些地区、自定义 CIDR 和内置本地来源访问 SSH。",
     addRegion: "添加地区",
     noRegions: "尚未限制地区。",
     customCidrs: "自定义 CIDR",
-    customCidrsDescription: "可补充 VPN、办公公网出口等固定网段，每行一条。",
+    customCidrsDescription:
+      "可补充非标准 VPN、办公公网出口等固定网段，每行一条；Tailscale 与本机回环已内置豁免。",
     customCidrsInvalid: "格式错误：{items}",
     customCidrsRecognized: "已识别 {count} 条自定义 CIDR",
     collapse: "折叠",

@@ -1386,7 +1386,7 @@ export const jaJPAdmin = {
     regionsLoadFailed: "地域一覧の読み込みに失敗しました",
     regionsLoadDescription: "この省の都市一覧を読み込めませんでした",
     cannotSave: "保存できません",
-    saved: "SSH セキュリティ設定を保存しました",
+    saved: "SSH セキュリティ設定を保存し、ファイアウォールへ適用しました",
     cannotSync: "同期できません",
     unavailableToSync: "現在の環境ではファイアウォールを同期できません",
     firewallSynced: "SSH ファイアウォールを同期しました",
@@ -1421,12 +1421,12 @@ export const jaJPAdmin = {
     day: "日",
     allowedRegions: "SSH アクセスを許可する地域",
     allowedRegionsDescription:
-      "地域を追加しない場合、地域による制限はありません。追加すると、指定地域とカスタム CIDR からのみ SSH へアクセスできます。",
+      "地域を追加しない場合、地域による制限はありません。追加すると、指定地域、カスタム CIDR、組み込みのローカル送信元からのみ SSH へアクセスできます。",
     addRegion: "地域を追加",
     noRegions: "地域制限はまだありません。",
     customCidrs: "カスタム CIDR",
     customCidrsDescription:
-      "VPN やオフィスのインターネット出口など、固定ネットワーク範囲を1行に1つ入力します。",
+      "標準外の VPN やオフィスのインターネット出口など、固定範囲を1行に1つ入力します。Tailscale とホストのループバックは自動的に除外されます。",
     customCidrsInvalid: "形式が無効です: {items}",
     customCidrsRecognized: "カスタム CIDR を {count} 件認識しました",
     collapse: "折りたたむ",

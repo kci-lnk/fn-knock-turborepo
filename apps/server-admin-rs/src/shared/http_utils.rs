@@ -232,6 +232,10 @@ mod tests {
         assert!(is_private_or_local_ip("127.0.0.1"));
         assert!(is_private_or_local_ip("192.168.31.2"));
         assert!(is_private_or_local_ip("172.16.0.1"));
+        assert!(is_private_or_local_ip("100.64.0.1"));
+        assert!(is_private_or_local_ip("100.127.255.254"));
+        assert!(is_private_or_local_ip("fd7a:115c:a1e0::1"));
+        assert!(!is_private_or_local_ip("100.128.0.1"));
         assert!(!is_private_or_local_ip("8.8.8.8"));
     }
 

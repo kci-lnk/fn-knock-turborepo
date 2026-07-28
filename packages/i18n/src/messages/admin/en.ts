@@ -1384,7 +1384,7 @@ export const enAdmin = {
     regionsLoadFailed: "Failed to load regions",
     regionsLoadDescription: "Unable to load the city list for this province",
     cannotSave: "Cannot save",
-    saved: "SSH security configuration saved",
+    saved: "SSH security configuration saved and applied to the firewall",
     cannotSync: "Cannot sync",
     unavailableToSync: "This environment cannot sync the firewall",
     firewallSynced: "SSH firewall synced",
@@ -1419,12 +1419,12 @@ export const enAdmin = {
     day: "Days",
     allowedRegions: "Regions allowed to access SSH",
     allowedRegionsDescription:
-      "When no regions are added, no regional restriction is applied. After regions are added, only those regions and custom CIDRs can access SSH.",
+      "When no regions are added, no regional restriction is applied. After regions are added, only those regions, custom CIDRs, and built-in local sources can access SSH.",
     addRegion: "Add region",
     noRegions: "No region restrictions yet.",
     customCidrs: "Custom CIDRs",
     customCidrsDescription:
-      "Add fixed network ranges such as VPN or office public egress addresses, one per line.",
+      "Add fixed ranges for non-standard VPNs or office public egress, one per line. Tailscale and host loopback are exempted automatically.",
     customCidrsInvalid: "Format error: {items}",
     customCidrsRecognized: "{count} custom CIDRs recognized",
     collapse: "Collapse",

@@ -279,6 +279,10 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
         .and_then(|value| value.get("enabled"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let record_localhost = current
+        .and_then(|value| value.get("record_localhost"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let max_days = current
         .and_then(|value| value.get("max_days"))
         .and_then(Value::as_i64)
@@ -307,6 +311,7 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
             "gateway_logging".to_string(),
             json!({
                 "enabled": enabled,
+                "record_localhost": record_localhost,
                 "max_days": max_days,
                 "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
                 "dropped_entries": runtime.get("dropped_entries").and_then(Value::as_u64).unwrap_or(0),

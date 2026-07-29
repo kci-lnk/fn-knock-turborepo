@@ -33,9 +33,13 @@ const configStore = useConfigStore();
 const { t } = useI18n();
 const settings = ref<GatewayLoggingConfig | null>(null);
 const form = reactive<
-  Pick<GatewayLoggingConfig, "enabled" | "max_days" | "logs_dir">
+  Pick<
+    GatewayLoggingConfig,
+    "enabled" | "record_localhost" | "max_days" | "logs_dir"
+  >
 >({
   enabled: false,
+  record_localhost: false,
   max_days: 7,
   logs_dir: "",
 });
@@ -66,6 +70,7 @@ const isDirty = computed(() => {
   if (!settings.value) return false;
   return (
     settings.value.enabled !== form.enabled ||
+    settings.value.record_localhost !== form.record_localhost ||
     settings.value.max_days !== Number(form.max_days)
   );
 });
@@ -77,6 +82,7 @@ const formatCount = (value: number) => new Intl.NumberFormat().format(value);
 const applyFromSettings = (data: GatewayLoggingConfig) => {
   settings.value = data;
   form.enabled = data.enabled;
+  form.record_localhost = data.record_localhost;
   form.max_days = data.max_days;
   form.logs_dir = data.logs_dir || "";
 };
@@ -97,6 +103,7 @@ const saveSettings = async () => {
     () =>
       GatewayLogsAPI.updateConfig({
         enabled: form.enabled,
+        record_localhost: form.record_localhost,
         max_days: Math.max(1, Math.floor(Number(form.max_days) || 1)),
       }),
     {
@@ -158,11 +165,31 @@ onMounted(fetchSettings);
         />
       </div>
 
+      <div class="flex items-center justify-between bg-muted/10 p-6">
+        <div class="space-y-1 pr-6">
+          <Label
+            :for="`${a11yId}-gatewayloggingsettings-2`"
+            class="cursor-pointer text-base font-medium"
+            @click="form.record_localhost = !form.record_localhost"
+          >
+            {{ t("admin.gatewayLogging.recordLocalhostLabel") }}
+          </Label>
+          <div class="text-sm text-muted-foreground">
+            {{ t("admin.gatewayLogging.recordLocalhostDescription") }}
+          </div>
+        </div>
+        <Switch
+          :id="`${a11yId}-gatewayloggingsettings-2`"
+          v-model="form.record_localhost"
+          :disabled="isSaving"
+        />
+      </div>
+
       <div
         class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
       >
         <div class="space-y-1 pr-6">
-          <Label :for="`${a11yId}-gatewayloggingsettings-2`" class="text-base">
+          <Label :for="`${a11yId}-gatewayloggingsettings-3`" class="text-base">
             {{ t("admin.gatewayLogging.retentionLabel") }}
           </Label>
           <div class="text-sm text-muted-foreground">
@@ -171,7 +198,7 @@ onMounted(fetchSettings);
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <Input
-            :id="`${a11yId}-gatewayloggingsettings-2`"
+            :id="`${a11yId}-gatewayloggingsettings-3`"
             v-model.number="form.max_days"
             type="number"
             min="1"

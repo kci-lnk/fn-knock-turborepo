@@ -52,6 +52,7 @@ pub(super) async fn sync_runtime_after_import(
     let gateway_logging = config.get("gateway_logging").cloned().unwrap_or_else(|| {
         json!({
             "enabled": true,
+            "record_localhost": false,
             "max_days": 7
         })
     });

@@ -1743,6 +1743,9 @@ export const zhHantAdmin = {
     enableLabel: "啟用請求日誌",
     enableDescription:
       "默認關閉。開啟後會記錄訪問者 IP、請求地址、登入狀態、響應狀態、耗時和上游目標等資訊。",
+    recordLocalhostLabel: "記錄來自 127.0.0.1 本機回環的日誌",
+    recordLocalhostDescription:
+      "預設關閉。開啟後，Go 網關會記錄用戶端來源為 127.0.0.1 的請求日誌。",
     retentionLabel: "日誌保留天數",
     retentionDescription:
       "按天切分日誌文件，只保留最近 N 天。超出的舊文件會自動清理。",

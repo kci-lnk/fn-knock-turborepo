@@ -1871,6 +1871,9 @@ export const jaJPAdmin = {
     enableLabel: "リクエストログを有効化",
     enableDescription:
       "デフォルトでは無効です。有効にすると、アクセス元 IP、リクエスト URL、ログイン状態、レスポンスステータス、処理時間、アップストリームの転送先などを記録します。",
+    recordLocalhostLabel: "127.0.0.1 ローカルループバックからのログを記録",
+    recordLocalhostDescription:
+      "デフォルトでは無効です。有効にすると、Go ゲートウェイはクライアントの接続元が 127.0.0.1 のリクエストログを記録します。",
     retentionLabel: "ログの保存日数",
     retentionDescription:
       "ログファイルを日単位で分割し、直近 N 日分のみ保持します。それ以前のファイルは自動的に削除されます。",

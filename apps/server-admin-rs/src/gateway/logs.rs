@@ -38,6 +38,8 @@ struct GatewayLogQuery {
 #[derive(Deserialize)]
 struct GatewayLoggingConfigBody {
     enabled: bool,
+    #[serde(default)]
+    record_localhost: bool,
     max_days: i64,
 }
 
@@ -92,6 +94,7 @@ async fn update_config(
     let translator = Translator::from_state(&state).await;
     let settings = GatewayLoggingSettings {
         enabled: body.enabled,
+        record_localhost: body.record_localhost,
         max_days: normalize_gateway_logging_max_days(body.max_days),
     };
     let mut config = match state.store.get_config().await {
@@ -106,7 +109,11 @@ async fn update_config(
     };
     ensure_object(&mut config).insert(
         "gateway_logging".to_string(),
-        json!({ "enabled": settings.enabled, "max_days": settings.max_days }),
+        json!({
+            "enabled": settings.enabled,
+            "record_localhost": settings.record_localhost,
+            "max_days": settings.max_days
+        }),
     );
     if let Err(error) = state.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save gateway logging config");
@@ -120,6 +127,7 @@ async fn update_config(
         .go_backend
         .set_gateway_logging_config(&json!({
             "enabled": settings.enabled,
+            "record_localhost": settings.record_localhost,
             "max_days": settings.max_days
         }))
         .await
@@ -445,6 +453,7 @@ fn go_data_response(
 #[derive(Clone, Copy)]
 struct GatewayLoggingSettings {
     enabled: bool,
+    record_localhost: bool,
     max_days: i64,
 }
 
@@ -459,6 +468,10 @@ async fn gateway_logging_settings(
         .unwrap_or_default();
     Ok(GatewayLoggingSettings {
         enabled: raw.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+        record_localhost: raw
+            .get("record_localhost")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         max_days: raw
             .get("max_days")
             .and_then(Value::as_i64)
@@ -515,6 +528,7 @@ fn append_if_present(
 fn gateway_logging_config_response(settings: GatewayLoggingSettings, runtime: &Value) -> Value {
     json!({
         "enabled": settings.enabled,
+        "record_localhost": settings.record_localhost,
         "max_days": settings.max_days,
         "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
         "dropped_entries": runtime_u64_field(runtime, "dropped_entries"),
@@ -786,6 +800,7 @@ mod tests {
         let payload = gateway_logging_config_response(
             GatewayLoggingSettings {
                 enabled: true,
+                record_localhost: true,
                 max_days: 14,
             },
             &json!({
@@ -802,6 +817,7 @@ mod tests {
             payload,
             json!({
                 "enabled": true,
+                "record_localhost": true,
                 "max_days": 14,
                 "logs_dir": "/runtime/logs",
                 "dropped_entries": 5,
@@ -816,12 +832,14 @@ mod tests {
         let payload = gateway_logging_config_response(
             GatewayLoggingSettings {
                 enabled: false,
+                record_localhost: false,
                 max_days: 7,
             },
             &Value::Null,
         );
 
         assert_eq!(payload["logs_dir"], "");
+        assert_eq!(payload["record_localhost"], false);
         assert_eq!(payload["dropped_entries"], 0);
         assert_eq!(payload["queue_size"], 0);
         assert_eq!(payload["queue_depth"], 0);

@@ -1872,6 +1872,9 @@ export const enAdmin = {
     enableLabel: "Enable request logs",
     enableDescription:
       "Off by default. When enabled, visitor IP, request URL, login state, response status, duration, upstream target, and related details are recorded.",
+    recordLocalhostLabel: "Log requests from local loopback 127.0.0.1",
+    recordLocalhostDescription:
+      "Off by default. When enabled, the Go gateway records requests whose client source is 127.0.0.1.",
     retentionLabel: "Log retention days",
     retentionDescription:
       "Log files are split by day and only the most recent N days are kept. Older files are cleaned automatically.",

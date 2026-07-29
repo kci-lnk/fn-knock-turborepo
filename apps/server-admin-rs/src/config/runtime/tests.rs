@@ -178,9 +178,14 @@ fn normalizes_gateway_logging_like_node_parse_int_without_upper_cap() {
     assert_eq!(
         normalize_gateway_logging(Some(&json!({
             "enabled": true,
+            "record_localhost": true,
             "max_days": "2x",
         }))),
-        json!({ "enabled": true, "max_days": 2 })
+        json!({ "enabled": true, "record_localhost": true, "max_days": 2 })
+    );
+    assert_eq!(
+        normalize_gateway_logging(None),
+        json!({ "enabled": false, "record_localhost": false, "max_days": 7 })
     );
     assert_eq!(
         normalize_gateway_logging(Some(&json!({

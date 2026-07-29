@@ -142,6 +142,7 @@ message LoggingConfig {
   uint64 dropped_entries = 4;
   int32 queue_size = 5;
   int32 queue_depth = 6;
+  bool record_localhost = 7;
 }
 
 message ReverseProxyThrottleConfig {

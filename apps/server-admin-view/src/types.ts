@@ -502,6 +502,7 @@ export interface FnosNetworkTuningUpdatePayload {
 
 export interface GatewayLoggingConfig {
   enabled: boolean;
+  record_localhost: boolean;
   max_days: number;
   logs_dir: string;
   dropped_entries?: number;

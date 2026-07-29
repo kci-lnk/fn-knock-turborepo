@@ -58,7 +58,10 @@ export const GatewayLogsAPI = {
     return res.data.data;
   },
   async updateConfig(
-    payload: Pick<GatewayLoggingConfig, "enabled" | "max_days">,
+    payload: Pick<
+      GatewayLoggingConfig,
+      "enabled" | "record_localhost" | "max_days"
+    >,
   ): Promise<GatewayLoggingConfig> {
     const res = await apiClient.post("/gateway-logs/config", payload);
     return res.data.data;

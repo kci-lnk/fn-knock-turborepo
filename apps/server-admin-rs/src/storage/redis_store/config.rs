@@ -55,6 +55,7 @@ pub fn default_config() -> Value {
     });
     let gateway_logging = json!({
         "enabled": false,
+        "record_localhost": false,
         "max_days": 7
     });
     let waf = json!({

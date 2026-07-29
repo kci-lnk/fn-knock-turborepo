@@ -369,6 +369,7 @@ pub(super) fn normalize_smart_connect_runtime(value: Option<&Value>) -> Value {
 pub(super) fn normalize_gateway_logging(value: Option<&Value>) -> Value {
     json!({
         "enabled": bool_field(value, "enabled", false),
+        "record_localhost": bool_field(value, "record_localhost", false),
         "max_days": int_field(value, "max_days", 7, 1, JS_MAX_SAFE_INTEGER_I64),
     })
 }

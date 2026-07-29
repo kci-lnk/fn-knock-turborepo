@@ -1733,6 +1733,9 @@ export const zhCNAdmin = {
     enableLabel: "启用请求日志",
     enableDescription:
       "默认关闭。开启后会记录访问者 IP、请求地址、登录状态、响应状态、耗时和上游目标等信息。",
+    recordLocalhostLabel: "记录来自127.0.0.1本地回环的日志",
+    recordLocalhostDescription:
+      "默认关闭。开启后，Go 网关会记录客户端来源为 127.0.0.1 的请求日志。",
     retentionLabel: "日志保留天数",
     retentionDescription:
       "按天切分日志文件，只保留最近 N 天。超出的旧文件会自动清理。",

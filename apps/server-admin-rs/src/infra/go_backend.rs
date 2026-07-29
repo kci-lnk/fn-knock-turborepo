@@ -1397,6 +1397,7 @@ fn parse_auth_config(value: &Value) -> AuthConfig {
 fn parse_logging(value: &Value) -> LoggingConfig {
     LoggingConfig {
         enabled: bool_field(value, "enabled", false),
+        record_localhost: bool_field(value, "record_localhost", false),
         max_days: i32_field(value, "max_days", 0),
         logs_dir: string_field(value, "logs_dir"),
         dropped_entries: 0,
@@ -1657,6 +1658,7 @@ fn locale_to_json(config: LocaleConfig) -> Value {
 fn logging_to_json(config: LoggingConfig) -> Value {
     json!({
         "enabled": config.enabled,
+        "record_localhost": config.record_localhost,
         "max_days": config.max_days,
         "logs_dir": config.logs_dir,
         "dropped_entries": config.dropped_entries,
@@ -2049,6 +2051,7 @@ mod tests {
     fn logging_config_json_includes_runtime_queue_metrics() {
         let value = logging_to_json(LoggingConfig {
             enabled: true,
+            record_localhost: true,
             max_days: 9,
             logs_dir: "/var/log/fn-knock".to_string(),
             dropped_entries: 12,
@@ -2060,6 +2063,7 @@ mod tests {
             value,
             json!({
                 "enabled": true,
+                "record_localhost": true,
                 "max_days": 9,
                 "logs_dir": "/var/log/fn-knock",
                 "dropped_entries": 12,

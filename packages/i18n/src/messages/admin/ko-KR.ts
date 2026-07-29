@@ -1858,6 +1858,9 @@ export const koKRAdmin = {
     enableLabel: "요청 로그 사용",
     enableDescription:
       "기본값은 사용 안 함입니다. 사용하면 방문자 IP, 요청 URL, 로그인 상태, 응답 상태, 처리 시간, 업스트림 대상 등을 기록합니다.",
+    recordLocalhostLabel: "127.0.0.1 로컬 루프백 요청 로그 기록",
+    recordLocalhostDescription:
+      "기본값은 사용 안 함입니다. 사용하면 Go 게이트웨이가 클라이언트 소스가 127.0.0.1인 요청 로그를 기록합니다.",
     retentionLabel: "로그 보관 일수",
     retentionDescription:
       "로그 파일은 날짜별로 분할되며 가장 최근 N일만 보관됩니다. 오래된 파일은 자동으로 정리됩니다.",

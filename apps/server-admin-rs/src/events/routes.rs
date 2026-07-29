@@ -236,6 +236,30 @@ pub async fn publish_app_update_available_event(
     publish_system_event_body(state, body).await
 }
 
+fn latest_release_notes_for_event(release_notes: &str, latest_version: &str) -> String {
+    let trimmed = release_notes.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let expected_heading = format!("# fn-knock {}", latest_version.trim());
+    let lines = trimmed.lines().collect::<Vec<_>>();
+    let Some(start) = lines
+        .iter()
+        .position(|line| line.trim() == expected_heading)
+    else {
+        return trimmed.to_string();
+    };
+    let mut selected = Vec::new();
+    for (offset, line) in lines[start..].iter().enumerate() {
+        let normalized = line.trim();
+        if offset > 0 && (normalized == "---" || normalized.starts_with("# fn-knock ")) {
+            break;
+        }
+        selected.push(*line);
+    }
+    selected.join("\n").trim().to_string()
+}
+
 fn app_update_available_body(
     local_version: &str,
     latest_version: &str,
@@ -253,12 +277,9 @@ fn app_update_available_body(
         Value::String(latest_version.to_string()),
     );
     payload.insert("force_update".to_string(), Value::Bool(force_update));
-    let release_notes = release_notes.trim();
+    let release_notes = latest_release_notes_for_event(release_notes, latest_version);
     if !release_notes.is_empty() {
-        payload.insert(
-            "release_notes".to_string(),
-            Value::String(release_notes.to_string()),
-        );
+        payload.insert("release_notes".to_string(), Value::String(release_notes));
     }
     let check_reason = check_reason.trim();
     if !check_reason.is_empty() {

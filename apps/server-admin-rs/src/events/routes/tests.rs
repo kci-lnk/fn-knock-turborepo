@@ -175,6 +175,39 @@ fn builds_app_update_available_event_like_node() {
 }
 
 #[test]
+fn app_update_event_includes_only_the_latest_release_notes_section() {
+    let release_notes = r#"
+[用户协议与隐私政策](https://www.fnknock.cn/legal)
+
+# fn-knock 2.1.3
+
+- 修复协议映射回环配置
+- 停用后仍可管理已有配置
+
+---
+
+# fn-knock 2.1.2
+
+- 历史版本内容不应进入事件推送
+"#;
+
+    let body = app_update_available_body("2.1.2", "2.1.3", false, release_notes, "scheduled");
+    assert_eq!(
+        body.payload.get("release_notes"),
+        Some(&json!(
+            "# fn-knock 2.1.3\n\n- 修复协议映射回环配置\n- 停用后仍可管理已有配置"
+        ))
+    );
+
+    let plain_notes =
+        app_update_available_body("2.1.2", "2.1.3", false, "普通更新说明", "scheduled");
+    assert_eq!(
+        plain_notes.payload.get("release_notes"),
+        Some(&json!("普通更新说明"))
+    );
+}
+
+#[test]
 fn dedupe_ttl_seconds_matches_node_number_ceiling() {
     assert_eq!(normalize_dedupe_ttl_seconds(Some(1.2)), 2);
     assert_eq!(normalize_dedupe_ttl_seconds(Some(1.0)), 1);

@@ -361,7 +361,9 @@
         "targetMustBeHostPort": "目标地址 {target} 必须是 host:port 形式",
         "saveFailed": "保存协议映射失败",
         "syncFailed": "同步协议映射与网关端口放行规则失败",
-        "syncFailedRolledBack": "同步协议映射与网关端口放行规则失败，已回滚配置"
+        "syncFailedRolledBack": "同步协议映射与网关端口放行规则失败，已回滚配置",
+        "localTargetLoop": "{protocol} 监听端口 {port} 不能转发到本机同一端口（{target}），否则会形成循环；请修改对外端口或目标端口",
+        "localPortLoop": "监听端口 {port} 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口"
       },
       "passkeyRp": {
         "parentDomainRequired": "启用父域 Passkey RP 时，请先填写根域名，或显式指定一个父域 RP ID。",
@@ -3453,7 +3455,9 @@
         "targetMustBeHostPort": "目標地址 {target} 必須是 host:port 形式",
         "saveFailed": "保存協議映射失敗",
         "syncFailed": "同步協議映射與網關端口放行規則失敗",
-        "syncFailedRolledBack": "同步協議映射與網關端口放行規則失敗，已回滾配置"
+        "syncFailedRolledBack": "同步協議映射與網關端口放行規則失敗，已回滾配置",
+        "localTargetLoop": "{protocol} 監聽端口 {port} 不能轉發到本機相同端口（{target}），否則會形成循環；請修改對外端口或目標端口",
+        "localPortLoop": "監聽端口 {port} 不能轉發到本機相同端口，否則會形成循環；請進入協議映射修改對外端口或目標端口"
       },
       "passkeyRp": {
         "parentDomainRequired": "啟用父域 Passkey RP 時，請先填寫根域名，或顯式指定一個父域 RP ID。",
@@ -6545,7 +6549,9 @@
         "targetMustBeHostPort": "Target address {target} must be in host:port form",
         "saveFailed": "Failed to save protocol mappings",
         "syncFailed": "Failed to sync protocol mappings and gateway port allow rules",
-        "syncFailedRolledBack": "Failed to sync protocol mappings and gateway port allow rules; configuration was rolled back"
+        "syncFailedRolledBack": "Failed to sync protocol mappings and gateway port allow rules; configuration was rolled back",
+        "localTargetLoop": "{protocol} listen port {port} cannot forward to the same port on this host ({target}) because it would create a loop. Change the external or target port.",
+        "localPortLoop": "Listen port {port} cannot forward to the same port on this host because it would create a loop. Open Protocol mappings and change the external or target port."
       },
       "passkeyRp": {
         "parentDomainRequired": "When parent-domain Passkey RP is enabled, enter the root domain or explicitly specify a parent RP ID.",
@@ -9637,7 +9643,9 @@
         "targetMustBeHostPort": "대상 주소 {target}(은)는 호스트:포트 형식이어야 합니다.",
         "saveFailed": "프로토콜 매핑을 저장하지 못했습니다.",
         "syncFailed": "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다.",
-        "syncFailedRolledBack": "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다. 설정이 롤백되었습니다."
+        "syncFailedRolledBack": "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다. 설정이 롤백되었습니다.",
+        "localTargetLoop": "{protocol} 수신 포트 {port}을(를) 이 호스트의 동일한 포트({target})로 전달하면 순환이 발생합니다. 외부 포트 또는 대상 포트를 변경하세요.",
+        "localPortLoop": "수신 포트 {port}을(를) 이 호스트의 동일한 포트로 전달하면 순환이 발생합니다. 프로토콜 매핑에서 외부 포트 또는 대상 포트를 변경하세요."
       },
       "passkeyRp": {
         "parentDomainRequired": "상위 도메인 패스키 RP가 활성화된 경우 루트 도메인을 입력하거나 상위 RP ID를 명시적으로 지정합니다.",
@@ -12729,7 +12737,9 @@
         "targetMustBeHostPort": "転送先 {target} は host:port 形式で指定してください",
         "saveFailed": "プロトコルマッピングの保存に失敗しました",
         "syncFailed": "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗しました",
-        "syncFailedRolledBack": "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗したため、設定をロールバックしました"
+        "syncFailedRolledBack": "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗したため、設定をロールバックしました",
+        "localTargetLoop": "{protocol} の待受ポート {port} をこのホストの同じポート（{target}）へ転送するとループが発生します。外部ポートまたは転送先ポートを変更してください",
+        "localPortLoop": "待受ポート {port} をこのホストの同じポートへ転送するとループが発生します。プロトコルマッピングを開き、外部ポートまたは転送先ポートを変更してください"
       },
       "passkeyRp": {
         "parentDomainRequired": "親ドメインのパスキー RP を有効にするには、ルートドメインを入力するか、親ドメインの RP ID を明示的に指定してください。",

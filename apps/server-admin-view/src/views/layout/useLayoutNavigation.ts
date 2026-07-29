@@ -108,7 +108,8 @@ export const useLayoutNavigation = () => {
       });
     } else if (isAnySubdomainRoutingMode(configStore.config)) {
       const showProtocolMapping =
-        configStore.config?.protocol_mapping_feature?.enabled === true;
+        configStore.config?.protocol_mapping_feature?.enabled === true ||
+        (configStore.config?.stream_mappings?.length ?? 0) > 0;
       items.splice(1, 0, {
         id: "route_mapping",
         name: t("admin.nav.subdomainMapping"),

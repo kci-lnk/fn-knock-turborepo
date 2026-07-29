@@ -56,6 +56,10 @@ use subdomain::*;
 #[cfg(test)]
 mod tests;
 
+pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(), String> {
+    normalize::validate_stream_mapping_runtime_safety_inner(config)
+}
+
 const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE: &str = "text/plain; charset=utf-8";
 const BASIC_AUTH_PROBE_USER_AGENT: &str = "fn-knock-server-admin-basic-auth-probe/1.0";
 const METADATA_USER_AGENT: &str = "fn-knock-server-admin/1.0";
@@ -342,8 +346,76 @@ fn localize_runtime_sync_error(
     }
 }
 
-fn localize_proxy_config_error(translator: &Translator, message: &str) -> String {
+fn digits_after_marker<'a>(message: &'a str, marker: &str) -> Option<&'a str> {
+    let remainder = message.split_once(marker)?.1;
+    let digits_len = remainder
+        .as_bytes()
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    (digits_len > 0).then_some(&remainder[..digits_len])
+}
+
+pub(crate) fn localize_stream_mapping_runtime_error(
+    translator: &Translator,
+    message: &str,
+) -> Option<String> {
+    if !message.contains("cannot target the same local") {
+        return None;
+    }
+    let port = digits_after_marker(message, "listen_port ")?;
+    let target = message
+        .split_once("same local address ")
+        .and_then(|(_, target)| {
+            target
+                .trim()
+                .split(|character: char| {
+                    character.is_whitespace()
+                        || character == '"'
+                        || character == '\''
+                        || character == '\\'
+                        || character == '}'
+                        || character == ','
+                })
+                .next()
+                .map(str::to_string)
+        })
+        .filter(|target| !target.is_empty())
+        .or_else(|| {
+            message
+                .split_once("same local port ")
+                .map(|(_, target)| target.trim().to_string())
+                .filter(|target| !target.is_empty())
+        });
+    let protocol = message
+        .split_once("Stream mapping ")
+        .and_then(|(_, remainder)| remainder.split_once(" listen_port "))
+        .map(|(protocol, _)| protocol.trim().to_string())
+        .filter(|protocol| !protocol.is_empty())
+        .unwrap_or_else(|| "TCP/UDP".to_string());
+    Some(match target {
+        Some(target) => admin_config_text_params(
+            translator,
+            "streamMappings.localTargetLoop",
+            &[
+                ("protocol", protocol),
+                ("port", port.to_string()),
+                ("target", target),
+            ],
+        ),
+        None => admin_config_text_params(
+            translator,
+            "streamMappings.localPortLoop",
+            &[("port", port.to_string())],
+        ),
+    })
+}
+
+pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str) -> String {
     let message = message.trim();
+    if let Some(localized) = localize_stream_mapping_runtime_error(translator, message) {
+        return localized;
+    }
     match message {
         "Proxy mapping must be an object" => {
             return admin_config_text(translator, "proxyMappings.payloadObjectRequired");
@@ -1630,6 +1702,40 @@ async fn update_stream_mappings(
             );
         }
     };
+    let previous_mappings = previous_config
+        .get("stream_mappings")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let protocol_mapping_feature = match runtime_config::load_protocol_mapping_feature(
+        &state,
+        Some(&previous_config),
+    )
+    .await
+    {
+        Ok(feature) => feature,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load protocol mapping feature before stream mappings update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "streamMappings.saveFailed"),
+            );
+        }
+    };
+    let allow_unchanged_legacy_loops = protocol_mapping_feature
+        .get("enabled")
+        .and_then(Value::as_bool)
+        != Some(true);
+    if let Err(message) = validate_stream_mapping_update_safety(
+        previous_mappings,
+        &normalized,
+        allow_unchanged_legacy_loops,
+    ) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_proxy_config_error(&translator, &message),
+        );
+    }
     let mut updated_config = previous_config.clone();
     ensure_object(&mut updated_config).insert(
         "stream_mappings".to_string(),

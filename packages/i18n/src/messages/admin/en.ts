@@ -712,7 +712,7 @@ export const enAdmin = {
       "Shows the SSH security entry and automatically blocks abnormal sources from SSH login logs",
     protocolMapping: "Protocol mapping",
     protocolMappingHint:
-      "Shows Protocol mappings and enables TCP/UDP forwarding. Turning it off disables mappings but keeps their configuration.",
+      "Enables TCP/UDP forwarding. Turning it off disables mappings while keeping them available for configuration.",
     sidebarMenuOrder: "Sidebar menu order",
     sidebarMenuOrderHint: "Customize the order of the left navigation menu",
     smartConnect: "Smart Connect",
@@ -2437,6 +2437,9 @@ export const enAdmin = {
     accessTitle: "Public access and router setup",
     accessDescription:
       "The external port is the port this host actually listens on. For example, if the software maps external port 6789 to 127.0.0.1:3306, configure the router to forward public port 6789 to port 6789 on this host, then connect to demo.example.com:6789. Do not forward the router directly to port 3306. If authentication is enabled, sign in on the web first, otherwise the connection is rejected directly.",
+    disabledTitle: "Protocol mappings are disabled",
+    disabledDescription:
+      "Retained rules are not listening on any ports. You can fix or delete them here, then return to System settings → Features to enable the feature.",
     searchPlaceholder:
       "Search protocol, external port, comment, target address...",
     protocol: "Protocol",
@@ -2481,6 +2484,8 @@ export const enAdmin = {
     targetRequired: "Target address is required.",
     targetInvalid:
       "Target address must use host:port format, for example 127.0.0.1:3306.",
+    localTargetLoop:
+      "An external port cannot forward to the same port on this host because it would create a loop. Change the external or target port.",
     saveFailed: "Save failed",
     saveMany: "{action} {count} protocol mappings",
     saveOne: "{action} protocol mapping",

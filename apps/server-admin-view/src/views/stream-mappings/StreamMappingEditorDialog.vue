@@ -21,6 +21,7 @@ import {
   DEFAULT_STREAM_PROTOCOL,
   formatProtocolLabel,
   getMappingKey,
+  isObviousLocalStreamTargetLoop,
   normalizeProtocolSelection,
   normalizeStreamMapping,
   type StreamMappingEditorSubmission,
@@ -109,9 +110,17 @@ const getTargetValidationMessage = (showRequired: boolean): string => {
   if (!rawTarget) {
     return showRequired ? t("admin.streamMappings.targetRequired") : "";
   }
-  return isValidHostPort(rawTarget)
-    ? ""
-    : t("admin.streamMappings.targetInvalid");
+  if (!isValidHostPort(rawTarget)) {
+    return t("admin.streamMappings.targetInvalid");
+  }
+  const listenPort = parsedListenPort.value;
+  if (
+    listenPort !== null &&
+    isObviousLocalStreamTargetLoop(rawTarget, listenPort)
+  ) {
+    return t("admin.streamMappings.localTargetLoop");
+  }
+  return "";
 };
 
 const submitValidationMessage = computed(() => {

@@ -68,6 +68,18 @@ async fn apply_run_type_config_inner(
     run_type: i64,
     host_rules_lock_held: bool,
 ) -> Result<(), String> {
+    let protocol_mapping_feature = load_protocol_mapping_feature(state, Some(config))
+        .await
+        .map_err(|error| error.to_string())?;
+    let protocol_mapping_enabled = run_type == 3
+        && protocol_mapping_feature
+            .get("enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+    if protocol_mapping_enabled {
+        proxy_config::validate_stream_mapping_runtime_safety(config)?;
+    }
+
     log_go_value_result(
         state
             .go_backend
@@ -125,15 +137,6 @@ async fn apply_run_type_config_inner(
             "failed to sync gateway target runtime during run type apply"
         );
     }
-
-    let protocol_mapping_feature = load_protocol_mapping_feature(state, Some(config))
-        .await
-        .map_err(|error| error.to_string())?;
-    let protocol_mapping_enabled = run_type == 3
-        && protocol_mapping_feature
-            .get("enabled")
-            .and_then(Value::as_bool)
-            == Some(true);
 
     if run_type == 1 {
         log_go_value_result(

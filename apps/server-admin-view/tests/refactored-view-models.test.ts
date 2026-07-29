@@ -11,6 +11,7 @@ import {
   compareStreamMappings,
   formatMappingLabel,
   getMappingKey,
+  isObviousLocalStreamTargetLoop,
   normalizeProtocolSelection,
   normalizeStreamMapping,
   removeStreamMapping,
@@ -113,6 +114,26 @@ describe("gateway location model", () => {
 });
 
 describe("stream mapping model", () => {
+  it("detects obvious same-port local forwarding loops", () => {
+    for (const target of [
+      "localhost:5555",
+      "127.0.0.1:5555",
+      "127.0.0.42:5555",
+      "[::1]:5555",
+      "[::ffff:127.0.0.1]:5555",
+    ]) {
+      assert.equal(isObviousLocalStreamTargetLoop(target, 5555), true);
+    }
+    assert.equal(
+      isObviousLocalStreamTargetLoop("127.0.0.1:5555", 15555),
+      false,
+    );
+    assert.equal(
+      isObviousLocalStreamTargetLoop("192.0.2.20:5555", 5555),
+      false,
+    );
+  });
+
   it("normalizes protocol selections in stable TCP/UDP order", () => {
     assert.deepEqual(normalizeProtocolSelection(["udp", "tcp", "udp"]), [
       "tcp",

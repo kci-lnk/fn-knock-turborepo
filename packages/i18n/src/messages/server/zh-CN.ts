@@ -379,6 +379,10 @@ export const zhCNServer = {
       listenPortOutOfRange: "监听端口 {port} 超出有效范围",
       duplicatePort: "{protocol} 监听端口 {port} 重复，请保持协议 + 端口唯一",
       targetMustBeHostPort: "目标地址 {target} 必须是 host:port 形式",
+      localTargetLoop:
+        "{protocol} 监听端口 {port} 不能转发到本机同一端口（{target}），否则会形成循环；请修改对外端口或目标端口",
+      localPortLoop:
+        "监听端口 {port} 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口",
       saveFailed: "保存协议映射失败",
       syncFailed: "同步协议映射与网关端口放行规则失败",
       syncFailedRolledBack: "同步协议映射与网关端口放行规则失败，已回滚配置",

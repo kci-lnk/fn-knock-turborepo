@@ -24,7 +24,10 @@
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
+                  <DropdownMenuItem
+                    @click="syncRoutes"
+                    :disabled="isSyncing || !protocolMappingEnabled"
+                  >
                     <RefreshCw
                       class="mr-2 h-4 w-4"
                       :class="{ 'animate-spin': isSyncing }"
@@ -46,6 +49,7 @@
       </CardHeader>
 
       <CardContent class="space-y-4">
+        <StreamMappingDisabledAlert v-if="!protocolMappingEnabled" />
         <Alert
           class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
         >
@@ -228,6 +232,7 @@ import {
 import { ConfigAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import type { StreamMapping } from "../types";
+import StreamMappingDisabledAlert from "./stream-mappings/StreamMappingDisabledAlert.vue";
 import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
 import {
   applyStreamMappingSubmission,
@@ -255,6 +260,9 @@ const allMappings = computed(() =>
   [...(configStore.config?.stream_mappings ?? [])]
     .map(normalizeStreamMapping)
     .sort(compareStreamMappings),
+);
+const protocolMappingEnabled = computed(
+  () => configStore.config?.protocol_mapping_feature?.enabled === true,
 );
 
 const filteredMappings = computed(() => {

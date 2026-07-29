@@ -704,7 +704,7 @@ export const koKRAdmin = {
       "SSH 보안 항목을 표시하고 SSH 로그인 로그에서 비정상적인 출발지를 자동으로 차단합니다.",
     protocolMapping: "프로토콜 매핑",
     protocolMappingHint:
-      "프로토콜 매핑을 표시하고 TCP/UDP 전달을 활성화합니다. 비활성화해도 기존 매핑 설정은 유지됩니다.",
+      "TCP/UDP 전달을 활성화합니다. 비활성화해도 기존 매핑 설정은 유지되며 계속 관리할 수 있습니다.",
     sidebarMenuOrder: "사이드바 메뉴 순서",
     sidebarMenuOrderHint: "왼쪽 탐색 메뉴의 표시 순서를 변경합니다.",
     smartConnect: "스마트 커넥트",
@@ -2424,6 +2424,9 @@ export const koKRAdmin = {
     accessTitle: "외부 접근 및 라우터 설정",
     accessDescription:
       "'외부 포트'는 이 호스트가 실제로 수신하는 포트입니다. 예를 들어 '외부 포트 6789 → 대상 주소 127.0.0.1:3306'으로 설정했다면 라우터는 '공인 6789 → 이 호스트의 6789'로 설정하고 demo.example.com:6789에 접속해야 합니다. 라우터에서 3306 포트로 직접 전달하지 마세요. 인증을 사용하는 경우 먼저 웹에서 로그인해야 하며, 로그인하지 않으면 연결이 즉시 거부됩니다.",
+    disabledTitle: "프로토콜 매핑이 현재 비활성화되어 있습니다.",
+    disabledDescription:
+      "보관된 규칙은 어떤 포트에서도 수신하지 않습니다. 여기에서 설정을 수정하거나 삭제한 뒤 '시스템 설정 → 기능'으로 돌아가 다시 활성화하세요.",
     searchPlaceholder: "프로토콜, 외부 포트, 메모 또는 대상 주소 검색...",
     protocol: "프로토콜",
     listenPort: "외부 포트",
@@ -2467,6 +2470,8 @@ export const koKRAdmin = {
     targetRequired: "대상 주소가 필요합니다.",
     targetInvalid:
       "대상 주소는 호스트:포트 형식(예: 127.0.0.1:3306)을 사용해야 합니다.",
+    localTargetLoop:
+      "외부 포트를 이 호스트의 동일한 포트로 전달하면 순환이 발생합니다. 외부 포트 또는 대상 포트를 변경하세요.",
     saveFailed: "저장 실패",
     saveMany: "{action} {count} 프로토콜 매핑",
     saveOne: "{action} 프로토콜 매핑",

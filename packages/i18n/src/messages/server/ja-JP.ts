@@ -472,6 +472,10 @@ export const jaJPServer = {
         "{protocol} の待受ポート {port} が重複しています。プロトコルとポートの組み合わせは一意にしてください",
       targetMustBeHostPort:
         "転送先 {target} は host:port 形式で指定してください",
+      localTargetLoop:
+        "{protocol} の待受ポート {port} をこのホストの同じポート（{target}）へ転送するとループが発生します。外部ポートまたは転送先ポートを変更してください",
+      localPortLoop:
+        "待受ポート {port} をこのホストの同じポートへ転送するとループが発生します。プロトコルマッピングを開き、外部ポートまたは転送先ポートを変更してください",
       saveFailed: "プロトコルマッピングの保存に失敗しました",
       syncFailed:
         "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗しました",

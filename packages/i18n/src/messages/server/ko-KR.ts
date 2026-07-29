@@ -454,6 +454,10 @@ export const koKRServer = {
         "{protocol} 수신 포트 {port}(이)가 중복되었습니다. 프로토콜과 포트의 조합은 중복될 수 없습니다.",
       targetMustBeHostPort:
         "대상 주소 {target}(은)는 호스트:포트 형식이어야 합니다.",
+      localTargetLoop:
+        "{protocol} 수신 포트 {port}을(를) 이 호스트의 동일한 포트({target})로 전달하면 순환이 발생합니다. 외부 포트 또는 대상 포트를 변경하세요.",
+      localPortLoop:
+        "수신 포트 {port}을(를) 이 호스트의 동일한 포트로 전달하면 순환이 발생합니다. 프로토콜 매핑에서 외부 포트 또는 대상 포트를 변경하세요.",
       saveFailed: "프로토콜 매핑을 저장하지 못했습니다.",
       syncFailed:
         "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다.",

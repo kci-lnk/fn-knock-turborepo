@@ -648,7 +648,7 @@ export const zhHantAdmin = {
       "開啟後顯示「SSH安全」入口，並根據 SSH 登入日誌自動封鎖異常來源",
     protocolMapping: "協議映射",
     protocolMappingHint:
-      "開啟後顯示「協議映射」入口並啟用 TCP/UDP 轉發；關閉只會停用映射，現有配置會繼續保留",
+      "開啟後啟用 TCP/UDP 轉發；關閉只會停用映射，現有配置會保留並可繼續管理",
     sidebarMenuOrder: "側邊欄選單排序",
     sidebarMenuOrderHint: "自訂左側導覽選單的顯示順序",
     smartConnect: "智能連接",
@@ -2280,6 +2280,9 @@ export const zhHantAdmin = {
     accessTitle: "公網訪問與路由器設定",
     accessDescription:
       "軟體中的「對外端口」是本機實際監聽的端口。例如設定「對外端口 6789 → 目標地址 127.0.0.1:3306」時，路由器應設定「公網 6789 → 本機 6789」，用戶端訪問 demo.example.com:6789；不要將路由器直接轉發到本機 3306。如果映射開啟了鑒權，需要先在網頁端完成登入，否則連接會被直接拒絕。",
+    disabledTitle: "協議映射目前已停用",
+    disabledDescription:
+      "保留的規則不會監聽端口。你可以在此修正或刪除配置，完成後回到「系統設定 → 功能」重新開啟。",
     searchPlaceholder: "搜尋協議、對外端口、備註、目標地址...",
     protocol: "協議",
     listenPort: "對外端口",
@@ -2319,6 +2322,8 @@ export const zhHantAdmin = {
       "{protocols} 對外端口 {port} 已存在，請保持協議 + 端口唯一。",
     targetRequired: "目標地址不能為空。",
     targetInvalid: "目標地址必須使用 host:port 格式，例如 127.0.0.1:3306。",
+    localTargetLoop:
+      "對外端口不能轉發到本機的相同端口，否則會形成循環。請修改對外端口或目標端口。",
     saveFailed: "保存失敗",
     saveMany: "已{action} {count} 條協議映射",
     saveOne: "已{action}協議映射",

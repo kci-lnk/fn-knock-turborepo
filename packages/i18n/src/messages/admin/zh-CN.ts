@@ -643,7 +643,7 @@ export const zhCNAdmin = {
       "开启后显示“SSH安全”入口，并根据 SSH 登录日志自动封锁异常来源",
     protocolMapping: "协议映射",
     protocolMappingHint:
-      "开启后显示“协议映射”入口并启用 TCP/UDP 转发；关闭仅停用映射，已有配置会继续保留",
+      "开启后启用 TCP/UDP 转发；关闭仅停用映射，已有配置会保留并可继续管理",
     sidebarMenuOrder: "侧边栏菜单排序",
     sidebarMenuOrderHint: "自定义左侧导航菜单的显示顺序",
     smartConnect: "智能连接",
@@ -2270,6 +2270,9 @@ export const zhCNAdmin = {
     accessTitle: "公网访问与路由器设置",
     accessDescription:
       "软件中的“对外端口”是本机实际监听的端口。例如设置“对外端口 6789 → 目标地址 127.0.0.1:3306”时，路由器应配置“公网 6789 → 本机 6789”，客户端访问 demo.example.com:6789；不要将路由器直接转发到本机 3306。如果映射开启了鉴权，需要先在网页端完成登录，否则连接会被直接拒绝。",
+    disabledTitle: "协议映射当前已停用",
+    disabledDescription:
+      "保留的规则不会监听端口。你可以在这里修正或删除配置，完成后回到“系统设置 → 功能”重新开启。",
     searchPlaceholder: "搜索协议、对外端口、备注、目标地址...",
     protocol: "协议",
     listenPort: "对外端口",
@@ -2309,6 +2312,8 @@ export const zhCNAdmin = {
       "{protocols} 对外端口 {port} 已存在，请保持协议 + 端口唯一。",
     targetRequired: "目标地址不能为空。",
     targetInvalid: "目标地址必须使用 host:port 格式，例如 127.0.0.1:3306。",
+    localTargetLoop:
+      "对外端口不能转发到本机的同一端口，否则会形成循环。请修改对外端口或目标端口。",
     saveFailed: "保存失败",
     saveMany: "已{action} {count} 条协议映射",
     saveOne: "已{action}协议映射",

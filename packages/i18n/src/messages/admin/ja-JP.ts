@@ -715,7 +715,7 @@ export const jaJPAdmin = {
       "「SSH セキュリティ」を表示し、SSH のログイン記録に基づいて不審なアクセス元を自動的にブロックします",
     protocolMapping: "プロトコルマッピング",
     protocolMappingHint:
-      "「プロトコルマッピング」を表示し、TCP/UDP 転送を有効にします。無効にしてもマッピング設定は保持されます",
+      "TCP/UDP 転送を有効にします。無効にしてもマッピング設定は保持され、引き続き管理できます",
     sidebarMenuOrder: "サイドバーメニューの並び順",
     sidebarMenuOrderHint: "左側ナビゲーションの表示順を変更します",
     smartConnect: "スマート接続",
@@ -2440,6 +2440,9 @@ export const jaJPAdmin = {
     accessTitle: "外部アクセスとルーター設定",
     accessDescription:
       "「外部ポート」は、このホストが実際に待ち受けるポートです。たとえば「外部ポート 6789 → 転送先 127.0.0.1:3306」と設定した場合、ルーターでは「公開 6789 → このホストの 6789」と設定し、demo.example.com:6789 に接続します。ルーターから 3306 へ直接転送しないでください。認証を有効にした場合は、先に Web 画面でログインしてください。未認証の接続は拒否されます。",
+    disabledTitle: "プロトコルマッピングは現在無効です",
+    disabledDescription:
+      "保持されているルールはポートを待ち受けません。ここで設定を修正または削除し、完了後に「システム設定 → 機能」から再度有効にしてください。",
     searchPlaceholder: "プロトコル、外部ポート、コメント、転送先を検索...",
     protocol: "プロトコル",
     listenPort: "外部ポート",
@@ -2484,6 +2487,8 @@ export const jaJPAdmin = {
     targetRequired: "転送先を入力してください。",
     targetInvalid:
       "転送先は 127.0.0.1:3306 のように host:port 形式で入力してください。",
+    localTargetLoop:
+      "外部ポートをこのホストの同じポートへ転送するとループが発生します。外部ポートまたは転送先ポートを変更してください。",
     saveFailed: "保存に失敗しました",
     saveMany: "{count} 件のプロトコルマッピングを{action}しました",
     saveOne: "プロトコルマッピングを{action}しました",

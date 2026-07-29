@@ -1,4 +1,5 @@
 import type { StreamMapping, StreamMappingProtocol } from "@/types";
+import { parseHostPort } from "@admin-shared/utils/parseHostPort";
 
 export type StreamMappingEditorSubmission = {
   editingKey: string | null;
@@ -48,6 +49,34 @@ export const compareStreamMappings = (
   a.listen_port === b.listen_port
     ? a.protocol.localeCompare(b.protocol)
     : a.listen_port - b.listen_port;
+
+const isObviousLocalTargetHost = (host: string): boolean => {
+  const normalized = host.trim().replace(/\.$/u, "").toLowerCase();
+  if (
+    normalized === "localhost" ||
+    normalized === "0.0.0.0" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized === "0:0:0:0:0:0:0:0" ||
+    normalized === "0:0:0:0:0:0:0:1"
+  ) {
+    return true;
+  }
+  if (/^127(?:\.\d{1,3}){3}$/u.test(normalized)) return true;
+  return /^::ffff:127(?:\.\d{1,3}){3}$/u.test(normalized);
+};
+
+export const isObviousLocalStreamTargetLoop = (
+  target: string,
+  listenPort: number,
+): boolean => {
+  const parsed = parseHostPort(target);
+  return (
+    parsed !== null &&
+    parsed.port === listenPort &&
+    isObviousLocalTargetHost(parsed.host)
+  );
+};
 
 const normalizeStreamMappings = (
   mappings: readonly StreamMapping[],

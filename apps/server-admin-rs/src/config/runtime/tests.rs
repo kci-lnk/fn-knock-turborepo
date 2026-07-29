@@ -125,6 +125,58 @@ async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
     );
 }
 
+#[tokio::test]
+async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mappings = json!([{
+        "protocol": "tcp",
+        "listen_port": 5555,
+        "target": "127.0.0.1:5555",
+        "use_auth": true,
+        "comment": "Needs repair"
+    }]);
+    let mut config = state.store.get_config().await.expect("load config");
+    config
+        .as_object_mut()
+        .expect("config object")
+        .insert("stream_mappings".to_string(), mappings.clone());
+    state.store.save_config(&config).await.expect("save config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": false }))
+        .await
+        .expect("disable protocol mapping feature");
+
+    let response =
+        update_protocol_mapping_feature(State(state.clone()), Json(json!({ "enabled": true })))
+            .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    let response_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read response body");
+    let response_json: Value = serde_json::from_slice(&response_body).expect("parse response body");
+    assert_eq!(
+        response_json.get("message"),
+        Some(&json!(
+            "TCP 监听端口 5555 不能转发到本机同一端口（127.0.0.1:5555），否则会形成循环；请修改对外端口或目标端口"
+        ))
+    );
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("stream_mappings"),
+        Some(&mappings)
+    );
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("reload feature"),
+        json!({ "enabled": false })
+    );
+}
+
 #[test]
 fn builds_proxy_protocol_force_payload_from_go_envelopes() {
     assert_eq!(
@@ -664,6 +716,13 @@ fn localizes_runtime_config_route_and_fnos_network_errors() {
     assert_eq!(
         localize_runtime_config_error(&zh, GO_BACKEND_UNSUCCESSFUL_RESPONSE),
         "上游服务不可用"
+    );
+    assert_eq!(
+        localize_runtime_config_error(
+            &zh,
+            r#"go backend gRPC request failed: {"message":"failed to set stream rules: cannot target the same local listen_port 5555"}"#
+        ),
+        "监听端口 5555 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口"
     );
     assert_eq!(
         admin_text_params(

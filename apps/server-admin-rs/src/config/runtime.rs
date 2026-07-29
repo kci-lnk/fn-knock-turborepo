@@ -155,6 +155,11 @@ fn localize_runtime_config_error(translator: &Translator, message: &str) -> Stri
     if message.trim() == GO_BACKEND_UNSUCCESSFUL_RESPONSE {
         return runtime_config_route_text(translator, "upstreamUnavailable");
     }
+    if let Some(localized) =
+        proxy_config::localize_stream_mapping_runtime_error(translator, message)
+    {
+        return localized;
+    }
     message.to_string()
 }
 

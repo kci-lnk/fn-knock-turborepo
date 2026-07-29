@@ -379,6 +379,10 @@ export const zhHantServer = {
       listenPortOutOfRange: "監聽端口 {port} 超出有效範圍",
       duplicatePort: "{protocol} 監聽端口 {port} 重複，請保持協議 + 端口唯一",
       targetMustBeHostPort: "目標地址 {target} 必須是 host:port 形式",
+      localTargetLoop:
+        "{protocol} 監聽端口 {port} 不能轉發到本機相同端口（{target}），否則會形成循環；請修改對外端口或目標端口",
+      localPortLoop:
+        "監聽端口 {port} 不能轉發到本機相同端口，否則會形成循環；請進入協議映射修改對外端口或目標端口",
       saveFailed: "保存協議映射失敗",
       syncFailed: "同步協議映射與網關端口放行規則失敗",
       syncFailedRolledBack: "同步協議映射與網關端口放行規則失敗，已回滾配置",

@@ -306,7 +306,8 @@ router.beforeEach(async (to, from) => {
 
   const isProtocolMappingVisible =
     configStore.config?.run_type === 3 &&
-    configStore.config?.protocol_mapping_feature?.enabled === true;
+    (configStore.config?.protocol_mapping_feature?.enabled === true ||
+      (configStore.config?.stream_mappings?.length ?? 0) > 0);
 
   if (to.path === "/streams" && !isProtocolMappingVisible) {
     if (configStore.config?.run_type === 1) {

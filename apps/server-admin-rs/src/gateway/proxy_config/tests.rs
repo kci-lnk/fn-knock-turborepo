@@ -2354,6 +2354,86 @@ fn validates_stream_mapping_duplicates() {
 }
 
 #[test]
+fn rejects_stream_mappings_that_loop_to_the_same_local_port() {
+    let local_addresses = HashSet::from([
+        "192.0.2.10".parse().expect("local IPv4"),
+        "2001:db8::10".parse().expect("local IPv6"),
+    ]);
+    for target in [
+        "127.0.0.1:5555",
+        "localhost:5555",
+        "192.0.2.10:5555",
+        "[::1]:5555",
+        "[2001:db8::10]:5555",
+    ] {
+        let mappings = normalize_stream_mappings(vec![json!({
+            "protocol": "tcp",
+            "listen_port": 5555,
+            "target": target
+        })])
+        .expect("structurally valid stream mapping");
+        assert_eq!(
+            validate_stream_mapping_local_loops_with_addresses(&mappings, &local_addresses)
+                .expect_err("same-port local target should be rejected"),
+            format!(
+                "Stream mapping TCP listen_port 5555 cannot target the same local port {target}"
+            )
+        );
+    }
+
+    let safe_mappings = normalize_stream_mappings(vec![
+        json!({
+            "protocol": "tcp",
+            "listen_port": 15555,
+            "target": "127.0.0.1:5555"
+        }),
+        json!({
+            "protocol": "udp",
+            "listen_port": 5555,
+            "target": "192.0.2.20:5555"
+        }),
+    ])
+    .expect("safe stream mappings");
+    validate_stream_mapping_local_loops_with_addresses(&safe_mappings, &local_addresses)
+        .expect("different port or remote host should be allowed");
+}
+
+#[test]
+fn disabled_stream_mappings_can_repair_legacy_local_loops_incrementally() {
+    let legacy = normalize_stream_mappings(vec![json!({
+        "protocol": "tcp",
+        "listen_port": 5555,
+        "target": "127.0.0.1:5555",
+        "comment": "legacy"
+    })])
+    .expect("legacy mapping");
+    let comment_only_update = normalize_stream_mappings(vec![json!({
+        "protocol": "tcp",
+        "listen_port": 5555,
+        "target": "127.0.0.1:5555",
+        "comment": "needs repair"
+    })])
+    .expect("comment update");
+
+    validate_stream_mapping_update_safety(&legacy, &comment_only_update, true)
+        .expect("disabled feature should preserve an unchanged legacy loop");
+    assert!(
+        validate_stream_mapping_update_safety(&legacy, &comment_only_update, false).is_err(),
+        "enabled feature must reject every local loop"
+    );
+
+    let repaired = normalize_stream_mappings(vec![json!({
+        "protocol": "tcp",
+        "listen_port": 15555,
+        "target": "127.0.0.1:5555",
+        "comment": "repaired"
+    })])
+    .expect("repaired mapping");
+    validate_stream_mapping_update_safety(&legacy, &repaired, false)
+        .expect("repaired mapping should be accepted");
+}
+
+#[test]
 fn localizes_proxy_config_route_errors() {
     let translator = Translator::new("zh-CN");
     assert_eq!(
@@ -2373,6 +2453,20 @@ fn localizes_proxy_config_route_errors() {
     assert_eq!(
         localize_proxy_config_error(&translator, "Duplicate stream mapping for TCP port 2222"),
         "TCP 监听端口 2222 重复，请保持协议 + 端口唯一"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Stream mapping TCP listen_port 5555 cannot target the same local port 127.0.0.1:5555"
+        ),
+        "TCP 监听端口 5555 不能转发到本机同一端口（127.0.0.1:5555），否则会形成循环；请修改对外端口或目标端口"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            r#"go backend gRPC request failed: {"message":"failed to set stream rules: cannot target the same local listen_port 5555"}"#
+        ),
+        "监听端口 5555 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口"
     );
     assert_eq!(
         localize_proxy_config_error(&translator, "Only http/https targets are supported"),

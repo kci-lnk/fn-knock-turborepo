@@ -452,6 +452,10 @@ export const enServer = {
       duplicatePort:
         "{protocol} listen port {port} is duplicated. Keep protocol + port unique.",
       targetMustBeHostPort: "Target address {target} must be in host:port form",
+      localTargetLoop:
+        "{protocol} listen port {port} cannot forward to the same port on this host ({target}) because it would create a loop. Change the external or target port.",
+      localPortLoop:
+        "Listen port {port} cannot forward to the same port on this host because it would create a loop. Open Protocol mappings and change the external or target port.",
       saveFailed: "Failed to save protocol mappings",
       syncFailed:
         "Failed to sync protocol mappings and gateway port allow rules",

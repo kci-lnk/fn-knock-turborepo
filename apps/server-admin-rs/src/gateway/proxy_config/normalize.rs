@@ -1,4 +1,7 @@
 use super::*;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+use get_if_addrs::{IfAddr, get_if_addrs};
 
 pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
     if crate::go_backend::response_success(&value) {
@@ -852,6 +855,140 @@ pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Valu
         }));
     }
     Ok(normalized)
+}
+
+fn stream_target_host_port(target: &str) -> Option<(&str, u16)> {
+    if let Some(rest) = target.strip_prefix('[') {
+        let (host, port) = rest.split_once("]:")?;
+        return Some((host, port.parse().ok()?));
+    }
+    let (host, port) = target.rsplit_once(':')?;
+    Some((host, port.parse().ok()?))
+}
+
+fn normalize_local_ip(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V6(ipv6) => ipv6
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(ipv6)),
+        ipv4 => ipv4,
+    }
+}
+
+fn local_stream_target_addresses() -> HashSet<IpAddr> {
+    let mut addresses = HashSet::from([
+        IpAddr::V4(Ipv4Addr::LOCALHOST),
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+        IpAddr::V6(Ipv6Addr::LOCALHOST),
+        IpAddr::V6(Ipv6Addr::UNSPECIFIED),
+    ]);
+    if let Ok(interfaces) = get_if_addrs() {
+        for interface in interfaces {
+            let ip = match interface.addr {
+                IfAddr::V4(address) => IpAddr::V4(address.ip),
+                IfAddr::V6(address) => IpAddr::V6(address.ip),
+            };
+            addresses.insert(normalize_local_ip(ip));
+        }
+    }
+    addresses
+}
+
+fn is_local_stream_target(host: &str, local_addresses: &HashSet<IpAddr>) -> bool {
+    let normalized_host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    if normalized_host == "localhost" {
+        return true;
+    }
+    let address_host = normalized_host
+        .split_once('%')
+        .map(|(address, _)| address)
+        .unwrap_or(&normalized_host);
+    let Ok(ip) = address_host.parse::<IpAddr>() else {
+        return false;
+    };
+    let normalized_ip = normalize_local_ip(ip);
+    normalized_ip.is_loopback()
+        || normalized_ip.is_unspecified()
+        || local_addresses.contains(&normalized_ip)
+}
+
+fn stream_mapping_local_loop_error(
+    mapping: &Value,
+    local_addresses: &HashSet<IpAddr>,
+) -> Option<String> {
+    let listen_port = mapping.get("listen_port").and_then(json_integer)?;
+    let target = mapping.get("target").and_then(Value::as_str)?.trim();
+    let (target_host, target_port) = stream_target_host_port(target)?;
+    if i64::from(target_port) != listen_port
+        || !is_local_stream_target(target_host, local_addresses)
+    {
+        return None;
+    }
+    let protocol = mapping
+        .get("protocol")
+        .and_then(Value::as_str)
+        .unwrap_or("tcp")
+        .to_ascii_uppercase();
+    Some(format!(
+        "Stream mapping {protocol} listen_port {listen_port} cannot target the same local port {target}"
+    ))
+}
+
+pub(super) fn validate_stream_mapping_local_loops_with_addresses(
+    mappings: &[Value],
+    local_addresses: &HashSet<IpAddr>,
+) -> Result<(), String> {
+    for mapping in mappings {
+        if let Some(error) = stream_mapping_local_loop_error(mapping, local_addresses) {
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_stream_mapping_runtime_safety_inner(config: &Value) -> Result<(), String> {
+    let mappings = config
+        .get("stream_mappings")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    validate_stream_mapping_local_loops_with_addresses(mappings, &local_stream_target_addresses())
+}
+
+pub(super) fn validate_stream_mapping_update_safety(
+    previous_mappings: &[Value],
+    next_mappings: &[Value],
+    allow_unchanged_legacy_loops: bool,
+) -> Result<(), String> {
+    let local_addresses = local_stream_target_addresses();
+    for mapping in next_mappings {
+        let Some(error) = stream_mapping_local_loop_error(mapping, &local_addresses) else {
+            continue;
+        };
+        let is_unchanged_legacy_mapping = allow_unchanged_legacy_loops
+            && previous_mappings.iter().any(|previous| {
+                stream_mapping_forward_identity(previous)
+                    == stream_mapping_forward_identity(mapping)
+            });
+        if !is_unchanged_legacy_mapping {
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+fn stream_mapping_forward_identity(mapping: &Value) -> Option<(&str, i64, &str)> {
+    let protocol = if mapping.get("protocol").and_then(Value::as_str) == Some("udp") {
+        "udp"
+    } else {
+        "tcp"
+    };
+    Some((
+        protocol,
+        mapping.get("listen_port").and_then(json_integer)?,
+        mapping.get("target").and_then(Value::as_str)?.trim(),
+    ))
 }
 
 pub(super) fn validate_host_mappings_section(config: &Value) -> Result<(), String> {

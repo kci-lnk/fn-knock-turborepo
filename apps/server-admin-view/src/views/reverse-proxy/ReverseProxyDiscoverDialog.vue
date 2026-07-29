@@ -145,12 +145,15 @@ defineExpose({
             v-else-if="discoveredData && discoveredData.services.length > 0"
             class="rounded-md border bg-background"
           >
-            <Table container-class="overflow-visible">
+            <Table
+              class="min-w-[42rem] table-fixed"
+              container-class="overflow-visible"
+            >
               <TableHeader
                 class="sticky top-0 z-10 bg-background shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background"
               >
                 <TableRow>
-                  <TableHead class="w-[50px] text-center">
+                  <TableHead class="w-11 text-center">
                     <input
                       type="checkbox"
                       :aria-label="t('common.selectAll')"
@@ -159,16 +162,16 @@ defineExpose({
                       @change="emit('toggleAll', $event)"
                     />
                   </TableHead>
-                  <TableHead v-if="showHostColumn" class="w-[140px]">
+                  <TableHead v-if="showHostColumn" class="w-[100px]">
                     {{ t("admin.reverseProxy.discoverColumns.host") }}
                   </TableHead>
-                  <TableHead class="w-[80px]">
+                  <TableHead class="w-16">
                     {{ t("admin.reverseProxy.discoverColumns.port") }}
                   </TableHead>
-                  <TableHead class="w-[100px]">
+                  <TableHead class="w-[88px]">
                     {{ t("admin.reverseProxy.discoverColumns.status") }}
                   </TableHead>
-                  <TableHead>
+                  <TableHead class="w-[180px]">
                     {{ t("admin.reverseProxy.discoverColumns.serviceId") }}
                   </TableHead>
                   <TableHead class="w-[200px]">
@@ -196,9 +199,14 @@ defineExpose({
                   </TableCell>
                   <TableCell
                     v-if="showHostColumn"
-                    class="font-mono text-xs text-muted-foreground"
+                    class="max-w-[100px] font-mono text-xs text-muted-foreground"
                   >
-                    {{ resolveServiceHost(service) }}
+                    <span
+                      class="block max-w-full truncate"
+                      :title="resolveServiceHost(service)"
+                    >
+                      {{ resolveServiceHost(service) }}
+                    </span>
                   </TableCell>
                   <TableCell class="font-medium">
                     <a
@@ -225,8 +233,12 @@ defineExpose({
                       {{ service.httpStatus }}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <span v-if="service.detail.label" class="text-sm">
+                  <TableCell class="max-w-[180px]">
+                    <span
+                      v-if="service.detail.label"
+                      class="block max-w-full truncate text-sm"
+                      :title="service.detail.label"
+                    >
                       {{ service.detail.label }}
                     </span>
                     <span v-else class="text-sm font-medium text-red-500">
@@ -242,7 +254,7 @@ defineExpose({
                       :placeholder="
                         t('admin.reverseProxy.requiredPathPlaceholder')
                       "
-                      class="h-8 text-sm"
+                      class="h-8 min-w-0 text-sm"
                       :class="{
                         'border-destructive focus-visible:ring-destructive':
                           selectedServices.includes(service) &&

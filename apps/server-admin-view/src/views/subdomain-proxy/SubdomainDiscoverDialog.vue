@@ -95,12 +95,15 @@
             v-else-if="discoveredData && discoveredData.services.length > 0"
             class="rounded-md border bg-background"
           >
-            <Table class="min-w-[42rem]" container-class="overflow-visible">
+            <Table
+              class="min-w-[42rem] table-fixed"
+              container-class="overflow-visible"
+            >
               <TableHeader
                 class="sticky top-0 z-10 bg-background shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background"
               >
                 <TableRow>
-                  <TableHead class="w-[50px] text-center">
+                  <TableHead class="w-11 text-center">
                     <input
                       type="checkbox"
                       :aria-label="t('common.selectAll')"
@@ -109,19 +112,19 @@
                       @change="emitToggleAll"
                     />
                   </TableHead>
-                  <TableHead v-if="showHostColumn" class="w-[140px]">
+                  <TableHead v-if="showHostColumn" class="w-[100px]">
                     {{ t("admin.subdomainProxy.discoverColumns.host") }}
                   </TableHead>
-                  <TableHead class="w-[80px]">{{
+                  <TableHead class="w-16">{{
                     t("admin.subdomainProxy.discoverColumns.port")
                   }}</TableHead>
-                  <TableHead class="w-[100px]">{{
+                  <TableHead class="w-[88px]">{{
                     t("admin.subdomainProxy.discoverColumns.status")
                   }}</TableHead>
-                  <TableHead class="min-w-[10rem]">{{
+                  <TableHead class="w-[170px]">{{
                     t("admin.subdomainProxy.discoverColumns.serviceId")
                   }}</TableHead>
-                  <TableHead class="w-[260px] min-w-[18rem]">
+                  <TableHead class="w-72">
                     {{
                       t(
                         "admin.subdomainProxy.discoverColumns.suggestedSubdomain",
@@ -150,9 +153,18 @@
                   </TableCell>
                   <TableCell
                     v-if="showHostColumn"
-                    class="font-mono text-xs text-muted-foreground"
+                    class="max-w-[100px] font-mono text-xs text-muted-foreground"
                   >
-                    {{ resolveDiscoveredServiceHost(svc, discoveredData.host) }}
+                    <span
+                      class="block max-w-full truncate"
+                      :title="
+                        resolveDiscoveredServiceHost(svc, discoveredData.host)
+                      "
+                    >
+                      {{
+                        resolveDiscoveredServiceHost(svc, discoveredData.host)
+                      }}
+                    </span>
                   </TableCell>
                   <TableCell class="font-medium">{{ svc.port }}</TableCell>
                   <TableCell>
@@ -175,22 +187,31 @@
                       {{ svc.httpStatus }}
                     </span>
                   </TableCell>
-                  <TableCell class="min-w-[10rem] text-sm">
-                    {{
-                      svc.detail.label ||
-                      svc.detail.name ||
-                      t("admin.subdomainProxy.unknownService")
-                    }}
+                  <TableCell class="max-w-[170px] text-sm">
+                    <span
+                      class="block max-w-full truncate"
+                      :title="
+                        svc.detail.label ||
+                        svc.detail.name ||
+                        t('admin.subdomainProxy.unknownService')
+                      "
+                    >
+                      {{
+                        svc.detail.label ||
+                        svc.detail.name ||
+                        t("admin.subdomainProxy.unknownService")
+                      }}
+                    </span>
                   </TableCell>
-                  <TableCell class="min-w-[18rem]">
+                  <TableCell>
                     <div
-                      class="flex min-w-[18rem] items-stretch rounded-md border"
+                      class="flex w-full min-w-0 items-stretch rounded-md border"
                     >
                       <Input
                         aria-label="service"
                         v-model="svc.suggestedSubdomain"
                         placeholder="service"
-                        class="h-8 rounded-none border-0 text-sm shadow-none focus-visible:ring-0"
+                        class="h-8 min-w-0 flex-1 rounded-none border-0 text-sm shadow-none focus-visible:ring-0"
                         :class="{
                           'border-destructive focus-visible:ring-destructive':
                             selectedServices.includes(svc) &&
@@ -198,7 +219,8 @@
                         }"
                       />
                       <div
-                        class="flex shrink-0 items-center border-l bg-muted/30 px-3 text-xs text-muted-foreground"
+                        class="flex max-w-36 shrink-0 items-center truncate border-l bg-muted/30 px-3 text-xs text-muted-foreground"
+                        :title="domain"
                       >
                         .{{ domain }}
                       </div>

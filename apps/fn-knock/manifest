@@ -1,5 +1,5 @@
 appname=fn-knock
-version=2.1.1
+version=2.1.2
 display_name=敲门knock
 desc="""敲门knock 是面向 NAS、软路由与家庭服务器的高性能安全网关，提供反向代理、身份认证、DDNS、SSL 证书、访问控制、WAF、内网穿透、主机防火墙联动与运维监控等能力。官网：https://www.fnknock.cn/ 文档：https://docs.fnknock.cn/ QQ群：1081609274"""
 platform=x86

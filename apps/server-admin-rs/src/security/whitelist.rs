@@ -26,7 +26,7 @@ use crate::{
     cidr::{CidrOperator, CidrRegionQuery},
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
-    ip_location, response,
+    ip_location, response, runtime_profile,
     state::AppState,
     store::{
         LoginSession, WhitelistConcreteTarget, WhitelistRecord, WhitelistRegionGroupRecord,
@@ -1134,6 +1134,9 @@ async fn sync_removed_target(state: &AppState, target: &str) {
 }
 
 async fn should_sync_direct_firewall(state: &AppState) -> bool {
+    if !runtime_profile::host_firewall_available(state) {
+        return false;
+    }
     let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {

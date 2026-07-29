@@ -12,3 +12,19 @@ export const privilegedNavigationVisibility = ({
   sshSecurity: canUseSshSecurity && sshSecurityEnabled,
   terminal: canUseTerminal && terminalEnabled,
 });
+
+export const smartConnectFeatureEntryVisible = ({
+  isFpkLiteDeployment,
+  isDockerDeployment,
+  isOpenWrtDeployment,
+  isSynologyDeployment,
+}: {
+  isFpkLiteDeployment: boolean;
+  isDockerDeployment: boolean;
+  isOpenWrtDeployment: boolean;
+  isSynologyDeployment: boolean;
+}) =>
+  !isFpkLiteDeployment &&
+  !isDockerDeployment &&
+  !isOpenWrtDeployment &&
+  !isSynologyDeployment;

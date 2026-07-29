@@ -18,7 +18,7 @@ WORK_DIR="${OUTPUT_DIR}/work"
 RUNTIME_DIR="${OUTPUT_DIR}/runtime"
 TEMPLATE_DIR="${ROOT_DIR}/deploy/openwrt"
 ISTORE_META_ICON_SOURCE="${FN_KNOCK_OPENWRT_ISTORE_ICON_SOURCE:-${TEMPLATE_DIR}/www/luci-static/resources/fn-knock/fn-knock.png}"
-ISTORE_META_DESCRIPTION="${FN_KNOCK_OPENWRT_ISTORE_DESCRIPTION:-敲门knock是一款针对飞牛OS的安全防护软件，内置了防火墙控制和反代安全}"
+ISTORE_META_DESCRIPTION="${FN_KNOCK_OPENWRT_ISTORE_DESCRIPTION:-敲门 Knock 为 OpenWrt 提供反向代理与敲门认证安全防护}"
 ISTORE_META_DESCRIPTION_EN="${FN_KNOCK_OPENWRT_ISTORE_DESCRIPTION_EN:-Secure reverse proxy and knock authentication gateway.}"
 ISTORE_META_PACKAGE_DESCRIPTION="${FN_KNOCK_OPENWRT_ISTORE_PACKAGE_DESCRIPTION:-敲门 Knock iStore 元数据}"
 RUST_BACKEND_BIN_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR:-}"
@@ -31,7 +31,7 @@ VERSION_FILE="${ROOT_DIR}/version.json"
 DEFAULT_ARCH_MATRIX="aarch64_cortex-a53:arm64,aarch64_generic:arm64,arm_cortex-a7_neon-vfpv4:arm,arm_cortex-a5_vfpv4:arm,x86_64:amd64"
 ARCH_MATRIX="${FN_KNOCK_OPENWRT_ARCHES:-${DEFAULT_ARCH_MATRIX}}"
 PACKAGE_FORMATS_RAW="${FN_KNOCK_OPENWRT_FORMATS:-ipk,apk}"
-DEPENDS="${FN_KNOCK_OPENWRT_DEPENDS:-libc, bash, curl, unzip, ca-bundle, ca-certificates, iptables-nft, ip6tables-nft, kmod-nf-conntrack, kmod-ipt-conntrack, kmod-nft-compat, luci-base}"
+DEPENDS="${FN_KNOCK_OPENWRT_DEPENDS:-libc, bash, curl, unzip, ca-bundle, ca-certificates, luci-base}"
 DESCRIPTION="${FN_KNOCK_OPENWRT_DESCRIPTION:-fn-knock secure reverse proxy and knock authentication gateway}"
 HOMEPAGE="${FN_KNOCK_OPENWRT_HOMEPAGE:-https://github.com/kci-lnk/fn-knock}"
 LICENSE="${FN_KNOCK_OPENWRT_LICENSE:-MIT}"
@@ -58,6 +58,27 @@ fail() {
 require_cmd() {
   local cmd="$1"
   command -v "${cmd}" >/dev/null 2>&1 || fail "missing required command: ${cmd}"
+}
+
+validate_openwrt_dependencies() {
+  local raw_depends="${1:-${DEPENDS}}"
+  local dependency
+  local package_name
+
+  while IFS= read -r dependency; do
+    dependency="$(printf '%s' "${dependency}" | xargs)"
+    [ -n "${dependency}" ] || continue
+    package_name="$(
+      printf '%s\n' "${dependency}" | \
+        sed -E 's/[[:space:]<>=~].*$//' | \
+        tr '[:upper:]' '[:lower:]'
+    )"
+    case "${package_name}" in
+      *iptables*|*nftables*|*firewall*|fw[0-9]*|kmod-ipt-*|kmod-nft-*|kmod-nf-conntrack*)
+        fail "OpenWrt packages must not depend on host firewall package: ${package_name}"
+        ;;
+    esac
+  done < <(printf '%s\n' "${raw_depends}" | tr ',' '\n')
 }
 
 configure_tar_compatibility() {
@@ -1352,6 +1373,7 @@ build_istore_meta_packages() {
 }
 
 main() {
+  validate_openwrt_dependencies "${DEPENDS}"
   require_cmd tar
   configure_tar_compatibility
   require_cmd rsync

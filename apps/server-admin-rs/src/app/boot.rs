@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io::ErrorKind, path::Path};
 
 use crate::{
     admin_panel::normalize_locale_config, gateway_settings::sync_gateway_settings_on_boot,
@@ -102,12 +102,19 @@ pub(super) fn start_boot_sync_tasks(state: AppState) {
 }
 
 fn init_clean_script_on_boot(state: &AppState) -> anyhow::Result<()> {
+    let script_path = state.settings.data_dir.join("clean.sh");
     if !runtime_profile::host_firewall_available(state) {
-        tracing::info!("skipped clean.sh generation: host firewall is unavailable");
+        if remove_clean_script_if_present(&script_path)? {
+            tracing::info!(
+                path = %script_path.display(),
+                "removed stale firewall cleanup script"
+            );
+        } else {
+            tracing::info!("skipped clean.sh generation: host firewall is unavailable");
+        }
         return Ok(());
     }
     fs::create_dir_all(&state.settings.data_dir)?;
-    let script_path = state.settings.data_dir.join("clean.sh");
     fs::write(&script_path, CLEAN_SCRIPT_CONTENT)?;
     #[cfg(unix)]
     {
@@ -116,6 +123,14 @@ fn init_clean_script_on_boot(state: &AppState) -> anyhow::Result<()> {
     }
     tracing::info!(path = %script_path.display(), "initialized firewall cleanup script");
     Ok(())
+}
+
+fn remove_clean_script_if_present(script_path: &Path) -> anyhow::Result<bool> {
+    match fs::remove_file(script_path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub(crate) async fn cleanup_legacy_auth_log_storage(state: &AppState) -> anyhow::Result<()> {
@@ -208,5 +223,16 @@ mod tests {
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"PREROUTING\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"INPUT\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("-t \"$table\""));
+    }
+
+    #[test]
+    fn stale_firewall_cleanup_script_can_be_removed_without_execution() {
+        let directory = tempfile::tempdir().expect("temporary data directory");
+        let script_path = directory.path().join("clean.sh");
+        fs::write(&script_path, "#!/bin/sh\nexit 99\n").expect("legacy clean.sh");
+
+        assert!(remove_clean_script_if_present(&script_path).expect("remove clean.sh"));
+        assert!(!script_path.exists());
+        assert!(!remove_clean_script_if_present(&script_path).expect("ignore missing clean.sh"));
     }
 }

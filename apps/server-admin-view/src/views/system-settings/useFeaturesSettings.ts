@@ -15,6 +15,7 @@ import type {
   ProtocolMappingFeatureConfig,
 } from "../../types";
 import { useConfigStore } from "../../store/config";
+import { smartConnectFeatureEntryVisible } from "../layout/runtime-navigation";
 
 const runTypeLabelKeyMap = {
   0: "admin.featuresSettings.runTypes.direct",
@@ -63,9 +64,12 @@ export function useFeaturesSettings() {
   );
   const showSmartConnectEntry = computed(
     () =>
-      !configStore.isFpkLiteDeployment &&
-      !configStore.isDockerDeployment &&
-      !configStore.isSynologyDeployment,
+      smartConnectFeatureEntryVisible({
+        isFpkLiteDeployment: configStore.isFpkLiteDeployment,
+        isDockerDeployment: configStore.isDockerDeployment,
+        isOpenWrtDeployment: configStore.isOpenWrtDeployment,
+        isSynologyDeployment: configStore.isSynologyDeployment,
+      }),
   );
   const isDashboardDisplaySwitchDisabled = computed(
     () => isSaving.value || configStore.isLoading || configStore.isError,

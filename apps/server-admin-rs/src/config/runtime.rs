@@ -68,22 +68,10 @@ pub fn runtime_config_routes() -> Router<AppState> {
             "/api/admin/config/captcha",
             get(get_captcha).post(update_captcha),
         )
-        .route(
-            "/api/admin/config/terminal_feature",
-            get(get_terminal_feature).post(update_terminal_feature),
-        )
         .route("/api/admin/config/run_type", post(update_run_type))
         .route(
             "/api/admin/config/protocol_mapping_feature",
             get(get_protocol_mapping_feature).post(update_protocol_mapping_feature),
-        )
-        .route(
-            "/api/admin/config/smart_connect/details",
-            get(get_smart_connect_details),
-        )
-        .route(
-            "/api/admin/config/smart_connect",
-            post(update_smart_connect),
         )
         .route(
             "/api/admin/config/fnos_network_tuning",
@@ -102,19 +90,9 @@ pub fn runtime_config_routes() -> Router<AppState> {
             get(get_fnos_port_icon_hijack).post(update_fnos_port_icon_hijack),
         )
         .route(
-            "/api/admin/config/fnos_connect_waf",
-            get(get_fnos_connect_waf).post(update_fnos_connect_waf),
-        )
-        .route(
             "/api/admin/config/auto_https",
             get(get_auto_https).post(update_auto_https),
         )
-        .route(
-            "/api/admin/config/auto_manage_firewall",
-            post(update_auto_manage_firewall),
-        )
-        .route("/api/admin/firewall/reset", post(reset_firewall))
-        .route("/api/admin/firewall/clear", post(clear_firewall))
         .route(
             "/api/admin/config/default_route",
             get(get_default_route).post(update_default_route),
@@ -133,6 +111,42 @@ pub fn runtime_config_routes() -> Router<AppState> {
             post(complete_welcome_guide),
         )
         .route("/api/admin/sync-routes", post(sync_routes))
+}
+
+pub fn terminal_feature_routes() -> Router<AppState> {
+    Router::new().route(
+        "/api/admin/config/terminal_feature",
+        get(get_terminal_feature).post(update_terminal_feature),
+    )
+}
+
+pub fn smart_connect_config_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/admin/config/smart_connect/details",
+            get(get_smart_connect_details),
+        )
+        .route(
+            "/api/admin/config/smart_connect",
+            post(update_smart_connect),
+        )
+}
+
+pub fn firewall_runtime_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/admin/config/auto_manage_firewall",
+            post(update_auto_manage_firewall),
+        )
+        .route("/api/admin/firewall/reset", post(reset_firewall))
+        .route("/api/admin/firewall/clear", post(clear_firewall))
+}
+
+pub fn fnos_connect_waf_routes() -> Router<AppState> {
+    Router::new().route(
+        "/api/admin/config/fnos_connect_waf",
+        get(get_fnos_connect_waf).post(update_fnos_connect_waf),
+    )
 }
 
 fn admin_text(translator: &Translator, key: &str) -> String {

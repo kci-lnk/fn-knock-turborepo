@@ -142,6 +142,10 @@ pub fn system_asset_routes() -> Router<AppState> {
         .route("/api/admin/system/frp/download", post(frp_download))
         .route("/api/admin/system/frp/cancel", post(frp_cancel))
         .route("/api/admin/system/frp", axum::routing::delete(frp_delete))
+}
+
+pub fn smart_connect_asset_routes() -> Router<AppState> {
+    Router::new()
         .route("/api/admin/system/dnsmasq/status", get(dnsmasq_status))
         .route("/api/admin/system/dnsmasq/install", post(dnsmasq_install))
 }

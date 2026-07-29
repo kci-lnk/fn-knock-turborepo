@@ -3,6 +3,10 @@ set -e
 
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
+# Older releases generated an executable firewall cleanup script. OpenWrt
+# never executes that script and removes the known legacy path on upgrade.
+rm -f /var/lib/fn-knock/clean.sh 2>/dev/null || true
+
 reload_luci() {
 	rm -f /tmp/luci-indexcache /tmp/luci-modulecache/* 2>/dev/null || true
 	[ -x /etc/init.d/rpcd ] && /etc/init.d/rpcd restart >/dev/null 2>&1 || true

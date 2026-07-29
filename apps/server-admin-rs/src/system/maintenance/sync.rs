@@ -40,7 +40,7 @@ pub(super) async fn sync_runtime_after_import(
         )),
     }
 
-    if run_type == 0 {
+    if run_type == 0 && runtime_profile::host_firewall_available(state) {
         let whitelist_label = maintenance_backup_text(translator, "syncSteps.directModeWhitelist");
         match sync_direct_mode_whitelist_after_import(state).await {
             Ok(()) => synced_steps.push(whitelist_label),
@@ -130,6 +130,9 @@ fn record_waf_restore_result(
 pub(super) async fn sync_direct_mode_whitelist_after_import(
     state: &AppState,
 ) -> anyhow::Result<()> {
+    if !runtime_profile::host_firewall_available(state) {
+        return Ok(());
+    }
     let records = state.store.list_whitelist_active_concrete_targets().await?;
     for record in records {
         let value = state.go_backend.allow_ip(&record.target).await?;

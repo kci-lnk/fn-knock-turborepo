@@ -71,17 +71,19 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
         };
     }
     let is_fpk_lite = profile.deployment_target == "fpk-lite";
+    let is_openwrt = profile.deployment_target == "openwrt";
     let host_runtime_available = !is_fpk_lite
         && profile.deployment_target != "docker"
         && profile.deployment_target != "linux"
         && profile.deployment_target != "synology"
         && profile.is_linux
         && profile.is_root_process;
+    let host_firewall_available = host_runtime_available && !is_openwrt;
 
     RuntimeCapabilities {
-        direct_mode_available: host_runtime_available,
-        host_firewall_available: host_runtime_available,
-        smart_connect_available: host_runtime_available,
+        direct_mode_available: host_firewall_available,
+        host_firewall_available,
+        smart_connect_available: host_firewall_available,
         fnos_certificate_sync_available: profile.deployment_target == "fpk"
             && profile.is_linux
             && profile.is_root_process,
@@ -106,7 +108,9 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
         acme_resource_required: false,
         cloudflared_available: true,
         frpc_available: true,
-        ssh_security_available: !is_fpk_lite && profile.deployment_target != "synology",
+        ssh_security_available: !is_fpk_lite
+            && !is_openwrt
+            && profile.deployment_target != "synology",
         system_resource_monitor_available: true,
         desktop_update_managed: false,
     }
@@ -165,7 +169,7 @@ pub fn capability_unavailable_message(
         | "system_clock_sync_available" => {
             if profile.is_docker {
                 "docker"
-            } else if !profile.is_linux {
+            } else if profile.deployment_target == "openwrt" || !profile.is_linux {
                 "platform"
             } else {
                 "permission"
@@ -535,14 +539,15 @@ mod tests {
     }
 
     #[test]
-    fn openwrt_keeps_host_capabilities_but_blocks_terminal() {
+    fn openwrt_disables_firewall_smart_connect_ssh_and_terminal_capabilities() {
         let capabilities = get_runtime_capabilities(&profile("openwrt", true, true));
-        assert!(capabilities.direct_mode_available);
-        assert!(capabilities.host_firewall_available);
-        assert!(capabilities.smart_connect_available);
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
         assert!(!capabilities.terminal_available);
+        assert!(!capabilities.ssh_security_available);
     }
 }

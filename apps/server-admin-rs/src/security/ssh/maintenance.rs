@@ -36,12 +36,14 @@ pub(super) async fn disable_ssh_security(
     state: &AppState,
     runtime: Option<&Value>,
 ) -> anyhow::Result<()> {
-    let payload = json!({
-        "chain_name": SSH_FIREWALL_CHAIN,
-        "parent_chain": ["INPUT", "DOCKER-USER"]
-    });
-    if let Err(error) = state.go_backend.clear_ssh_firewall(&payload).await {
-        tracing::debug!(%error, "failed to clear disabled SSH firewall policy");
+    if host_firewall_available(state) {
+        let payload = json!({
+            "chain_name": SSH_FIREWALL_CHAIN,
+            "parent_chain": ["INPUT", "DOCKER-USER"]
+        });
+        if let Err(error) = state.go_backend.clear_ssh_firewall(&payload).await {
+            tracing::debug!(%error, "failed to clear disabled SSH firewall policy");
+        }
     }
     for record in active_blocks(state).await? {
         if let Some(ip) = record.get("ip").and_then(Value::as_str)

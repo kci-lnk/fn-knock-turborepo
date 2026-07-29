@@ -235,6 +235,7 @@ start_service() {
 	procd_set_param env \
 		"BACKEND_PORT=$backend_port" \
 		"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
+		"FN_KNOCK_DISABLE_IPTABLES=1" \
 		"PATH=/usr/sbin:/usr/bin:/sbin:/bin"
 	procd_set_param respawn
 	procd_set_param limits nofile="$NOFILE_LIMIT $NOFILE_LIMIT"

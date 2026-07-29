@@ -26,7 +26,10 @@ use crate::{
     openapi_docs::openapi_docs_routes,
     proxy_config::proxy_config_routes,
     response,
-    runtime_config::runtime_config_routes,
+    runtime_config::{
+        firewall_runtime_routes, fnos_connect_waf_routes, runtime_config_routes,
+        smart_connect_config_routes, terminal_feature_routes,
+    },
     runtime_profile,
     scan_assets::scan_asset_routes,
     scanner::{cidr_routes, scanner_routes},
@@ -36,7 +39,7 @@ use crate::{
     state::AppState,
     static_files,
     static_files::{admin_static_routes, auth_static_routes},
-    system_assets::system_asset_routes,
+    system_assets::{smart_connect_asset_routes, system_asset_routes},
     system_events::{admin_event_routes, internal_system_event_routes},
     system_info::system_info_routes,
     terminal::terminal_routes,
@@ -83,8 +86,21 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
     if capabilities.fnos_certificate_sync_available {
         api = api.merge(fnos_certificate_sync_routes());
     }
+    if capabilities.host_firewall_available {
+        api = api.merge(firewall_runtime_routes());
+    }
+    if capabilities.fnos_connect_waf_available {
+        api = api.merge(fnos_connect_waf_routes());
+    }
+    if capabilities.smart_connect_available {
+        api = api
+            .merge(smart_connect_config_routes())
+            .merge(smart_connect_asset_routes());
+    }
     if capabilities.terminal_available {
-        api = api.merge(terminal_routes());
+        api = api
+            .merge(terminal_feature_routes())
+            .merge(terminal_routes());
     }
     if capabilities.ssh_security_available {
         api = api.merge(ssh_security_routes());
@@ -154,4 +170,62 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        body::Body,
+        http::{Method, Request, StatusCode},
+    };
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn openwrt_test_state() -> (tempfile::TempDir, AppState) {
+        let directory = tempfile::tempdir().expect("temporary OpenWrt router database");
+        let mut settings = crate::settings::Settings::from_env();
+        settings.runtime_target = "openwrt".to_string();
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+        settings.internal_rpc_token = "openwrt-router-test".to_string();
+        settings.altcha_hmac_key = Some("openwrt-router-altcha-test-key".to_string());
+        let state = AppState::new(settings)
+            .await
+            .expect("OpenWrt router test state");
+        (directory, state)
+    }
+
+    #[tokio::test]
+    async fn openwrt_does_not_register_firewall_smart_connect_ssh_or_terminal_routes() {
+        let (_directory, state) = openwrt_test_state().await;
+        let app = backend_router(state, false);
+        let unsupported_routes = [
+            (Method::POST, "/api/admin/firewall/clear"),
+            (Method::GET, "/api/admin/config/fnos_connect_waf"),
+            (Method::GET, "/api/admin/config/smart_connect/details"),
+            (Method::GET, "/api/admin/system/dnsmasq/status"),
+            (Method::GET, "/api/admin/ssh-security/config"),
+            (Method::GET, "/api/admin/config/terminal_feature"),
+            (Method::GET, "/api/admin/terminal/status"),
+        ];
+
+        for (method, path) in unsupported_routes {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .expect("OpenWrt unsupported route request"),
+                )
+                .await
+                .expect("OpenWrt unsupported route response");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+        }
+    }
 }

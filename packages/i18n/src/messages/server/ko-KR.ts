@@ -1984,6 +1984,41 @@ export const koKRServer = {
         updateRecordFailed: "기록을 업데이트하지 못했습니다.",
         createRecordFailed: "레코드를 생성하지 못했습니다.",
       },
+      dnshe: {
+        label: "DNSHE",
+        fields: {
+          api_key: {
+            label: "API Key",
+            description: "DNSHE API 관리에서 생성한 API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description:
+              "DNSHE API Key와 연결된 API Secret입니다. 안전하게 보관하세요.",
+          },
+          root_domain: {
+            label: "DNSHE 관리 도메인",
+            description:
+              "DNSHE 계정에 등록된 전체 무료 도메인입니다. 예: example.com",
+          },
+          domain: {
+            description:
+              "업데이트할 전체 도메인입니다. 설정한 DNSHE 관리 도메인에 속해야 합니다.",
+          },
+        },
+        configIncomplete: "DNSHE 설정이 완전하지 않습니다",
+        noIpAvailable:
+          "DNSHE 업데이트 실패: 사용 가능한 IPv4 또는 IPv6 주소가 없습니다",
+        managedDomainNotFound:
+          "DNSHE 계정에서 관리 도메인을 찾을 수 없습니다: {domain}",
+        managedDomainInactive:
+          "DNSHE 관리 도메인을 사용할 수 없습니다: {domain} (상태: {status})",
+        unknownStatus: "알 수 없음",
+        recordIdMissing:
+          "DNSHE가 반환한 {type} 레코드에 내부 ID가 없습니다",
+        apiError: "DNSHE API 요청 실패: {detail}",
+        requestError: "DNSHE 요청 오류: {detail}",
+      },
       cloudflare: {
         fields: {
           api_token: {

@@ -83,6 +83,7 @@ pub(super) fn provider_catalog(translator: &Translator) -> Value {
             alidns_catalog_entry(),
             baiducloud_catalog_entry(),
             cloudflare_catalog_entry(),
+            dnshe_catalog_entry(),
             dnspod_catalog_entry(),
             duckdns_catalog_entry(),
             dynu_catalog_entry(),
@@ -256,13 +257,9 @@ pub(super) fn ddns_optional_catalog_text(
     params: &[(&str, String)],
 ) -> Option<String> {
     let field_i18n_key = ddns_field_i18n_key(provider_key, field_key);
-    let provider_value = ddns_catalog_text(
-        translator,
-        &format!("providers.{provider_key}.fields.{field_i18n_key}.{part}"),
-        fallback,
-        params,
-    );
-    if provider_value != fallback {
+    let provider_catalog_key = format!("providers.{provider_key}.fields.{field_i18n_key}.{part}");
+    let provider_value = ddns_text(translator, &provider_catalog_key, params);
+    if provider_value != format!("server.ddns.{provider_catalog_key}") {
         return Some(provider_value);
     }
     if part == "placeholder"

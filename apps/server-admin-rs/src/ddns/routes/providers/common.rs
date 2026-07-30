@@ -69,6 +69,7 @@ pub(in crate::ddns::routes) struct DDNSHttpClient {
     transport: &'static str,
     network_interface: String,
     timeout_ms: u64,
+    follow_redirects: bool,
     reqwest_attempts: Vec<reqwest::Client>,
     translator: Translator,
 }
@@ -204,20 +205,23 @@ impl DDNSHttpRequestBuilder {
             std::process::id(),
             Uuid::new_v4()
         ));
-        tokio::fs::create_dir_all(&temp_dir).await?;
-        let header_path = temp_dir.join("headers.txt");
+        create_private_curl_temp_dir(&temp_dir).await?;
+        let request_header_path = temp_dir.join("request-headers.txt");
+        let response_header_path = temp_dir.join("response-headers.txt");
         let body_path = temp_dir.join("body.bin");
         let result = async {
+            if !self.headers.is_empty() {
+                write_private_curl_headers(&request_header_path, &self.headers).await?;
+            }
             let mut command = tokio::process::Command::new("curl");
             command
                 .arg("-q")
                 .arg("--silent")
                 .arg("--show-error")
-                .arg("--location")
                 .arg("--max-time")
                 .arg(format!("{:.3}", self.client.timeout_ms as f64 / 1000.0))
                 .arg("--dump-header")
-                .arg(&header_path)
+                .arg(&response_header_path)
                 .arg("--output")
                 .arg(&body_path)
                 .arg("--request")
@@ -229,6 +233,9 @@ impl DDNSHttpRequestBuilder {
                 })
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::piped());
+            if self.client.follow_redirects {
+                command.arg("--location");
+            }
             for key in PROXY_ENV_KEYS {
                 command.env_remove(key);
             }
@@ -242,8 +249,10 @@ impl DDNSHttpRequestBuilder {
                     .arg("--interface")
                     .arg(self.client.network_interface.as_str());
             }
-            for (name, value) in &self.headers {
-                command.arg("--header").arg(format!("{name}: {value}"));
+            if !self.headers.is_empty() {
+                let mut header_file = std::ffi::OsString::from("@");
+                header_file.push(&request_header_path);
+                command.arg("--header").arg(header_file);
             }
             if self.body.is_some() {
                 command.arg("--data-binary").arg("@-");
@@ -279,7 +288,7 @@ impl DDNSHttpRequestBuilder {
                     )
                 );
             }
-            let raw_headers = tokio::fs::read_to_string(&header_path).await?;
+            let raw_headers = tokio::fs::read_to_string(&response_header_path).await?;
             let (status, status_text) =
                 parse_curl_headers_for_response(&self.client.translator, &raw_headers)?;
             let body = tokio::fs::read(&body_path).await.unwrap_or_default();
@@ -296,6 +305,43 @@ impl DDNSHttpRequestBuilder {
         }
         result
     }
+}
+
+async fn create_private_curl_temp_dir(path: &std::path::Path) -> std::io::Result<()> {
+    let mut options = tokio::fs::DirBuilder::new();
+    #[cfg(unix)]
+    options.mode(0o700);
+    options.create(path).await
+}
+
+pub(in crate::ddns::routes) async fn write_private_curl_headers(
+    path: &std::path::Path,
+    headers: &[(String, String)],
+) -> anyhow::Result<()> {
+    let contents = serialize_curl_headers(headers)?;
+    let mut options = tokio::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path).await?;
+    file.write_all(&contents).await?;
+    file.flush().await?;
+    Ok(())
+}
+
+pub(in crate::ddns::routes) fn serialize_curl_headers(
+    headers: &[(String, String)],
+) -> anyhow::Result<Vec<u8>> {
+    let mut contents = Vec::new();
+    for (name, value) in headers {
+        let name = reqwest::header::HeaderName::from_bytes(name.as_bytes())?;
+        let value = reqwest::header::HeaderValue::from_str(value)?;
+        contents.extend_from_slice(name.as_str().as_bytes());
+        contents.extend_from_slice(b": ");
+        contents.extend_from_slice(value.as_bytes());
+        contents.push(b'\n');
+    }
+    Ok(contents)
 }
 
 pub(in crate::ddns::routes) trait DDNSHeaderName {
@@ -663,6 +709,21 @@ pub(in crate::ddns::routes) fn ddns_http_client(
     translator: &Translator,
     options: &DDNSHttpClientOptions,
 ) -> anyhow::Result<DDNSHttpClient> {
+    ddns_http_client_with_redirects(translator, options, true)
+}
+
+pub(in crate::ddns::routes) fn ddns_http_client_no_redirects(
+    translator: &Translator,
+    options: &DDNSHttpClientOptions,
+) -> anyhow::Result<DDNSHttpClient> {
+    ddns_http_client_with_redirects(translator, options, false)
+}
+
+fn ddns_http_client_with_redirects(
+    translator: &Translator,
+    options: &DDNSHttpClientOptions,
+    follow_redirects: bool,
+) -> anyhow::Result<DDNSHttpClient> {
     let normalized_interface = options.network_interface.trim();
     if !normalized_interface.is_empty() {
         let exists = list_ddns_network_interfaces()
@@ -680,7 +741,8 @@ pub(in crate::ddns::routes) fn ddns_http_client(
         }
     }
     let timeout_ms = provider_timeout_ms_like_node()?;
-    let reqwest_attempts = ddns_reqwest_clients_for_options(translator, options, timeout_ms)?;
+    let reqwest_attempts =
+        ddns_reqwest_clients_for_options(translator, options, timeout_ms, follow_redirects)?;
     Ok(DDNSHttpClient {
         transport: options.transport,
         network_interface: options
@@ -688,15 +750,20 @@ pub(in crate::ddns::routes) fn ddns_http_client(
             .map(str::to_string)
             .unwrap_or_default(),
         timeout_ms,
+        follow_redirects,
         reqwest_attempts,
         translator: translator.clone(),
     })
 }
 
-fn ddns_reqwest_client_builder(timeout_ms: u64) -> reqwest::ClientBuilder {
+fn ddns_reqwest_client_builder(timeout_ms: u64, follow_redirects: bool) -> reqwest::ClientBuilder {
     reqwest::Client::builder()
         .timeout(Duration::from_millis(timeout_ms))
-        .redirect(reqwest::redirect::Policy::limited(20))
+        .redirect(if follow_redirects {
+            reqwest::redirect::Policy::limited(20)
+        } else {
+            reqwest::redirect::Policy::none()
+        })
         .no_proxy()
 }
 
@@ -704,13 +771,18 @@ fn ddns_reqwest_clients_for_options(
     translator: &Translator,
     options: &DDNSHttpClientOptions,
     timeout_ms: u64,
+    follow_redirects: bool,
 ) -> anyhow::Result<Vec<reqwest::Client>> {
     if options.transport != "node" {
-        return Ok(vec![ddns_reqwest_client_builder(timeout_ms).build()?]);
+        return Ok(vec![
+            ddns_reqwest_client_builder(timeout_ms, follow_redirects).build()?,
+        ]);
     }
     let interface = options.network_interface.trim();
     if interface.is_empty() || interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
-        return Ok(vec![ddns_reqwest_client_builder(timeout_ms).build()?]);
+        return Ok(vec![
+            ddns_reqwest_client_builder(timeout_ms, follow_redirects).build()?,
+        ]);
     }
     let addresses = node_transport_local_addresses(interface);
     if addresses.is_empty() {
@@ -726,7 +798,7 @@ fn ddns_reqwest_clients_for_options(
     addresses
         .into_iter()
         .map(|address| {
-            ddns_reqwest_client_builder(timeout_ms)
+            ddns_reqwest_client_builder(timeout_ms, follow_redirects)
                 .local_address(address)
                 .build()
         })

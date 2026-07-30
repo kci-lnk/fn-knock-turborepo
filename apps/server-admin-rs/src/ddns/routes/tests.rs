@@ -1859,6 +1859,424 @@ fn edgeone_cname_origin_payload_and_host_header_errors_match_node() {
 }
 
 #[test]
+fn dnshe_subdomain_lookup_matches_exact_normalized_domains_and_ids() {
+    let response = json!({
+        "success": true,
+        "subdomains": [
+            {
+                "id": 41,
+                "full_domain": "other.example.com",
+                "status": "active"
+            },
+            {
+                "id": "42",
+                "full_domain": "Managed.Example.COM.",
+                "status": "active"
+            },
+            {
+                "id": 43,
+                "full_domain": "inactive.example.com",
+                "status": "suspended"
+            }
+        ]
+    });
+    assert_eq!(
+        find_dnshe_subdomain(&response, "managed.example.com"),
+        Some(DnsheSubdomainMatch {
+            id: 42,
+            status: "active".to_string(),
+        })
+    );
+    assert_eq!(
+        find_dnshe_subdomain(&response, "INACTIVE.EXAMPLE.COM."),
+        Some(DnsheSubdomainMatch {
+            id: 43,
+            status: "suspended".to_string(),
+        })
+    );
+    assert_eq!(find_dnshe_subdomain(&response, "example.com"), None);
+}
+
+#[test]
+fn dnshe_subdomain_status_accepts_documented_and_live_usable_values() {
+    for status in ["active", "ACTIVE", "Registered", " registered "] {
+        assert!(dnshe_subdomain_is_usable(status), "status={status}");
+    }
+    for status in ["", "suspended", "expired", "pending", "unknown"] {
+        assert!(!dnshe_subdomain_is_usable(status), "status={status}");
+    }
+}
+
+#[test]
+fn dnshe_create_record_names_are_relative_to_the_managed_domain() {
+    let translator = Translator::new("en");
+    for (fqdn, expected) in [
+        ("managed.example.com", "@"),
+        ("host.managed.example.com", "host"),
+        ("nested.host.managed.example.com", "nested.host"),
+        ("*.managed.example.com", "*"),
+    ] {
+        let domain = split_domain(&translator, fqdn, "managed.example.com").unwrap();
+        assert_eq!(dnshe_create_record_name(&domain), expected);
+    }
+}
+
+#[test]
+fn dnshe_subdomain_pagination_uses_explicit_metadata_and_full_pages() {
+    assert!(dnshe_has_more_subdomains(
+        &json!({ "pagination": { "has_more": true } }),
+        1
+    ));
+    assert!(!dnshe_has_more_subdomains(
+        &json!({ "pagination": { "has_more": false } }),
+        500
+    ));
+    assert!(dnshe_has_more_subdomains(&json!({}), 500));
+    assert!(!dnshe_has_more_subdomains(&json!({}), 499));
+}
+
+#[test]
+fn dnshe_record_lookup_normalizes_apex_relative_and_wildcard_names() {
+    let response = json!({
+        "success": true,
+        "records": [
+            {
+                "id": 10,
+                "name": "@",
+                "type": "A",
+                "content": "192.0.2.10"
+            },
+            {
+                "id": "11",
+                "name": "www",
+                "type": "A",
+                "content": "192.0.2.11"
+            },
+            {
+                "id": 12,
+                "name": "*.managed.example.com.",
+                "type": "AAAA",
+                "content": "2001:db8::12"
+            },
+            {
+                "id": 13,
+                "name": "managed.example.com",
+                "type": "A",
+                "content": "192.0.2.13"
+            }
+        ]
+    });
+
+    assert_eq!(
+        find_dnshe_record(&response, "managed.example.com", "managed.example.com", "A"),
+        DnsheRecordLookup::Found(DnsheRecordMatch {
+            id: 10,
+            content: "192.0.2.10".to_string(),
+        })
+    );
+    assert_eq!(
+        find_dnshe_record(
+            &response,
+            "www.managed.example.com",
+            "managed.example.com",
+            "a"
+        ),
+        DnsheRecordLookup::Found(DnsheRecordMatch {
+            id: 11,
+            content: "192.0.2.11".to_string(),
+        })
+    );
+    assert_eq!(
+        find_dnshe_record(
+            &response,
+            "*.managed.example.com",
+            "managed.example.com",
+            "AAAA"
+        ),
+        DnsheRecordLookup::Found(DnsheRecordMatch {
+            id: 12,
+            content: "2001:db8::12".to_string(),
+        })
+    );
+    assert_eq!(
+        find_dnshe_record(
+            &response,
+            "missing.managed.example.com",
+            "managed.example.com",
+            "A"
+        ),
+        DnsheRecordLookup::Missing
+    );
+}
+
+#[test]
+fn dnshe_record_update_plan_distinguishes_noop_update_create_and_missing_id() {
+    let existing = json!({
+        "records": [{
+            "id": "21",
+            "name": "host.managed.example.com",
+            "type": "A",
+            "content": "192.0.2.21"
+        }]
+    });
+    assert_eq!(
+        plan_dnshe_record_update(
+            &existing,
+            "host.managed.example.com",
+            "managed.example.com",
+            "A",
+            "192.0.2.21"
+        ),
+        DnsheRecordUpdatePlan::Noop
+    );
+    assert_eq!(
+        plan_dnshe_record_update(
+            &existing,
+            "host.managed.example.com",
+            "managed.example.com",
+            "A",
+            "192.0.2.22"
+        ),
+        DnsheRecordUpdatePlan::Update(21)
+    );
+    assert_eq!(
+        plan_dnshe_record_update(
+            &existing,
+            "new.managed.example.com",
+            "managed.example.com",
+            "A",
+            "192.0.2.23"
+        ),
+        DnsheRecordUpdatePlan::Create
+    );
+    assert_eq!(
+        plan_dnshe_record_update(
+            &json!({
+                "records": [{
+                    "name": "host.managed.example.com",
+                    "type": "A",
+                    "content": "192.0.2.21"
+                }]
+            }),
+            "host.managed.example.com",
+            "managed.example.com",
+            "A",
+            "192.0.2.22"
+        ),
+        DnsheRecordUpdatePlan::MissingId
+    );
+}
+
+#[test]
+fn dnshe_api_errors_use_stable_safe_field_precedence() {
+    assert_eq!(
+        format_dnshe_error(&json!({
+            "message": "human message",
+            "error": "legacy error",
+            "error_code": "stable_code"
+        })),
+        "human message"
+    );
+    assert_eq!(
+        format_dnshe_error(&json!({
+            "error": "legacy error",
+            "error_code": "stable_code"
+        })),
+        "legacy error"
+    );
+    assert_eq!(
+        format_dnshe_error(&json!({ "error_code": "stable_code" })),
+        "stable_code"
+    );
+    assert!(assert_dnshe_success(StatusCode::OK, &json!({ "success": true })).is_ok());
+    assert!(
+        assert_dnshe_success(
+            StatusCode::UNAUTHORIZED,
+            &json!({
+                "success": false,
+                "error_code": "auth_invalid_credentials"
+            })
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("auth_invalid_credentials")
+    );
+}
+
+#[test]
+fn dnshe_request_specs_keep_credentials_in_headers_and_match_api_contract() {
+    let api_key = "offline-api-key";
+    let api_secret = "offline-api-secret";
+    let list = dnshe_request_spec(
+        api_key,
+        api_secret,
+        "subdomains",
+        "list",
+        &[("page", "2".to_string()), ("per_page", "500".to_string())],
+        None,
+    )
+    .unwrap();
+    assert_eq!(list.method, reqwest::Method::GET);
+    assert!(list.body.is_none());
+    assert!(!list.url.contains(api_key));
+    assert!(!list.url.contains(api_secret));
+    let list_url = Url::parse(&list.url).unwrap();
+    assert_eq!(list_url.scheme(), "https");
+    assert_eq!(list_url.host_str(), Some("api005.dnshe.com"));
+    assert_eq!(list_url.path(), "/index.php");
+    let query = list_url
+        .query_pairs()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect::<HashMap<_, _>>();
+    assert_eq!(query.get("m").map(String::as_str), Some("domain_hub"));
+    assert_eq!(
+        query.get("endpoint").map(String::as_str),
+        Some("subdomains")
+    );
+    assert_eq!(query.get("action").map(String::as_str), Some("list"));
+    assert_eq!(query.get("page").map(String::as_str), Some("2"));
+    assert_eq!(query.get("per_page").map(String::as_str), Some("500"));
+    let list_headers = list.headers.into_iter().collect::<HashMap<_, _>>();
+    assert_eq!(
+        list_headers.get("X-API-Key").map(String::as_str),
+        Some(api_key)
+    );
+    assert_eq!(
+        list_headers.get("X-API-Secret").map(String::as_str),
+        Some(api_secret)
+    );
+    assert!(!list_headers.contains_key("content-type"));
+
+    let body = json!({
+        "subdomain_id": 7,
+        "type": "AAAA",
+        "name": "host",
+        "content": "2001:db8::7",
+        "ttl": 600
+    });
+    let create = dnshe_request_spec(
+        api_key,
+        api_secret,
+        "dns_records",
+        "create",
+        &[],
+        Some(body.clone()),
+    )
+    .unwrap();
+    assert_eq!(create.method, reqwest::Method::POST);
+    assert_eq!(create.body, Some(body));
+    assert!(!create.url.contains(api_key));
+    assert!(!create.url.contains(api_secret));
+    let create_headers = create.headers.into_iter().collect::<HashMap<_, _>>();
+    assert_eq!(
+        create_headers.get("content-type").map(String::as_str),
+        Some("application/json")
+    );
+
+    let update_body = json!({
+        "id": 9,
+        "content": "192.0.2.9",
+        "ttl": 600
+    });
+    let update = dnshe_request_spec(
+        api_key,
+        api_secret,
+        "dns_records",
+        "update",
+        &[],
+        Some(update_body.clone()),
+    )
+    .unwrap();
+    assert_eq!(update.method, reqwest::Method::POST);
+    assert_eq!(update.body, Some(update_body));
+    let update_url = Url::parse(&update.url).unwrap();
+    let update_query = update_url
+        .query_pairs()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect::<HashMap<_, _>>();
+    assert_eq!(
+        update_query.get("endpoint").map(String::as_str),
+        Some("dns_records")
+    );
+    assert_eq!(
+        update_query.get("action").map(String::as_str),
+        Some("update")
+    );
+}
+
+#[tokio::test]
+async fn ddns_no_redirect_client_does_not_forward_sensitive_headers() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let redirect_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let redirect_address = redirect_listener.local_addr().unwrap();
+    let target_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+
+    let redirect_server = tokio::spawn(async move {
+        let (mut socket, _) = redirect_listener.accept().await.unwrap();
+        let mut request = [0_u8; 2048];
+        let _ = socket.read(&mut request).await.unwrap();
+        let response = format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://{target_address}/capture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        socket.write_all(response.as_bytes()).await.unwrap();
+    });
+    let target_server = tokio::spawn(async move {
+        tokio::time::timeout(Duration::from_millis(500), target_listener.accept())
+            .await
+            .is_ok()
+    });
+
+    let client =
+        ddns_http_client_no_redirects(&Translator::new("en"), &DDNSHttpClientOptions::default())
+            .unwrap();
+    let response = client
+        .get(format!("http://{redirect_address}/start"))
+        .header("X-Test-Sensitive", "offline-secret")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FOUND);
+    redirect_server.await.unwrap();
+    assert!(!target_server.await.unwrap());
+}
+
+#[tokio::test]
+async fn curl_headers_are_serialized_to_a_private_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("headers.txt");
+    let headers = vec![
+        ("X-API-Key".to_string(), "offline-api-key".to_string()),
+        ("X-API-Secret".to_string(), "offline-api-secret".to_string()),
+    ];
+    write_private_curl_headers(&path, &headers).await.unwrap();
+    assert_eq!(
+        tokio::fs::read_to_string(&path).await.unwrap(),
+        "x-api-key: offline-api-key\nx-api-secret: offline-api-secret\n"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = tokio::fs::metadata(&path)
+            .await
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+    assert!(
+        serialize_curl_headers(&[(
+            "X-API-Key".to_string(),
+            "value\r\nInjected: true".to_string()
+        )])
+        .is_err()
+    );
+}
+
+#[test]
 fn provider_catalog_signature_matches_node_definitions() {
     let providers = provider_catalog(&Translator::new("en"));
     assert_eq!(
@@ -1895,6 +2313,17 @@ fn provider_catalog_signature_matches_node_definitions() {
                     { "key": "zone_id", "type": "text", "required": true, "options": null },
                     { "key": "domain", "type": "text", "required": true, "options": null },
                     { "key": "proxied", "type": "select", "required": false, "options": ["false", "true"] }
+                ]
+            },
+            {
+                "name": "dnshe",
+                "capabilities": null,
+                "fields": [
+                    { "key": "api_key", "type": "text", "required": true, "options": null },
+                    { "key": "api_secret", "type": "password", "required": true, "options": null },
+                    { "key": "root_domain", "type": "text", "required": true, "options": null },
+                    { "key": "domain", "type": "text", "required": true, "options": null },
+                    { "key": "ttl", "type": "text", "required": false, "options": null }
                 ]
             },
             {
@@ -2175,6 +2604,10 @@ fn provider_catalog_preserves_node_field_descriptions() {
         ),
         ("cloudflare", &["api_token", "zone_id", "domain", "proxied"]),
         (
+            "dnshe",
+            &["api_key", "api_secret", "root_domain", "domain", "ttl"],
+        ),
+        (
             "dnspod",
             &[
                 "token_id",
@@ -2341,6 +2774,25 @@ fn provider_catalog_contains_all_node_providers() {
         provider_field(alidns, "access_key_id").get("label"),
         Some(&json!("访问密钥 ID"))
     );
+    let dnshe = provider_by_name(&providers, "dnshe");
+    assert_eq!(
+        provider_field(dnshe, "root_domain").get("label"),
+        Some(&json!("DNSHE 托管域名"))
+    );
+    for locale in ["zh-CN", "zh-Hant", "en", "ko-KR", "ja-JP"] {
+        let localized_providers = provider_catalog(&Translator::new(locale));
+        let localized_dnshe = provider_by_name(&localized_providers, "dnshe");
+        assert_eq!(
+            provider_field(localized_dnshe, "api_key").get("label"),
+            Some(&json!("API Key")),
+            "{locale} DNSHE api_key label must use the provider's exact term"
+        );
+        assert_eq!(
+            provider_field(localized_dnshe, "api_secret").get("label"),
+            Some(&json!("API Secret")),
+            "{locale} DNSHE api_secret label must use the provider's exact term"
+        );
+    }
 
     let en_providers = provider_catalog(&Translator::new("en"));
     let dnspod = provider_by_name(&en_providers, "dnspod");
@@ -2464,6 +2916,7 @@ fn ddns_domain_target_policy_validates_explicit_roots_and_single_only_providers(
     for provider in [
         "alidns",
         "baiducloud",
+        "dnshe",
         "dnspod",
         "godaddy",
         "huaweicloud",
@@ -2579,6 +3032,7 @@ fn ddns_single_domain_normalizes_explicit_root_for_provider_splitters() {
     for (provider, root_field) in [
         ("alidns", "root_domain"),
         ("baiducloud", "root_domain"),
+        ("dnshe", "root_domain"),
         ("dnspod", "root_domain"),
         ("godaddy", "root_domain"),
         ("huaweicloud", "root_domain"),
@@ -2820,6 +3274,7 @@ fn provider_catalog_exposes_domain_target_capabilities_from_policy() {
     for provider in [
         "alidns",
         "baiducloud",
+        "dnshe",
         "dnspod",
         "godaddy",
         "huaweicloud",

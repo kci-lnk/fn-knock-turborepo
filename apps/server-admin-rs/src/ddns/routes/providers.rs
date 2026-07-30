@@ -3,6 +3,7 @@ mod alidns;
 mod baidu;
 mod cloudflare;
 mod common;
+mod dnshe;
 mod dnspod;
 mod duckdns;
 mod dynu;
@@ -22,6 +23,7 @@ pub(super) use alidns::*;
 pub(super) use baidu::*;
 pub(super) use cloudflare::*;
 pub(super) use common::*;
+pub(super) use dnshe::*;
 pub(super) use dnspod::*;
 pub(super) use duckdns::*;
 pub(super) use dynu::*;
@@ -309,6 +311,7 @@ pub(super) fn is_known_ddns_provider(provider: &str) -> bool {
         "alidns"
             | "baiducloud"
             | "cloudflare"
+            | "dnshe"
             | "dnspod"
             | "duckdns"
             | "dynu"
@@ -336,6 +339,7 @@ async fn update_ddns_provider_once(
         "alidns" => update_alidns(translator, config, http_options, ipv4, ipv6).await,
         "baiducloud" => update_baiducloud(translator, config, http_options, ipv4, ipv6).await,
         "cloudflare" => update_cloudflare(translator, config, http_options, ipv4, ipv6).await,
+        "dnshe" => update_dnshe(translator, config, http_options, ipv4, ipv6).await,
         "dnspod" => update_dnspod(translator, config, http_options, ipv4, ipv6).await,
         "duckdns" => update_duckdns(translator, config, http_options, ipv4, ipv6).await,
         "dynu" => update_dynu(translator, config, http_options, ipv4, ipv6).await,

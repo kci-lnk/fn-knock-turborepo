@@ -1747,6 +1747,35 @@ export const zhHantServer = {
         updateRecordFailed: "更新記錄失敗",
         createRecordFailed: "建立記錄失敗",
       },
+      dnshe: {
+        label: "DNSHE",
+        fields: {
+          api_key: {
+            label: "API Key",
+            description: "在 DNSHE API 管理中產生的 API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description: "與 DNSHE API Key 配套的 API Secret，請妥善保管",
+          },
+          root_domain: {
+            label: "DNSHE 託管網域",
+            description: "DNSHE 帳號中已註冊的完整免費網域，例如 example.com",
+          },
+          domain: {
+            description: "要更新的完整網域，必須位於所填 DNSHE 託管網域下",
+          },
+        },
+        configIncomplete: "DNSHE 配置不完整",
+        noIpAvailable: "DNSHE 更新失敗: 沒有可用的 IPv4 或 IPv6 位址",
+        managedDomainNotFound: "DNSHE 帳號中找不到託管網域: {domain}",
+        managedDomainInactive:
+          "DNSHE 託管網域不可用: {domain}（狀態: {status}）",
+        unknownStatus: "未知",
+        recordIdMissing: "DNSHE 返回的 {type} 記錄缺少內部 ID",
+        apiError: "DNSHE API 請求失敗: {detail}",
+        requestError: "DNSHE 請求異常: {detail}",
+      },
       cloudflare: {
         fields: {
           api_token: {

@@ -1914,6 +1914,34 @@
           "originUnchanged": "腾讯云 EdgeOne（CNAME 接入）源站已是最新，无需更新",
           "successWithInvalidHostHeaderIgnored": "腾讯云 EdgeOne（CNAME 接入）源站更新成功（已忽略无效 Host Header）",
           "success": "腾讯云 EdgeOne（CNAME 接入）源站更新成功"
+        },
+        "dnshe": {
+          "label": "DNSHE",
+          "fields": {
+            "api_key": {
+              "description": "DNSHE API 管理中生成的 API Key",
+              "label": "API Key"
+            },
+            "api_secret": {
+              "description": "与 DNSHE API Key 配套的 API Secret，请妥善保管",
+              "label": "API Secret"
+            },
+            "root_domain": {
+              "label": "DNSHE 托管域名",
+              "description": "DNSHE 账号中已注册的完整免费域名，例如 example.com"
+            },
+            "domain": {
+              "description": "要更新的完整域名，必须位于所填 DNSHE 托管域名下"
+            }
+          },
+          "configIncomplete": "DNSHE 配置不完整",
+          "noIpAvailable": "DNSHE 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+          "managedDomainNotFound": "DNSHE 账号中未找到托管域名: {domain}",
+          "managedDomainInactive": "DNSHE 托管域名不可用: {domain}（状态: {status}）",
+          "unknownStatus": "未知",
+          "recordIdMissing": "DNSHE 返回的 {type} 记录缺少内部 ID",
+          "apiError": "DNSHE API 请求失败: {detail}",
+          "requestError": "DNSHE 请求异常: {detail}"
         }
       },
       "domainTargets": {
@@ -5009,6 +5037,34 @@
           "originUnchanged": "騰訊雲 EdgeOne（CNAME 接入）源站已是最新，無需更新",
           "successWithInvalidHostHeaderIgnored": "騰訊雲 EdgeOne（CNAME 接入）源站更新成功（已忽略無效 Host Header）",
           "success": "騰訊雲 EdgeOne（CNAME 接入）源站更新成功"
+        },
+        "dnshe": {
+          "label": "DNSHE",
+          "fields": {
+            "api_key": {
+              "description": "在 DNSHE API 管理中產生的 API Key",
+              "label": "API Key"
+            },
+            "api_secret": {
+              "description": "與 DNSHE API Key 配套的 API Secret，請妥善保管",
+              "label": "API Secret"
+            },
+            "root_domain": {
+              "label": "DNSHE 託管網域",
+              "description": "DNSHE 帳號中已註冊的完整免費網域，例如 example.com"
+            },
+            "domain": {
+              "description": "要更新的完整網域，必須位於所填 DNSHE 託管網域下"
+            }
+          },
+          "configIncomplete": "DNSHE 配置不完整",
+          "noIpAvailable": "DNSHE 更新失敗: 沒有可用的 IPv4 或 IPv6 位址",
+          "managedDomainNotFound": "DNSHE 帳號中找不到託管網域: {domain}",
+          "managedDomainInactive": "DNSHE 託管網域不可用: {domain}（狀態: {status}）",
+          "unknownStatus": "未知",
+          "recordIdMissing": "DNSHE 返回的 {type} 記錄缺少內部 ID",
+          "apiError": "DNSHE API 請求失敗: {detail}",
+          "requestError": "DNSHE 請求異常: {detail}"
         }
       },
       "domainTargets": {
@@ -8104,6 +8160,34 @@
           "originUnchanged": "Tencent Cloud EdgeOne (CNAME access) origin is already up to date",
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne (CNAME access) origin updated successfully (ignored invalid Host Header)",
           "success": "Tencent Cloud EdgeOne (CNAME access) origin updated successfully"
+        },
+        "dnshe": {
+          "label": "DNSHE",
+          "fields": {
+            "api_key": {
+              "description": "API Key generated in DNSHE API Management",
+              "label": "API Key"
+            },
+            "api_secret": {
+              "description": "API Secret paired with the DNSHE API Key. Keep it secure.",
+              "label": "API Secret"
+            },
+            "root_domain": {
+              "label": "DNSHE managed domain",
+              "description": "Full free domain registered in the DNSHE account, such as example.com"
+            },
+            "domain": {
+              "description": "Full domain to update. It must be within the configured DNSHE managed domain."
+            }
+          },
+          "configIncomplete": "DNSHE configuration is incomplete",
+          "noIpAvailable": "DNSHE update failed: no IPv4 or IPv6 address is available",
+          "managedDomainNotFound": "Managed domain was not found in the DNSHE account: {domain}",
+          "managedDomainInactive": "DNSHE managed domain is unavailable: {domain} (status: {status})",
+          "unknownStatus": "unknown",
+          "recordIdMissing": "DNSHE returned a {type} record without an internal ID",
+          "apiError": "DNSHE API request failed: {detail}",
+          "requestError": "DNSHE request error: {detail}"
         }
       },
       "domainTargets": {
@@ -11199,6 +11283,34 @@
           "originUnchanged": "Tencent Cloud EdgeOne(CNAME 접근)의 오리진이 이미 최신 상태입니다.",
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne(CNAME 접근)의 오리진을 업데이트했습니다(올바르지 않은 Host 헤더는 무시함).",
           "success": "Tencent Cloud EdgeOne(CNAME 접근)의 오리진을 업데이트했습니다."
+        },
+        "dnshe": {
+          "label": "DNSHE",
+          "fields": {
+            "api_key": {
+              "description": "DNSHE API 관리에서 생성한 API Key",
+              "label": "API Key"
+            },
+            "api_secret": {
+              "description": "DNSHE API Key와 연결된 API Secret입니다. 안전하게 보관하세요.",
+              "label": "API Secret"
+            },
+            "root_domain": {
+              "label": "DNSHE 관리 도메인",
+              "description": "DNSHE 계정에 등록된 전체 무료 도메인입니다. 예: example.com"
+            },
+            "domain": {
+              "description": "업데이트할 전체 도메인입니다. 설정한 DNSHE 관리 도메인에 속해야 합니다."
+            }
+          },
+          "configIncomplete": "DNSHE 설정이 완전하지 않습니다",
+          "noIpAvailable": "DNSHE 업데이트 실패: 사용 가능한 IPv4 또는 IPv6 주소가 없습니다",
+          "managedDomainNotFound": "DNSHE 계정에서 관리 도메인을 찾을 수 없습니다: {domain}",
+          "managedDomainInactive": "DNSHE 관리 도메인을 사용할 수 없습니다: {domain} (상태: {status})",
+          "unknownStatus": "알 수 없음",
+          "recordIdMissing": "DNSHE가 반환한 {type} 레코드에 내부 ID가 없습니다",
+          "apiError": "DNSHE API 요청 실패: {detail}",
+          "requestError": "DNSHE 요청 오류: {detail}"
         }
       },
       "domainTargets": {
@@ -14294,6 +14406,34 @@
           "originUnchanged": "Tencent Cloud EdgeOne（CNAME 接続）のオリジンはすでに最新です",
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne（CNAME 接続）のオリジンを更新しました（無効な Host ヘッダーは無視されました）",
           "success": "Tencent Cloud EdgeOne（CNAME 接続）のオリジンを更新しました"
+        },
+        "dnshe": {
+          "label": "DNSHE",
+          "fields": {
+            "api_key": {
+              "description": "DNSHE API 管理で生成した API Key",
+              "label": "API Key"
+            },
+            "api_secret": {
+              "description": "DNSHE API Key と対になる API Secret です。安全に保管してください。",
+              "label": "API Secret"
+            },
+            "root_domain": {
+              "label": "DNSHE 管理ドメイン",
+              "description": "DNSHE アカウントに登録された完全な無料ドメインです。例: example.com"
+            },
+            "domain": {
+              "description": "更新する完全なドメインです。設定した DNSHE 管理ドメインに属している必要があります。"
+            }
+          },
+          "configIncomplete": "DNSHE の設定が不完全です",
+          "noIpAvailable": "DNSHE の更新に失敗しました: 使用可能な IPv4 または IPv6 アドレスがありません",
+          "managedDomainNotFound": "DNSHE アカウントに管理ドメインが見つかりません: {domain}",
+          "managedDomainInactive": "DNSHE 管理ドメインを使用できません: {domain}（状態: {status}）",
+          "unknownStatus": "不明",
+          "recordIdMissing": "DNSHE が返した {type} レコードに内部 ID がありません",
+          "apiError": "DNSHE API リクエストに失敗しました: {detail}",
+          "requestError": "DNSHE リクエストエラー: {detail}"
         }
       },
       "domainTargets": {

@@ -1970,6 +1970,41 @@ export const enServer = {
         updateRecordFailed: "Failed to update record",
         createRecordFailed: "Failed to create record",
       },
+      dnshe: {
+        label: "DNSHE",
+        fields: {
+          api_key: {
+            label: "API Key",
+            description: "API Key generated in DNSHE API Management",
+          },
+          api_secret: {
+            label: "API Secret",
+            description:
+              "API Secret paired with the DNSHE API Key. Keep it secure.",
+          },
+          root_domain: {
+            label: "DNSHE managed domain",
+            description:
+              "Full free domain registered in the DNSHE account, such as example.com",
+          },
+          domain: {
+            description:
+              "Full domain to update. It must be within the configured DNSHE managed domain.",
+          },
+        },
+        configIncomplete: "DNSHE configuration is incomplete",
+        noIpAvailable:
+          "DNSHE update failed: no IPv4 or IPv6 address is available",
+        managedDomainNotFound:
+          "Managed domain was not found in the DNSHE account: {domain}",
+        managedDomainInactive:
+          "DNSHE managed domain is unavailable: {domain} (status: {status})",
+        unknownStatus: "unknown",
+        recordIdMissing:
+          "DNSHE returned a {type} record without an internal ID",
+        apiError: "DNSHE API request failed: {detail}",
+        requestError: "DNSHE request error: {detail}",
+      },
       cloudflare: {
         fields: {
           api_token: {

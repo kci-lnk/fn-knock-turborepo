@@ -111,7 +111,7 @@ pub(super) fn ddns_provider_domain_policy(provider: &str) -> Option<DdnsProvider
         pair_execution: DdnsDomainUpdateExecution::FanOut,
     };
     match provider {
-        "alidns" | "baiducloud" | "dnspod" | "godaddy" | "huaweicloud" | "porkbun"
+        "alidns" | "baiducloud" | "dnshe" | "dnspod" | "godaddy" | "huaweicloud" | "porkbun"
         | "tencentcloud" => Some(config_root("root_domain")),
         "esa" => Some(DdnsProviderDomainPolicy {
             preflight: DdnsDomainRootPreflight::EsaSite,

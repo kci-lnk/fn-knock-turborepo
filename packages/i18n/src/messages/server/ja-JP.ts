@@ -2063,6 +2063,41 @@ export const jaJPServer = {
         updateRecordFailed: "レコードの更新に失敗しました",
         createRecordFailed: "レコードの作成に失敗しました",
       },
+      dnshe: {
+        label: "DNSHE",
+        fields: {
+          api_key: {
+            label: "API Key",
+            description: "DNSHE API 管理で生成した API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description:
+              "DNSHE API Key と対になる API Secret です。安全に保管してください。",
+          },
+          root_domain: {
+            label: "DNSHE 管理ドメイン",
+            description:
+              "DNSHE アカウントに登録された完全な無料ドメインです。例: example.com",
+          },
+          domain: {
+            description:
+              "更新する完全なドメインです。設定した DNSHE 管理ドメインに属している必要があります。",
+          },
+        },
+        configIncomplete: "DNSHE の設定が不完全です",
+        noIpAvailable:
+          "DNSHE の更新に失敗しました: 使用可能な IPv4 または IPv6 アドレスがありません",
+        managedDomainNotFound:
+          "DNSHE アカウントに管理ドメインが見つかりません: {domain}",
+        managedDomainInactive:
+          "DNSHE 管理ドメインを使用できません: {domain}（状態: {status}）",
+        unknownStatus: "不明",
+        recordIdMissing:
+          "DNSHE が返した {type} レコードに内部 ID がありません",
+        apiError: "DNSHE API リクエストに失敗しました: {detail}",
+        requestError: "DNSHE リクエストエラー: {detail}",
+      },
       cloudflare: {
         fields: {
           api_token: {

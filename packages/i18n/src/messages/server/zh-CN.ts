@@ -1747,6 +1747,35 @@ export const zhCNServer = {
         updateRecordFailed: "更新记录失败",
         createRecordFailed: "创建记录失败",
       },
+      dnshe: {
+        label: "DNSHE",
+        fields: {
+          api_key: {
+            label: "API Key",
+            description: "DNSHE API 管理中生成的 API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description: "与 DNSHE API Key 配套的 API Secret，请妥善保管",
+          },
+          root_domain: {
+            label: "DNSHE 托管域名",
+            description: "DNSHE 账号中已注册的完整免费域名，例如 example.com",
+          },
+          domain: {
+            description: "要更新的完整域名，必须位于所填 DNSHE 托管域名下",
+          },
+        },
+        configIncomplete: "DNSHE 配置不完整",
+        noIpAvailable: "DNSHE 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+        managedDomainNotFound: "DNSHE 账号中未找到托管域名: {domain}",
+        managedDomainInactive:
+          "DNSHE 托管域名不可用: {domain}（状态: {status}）",
+        unknownStatus: "未知",
+        recordIdMissing: "DNSHE 返回的 {type} 记录缺少内部 ID",
+        apiError: "DNSHE API 请求失败: {detail}",
+        requestError: "DNSHE 请求异常: {detail}",
+      },
       cloudflare: {
         fields: {
           api_token: {

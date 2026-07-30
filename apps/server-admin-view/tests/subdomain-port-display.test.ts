@@ -17,18 +17,17 @@ const createConfig = (
     ...overrides,
   }) as AppConfig;
 
-const formatMappingHost = (
+const createHostFormatters = (
   subdomainMode: SubdomainModeConfig,
   overrides: Partial<AppConfig> = {},
-): string => {
+) => {
   const config = createConfig(subdomainMode, overrides);
-  const { formatHostWithAccessEntryPort } = useSubdomainPortDisplay({
+  return useSubdomainPortDisplay({
     accessEntryPort: ref("7999"),
     currentModeConfig: computed(() => config.subdomain_mode),
     getConfig: () => config,
     modeForm: { ...subdomainMode },
   });
-  return formatHostWithAccessEntryPort("app.example.com");
 };
 
 test("edge ingress omits a stale configured gateway port from mapping hosts", () => {
@@ -39,7 +38,28 @@ test("edge ingress omits a stale configured gateway port from mapping hosts", ()
     public_https_port: 7999,
   };
 
-  assert.equal(formatMappingHost(subdomainMode), "app.example.com");
+  const { formatHostWithAccessEntryPort } = createHostFormatters(subdomainMode);
+
+  assert.equal(
+    formatHostWithAccessEntryPort("app.example.com"),
+    "app.example.com",
+  );
+});
+
+test("edge ingress omits a stale configured gateway port from the current auth service", () => {
+  const subdomainMode = {
+    ...createDefaultModeForm(),
+    edge_client_ip_enabled: true,
+    tencent_edgeone_enabled: true,
+    public_https_port: 7999,
+  };
+  const { formatAuthServiceHostWithPublicPort } =
+    createHostFormatters(subdomainMode);
+
+  assert.equal(
+    formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com",
+  );
 });
 
 test("non-edge ingress keeps an explicitly configured public port", () => {
@@ -47,8 +67,17 @@ test("non-edge ingress keeps an explicitly configured public port", () => {
     ...createDefaultModeForm(),
     public_https_port: 8443,
   };
+  const { formatAuthServiceHostWithPublicPort, formatHostWithAccessEntryPort } =
+    createHostFormatters(subdomainMode);
 
-  assert.equal(formatMappingHost(subdomainMode), "app.example.com:8443");
+  assert.equal(
+    formatHostWithAccessEntryPort("app.example.com"),
+    "app.example.com:8443",
+  );
+  assert.equal(
+    formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com:8443",
+  );
 });
 
 test("cloudflared keeps an explicitly configured public port", () => {
@@ -56,13 +85,19 @@ test("cloudflared keeps an explicitly configured public port", () => {
     ...createDefaultModeForm(),
     public_https_port: 8443,
   };
-
-  assert.equal(
-    formatMappingHost(subdomainMode, {
+  const { formatAuthServiceHostWithPublicPort, formatHostWithAccessEntryPort } =
+    createHostFormatters(subdomainMode, {
       run_type: 1,
       reverse_proxy_submode: "subdomain",
       default_tunnel: "cloudflared",
-    }),
+    });
+
+  assert.equal(
+    formatHostWithAccessEntryPort("app.example.com"),
     "app.example.com:8443",
+  );
+  assert.equal(
+    formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com:8443",
   );
 });

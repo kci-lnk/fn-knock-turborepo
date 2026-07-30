@@ -8,9 +8,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use url::Url;
 
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
 };
 
 const SCANNER_BASE_WINDOW_SECONDS: i64 = 5 * 60;
+const SCANNER_EXEMPT_IPSET_KEY: &str = "scanner_exemptions";
 const SUBSONIC_REST_ENDPOINTS: &[&str] = &[
     "addchatmessage",
     "changeemail",
@@ -140,7 +140,7 @@ fn localize_cidr_error(translator: &Translator, message: &str) -> String {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum ScannerError {
+pub(crate) enum ScannerError {
     #[error("{0}")]
     BadRequest(String),
     #[error("{0}")]
@@ -225,6 +225,15 @@ struct ScannerSettings {
     cidr_exemption_region_cidrs: Vec<String>,
     #[serde(rename = "cidrExemptionCidrs")]
     cidr_exemption_cidrs: Vec<String>,
+    #[serde(
+        rename = "cidrExemptionPolicyId",
+        skip_serializing_if = "Option::is_none"
+    )]
+    cidr_exemption_policy_id: Option<String>,
+    #[serde(rename = "cidrExemptionSourceCidrCount")]
+    cidr_exemption_source_cidr_count: usize,
+    #[serde(rename = "cidrExemptionRangeCount")]
+    cidr_exemption_range_count: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -283,6 +292,7 @@ pub(crate) use preflight::{
     is_blacklisted_for_preflight, is_common_path_for_preflight, is_request_exempt_from_scan,
     record_uncommon_path_for_preflight,
 };
+pub(crate) use settings::migrate_scanner_cidr_ipset_on_boot;
 use settings::{load_scanner_settings, save_scanner_settings};
 use utils::*;
 

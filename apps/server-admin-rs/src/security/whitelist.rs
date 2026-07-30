@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io,
+    net::IpAddr,
     str::FromStr,
 };
 
@@ -23,7 +24,7 @@ use uuid::Uuid;
 
 use crate::{
     auth_mobility,
-    cidr::{CidrOperator, CidrRegionQuery},
+    cidr::{CidrOperator, CidrRegionQuery, CompiledIpSet, compile_ip_set, union_ip_sets},
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
     ip_location, response, runtime_profile,
@@ -40,6 +41,9 @@ const MIN_CNAME_CHECK_INTERVAL_MINUTES: i64 = 1;
 const MAX_CNAME_CHECK_INTERVAL_MINUTES: i64 = 24 * 60;
 const AUTO_WHITELIST_OWNER_LOCK_TTL_SECONDS: usize = 60;
 const AUTO_WHITELIST_OWNER_LOCK_WAIT_SECONDS: u64 = 10;
+const WHITELIST_ALL_IPSET_KEY: &str = "whitelist_all";
+const WHITELIST_MANUAL_IPSET_KEY: &str = "whitelist_manual";
+const WHITELIST_AUTO_IPSET_KEY: &str = "whitelist_auto";
 
 pub(crate) struct DeferredSessionAutoWhitelist {
     pub(crate) record: WhitelistRecord,
@@ -434,9 +438,8 @@ pub(crate) async fn publish_deferred_session_auto_whitelist(
             .replace_whitelist_record(&previous, &deferred.record)
             .await?;
     }
-    sync_allowed_target(state, &deferred.record.ip).await;
     cleanup_removed_targets(state, &deferred.previous_targets).await;
-    sync_reverse_proxy_trusted_ips(state).await;
+    sync_reverse_proxy_trusted_ips_required(state).await?;
     Ok(deferred.record)
 }
 
@@ -459,7 +462,7 @@ pub async fn remove_whitelist_record_by_id(state: &AppState, id: &str) -> anyhow
         Some(record) => {
             let targets = record.concrete_targets();
             cleanup_removed_targets(state, &targets).await;
-            sync_reverse_proxy_trusted_ips(state).await;
+            sync_reverse_proxy_trusted_ips_required(state).await?;
             Ok(true)
         }
         None => Ok(false),
@@ -556,9 +559,8 @@ pub async fn move_record_to_ip(
     state.store.replace_whitelist_record(&record, &next).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", next.id)]).await;
-    sync_allowed_target(state, &target).await;
     cleanup_removed_targets(state, &previous_targets).await;
-    sync_reverse_proxy_trusted_ips(state).await;
+    sync_reverse_proxy_trusted_ips_required(state).await?;
     Ok(Some(next))
 }
 
@@ -622,7 +624,7 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
     }
 
     if changed {
-        sync_reverse_proxy_trusted_ips(state).await;
+        sync_reverse_proxy_trusted_ips_required(state).await?;
     }
     Ok(())
 }
@@ -681,8 +683,8 @@ async fn add_whitelist_regions(
         );
     }
 
-    let cidrs = match resolve_whitelist_region_cidrs(&state, &regions).await {
-        Ok(cidrs) => cidrs,
+    let policy = match resolve_whitelist_region_policy(&state, &regions).await {
+        Ok(policy) => policy,
         Err(WhitelistRegionResolveError::Empty) => {
             return response::error(
                 StatusCode::BAD_REQUEST,
@@ -705,7 +707,11 @@ async fn add_whitelist_regions(
     let record = WhitelistRegionGroupRecord {
         id: format!("whitelist-region:{}", Uuid::new_v4()),
         regions,
-        cidrs,
+        cidrs: Vec::new(),
+        policy_id: policy.id.clone(),
+        policy: Some(policy.to_transport_value()),
+        source_cidr_count: policy.source_cidr_count,
+        range_count: policy.range_count(),
         expire_at: body.expire_at,
         source: "manual".to_string(),
         created_at: now,
@@ -722,13 +728,16 @@ async fn add_whitelist_regions(
         );
     }
 
-    for cidr in &record.cidrs {
-        sync_allowed_target(&state, cidr).await;
+    if let Err(error) = sync_reverse_proxy_trusted_ips_required(&state).await {
+        tracing::warn!(%error, group_id = %record.id, "failed to activate whitelist region group");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            whitelist_text(&translator, "regionAddFailed"),
+        );
     }
-    sync_reverse_proxy_trusted_ips(&state).await;
     response::ok(json!({
         "group": record.summary(),
-        "total": record.cidrs.len(),
+        "total": record.source_cidr_count,
     }))
     .into_response()
 }
@@ -742,7 +751,13 @@ async fn delete_whitelist_region(
         Ok(Some(group)) => {
             let targets = group.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
-            sync_reverse_proxy_trusted_ips(&state).await;
+            if let Err(error) = sync_reverse_proxy_trusted_ips_required(&state).await {
+                tracing::warn!(%error, %id, "failed to revoke whitelist region group runtime");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    whitelist_text(&translator, "regionDeleteFailed"),
+                );
+            }
             response::success_empty().into_response()
         }
         Ok(None) => response::error(
@@ -886,9 +901,14 @@ async fn add_whitelist(
             let _ =
                 ip_location::register_usage(&state, &target, vec![format!("whitelist|{id}")]).await;
         }
-        sync_allowed_target(&state, &target).await;
     }
-    sync_reverse_proxy_trusted_ips(&state).await;
+    if let Err(error) = sync_reverse_proxy_trusted_ips_required(&state).await {
+        tracing::warn!(%error, %id, "failed to activate whitelist runtime");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            whitelist_text(&translator, "addFailed"),
+        );
+    }
     response::ok(json!({ "id": id })).into_response()
 }
 
@@ -898,7 +918,13 @@ async fn delete_whitelist(State(state): State<AppState>, Path(id): Path<String>)
         Ok(Some(record)) => {
             let targets = record.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
-            sync_reverse_proxy_trusted_ips(&state).await;
+            if let Err(error) = sync_reverse_proxy_trusted_ips_required(&state).await {
+                tracing::warn!(%error, %id, "failed to revoke whitelist runtime");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    whitelist_text(&translator, "deleteFailed"),
+                );
+            }
             response::success_empty().into_response()
         }
         Ok(None) => response::error(
@@ -1021,13 +1047,9 @@ async fn refresh_cname_record(state: &AppState, id: &str) -> anyhow::Result<Opti
             state.store.replace_whitelist_record(&record, &next).await?;
 
             let next_targets = next.concrete_targets();
-            let added = diff_targets(&next_targets, &previous_targets);
             let removed = diff_targets(&previous_targets, &next_targets);
-            for target in added {
-                sync_allowed_target(state, &target.target).await;
-            }
             cleanup_removed_targets(state, &removed).await;
-            sync_reverse_proxy_trusted_ips(state).await;
+            sync_reverse_proxy_trusted_ips_required(state).await?;
             Ok(Some(json!({
                 "record": next,
                 "changed": changed,
@@ -1040,7 +1062,7 @@ async fn refresh_cname_record(state: &AppState, id: &str) -> anyhow::Result<Opti
             next.resolve_message = Some(message);
             state.store.replace_whitelist_record(&record, &next).await?;
             cleanup_removed_targets(state, &previous_targets).await;
-            sync_reverse_proxy_trusted_ips(state).await;
+            sync_reverse_proxy_trusted_ips_required(state).await?;
             Ok(Some(json!({
                 "record": next,
                 "changed": !previous_targets.is_empty(),
@@ -1104,117 +1126,233 @@ async fn cleanup_removed_targets(state: &AppState, targets: &[WhitelistConcreteT
         .cleanup_whitelist_concrete_targets(targets)
         .await
     {
-        Ok(removed) => {
-            for target in removed {
-                sync_removed_target(state, &target.target).await;
-            }
-        }
+        Ok(_) => {}
         Err(error) => {
             tracing::warn!(%error, "failed to cleanup whitelist concrete targets");
         }
     }
 }
 
-async fn sync_allowed_target(state: &AppState, target: &str) {
-    if !should_sync_direct_firewall(state).await {
-        return;
-    }
-    if let Err(error) = state.go_backend.allow_ip(target).await {
-        tracing::warn!(%error, %target, "failed to sync allowed whitelist target to Go backend");
-    }
-}
-
-async fn sync_removed_target(state: &AppState, target: &str) {
-    if !should_sync_direct_firewall(state).await {
-        return;
-    }
-    if let Err(error) = state.go_backend.remove_ip(target).await {
-        tracing::warn!(%error, %target, "failed to remove whitelist target from Go backend");
-    }
-}
-
 async fn should_sync_direct_firewall(state: &AppState) -> bool {
-    if !runtime_profile::host_firewall_available(state) {
-        return false;
-    }
-    let config = match state.store.get_config().await {
-        Ok(config) => config,
+    match direct_firewall_sync_required(state).await {
+        Ok(required) => required,
         Err(error) => {
             tracing::warn!(%error, "failed to read config for whitelist firewall sync");
-            return false;
+            false
         }
-    };
+    }
+}
+
+async fn direct_firewall_sync_required(state: &AppState) -> anyhow::Result<bool> {
+    if !runtime_profile::host_firewall_available(state) {
+        return Ok(false);
+    }
+    let config = state.store.get_config().await?;
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
-    run_type == 0
+    Ok(run_type == 0
         || config
             .get("auto_manage_firewall")
             .and_then(Value::as_bool)
-            .unwrap_or(true)
+            .unwrap_or(true))
+}
+
+pub async fn migrate_whitelist_ipsets_on_boot(state: &AppState) -> anyhow::Result<()> {
+    migrate_whitelist_ipsets_in_storage(state).await?;
+    sync_reverse_proxy_trusted_ips_inner(state).await
+}
+
+pub(crate) async fn migrate_whitelist_ipsets_in_storage(state: &AppState) -> anyhow::Result<()> {
+    state
+        .store
+        .migrate_whitelist_region_groups_to_ipsets()
+        .await?;
+    rebuild_whitelist_ipset_snapshots(state).await
+}
+
+pub fn whitelist_snapshot_contains(
+    state: &AppState,
+    address: IpAddr,
+    sources: Option<&[&str]>,
+) -> bool {
+    match sources {
+        None => state
+            .ipsets
+            .get(WHITELIST_ALL_IPSET_KEY)
+            .is_some_and(|policy| policy.contains(address)),
+        Some(sources) => sources.iter().any(|source| {
+            let key = match *source {
+                "manual" => WHITELIST_MANUAL_IPSET_KEY,
+                "auto" => WHITELIST_AUTO_IPSET_KEY,
+                _ => return false,
+            };
+            state
+                .ipsets
+                .get(key)
+                .is_some_and(|policy| policy.contains(address))
+        }),
+    }
+}
+
+pub(crate) async fn rebuild_whitelist_ipset_snapshots(state: &AppState) -> anyhow::Result<()> {
+    let now = now_seconds();
+    let mut manual_policies = Vec::<CompiledIpSet>::new();
+    let mut auto_policies = Vec::<CompiledIpSet>::new();
+    let mut manual_cidrs = Vec::new();
+    let mut auto_cidrs = Vec::new();
+
+    for record in state.store.list_whitelist_records().await? {
+        if !record.is_active() || record.expire_at.is_some_and(|expire_at| expire_at <= now) {
+            continue;
+        }
+        let output = if record.source == "auto" {
+            &mut auto_cidrs
+        } else {
+            &mut manual_cidrs
+        };
+        for target in record.concrete_targets() {
+            if target.target_type == "cidr" {
+                output.push(target.target);
+            } else if let Ok(address) = normalize_ip(&target.target).parse::<IpAddr>() {
+                output.push(host_cidr(address));
+            }
+        }
+    }
+    for group in state.store.list_whitelist_region_groups().await? {
+        if !group.is_active() || group.expire_at.is_some_and(|expire_at| expire_at <= now) {
+            continue;
+        }
+        let policy = group.policy_result().map_err(|error| {
+            anyhow::anyhow!(
+                "whitelist region group {} policy is invalid: {error}",
+                group.id
+            )
+        })?;
+        if group.source == "auto" {
+            auto_policies.push(policy);
+        } else {
+            manual_policies.push(policy);
+        }
+    }
+
+    manual_policies.push(compile_ip_set(manual_cidrs).map_err(anyhow::Error::msg)?);
+    auto_policies.push(compile_ip_set(auto_cidrs).map_err(anyhow::Error::msg)?);
+    let manual = union_ip_sets(manual_policies.iter());
+    let auto = union_ip_sets(auto_policies.iter());
+    let all = union_ip_sets([&manual, &auto]);
+    state.ipsets.publish(
+        WHITELIST_MANUAL_IPSET_KEY,
+        (manual.range_count() > 0).then_some(manual),
+    );
+    state.ipsets.publish(
+        WHITELIST_AUTO_IPSET_KEY,
+        (auto.range_count() > 0).then_some(auto),
+    );
+    state.ipsets.publish(
+        WHITELIST_ALL_IPSET_KEY,
+        (all.range_count() > 0).then_some(all),
+    );
+    Ok(())
+}
+
+fn host_cidr(address: IpAddr) -> String {
+    match address {
+        IpAddr::V4(address) => format!("{address}/32"),
+        IpAddr::V6(address) => format!("{address}/128"),
+    }
 }
 
 pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
-    match compile_reverse_proxy_trusted_ips(state).await {
-        Ok(runtime) => {
-            if let Err(error) = state
-                .store
-                .save_reverse_proxy_trusted_ips_runtime(&runtime)
-                .await
-            {
-                tracing::warn!(%error, "failed to save reverse proxy trusted IP runtime");
-                return;
-            }
-            let gateway_payload = json!({
-                "enabled": runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false),
-                "ips": if runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
-                    runtime
-                        .get("items")
-                        .and_then(Value::as_array)
-                        .map(|items| {
-                            items
-                                .iter()
-                                .filter_map(|item| item.get("ip").and_then(Value::as_str))
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                },
-                "cidrs": if runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
-                    runtime
-                        .get("cidrs")
-                        .and_then(Value::as_array)
-                        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                },
-                "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
-            });
-            if let Err(error) = state
-                .go_backend
-                .set_reverse_proxy_throttle_exempt_ips(&gateway_payload)
-                .await
-                .and_then(|value| {
-                    if crate::go_backend::response_success(&value) {
-                        Ok(value)
-                    } else {
-                        anyhow::bail!(
-                            "{}",
-                            crate::go_backend::response_message(
-                                &value,
-                                "Failed to sync reverse proxy trusted IP runtime",
-                            )
-                        )
-                    }
-                })
-            {
-                tracing::warn!(%error, "failed to sync reverse proxy trusted IP runtime to Go backend");
-            }
-        }
-        Err(error) => {
-            tracing::warn!(%error, "failed to compile reverse proxy trusted IP runtime");
-        }
+    if let Err(error) = sync_reverse_proxy_trusted_ips_inner(state).await {
+        tracing::warn!(%error, "failed to synchronize reverse proxy trusted IP runtime");
     }
+}
+
+pub async fn sync_reverse_proxy_trusted_ips_required(state: &AppState) -> anyhow::Result<()> {
+    // Only managed host-firewall deployments have an external authorization
+    // boundary that must be confirmed before acknowledging a mutation.
+    if !direct_firewall_sync_required(state).await? {
+        sync_reverse_proxy_trusted_ips(state).await;
+        return Ok(());
+    }
+    sync_reverse_proxy_trusted_ips_inner(state).await
+}
+
+pub(crate) async fn sync_direct_firewall_whitelist(state: &AppState) -> anyhow::Result<usize> {
+    let _guard = state.whitelist_runtime_sync_lock.lock().await;
+    rebuild_whitelist_ipset_snapshots(state).await?;
+    sync_direct_firewall_whitelist_from_snapshot(state).await
+}
+
+async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Result<()> {
+    let _guard = state.whitelist_runtime_sync_lock.lock().await;
+    rebuild_whitelist_ipset_snapshots(state).await?;
+    let runtime = compile_reverse_proxy_trusted_ips(state).await?;
+    let gateway_payload = json!({
+        "enabled": runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+        "ips": if runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
+            runtime
+                .get("items")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item.get("ip").and_then(Value::as_str))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        },
+        "cidrs": Vec::<String>::new(),
+        "policy_id": runtime.get("policy_id").cloned().unwrap_or(Value::Null),
+        "policy": runtime.get("policy").cloned().unwrap_or(Value::Null),
+        "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
+    });
+    let value = state
+        .go_backend
+        .set_reverse_proxy_throttle_exempt_ips(&gateway_payload)
+        .await?;
+    if !crate::go_backend::response_success(&value) {
+        anyhow::bail!(
+            "{}",
+            crate::go_backend::response_message(
+                &value,
+                "Failed to sync reverse proxy trusted IP runtime",
+            )
+        );
+    }
+    state
+        .store
+        .save_reverse_proxy_trusted_ips_runtime(&runtime)
+        .await?;
+    sync_direct_firewall_whitelist_from_snapshot(state).await?;
+    Ok(())
+}
+
+async fn sync_direct_firewall_whitelist_from_snapshot(state: &AppState) -> anyhow::Result<usize> {
+    if !should_sync_direct_firewall(state).await {
+        return Ok(0);
+    }
+    let policy = state
+        .ipsets
+        .get(WHITELIST_ALL_IPSET_KEY)
+        .map(|policy| (*policy).clone())
+        .unwrap_or_else(|| compile_ip_set(std::iter::empty::<&str>()).expect("empty IP set"));
+    let payload = json!({
+        "policy_id": policy.id,
+        "policy": policy.to_transport_value(),
+    });
+    let result = state.go_backend.sync_whitelist_firewall(&payload).await?;
+    if !crate::go_backend::response_success(&result) {
+        anyhow::bail!(
+            "{}",
+            crate::go_backend::response_message(
+                &result,
+                "Failed to sync direct-mode whitelist firewall",
+            )
+        );
+    }
+    Ok(policy.range_count())
 }
 
 async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<Value> {
@@ -1229,6 +1367,7 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
         .unwrap_or(false);
     let sessions = state.store.list_session_values().await?;
     let whitelist_targets = state.store.list_whitelist_active_concrete_targets().await?;
+    let whitelist_region_groups = state.store.list_whitelist_region_groups().await?;
 
     let mut source_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut session_linked_auto_whitelist_final_ip_by_record_id = BTreeMap::<String, String>::new();
@@ -1298,10 +1437,29 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
         )
         .collect::<Vec<_>>();
 
+    let mut policies = vec![compile_ip_set(&cidrs).map_err(anyhow::Error::msg)?];
+    for group in whitelist_region_groups {
+        if group
+            .expire_at
+            .is_some_and(|expire_at| expire_at <= now_seconds())
+        {
+            continue;
+        }
+        policies.push(group.policy_result().map_err(|error| {
+            anyhow::anyhow!(
+                "whitelist region group {} policy is invalid: {error}",
+                group.id
+            )
+        })?);
+    }
+    let policy = union_ip_sets(policies.iter());
     Ok(json!({
         "enabled": enabled,
         "items": items,
-        "cidrs": cidrs,
+        "policy_id": policy.id.clone(),
+        "source_cidr_count": policy.source_cidr_count,
+        "range_count": policy.range_count(),
+        "policy": policy.to_transport_value(),
         "updated_at": time_utils::now_iso()
     }))
 }
@@ -1412,12 +1570,11 @@ fn js_region_string(value: Option<&Value>) -> String {
     }
 }
 
-async fn resolve_whitelist_region_cidrs(
+async fn resolve_whitelist_region_policy(
     state: &AppState,
     regions: &[WhitelistRegionInput],
-) -> Result<Vec<String>, WhitelistRegionResolveError> {
-    let mut cidrs = Vec::new();
-    let mut seen = BTreeSet::new();
+) -> Result<CompiledIpSet, WhitelistRegionResolveError> {
+    let mut policies = Vec::new();
     for region in regions {
         let query = CidrRegionQuery::new(
             region.province.clone(),
@@ -1427,19 +1584,13 @@ async fn resolve_whitelist_region_cidrs(
         let lookup = crate::cidr::lookup_region(state, &query)
             .await
             .map_err(|error| WhitelistRegionResolveError::Lookup(error.to_string()))?;
-        for cidr in lookup.cidrs {
-            let Some(normalized) = normalize_cidr(&cidr) else {
-                continue;
-            };
-            if seen.insert(normalized.to_ascii_lowercase()) {
-                cidrs.push(normalized);
-            }
-        }
+        policies.push(lookup.policy);
     }
-    if cidrs.is_empty() {
+    let policy = crate::cidr::union_ip_sets(policies.iter());
+    if policy.range_count() == 0 {
         return Err(WhitelistRegionResolveError::Empty);
     }
-    Ok(cidrs)
+    Ok(policy)
 }
 
 fn normalize_target(

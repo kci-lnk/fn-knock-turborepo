@@ -26,7 +26,7 @@ use crate::grpc_proto::{
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
     SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
     StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
-    firewall_service_client::FirewallServiceClient,
+    WhitelistFirewallSyncRequest, firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
@@ -179,6 +179,8 @@ impl GoBackendClient {
             "lifecycle",
             "host_rule_groups_v1",
             "compiled_visibility_ipset_v1",
+            "compiled_ipset_v2",
+            "compiled_whitelist_firewall_v1",
         ] {
             if !capabilities
                 .iter()
@@ -890,6 +892,21 @@ impl GoBackendClient {
         status_value("remove_ip", result)
     }
 
+    pub async fn sync_whitelist_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
+        let mut client = self.firewall.clone();
+        let result = match client
+            .sync_whitelist_firewall(self.request(WhitelistFirewallSyncRequest {
+                policy_id: string_field(payload, "policy_id"),
+                policy: parse_optional_compiled_ip_set(payload.get("policy")),
+            }))
+            .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("sync_whitelist_firewall", result)
+    }
+
     pub async fn init_iptables(&self, payload: &Value) -> anyhow::Result<Value> {
         let mut client = self.firewall.clone();
         let result = match client
@@ -925,6 +942,8 @@ impl GoBackendClient {
                 allowed_cidrs: string_vec_field(payload, "allowed_cidrs"),
                 blocked_ips: string_vec_field(payload, "blocked_ips"),
                 include_local_cidrs: bool_field(payload, "include_local_cidrs", false),
+                policy_id: string_field(payload, "policy_id"),
+                policy: parse_optional_compiled_ip_set(payload.get("policy")),
             }))
             .await
         {
@@ -1272,6 +1291,7 @@ fn string_array(value: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+#[allow(deprecated)] // Read legacy CIDRs only while upgrading old snapshots.
 fn parse_advanced_auth(value: Option<&Value>) -> Option<AdvancedAuthConfig> {
     let value = value?.as_object()?;
     let groups = value
@@ -1317,6 +1337,11 @@ fn parse_advanced_auth(value: Option<&Value>) -> Option<AdvancedAuthConfig> {
                                         .to_string(),
                                     values: string_array(condition.get("values")),
                                     cidrs: string_array(condition.get("cidrs")),
+                                    policy_id: condition
+                                        .get("policy_id")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_string(),
                                 })
                                 .collect()
                         })
@@ -1514,6 +1539,8 @@ fn parse_throttle_exempt(value: &Value) -> ReverseProxyThrottleExemptIpsRuntime 
         ips: string_vec_field(value, "ips"),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
+        policy_id: string_field(value, "policy_id"),
+        policy: parse_optional_compiled_ip_set(value.get("policy")),
     }
 }
 
@@ -1523,7 +1550,31 @@ fn parse_common_exemptions(value: &Value) -> CommonLocationExemptionsRuntime {
         waf_enabled: bool_field(value, "waf_enabled", false),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
+        policy_id: string_field(value, "policy_id"),
+        policy: parse_optional_compiled_ip_set(value.get("policy")),
     }
+}
+
+fn parse_optional_compiled_ip_set(value: Option<&Value>) -> Option<ProtoCompiledIpSet> {
+    let value = value?;
+    let id = string_field(value, "id");
+    if id.is_empty() {
+        return None;
+    }
+    Some(ProtoCompiledIpSet {
+        id,
+        format_version: value
+            .get("format_version")
+            .and_then(Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or_default(),
+        ipv4_ranges: URL_SAFE_NO_PAD
+            .decode(string_field(value, "ipv4_ranges"))
+            .unwrap_or_default(),
+        ipv6_ranges: URL_SAFE_NO_PAD
+            .decode(string_field(value, "ipv6_ranges"))
+            .unwrap_or_default(),
+    })
 }
 
 fn parse_waf_config(value: &Value) -> WafConfig {
@@ -1613,6 +1664,7 @@ fn host_rule_availability_to_json(availability: Option<HostRuleAvailability>) ->
     }
 }
 
+#[allow(deprecated)] // Echo legacy CIDRs only for compatibility validation.
 fn advanced_auth_to_json(config: Option<AdvancedAuthConfig>) -> Value {
     let Some(config) = config else {
         return Value::Null;
@@ -1812,7 +1864,14 @@ fn throttle_exempt_to_json(config: ReverseProxyThrottleExemptIpsRuntime) -> Valu
         "enabled": config.enabled,
         "ips": config.ips,
         "cidrs": config.cidrs,
-        "updated_at": config.updated_at
+        "updated_at": config.updated_at,
+        "policy_id": config.policy_id,
+        "policy": config.policy.map(|policy| json!({
+            "id": policy.id,
+            "format_version": policy.format_version,
+            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
+            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
+        }))
     })
 }
 
@@ -1821,7 +1880,14 @@ fn common_exemptions_to_json(config: CommonLocationExemptionsRuntime) -> Value {
         "enabled": config.enabled,
         "waf_enabled": config.waf_enabled,
         "cidrs": config.cidrs,
-        "updated_at": config.updated_at
+        "updated_at": config.updated_at,
+        "policy_id": config.policy_id,
+        "policy": config.policy.map(|policy| json!({
+            "id": policy.id,
+            "format_version": policy.format_version,
+            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
+            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
+        }))
     })
 }
 

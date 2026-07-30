@@ -9,6 +9,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD as BASE64_STANDARD, URL_SAFE_NO_PAD},
 };
+#[cfg(test)]
 use ipnet::IpNet;
 use serde::Deserialize;
 use serde_json::{Value, json};

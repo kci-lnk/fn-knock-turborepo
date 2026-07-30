@@ -56,6 +56,40 @@ pub(crate) fn strip_internal_config_metadata(config: &mut Value) {
     }
 }
 
+pub(crate) fn referenced_host_ipset_policy_ids<'a>(
+    mappings: impl IntoIterator<Item = &'a Value>,
+) -> BTreeSet<String> {
+    let mut referenced = BTreeSet::new();
+    for mapping in mappings {
+        if let Some(id) = mapping
+            .pointer("/visibility/policy_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            referenced.insert(id.to_string());
+        }
+        for condition in mapping
+            .pointer("/advanced_auth/groups")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|group| group.get("conditions").and_then(Value::as_array))
+            .flatten()
+        {
+            if let Some(id) = condition
+                .get("policy_id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                referenced.insert(id.to_string());
+            }
+        }
+    }
+    referenced
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -130,6 +164,29 @@ fn deserialize_whitelist_region_group(raw: &str) -> Option<WhitelistRegionGroupR
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();
+    let policy_id = object
+        .get("policyId")
+        .or_else(|| object.get("policy_id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
+    let policy = object
+        .get("policy")
+        .filter(|value| !value.is_null())
+        .cloned();
+    let source_cidr_count = object
+        .get("sourceCidrCount")
+        .or_else(|| object.get("source_cidr_count"))
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(cidrs.len());
+    let range_count = object
+        .get("rangeCount")
+        .or_else(|| object.get("range_count"))
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or_default();
     let created_at = js_finite_number(object.get("createdAt"))
         .map(|value| value.trunc() as i64)
         .unwrap_or(0);
@@ -158,6 +215,10 @@ fn deserialize_whitelist_region_group(raw: &str) -> Option<WhitelistRegionGroupR
         id,
         regions,
         cidrs,
+        policy_id,
+        policy,
+        source_cidr_count,
+        range_count,
         expire_at,
         source: "manual".to_string(),
         created_at,

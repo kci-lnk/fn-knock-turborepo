@@ -71,7 +71,7 @@ fn compile_visibility_policy_migration(
         .unwrap_or_default();
 
     if let Some(mappings) = root.get_mut("host_mappings").and_then(Value::as_array_mut) {
-        for mapping in mappings {
+        for mapping in mappings.iter_mut() {
             let host = mapping
                 .get("host")
                 .and_then(Value::as_str)
@@ -99,9 +99,11 @@ fn compile_visibility_policy_migration(
                 let encoded = policies.get(&id).ok_or_else(|| {
                     format!("Host mapping {host} visibility policy {id} is missing")
                 })?;
-                CompiledIpSet::from_config_value(&id, encoded).map_err(|error| {
-                    format!("Host mapping {host} visibility policy is invalid: {error}")
-                })?
+                CompiledIpSet::from_config_value(&id, encoded)
+                    .map_err(|error| {
+                        format!("Host mapping {host} visibility policy is invalid: {error}")
+                    })?
+                    .into_current_format()
             } else {
                 let cidrs = visibility
                     .get("cidrs")
@@ -128,6 +130,88 @@ fn compile_visibility_policy_migration(
                 .entry("range_count".to_string())
                 .or_insert_with(|| json!(policy.range_count()));
         }
+
+        for mapping in mappings.iter_mut() {
+            let host = mapping
+                .get("host")
+                .and_then(Value::as_str)
+                .unwrap_or("<unknown>")
+                .to_string();
+            for condition in mapping
+                .pointer_mut("/advanced_auth/groups")
+                .and_then(Value::as_array_mut)
+                .into_iter()
+                .flatten()
+                .filter_map(|group| group.get_mut("conditions").and_then(Value::as_array_mut))
+                .flatten()
+            {
+                let target = condition
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if target != "source_ip" && target != "source_region" {
+                    if let Some(object) = condition.as_object_mut() {
+                        object.remove("cidrs");
+                    }
+                    continue;
+                }
+                let condition_id = condition
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("<unknown>")
+                    .to_string();
+                let existing_id = condition
+                    .get("policy_id")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(ToString::to_string);
+                let policy = if let Some(id) = existing_id {
+                    let encoded = policies.get(&id).ok_or_else(|| {
+                        format!(
+                            "Host mapping {host} advanced auth condition {condition_id} policy {id} is missing"
+                        )
+                    })?;
+                    CompiledIpSet::from_config_value(&id, encoded)
+                        .map_err(|error| {
+                            format!(
+                                "Host mapping {host} advanced auth condition {condition_id} policy is invalid: {error}"
+                            )
+                        })?
+                        .into_current_format()
+                } else {
+                    let cidrs = condition
+                        .get("cidrs")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>();
+                    if cidrs.is_empty() {
+                        return Err(format!(
+                            "Host mapping {host} advanced auth condition {condition_id} has no compiled policy or legacy CIDRs"
+                        ));
+                    }
+                    compile_ip_set(cidrs).map_err(|error| {
+                        format!(
+                            "Host mapping {host} advanced auth condition {condition_id}: {error}"
+                        )
+                    })?
+                };
+                policies.insert(policy.id.clone(), policy.to_config_value());
+                let object = condition
+                    .as_object_mut()
+                    .ok_or_else(|| "advanced auth condition must be an object".to_string())?;
+                object.remove("cidrs");
+                object.insert("policy_id".to_string(), Value::String(policy.id.clone()));
+                object
+                    .entry("source_cidr_count".to_string())
+                    .or_insert_with(|| json!(policy.source_cidr_count));
+                object
+                    .entry("range_count".to_string())
+                    .or_insert_with(|| json!(policy.range_count()));
+            }
+        }
     }
 
     let gateway_visibility = root
@@ -152,7 +236,8 @@ fn compile_visibility_policy_migration(
                 .ok_or_else(|| format!("Gateway visibility policy {id} is missing"))?;
             Some(
                 CompiledIpSet::from_config_value(id, encoded)
-                    .map_err(|error| format!("Gateway visibility policy is invalid: {error}"))?,
+                    .map_err(|error| format!("Gateway visibility policy is invalid: {error}"))?
+                    .into_current_format(),
             )
         } else {
             let cidrs = previous_runtime
@@ -204,15 +289,14 @@ fn compile_visibility_policy_migration(
         .and_then(Value::as_str)
         .map(ToString::to_string);
 
-    let mut referenced = root
-        .get("host_mappings")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|mapping| mapping.pointer("/visibility/policy_id"))
-        .filter_map(Value::as_str)
-        .map(ToString::to_string)
-        .collect::<BTreeSet<_>>();
+    let mut referenced = proxy_config::referenced_host_ipset_policy_ids(
+        root.get("host_mappings")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten(),
+    )
+    .into_iter()
+    .collect::<BTreeSet<_>>();
     if let Some(id) = global_policy_id {
         referenced.insert(id);
     }

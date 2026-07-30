@@ -19,13 +19,7 @@ pub(crate) fn build_host_rules_payload_for_config(config: &Value) -> Value {
         let ordered = ordered_host_mappings_for_groups(&mappings, &groups);
         build_host_rules_payload_with_groups(&ordered, &groups)
     };
-    let referenced = items
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|item| item.pointer("/visibility/policy_id"))
-        .filter_map(Value::as_str)
-        .collect::<HashSet<_>>();
+    let referenced = referenced_host_ipset_policy_ids(items.as_array().into_iter().flatten());
     let visibility_policies = config
         .get("visibility_policies")
         .and_then(Value::as_object)

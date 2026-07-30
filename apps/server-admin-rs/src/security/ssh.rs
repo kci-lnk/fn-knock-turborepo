@@ -24,7 +24,7 @@ use sha2::{Digest, Sha256};
 use tokio::time as tokio_time;
 
 use crate::{
-    cidr::{CidrOperator, CidrRegionQuery},
+    cidr::{CidrOperator, CidrRegionQuery, CompiledIpSet, compile_ip_set},
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
     ip_location, response, runtime_profile,
@@ -33,6 +33,7 @@ use crate::{
 };
 
 const RUNTIME_KEY: &str = "fn_knock:ssh_security:runtime";
+const SSH_ALLOWED_IPSET_KEY: &str = "ssh_allowed";
 const BLOCKS_INDEX_KEY: &str = "fn_knock:ssh_security:blocks:index";
 const BLOCK_DATA_PREFIX: &str = "fn_knock:ssh_security:blocks:data:";
 const FAILURES_PREFIX: &str = "fn_knock:ssh_security:failures:";
@@ -164,7 +165,7 @@ impl From<crate::storage::StorageError> for SshError {
 
 struct ResolvedAllowedRegions {
     selections: Value,
-    cidrs: Vec<String>,
+    policy: CompiledIpSet,
 }
 
 struct SshAvailability {
@@ -196,8 +197,12 @@ use login_logs::*;
 use maintenance::*;
 use utils::*;
 
+pub(crate) use config::migrate_ssh_ipset_on_boot;
 pub(crate) use config::normalize_config;
-use config::{load_config, load_runtime, ssh_security_details, update_ssh_security_config};
+use config::{
+    compact_runtime, load_config, load_runtime, policy_from_runtime, ssh_security_details,
+    update_ssh_security_config,
+};
 
 #[cfg(test)]
 mod tests;

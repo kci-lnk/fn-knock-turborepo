@@ -353,6 +353,7 @@ pub(super) async fn maybe_apply_host_firewall(
             "init default firewall",
         );
         clear_legacy_gateway_redirects(state, gateway_port(), false).await?;
+        sync_active_whitelist_targets(state, false).await?;
         return Ok(());
     }
 
@@ -515,38 +516,14 @@ pub(super) async fn sync_active_whitelist_targets(
     state: &AppState,
     strict: bool,
 ) -> Result<usize, String> {
-    let targets = state
-        .store
-        .list_whitelist_active_concrete_targets()
-        .await
-        .map_err(|error| error.to_string())?;
-    let mut concrete_targets = Vec::new();
-    for target in targets {
-        let value = target.target.trim();
-        if !value.is_empty() {
-            concrete_targets.push(value.to_string());
+    match whitelist::sync_direct_firewall_whitelist(state).await {
+        Ok(range_count) => Ok(range_count),
+        Err(error) if strict => Err(error.to_string()),
+        Err(error) => {
+            tracing::warn!(%error, "failed to sync compiled whitelist policy to Go backend");
+            Ok(0)
         }
     }
-
-    let translator = Translator::from_state(state).await;
-    for target in &concrete_targets {
-        let fallback = firewall_text_params(
-            &translator,
-            "syncWhitelistTargetFailed",
-            &[("target", target.to_string())],
-        );
-        let result = match state.go_backend.allow_ip(target).await {
-            Ok(value) => ensure_go_success(value).map_err(|_| fallback.clone()),
-            Err(_) => Err(fallback),
-        };
-        if strict {
-            result?;
-        } else if let Err(error) = result {
-            tracing::warn!(%error, %target, "failed to sync whitelist target to Go backend");
-        }
-    }
-
-    Ok(concrete_targets.len())
 }
 
 pub(super) fn ensure_go_success_with_acceptable_codes(

@@ -515,7 +515,7 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
     let policy_id = compiled.mappings[0]["visibility"]["policy_id"]
         .as_str()
         .unwrap();
-    assert!(policy_id.starts_with("ipset-v1:"));
+    assert!(policy_id.starts_with("ipset-v2:"));
     assert_eq!(compiled.visibility_policies.len(), 1);
     assert!(compiled.visibility_policies.contains_key(policy_id));
 
@@ -542,7 +542,7 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
         legacy.mappings[0]["visibility"]["policy_id"]
             .as_str()
             .unwrap()
-            .starts_with("ipset-v1:")
+            .starts_with("ipset-v2:")
     );
     assert_eq!(legacy.visibility_policies.len(), 1);
 

@@ -8,11 +8,12 @@ use crate::{
 
 const CLEAN_SCRIPT_CONTENT: &str = r#"#!/bin/bash
 
-FILTER_CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH" "FNK_FNC_IN")
+FILTER_CHAINS=("FN-KNOCK-FW" "FN-KNOCK-SSH" "FNK_FNC_IN" "FNK-WHITELIST" "FNK-WL-MARK" "FNK-SSH-ALLOW" "FNK-SSH-BLOCK" "FNK-SSH-DEFAULT")
 NAT_CHAINS=("FNK_FNC_PRE" "FNK_FNC_OUT" "FNK_FNC_WAF")
 FILTER_PARENTS=("INPUT" "DOCKER-USER")
 NAT_PARENTS=("PREROUTING" "OUTPUT")
 FIREWALLS=("iptables" "ip6tables")
+NFT_TABLES=("fnknock_ssh" "fnknock_whitelist")
 
 remove_parent_jumps() {
     local cmd="$1"
@@ -80,6 +81,16 @@ for cmd in "${FIREWALLS[@]}"; do
         cleanup_chain "$cmd" nat "$chain" "${NAT_PARENTS[@]}"
     done
 done
+
+if command -v nft &> /dev/null; then
+    for table in "${NFT_TABLES[@]}"; do
+        if nft delete table inet "$table" 2>/dev/null; then
+            echo "Deleted native nft interval table inet/$table"
+        else
+            echo "Native nft interval table inet/$table does not exist (already clean)."
+        fi
+    done
+fi
 
 echo "Cleanup complete!"
 "#;
@@ -219,10 +230,18 @@ mod tests {
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_OUT\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_PRE\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK_FNC_IN\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK-WHITELIST\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK-WL-MARK\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK-SSH-ALLOW\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK-SSH-BLOCK\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"FNK-SSH-DEFAULT\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"OUTPUT\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"PREROUTING\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("\"INPUT\""));
         assert!(CLEAN_SCRIPT_CONTENT.contains("-t \"$table\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"fnknock_ssh\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("\"fnknock_whitelist\""));
+        assert!(CLEAN_SCRIPT_CONTENT.contains("nft delete table inet \"$table\""));
     }
 
     #[test]

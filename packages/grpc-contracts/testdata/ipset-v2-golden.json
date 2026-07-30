@@ -1,0 +1,19 @@
+{
+  "cidrs": [
+    "192.0.2.128/25",
+    "192.0.2.0/25",
+    "192.0.2.0/24",
+    "0.0.0.0/32",
+    "0.0.0.1/32",
+    "255.255.255.255/32",
+    "2001:db8::/127",
+    "2001:db8::2/127",
+    "::/128",
+    "::1/128",
+    "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"
+  ],
+  "id": "ipset-v2:045f9d04abff90c133eb8992fa305f5638cd320ac8b895f1e23f601d0b68c8ce",
+  "format_version": 2,
+  "canonical_ipv4_ranges": "AAAAAAAAAAHAAAIAwAAC____________",
+  "canonical_ipv6_ranges": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEgAQ24AAAAAAAAAAAAAAAAIAENuAAAAAAAAAAAAAAAA___________________________________________"
+}

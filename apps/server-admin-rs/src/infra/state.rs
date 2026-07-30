@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     auto_https::AutoHttpsRedirectManager,
+    cidr::IpSetRegistry,
     go_backend::GoBackendClient,
     settings::Settings,
     storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
@@ -25,6 +26,13 @@ pub struct AppStateInner {
     /// workers should observe this token instead of relying on runtime drop.
     pub shutdown: CancellationToken,
     pub store: Store,
+    /// Atomically published, immutable CIDR sets used by request hot paths.
+    /// Storage retains semantic selections and compact policies; request
+    /// handling never reparses large CIDR arrays.
+    pub ipsets: IpSetRegistry,
+    /// Serializes rebuilding and publishing the complete whitelist policy to
+    /// the proxy snapshot and direct-mode firewall.
+    pub whitelist_runtime_sync_lock: Mutex<()>,
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
     pub fallback_client: reqwest::Client,
@@ -119,6 +127,8 @@ impl AppState {
                 settings,
                 shutdown,
                 store,
+                ipsets: IpSetRegistry::default(),
+                whitelist_runtime_sync_lock: Mutex::new(()),
                 go_backend,
                 fallback_client,
                 asset_download_client,

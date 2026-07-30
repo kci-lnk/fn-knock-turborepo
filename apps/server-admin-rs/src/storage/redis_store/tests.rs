@@ -424,6 +424,95 @@ async fn host_mapping_section_cas_requires_an_exact_array_and_preserves_other_se
 }
 
 #[tokio::test]
+async fn host_mapping_policy_cas_keeps_advanced_auth_references_and_restores_old_policies() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let old_mappings = vec![json!({
+        "host": "app.example.com",
+        "visibility": { "policy_id": "visibility-old" },
+        "advanced_auth": {
+            "groups": [{
+                "conditions": [{ "policy_id": "advanced-old" }]
+            }]
+        }
+    })];
+    let old_policies = json!({
+        "visibility-old": { "format_version": 2 },
+        "advanced-old": { "format_version": 2 },
+        "unreferenced": { "format_version": 2 }
+    });
+    store
+        .save_config(&json!({
+            "host_mappings": old_mappings,
+            "visibility_policies": old_policies,
+        }))
+        .await
+        .expect("seed config");
+
+    let new_mappings = vec![json!({
+        "host": "app.example.com",
+        "visibility": { "policy_id": "visibility-old" },
+        "advanced_auth": {
+            "groups": [{
+                "conditions": [{ "policy_id": "advanced-new" }]
+            }]
+        }
+    })];
+    let supplied = json!({
+        "visibility-old": { "format_version": 2 },
+        "advanced-new": { "format_version": 2 }
+    })
+    .as_object()
+    .cloned()
+    .unwrap();
+    let updated = store
+        .compare_and_set_host_mappings_with_visibility_policies(
+            &old_mappings,
+            &new_mappings,
+            &supplied,
+        )
+        .await
+        .expect("update mappings and policies")
+        .expect("old mappings matched");
+    assert!(
+        updated["visibility_policies"]
+            .get("visibility-old")
+            .is_some()
+    );
+    assert!(updated["visibility_policies"].get("advanced-new").is_some());
+    assert!(updated["visibility_policies"].get("advanced-old").is_none());
+    assert!(updated["visibility_policies"].get("unreferenced").is_none());
+
+    let old_policies = old_policies.as_object().cloned().unwrap();
+    let restored = store
+        .compare_and_set_host_mappings_with_visibility_policies(
+            &new_mappings,
+            &old_mappings,
+            &old_policies,
+        )
+        .await
+        .expect("rollback mappings and policies")
+        .expect("new mappings matched");
+    assert!(
+        restored["visibility_policies"]
+            .get("visibility-old")
+            .is_some()
+    );
+    assert!(
+        restored["visibility_policies"]
+            .get("advanced-old")
+            .is_some()
+    );
+    assert!(
+        restored["visibility_policies"]
+            .get("advanced-new")
+            .is_none()
+    );
+}
+
+#[tokio::test]
 async fn config_snapshot_is_published_immediately_after_save_and_host_cas() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
@@ -565,6 +654,32 @@ async fn gateway_target_section_merge_preserves_newer_config_and_section_writes(
         "an unchanged section may receive the compiled replacement"
     );
     assert_eq!(stale_store.get_config().await.unwrap(), merged);
+}
+
+#[tokio::test]
+async fn json_rewrite_preserves_ttl_without_resurrecting_expired_keys() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let key = "fn_knock:test:preserve-ttl";
+    store
+        .set_json_value_ex(key, &json!({ "version": 1 }), 120)
+        .await
+        .unwrap();
+    let (_, ttl) = store.get_json_value_with_ttl(key).await.unwrap();
+    store
+        .set_json_value_preserve_ttl(key, &json!({ "version": 2 }), ttl)
+        .await
+        .unwrap();
+    let (_, rewritten_ttl) = store.get_json_value_with_ttl(key).await.unwrap();
+    assert!(rewritten_ttl > 0 && rewritten_ttl <= ttl);
+
+    store
+        .set_json_value_preserve_ttl(key, &json!({ "version": 3 }), -2)
+        .await
+        .unwrap();
+    assert!(store.get_json_value(key).await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -1668,6 +1783,84 @@ fn deserializes_whitelist_region_groups_like_node_store() {
     assert_eq!(group.status, "active");
     assert_eq!(group.source, "manual");
     assert_eq!(group.comment.as_deref(), Some(""));
+}
+
+#[tokio::test]
+async fn whitelist_region_migration_compiles_active_records_and_compacts_tombstones() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let mut conn = store.conn();
+    let active_id = "whitelist-region:active";
+    let deleted_id = "whitelist-region:deleted";
+    let active = json!({
+        "id": active_id,
+        "regions": [{ "province": "广东", "query_city": null }],
+        "cidrs": ["192.0.2.0/25", "192.0.2.128/25", "2001:db8::/32"],
+        "expireAt": null,
+        "source": "manual",
+        "createdAt": 20,
+        "updatedAt": 20,
+        "status": "active"
+    });
+    let deleted = json!({
+        "id": deleted_id,
+        "regions": [{ "province": "浙江", "query_city": null }],
+        "cidrs": ["198.51.100.0/24", "2001:db8:1::/48"],
+        "expireAt": null,
+        "source": "manual",
+        "createdAt": 10,
+        "updatedAt": 10,
+        "status": "deleted"
+    });
+    let _: () = redis::cmd("HSET")
+        .arg(WHITELIST_REGION_GROUP_RECORDS)
+        .arg(active_id)
+        .arg(active.to_string())
+        .arg(deleted_id)
+        .arg(deleted.to_string())
+        .query_async(&mut conn)
+        .await
+        .expect("seed region groups");
+    drop(conn);
+
+    let migrated = store
+        .migrate_whitelist_region_groups_to_ipsets()
+        .await
+        .expect("migrate region groups");
+    assert_eq!(migrated.len(), 1);
+    assert_eq!(migrated[0].id, active_id);
+    assert!(migrated[0].cidrs.is_empty());
+    assert!(migrated[0].policy_id.starts_with("ipset-v2:"));
+    assert_eq!(migrated[0].range_count, 2);
+    assert!(
+        migrated[0]
+            .policy()
+            .is_some_and(|policy| policy.contains("192.0.2.255".parse().unwrap()))
+    );
+
+    let deleted_raw = store
+        .hgetall_string_map(WHITELIST_REGION_GROUP_RECORDS)
+        .await
+        .expect("read region groups")
+        .remove(deleted_id)
+        .expect("read compact tombstone");
+    let deleted = deserialize_whitelist_region_group(&deleted_raw).unwrap();
+    assert!(deleted.cidrs.is_empty());
+    assert!(deleted.policy.is_none());
+    assert!(deleted.policy_id.is_empty());
+    assert_eq!(deleted.source_cidr_count, 0);
+    assert_eq!(deleted.range_count, 0);
+
+    assert_eq!(
+        store
+            .list_whitelist_region_groups()
+            .await
+            .expect("list active groups")
+            .len(),
+        1
+    );
 }
 
 #[test]

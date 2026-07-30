@@ -143,14 +143,13 @@ pub(super) async fn import_backup_archive_buffer(
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
-    if let Err(migration_error) = gateway_settings::migrate_visibility_policies_locked(state).await
-    {
+    if let Err(migration_error) = migrate_compiled_ipsets_after_import(state).await {
         let rollback_result = state
             .store
             .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &previous_entries, SCAN_COUNT)
             .await;
         let runtime_restore_result = if rollback_result.is_ok() {
-            gateway_settings::migrate_visibility_policies_locked(state).await
+            migrate_compiled_ipsets_after_import(state).await
         } else {
             Ok(())
         };
@@ -167,7 +166,7 @@ pub(super) async fn import_backup_archive_buffer(
             .map(|error| format!("; runtime rollback failed: {error}"))
             .unwrap_or_default();
         return Err(BackupImportError::internal(format!(
-            "visibility policy migration failed: {migration_error}{rollback_detail}{runtime_detail}"
+            "compiled IP set migration failed: {migration_error}{rollback_detail}{runtime_detail}"
         )));
     }
 
@@ -182,6 +181,26 @@ pub(super) async fn import_backup_archive_buffer(
         "warnings": warnings,
         "synced_steps": synced_steps
     }))
+}
+
+async fn migrate_compiled_ipsets_after_import(state: &AppState) -> Result<(), String> {
+    gateway_settings::migrate_visibility_policies_locked(state).await?;
+    crate::cidr::migrate_cidr_query_caches_on_boot(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    scanner::migrate_scanner_cidr_ipset_on_boot(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    common_auth_locations::migrate_common_auth_location_ipset_in_storage(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    whitelist::migrate_whitelist_ipsets_in_storage(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    ssh_security::migrate_ssh_ipset_on_boot(state)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 pub(super) async fn extract_backup_payload_from_archive(

@@ -900,8 +900,11 @@ pub(super) async fn session_delete(
         }
     }
     match state.store.delete_session(&id).await {
-        Ok(()) => response::success_message(admin_control_text(&translator, "sessions.deleted"))
-            .into_response(),
+        Ok(()) => {
+            whitelist::sync_reverse_proxy_trusted_ips(&state).await;
+            response::success_message(admin_control_text(&translator, "sessions.deleted"))
+                .into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, %id, "failed to delete auth session");
             response::error(
@@ -973,5 +976,86 @@ mod tests {
         let deleted_ids = auth_account_ids_for_deleted_totp(&accounts, "totp-a");
 
         assert!(deleted_ids.is_empty());
+    }
+
+    #[tokio::test]
+    async fn admin_session_delete_immediately_removes_gateway_trust() {
+        let directory = tempfile::tempdir().expect("temporary admin session database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+        settings.internal_rpc_token = "admin-session-delete-trust-test".to_string();
+        let state = AppState::new(settings)
+            .await
+            .expect("admin session test state");
+        state
+            .store
+            .save_config(&json!({}))
+            .await
+            .expect("admin session test config");
+
+        let session_id = "admin-delete-session";
+        let session_ip = "203.0.113.45";
+        state
+            .store
+            .add_session(
+                session_id,
+                &crate::store::LoginSession {
+                    totp_id: "totp-1".to_string(),
+                    method: "TOTP".to_string(),
+                    credential_id: "totp-1".to_string(),
+                    credential_name: "TOTP".to_string(),
+                    linked_totp_name: None,
+                    access_scopes: None,
+                    subdomain_access: None,
+                    grant_type: Some("browser_session".to_string()),
+                    post_login_ip_grant_mode: None,
+                    post_login_ip_grant_record_id: None,
+                    stream_access_expires_at: None,
+                    comment: None,
+                    ip: session_ip.to_string(),
+                    user_agent: "test".to_string(),
+                    login_time: time_utils::now_iso(),
+                    expires_at: Some(time_utils::iso_after_seconds(3600)),
+                    ip_location: None,
+                },
+                3600,
+            )
+            .await
+            .expect("store admin-deleted session");
+        whitelist::sync_reverse_proxy_trusted_ips(&state).await;
+
+        let before = state
+            .store
+            .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
+            .await
+            .expect("read trusted runtime before delete")
+            .expect("trusted runtime before delete");
+        assert!(
+            before["items"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["ip"] == session_ip))
+        );
+
+        let response = session_delete(State(state.clone()), Path(session_id.to_string())).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let after = state
+            .store
+            .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
+            .await
+            .expect("read trusted runtime after delete")
+            .expect("trusted runtime after delete");
+        assert!(
+            after["items"]
+                .as_array()
+                .is_some_and(|items| items.iter().all(|item| item["ip"] != session_ip))
+        );
     }
 }

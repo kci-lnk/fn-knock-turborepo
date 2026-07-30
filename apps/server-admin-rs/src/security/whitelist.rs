@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     io,
+    net::IpAddr,
     str::FromStr,
 };
 
@@ -24,7 +25,7 @@ use uuid::Uuid;
 use crate::{
     auth_mobility,
     cidr::{CidrOperator, CidrRegionQuery},
-    http_utils::{is_private_or_local_ip, normalize_ip},
+    http_utils::normalize_ip,
     i18n::Translator,
     ip_location, response, runtime_profile,
     state::AppState,
@@ -1153,46 +1154,38 @@ async fn should_sync_direct_firewall(state: &AppState) -> bool {
 }
 
 pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
+    let _sync_guard = state.gateway_trusted_client_ips_sync_lock.lock().await;
     match compile_reverse_proxy_trusted_ips(state).await {
         Ok(runtime) => {
             if let Err(error) = state
                 .store
-                .save_reverse_proxy_trusted_ips_runtime(&runtime)
+                .save_gateway_trusted_client_ips_runtime(&runtime)
                 .await
             {
-                tracing::warn!(%error, "failed to save reverse proxy trusted IP runtime");
+                tracing::warn!(%error, "failed to save gateway trusted client IP runtime");
                 return;
             }
             let gateway_payload = json!({
-                "enabled": runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false),
-                "ips": if runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
-                    runtime
-                        .get("items")
-                        .and_then(Value::as_array)
-                        .map(|items| {
-                            items
-                                .iter()
-                                .filter_map(|item| item.get("ip").and_then(Value::as_str))
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                },
-                "cidrs": if runtime.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
-                    runtime
-                        .get("cidrs")
-                        .and_then(Value::as_array)
-                        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                },
+                "ips": runtime
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|item| item.get("ip").and_then(Value::as_str))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default(),
+                "cidrs": runtime
+                    .get("cidrs")
+                    .and_then(Value::as_array)
+                    .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+                    .unwrap_or_default(),
                 "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
             });
             if let Err(error) = state
                 .go_backend
-                .set_reverse_proxy_throttle_exempt_ips(&gateway_payload)
+                .set_gateway_trusted_client_ips(&gateway_payload)
                 .await
                 .and_then(|value| {
                     if crate::go_backend::response_success(&value) {
@@ -1202,27 +1195,23 @@ pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
                             "{}",
                             crate::go_backend::response_message(
                                 &value,
-                                "Failed to sync reverse proxy trusted IP runtime",
+                                "Failed to sync gateway trusted client IP runtime",
                             )
                         )
                     }
                 })
             {
-                tracing::warn!(%error, "failed to sync reverse proxy trusted IP runtime to Go backend");
+                tracing::warn!(%error, "failed to sync gateway trusted client IP runtime to Go backend");
             }
         }
         Err(error) => {
-            tracing::warn!(%error, "failed to compile reverse proxy trusted IP runtime");
+            tracing::warn!(%error, "failed to compile gateway trusted client IP runtime");
         }
     }
 }
 
 async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<Value> {
     let config = state.store.get_config().await?;
-    let enabled = config
-        .pointer("/reverse_proxy_throttle/enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
     let mobility_enabled = config
         .pointer("/auth_credential_settings/session_ip_mobility_enabled")
         .and_then(Value::as_bool)
@@ -1233,8 +1222,20 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
     let mut source_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut session_linked_auto_whitelist_final_ip_by_record_id = BTreeMap::<String, String>::new();
     for (session_id, data) in sessions {
+        let parsed_session = serde_json::from_value::<LoginSession>(data.clone()).ok();
+        if parsed_session
+            .as_ref()
+            .is_some_and(crate::auth::routes::login_session_has_expired)
+        {
+            continue;
+        }
         if mobility_enabled {
-            if let Ok(session) = serde_json::from_value::<LoginSession>(data.clone()) {
+            if let Some(session) = parsed_session.as_ref() {
+                add_ip_source(
+                    &mut source_map,
+                    &session.ip,
+                    format!("session:{session_id}"),
+                );
                 for ip in
                     auth_mobility::effective_session_ips(state, &session_id, &session, &config)
                         .await?
@@ -1244,7 +1245,6 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
             }
             continue;
         }
-        let parsed_session = serde_json::from_value::<LoginSession>(data.clone()).ok();
         let ip = parsed_session
             .as_ref()
             .map(|session| session.ip.as_str())
@@ -1299,7 +1299,6 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
         .collect::<Vec<_>>();
 
     Ok(json!({
-        "enabled": enabled,
         "items": items,
         "cidrs": cidrs,
         "updated_at": time_utils::now_iso()
@@ -1323,7 +1322,7 @@ fn reverse_proxy_compiled_whitelist_target<'a>(
 
 fn add_ip_source(source_map: &mut BTreeMap<String, BTreeSet<String>>, ip: &str, source: String) {
     let normalized = normalize_ip(ip);
-    if normalized.is_empty() || is_private_or_local_ip(&normalized) {
+    if normalized.parse::<IpAddr>().is_err() {
         return;
     }
     source_map.entry(normalized).or_default().insert(source);

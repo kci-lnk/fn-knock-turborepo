@@ -211,6 +211,12 @@ message ReverseProxyThrottleExemptIpsRuntime {
   string updated_at = 4;
 }
 
+message GatewayTrustedClientIpsRuntime {
+  repeated string ips = 1;
+  repeated string cidrs = 2;
+  string updated_at = 3;
+}
+
 message CommonLocationExemptionsRuntime {
   bool enabled = 1;
   bool waf_enabled = 2;
@@ -791,6 +797,8 @@ service GatewayControlService {
   rpc SetFnosConnectIngressConfig(FnosConnectIngressConfig) returns (FnosConnectIngressStatus);
   rpc GetReverseProxyThrottleExemptIps(google.protobuf.Empty) returns (ReverseProxyThrottleExemptIpsRuntime);
   rpc SetReverseProxyThrottleExemptIps(ReverseProxyThrottleExemptIpsRuntime) returns (ReverseProxyThrottleExemptIpsRuntime);
+  rpc GetGatewayTrustedClientIps(google.protobuf.Empty) returns (GatewayTrustedClientIpsRuntime);
+  rpc SetGatewayTrustedClientIps(GatewayTrustedClientIpsRuntime) returns (GatewayTrustedClientIpsRuntime);
   rpc GetCommonLocationExemptions(google.protobuf.Empty) returns (CommonLocationExemptionsRuntime);
   rpc SetCommonLocationExemptions(CommonLocationExemptionsRuntime) returns (CommonLocationExemptionsRuntime);
 }

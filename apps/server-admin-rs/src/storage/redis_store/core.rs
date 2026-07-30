@@ -1200,6 +1200,7 @@ return 1
     /// Atomically replaces the Host mapping list and its UI grouping catalog.
     /// The shared generation advances when either section changes so a stale
     /// full-config writer cannot overwrite a concurrent organization update.
+    #[cfg(test)]
     pub async fn compare_and_set_host_mapping_catalog(
         &self,
         expected_mappings: &[Value],

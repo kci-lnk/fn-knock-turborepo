@@ -403,11 +403,11 @@ impl Store {
         Ok(targets)
     }
 
-    pub async fn save_reverse_proxy_trusted_ips_runtime(
+    pub async fn save_gateway_trusted_client_ips_runtime(
         &self,
         runtime: &Value,
     ) -> crate::storage::StorageResult<()> {
-        self.set_json_value(REVERSE_PROXY_TRUSTED_IPS_RUNTIME, runtime)
+        self.set_json_value(GATEWAY_TRUSTED_CLIENT_IPS_RUNTIME, runtime)
             .await
     }
 

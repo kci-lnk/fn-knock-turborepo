@@ -330,11 +330,11 @@ async fn get_cached_data_at(
     path: &str,
     query: &[(&str, &str)],
 ) -> Result<Value, CidrError> {
-    let key = namespaced_cache_key(&base_url, logical_key);
+    let key = namespaced_cache_key(base_url, logical_key);
     if let Some(data) = state.store.get_json_value(&key).await? {
         return Ok(data);
     }
-    let data = fetch_data(state, &base_url, path, query)
+    let data = fetch_data(state, base_url, path, query)
         .await
         .map_err(CidrError::Service)?;
     state

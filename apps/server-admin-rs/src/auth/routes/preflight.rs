@@ -171,7 +171,8 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         }
     }
 
-    if config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
+    if !normal_access.authorized
+        && config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
         && !scanner::is_request_exempt_from_scan(headers, uri, config)
     {
         if scanner::is_blacklisted_for_preflight(state, client_ip).await? {

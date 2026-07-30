@@ -57,6 +57,10 @@ pub struct AppStateInner {
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
+    /// Serializes trusted-client-IP snapshot compilation, persistence and
+    /// gateway publication. Session revocation must not be overwritten by an
+    /// older sync that captured the session before it was removed.
+    pub gateway_trusted_client_ips_sync_lock: Mutex<()>,
     /// Owns all supervised tunnel process actors for this application state.
     pub tunnel_supervisors: TunnelSupervisorRegistry,
     /// Serializes read-modify-write updates to the legacy aggregate tunnel
@@ -161,6 +165,7 @@ impl AppState {
                 host_mappings_update_lock: Mutex::new(()),
                 protocol_mapping_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),
+                gateway_trusted_client_ips_sync_lock: Mutex::new(()),
                 tunnel_supervisors: TunnelSupervisorRegistry::default(),
                 tunnel_runtime_update_lock: Mutex::new(()),
             }),

@@ -19,10 +19,10 @@ use crate::grpc_proto::{
     BoolValue, CommonLocationExemptionsRuntime, CompiledIpSet as ProtoCompiledIpSet,
     CrawlerBlockerConfig, FnosConnectIngressConfig, FnosConnectIngressStatus,
     FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
-    GatewayUnmatchedRouteConfig, GatewayVisibilityConfig, GeneralBlacklistListRequest,
-    HostActiveIpStats, HostLocation, HostLocationResponse, HostRequest, HostRule,
-    HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest, IpRequest,
-    IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    GatewayTrustedClientIpsRuntime, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
+    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
+    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
+    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
     SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
     StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
@@ -35,7 +35,7 @@ use crate::grpc_proto::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
-pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 3;
+pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 4;
 pub(crate) const GATEWAY_HEALTH_PROCESS: &str = "fnknock.gateway.process";
 pub(crate) const GATEWAY_HEALTH_DATAPLANE: &str = "fnknock.gateway.dataplane";
 pub(crate) const GATEWAY_HEALTH_AUTH_BRIDGE: &str = "fnknock.gateway.auth_bridge";
@@ -179,6 +179,7 @@ impl GoBackendClient {
             "lifecycle",
             "host_rule_groups_v1",
             "compiled_visibility_ipset_v1",
+            "trusted_client_ip_bypass_v1",
         ] {
             if !capabilities
                 .iter()
@@ -604,6 +605,18 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("set_reverse_proxy_throttle_exempt_ips", result)
+    }
+
+    pub async fn set_gateway_trusted_client_ips(&self, runtime: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_gateway_trusted_client_ips(self.request(parse_gateway_trusted_client_ips(runtime)))
+            .await
+        {
+            Ok(response) => ok(gateway_trusted_client_ips_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_gateway_trusted_client_ips", result)
     }
 
     pub async fn set_common_location_exemptions(
@@ -1517,6 +1530,14 @@ fn parse_throttle_exempt(value: &Value) -> ReverseProxyThrottleExemptIpsRuntime 
     }
 }
 
+fn parse_gateway_trusted_client_ips(value: &Value) -> GatewayTrustedClientIpsRuntime {
+    GatewayTrustedClientIpsRuntime {
+        ips: string_vec_field(value, "ips"),
+        cidrs: string_vec_field(value, "cidrs"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
 fn parse_common_exemptions(value: &Value) -> CommonLocationExemptionsRuntime {
     CommonLocationExemptionsRuntime {
         enabled: bool_field(value, "enabled", false),
@@ -1810,6 +1831,14 @@ fn fnos_connect_ingress_status_to_json(status: FnosConnectIngressStatus) -> Valu
 fn throttle_exempt_to_json(config: ReverseProxyThrottleExemptIpsRuntime) -> Value {
     json!({
         "enabled": config.enabled,
+        "ips": config.ips,
+        "cidrs": config.cidrs,
+        "updated_at": config.updated_at
+    })
+}
+
+fn gateway_trusted_client_ips_to_json(config: GatewayTrustedClientIpsRuntime) -> Value {
+    json!({
         "ips": config.ips,
         "cidrs": config.cidrs,
         "updated_at": config.updated_at
@@ -2181,6 +2210,23 @@ mod tests {
             json!({
                 "behavior": "reset_connection",
                 "upstream_error_detail": "reset_connection"
+            })
+        );
+    }
+
+    #[test]
+    fn gateway_trusted_client_ips_grpc_conversion_round_trips() {
+        let parsed = parse_gateway_trusted_client_ips(&json!({
+            "ips": ["127.0.0.1", "203.0.113.7"],
+            "cidrs": ["100.64.0.0/10", "2001:db8::/32"],
+            "updated_at": "2026-07-31T01:00:00.123Z"
+        }));
+        assert_eq!(
+            gateway_trusted_client_ips_to_json(parsed),
+            json!({
+                "ips": ["127.0.0.1", "203.0.113.7"],
+                "cidrs": ["100.64.0.0/10", "2001:db8::/32"],
+                "updated_at": "2026-07-31T01:00:00.123Z"
             })
         );
     }

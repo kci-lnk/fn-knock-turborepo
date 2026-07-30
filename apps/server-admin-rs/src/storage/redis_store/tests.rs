@@ -440,7 +440,7 @@ async fn config_snapshot_is_published_immediately_after_save_and_host_cas() {
         after_save.pointer("/snapshot_test/generation"),
         Some(&json!(1))
     );
-    assert!(Arc::ptr_eq(&before, &store.config_snapshot()) == false);
+    assert!(!Arc::ptr_eq(&before, &store.config_snapshot()));
 
     let replacement = vec![json!({
         "host": "snapshot.example.com",

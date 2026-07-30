@@ -14,23 +14,29 @@ pub(crate) async fn sync_go_host_rules_locked(
     state: &AppState,
     rules: &Value,
 ) -> Result<(), String> {
+    state.set_gateway_config_synced(false);
     let response = state
         .go_backend
         .set_host_rules(rules)
         .await
         .map_err(|error| error.to_string())?;
     ensure_go_success(response.clone())?;
-    ensure_go_host_protocol_modes_applied(rules, &response)
+    ensure_go_host_protocol_modes_applied(rules, &response)?;
+    state.set_gateway_config_synced(true);
+    Ok(())
 }
 
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
+    state.set_gateway_config_synced(false);
     ensure_go_success(
         state
             .go_backend
             .flush_host_rules()
             .await
             .map_err(|error| error.to_string())?,
-    )
+    )?;
+    state.set_gateway_config_synced(true);
+    Ok(())
 }
 
 pub(super) fn host_rules_payload_for_config(config: &Value) -> Option<Value> {

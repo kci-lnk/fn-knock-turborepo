@@ -53,15 +53,13 @@ pub(super) async fn disable_ssh_security(
         }
     }
     if let Some(runtime) = runtime {
-        let next = json!({
-            "enabled": false,
-            "allowed_cidrs": [],
-            "updated_at": time_utils::now_iso(),
-        });
+        let policy = policy_from_runtime(runtime)?;
+        let next = compact_runtime(false, &policy, Some(Value::String(time_utils::now_iso())));
         if runtime != &next {
             state.store.set_json_value(RUNTIME_KEY, &next).await?;
         }
     }
+    state.ipsets.publish(SSH_ALLOWED_IPSET_KEY, None);
     Ok(())
 }
 
@@ -159,21 +157,24 @@ pub(super) async fn sync_firewall_policy(
     blocked_ips.extend(extra_blocked_ips);
     blocked_ips = normalize_ip_strings(blocked_ips);
 
-    let allowed_cidrs = if runtime.get("enabled").and_then(Value::as_bool) == Some(true) {
-        runtime
-            .get("allowed_cidrs")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .map(str::to_string)
-            .collect::<Vec<_>>()
+    let allowed_policy = if runtime.get("enabled").and_then(Value::as_bool) == Some(true) {
+        Some(
+            state
+                .ipsets
+                .get(SSH_ALLOWED_IPSET_KEY)
+                .map(|policy| (*policy).clone())
+                .map(Ok)
+                .unwrap_or_else(|| policy_from_runtime(runtime))?,
+        )
     } else {
-        Vec::new()
+        None
     };
-    let allowed_cidrs = normalize_cidr_strings(allowed_cidrs);
     let ports = resolve_ssh_ports();
-    if allowed_cidrs.is_empty() && blocked_ips.is_empty() {
+    if allowed_policy
+        .as_ref()
+        .is_none_or(|policy| policy.range_count() == 0)
+        && blocked_ips.is_empty()
+    {
         let payload = json!({
             "chain_name": SSH_FIREWALL_CHAIN,
             "parent_chain": ["INPUT", "DOCKER-USER"]
@@ -187,13 +188,18 @@ pub(super) async fn sync_firewall_policy(
         });
     }
 
-    let allowed_count = allowed_cidrs.len();
+    let allowed_count = allowed_policy
+        .as_ref()
+        .map(CompiledIpSet::range_count)
+        .unwrap_or_default();
     let blocked_count = blocked_ips.len();
     let payload = json!({
         "chain_name": SSH_FIREWALL_CHAIN,
         "parent_chain": ["INPUT", "DOCKER-USER"],
         "ports": ports.clone(),
-        "allowed_cidrs": allowed_cidrs,
+        "allowed_cidrs": Vec::<String>::new(),
+        "policy_id": allowed_policy.as_ref().map(|policy| policy.id.clone()),
+        "policy": allowed_policy.as_ref().map(CompiledIpSet::to_transport_value),
         "blocked_ips": blocked_ips,
         "include_local_cidrs": true
     });
@@ -353,7 +359,7 @@ pub(super) async fn handle_ssh_success(
         tracing::debug!(%error, "failed to publish SSH login success event");
     }
     let runtime = load_runtime(state).await?;
-    if ip_allowed_by_runtime(&runtime, ip) || is_active_blocked(state, ip).await? {
+    if ip_allowed_by_runtime(state, &runtime, ip) || is_active_blocked(state, ip).await? {
         return Ok(());
     }
     create_ssh_block(state, config, entry, "cidr_not_allowed", 0).await?;
@@ -503,22 +509,22 @@ pub(super) async fn is_active_blocked(
         .is_some_and(|record| is_active_block(&record, time_utils::now_ms())))
 }
 
-pub(super) fn ip_allowed_by_runtime(runtime: &Value, ip: &str) -> bool {
-    let cidrs = runtime
-        .get("allowed_cidrs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .filter_map(|value| value.parse::<IpNet>().ok())
-        .collect::<Vec<_>>();
-    if cidrs.is_empty() {
+pub(super) fn ip_allowed_by_runtime(state: &AppState, runtime: &Value, ip: &str) -> bool {
+    if runtime
+        .get("range_count")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        == 0
+    {
         return true;
     }
     let Ok(ip) = ip.parse::<IpAddr>() else {
         return true;
     };
-    cidrs.iter().any(|cidr| cidr.contains(&ip))
+    state
+        .ipsets
+        .get(SSH_ALLOWED_IPSET_KEY)
+        .is_some_and(|policy| policy.contains(ip))
 }
 
 pub(super) fn ssh_block_duration_seconds(config: &Value) -> i64 {

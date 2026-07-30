@@ -17,8 +17,11 @@ use crate::{
     auth::start_auth_bridge,
     auth_mobility::start_auth_mobility_tasks,
     auto_https::sync_auto_https_on_boot,
+    cidr::migrate_cidr_query_caches_on_boot,
     cloudflared::start_cloudflared_tasks,
-    common_auth_locations::start_common_auth_location_tasks,
+    common_auth_locations::{
+        migrate_common_auth_location_ipset_on_boot, start_common_auth_location_tasks,
+    },
     dashboard::start_traffic_tasks,
     ddns_status::start_ddns_tasks,
     fnos_certificate_sync::start_fnos_certificate_sync_tasks,
@@ -30,15 +33,16 @@ use crate::{
     memory,
     notifications::start_notification_tasks,
     runtime_profile,
+    scanner::migrate_scanner_cidr_ipset_on_boot,
     settings::Settings,
-    ssh_security::start_ssh_security_tasks,
+    ssh_security::{migrate_ssh_ipset_on_boot, start_ssh_security_tasks},
     state::AppState,
     system_assets::start_system_clock_tasks,
     system_monitor::start_system_monitor_tasks,
     terminal::start_terminal_tasks,
     update::start_update_tasks,
     waf::start_waf_tasks,
-    whitelist::start_whitelist_tasks,
+    whitelist::{migrate_whitelist_ipsets_on_boot, start_whitelist_tasks},
 };
 
 pub async fn run() -> anyhow::Result<()> {
@@ -113,9 +117,27 @@ pub(crate) async fn run_with_settings(
     let runtime_shutdown = shutdown.child_token();
     let state = AppState::new_with_shutdown(settings.clone(), runtime_shutdown.clone()).await?;
     wait_for_gateway_control_plane(&state, &runtime_shutdown, Duration::from_secs(60)).await?;
+    let migrated_cidr_caches = migrate_cidr_query_caches_on_boot(&state).await?;
+    if migrated_cidr_caches > 0 {
+        tracing::info!(
+            migrated_cidr_caches,
+            "migrated CIDR query caches to compiled policies"
+        );
+    }
     migrate_visibility_policies_on_boot(&state)
         .await
         .map_err(anyhow::Error::msg)?;
+    // The migration validates CIDR-bearing candidates, but even an empty
+    // policy table can contain Host fields that require the matching gateway.
+    // Publish the complete generation before listeners and readiness open.
+    let startup_config = state.store.get_config().await?;
+    crate::proxy_config::sync_go_host_rules_for_config_locked(&state, &startup_config)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    migrate_scanner_cidr_ipset_on_boot(&state).await?;
+    migrate_common_auth_location_ipset_on_boot(&state).await?;
+    migrate_whitelist_ipsets_on_boot(&state).await?;
+    migrate_ssh_ipset_on_boot(&state).await?;
     sync_auto_https_on_boot(state.clone()).await;
     boot::start_boot_sync_tasks(state.clone());
     start_traffic_tasks(state.clone());
@@ -345,7 +367,7 @@ async fn wait_for_gateway(
         } else {
             false
         };
-        if bundle_ready && dataplane_ready && auth_bridge_ready {
+        if bundle_ready && dataplane_ready && auth_bridge_ready && state.gateway_config_synced() {
             return Ok(());
         }
         if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {

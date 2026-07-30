@@ -59,9 +59,11 @@ message HostRuleVisibility {
 }
 
 // Exact, immutable IP set encoded as sorted, disjoint inclusive ranges.
-// ipv4_ranges is a concatenation of start(4 bytes) + end(4 bytes);
-// ipv6_ranges uses start(16 bytes) + end(16 bytes). All bytes are network
-// byte order. format_version 1 is content-addressed by id.
+// The canonical IPv4 representation concatenates start(4 bytes) + end(4 bytes)
+// and IPv6 uses start(16 bytes) + end(16 bytes), all in network byte order.
+// Format version 1 transports those canonical bytes directly. Format version
+// 2 transports each byte stream as zlib data while the content ID continues to
+// cover the uncompressed canonical representation.
 message CompiledIpSet {
   string id = 1;
   uint32 format_version = 2;
@@ -71,14 +73,16 @@ message CompiledIpSet {
 
 // Advanced authentication rules are compiled by the control plane before they
 // are sent to the gateway. Region selectors are deliberately absent here:
-// source_region conditions carry their immutable, resolved CIDRs in cidrs.
+// source_ip/source_region normally reference the shared compiled policy table.
+// cidrs is retained only while importing legacy control-plane snapshots.
 message AdvancedAuthCondition {
   string id = 1;
   string target = 2;
   string operator = 3;
   string name = 4;
   repeated string values = 5;
-  repeated string cidrs = 6;
+  repeated string cidrs = 6 [deprecated = true];
+  string policy_id = 7;
 }
 
 message AdvancedAuthGroup {
@@ -209,12 +213,16 @@ message ReverseProxyThrottleExemptIpsRuntime {
   repeated string ips = 2;
   repeated string cidrs = 3;
   string updated_at = 4;
+  string policy_id = 5;
+  CompiledIpSet policy = 6;
 }
 
 message GatewayTrustedClientIpsRuntime {
   repeated string ips = 1;
-  repeated string cidrs = 2;
+  repeated string cidrs = 2 [deprecated = true];
   string updated_at = 3;
+  string policy_id = 4;
+  CompiledIpSet policy = 5;
 }
 
 message CommonLocationExemptionsRuntime {
@@ -222,6 +230,8 @@ message CommonLocationExemptionsRuntime {
   bool waf_enabled = 2;
   repeated string cidrs = 3;
   string updated_at = 4;
+  string policy_id = 5;
+  CompiledIpSet policy = 6;
 }
 
 message LocaleConfig {
@@ -584,14 +594,21 @@ message SshFirewallSyncRequest {
   string chain_name = 1;
   repeated string parent_chains = 2;
   repeated int32 ports = 3;
-  repeated string allowed_cidrs = 4;
+  repeated string allowed_cidrs = 4; // deprecated，仅兼容旧控制端
   repeated string blocked_ips = 5;
   bool include_local_cidrs = 6;
+  string policy_id = 7;
+  CompiledIpSet policy = 8;
 }
 
 message SshFirewallClearRequest {
   string chain_name = 1;
   repeated string parent_chains = 2;
+}
+
+message WhitelistFirewallSyncRequest {
+  string policy_id = 1;
+  CompiledIpSet policy = 2;
 }
 
 message IptablesRules {
@@ -850,6 +867,7 @@ service FirewallService {
   rpc RemoveTcpPortRule(TcpPortRuleRequest) returns (RpcStatus);
   rpc SyncSshFirewall(SshFirewallSyncRequest) returns (RpcStatus);
   rpc ClearSshFirewall(SshFirewallClearRequest) returns (RpcStatus);
+  rpc SyncWhitelistFirewall(WhitelistFirewallSyncRequest) returns (RpcStatus);
   rpc BlockAll(google.protobuf.Empty) returns (RpcStatus);
   rpc AllowAll(google.protobuf.Empty) returns (RpcStatus);
   rpc EnsureTcpRedirect(TcpRedirectRequest) returns (RpcStatus);

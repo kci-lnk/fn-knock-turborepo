@@ -805,65 +805,7 @@ pub(super) async fn sync_common_auth_location_exemptions_to_gateway(
     state: &AppState,
     waf_config: &Value,
 ) -> anyhow::Result<()> {
-    let runtime = state
-        .store
-        .get_string_value("fn_knock:common_auth_locations:runtime")
-        .await?
-        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-        .unwrap_or_else(|| json!({}));
-    let cidrs = runtime
-        .get("cidrs")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let enabled = waf_config
-        .get("enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-        && waf_config
-            .get("common_location_exempt_enabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        && runtime
-            .get("enabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        && !cidrs.is_empty();
-    let payload = json!({
-        "enabled": enabled,
-        "waf_enabled": enabled,
-        "cidrs": if enabled { cidrs } else { Vec::<String>::new() },
-        "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null),
-    });
-    let (status, value) = state
-        .go_backend
-        .set_common_location_exemptions(&payload)
-        .await?;
-    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::NOT_IMPLEMENTED {
-        return Ok(());
-    }
-    if !value
-        .get("success")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        anyhow::bail!(
-            "{}",
-            value
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("Failed to sync common location exemptions")
-        );
-    }
-    Ok(())
+    crate::common_auth_locations::sync_common_auth_locations_for_waf(state, waf_config).await
 }
 
 pub(super) fn go_response_data(response: Value, fallback: &str) -> anyhow::Result<Value> {

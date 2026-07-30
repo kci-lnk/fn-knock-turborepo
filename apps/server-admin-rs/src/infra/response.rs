@@ -143,8 +143,13 @@ pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
     let process_ready = process.unwrap_or(false);
     let dataplane_ready = dataplane.unwrap_or(false);
     let auth_bridge_ready = auth_bridge.unwrap_or(false);
-    let ready =
-        storage_ready && bundle_ready && process_ready && dataplane_ready && auth_bridge_ready;
+    let config_synced = state.gateway_config_synced();
+    let ready = storage_ready
+        && bundle_ready
+        && process_ready
+        && dataplane_ready
+        && auth_bridge_ready
+        && config_synced;
     let body = json!({
         "ready": ready,
         "version": APP_LOCAL_VERSION,
@@ -155,6 +160,7 @@ pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
             "gateway_process": process_ready,
             "gateway_dataplane": dataplane_ready,
             "auth_bridge": auth_bridge_ready,
+            "gateway_config_synced": config_synced,
         }
     });
     if ready {

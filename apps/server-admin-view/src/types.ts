@@ -138,6 +138,9 @@ export interface AdvancedAuthCondition {
   selections: GatewayVisibilitySelection[];
   /** Resolved CIDRs are returned by the control plane and are read-only. */
   cidrs?: string[];
+  policy_id?: string;
+  source_cidr_count?: number;
+  range_count?: number;
   resolved_at?: string;
   cidr_source?: string;
   cidr_source_fingerprint?: string;
@@ -513,12 +516,7 @@ export interface GatewayLoggingConfig {
 export * from "./types/waf";
 
 export type IpLocationLookupStatus =
-  | "idle"
-  | "queued"
-  | "processing"
-  | "success"
-  | "failed"
-  | "skipped";
+  "idle" | "queued" | "processing" | "success" | "failed" | "skipped";
 
 export interface IpLocationSnapshot {
   ip: string;
@@ -602,10 +600,7 @@ export interface SmartConnectRuntimeState {
 }
 
 export type DnsmasqInstallStatus =
-  | "uninstalled"
-  | "installing"
-  | "installed"
-  | "error";
+  "uninstalled" | "installing" | "installed" | "error";
 
 export interface DnsmasqInstallState {
   status: DnsmasqInstallStatus;
@@ -794,10 +789,7 @@ export interface TerminalFeatureConfig {
 
 export type TerminalTmuxDetectionSource = "env-path" | "absolute-path";
 export type TerminalTmuxInstallStatus =
-  | "uninstalled"
-  | "installing"
-  | "installed"
-  | "error";
+  "uninstalled" | "installing" | "installed" | "error";
 
 export interface TerminalTmuxInstallState {
   status: TerminalTmuxInstallStatus;
@@ -810,11 +802,7 @@ export interface TerminalTmuxInstallState {
 
 export type TerminalTransport = "http-polling";
 export type TerminalSessionStatus =
-  | "created"
-  | "attached"
-  | "detached"
-  | "stopped"
-  | "error";
+  "created" | "attached" | "detached" | "stopped" | "error";
 
 export interface TerminalSessionRecord {
   id: string;
@@ -1013,11 +1001,7 @@ export type PasskeyCredential = {
 };
 
 export type ExternalAuthProviderType =
-  | "fnknock_qq"
-  | "google"
-  | "microsoft"
-  | "github"
-  | "custom_oidc";
+  "fnknock_qq" | "google" | "microsoft" | "github" | "custom_oidc";
 
 export type ExternalAuthProtocol = "oidc" | "oauth2_profile";
 
@@ -1106,10 +1090,7 @@ export type SessionMobilityEvent =
       kind: "drift";
       happenedAt: string;
       source:
-        | "proxy-session"
-        | "fnos-token"
-        | "session-refresh"
-        | "browser-session";
+        "proxy-session" | "fnos-token" | "session-refresh" | "browser-session";
       fromIp: string;
       fromIpLocation?: string;
       toIp: string;
@@ -1238,8 +1219,7 @@ export type SSHLoginLogListPayload = {
 };
 
 export type SSHSecurityBlockReason =
-  | "failed_login_threshold"
-  | "cidr_not_allowed";
+  "failed_login_threshold" | "cidr_not_allowed";
 
 export type SSHSecurityBlockRecord = {
   ip: string;

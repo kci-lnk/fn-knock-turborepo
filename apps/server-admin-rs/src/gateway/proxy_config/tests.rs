@@ -1,4 +1,5 @@
 use super::*;
+use crate::cidr::compile_ip_set;
 use std::collections::BTreeSet;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -515,7 +516,7 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
     let policy_id = compiled.mappings[0]["visibility"]["policy_id"]
         .as_str()
         .unwrap();
-    assert!(policy_id.starts_with("ipset-v1:"));
+    assert!(policy_id.starts_with("ipset-v2:"));
     assert_eq!(compiled.visibility_policies.len(), 1);
     assert!(compiled.visibility_policies.contains_key(policy_id));
 
@@ -542,7 +543,7 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
         legacy.mappings[0]["visibility"]["policy_id"]
             .as_str()
             .unwrap()
-            .starts_with("ipset-v1:")
+            .starts_with("ipset-v2:")
     );
     assert_eq!(legacy.visibility_policies.len(), 1);
 
@@ -2193,6 +2194,44 @@ fn host_rule_payload_stays_flat_when_grouped_view_is_disabled() {
     assert_eq!(rules[0]["group_id"], json!(""));
     assert_eq!(rules[1]["group_id"], json!(""));
     assert_eq!(rules[1]["group_name"], json!(""));
+}
+
+#[test]
+fn disabled_advanced_auth_draft_is_not_sent_to_gateway() {
+    let policy = compile_ip_set(["203.0.113.0/24"]).unwrap();
+    let policy_id = policy.id.clone();
+    let payload = build_host_rules_payload_for_config(&json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "advanced_auth": {
+                "enabled": false,
+                "policy_version": "draft-v1",
+                "groups": [{
+                    "id": "group-1",
+                    "conditions": [{
+                        "id": "condition-1",
+                        "target": "source_region",
+                        "operator": "in",
+                        "policy_id": policy_id,
+                        "selections": [{ "province": "甘肃", "city": "定西", "operator": "移动" }]
+                    }]
+                }]
+            }
+        }],
+        "visibility_policies": {
+            (policy.id.clone()): policy.to_config_value()
+        }
+    }));
+
+    assert_eq!(
+        payload.pointer("/items/0/advanced_auth"),
+        Some(&json!({ "enabled": false }))
+    );
+    assert_eq!(
+        payload["visibility_policies"].as_array().map(Vec::len),
+        Some(0)
+    );
 }
 
 #[test]

@@ -295,6 +295,9 @@ async fn authorized_normal_access_bypasses_scanner_blacklist() {
         })
         .await
         .expect("store manual whitelist record");
+    crate::whitelist::rebuild_whitelist_ipset_snapshots(&state)
+        .await
+        .expect("publish whitelist snapshot");
 
     let config = json!({"run_type": 1});
     let mut headers = forwarded_headers("app.example.com");
@@ -584,6 +587,9 @@ async fn automatic_ip_grant_respects_owner_subdomain_scope() {
         })
         .await
         .expect("store automatic whitelist");
+    crate::whitelist::rebuild_whitelist_ipset_snapshots(&state)
+        .await
+        .expect("publish automatic whitelist snapshot");
 
     let allowed = resolve_preflight_normal_access(
         &state,

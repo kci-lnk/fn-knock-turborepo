@@ -49,7 +49,7 @@ pub(super) async fn build_auth_shell_data(
     redirect_uri: Option<&str>,
     include_redirect: bool,
 ) -> anyhow::Result<(Value, AuthAccess)> {
-    let config = state.store.get_config().await?;
+    let config = state.store.config_snapshot();
     let captcha_settings = runtime_config::load_captcha_settings(state).await?;
     let locale = config
         .get("locale")
@@ -197,13 +197,13 @@ pub(super) async fn resolve_auth_access_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
-    let config = state.store.get_config().await?;
+    let config = state.store.config_snapshot();
     resolve_auth_access_with_routed_upstream_and_config(
         state,
         headers,
         uri,
         translator,
-        &config,
+        config.as_ref(),
         routed_upstream,
         routed_upstream_host,
         routed_upstream_route_id,
@@ -496,7 +496,7 @@ fn rate_limited_access(set_cookies: Vec<String>) -> AuthAccess {
 }
 
 pub(super) async fn public_captcha_settings(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.store.config_snapshot();
     let settings = runtime_config::load_captcha_settings(state).await?;
     let translator = translator_from_config(&config);
     Ok(public_captcha_settings_from_settings(

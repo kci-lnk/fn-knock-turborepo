@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use serde_json::{Value, json};
 
 use super::{
@@ -12,8 +10,74 @@ use crate::{
 
 const CACHE_PREFIX: &str = "fn_knock:cidr";
 const SUCCESS_CACHE_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
+const COMPILED_QUERY_CACHE_VERSION: u64 = 1;
+const COMPILED_QUERY_CACHE_VERSION_FIELD: &str = "fnknock_ipset_cache_version";
+const COMPILED_QUERY_POLICY_FIELD: &str = "compiled_policy";
 const PROVINCE_WIDE_VALUE: &str = "__province_all__";
 const PROVINCES_REQUIRING_CITY_AGGREGATION: &[&str] = &["广东", "浙江"];
+
+pub(crate) async fn migrate_cidr_query_caches_on_boot(state: &AppState) -> anyhow::Result<usize> {
+    let keys = state
+        .store
+        .scan_keys(&format!("{CACHE_PREFIX}:"), 200)
+        .await?;
+    let mut migrated = 0usize;
+    for key in keys.into_iter().filter(|key| key.contains(":cidrs:")) {
+        let (data, ttl) = state.store.get_json_value_with_ttl(&key).await?;
+        let Some(data) = data else {
+            state.store.delete_keys(std::slice::from_ref(&key)).await?;
+            tracing::warn!(%key, "removed malformed CIDR query cache entry");
+            continue;
+        };
+        match compact_query_data(&data) {
+            Ok(compact) if compact != data => {
+                state
+                    .store
+                    .set_json_value_preserve_ttl(&key, &compact, ttl)
+                    .await?;
+                migrated += 1;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                state.store.delete_keys(std::slice::from_ref(&key)).await?;
+                tracing::warn!(%key, %error, "removed invalid CIDR query cache entry");
+            }
+        }
+    }
+    Ok(migrated)
+}
+
+/// Recovers an immutable policy from compact query caches by its content ID.
+/// This is intentionally an offline scan: boot migration must be able to
+/// repair a dangling reference without depending on the CIDR network service.
+pub(crate) async fn cached_compiled_policy_by_id(
+    state: &AppState,
+    policy_id: &str,
+) -> anyhow::Result<Option<crate::cidr::CompiledIpSet>> {
+    let policy_id = policy_id.trim();
+    if policy_id.is_empty() {
+        return Ok(None);
+    }
+    let keys = state
+        .store
+        .scan_keys(&format!("{CACHE_PREFIX}:"), 200)
+        .await?;
+    for key in keys.into_iter().filter(|key| key.contains(":cidrs:")) {
+        let Some(data) = state.store.get_json_value(&key).await? else {
+            continue;
+        };
+        let Some(encoded) = data.get(COMPILED_QUERY_POLICY_FIELD) else {
+            continue;
+        };
+        let Ok(policy) = crate::cidr::CompiledIpSet::from_transport_value(encoded) else {
+            continue;
+        };
+        if policy.id == policy_id {
+            return Ok(Some(policy.into_current_format()));
+        }
+    }
+    Ok(None)
+}
 
 pub(crate) async fn lookup_regions(
     state: &AppState,
@@ -199,7 +263,7 @@ async fn lookup_region_at(
     base_url: &str,
 ) -> Result<CidrLookup, CidrError> {
     let data = get_cached_query_at(state, query, base_url).await?;
-    Ok(lookup_from_data(query, &data))
+    lookup_from_data(query, &data)
 }
 
 async fn get_cached_query_at(
@@ -211,8 +275,7 @@ async fn get_cached_query_at(
         base_url,
         &format!("cidrs:{}", url_encode_component(&query.key())),
     );
-    if let Some(data) = state.store.get_json_value(&key).await? {
-        validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
+    if let Some(data) = load_cached_query(state, query, &key).await? {
         return Ok(data);
     }
     if requires_city_aggregation(query) {
@@ -235,8 +298,7 @@ async fn get_cached_leaf_query_at(
         base_url,
         &format!("cidrs:{}", url_encode_component(&query.key())),
     );
-    if let Some(data) = state.store.get_json_value(&key).await? {
-        validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
+    if let Some(data) = load_cached_query(state, query, &key).await? {
         return Ok(data);
     }
     let pairs = query.query_pairs();
@@ -244,11 +306,118 @@ async fn get_cached_leaf_query_at(
         .await
         .map_err(CidrError::Service)?;
     validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
+    let data = compact_query_data(&data)?;
     state
         .store
         .set_json_value_ex(&key, &data, SUCCESS_CACHE_TTL_SECONDS)
         .await?;
     Ok(data)
+}
+
+async fn load_cached_query(
+    state: &AppState,
+    query: &CidrRegionQuery,
+    key: &str,
+) -> Result<Option<Value>, CidrError> {
+    let (data, ttl) = state.store.get_json_value_with_ttl(key).await?;
+    let Some(data) = data else {
+        return Ok(None);
+    };
+    validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
+    let compact = compact_query_data(&data)?;
+    if compact != data {
+        state
+            .store
+            .set_json_value_preserve_ttl(key, &compact, ttl)
+            .await?;
+    }
+    Ok(Some(compact))
+}
+
+fn compact_query_data(data: &Value) -> Result<Value, CidrError> {
+    let policy = query_policy_from_data(data)?;
+    let mut compact = data
+        .as_object()
+        .cloned()
+        .ok_or_else(|| CidrError::Service("CIDR cache entry must be an object".to_string()))?;
+    compact.remove("cidr_groups");
+    compact.insert(
+        COMPILED_QUERY_CACHE_VERSION_FIELD.to_string(),
+        json!(COMPILED_QUERY_CACHE_VERSION),
+    );
+    compact.insert(
+        COMPILED_QUERY_POLICY_FIELD.to_string(),
+        policy.to_transport_value(),
+    );
+    let counts = compact
+        .entry("counts".to_string())
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| CidrError::Service("CIDR cache counts must be an object".to_string()))?;
+    let fallback_counts = (counts.get("4").is_none() || counts.get("6").is_none())
+        .then(|| policy_cidr_counts(&policy));
+    counts
+        .entry("4".to_string())
+        .or_insert_with(|| json!(fallback_counts.expect("missing CIDR count fallback").0));
+    counts
+        .entry("6".to_string())
+        .or_insert_with(|| json!(fallback_counts.expect("missing CIDR count fallback").1));
+    Ok(Value::Object(compact))
+}
+
+fn query_policy_from_data(data: &Value) -> Result<crate::cidr::CompiledIpSet, CidrError> {
+    if let Some(value) = data.get(COMPILED_QUERY_POLICY_FIELD) {
+        return crate::cidr::CompiledIpSet::from_transport_value(value)
+            .map(crate::cidr::CompiledIpSet::into_current_format)
+            .map_err(|error| {
+                CidrError::Service(format!("CIDR cache compiled policy is invalid: {error}"))
+            });
+    }
+    let groups = data
+        .get("cidr_groups")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            CidrError::Service("CIDR upstream response missing cidr_groups".to_string())
+        })?;
+    let mut cidrs = Vec::new();
+    for family in ["4", "6"] {
+        let Some(items) = groups.get(family) else {
+            continue;
+        };
+        let items = items.as_array().ok_or_else(|| {
+            CidrError::Service(format!(
+                "CIDR upstream cidr_groups.{family} must be an array"
+            ))
+        })?;
+        for item in items {
+            let value = item.as_str().ok_or_else(|| {
+                CidrError::Service(format!(
+                    "CIDR upstream cidr_groups.{family} contains a non-string value"
+                ))
+            })?;
+            cidrs.push(value);
+        }
+    }
+    crate::cidr::compile_ip_set(cidrs).map_err(CidrError::Service)
+}
+
+fn policy_cidr_groups(policy: &crate::cidr::CompiledIpSet) -> (Vec<Value>, Vec<Value>) {
+    let mut ipv4 = Vec::new();
+    let mut ipv6 = Vec::new();
+    for cidr in policy.to_cidrs() {
+        let item = Value::String(cidr);
+        if item.as_str().is_some_and(|value| value.contains(':')) {
+            ipv6.push(item);
+        } else {
+            ipv4.push(item);
+        }
+    }
+    (ipv4, ipv6)
+}
+
+fn policy_cidr_counts(policy: &crate::cidr::CompiledIpSet) -> (usize, usize) {
+    let (ipv4, ipv6) = policy_cidr_groups(policy);
+    (ipv4.len(), ipv6.len())
 }
 
 async fn aggregate_province_cidrs_at(
@@ -281,29 +450,23 @@ async fn aggregate_province_cidrs_at(
         ));
     }
 
-    let mut ipv4 = Vec::new();
-    let mut ipv6 = Vec::new();
+    let mut policies = Vec::new();
     for city in city_names {
         let city_query = CidrRegionQuery::new(province.clone(), Some(city), query.operator);
         let data = get_cached_leaf_query_at(state, &city_query, base_url).await?;
-        ipv4.extend(json_string_array(data.pointer("/cidr_groups/4")));
-        ipv6.extend(json_string_array(data.pointer("/cidr_groups/6")));
+        policies.push(query_policy_from_data(&data)?);
     }
-    let ipv4 = normalize_cidr_strings(ipv4);
-    let ipv6 = normalize_cidr_strings(ipv6);
-    let ipv4_count = ipv4.len();
-    let ipv6_count = ipv6.len();
+    let policy = crate::cidr::union_ip_sets(policies.iter());
+    let (ipv4_count, ipv6_count) = policy_cidr_counts(&policy);
     let mut data = json!({
         "province": province,
         "city": Value::Null,
-        "cidr_groups": {
-            "4": ipv4,
-            "6": ipv6,
-        },
         "counts": {
             "4": ipv4_count,
             "6": ipv6_count,
         },
+        "fnknock_ipset_cache_version": COMPILED_QUERY_CACHE_VERSION,
+        "compiled_policy": policy.to_transport_value(),
     });
     if let Some(operator) = query.operator {
         data["operator"] = Value::String(operator.as_str().to_string());
@@ -380,14 +543,10 @@ fn required_province(value: &str) -> Result<String, CidrError> {
     }
 }
 
-fn lookup_from_data(query: &CidrRegionQuery, data: &Value) -> CidrLookup {
+fn lookup_from_data(query: &CidrRegionQuery, data: &Value) -> Result<CidrLookup, CidrError> {
     let selection = selection_from_data(query, data, None);
-    let cidrs = normalize_cidr_strings(
-        json_string_array(data.pointer("/cidr_groups/4"))
-            .into_iter()
-            .chain(json_string_array(data.pointer("/cidr_groups/6"))),
-    );
-    CidrLookup { selection, cidrs }
+    let policy = query_policy_from_data(data)?;
+    Ok(CidrLookup { selection, policy })
 }
 
 fn selection_from_data(
@@ -435,8 +594,15 @@ pub(crate) fn lookup_payload_from_data(
     translator: Option<&Translator>,
 ) -> Value {
     let selection = selection_from_data(query, data, translator);
-    let ipv4 = json_array_values(data.pointer("/cidr_groups/4"));
-    let ipv6 = json_array_values(data.pointer("/cidr_groups/6"));
+    let (ipv4, ipv6) = query_policy_from_data(data).map_or_else(
+        |_| {
+            (
+                json_array_values(data.pointer("/cidr_groups/4")),
+                json_array_values(data.pointer("/cidr_groups/6")),
+            )
+        },
+        |policy| policy_cidr_groups(&policy),
+    );
     let ipv4_count = to_safe_i64(data.pointer("/counts/4"), ipv4.len() as i64);
     let ipv6_count = to_safe_i64(data.pointer("/counts/6"), ipv6.len() as i64);
     json!({
@@ -474,43 +640,15 @@ pub(crate) fn cities_total(data: &Value, item_count: usize) -> i64 {
     to_safe_i64(data.get("total"), item_count as i64)
 }
 
-fn normalize_cidr_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    values
-        .into_iter()
-        .filter_map(|value| {
-            let value = value.trim();
-            if value.is_empty() || !seen.insert(value.to_ascii_lowercase()) {
-                None
-            } else {
-                Some(value.to_string())
-            }
-        })
-        .collect()
-}
-
-fn json_string_array(value: Option<&Value>) -> Vec<String> {
-    value
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToString::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn json_array_values(value: Option<&Value>) -> Vec<Value> {
-    value.and_then(Value::as_array).cloned().unwrap_or_default()
-}
-
 fn to_safe_i64(value: Option<&Value>, fallback: i64) -> i64 {
     value
         .and_then(js_number_like_i64_floor)
         .unwrap_or(fallback)
         .max(0)
+}
+
+fn json_array_values(value: Option<&Value>) -> Vec<Value> {
+    value.and_then(Value::as_array).cloned().unwrap_or_default()
 }
 
 fn js_number_like_i64_floor(value: &Value) -> Option<i64> {
@@ -600,5 +738,38 @@ mod tests {
         assert_eq!(to_safe_i64(Some(&json!(-3)), 9), 0);
         assert_eq!(to_safe_i64(Some(&json!(["4.2"])), 9), 4);
         assert_eq!(to_safe_i64(Some(&json!(["1", "2"])), 9), 9);
+    }
+
+    #[test]
+    fn query_cache_compacts_legacy_arrays_and_materializes_an_exact_cover() {
+        let raw = json!({
+            "province": "广东",
+            "city": "深圳",
+            "cidr_groups": {
+                "4": ["192.0.2.0/25", "192.0.2.128/25"],
+                "6": ["2001:db8::/33", "2001:db8:8000::/33"],
+            },
+            "counts": { "4": 2, "6": 2 },
+        });
+        let compact = compact_query_data(&raw).unwrap();
+        assert!(compact.get("cidr_groups").is_none());
+        assert_eq!(
+            compact[COMPILED_QUERY_CACHE_VERSION_FIELD],
+            json!(COMPILED_QUERY_CACHE_VERSION)
+        );
+        assert_eq!(
+            compact
+                .pointer("/compiled_policy/format_version")
+                .and_then(Value::as_u64),
+            Some(crate::cidr::ipset::COMPILED_IP_SET_FORMAT_VERSION as u64)
+        );
+        let policy = query_policy_from_data(&compact).unwrap();
+        assert_eq!(policy.to_cidrs(), vec!["192.0.2.0/24", "2001:db8::/32"]);
+
+        let query = CidrRegionQuery::new("广东", Some("深圳"), None);
+        let payload = lookup_payload_from_data(&query, &compact, None);
+        assert_eq!(payload["cidrGroups"]["ipv4"], json!(["192.0.2.0/24"]));
+        assert_eq!(payload["cidrGroups"]["ipv6"], json!(["2001:db8::/32"]));
+        assert_eq!(payload["counts"], json!({ "ipv4": 2, "ipv6": 2 }));
     }
 }

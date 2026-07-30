@@ -181,6 +181,10 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
             id: "whitelist-region:test".to_string(),
             regions: vec![],
             cidrs: vec!["100.64.0.0/10".to_string()],
+            policy_id: String::new(),
+            policy: None,
+            source_cidr_count: 0,
+            range_count: 0,
             expire_at: None,
             source: "manual".to_string(),
             created_at: now_seconds(),
@@ -207,17 +211,17 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
             "compiled IPs missing {expected}: {ips:?}"
         );
     }
-    let cidrs = compiled
-        .get("cidrs")
-        .and_then(Value::as_array)
-        .expect("compiled CIDRs")
-        .iter()
-        .filter_map(Value::as_str)
-        .collect::<BTreeSet<_>>();
-    assert_eq!(cidrs, BTreeSet::from(["100.64.0.0/10", "172.16.0.0/12"]));
+    assert!(compiled.get("cidrs").is_none());
     assert!(
-        compiled.get("enabled").is_none(),
-        "trusted runtime must not depend on reverse-proxy throttle"
+        compiled
+            .get("policy_id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id.starts_with("ipset-v2:"))
+    );
+    assert!(compiled.get("policy").is_some_and(Value::is_object));
+    assert!(
+        compiled.get("enabled") == Some(&Value::Bool(false)),
+        "shared runtime must preserve the independent throttle switch"
     );
 
     sync_reverse_proxy_trusted_ips(&state).await;
@@ -338,7 +342,7 @@ async fn gateway_trusted_sync_waits_for_the_state_serialization_lock() {
         .await
         .expect("store session");
 
-    let guard = state.gateway_trusted_client_ips_sync_lock.lock().await;
+    let guard = state.whitelist_runtime_sync_lock.lock().await;
     let sync_state = state.clone();
     let mut sync_task =
         tokio::spawn(async move { sync_reverse_proxy_trusted_ips(&sync_state).await });
@@ -463,6 +467,10 @@ fn summarizes_whitelist_region_group_without_cidrs() {
             operator: None,
         }],
         cidrs: vec!["1.1.1.0/24".to_string(), "2001:db8::/32".to_string()],
+        policy_id: String::new(),
+        policy: None,
+        source_cidr_count: 0,
+        range_count: 0,
         expire_at: None,
         source: "manual".to_string(),
         created_at: 10,

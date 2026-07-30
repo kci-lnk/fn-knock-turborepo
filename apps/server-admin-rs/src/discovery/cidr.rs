@@ -8,9 +8,10 @@ use crate::{http_utils, i18n::Translator, state::AppState};
 mod ipset;
 mod service;
 
-pub(crate) use ipset::{CompiledIpSet, compile_ip_set};
+pub(crate) use ipset::{CompiledIpSet, IpSetRegistry, compile_ip_set, union_ip_sets};
 pub(crate) use service::{
-    cities_payload, lookup_payload, lookup_region, lookup_regions, provinces_payload,
+    cached_compiled_policy_by_id, cities_payload, lookup_payload, lookup_region, lookup_regions,
+    migrate_cidr_query_caches_on_boot, provinces_payload,
 };
 #[cfg(test)]
 pub(crate) use service::{cities_total, lookup_payload_from_data, province_wide_label};
@@ -26,6 +27,7 @@ pub(crate) const CIDR_OPERATORS: [CidrOperator; 3] = [
 const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
 const CIDR_USER_AGENT: &str = "fn-knock-server-admin/1.0";
 const CAPABILITY_PROBE_VALUE: &str = "__fn_knock_operator_probe__";
+const MAX_CIDR_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum CidrError {
@@ -53,7 +55,19 @@ pub(crate) struct CidrSelection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CidrLookup {
     pub(crate) selection: CidrSelection,
-    pub(crate) cidrs: Vec<String>,
+    pub(crate) policy: CompiledIpSet,
+}
+
+impl CidrLookup {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.policy.range_count() == 0
+    }
+
+    /// Materialize the smallest exact textual cover only for compatibility
+    /// responses and external APIs that still require CIDR strings.
+    pub(crate) fn cidrs(&self) -> Vec<String> {
+        self.policy.to_cidrs()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -234,8 +248,7 @@ pub(crate) async fn probe_capabilities(
         .send()
         .await
         .map_err(|error| format!("CIDR upstream request failed: {error}"))?;
-    let status = response.status();
-    let raw_body = response.text().await.unwrap_or_default();
+    let (status, raw_body) = read_cidr_response_text(response).await?;
     let payload = serde_json::from_str::<Value>(raw_body.trim_start_matches('\u{feff}'))
         .unwrap_or(Value::Null);
     let message = payload
@@ -287,8 +300,7 @@ pub(crate) async fn fetch_data(
         .send()
         .await
         .map_err(|error| format!("CIDR upstream request failed: {error}"))?;
-    let status = response.status();
-    let raw_body = response.text().await.unwrap_or_default();
+    let (status, raw_body) = read_cidr_response_text(response).await?;
     if !status.is_success() {
         return Err(format!(
             "CIDR upstream request failed: HTTP {}",
@@ -310,6 +322,38 @@ pub(crate) async fn fetch_data(
         .get("data")
         .cloned()
         .ok_or_else(|| "CIDR upstream response missing data".to_string())
+}
+
+async fn read_cidr_response_text(
+    mut response: reqwest::Response,
+) -> Result<(reqwest::StatusCode, String), String> {
+    let status = response.status();
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_CIDR_API_RESPONSE_BYTES as u64)
+    {
+        return Err(format!(
+            "CIDR upstream response exceeds {} MiB",
+            MAX_CIDR_API_RESPONSE_BYTES / (1024 * 1024)
+        ));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("CIDR upstream response read failed: {error}"))?
+    {
+        if body.len().saturating_add(chunk.len()) > MAX_CIDR_API_RESPONSE_BYTES {
+            return Err(format!(
+                "CIDR upstream response exceeds {} MiB",
+                MAX_CIDR_API_RESPONSE_BYTES / (1024 * 1024)
+            ));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let body = String::from_utf8(body)
+        .map_err(|error| format!("CIDR upstream returned invalid UTF-8: {error}"))?;
+    Ok((status, body))
 }
 
 pub(crate) fn validate_operator_echo(
@@ -583,6 +627,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn boot_migration_compacts_existing_cidr_query_caches_in_place() {
+        let (_directory, state) = cidr_test_state().await;
+        let key = "fn_knock:cidr:test-source:cidrs:test-query";
+        state
+            .store
+            .set_json_value_ex(
+                key,
+                &json!({
+                    "province": "广东",
+                    "city": "深圳",
+                    "cidr_groups": {
+                        "4": ["192.0.2.0/25", "192.0.2.128/25"],
+                        "6": ["2001:db8::/32"],
+                    },
+                    "counts": { "4": 2, "6": 1 },
+                }),
+                600,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(migrate_cidr_query_caches_on_boot(&state).await.unwrap(), 1);
+        let (stored, ttl) = state.store.get_json_value_with_ttl(key).await.unwrap();
+        let stored = stored.unwrap();
+        assert!(stored.get("cidr_groups").is_none());
+        assert_eq!(stored["fnknock_ipset_cache_version"], json!(1));
+        assert_eq!(stored["compiled_policy"]["format_version"], json!(2));
+        assert!(ttl > 0 && ttl <= 600);
+    }
+
+    #[tokio::test]
+    async fn dangling_policy_can_be_recovered_from_compact_query_cache_offline() {
+        let (_directory, state) = cidr_test_state().await;
+        let policy = compile_ip_set(["203.0.113.0/25", "203.0.113.128/25"]).unwrap();
+        state
+            .store
+            .set_json_value(
+                "fn_knock:cidr:test-source:cidrs:offline-recovery",
+                &json!({
+                    "fnknock_ipset_cache_version": 1,
+                    "compiled_policy": policy.to_transport_value(),
+                }),
+            )
+            .await
+            .unwrap();
+
+        let recovered = cached_compiled_policy_by_id(&state, &policy.id)
+            .await
+            .unwrap()
+            .expect("recover cached policy");
+        assert_eq!(recovered.id, policy.id);
+        assert_eq!(recovered.to_cidrs(), vec!["203.0.113.0/24"]);
+        assert!(
+            cached_compiled_policy_by_id(&state, "ipset-v2:missing")
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
     async fn behavior_probe_distinguishes_new_and_legacy_containers() {
         let (_directory, state) = cidr_test_state().await;
         let (new_url, _, new_task) = spawn_mock_cidr(true, 1).await;
@@ -631,7 +736,7 @@ mod tests {
         let cached = lookup_region(&state, &query).await.unwrap();
         let payload = lookup_payload(&state, &query, None).await.unwrap();
 
-        assert_eq!(first.cidrs, vec!["10.31.0.0/16", "10.32.0.0/16"]);
+        assert_eq!(first.cidrs(), vec!["10.31.0.0/16", "10.32.0.0/16"]);
         assert_eq!(cached, first);
         assert!(first.selection.is_province_wide);
         assert_eq!(first.selection.value, "__province_all__");
@@ -653,8 +758,8 @@ mod tests {
         let first = lookup_region(&state, &mobile).await.unwrap();
         let cached = lookup_region(&state, &mobile).await.unwrap();
         let other_operator = lookup_region(&state, &telecom).await.unwrap();
-        assert_eq!(first.cidrs, vec!["10.11.0.0/16"]);
-        assert_eq!(cached.cidrs, first.cidrs);
+        assert_eq!(first.cidrs(), vec!["10.11.0.0/16"]);
+        assert_eq!(cached.policy, first.policy);
         assert_eq!(
             other_operator.selection.operator,
             Some(CidrOperator::Telecom)
@@ -663,7 +768,7 @@ mod tests {
 
         configure_custom_source(&state, &second_url).await;
         let other_source = lookup_region(&state, &mobile).await.unwrap();
-        assert_eq!(other_source.cidrs, vec!["10.22.0.0/16"]);
+        assert_eq!(other_source.cidrs(), vec!["10.22.0.0/16"]);
         assert_eq!(second_requests.load(Ordering::SeqCst), 1);
 
         first_task.abort();

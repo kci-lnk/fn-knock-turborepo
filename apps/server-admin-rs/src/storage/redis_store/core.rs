@@ -113,17 +113,7 @@ fn replace_visibility_policies_for_host_mappings(
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    let mut referenced = BTreeSet::new();
-    for mapping in replacement_mappings {
-        if let Some(id) = mapping
-            .pointer("/visibility/policy_id")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            referenced.insert(id.to_string());
-        }
-    }
+    let mut referenced = referenced_host_ipset_policy_ids(replacement_mappings);
     if let Some(id) = config
         .pointer("/gateway_visibility/policy_id")
         .and_then(Value::as_str)

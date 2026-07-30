@@ -60,6 +60,12 @@ pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(
     normalize::validate_stream_mapping_runtime_safety_inner(config)
 }
 
+pub(crate) fn referenced_host_ipset_policy_ids<'a>(
+    mappings: impl IntoIterator<Item = &'a Value>,
+) -> std::collections::BTreeSet<String> {
+    crate::store::referenced_host_ipset_policy_ids(mappings)
+}
+
 const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE: &str = "text/plain; charset=utf-8";
 const BASIC_AUTH_PROBE_USER_AGENT: &str = "fn-knock-server-admin-basic-auth-probe/1.0";
 const METADATA_USER_AGENT: &str = "fn-knock-server-admin/1.0";

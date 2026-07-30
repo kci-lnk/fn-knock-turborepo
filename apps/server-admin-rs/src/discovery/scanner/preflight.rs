@@ -275,21 +275,18 @@ pub(super) async fn is_scanner_exempt_ip(
     {
         return Ok(true);
     }
-    Ok(is_scanner_cidr_exempt_ip(
-        ip,
-        &settings.cidr_exemption_cidrs,
-    ))
+    Ok(is_scanner_cidr_exempt_ip(state, ip))
 }
 
-pub(super) fn is_scanner_cidr_exempt_ip(ip: &str, cidrs: &[String]) -> bool {
+pub(super) fn is_scanner_cidr_exempt_ip(state: &AppState, ip: &str) -> bool {
     let normalized = http_utils::normalize_ip(ip);
     let Ok(ip) = normalized.parse::<IpAddr>() else {
         return false;
     };
-    cidrs
-        .iter()
-        .filter_map(|cidr| cidr.trim().parse::<IpNet>().ok())
-        .any(|network| network.contains(&ip))
+    state
+        .ipsets
+        .get(SCANNER_EXEMPT_IPSET_KEY)
+        .is_some_and(|policy| policy.contains(ip))
 }
 
 pub(super) fn normalize_scanner_ip(ip: &str) -> String {

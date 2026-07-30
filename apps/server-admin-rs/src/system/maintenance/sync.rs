@@ -133,18 +133,6 @@ pub(super) async fn sync_direct_mode_whitelist_after_import(
     if !runtime_profile::host_firewall_available(state) {
         return Ok(());
     }
-    let records = state.store.list_whitelist_active_concrete_targets().await?;
-    for record in records {
-        let value = state.go_backend.allow_ip(&record.target).await?;
-        if value.get("success").and_then(Value::as_bool) == Some(false) {
-            anyhow::bail!(
-                "{}",
-                value
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("allow ip failed")
-            );
-        }
-    }
+    whitelist::sync_direct_firewall_whitelist(state).await?;
     Ok(())
 }

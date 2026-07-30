@@ -19,13 +19,7 @@ pub(crate) fn build_host_rules_payload_for_config(config: &Value) -> Value {
         let ordered = ordered_host_mappings_for_groups(&mappings, &groups);
         build_host_rules_payload_with_groups(&ordered, &groups)
     };
-    let referenced = items
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|item| item.pointer("/visibility/policy_id"))
-        .filter_map(Value::as_str)
-        .collect::<HashSet<_>>();
+    let referenced = referenced_host_ipset_policy_ids(items.as_array().into_iter().flatten());
     let visibility_policies = config
         .get("visibility_policies")
         .and_then(Value::as_object)
@@ -72,6 +66,20 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     })
                     .map(|value| Value::String(value.to_string()))
                     .unwrap_or(Value::Null);
+                // Disabled advanced-auth rules remain a control-plane draft.
+                // Do not make unrelated Host edits depend on stale region
+                // data, while still retaining the complete draft and its
+                // policy references in persistent configuration.
+                let advanced_auth = object
+                    .get("advanced_auth")
+                    .filter(|value| {
+                        value
+                            .get("enabled")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "enabled": false }));
                 json!({
                     "host": object.get("host").cloned().unwrap_or(Value::String(String::new())),
                     "target": object.get("target").cloned().unwrap_or(Value::String(String::new())),
@@ -86,7 +94,7 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                         "mode": visibility.get("mode").and_then(Value::as_str).unwrap_or("inherit"),
                         "policy_id": visibility.get("policy_id").cloned().unwrap_or(Value::Null),
                     })).unwrap_or_else(|| json!({ "mode": "inherit" })),
-                    "advanced_auth": object.get("advanced_auth").cloned().unwrap_or(Value::Null),
+                    "advanced_auth": advanced_auth,
                     "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
                     "group_id": group_id,
                     "group_name": group_name,

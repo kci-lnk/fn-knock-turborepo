@@ -43,13 +43,8 @@ pub(super) fn go_response_message(value: &Value, fallback: &str) -> String {
 pub(super) use crate::runtime_profile::host_runtime_available;
 
 pub(super) fn ensure_go_success(value: Value) -> anyhow::Result<()> {
-    if crate::go_backend::response_success(&value) {
-        return Ok(());
-    }
-    anyhow::bail!(
-        "{}",
-        crate::go_backend::response_message(&value, GO_BACKEND_UNSUCCESSFUL_RESPONSE)
-    )
+    crate::go_backend::ensure_response_success(&value, GO_BACKEND_UNSUCCESSFUL_RESPONSE)
+        .map_err(anyhow::Error::msg)
 }
 
 pub(super) use crate::runtime_profile::host_firewall_available;

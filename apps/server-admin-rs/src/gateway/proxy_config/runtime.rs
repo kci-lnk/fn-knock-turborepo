@@ -191,6 +191,7 @@ fn gateway_advanced_auth_projection(value: &Value) -> Value {
                                         "target": condition.get("target").cloned().unwrap_or(Value::String(String::new())),
                                         "operator": condition.get("operator").cloned().unwrap_or(Value::String(String::new())),
                                         "name": condition.get("name").cloned().unwrap_or(Value::String(String::new())),
+                                        "policy_id": condition.get("policy_id").cloned().unwrap_or(Value::String(String::new())),
                                         // Go normalizes empty slices to nil in
                                         // protobuf and emits JSON null; treat
                                         // null and [] as the same semantic

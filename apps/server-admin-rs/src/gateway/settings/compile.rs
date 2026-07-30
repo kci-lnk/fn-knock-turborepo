@@ -44,15 +44,9 @@ pub(super) async fn compile_gateway_visibility_config(
         .as_ref()
         .map(CompiledIpSet::range_count)
         .unwrap_or_default();
-    let runtime_policy = policy.as_ref().map(|policy| {
-        let mut value = policy
-            .to_config_value()
-            .as_object()
-            .cloned()
-            .unwrap_or_default();
-        value.insert("id".to_string(), Value::String(policy.id.clone()));
-        Value::Object(value)
-    });
+    let runtime_policy = policy
+        .as_ref()
+        .map(CompiledIpSet::to_compact_transport_value);
 
     Ok(CompiledGatewayVisibility {
         config: json!({

@@ -1578,6 +1578,7 @@ export const enServer = {
     syncSteps: {
       runModeGatewayRoutes: "Run mode and gateway routes",
       directModeWhitelist: "Direct-mode whitelist",
+      trustedClientIps: "Gateway trusted client IPs",
       gatewayLogging: "Request log configuration",
       wafRuntime: "WAF configuration and runtime",
       sslDeployment: "SSL certificate deployment",

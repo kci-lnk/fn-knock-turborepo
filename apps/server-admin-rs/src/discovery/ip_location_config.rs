@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::{i18n::Translator, response, state::AppState};
 
-const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
+pub(crate) const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
 const DEFAULT_IP_LOOKUP_URL: &str = "https://ipaddress.fnknock.cn/api/v1";
 const DEFAULT_CIDR_URL: &str = "https://cidr.fnknock.cn/api/v1";
 const USER_AGENT: &str = "fn-knock-server-admin/1.0";

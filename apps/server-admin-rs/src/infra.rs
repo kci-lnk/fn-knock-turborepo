@@ -8,3 +8,4 @@ pub(crate) mod runtime_profile;
 pub(crate) mod settings;
 pub(crate) mod state;
 pub(crate) mod static_files;
+pub(crate) mod system_resources;

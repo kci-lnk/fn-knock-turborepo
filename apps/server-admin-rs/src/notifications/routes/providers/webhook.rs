@@ -94,14 +94,13 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
 
     match request.send().await {
         Ok(response) => {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
+            let (status, ok, text, _) = read_provider_response(response).await;
             let response_summary = json!({
-                "status": status.as_u16(),
-                "ok": status.is_success(),
+                "status": status,
+                "ok": ok,
                 "body_preview": truncate_text(&text, 500)
             });
-            if status.is_success() {
+            if ok {
                 Ok(ProviderTestResult {
                     success: true,
                     retryable: false,
@@ -112,12 +111,12 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
             } else {
                 Ok(ProviderTestResult {
                     success: false,
-                    retryable: status.as_u16() >= 500 || status.as_u16() == 429,
+                    retryable: status >= 500 || status == 429,
                     message: notification_provider_error_text(
                         translator,
                         "webhook",
                         "requestReturned",
-                        &[("status", status.as_u16().to_string())],
+                        &[("status", status.to_string())],
                     ),
                     request_summary: Some(request_summary),
                     response_summary: Some(response_summary),
@@ -251,14 +250,13 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
     .await
     {
         Ok(Ok(response)) => {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
+            let (status, ok, text, _) = read_provider_response(response).await;
             let response_summary = json!({
-                "status": status.as_u16(),
-                "ok": status.is_success(),
+                "status": status,
+                "ok": ok,
                 "body_preview": truncate_text(&text, 500)
             });
-            if status.is_success() {
+            if ok {
                 ProviderTestResult {
                     success: true,
                     retryable: false,
@@ -269,12 +267,12 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
             } else {
                 ProviderTestResult {
                     success: false,
-                    retryable: status.as_u16() >= 500 || status.as_u16() == 429,
+                    retryable: status >= 500 || status == 429,
                     message: notification_provider_error_text(
                         translator,
                         "webhook",
                         "requestReturned",
-                        &[("status", status.as_u16().to_string())],
+                        &[("status", status.to_string())],
                     ),
                     request_summary: Some(request_summary),
                     response_summary: Some(response_summary),

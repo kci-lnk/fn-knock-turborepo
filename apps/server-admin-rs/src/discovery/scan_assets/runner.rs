@@ -1,5 +1,7 @@
 use super::*;
 
+const MAX_DISCOVERY_PROBE_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 pub(super) async fn run_discover_job(
     job: DiscoverJobHandle,
     scan_cidrs: Vec<String>,
@@ -451,7 +453,10 @@ pub(super) async fn probe_discovery_service(
     };
     let status = response.status().as_u16();
     let headers = collect_response_headers(response.headers());
-    let body = response.text().await.unwrap_or_default();
+    let body =
+        crate::http_body::read_response_text_limited(response, MAX_DISCOVERY_PROBE_RESPONSE_BYTES)
+            .await
+            .unwrap_or_default();
     analyze_discovered_http_service(
         client,
         DiscoveryHttpResult {

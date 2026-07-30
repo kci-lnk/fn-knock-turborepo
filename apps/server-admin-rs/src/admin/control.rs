@@ -31,6 +31,7 @@ use handlers::{
 
 #[cfg(test)]
 use crate::{
+    auth_mobility,
     i18n::Translator,
     store::{AuthAccount, AuthPasswordCredential, LoginSession, TotpCredential},
     time_utils,
@@ -41,7 +42,6 @@ use serde_json::json;
 use sessions::{
     apply_mobility_event_ip_locations, build_mobility_login_event, build_mobility_summary,
     normalize_auto_ip_grant_comment_value, session_attachment_from_binding,
-    should_revoke_custom_post_login_ip_grant,
 };
 #[cfg(test)]
 use settings::{node_totp_bind_comment, normalize_auth_credential_settings};

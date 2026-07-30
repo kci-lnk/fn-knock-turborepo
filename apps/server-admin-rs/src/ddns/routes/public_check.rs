@@ -342,7 +342,10 @@ async fn test_single_public_check_source_via_reqwest(
         .await
         .map_err(|error| anyhow::anyhow!(deepest_error_message(&error)))?;
     let status = response.status().as_u16();
-    let text = response.text().await.unwrap_or_default();
+    let text = String::from_utf8_lossy(
+        &http_body::read_response_bytes_limited(response, MAX_PUBLIC_CHECK_RESPONSE_BYTES).await?,
+    )
+    .into_owned();
     Ok((status, text))
 }
 
@@ -450,25 +453,11 @@ async fn run_curl_public_check_request(
 ) -> anyhow::Result<(u16, String, String)> {
     const STATUS_MARKER: &str = "\n__FN_KNOCK_CURL_STATUS__";
     const REDIRECT_MARKER: &str = "\n__FN_KNOCK_CURL_REDIRECT__";
-    const PROXY_ENV_KEYS: [&str; 8] = [
-        "http_proxy",
-        "https_proxy",
-        "all_proxy",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "ALL_PROXY",
-        "no_proxy",
-        "NO_PROXY",
-    ];
 
-    let mut command = tokio::process::Command::new("curl");
+    let mut command =
+        super::curl_transport::command(timeout, MAX_PUBLIC_CHECK_RESPONSE_BYTES, follow_redirects);
     command
-        .arg("-q")
-        .arg("--silent")
-        .arg("--show-error")
         .arg(if version == 4 { "-4" } else { "-6" })
-        .arg("--max-time")
-        .arg(format!("{:.3}", timeout.as_secs_f64().max(0.001)))
         .arg("--write-out")
         .arg(format!(
             "{STATUS_MARKER}%{{http_code}}{REDIRECT_MARKER}%{{redirect_url}}"
@@ -477,16 +466,10 @@ async fn run_curl_public_check_request(
         .arg("Accept: application/json, text/plain")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    if follow_redirects {
-        command.arg("--location");
-    }
-    for key in PROXY_ENV_KEYS {
-        command.env_remove(key);
-    }
     let interface = normalize_network_interface(network_interface);
     if !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
         ensure_ddns_network_interface_exists(&interface, translator)?;
-        command.arg("--interface").arg(interface);
+        super::curl_transport::bind_network_interface(&mut command, &interface);
     }
     for entry in resolve_entries {
         command.arg("--resolve").arg(entry);
@@ -494,25 +477,16 @@ async fn run_curl_public_check_request(
     command.arg(url);
     let output = command.output().await?;
     if !output.status.success() {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let detail = super::curl_transport::failure_detail(output.status, &output.stderr);
         anyhow::bail!(
             "{}",
-            ddns_text(
-                translator,
-                "curlRequestFailed",
-                &[(
-                    "detail",
-                    if detail.is_empty() {
-                        output
-                            .status
-                            .code()
-                            .map(|code| format!("exit {code}"))
-                            .unwrap_or_else(|| "terminated".to_string())
-                    } else {
-                        detail
-                    },
-                )],
-            )
+            ddns_text(translator, "curlRequestFailed", &[("detail", detail)],)
+        );
+    }
+    if output.stdout.len() > MAX_PUBLIC_CHECK_RESPONSE_BYTES + 8 * 1024 {
+        anyhow::bail!(
+            "public IP check response exceeds {} bytes",
+            MAX_PUBLIC_CHECK_RESPONSE_BYTES
         );
     }
     let output_text = String::from_utf8_lossy(&output.stdout).to_string();

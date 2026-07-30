@@ -23,7 +23,10 @@ use tokio::{
 };
 use zip::ZipArchive;
 
-use crate::{i18n::Translator, response, state::AppState, store, system_events, time_utils};
+use crate::{
+    fs_utils, http_body, i18n::Translator, response, state::AppState, store, system_events,
+    time_utils,
+};
 
 mod logs;
 mod rules;
@@ -48,6 +51,8 @@ const INITIALIZATION_RULE_FILENAME: &str = "REQUEST-901-INITIALIZATION.conf";
 const LFI_RULE_FILENAME: &str = "REQUEST-930-APPLICATION-ATTACK-LFI.conf";
 const RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY: &str = "fn_knock:patch:waf-recommended-lfi-rule:v1";
 const MANIFEST_URL: &str = "https://cor.fnknock.cn/waf/manifest.json";
+const MAX_WAF_MANIFEST_RESPONSE_BYTES: usize = 1024 * 1024;
+const MAX_WAF_METADATA_FILE_BYTES: usize = 1024 * 1024;
 const MANIFEST_REFRESH_MS: i64 = 2 * 24 * 60 * 60 * 1000;
 const MAX_RULE_FILE_BYTES: usize = 1024 * 1024;
 const MAX_ZIP_BYTES: usize = 20 * 1024 * 1024;

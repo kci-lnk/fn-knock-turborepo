@@ -1218,7 +1218,7 @@ async fn session_merge_is_atomic_preserves_absolute_expiry_and_never_recreates()
 
     for round in 0..16 {
         let session_id = format!("atomic-delete-{round}");
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(&session_id);
         let mut conn = store.conn();
         conn.set_ex(&key, json!({ "round": round }).to_string(), 600)
             .await
@@ -1654,6 +1654,64 @@ fn cname_whitelist_concrete_targets_normalize_dedupe_and_sort_ips() {
         .map(|target| target.target)
         .collect::<Vec<_>>();
     assert_eq!(targets, vec!["192.0.2.1", "2001:DB8::1"]);
+}
+
+#[tokio::test]
+async fn stale_whitelist_replace_cannot_recreate_a_deleted_record() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let record = WhitelistRecord {
+        id: "whitelist:stale-cname-refresh".to_string(),
+        ip: "example.com".to_string(),
+        target_type: "cname".to_string(),
+        expire_at: None,
+        source: "manual".to_string(),
+        created_at: 1,
+        status: "active".to_string(),
+        comment: None,
+        ip_location: None,
+        resolved_targets: Some(vec!["192.0.2.1".to_string()]),
+        check_interval_minutes: Some(5),
+        last_checked_at: None,
+        last_resolved_at: None,
+        resolve_status: Some("resolved".to_string()),
+        resolve_message: None,
+    };
+    store
+        .insert_whitelist_record(&record)
+        .await
+        .expect("insert whitelist record");
+
+    let mut stale_refresh = record.clone();
+    stale_refresh.resolved_targets = Some(vec!["192.0.2.2".to_string()]);
+    stale_refresh.last_checked_at = Some(2);
+    store
+        .delete_whitelist_record(&record.id)
+        .await
+        .expect("delete whitelist record")
+        .expect("deleted record");
+
+    let error = store
+        .replace_whitelist_record(&record, &stale_refresh)
+        .await
+        .expect_err("stale refresh must fail");
+    assert!(error.to_string().contains("changed concurrently"));
+    assert!(
+        store
+            .get_whitelist_record(&record.id)
+            .await
+            .expect("read deleted record")
+            .is_none()
+    );
+    assert!(
+        store
+            .list_whitelist_records()
+            .await
+            .expect("list whitelist records")
+            .is_empty()
+    );
 }
 
 #[test]

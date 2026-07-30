@@ -17,7 +17,7 @@ use crate::{
     response,
     state::AppState,
     store::{AuthAccount, AuthPasswordCredential, TotpCredential},
-    system_events, time_utils, whitelist,
+    time_utils, whitelist,
 };
 
 use super::{
@@ -27,8 +27,8 @@ use super::{
     gateway::refresh_gateway_auth_runtime,
     sessions::{
         ensure_session_comment, hydrate_mobility_event_ip_locations,
-        revoke_custom_post_login_ip_grant_for_session, session_mobility_details_value,
-        session_record_with_mobility, sync_session_whitelist_comments,
+        session_mobility_details_value, session_record_with_mobility,
+        sync_session_whitelist_comments,
     },
     settings::{
         auth_credential_settings_from_config, ensure_object, is_allowed_auth_credential_setting,
@@ -859,59 +859,16 @@ pub(super) async fn session_delete(
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let session = state.store.get_session(&id).await.ok().flatten();
-    let config = if session.is_some() {
-        state.store.get_config().await.ok()
+    let outcome =
+        auth_mobility::revoke_login_session(&state, &id, None, "", "admin_session_delete").await;
+    if outcome.complete {
+        response::success_message(admin_control_text(&translator, "sessions.deleted"))
+            .into_response()
     } else {
-        None
-    };
-    if let Some(session) = session.as_ref()
-        && let Err(error) = system_events::publish_auth_logout_event(
-            &state,
-            json!({
-                "session_id": id.clone(),
-                "auth_method": session.method.clone(),
-                "credential_id": session.credential_id.clone(),
-                "credential_name": session.credential_name.clone(),
-                "linked_totp_name": session.linked_totp_name.clone(),
-                "session_comment": session.comment.clone(),
-                "ip": session.ip.clone(),
-                "ip_location": session.ip_location.clone(),
-                "user_agent": session.user_agent.clone(),
-                "login_time": session.login_time.clone(),
-                "logout_source": "admin_session_delete",
-            }),
+        response::error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            admin_control_text(&translator, "sessions.deleteFailed"),
         )
-        .await
-    {
-        tracing::warn!(%error, %id, "failed to publish admin session delete logout event");
-    }
-    if let Err(error) = auth_mobility::destroy_session(&state, &id).await {
-        tracing::warn!(%error, %id, "failed to cleanup auth mobility session during admin delete");
-    }
-    if let Some(session) = session.as_ref()
-        && let Some(config) = config.as_ref()
-    {
-        match revoke_custom_post_login_ip_grant_for_session(&state, session, config).await {
-            Ok(true) | Ok(false) => {}
-            Err(error) => {
-                tracing::warn!(%error, %id, "failed to revoke custom post-login IP grant");
-            }
-        }
-    }
-    match state.store.delete_session(&id).await {
-        Ok(()) => {
-            whitelist::sync_reverse_proxy_trusted_ips(&state).await;
-            response::success_message(admin_control_text(&translator, "sessions.deleted"))
-                .into_response()
-        }
-        Err(error) => {
-            tracing::warn!(%error, %id, "failed to delete auth session");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_control_text(&translator, "sessions.deleteFailed"),
-            )
-        }
     }
 }
 
@@ -979,7 +936,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn admin_session_delete_immediately_removes_gateway_trust() {
+    async fn admin_session_delete_reports_unconfirmed_gateway_trust_revocation() {
         let directory = tempfile::tempdir().expect("temporary admin session database");
         let mut settings = {
             let _environment = crate::test_support::EnvGuard::new(&[]);
@@ -1044,7 +1001,7 @@ mod tests {
         );
 
         let response = session_delete(State(state.clone()), Path(session_id.to_string())).await;
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
         let after = state
             .store

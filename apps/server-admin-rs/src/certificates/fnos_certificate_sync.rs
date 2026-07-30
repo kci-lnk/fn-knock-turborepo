@@ -960,10 +960,9 @@ fn set_private_directory_permissions(_path: &Path) -> anyhow::Result<()> {
 #[cfg(unix)]
 fn preserve_file_metadata(path: &Path, metadata: &fs::Metadata) -> anyhow::Result<()> {
     fs::set_permissions(path, fs::Permissions::from_mode(metadata.mode()))?;
-    let path_c = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())?;
-    if unsafe { libc::chown(path_c.as_ptr(), metadata.uid(), metadata.gid()) } != 0 {
+    if let Err(error) = crate::unix::set_file_owner_from_metadata(path, metadata) {
         let _ = fs::remove_file(path);
-        return Err(std::io::Error::last_os_error().into());
+        return Err(error.into());
     }
     Ok(())
 }

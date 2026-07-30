@@ -10,6 +10,8 @@ use super::{
     text::{oidc_text, oidc_text_params},
 };
 
+const MAX_OIDC_DISCOVERY_RESPONSE_BYTES: usize = 1024 * 1024;
+
 pub(super) async fn run_provider_test(
     provider: &Value,
     translator: &Translator,
@@ -86,7 +88,10 @@ pub(crate) async fn resolve_discovery_with_translator(
         .await
         .map_err(|error| error.to_string())?;
     let status = response.status();
-    let text = response.text().await.map_err(|error| error.to_string())?;
+    let text =
+        crate::http_body::read_response_text_limited(response, MAX_OIDC_DISCOVERY_RESPONSE_BYTES)
+            .await
+            .map_err(|error| error.to_string())?;
     if !status.is_success() {
         return Err(oidc_text_params(
             translator,

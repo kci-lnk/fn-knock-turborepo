@@ -512,21 +512,21 @@ fn custom_post_login_grant_revoke_condition_matches_node() {
         expires_at: None,
         ip_location: None,
     };
-    assert!(should_revoke_custom_post_login_ip_grant(
-        &session,
-        &json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}})
+    assert!(auth_mobility::should_revoke_custom_post_login_ip_grant(
+        Some(&session),
+        Some(&json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}}))
     ));
 
     session.grant_type = Some("session".to_string());
     session.post_login_ip_grant_mode = Some("follow_session".to_string());
     session.comment = Some("登录后自动授权".to_string());
-    assert!(should_revoke_custom_post_login_ip_grant(
-        &session,
-        &json!({"auth_credential_settings": {"post_login_ip_grant_mode": "custom"}})
+    assert!(auth_mobility::should_revoke_custom_post_login_ip_grant(
+        Some(&session),
+        Some(&json!({"auth_credential_settings": {"post_login_ip_grant_mode": "custom"}}))
     ));
-    assert!(!should_revoke_custom_post_login_ip_grant(
-        &session,
-        &json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}})
+    assert!(!auth_mobility::should_revoke_custom_post_login_ip_grant(
+        Some(&session),
+        Some(&json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}}))
     ));
 }
 

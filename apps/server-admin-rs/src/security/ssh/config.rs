@@ -285,19 +285,8 @@ pub(super) fn build_runtime_from_config(
 }
 
 pub(super) fn policy_from_runtime(runtime: &Value) -> anyhow::Result<CompiledIpSet> {
-    if let Some(value) = runtime.get("policy")
-        && !value.is_null()
-    {
-        return CompiledIpSet::from_transport_value(value).map_err(anyhow::Error::msg);
-    }
-    let cidrs = runtime
-        .get("allowed_cidrs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect::<Vec<_>>();
-    compile_ip_set(cidrs).map_err(anyhow::Error::msg)
+    CompiledIpSet::from_runtime_or_legacy_cidrs(runtime, "allowed_cidrs")
+        .map_err(anyhow::Error::msg)
 }
 
 pub(super) fn compact_runtime(
@@ -306,14 +295,12 @@ pub(super) fn compact_runtime(
     updated_at: Option<Value>,
 ) -> Value {
     let has_policy = policy.range_count() > 0;
-    json!({
+    let mut runtime = json!({
         "enabled": enabled,
-        "policy_id": has_policy.then(|| policy.id.clone()),
-        "source_cidr_count": if has_policy { policy.source_cidr_count } else { 0 },
-        "range_count": if has_policy { policy.range_count() } else { 0 },
-        "policy": has_policy.then(|| policy.to_transport_value()),
         "updated_at": updated_at.unwrap_or_else(|| Value::String(time_utils::now_iso())),
-    })
+    });
+    CompiledIpSet::apply_runtime_envelope(&mut runtime, has_policy.then_some(policy));
+    runtime
 }
 
 fn publish_runtime_policy(state: &AppState, runtime: &Value) -> anyhow::Result<()> {

@@ -40,12 +40,10 @@ pub(super) async fn sync_runtime_after_import(
         )),
     }
 
-    if run_type == 0 && runtime_profile::host_firewall_available(state) {
-        let whitelist_label = maintenance_backup_text(translator, "syncSteps.directModeWhitelist");
-        match sync_direct_mode_whitelist_after_import(state).await {
-            Ok(()) => synced_steps.push(whitelist_label),
-            Err(error) => warnings.push(format!("{whitelist_label}: {error}")),
-        }
+    let trusted_ips_label = maintenance_backup_text(translator, "syncSteps.trustedClientIps");
+    match whitelist::sync_reverse_proxy_trusted_ips_required(state).await {
+        Ok(()) => synced_steps.push(trusted_ips_label),
+        Err(error) => warnings.push(format!("{trusted_ips_label}: {error}")),
     }
 
     let gateway_logging_label = maintenance_backup_text(translator, "syncSteps.gatewayLogging");
@@ -125,14 +123,4 @@ fn record_waf_restore_result(
         Ok(_) => synced_steps.push(label.to_string()),
         Err(error) => warnings.push(format!("{label}: {error}")),
     }
-}
-
-pub(super) async fn sync_direct_mode_whitelist_after_import(
-    state: &AppState,
-) -> anyhow::Result<()> {
-    if !runtime_profile::host_firewall_available(state) {
-        return Ok(());
-    }
-    whitelist::sync_direct_firewall_whitelist(state).await?;
-    Ok(())
 }

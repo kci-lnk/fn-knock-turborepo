@@ -54,17 +54,67 @@ impl CompiledIpSet {
 
     pub(crate) fn to_transport_value(&self) -> Value {
         let mut value = self
-            .to_config_value()
+            .to_compact_transport_value()
             .as_object()
             .cloned()
-            .unwrap_or_default();
-        value.insert("id".to_string(), Value::String(self.id.clone()));
+            .expect("compact compiled IP set transport value must be an object");
         value.insert(
             "source_cidr_count".to_string(),
             json!(self.source_cidr_count),
         );
         value.insert("range_count".to_string(), json!(self.range_count()));
         Value::Object(value)
+    }
+
+    pub(crate) fn to_compact_transport_value(&self) -> Value {
+        let mut value = self
+            .to_config_value()
+            .as_object()
+            .cloned()
+            .expect("compiled IP set config value must be an object");
+        value.insert("id".to_string(), Value::String(self.id.clone()));
+        Value::Object(value)
+    }
+
+    pub(crate) fn apply_runtime_envelope(target: &mut Value, policy: Option<&Self>) {
+        let target = target
+            .as_object_mut()
+            .expect("compiled IP set runtime envelope target must be an object");
+        target.insert(
+            "policy_id".to_string(),
+            policy.map_or(Value::Null, |policy| Value::String(policy.id.clone())),
+        );
+        target.insert(
+            "source_cidr_count".to_string(),
+            json!(policy.map_or(0, |policy| policy.source_cidr_count)),
+        );
+        target.insert(
+            "range_count".to_string(),
+            json!(policy.map_or(0, Self::range_count)),
+        );
+        target.insert(
+            "policy".to_string(),
+            policy.map_or(Value::Null, Self::to_transport_value),
+        );
+    }
+
+    pub(crate) fn from_runtime_or_legacy_cidrs(
+        runtime: &Value,
+        legacy_cidrs_key: &str,
+    ) -> Result<Self, String> {
+        if let Some(value) = runtime.get("policy")
+            && !value.is_null()
+        {
+            return Self::from_transport_value(value);
+        }
+        compile_ip_set(
+            runtime
+                .get(legacy_cidrs_key)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str),
+        )
     }
 
     pub(crate) fn from_transport_value(value: &Value) -> Result<Self, String> {
@@ -632,6 +682,36 @@ mod tests {
         assert_eq!(decoded.id, compiled.id);
         assert_eq!(decoded.ipv4_ranges, compiled.ipv4_ranges);
         assert_eq!(decoded.ipv6_ranges, compiled.ipv6_ranges);
+    }
+
+    #[test]
+    fn runtime_envelope_writes_or_clears_all_policy_fields_together() {
+        let policy = compile_ip_set(["192.0.2.1/32"]).unwrap();
+        let mut runtime = json!({"enabled": true});
+        CompiledIpSet::apply_runtime_envelope(&mut runtime, Some(&policy));
+        assert_eq!(runtime["policy_id"], json!(policy.id));
+        assert_eq!(
+            runtime["source_cidr_count"],
+            json!(policy.source_cidr_count)
+        );
+        assert_eq!(runtime["range_count"], json!(policy.range_count()));
+        assert!(runtime["policy"].is_object());
+
+        CompiledIpSet::apply_runtime_envelope(&mut runtime, None);
+        assert!(runtime["policy_id"].is_null());
+        assert_eq!(runtime["source_cidr_count"], json!(0));
+        assert_eq!(runtime["range_count"], json!(0));
+        assert!(runtime["policy"].is_null());
+    }
+
+    #[test]
+    fn runtime_policy_reader_falls_back_to_legacy_cidrs() {
+        let policy = CompiledIpSet::from_runtime_or_legacy_cidrs(
+            &json!({"cidrs": ["192.0.2.0/24"]}),
+            "cidrs",
+        )
+        .unwrap();
+        assert!(policy.contains("192.0.2.7".parse().unwrap()));
     }
 
     #[test]

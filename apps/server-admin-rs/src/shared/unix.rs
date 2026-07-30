@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 #[cfg(unix)]
 const MAX_GETPWUID_BUFFER_SIZE: usize = 1024 * 1024;
@@ -51,6 +54,33 @@ pub(crate) fn process_exists(pid: i32) -> bool {
         #[cfg(not(unix))]
         Err(_) => false,
     }
+}
+
+#[cfg(unix)]
+pub(crate) fn set_file_owner_from_metadata(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let path_c = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "file path contains an interior NUL byte",
+        )
+    })?;
+    // SAFETY: path_c is a live, nul-terminated pathname for the duration of
+    // the call, and uid/gid come directly from metadata for the source file.
+    if unsafe { libc::chown(path_c.as_ptr(), metadata.uid(), metadata.gid()) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(unix))]
+pub(crate) fn set_file_owner_from_metadata(
+    _path: &Path,
+    _metadata: &fs::Metadata,
+) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(unix)]

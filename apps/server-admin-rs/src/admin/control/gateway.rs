@@ -27,11 +27,9 @@ pub(super) async fn refresh_gateway_auth_runtime(state: &AppState) -> anyhow::Re
 }
 
 pub(super) fn ensure_go_success(value: Value) -> anyhow::Result<()> {
-    if crate::go_backend::response_success(&value) {
-        return Ok(());
-    }
-    anyhow::bail!(
-        "{}",
-        crate::go_backend::response_message(&value, "Go backend returned an unsuccessful response",)
+    crate::go_backend::ensure_response_success(
+        &value,
+        "Go backend returned an unsuccessful response",
     )
+    .map_err(anyhow::Error::msg)
 }

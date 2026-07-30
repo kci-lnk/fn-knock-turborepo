@@ -3,7 +3,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use url::Url;
 
-use crate::{http_utils, i18n::Translator, state::AppState};
+use crate::{http_body, http_utils, i18n::Translator, state::AppState};
+
+use super::ip_location_config::IP_LOCATION_API_SETTINGS_KEY;
 
 mod ipset;
 mod service;
@@ -24,7 +26,6 @@ pub(crate) const CIDR_OPERATORS: [CidrOperator; 3] = [
     CidrOperator::Mobile,
 ];
 
-const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
 const CIDR_USER_AGENT: &str = "fn-knock-server-admin/1.0";
 const CAPABILITY_PROBE_VALUE: &str = "__fn_knock_operator_probe__";
 const MAX_CIDR_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
@@ -325,34 +326,28 @@ pub(crate) async fn fetch_data(
 }
 
 async fn read_cidr_response_text(
-    mut response: reqwest::Response,
+    response: reqwest::Response,
 ) -> Result<(reqwest::StatusCode, String), String> {
     let status = response.status();
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_CIDR_API_RESPONSE_BYTES as u64)
-    {
-        return Err(format!(
-            "CIDR upstream response exceeds {} MiB",
-            MAX_CIDR_API_RESPONSE_BYTES / (1024 * 1024)
-        ));
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
+    let body = http_body::read_response_text_limited(response, MAX_CIDR_API_RESPONSE_BYTES)
         .await
-        .map_err(|error| format!("CIDR upstream response read failed: {error}"))?
-    {
-        if body.len().saturating_add(chunk.len()) > MAX_CIDR_API_RESPONSE_BYTES {
-            return Err(format!(
-                "CIDR upstream response exceeds {} MiB",
-                MAX_CIDR_API_RESPONSE_BYTES / (1024 * 1024)
-            ));
-        }
-        body.extend_from_slice(&chunk);
-    }
-    let body = String::from_utf8(body)
-        .map_err(|error| format!("CIDR upstream returned invalid UTF-8: {error}"))?;
+        .map_err(|error| match error {
+            http_body::ResponseBodyReadError::TooLarge { .. } => {
+                format!(
+                    "CIDR upstream response exceeds {} MiB",
+                    MAX_CIDR_API_RESPONSE_BYTES / (1024 * 1024)
+                )
+            }
+            http_body::ResponseBodyReadError::Read(error) => {
+                format!("CIDR upstream response read failed: {error}")
+            }
+            http_body::ResponseBodyReadError::InvalidUtf8(error) => {
+                format!("CIDR upstream returned invalid UTF-8: {error}")
+            }
+            http_body::ResponseBodyReadError::InvalidJson(error) => {
+                format!("CIDR upstream returned invalid JSON: {error}")
+            }
+        })?;
     Ok((status, body))
 }
 

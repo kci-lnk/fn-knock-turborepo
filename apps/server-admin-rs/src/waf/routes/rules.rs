@@ -28,7 +28,13 @@ pub(super) async fn refresh_system_manifest_cache(state: &AppState) -> anyhow::R
         if !response.status().is_success() {
             anyhow::bail!("WAF manifest request failed: {}", response.status());
         }
-        let manifest = validate_manifest(response.json::<Value>().await?)?;
+        let manifest = validate_manifest(
+            crate::http_body::read_response_json_limited::<Value>(
+                response,
+                MAX_WAF_MANIFEST_RESPONSE_BYTES,
+            )
+            .await?,
+        )?;
         let cache = json!({
             "manifest": manifest,
             "cached_at": checked_at,
@@ -152,12 +158,9 @@ pub(super) fn unpack_system_rules_zip(buffer: &[u8]) -> anyhow::Result<UnpackedW
             anyhow::bail!("Duplicate WAF bundle file: {relative_path}");
         }
 
-        let mut content = Vec::new();
-        file.read_to_end(&mut content)?;
-        unpacked_bytes = unpacked_bytes.saturating_add(content.len());
-        if unpacked_bytes > MAX_UNPACKED_ZIP_BYTES {
-            anyhow::bail!("WAF system rule bundle is too large after unpacking");
-        }
+        let remaining = MAX_UNPACKED_ZIP_BYTES.saturating_sub(unpacked_bytes);
+        let content = read_waf_bundle_entry_limited(&mut file, remaining)?;
+        unpacked_bytes += content.len();
 
         let filename = relative_path.rsplit('/').next().unwrap_or("").to_string();
         if is_conf_filename(&filename) {
@@ -177,6 +180,17 @@ pub(super) fn unpack_system_rules_zip(buffer: &[u8]) -> anyhow::Result<UnpackedW
         bundle_files,
         rule_files,
     })
+}
+
+fn read_waf_bundle_entry_limited(reader: impl Read, remaining: usize) -> anyhow::Result<Vec<u8>> {
+    let mut content = Vec::with_capacity(remaining.min(64 * 1024));
+    reader
+        .take(remaining.saturating_add(1) as u64)
+        .read_to_end(&mut content)?;
+    if content.len() > remaining {
+        anyhow::bail!("WAF system rule bundle is too large after unpacking");
+    }
+    Ok(content)
 }
 
 pub(super) async fn download_system_zip(
@@ -204,10 +218,9 @@ pub(super) async fn download_system_zip(
     if !response.status().is_success() {
         anyhow::bail!("WAF system rule download failed: {}", response.status());
     }
-    let buffer = response.bytes().await?.to_vec();
-    if buffer.len() > MAX_ZIP_BYTES {
-        anyhow::bail!("WAF system rule zip is too large");
-    }
+    let buffer = http_body::read_response_bytes_limited(response, MAX_ZIP_BYTES)
+        .await
+        .map_err(|error| anyhow::anyhow!("WAF system rule zip download failed: {error}"))?;
     let actual_hash = hex::encode(Sha256::digest(&buffer));
     if actual_hash != expected_hash {
         anyhow::bail!("WAF system rule zip hash mismatch");
@@ -303,8 +316,8 @@ pub(super) async fn read_json_file<T>(path: &FsPath, fallback: T) -> anyhow::Res
 where
     T: DeserializeOwned,
 {
-    match fs::read_to_string(path).await {
-        Ok(raw) => Ok(serde_json::from_str::<T>(&raw)?),
+    match fs_utils::read_file_limited(path, MAX_WAF_METADATA_FILE_BYTES).await {
+        Ok(raw) => Ok(serde_json::from_slice::<T>(&raw)?),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(fallback),
         Err(error) => Err(error.into()),
     }
@@ -626,5 +639,27 @@ pub(super) fn rule_file_path(state: &AppState, source: &str, filename: &str) -> 
         system_dir(state).join(filename)
     } else {
         custom_dir(state).join(filename)
+    }
+}
+
+#[cfg(test)]
+mod bounded_entry_tests {
+    use std::io::Cursor;
+
+    use super::read_waf_bundle_entry_limited;
+
+    #[test]
+    fn accepts_an_entry_at_the_remaining_unpacked_limit() {
+        assert_eq!(
+            read_waf_bundle_entry_limited(Cursor::new(vec![1, 2, 3, 4]), 4).unwrap(),
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[test]
+    fn rejects_an_entry_without_buffering_past_the_remaining_limit() {
+        let error =
+            read_waf_bundle_entry_limited(Cursor::new(vec![1, 2, 3, 4, 5, 6]), 4).unwrap_err();
+        assert!(error.to_string().contains("too large after unpacking"));
     }
 }

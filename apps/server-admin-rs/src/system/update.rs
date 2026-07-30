@@ -34,6 +34,7 @@ const UPDATE_CONFIRM_KEY: &str = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const UPDATE_CONFIRM_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const UPDATE_CHECK_TIMEOUT_MS: u64 = 8_000;
+const MAX_UPDATE_MANIFEST_RESPONSE_BYTES: usize = 1024 * 1024;
 const UPDATE_DOWNLOAD_TIMEOUT_MS: u64 = 300_000;
 const DEFAULT_UPDATE_CRON: &str = "0 0 */2 * *";
 const DEFAULT_UPDATE_INTERVAL_SECONDS: u64 = 2 * 24 * 60 * 60;
@@ -744,7 +745,12 @@ impl UpdateManager {
         if !status.is_success() {
             return Err(UpdateCheckError::HttpStatus(status.as_u16()));
         }
-        let payload = response.json::<Value>().await.unwrap_or(Value::Null);
+        let payload = crate::http_body::read_response_json_limited::<Value>(
+            response,
+            MAX_UPDATE_MANIFEST_RESPONSE_BYTES,
+        )
+        .await
+        .unwrap_or(Value::Null);
         if cfg!(windows) {
             parse_windows_manifest_raw(&payload).map_err(UpdateCheckError::Manifest)
         } else {

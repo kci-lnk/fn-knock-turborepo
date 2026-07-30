@@ -1,4 +1,6 @@
 use super::*;
+pub(super) use crate::infra::system_resources::host_memory_bytes;
+use crate::infra::system_resources::process_file_descriptor_limit;
 
 const MIB: u64 = 1024 * 1024;
 const GIB: u64 = 1024 * MIB;
@@ -427,22 +429,6 @@ fn effective_memory_bytes() -> (Option<u64>, Option<u64>) {
 }
 
 #[cfg(target_os = "linux")]
-fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
-    let Ok(content) = std::fs::read_to_string("/proc/meminfo") else {
-        return (None, None);
-    };
-    let read_kib = |name: &str| {
-        content
-            .lines()
-            .find(|line| line.starts_with(name))
-            .and_then(|line| line.split_whitespace().nth(1))
-            .and_then(|value| value.parse::<u64>().ok())
-            .map(|value| value.saturating_mul(1024))
-    };
-    (read_kib("MemTotal:"), read_kib("MemAvailable:"))
-}
-
-#[cfg(target_os = "linux")]
 fn linux_cgroup_memory_bytes() -> Option<(u64, u64)> {
     let parse = |path: &str| {
         std::fs::read_to_string(path)
@@ -458,83 +444,4 @@ fn linux_cgroup_memory_bytes() -> Option<(u64, u64)> {
     let limit = parse("/sys/fs/cgroup/memory/memory.limit_in_bytes")?;
     let usage = parse("/sys/fs/cgroup/memory/memory.usage_in_bytes")?;
     (limit < (1_u64 << 60)).then_some((limit, usage))
-}
-
-#[cfg(windows)]
-fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
-    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
-    let mut status = MEMORYSTATUSEX {
-        dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
-        ..unsafe { std::mem::zeroed() }
-    };
-    if unsafe { GlobalMemoryStatusEx(&mut status) } == 0 {
-        (None, None)
-    } else {
-        (Some(status.ullTotalPhys), Some(status.ullAvailPhys))
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[allow(deprecated)]
-pub(super) fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-    let total_pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
-    if page_size <= 0 || total_pages <= 0 {
-        return (None, None);
-    }
-    let page_size = page_size as u64;
-    let total = (total_pages as u64).saturating_mul(page_size);
-    let mut statistics: libc::vm_statistics64_data_t = unsafe { std::mem::zeroed() };
-    let mut count = libc::HOST_VM_INFO64_COUNT;
-    let result = unsafe {
-        libc::host_statistics64(
-            libc::mach_host_self(),
-            libc::HOST_VM_INFO64,
-            (&raw mut statistics).cast::<libc::integer_t>(),
-            &mut count,
-        )
-    };
-    if result != libc::KERN_SUCCESS {
-        return (Some(total), None);
-    }
-    let free = u64::from(statistics.free_count);
-    let inactive = u64::from(statistics.inactive_count);
-    let speculative = u64::from(statistics.speculative_count);
-    let available_pages = free.saturating_add(inactive).saturating_add(speculative);
-    (
-        Some(total),
-        Some(available_pages.saturating_mul(page_size).min(total)),
-    )
-}
-
-#[cfg(all(not(target_os = "linux"), not(target_os = "macos"), not(windows)))]
-fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
-    let total_pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };
-    if page_size <= 0 || total_pages <= 0 {
-        return (None, None);
-    }
-    let page_size = page_size as u64;
-    (Some((total_pages as u64).saturating_mul(page_size)), None)
-}
-
-#[cfg(unix)]
-fn process_file_descriptor_limit() -> Option<u64> {
-    let mut limit = libc::rlimit {
-        rlim_cur: 0,
-        rlim_max: 0,
-    };
-    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } == 0 {
-        // rlim_t is u64 on most supported Unix targets but c_ulong on some
-        // 32-bit libc variants, so keep the checked conversion portable.
-        #[allow(clippy::useless_conversion)]
-        u64::try_from(limit.rlim_cur).ok()
-    } else {
-        None
-    }
-}
-
-#[cfg(not(unix))]
-fn process_file_descriptor_limit() -> Option<u64> {
-    None
 }

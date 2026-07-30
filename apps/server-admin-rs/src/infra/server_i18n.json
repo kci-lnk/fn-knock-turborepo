@@ -1297,6 +1297,7 @@
       "syncSteps": {
         "runModeGatewayRoutes": "运行模式与网关路由",
         "directModeWhitelist": "直连模式白名单",
+        "trustedClientIps": "网关可信客户端 IP",
         "gatewayLogging": "请求日志配置",
         "sslDeployment": "SSL 证书部署",
         "legacyAuthLogCleanup": "废弃登录日志清理",
@@ -4420,6 +4421,7 @@
       "syncSteps": {
         "runModeGatewayRoutes": "運行模式與網關路由",
         "directModeWhitelist": "直連模式白名單",
+        "trustedClientIps": "網關可信用戶端 IP",
         "gatewayLogging": "請求日誌配置",
         "sslDeployment": "SSL 證書部署",
         "legacyAuthLogCleanup": "廢棄登入日誌清理",
@@ -7543,6 +7545,7 @@
       "syncSteps": {
         "runModeGatewayRoutes": "Run mode and gateway routes",
         "directModeWhitelist": "Direct-mode whitelist",
+        "trustedClientIps": "Gateway trusted client IPs",
         "gatewayLogging": "Request log configuration",
         "sslDeployment": "SSL certificate deployment",
         "legacyAuthLogCleanup": "Legacy auth log cleanup",
@@ -10666,6 +10669,7 @@
       "syncSteps": {
         "runModeGatewayRoutes": "실행 모드 및 게이트웨이 경로",
         "directModeWhitelist": "직접 연결 모드 허용 목록",
+        "trustedClientIps": "게이트웨이 신뢰 클라이언트 IP",
         "gatewayLogging": "요청 로그 설정",
         "sslDeployment": "SSL 인증서 배포",
         "legacyAuthLogCleanup": "기존 인증 로그 정리",
@@ -13789,6 +13793,7 @@
       "syncSteps": {
         "runModeGatewayRoutes": "動作モードとゲートウェイルーティング",
         "directModeWhitelist": "ダイレクトモードのホワイトリスト",
+        "trustedClientIps": "ゲートウェイの信頼済みクライアント IP",
         "gatewayLogging": "ログ設定のリクエスト",
         "sslDeployment": "SSL 証明書の展開",
         "legacyAuthLogCleanup": "従来の認証ログをクリーンアップ",

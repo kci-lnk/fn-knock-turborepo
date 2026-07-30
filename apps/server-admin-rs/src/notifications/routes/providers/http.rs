@@ -1,5 +1,8 @@
 use super::*;
 
+pub(in crate::notifications::routes) const MAX_NOTIFICATION_PROVIDER_RESPONSE_BYTES: usize =
+    256 * 1024;
+
 pub(in crate::notifications::routes) async fn post_json(
     state: &AppState,
     url: &str,
@@ -113,7 +116,15 @@ pub(in crate::notifications::routes) async fn read_provider_response(
 ) -> (u16, bool, String, Option<Value>) {
     let status = response.status();
     let ok = status.is_success();
-    let text = response.text().await.unwrap_or_default();
+    let text = match crate::http_body::read_response_text_limited(
+        response,
+        MAX_NOTIFICATION_PROVIDER_RESPONSE_BYTES,
+    )
+    .await
+    {
+        Ok(text) => text,
+        Err(error) => return (599, false, error.to_string(), None),
+    };
     let parsed = serde_json::from_str::<Value>(&text).ok();
     (status.as_u16(), ok, text, parsed)
 }

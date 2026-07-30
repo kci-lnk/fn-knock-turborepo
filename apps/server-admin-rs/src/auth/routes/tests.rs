@@ -712,13 +712,13 @@ async fn verify_clears_all_stale_cookie_scopes_even_when_local_access_is_allowed
 }
 
 #[tokio::test]
-async fn logout_clears_session_and_share_cookies_from_all_legacy_scopes() {
+async fn logout_reports_unconfirmed_revocation_and_clears_all_cookie_scopes() {
     let (_directory, state) = auth_route_test_state("logout-cookie-scopes").await;
     let headers = forwarded_headers("auth.example.com:7999");
 
     let response = logout(State(state), headers, Uri::from_static("/api/auth/logout")).await;
 
-    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let cookies = response_set_cookies(&response);
     assert_eq!(cookies.len(), 6);
     let session_cookies = cookies
@@ -1024,20 +1024,28 @@ fn logout_custom_post_login_grant_revoke_predicate_matches_node() {
         expires_at: Some("2026-01-02T00:00:00Z".to_string()),
         ip_location: None,
     };
-    assert!(should_revoke_custom_post_login_ip_grant(
+    assert!(auth_mobility::should_revoke_custom_post_login_ip_grant(
         Some(&session),
-        &json!({})
+        Some(&json!({}))
+    ));
+    assert!(auth_mobility::should_revoke_custom_post_login_ip_grant(
+        Some(&session),
+        None
     ));
 
     session.post_login_ip_grant_mode = Some("follow_session".to_string());
     session.comment = Some("Automatically authorized after sign-in".to_string());
-    assert!(should_revoke_custom_post_login_ip_grant(
+    assert!(!auth_mobility::should_revoke_custom_post_login_ip_grant(
         Some(&session),
-        &json!({"auth_credential_settings": {"post_login_ip_grant_mode": "custom"}})
+        None
     ));
-    assert!(!should_revoke_custom_post_login_ip_grant(
+    assert!(auth_mobility::should_revoke_custom_post_login_ip_grant(
         Some(&session),
-        &json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}})
+        Some(&json!({"auth_credential_settings": {"post_login_ip_grant_mode": "custom"}}))
+    ));
+    assert!(!auth_mobility::should_revoke_custom_post_login_ip_grant(
+        Some(&session),
+        Some(&json!({"auth_credential_settings": {"post_login_ip_grant_mode": "follow_session"}}))
     ));
 }
 

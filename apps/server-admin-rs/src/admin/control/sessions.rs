@@ -14,7 +14,7 @@ use crate::{
     i18n::Translator,
     ip_location,
     state::AppState,
-    store::{LoginSession, WhitelistRecord},
+    store::WhitelistRecord,
     time_utils, whitelist,
 };
 
@@ -172,44 +172,6 @@ pub(super) async fn sync_session_whitelist_comments(
         whitelist::sync_reverse_proxy_trusted_ips(state).await;
     }
     Ok(())
-}
-
-pub(super) async fn revoke_custom_post_login_ip_grant_for_session(
-    state: &AppState,
-    session: &LoginSession,
-    config: &Value,
-) -> anyhow::Result<bool> {
-    if !should_revoke_custom_post_login_ip_grant(session, config) {
-        return Ok(false);
-    }
-    if let Some(record_id) = session
-        .post_login_ip_grant_record_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return whitelist::remove_whitelist_record_by_id(state, record_id).await;
-    }
-    whitelist::remove_whitelist_records_by_ip(state, &session.ip, Some("auto")).await
-}
-
-pub(super) fn should_revoke_custom_post_login_ip_grant(
-    session: &LoginSession,
-    config: &Value,
-) -> bool {
-    if session.grant_type.as_deref() == Some("login_ip_grant")
-        && session.post_login_ip_grant_mode.as_deref() == Some("custom")
-    {
-        return true;
-    }
-    session
-        .comment
-        .as_deref()
-        .is_some_and(auth_mobility::is_auto_ip_grant_comment)
-        && config
-            .pointer("/auth_credential_settings/post_login_ip_grant_mode")
-            .and_then(Value::as_str)
-            == Some("custom")
 }
 
 pub(super) fn normalize_auto_ip_grant_comment_value(

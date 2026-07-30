@@ -286,9 +286,9 @@ pub(super) async fn read_response_text_limited(
     response: reqwest::Response,
     max_bytes: usize,
 ) -> Result<String, String> {
-    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
-    let byte_len = bytes.len().min(max_bytes);
-    Ok(String::from_utf8_lossy(&bytes[..byte_len])
+    Ok(http_body::read_response_text_prefix(response, max_bytes)
+        .await
+        .map_err(|error| error.to_string())?
         .trim_start_matches('\u{feff}')
         .to_string())
 }
@@ -310,12 +310,11 @@ pub(super) async fn fetch_favicon_as_data_url(
     if !response.status().is_success() {
         return None;
     }
-    if response_content_length_exceeds(response.headers(), MAX_FAVICON_BYTES) {
-        return None;
-    }
     let media_type = resolve_image_content_type(&normalized_url, response.headers())?;
-    let bytes = response.bytes().await.ok()?;
-    if bytes.is_empty() || bytes.len() > MAX_FAVICON_BYTES {
+    let bytes = http_body::read_response_bytes_limited(response, MAX_FAVICON_BYTES)
+        .await
+        .ok()?;
+    if bytes.is_empty() {
         return None;
     }
     Some(format!(

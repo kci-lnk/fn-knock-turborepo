@@ -922,7 +922,7 @@ pub(super) async fn logout(
     headers: HeaderMap,
     uri: Uri,
 ) -> Response {
-    let grant_revoke_failed =
+    let mut grant_revoke_failed =
         if let Err(error) = super::subdomain_grant::revoke(&state, &headers).await {
             tracing::warn!(%error, "failed to revoke subdomain rule grant on logout");
             true
@@ -938,56 +938,30 @@ pub(super) async fn logout(
     };
     let identity = inspect_auth_mobility_request(&headers);
     let session_id = identity.session_id;
-    let mut session = None;
-    let mut login_ip_from_session = None;
-    if let Some(session_id) = session_id.as_deref() {
-        session = state.store.get_session(session_id).await.ok().flatten();
-        login_ip_from_session = session.as_ref().map(|session| session.ip.clone());
-        if let Err(error) = auth_mobility::destroy_session(&state, session_id).await {
-            tracing::warn!(%error, %session_id, "failed to cleanup auth mobility session on logout");
-        }
-        let _ = state.store.delete_session(session_id).await;
-    }
-
     let client_ip = client_ip_for_auth(&headers);
-    if session_id.is_none() {
+    if let Some(session_id) = session_id.as_deref() {
+        let outcome = auth_mobility::revoke_login_session(
+            &state,
+            session_id,
+            config.as_ref(),
+            &client_ip,
+            "user_logout",
+        )
+        .await;
+        if !outcome.complete {
+            grant_revoke_failed = true;
+        }
+    } else {
         if let Err(error) =
             whitelist::remove_whitelist_records_by_ip(&state, &client_ip, Some("auto")).await
         {
             tracing::warn!(%error, %client_ip, "failed to remove auto whitelist records on logout without session");
+            grant_revoke_failed = true;
         }
-    } else if let Err(error) = revoke_custom_post_login_ip_grant(
-        &state,
-        session.as_ref(),
-        config.as_ref(),
-        login_ip_from_session.as_deref().unwrap_or(&client_ip),
-    )
-    .await
-    {
-        tracing::warn!(%error, "failed to revoke custom post-login IP grant on logout");
-    }
-    whitelist::sync_reverse_proxy_trusted_ips(&state).await;
-
-    if let (Some(session_id), Some(session)) = (session_id.as_deref(), session.as_ref())
-        && let Err(error) = system_events::publish_auth_logout_event(
-            &state,
-            json!({
-                "session_id": session_id,
-                "auth_method": session.method.clone(),
-                "credential_id": session.credential_id.clone(),
-                "credential_name": session.credential_name.clone(),
-                "linked_totp_name": session.linked_totp_name.clone(),
-                "session_comment": session.comment.clone(),
-                "ip": session.ip.clone(),
-                "ip_location": session.ip_location.clone(),
-                "user_agent": session.user_agent.clone(),
-                "login_time": session.login_time.clone(),
-                "logout_source": "user_logout",
-            }),
-        )
-        .await
-    {
-        tracing::warn!(%error, %session_id, "failed to publish auth logout event");
+        if let Err(error) = whitelist::sync_reverse_proxy_trusted_ips_required(&state).await {
+            tracing::warn!(%error, "failed to confirm gateway trust revocation on logout");
+            grant_revoke_failed = true;
+        }
     }
 
     let cookie_domains = resolve_cookie_clear_domains(config.as_ref(), &headers);
@@ -1035,54 +1009,6 @@ fn append_set_cookie_header(headers: &mut HeaderMap, cookie: String, context: &'
             tracing::warn!(%error, %context, "failed to build Set-Cookie header");
         }
     }
-}
-
-pub(super) async fn revoke_custom_post_login_ip_grant(
-    state: &AppState,
-    session: Option<&LoginSession>,
-    config: Option<&Value>,
-    fallback_ip: &str,
-) -> anyhow::Result<bool> {
-    let Some(config) = config else {
-        return Ok(false);
-    };
-    if !should_revoke_custom_post_login_ip_grant(session, config) {
-        return Ok(false);
-    }
-    if let Some(record_id) = session
-        .and_then(|session| session.post_login_ip_grant_record_id.as_deref())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return whitelist::remove_whitelist_record_by_id(state, record_id).await;
-    }
-    let ip = session
-        .map(|session| session.ip.as_str())
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(fallback_ip);
-    whitelist::remove_whitelist_records_by_ip(state, ip, Some("auto")).await
-}
-
-pub(super) fn should_revoke_custom_post_login_ip_grant(
-    session: Option<&LoginSession>,
-    config: &Value,
-) -> bool {
-    let Some(session) = session else {
-        return false;
-    };
-    if session.grant_type.as_deref() == Some("login_ip_grant")
-        && session.post_login_ip_grant_mode.as_deref() == Some("custom")
-    {
-        return true;
-    }
-    session
-        .comment
-        .as_deref()
-        .is_some_and(auth_mobility::is_auto_ip_grant_comment)
-        && config
-            .pointer("/auth_credential_settings/post_login_ip_grant_mode")
-            .and_then(Value::as_str)
-            == Some("custom")
 }
 
 #[cfg(test)]

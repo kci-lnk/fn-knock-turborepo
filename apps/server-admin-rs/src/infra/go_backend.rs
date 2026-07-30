@@ -1,7 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tonic::{
@@ -16,21 +15,32 @@ use tonic_health::pb::{
 use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
-    BoolValue, CommonLocationExemptionsRuntime, CompiledIpSet as ProtoCompiledIpSet,
-    CrawlerBlockerConfig, FnosConnectIngressConfig, FnosConnectIngressStatus,
-    FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
+    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosConnectIngressConfig,
+    FnosConnectIngressStatus, FnosPortIconHijackConfig, GatewayListenerConfig, GatewayPortalConfig,
     GatewayTrustedClientIpsRuntime, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
-    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
-    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
-    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
-    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
-    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
-    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
-    WhitelistFirewallSyncRequest, firewall_service_client::FirewallServiceClient,
+    HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
+    HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
+    SslDeployedCertificate, StreamRule, StreamRules, StringValue, WafConfig,
+    firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
     traffic_service_client::TrafficServiceClient, waf_service_client::WafServiceClient,
+};
+
+mod ack;
+mod compiled_ipset;
+mod firewall;
+mod gateway_logs;
+mod general_blacklist;
+mod runtime_services;
+
+pub(crate) use ack::{
+    applied_response_data, applied_response_object, ensure_response_success, response_message,
+};
+use compiled_ipset::{
+    compiled_ip_set_to_json, parse_compiled_ip_sets, parse_optional_compiled_ip_set,
 };
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
@@ -46,23 +56,6 @@ pub(crate) enum BundleCompatibilityError {
     Unavailable(#[source] anyhow::Error),
     #[error("{0}")]
     Incompatible(String),
-}
-
-pub(crate) fn response_success(value: &Value) -> bool {
-    value
-        .get("success")
-        .and_then(Value::as_bool)
-        .unwrap_or(true)
-}
-
-pub(crate) fn response_message(value: &Value, fallback: &str) -> String {
-    value
-        .get("message")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|message| !message.is_empty())
-        .unwrap_or(fallback)
-        .to_string()
 }
 
 #[allow(dead_code)]
@@ -601,7 +594,7 @@ impl GoBackendClient {
     ) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let result = match client
-            .set_reverse_proxy_throttle_exempt_ips(self.request(parse_throttle_exempt(runtime)))
+            .set_reverse_proxy_throttle_exempt_ips(self.request(parse_throttle_exempt(runtime)?))
             .await
         {
             Ok(response) => ok(throttle_exempt_to_json(response.into_inner())),
@@ -613,7 +606,9 @@ impl GoBackendClient {
     pub async fn set_gateway_trusted_client_ips(&self, runtime: &Value) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let result = match client
-            .set_gateway_trusted_client_ips(self.request(parse_gateway_trusted_client_ips(runtime)))
+            .set_gateway_trusted_client_ips(
+                self.request(parse_gateway_trusted_client_ips(runtime)?),
+            )
             .await
         {
             Ok(response) => ok(gateway_trusted_client_ips_to_json(response.into_inner())),
@@ -628,374 +623,10 @@ impl GoBackendClient {
     ) -> anyhow::Result<(StatusCode, Value)> {
         let mut client = self.control.clone();
         match client
-            .set_common_location_exemptions(self.request(parse_common_exemptions(runtime)))
+            .set_common_location_exemptions(self.request(parse_common_exemptions(runtime)?))
             .await
         {
             Ok(response) => Ok(ok(common_exemptions_to_json(response.into_inner()))),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn set_gateway_logging_config(&self, config: &Value) -> anyhow::Result<Value> {
-        status_value(
-            "set_gateway_logging_config",
-            self.set_gateway_logging_config_status(config).await?,
-        )
-    }
-
-    pub async fn set_gateway_logging_config_status(
-        &self,
-        config: &Value,
-    ) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.logs.clone();
-        match client
-            .set_logging_config(self.request(parse_logging(config)))
-            .await
-        {
-            Ok(response) => Ok(ok(logging_to_json(response.into_inner()))),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn get_logging_config(&self) -> anyhow::Result<Value> {
-        let mut client = self.logs.clone();
-        let result = match client.get_logging_config(self.request(())).await {
-            Ok(response) => ok(logging_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("get_logging_config", result)
-    }
-
-    pub async fn get_logging_directory(&self) -> anyhow::Result<Value> {
-        let mut client = self.logs.clone();
-        let result = match client.get_logging_directory(self.request(())).await {
-            Ok(response) => ok(json!({ "logs_dir": response.into_inner().value })),
-            Err(error) => grpc_error(error),
-        };
-        status_value("get_logging_directory", result)
-    }
-
-    pub async fn get_log_dates(&self) -> anyhow::Result<Value> {
-        let mut client = self.logs.clone();
-        let result = match client.get_log_dates(self.request(())).await {
-            Ok(response) => ok(log_dates_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("get_log_dates", result)
-    }
-
-    pub async fn query_log_entries(&self, query: GatewayLogQuery) -> anyhow::Result<Value> {
-        let mut client = self.logs.clone();
-        let result = match client.query_log_entries(self.request(query)).await {
-            Ok(response) => ok(log_query_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("query_log_entries", result)
-    }
-
-    pub async fn delete_log_date(&self, date: &str) -> anyhow::Result<Value> {
-        let mut client = self.logs.clone();
-        let result = match client
-            .delete_log_date(self.request(StringValue {
-                value: date.to_string(),
-            }))
-            .await
-        {
-            Ok(response) => ok(log_delete_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("delete_log_date", result)
-    }
-
-    pub async fn list_general_blacklist(
-        &self,
-        page: i32,
-        limit: i32,
-        search: String,
-    ) -> anyhow::Result<Value> {
-        let mut client = self.security.clone();
-        let result = match client
-            .list_general_blacklist(self.request(GeneralBlacklistListRequest {
-                page,
-                limit,
-                search,
-            }))
-            .await
-        {
-            Ok(response) => ok(general_blacklist_list_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("list_general_blacklist", result)
-    }
-
-    pub async fn check_general_blacklist(&self, ips: Vec<String>) -> anyhow::Result<Value> {
-        let mut client = self.security.clone();
-        let result = match client
-            .check_general_blacklist(self.request(IpListRequest {
-                ips,
-                source: String::new(),
-                comment: String::new(),
-            }))
-            .await
-        {
-            Ok(response) => ok(general_blacklist_status_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("check_general_blacklist", result)
-    }
-
-    pub async fn add_general_blacklist(
-        &self,
-        ips: Vec<String>,
-        source: String,
-        comment: String,
-    ) -> anyhow::Result<Value> {
-        let mut client = self.security.clone();
-        let result = match client
-            .add_general_blacklist(self.request(IpListRequest {
-                ips,
-                source,
-                comment,
-            }))
-            .await
-        {
-            Ok(response) => ok(general_blacklist_mutation_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("add_general_blacklist", result)
-    }
-
-    pub async fn remove_general_blacklist(&self, ips: Vec<String>) -> anyhow::Result<Value> {
-        let mut client = self.security.clone();
-        let result = match client
-            .remove_general_blacklist(self.request(IpListRequest {
-                ips,
-                source: String::new(),
-                comment: String::new(),
-            }))
-            .await
-        {
-            Ok(response) => ok(general_blacklist_mutation_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("remove_general_blacklist", result)
-    }
-
-    pub async fn get_traffic_stats(&self) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.traffic.clone();
-        match client.get_traffic_stats(self.request(())).await {
-            Ok(response) => Ok(ok(traffic_to_json(response.into_inner()))),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn get_host_active_ips(&self, host: String) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.traffic.clone();
-        match client
-            .get_host_active_ips(self.request(HostRequest { host }))
-            .await
-        {
-            Ok(response) => Ok(ok(active_ips_to_json(response.into_inner()))),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn get_waf_status(&self) -> anyhow::Result<Value> {
-        let mut client = self.waf.clone();
-        let result = match client.get_waf_status(self.request(())).await {
-            Ok(response) => ok(waf_status_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("get_waf_status", result)
-    }
-
-    pub async fn set_waf_config(&self, config: &Value) -> anyhow::Result<Value> {
-        let mut client = self.waf.clone();
-        let result = match client
-            .set_waf_config(self.request(parse_waf_config(config)))
-            .await
-        {
-            Ok(response) => ok(waf_status_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("set_waf_config", result)
-    }
-
-    pub async fn reload_waf_rules(&self, config: &Value) -> anyhow::Result<Value> {
-        let mut client = self.waf.clone();
-        let result = match client
-            .reload_waf_bundle(self.request(WafBundleRequest {
-                bundle_id: String::new(),
-                bundle_path: String::new(),
-                has_config: true,
-                config: Some(parse_waf_config(config)),
-            }))
-            .await
-        {
-            Ok(response) => ok(waf_status_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("reload_waf_rules", result)
-    }
-
-    pub async fn drain_waf_events(&self, limit: i64) -> anyhow::Result<Value> {
-        let mut client = self.waf.clone();
-        let result = match client
-            .drain_waf_events(self.request(WafDrainRequest {
-                limit: i32::try_from(limit).unwrap_or(i32::MAX),
-            }))
-            .await
-        {
-            Ok(response) => ok(waf_drain_to_json(response.into_inner())),
-            Err(error) => grpc_error(error),
-        };
-        status_value("drain_waf_events", result)
-    }
-
-    pub async fn get_ssl_info(&self) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.ssl.clone();
-        match client.get_ssl_info(self.request(())).await {
-            Ok(response) => Ok(ok(ssl_info_to_json(response.into_inner()))),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn set_ssl_deployment(
-        &self,
-        deployment: &Value,
-    ) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.ssl.clone();
-        match client
-            .set_ssl_deployment(self.request(parse_ssl_config(deployment)))
-            .await
-        {
-            Ok(response) => Ok(rpc_status_response(response.into_inner())),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn clear_ssl(&self) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.ssl.clone();
-        match client.clear_ssl(self.request(())).await {
-            Ok(response) => Ok(rpc_status_response(response.into_inner())),
-            Err(error) => Ok(grpc_error(error)),
-        }
-    }
-
-    pub async fn allow_ip(&self, ip: &str) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .allow_ip(self.request(IpRequest { ip: ip.to_string() }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("allow_ip", result)
-    }
-
-    pub async fn remove_ip(&self, ip: &str) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .remove_ip(self.request(IpRequest { ip: ip.to_string() }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("remove_ip", result)
-    }
-
-    pub async fn sync_whitelist_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .sync_whitelist_firewall(self.request(WhitelistFirewallSyncRequest {
-                policy_id: string_field(payload, "policy_id"),
-                policy: parse_optional_compiled_ip_set(payload.get("policy")),
-            }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("sync_whitelist_firewall", result)
-    }
-
-    pub async fn init_iptables(&self, payload: &Value) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .init_iptables(self.request(IptablesInitRequest {
-                chain_name: string_field(payload, "chain_name"),
-                parent_chains: parent_chains_from_body(payload),
-                exempt_ports: string_vec_any_field(payload, "exempt_ports"),
-            }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("init_iptables", result)
-    }
-
-    pub async fn clean_iptables(&self) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client.clean_iptables(self.request(())).await {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("clean_iptables", result)
-    }
-
-    pub async fn sync_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .sync_ssh_firewall(self.request(SshFirewallSyncRequest {
-                chain_name: string_field(payload, "chain_name"),
-                parent_chains: parent_chains_from_body(payload),
-                ports: int_vec_any_field(payload, "ports"),
-                allowed_cidrs: string_vec_field(payload, "allowed_cidrs"),
-                blocked_ips: string_vec_field(payload, "blocked_ips"),
-                include_local_cidrs: bool_field(payload, "include_local_cidrs", false),
-                policy_id: string_field(payload, "policy_id"),
-                policy: parse_optional_compiled_ip_set(payload.get("policy")),
-            }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("sync_ssh_firewall", result)
-    }
-
-    pub async fn clear_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
-        let mut client = self.firewall.clone();
-        let result = match client
-            .clear_ssh_firewall(self.request(SshFirewallClearRequest {
-                chain_name: string_field(payload, "chain_name"),
-                parent_chains: parent_chains_from_body(payload),
-            }))
-            .await
-        {
-            Ok(response) => rpc_status_response(response.into_inner()),
-            Err(error) => grpc_error(error),
-        };
-        status_value("clear_ssh_firewall", result)
-    }
-
-    pub async fn clear_tcp_redirect(
-        &self,
-        listen_port: i64,
-        target_port: i64,
-    ) -> anyhow::Result<(StatusCode, Value)> {
-        let mut client = self.firewall.clone();
-        match client
-            .clear_tcp_redirect(self.request(TcpRedirectRequest {
-                listen_port: i32::try_from(listen_port).unwrap_or(0),
-                target_port: i32::try_from(target_port).unwrap_or(0),
-            }))
-            .await
-        {
-            Ok(response) => Ok(rpc_status_response(response.into_inner())),
             Err(error) => Ok(grpc_error(error)),
         }
     }
@@ -1264,34 +895,6 @@ fn parse_host_rule_visibility(value: Option<&Value>) -> Option<HostRuleVisibilit
     })
 }
 
-fn parse_compiled_ip_sets(value: Option<&Value>) -> anyhow::Result<Vec<ProtoCompiledIpSet>> {
-    value
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .map(|policy| {
-            let id = string_field(policy, "id");
-            let format_version = policy
-                .get("format_version")
-                .and_then(Value::as_u64)
-                .and_then(|value| u32::try_from(value).ok())
-                .unwrap_or_default();
-            let ipv4_ranges = URL_SAFE_NO_PAD
-                .decode(string_field(policy, "ipv4_ranges"))
-                .with_context(|| format!("decode compiled IP set {id} ipv4_ranges"))?;
-            let ipv6_ranges = URL_SAFE_NO_PAD
-                .decode(string_field(policy, "ipv6_ranges"))
-                .with_context(|| format!("decode compiled IP set {id} ipv6_ranges"))?;
-            Ok(ProtoCompiledIpSet {
-                id,
-                format_version,
-                ipv4_ranges,
-                ipv6_ranges,
-            })
-        })
-        .collect()
-}
-
 fn string_array(value: Option<&Value>) -> Vec<String> {
     value
         .and_then(Value::as_array)
@@ -1494,11 +1097,7 @@ fn parse_throttle(value: &Value) -> ReverseProxyThrottleConfig {
 
 #[allow(deprecated)] // Read legacy expanded CIDRs while upgrading old snapshots.
 fn parse_visibility(value: &Value) -> anyhow::Result<GatewayVisibilityConfig> {
-    let policy = value
-        .get("policy")
-        .map(|policy| parse_compiled_ip_sets(Some(&Value::Array(vec![policy.clone()]))))
-        .transpose()?
-        .and_then(|mut policies| policies.pop());
+    let policy = parse_optional_compiled_ip_set(value.get("policy"))?;
     Ok(GatewayVisibilityConfig {
         enabled: bool_field(value, "enabled", false),
         cidrs: string_vec_field(value, "cidrs"),
@@ -1547,58 +1146,38 @@ fn parse_fnos_port_icon_hijack(value: &Value) -> FnosPortIconHijackConfig {
     }
 }
 
-fn parse_throttle_exempt(value: &Value) -> ReverseProxyThrottleExemptIpsRuntime {
-    ReverseProxyThrottleExemptIpsRuntime {
+fn parse_throttle_exempt(value: &Value) -> anyhow::Result<ReverseProxyThrottleExemptIpsRuntime> {
+    Ok(ReverseProxyThrottleExemptIpsRuntime {
         enabled: bool_field(value, "enabled", false),
         ips: string_vec_field(value, "ips"),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
         policy_id: string_field(value, "policy_id"),
-        policy: parse_optional_compiled_ip_set(value.get("policy")),
-    }
+        policy: parse_optional_compiled_ip_set(value.get("policy"))?,
+    })
 }
 
 #[allow(deprecated)]
-fn parse_gateway_trusted_client_ips(value: &Value) -> GatewayTrustedClientIpsRuntime {
-    GatewayTrustedClientIpsRuntime {
+fn parse_gateway_trusted_client_ips(
+    value: &Value,
+) -> anyhow::Result<GatewayTrustedClientIpsRuntime> {
+    Ok(GatewayTrustedClientIpsRuntime {
         ips: string_vec_field(value, "ips"),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
         policy_id: string_field(value, "policy_id"),
-        policy: parse_optional_compiled_ip_set(value.get("policy")),
-    }
+        policy: parse_optional_compiled_ip_set(value.get("policy"))?,
+    })
 }
 
-fn parse_common_exemptions(value: &Value) -> CommonLocationExemptionsRuntime {
-    CommonLocationExemptionsRuntime {
+fn parse_common_exemptions(value: &Value) -> anyhow::Result<CommonLocationExemptionsRuntime> {
+    Ok(CommonLocationExemptionsRuntime {
         enabled: bool_field(value, "enabled", false),
         waf_enabled: bool_field(value, "waf_enabled", false),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
         policy_id: string_field(value, "policy_id"),
-        policy: parse_optional_compiled_ip_set(value.get("policy")),
-    }
-}
-
-fn parse_optional_compiled_ip_set(value: Option<&Value>) -> Option<ProtoCompiledIpSet> {
-    let value = value?;
-    let id = string_field(value, "id");
-    if id.is_empty() {
-        return None;
-    }
-    Some(ProtoCompiledIpSet {
-        id,
-        format_version: value
-            .get("format_version")
-            .and_then(Value::as_u64)
-            .and_then(|value| u32::try_from(value).ok())
-            .unwrap_or_default(),
-        ipv4_ranges: URL_SAFE_NO_PAD
-            .decode(string_field(value, "ipv4_ranges"))
-            .unwrap_or_default(),
-        ipv6_ranges: URL_SAFE_NO_PAD
-            .decode(string_field(value, "ipv6_ranges"))
-            .unwrap_or_default(),
+        policy: parse_optional_compiled_ip_set(value.get("policy"))?,
     })
 }
 
@@ -1762,14 +1341,7 @@ fn host_rules_to_json(bundle: HostRules) -> Value {
     let visibility_policies = bundle
         .visibility_policies
         .into_iter()
-        .map(|policy| {
-            json!({
-                "id": policy.id,
-                "format_version": policy.format_version,
-                "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
-                "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
-            })
-        })
+        .map(compiled_ip_set_to_json)
         .collect::<Vec<_>>();
     json!({
         "items": items,
@@ -1820,14 +1392,7 @@ fn throttle_to_json(config: ReverseProxyThrottleConfig) -> Value {
 
 #[allow(deprecated)] // Echo the deprecated field only for compatibility validation.
 fn visibility_to_json(config: GatewayVisibilityConfig) -> Value {
-    let policy = config.policy.map(|policy| {
-        json!({
-            "id": policy.id,
-            "format_version": policy.format_version,
-            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
-            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
-        })
-    });
+    let policy = config.policy.map(compiled_ip_set_to_json);
     json!({
         "enabled": config.enabled,
         "cidrs": config.cidrs,
@@ -1891,12 +1456,7 @@ fn throttle_exempt_to_json(config: ReverseProxyThrottleExemptIpsRuntime) -> Valu
         "cidrs": config.cidrs,
         "updated_at": config.updated_at,
         "policy_id": config.policy_id,
-        "policy": config.policy.map(|policy| json!({
-            "id": policy.id,
-            "format_version": policy.format_version,
-            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
-            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
-        }))
+        "policy": config.policy.map(compiled_ip_set_to_json)
     })
 }
 
@@ -1907,12 +1467,7 @@ fn gateway_trusted_client_ips_to_json(config: GatewayTrustedClientIpsRuntime) ->
         "cidrs": config.cidrs,
         "updated_at": config.updated_at,
         "policy_id": config.policy_id,
-        "policy": config.policy.map(|policy| json!({
-            "id": policy.id,
-            "format_version": policy.format_version,
-            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
-            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
-        }))
+        "policy": config.policy.map(compiled_ip_set_to_json)
     })
 }
 
@@ -1923,12 +1478,7 @@ fn common_exemptions_to_json(config: CommonLocationExemptionsRuntime) -> Value {
         "cidrs": config.cidrs,
         "updated_at": config.updated_at,
         "policy_id": config.policy_id,
-        "policy": config.policy.map(|policy| json!({
-            "id": policy.id,
-            "format_version": policy.format_version,
-            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
-            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
-        }))
+        "policy": config.policy.map(compiled_ip_set_to_json)
     })
 }
 
@@ -2294,33 +1844,19 @@ mod tests {
 
     #[test]
     fn gateway_trusted_client_ips_grpc_conversion_round_trips() {
-        let parsed = parse_gateway_trusted_client_ips(&json!({
+        let policy = crate::cidr::compile_ip_set(["127.0.0.1/32", "203.0.113.7/32"]).unwrap();
+        let mut policy_json = policy.to_config_value();
+        policy_json["id"] = json!(policy.id);
+        let runtime = json!({
             "ips": ["127.0.0.1", "203.0.113.7"],
             "cidrs": [],
-            "policy_id": "ipset-v2:test",
-            "policy": {
-                "id": "ipset-v2:test",
-                "format_version": 2,
-                "ipv4_ranges": "AQID",
-                "ipv6_ranges": "BAUG"
-            },
+            "policy_id": policy.id,
+            "policy": policy_json,
             "updated_at": "2026-07-31T01:00:00.123Z"
-        }));
-        assert_eq!(
-            gateway_trusted_client_ips_to_json(parsed),
-            json!({
-                "ips": ["127.0.0.1", "203.0.113.7"],
-                "cidrs": [],
-                "policy_id": "ipset-v2:test",
-                "policy": {
-                    "id": "ipset-v2:test",
-                    "format_version": 2,
-                    "ipv4_ranges": "AQID",
-                    "ipv6_ranges": "BAUG"
-                },
-                "updated_at": "2026-07-31T01:00:00.123Z"
-            })
-        );
+        });
+        let parsed = parse_gateway_trusted_client_ips(&runtime).unwrap();
+
+        assert_eq!(gateway_trusted_client_ips_to_json(parsed), runtime);
     }
 
     #[test]

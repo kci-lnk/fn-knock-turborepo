@@ -23,6 +23,7 @@ const FNOS_DETECTION_FAILURE_CACHE_TTL_MS: i64 = 3_000;
 const FNOS_DETECTION_MAX_CACHE_ENTRIES: usize = 1_024;
 const FNOS_DETECTION_TIMEOUT_MS: u64 = 1_000;
 const FNOS_DETECTION_MIN_MATCHED_APP_KEYS: usize = 4;
+const MAX_FNOS_SHARE_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 const FNOS_DETECTION_APP_KEYS: &[&str] = &[
     "account",
     "appStore",
@@ -593,7 +594,12 @@ async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
         set_cached_fnos_target_probe(&backend.identity, false);
         return Some(false);
     }
-    let payload = match response.json::<Value>().await {
+    let payload = match crate::http_body::read_response_json_limited::<Value>(
+        response,
+        MAX_FNOS_SHARE_RESPONSE_BYTES,
+    )
+    .await
+    {
         Ok(payload) => payload,
         Err(_) => {
             set_cached_fnos_target_probe(&backend.identity, false);
@@ -700,7 +706,10 @@ async fn fetch_validation(
             };
         }
     };
-    let html = response.text().await.unwrap_or_default();
+    let html =
+        crate::http_body::read_response_text_limited(response, MAX_FNOS_SHARE_RESPONSE_BYTES)
+            .await
+            .unwrap_or_default();
     match parse_share_data(&html, share_id, &backend.identity) {
         Some(data) => ShareValidationFetchResult {
             cacheable: true,

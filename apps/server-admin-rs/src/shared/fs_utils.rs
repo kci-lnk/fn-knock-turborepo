@@ -1,4 +1,36 @@
-use std::path::Path;
+use std::{io, path::Path};
+
+use tokio::io::AsyncReadExt;
+
+pub(crate) async fn read_file_limited(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+    let file = tokio::fs::File::open(path).await?;
+    read_open_file_limited(file, limit).await.map_err(|error| {
+        if error.kind() == io::ErrorKind::InvalidData {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} exceeds the {limit}-byte limit", path.display()),
+            )
+        } else {
+            error
+        }
+    })
+}
+
+pub(crate) async fn read_open_file_limited(
+    file: tokio::fs::File,
+    limit: usize,
+) -> io::Result<Vec<u8>> {
+    let read_limit = u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1);
+    let mut content = Vec::with_capacity(limit.min(64 * 1024));
+    file.take(read_limit).read_to_end(&mut content).await?;
+    if content.len() > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("file exceeds the {limit}-byte limit"),
+        ));
+    }
+    Ok(content)
+}
 
 #[cfg(unix)]
 pub(crate) fn chmod_executable(path: &Path) {
@@ -32,5 +64,17 @@ mod tests {
 
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o755);
+    }
+
+    #[tokio::test]
+    async fn limited_file_read_accepts_the_limit_and_rejects_the_next_byte() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("bounded");
+        std::fs::write(&path, b"1234").unwrap();
+        assert_eq!(read_file_limited(&path, 4).await.unwrap(), b"1234");
+
+        std::fs::write(&path, b"12345").unwrap();
+        let error = read_file_limited(&path, 4).await.unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
     }
 }

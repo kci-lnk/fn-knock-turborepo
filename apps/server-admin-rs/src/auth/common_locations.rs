@@ -297,18 +297,15 @@ pub async fn rebuild_common_auth_locations_runtime_state(
 
     let normalized_cidrs = normalize_cidr_lines(all_cidrs);
     let policy = compile_ip_set(&normalized_cidrs).map_err(anyhow::Error::msg)?;
-    let runtime = json!({
+    let mut runtime = json!({
         "enabled": policy.range_count() > 0,
-        "policy_id": policy.id.clone(),
-        "source_cidr_count": policy.source_cidr_count,
-        "range_count": policy.range_count(),
-        "policy": policy.to_transport_value(),
         "locations": locations,
         "sample_count": entries.len(),
         "resolved_sample_count": resolved_sample_count,
         "pending_ip_count": pending_ips.len(),
         "updated_at": time_utils::now_iso(),
     });
+    CompiledIpSet::apply_runtime_envelope(&mut runtime, Some(&policy));
     state
         .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
@@ -367,18 +364,15 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
         return Ok(runtime);
     }
 
-    let runtime = json!({
+    let mut runtime = json!({
         "enabled": false,
-        "policy_id": null,
-        "source_cidr_count": 0,
-        "range_count": 0,
-        "policy": null,
         "locations": [],
         "sample_count": 0,
         "resolved_sample_count": 0,
         "pending_ip_count": 0,
         "updated_at": time_utils::now_iso(),
     });
+    CompiledIpSet::apply_runtime_envelope(&mut runtime, None);
     state
         .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
@@ -506,19 +500,7 @@ async fn sync_common_auth_locations_to_gateway_with_waf(
 }
 
 fn policy_from_runtime(runtime: &Value) -> anyhow::Result<CompiledIpSet> {
-    if let Some(value) = runtime.get("policy")
-        && !value.is_null()
-    {
-        return CompiledIpSet::from_transport_value(value).map_err(anyhow::Error::msg);
-    }
-    let cidrs = runtime
-        .get("cidrs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect::<Vec<_>>();
-    compile_ip_set(cidrs).map_err(anyhow::Error::msg)
+    CompiledIpSet::from_runtime_or_legacy_cidrs(runtime, "cidrs").map_err(anyhow::Error::msg)
 }
 
 fn compact_common_location_runtime(
@@ -548,31 +530,9 @@ fn compact_common_location_runtime(
     }
     let active = enabled && policy.range_count() > 0;
     runtime.insert("enabled".to_string(), Value::Bool(active));
-    runtime.insert(
-        "policy_id".to_string(),
-        if active {
-            Value::String(policy.id.clone())
-        } else {
-            Value::Null
-        },
-    );
-    runtime.insert(
-        "source_cidr_count".to_string(),
-        json!(if active { policy.source_cidr_count } else { 0 }),
-    );
-    runtime.insert(
-        "range_count".to_string(),
-        json!(if active { policy.range_count() } else { 0 }),
-    );
-    runtime.insert(
-        "policy".to_string(),
-        if active {
-            policy.to_transport_value()
-        } else {
-            Value::Null
-        },
-    );
-    Value::Object(runtime)
+    let mut runtime = Value::Object(runtime);
+    CompiledIpSet::apply_runtime_envelope(&mut runtime, active.then_some(policy));
+    runtime
 }
 
 fn common_location_sync_failure(status: reqwest::StatusCode, response: &Value) -> Option<String> {

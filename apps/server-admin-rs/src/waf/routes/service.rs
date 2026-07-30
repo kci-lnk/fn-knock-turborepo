@@ -499,10 +499,17 @@ pub(super) async fn read_waf_rule_file(
         .into_iter()
         .find(|rule| rule.get("filename").and_then(Value::as_str) == Some(safe.as_str()))
         .ok_or_else(|| anyhow::anyhow!("WAF rule file not found"))?;
-    let content = read_utf8_rule_text(
-        &fs::read(rule_file_path(state, source, &safe)).await?,
-        &safe,
-    )?;
+    let content =
+        fs_utils::read_file_limited(&rule_file_path(state, source, &safe), MAX_RULE_FILE_BYTES)
+            .await
+            .map_err(|error| {
+                if error.kind() == io::ErrorKind::InvalidData {
+                    anyhow::anyhow!("WAF rule file is too large: {safe}")
+                } else {
+                    error.into()
+                }
+            })
+            .and_then(|content| read_utf8_rule_text(&content, &safe))?;
     let mut object = rule.as_object().cloned().unwrap_or_default();
     object.insert("content".to_string(), Value::String(content));
     Ok(Value::Object(object))

@@ -1936,6 +1936,52 @@ fn dnshe_subdomain_pagination_uses_explicit_metadata_and_full_pages() {
 }
 
 #[test]
+fn dnshe_subdomain_pagination_rejects_no_progress_and_excessive_pages() {
+    assert_eq!(
+        dnshe_next_subdomain_page(1, &json!({ "pagination": { "has_more": false } }), 500).unwrap(),
+        None
+    );
+    assert_eq!(
+        dnshe_next_subdomain_page(
+            DNSHE_MAX_SUBDOMAIN_PAGES - 1,
+            &json!({ "pagination": { "has_more": true } }),
+            1
+        )
+        .unwrap(),
+        Some(DNSHE_MAX_SUBDOMAIN_PAGES)
+    );
+    assert!(
+        dnshe_next_subdomain_page(1, &json!({ "pagination": { "has_more": true } }), 0)
+            .unwrap_err()
+            .to_string()
+            .contains("without returning any items")
+    );
+    assert!(
+        dnshe_next_subdomain_page(
+            DNSHE_MAX_SUBDOMAIN_PAGES,
+            &json!({ "pagination": { "has_more": true } }),
+            1
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("page limit")
+    );
+}
+
+#[tokio::test]
+async fn ddns_curl_body_reader_rejects_oversized_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("oversized-response.bin");
+    let file = tokio::fs::File::create(&path).await.unwrap();
+    file.set_len(MAX_DDNS_PROVIDER_RESPONSE_BYTES as u64 + 1)
+        .await
+        .unwrap();
+
+    let error = read_ddns_curl_body(&path).await.unwrap_err();
+    assert!(error.to_string().contains("response body exceeds"));
+}
+
+#[test]
 fn dnshe_record_lookup_normalizes_apex_relative_and_wildcard_names() {
     let response = json!({
         "success": true,

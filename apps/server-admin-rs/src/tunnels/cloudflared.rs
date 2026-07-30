@@ -22,16 +22,18 @@ use crate::{
     response,
     state::AppState,
     system_events, time_utils,
-    tunnels::supervisor::{
-        OutputStream, ProcessLaunch, SupervisorFailure, SupervisorHandle, SupervisorSnapshot,
-        TunnelProcessAdapter,
+    tunnels::{
+        TUNNEL_RUNTIME_KEY,
+        supervisor::{
+            OutputStream, ProcessLaunch, SupervisorFailure, SupervisorHandle, SupervisorSnapshot,
+            TunnelProcessAdapter,
+        },
     },
 };
 
 const LOG_KEY: &str = "fn_knock:cloudflared:logs";
 const LOG_TTL_SECONDS: usize = 24 * 3600;
 const LOG_MAX_LEN: usize = 1000;
-const TUNNEL_RUNTIME_KEY: &str = "fn_knock:tunnel:runtime";
 const CLOUDFLARED_RUNTIME_KEY: &str = "fn_knock:cloudflared:runtime:v2";
 const CONNECTED_PATTERNS: &[&str] = &["registered tunnel connection", "connection "];
 const DISCONNECTED_PATTERNS: &[&str] = &[

@@ -12,7 +12,9 @@ use serde_json::{Map, Value, json};
 use tokio::time::MissedTickBehavior;
 use url::Url;
 
-use crate::{http_utils, i18n::Translator, response, state::AppState, time_utils};
+use crate::{http_body, http_utils, i18n::Translator, response, state::AppState, time_utils};
+
+use super::ip_location_config::IP_LOCATION_API_SETTINGS_KEY;
 
 const IP_LOCATION_BATCH_LIMIT: usize = 20;
 const LOOKUP_SUCCESS_CACHE_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
@@ -21,8 +23,8 @@ const MAX_ATTEMPTS: i64 = 5;
 const QUEUE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const QUEUE_BATCH_SIZE: usize = 3;
 const DEFAULT_IP_LOOKUP_URL: &str = "https://ipaddress.fnknock.cn/api/v1";
-const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
 const USER_AGENT: &str = "fn-knock-server-admin/1.0";
+const MAX_IP_LOCATION_RESPONSE_BYTES: usize = 256 * 1024;
 
 #[derive(Deserialize)]
 struct BatchBody {
@@ -511,7 +513,12 @@ async fn lookup_remote(state: &AppState, ip: &str, timeout: Duration) -> LookupO
     if !status.is_success() {
         return LookupOutcome::Failure(format!("http {}", status.as_u16()));
     }
-    let payload = match response.json::<Value>().await {
+    let payload = match http_body::read_response_json_limited::<Value>(
+        response,
+        MAX_IP_LOCATION_RESPONSE_BYTES,
+    )
+    .await
+    {
         Ok(payload) => payload,
         Err(_) => return LookupOutcome::Failure("invalid lookup response".to_string()),
     };
@@ -783,7 +790,7 @@ async fn sync_reference(
 
 fn json_reference_key(kind: &str, id: &str) -> Option<String> {
     match kind {
-        "session" => Some(format!("fn_knock:session:{id}")),
+        "session" => Some(crate::auth_session_keys::session_key(id)),
         "scanner-blacklist" => Some(format!("fn_knock:scanner:blacklist:data:{id}")),
         "ssh-blocklist" => Some(format!("fn_knock:ssh_security:blocks:data:{id}")),
         _ => None,

@@ -1,4 +1,5 @@
 use super::*;
+use crate::{cidr::CidrOperator, store::WhitelistRegionInput};
 
 fn test_whitelist_record(id: &str, source: &str) -> WhitelistRecord {
     WhitelistRecord {
@@ -552,4 +553,65 @@ async fn gateway_trusted_runtime_test_state(
         .await
         .expect("trusted runtime test config");
     (directory, state)
+}
+
+#[test]
+fn gateway_trusted_runtime_confirmation_rejects_stale_or_partial_echoes() {
+    let policy = json!({
+        "id": "ipset-v2:test",
+        "format_version": 2,
+        "ipv4_ranges": "eNpjYGBgAAAABAAB",
+        "ipv6_ranges": ""
+    });
+    let requested = json!({
+        "ips": ["203.0.113.8", "::1"],
+        "policy_id": "ipset-v2:test",
+        "policy": policy.clone(),
+        "updated_at": "2026-07-31T01:00:00Z"
+    });
+    let applied = json!({
+        "success": true,
+        "data": {
+            "ips": ["127.0.0.1", "203.0.113.8"],
+            "policy_id": "ipset-v2:test",
+            "policy": policy,
+            "updated_at": "2026-07-31T01:00:00Z"
+        }
+    });
+    ensure_gateway_ip_runtime_applied(
+        "gateway trusted client IP",
+        &requested,
+        &applied,
+        false,
+        true,
+    )
+    .unwrap();
+
+    let mut stale = applied.clone();
+    stale["data"]["updated_at"] = json!("2026-07-31T00:59:59Z");
+    assert!(
+        ensure_gateway_ip_runtime_applied(
+            "gateway trusted client IP",
+            &requested,
+            &stale,
+            false,
+            true,
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("did not apply")
+    );
+
+    let mut missing_ip = applied;
+    missing_ip["data"]["ips"] = json!([]);
+    assert!(
+        ensure_gateway_ip_runtime_applied(
+            "gateway trusted client IP",
+            &requested,
+            &missing_ip,
+            false,
+            true,
+        )
+        .is_err()
+    );
 }

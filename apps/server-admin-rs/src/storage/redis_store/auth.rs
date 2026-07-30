@@ -407,7 +407,7 @@ impl Store {
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(session_id);
         conn.set_ex(key, serde_json::to_string(session)?, ttl_seconds as u64)
             .await
     }
@@ -417,14 +417,14 @@ impl Store {
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<LoginSession>> {
         let mut conn = self.conn();
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(session_id);
         let raw: Option<String> = conn.get(key).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 
     pub async fn delete_session(&self, session_id: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(session_id);
         conn.del(key).await
     }
 
@@ -494,7 +494,7 @@ impl Store {
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(session_id);
         let raw: Option<String> = conn.get(key).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
@@ -505,7 +505,7 @@ impl Store {
         updates: Map<String, Value>,
     ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
-        let key = format!("fn_knock:session:{session_id}");
+        let key = crate::auth_session_keys::session_key(session_id);
         loop {
             let Some(expected_raw) = conn.get::<_, Option<String>>(&key).await? else {
                 return Ok(None);
@@ -566,7 +566,7 @@ return 1
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<bool> {
         let ttl_seconds = ttl_seconds.max(1);
-        let session_key = format!("fn_knock:session:{session_id}");
+        let session_key = crate::auth_session_keys::session_key(session_id);
         let binding_key = auth_mobility_binding_key("proxy-session", subject_hash);
         let session_index_key = auth_mobility_session_index_key(session_id);
         let timeline_key = auth_mobility_timeline_key(session_id);
@@ -614,7 +614,7 @@ return 1
         owner_record_key: &str,
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<bool> {
-        let session_key = format!("fn_knock:session:{session_id}");
+        let session_key = crate::auth_session_keys::session_key(session_id);
         let pending_key = auth_mobility_session_pending_whitelist_key(session_id);
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
@@ -691,7 +691,7 @@ return 1
     ) -> crate::storage::StorageResult<bool> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
-        let session_key = format!("fn_knock:session:{owner_session_id}");
+        let session_key = crate::auth_session_keys::session_key(owner_session_id);
         let session_index_key = auth_mobility_session_index_key(owner_session_id);
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
@@ -765,7 +765,7 @@ return 1
     ) -> crate::storage::StorageResult<bool> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
-        let session_key = format!("fn_knock:session:{owner_session_id}");
+        let session_key = crate::auth_session_keys::session_key(owner_session_id);
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -873,7 +873,7 @@ return 1
 "#,
             )
             .arg(3)
-            .arg(format!("fn_knock:session:{session_id}"))
+            .arg(crate::auth_session_keys::session_key(session_id))
             .arg(timeline_key)
             .arg(summary_key)
             .arg(serialized_events)
@@ -927,7 +927,7 @@ return 1
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<bool> {
         let ttl_seconds = ttl_seconds.max(1);
-        let session_key = format!("fn_knock:session:{session_id}");
+        let session_key = crate::auth_session_keys::session_key(session_id);
         let zset_key = auth_mobility_active_ip_zset_key(session_id);
         let detail_key = auth_mobility_active_ip_details_key(session_id);
         let mut conn = self.conn();
@@ -1066,7 +1066,7 @@ return 1
         session_id: &str,
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<bool> {
-        let session_key = format!("fn_knock:session:{session_id}");
+        let session_key = crate::auth_session_keys::session_key(session_id);
         let owner_key = auth_mobility_whitelist_owner_key(whitelist_record_id);
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
@@ -1185,6 +1185,55 @@ return whitelist_ids
             .arg("fn_knock:auth_mobility:whitelist:")
             .query_async(&mut conn)
             .await
+    }
+
+    pub async fn list_auth_mobility_session_whitelist_ids(
+        &self,
+        session_id: &str,
+    ) -> crate::storage::StorageResult<Vec<String>> {
+        let session_index_key = auth_mobility_session_index_key(session_id);
+        let active_details_key = auth_mobility_active_ip_details_key(session_id);
+        let pending_key = auth_mobility_session_pending_whitelist_key(session_id);
+        let proxy_hash = auth_mobility_subject_hash("proxy-session", session_id);
+        let proxy_binding_key = auth_mobility_binding_key("proxy-session", &proxy_hash);
+
+        let mut conn = self.conn();
+        let mut binding_keys = conn.smembers(&session_index_key).await?;
+        if !binding_keys.iter().any(|key| key == &proxy_binding_key) {
+            binding_keys.push(proxy_binding_key.clone());
+        }
+
+        let mut whitelist_ids = BTreeSet::new();
+        for binding_key in binding_keys {
+            let raw: Option<String> = conn.get(&binding_key).await?;
+            let Some(value) = raw
+                .as_deref()
+                .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+            else {
+                continue;
+            };
+            let owner_matches = binding_key == proxy_binding_key
+                || value
+                    .get("ownerSessionId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|owner| owner == session_id);
+            if owner_matches {
+                collect_auth_mobility_whitelist_id(&mut whitelist_ids, &value);
+            }
+        }
+        for raw in conn.hvals(&active_details_key).await? {
+            if let Ok(value) = serde_json::from_str::<Value>(&raw) {
+                collect_auth_mobility_whitelist_id(&mut whitelist_ids, &value);
+            }
+        }
+        whitelist_ids.extend(
+            conn.hgetall(&pending_key)
+                .await?
+                .into_keys()
+                .map(|id| id.trim().to_string())
+                .filter(|id| !id.is_empty()),
+        );
+        Ok(whitelist_ids.into_iter().collect())
     }
 
     pub async fn get_passkeys(&self) -> crate::storage::StorageResult<Vec<Value>> {
@@ -1360,6 +1409,17 @@ return value
     ) -> crate::storage::StorageResult<Option<Value>> {
         self.consume_json_value(&format!("fn_knock:passkey:state:{challenge}"))
             .await
+    }
+}
+
+fn collect_auth_mobility_whitelist_id(ids: &mut BTreeSet<String>, value: &Value) {
+    if let Some(id) = value
+        .get("whitelistRecordId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        ids.insert(id.to_string());
     }
 }
 

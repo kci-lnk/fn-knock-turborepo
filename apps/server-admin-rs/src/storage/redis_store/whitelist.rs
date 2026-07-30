@@ -1,5 +1,7 @@
 use super::*;
 
+const WHITELIST_MUTATION_MAX_RETRIES: usize = 8;
+
 impl Store {
     pub async fn get_whitelist_record(
         &self,
@@ -94,14 +96,28 @@ impl Store {
         previous: &WhitelistRecord,
         next: &WhitelistRecord,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
+        if self.try_replace_whitelist_record(previous, next).await? {
+            return Ok(());
+        }
+        Err(crate::storage::storage_error(format!(
+            "whitelist record {} changed concurrently",
+            previous.id
+        )))
+    }
+
+    async fn try_replace_whitelist_record(
+        &self,
+        previous: &WhitelistRecord,
+        next: &WhitelistRecord,
+    ) -> crate::storage::StorageResult<bool> {
+        if previous.id != next.id {
+            return Err(crate::storage::storage_error(
+                "whitelist record id cannot change during replacement",
+            ));
+        }
         let mut pipe = redis::pipe();
-        pipe.hset(
-            WHITELIST_RECORDS,
-            &next.id,
-            serde_json::to_string(next).unwrap_or_default(),
-        )
-        .ignore();
+        pipe.hset(WHITELIST_RECORDS, &next.id, serde_json::to_string(next)?)
+            .ignore();
         if let Some(expire_at) = next.expire_at {
             pipe.zadd(WHITELIST_EXPIRY, &next.id, expire_at).ignore();
         } else {
@@ -109,53 +125,65 @@ impl Store {
         }
         queue_remove_whitelist_indexes(&mut pipe, previous);
         queue_whitelist_indexes(&mut pipe, next);
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(())
+        self.execute_whitelist_record_pipeline_if_current(previous, pipe)
+            .await
     }
 
     pub async fn delete_whitelist_record(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
-        let Some(record) = self.get_whitelist_record(id).await? else {
-            return Ok(None);
-        };
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-        pipe.hdel(WHITELIST_RECORDS, id).ignore();
-        pipe.hdel(WHITELIST_DELETED, id).ignore();
-        pipe.zrem(WHITELIST_RECORD_ORDER, id).ignore();
-        pipe.zrem(WHITELIST_EXPIRY, id).ignore();
-        queue_remove_whitelist_indexes(&mut pipe, &record);
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(Some(record))
+        for _ in 0..WHITELIST_MUTATION_MAX_RETRIES {
+            let Some(record) = self.get_whitelist_record(id).await? else {
+                return Ok(None);
+            };
+            let mut pipe = redis::pipe();
+            pipe.hdel(WHITELIST_RECORDS, id).ignore();
+            pipe.hdel(WHITELIST_DELETED, id).ignore();
+            pipe.zrem(WHITELIST_RECORD_ORDER, id).ignore();
+            pipe.zrem(WHITELIST_EXPIRY, id).ignore();
+            queue_remove_whitelist_indexes(&mut pipe, &record);
+            if self
+                .execute_whitelist_record_pipeline_if_current(&record, pipe)
+                .await?
+            {
+                return Ok(Some(record));
+            }
+        }
+        Err(crate::storage::storage_error(format!(
+            "whitelist record {id} kept changing during deletion"
+        )))
     }
 
     pub async fn expire_whitelist_record(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
-        let Some(record) = self.get_whitelist_record(id).await? else {
-            return Ok(None);
-        };
-        if !record.is_active() {
-            return Ok(None);
+        for _ in 0..WHITELIST_MUTATION_MAX_RETRIES {
+            let Some(record) = self.get_whitelist_record(id).await? else {
+                return Ok(None);
+            };
+            if !record.is_active() {
+                return Ok(None);
+            }
+            let mut next = record.clone();
+            next.status = "expired".to_string();
+            let mut pipe = redis::pipe();
+            pipe.hset(WHITELIST_RECORDS, id, serde_json::to_string(&next)?)
+                .ignore();
+            pipe.zrem(WHITELIST_RECORD_ORDER, id).ignore();
+            pipe.zrem(WHITELIST_EXPIRY, id).ignore();
+            queue_remove_whitelist_indexes(&mut pipe, &record);
+            if self
+                .execute_whitelist_record_pipeline_if_current(&record, pipe)
+                .await?
+            {
+                return Ok(Some(record));
+            }
         }
-        let mut next = record.clone();
-        next.status = "expired".to_string();
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-        pipe.hset(
-            WHITELIST_RECORDS,
-            id,
-            serde_json::to_string(&next).unwrap_or_default(),
-        )
-        .ignore();
-        pipe.zrem(WHITELIST_RECORD_ORDER, id).ignore();
-        pipe.zrem(WHITELIST_EXPIRY, id).ignore();
-        queue_remove_whitelist_indexes(&mut pipe, &record);
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(Some(record))
+        Err(crate::storage::storage_error(format!(
+            "whitelist record {id} kept changing during expiration"
+        )))
     }
 
     pub async fn update_whitelist_comment(
@@ -163,19 +191,25 @@ impl Store {
         id: &str,
         comment: String,
     ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
-        let Some(mut record) = self.get_whitelist_record(id).await? else {
-            return Ok(None);
-        };
-        record.comment = Some(comment);
-        let mut conn = self.conn();
-        let _: () = conn
-            .hset(
-                WHITELIST_RECORDS,
-                id,
-                serde_json::to_string(&record).unwrap_or_default(),
-            )
-            .await?;
-        Ok(Some(record))
+        for _ in 0..WHITELIST_MUTATION_MAX_RETRIES {
+            let Some(previous) = self.get_whitelist_record(id).await? else {
+                return Ok(None);
+            };
+            let mut next = previous.clone();
+            next.comment = Some(comment.clone());
+            let mut pipe = redis::pipe();
+            pipe.hset(WHITELIST_RECORDS, id, serde_json::to_string(&next)?)
+                .ignore();
+            if self
+                .execute_whitelist_record_pipeline_if_current(&previous, pipe)
+                .await?
+            {
+                return Ok(Some(next));
+            }
+        }
+        Err(crate::storage::storage_error(format!(
+            "whitelist record {id} kept changing while updating its comment"
+        )))
     }
 
     pub async fn find_whitelist_records_by_target(
@@ -558,5 +592,27 @@ impl Store {
         }
         let _: () = pipe.query_async(&mut conn).await?;
         Ok(records)
+    }
+
+    async fn execute_whitelist_record_pipeline_if_current(
+        &self,
+        expected: &WhitelistRecord,
+        pipe: redis::Pipeline,
+    ) -> crate::storage::StorageResult<bool> {
+        let expected_json = serde_json::to_string(expected)?;
+        let mut conn = self.conn();
+        let (matched, ()): (bool, ()) = pipe
+            .query_async_if_hash_field_matches(
+                &mut conn,
+                WHITELIST_RECORDS,
+                &expected.id,
+                move |raw| {
+                    raw.and_then(deserialize_whitelist_record)
+                        .and_then(|record| serde_json::to_string(&record).ok())
+                        .is_some_and(|current| current == expected_json)
+                },
+            )
+            .await?;
+        Ok(matched)
     }
 }

@@ -7,6 +7,7 @@ use std::{
 };
 
 mod config;
+mod curl_transport;
 mod domain_targets;
 mod i18n;
 mod interface_selector;
@@ -50,7 +51,7 @@ use tokio::{net::lookup_host, task::JoinSet};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{i18n::Translator, response, state::AppState, system_events, time_utils};
+use crate::{http_body, i18n::Translator, response, state::AppState, system_events, time_utils};
 
 const PRIMARY_TARGET_ID: &str = "primary";
 const PRIMARY_TARGET_NAME: &str = "主域名";
@@ -90,6 +91,7 @@ const DEFAULT_PUBLIC_CHECK_IPV6: [&str; 2] =
 const DOCKER_HOST_INTERFACE_PREFIX: &str = "docker-host:";
 const DEFAULT_DOCKER_HOST_IF_INET6_PATH: &str = "/host/proc/net/if_inet6";
 const IP_DETECTION_TIMEOUT_MS: u64 = 7000;
+const MAX_PUBLIC_CHECK_RESPONSE_BYTES: usize = 64 * 1024;
 const RESPONSE_PREVIEW_MAX_LENGTH: usize = 240;
 
 #[derive(Deserialize)]

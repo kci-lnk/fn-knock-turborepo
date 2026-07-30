@@ -36,9 +36,57 @@ pub(super) async fn import_backup_archive_from_directory(
     translator: &Translator,
 ) -> Result<Value, BackupImportError> {
     let file_path = resolve_backup_archive_path(relative_path).await?;
-    let metadata = fs::metadata(&file_path)
+    if !is_backup_archive_file(&file_path.to_string_lossy()) {
+        return Err(BackupImportError::bad_request(format!(
+            "Backup archive file must end with {KNOCK_BACKUP_EXTENSION}"
+        )));
+    }
+    let buffer = read_backup_archive_file(&file_path).await?;
+    import_backup_archive_buffer(state, buffer, translator).await
+}
+
+pub(super) async fn read_backup_archive_file(
+    file_path: &Path,
+) -> Result<Vec<u8>, BackupImportError> {
+    let file = open_backup_archive_without_following_links(file_path).await?;
+    let metadata = file
+        .metadata()
         .await
-        .map_err(|error| match error.kind() {
+        .map_err(|error| BackupImportError::internal(error.to_string()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(BackupImportError::bad_request("Backup path must be a file"));
+    }
+    if metadata.len() > MAX_BACKUP_ARCHIVE_SIZE as u64 {
+        return Err(BackupImportError::bad_request(
+            "Backup directory import archive is too large",
+        ));
+    }
+    fs_utils::read_open_file_limited(file, MAX_BACKUP_ARCHIVE_SIZE)
+        .await
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::InvalidData {
+                BackupImportError::bad_request("Backup directory import archive is too large")
+            } else {
+                BackupImportError::internal(error.to_string())
+            }
+        })
+}
+
+async fn open_backup_archive_without_following_links(
+    file_path: &Path,
+) -> Result<fs::File, BackupImportError> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    #[cfg(windows)]
+    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    options.open(file_path).await.map_err(|error| {
+        #[cfg(unix)]
+        if error.raw_os_error() == Some(libc::ELOOP) {
+            return BackupImportError::bad_request("Backup path must be a file");
+        }
+        match error.kind() {
             io::ErrorKind::NotFound => {
                 BackupImportError::new(StatusCode::NOT_FOUND, "Backup file not found")
             }
@@ -46,24 +94,8 @@ pub(super) async fn import_backup_archive_from_directory(
                 BackupImportError::new(StatusCode::FORBIDDEN, "Backup file cannot be read")
             }
             _ => BackupImportError::internal(error.to_string()),
-        })?;
-    if !metadata.is_file() {
-        return Err(BackupImportError::bad_request("Backup path must be a file"));
-    }
-    if !is_backup_archive_file(&file_path.to_string_lossy()) {
-        return Err(BackupImportError::bad_request(format!(
-            "Backup archive file must end with {KNOCK_BACKUP_EXTENSION}"
-        )));
-    }
-    if metadata.len() as usize > MAX_BACKUP_ARCHIVE_SIZE {
-        return Err(BackupImportError::bad_request(
-            "Backup directory import archive is too large",
-        ));
-    }
-    let buffer = fs::read(&file_path)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    import_backup_archive_buffer(state, buffer, translator).await
+        }
+    })
 }
 
 pub(super) async fn import_backup_archive_buffer(

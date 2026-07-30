@@ -316,7 +316,12 @@ pub(super) async fn fetch_list_public_site_title(
     if !response.status().is_success() {
         return None;
     }
-    let payload = response.json::<Value>().await.ok()?;
+    let payload = crate::http_body::read_response_json_limited::<Value>(
+        response,
+        MAX_DISCOVERY_API_RESPONSE_BYTES,
+    )
+    .await
+    .ok()?;
     if payload.get("code").and_then(Value::as_i64) != Some(200) {
         return None;
     }

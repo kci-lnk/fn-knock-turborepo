@@ -2,6 +2,7 @@ use super::*;
 
 const DNSHE_API_URL: &str = "https://api005.dnshe.com/index.php";
 const DNSHE_SUBDOMAIN_PAGE_SIZE: usize = 500;
+pub(in crate::ddns::routes) const DNSHE_MAX_SUBDOMAIN_PAGES: usize = 100;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::ddns::routes) struct DnsheSubdomainMatch {
@@ -270,10 +271,10 @@ async fn resolve_dnshe_subdomain(
             .and_then(Value::as_array)
             .map(Vec::len)
             .unwrap_or_default();
-        if !dnshe_has_more_subdomains(&data, item_count) {
+        let Some(next_page) = dnshe_next_subdomain_page(page, &data, item_count)? else {
             break;
-        }
-        page = page.saturating_add(1);
+        };
+        page = next_page;
     }
 
     Err(anyhow::anyhow!(ddns_text(
@@ -403,6 +404,26 @@ pub(in crate::ddns::routes) fn dnshe_has_more_subdomains(data: &Value, item_coun
     data.pointer("/pagination/has_more")
         .and_then(Value::as_bool)
         .unwrap_or(item_count >= DNSHE_SUBDOMAIN_PAGE_SIZE)
+}
+
+pub(in crate::ddns::routes) fn dnshe_next_subdomain_page(
+    page: usize,
+    data: &Value,
+    item_count: usize,
+) -> anyhow::Result<Option<usize>> {
+    if !dnshe_has_more_subdomains(data, item_count) {
+        return Ok(None);
+    }
+    if item_count == 0 {
+        anyhow::bail!("DNSHE subdomain pagination reported more pages without returning any items");
+    }
+    if page >= DNSHE_MAX_SUBDOMAIN_PAGES {
+        anyhow::bail!(
+            "DNSHE subdomain pagination exceeded the {} page limit",
+            DNSHE_MAX_SUBDOMAIN_PAGES
+        );
+    }
+    Ok(Some(page + 1))
 }
 
 pub(in crate::ddns::routes) fn find_dnshe_record(

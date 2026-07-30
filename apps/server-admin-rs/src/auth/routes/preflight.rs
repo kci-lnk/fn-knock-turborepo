@@ -542,7 +542,7 @@ pub(crate) async fn revoke_expired_presented_session(
             if let Err(error) = auth_mobility::destroy_session(&state, &session_id).await {
                 tracing::warn!(%error, %session_id, "failed to destroy expired auth session state");
             }
-            if let Err(error) = revoke_custom_post_login_ip_grant(
+            if let Err(error) = auth_mobility::revoke_custom_post_login_ip_grant(
                 &state,
                 Some(&session),
                 Some(&config),

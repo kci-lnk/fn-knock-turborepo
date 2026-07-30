@@ -1654,6 +1654,7 @@ export const jaJPServer = {
     syncSteps: {
       runModeGatewayRoutes: "動作モードとゲートウェイルーティング",
       directModeWhitelist: "ダイレクトモードのホワイトリスト",
+      trustedClientIps: "ゲートウェイの信頼済みクライアント IP",
       gatewayLogging: "ログ設定のリクエスト",
       wafRuntime: "WAF 設定と実行状態",
       sslDeployment: "SSL 証明書の展開",

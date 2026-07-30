@@ -7,13 +7,10 @@ use std::{
 use get_if_addrs::{IfAddr, get_if_addrs};
 
 pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
-    if crate::go_backend::response_success(&value) {
-        return Ok(());
-    }
-    Err(crate::go_backend::response_message(
+    crate::go_backend::ensure_response_success(
         &value,
         "Go backend returned an unsuccessful response",
-    ))
+    )
 }
 
 pub(super) async fn rollback_proxy_mappings(state: &AppState, previous_config: &Value) {

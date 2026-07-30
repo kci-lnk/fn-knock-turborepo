@@ -1,5 +1,7 @@
 use super::*;
 
+const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024;
+
 pub(super) async fn build_standard_oidc_authorization_url(
     provider: &Value,
     callback_url: &str,
@@ -198,13 +200,15 @@ pub(super) async fn parse_http_payload(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("")
         .to_string();
-    let text = response.text().await.map_err(|error| {
-        oidc_text_params(
-            translator,
-            "readResponseFailed",
-            &[("detail", error.to_string())],
-        )
-    })?;
+    let text = crate::http_body::read_response_text_limited(response, MAX_OIDC_RESPONSE_BYTES)
+        .await
+        .map_err(|error| {
+            oidc_text_params(
+                translator,
+                "readResponseFailed",
+                &[("detail", error.to_string())],
+            )
+        })?;
     if !status.is_success() {
         return Err(oidc_text_params(
             translator,
@@ -402,7 +406,9 @@ pub(super) async fn fetch_github_profile(
             .send()
             .await
         && response.status().is_success()
-        && let Ok(emails) = response.json::<Value>().await
+        && let Ok(emails) =
+            crate::http_body::read_response_json_limited::<Value>(response, MAX_OIDC_RESPONSE_BYTES)
+                .await
         && let Some(items) = emails.as_array()
         && let Some(primary) = items
             .iter()

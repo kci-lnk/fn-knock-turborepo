@@ -1,66 +1,186 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LoginSessionRevocationOutcome {
+    pub complete: bool,
+}
+
+pub async fn revoke_login_session(
+    state: &AppState,
+    session_id: &str,
+    config: Option<&Value>,
+    fallback_ip: &str,
+    logout_source: &'static str,
+) -> LoginSessionRevocationOutcome {
+    let mut complete = true;
+    let session = match state.store.get_session(session_id).await {
+        Ok(session) => session,
+        Err(error) => {
+            tracing::warn!(%error, %session_id, %logout_source, "failed to load auth session during revocation");
+            complete = false;
+            None
+        }
+    };
+
+    let loaded_config;
+    let config = if let Some(config) = config {
+        Some(config)
+    } else if session.is_some() {
+        loaded_config = match state.store.get_config().await {
+            Ok(config) => Some(config),
+            Err(error) => {
+                tracing::warn!(%error, %session_id, %logout_source, "failed to load config during session revocation");
+                complete = false;
+                None
+            }
+        };
+        loaded_config.as_ref()
+    } else {
+        None
+    };
+
+    if let Some(session) = session.as_ref()
+        && let Err(error) = system_events::publish_auth_logout_event(
+            state,
+            json!({
+                "session_id": session_id,
+                "auth_method": session.method.clone(),
+                "credential_id": session.credential_id.clone(),
+                "credential_name": session.credential_name.clone(),
+                "linked_totp_name": session.linked_totp_name.clone(),
+                "session_comment": session.comment.clone(),
+                "ip": session.ip.clone(),
+                "ip_location": session.ip_location.clone(),
+                "user_agent": session.user_agent.clone(),
+                "login_time": session.login_time.clone(),
+                "logout_source": logout_source,
+            }),
+        )
+        .await
+    {
+        tracing::warn!(%error, %session_id, %logout_source, "failed to publish auth logout event");
+    }
+
+    if let Err(error) = destroy_session(state, session_id).await {
+        tracing::warn!(%error, %session_id, %logout_source, "failed to destroy auth session state");
+        complete = false;
+    }
+    if let Err(error) =
+        revoke_custom_post_login_ip_grant(state, session.as_ref(), config, fallback_ip).await
+    {
+        tracing::warn!(%error, %session_id, %logout_source, "failed to revoke custom post-login IP grant");
+        complete = false;
+    }
+    if let Err(error) = whitelist::sync_reverse_proxy_trusted_ips_required(state).await {
+        tracing::warn!(%error, %session_id, %logout_source, "failed to confirm gateway trust revocation");
+        complete = false;
+    }
+
+    LoginSessionRevocationOutcome { complete }
+}
+
+pub async fn revoke_custom_post_login_ip_grant(
+    state: &AppState,
+    session: Option<&LoginSession>,
+    config: Option<&Value>,
+    fallback_ip: &str,
+) -> anyhow::Result<bool> {
+    if !should_revoke_custom_post_login_ip_grant(session, config) {
+        return Ok(false);
+    }
+    if let Some(record_id) = session
+        .and_then(|session| session.post_login_ip_grant_record_id.as_deref())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return whitelist::remove_whitelist_record_by_id(state, record_id).await;
+    }
+    let ip = session
+        .map(|session| session.ip.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(fallback_ip);
+    whitelist::remove_whitelist_records_by_ip(state, ip, Some("auto")).await
+}
+
+pub fn should_revoke_custom_post_login_ip_grant(
+    session: Option<&LoginSession>,
+    config: Option<&Value>,
+) -> bool {
+    let Some(session) = session else {
+        return false;
+    };
+    if session.grant_type.as_deref() == Some("login_ip_grant")
+        && session.post_login_ip_grant_mode.as_deref() == Some("custom")
+    {
+        return true;
+    }
+    session
+        .comment
+        .as_deref()
+        .is_some_and(is_auto_ip_grant_comment)
+        && config.and_then(|config| {
+            config
+                .pointer("/auth_credential_settings/post_login_ip_grant_mode")
+                .and_then(Value::as_str)
+        }) == Some("custom")
+}
+
 pub async fn destroy_sessions_for_totp_credential(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<usize> {
-    let sessions = state.store.list_login_sessions().await?;
-    let mut destroyed = 0usize;
-    for (session_id, session) in sessions {
-        if session.totp_id != totp_id {
-            continue;
-        }
-        destroy_session(state, &session_id).await?;
-        state.store.delete_session(&session_id).await?;
-        destroyed += 1;
-    }
-    if destroyed > 0 {
-        whitelist::sync_reverse_proxy_trusted_ips(state).await;
-    }
-    Ok(destroyed)
+    destroy_sessions_matching(state, |session| session.totp_id == totp_id).await
 }
 
 pub async fn destroy_sessions_for_auth_credential(
     state: &AppState,
     credential_id: &str,
 ) -> anyhow::Result<usize> {
-    let sessions = state.store.list_login_sessions().await?;
-    let mut destroyed = 0usize;
-    for (session_id, session) in sessions {
-        if session.credential_id != credential_id {
-            continue;
-        }
-        destroy_session(state, &session_id).await?;
-        state.store.delete_session(&session_id).await?;
-        destroyed += 1;
-    }
-    if destroyed > 0 {
-        whitelist::sync_reverse_proxy_trusted_ips(state).await;
-    }
-    Ok(destroyed)
+    destroy_sessions_matching(state, |session| session.credential_id == credential_id).await
 }
 
 pub async fn destroy_sessions_for_auth_method(
     state: &AppState,
     auth_method: &str,
 ) -> anyhow::Result<usize> {
+    destroy_sessions_matching(state, |session| {
+        session.method.eq_ignore_ascii_case(auth_method)
+    })
+    .await
+}
+
+async fn destroy_sessions_matching(
+    state: &AppState,
+    matches: impl Fn(&LoginSession) -> bool,
+) -> anyhow::Result<usize> {
     let sessions = state.store.list_login_sessions().await?;
     let mut destroyed = 0usize;
     for (session_id, session) in sessions {
-        if !session.method.eq_ignore_ascii_case(auth_method) {
+        if !matches(&session) {
             continue;
         }
-        destroy_session(state, &session_id).await?;
-        state.store.delete_session(&session_id).await?;
+        if let Err(error) = destroy_session_state(state, &session_id).await {
+            // A failed mutation can still have deleted authoritative session
+            // state before a later storage step failed. Publish that partial
+            // revocation before returning the original error.
+            whitelist::sync_reverse_proxy_trusted_ips(state).await;
+            return Err(error);
+        }
         destroyed += 1;
     }
     if destroyed > 0 {
-        whitelist::sync_reverse_proxy_trusted_ips(state).await;
+        whitelist::sync_reverse_proxy_trusted_ips_required(state).await?;
     }
     Ok(destroyed)
 }
 
 pub async fn destroy_session(state: &AppState, session_id: &str) -> anyhow::Result<()> {
+    let result = destroy_session_state(state, session_id).await;
+    whitelist::sync_reverse_proxy_trusted_ips(state).await;
+    result
+}
+
+async fn destroy_session_state(state: &AppState, session_id: &str) -> anyhow::Result<()> {
     let lease = loop {
         if let Some(lease) = acquire_auth_mobility_session_mutation_lease(state, session_id).await?
         {
@@ -69,21 +189,19 @@ pub async fn destroy_session(state: &AppState, session_id: &str) -> anyhow::Resu
         tracing::warn!(%session_id, "still waiting for auth mobility mutation lock during revocation");
     };
     let result = async {
-        // With the mutation lease held, publication and revocation are ordered:
-        // state committed before this delete is collected below, while later
-        // writers recheck the missing authoritative Session and fail closed.
-        state.store.delete_session(session_id).await?;
+        // The mutation lease excludes mobility writers. Remove grants and
+        // secondary indexes before the authoritative Session so any failure is
+        // fail-closed but remains discoverable by credential-based retries.
         let whitelist_ids = state
+            .store
+            .list_auth_mobility_session_whitelist_ids(session_id)
+            .await?;
+        whitelist::remove_whitelist_records_without_runtime_sync(state, &whitelist_ids).await?;
+        state
             .store
             .destroy_auth_mobility_session(session_id)
             .await?;
-        for whitelist_id in whitelist_ids {
-            if let Err(error) =
-                whitelist::remove_whitelist_record_by_id(state, &whitelist_id).await
-            {
-                tracing::warn!(%error, %session_id, %whitelist_id, "failed to remove mobility whitelist record");
-            }
-        }
+        state.store.delete_session(session_id).await?;
         Ok(())
     }
     .await;
@@ -273,27 +391,10 @@ pub async fn list_session_whitelist_record_ids(
     state: &AppState,
     session_id: &str,
 ) -> anyhow::Result<Vec<String>> {
-    let mut record_ids = BTreeSet::new();
-    if let Some(binding) = state
+    Ok(state
         .store
-        .get_auth_mobility_binding("proxy-session", session_id)
-        .await?
-        && let Some(record_id) = binding_whitelist_record_id(&binding)
-    {
-        record_ids.insert(record_id);
-    }
-    for detail in state
-        .store
-        .list_auth_mobility_active_ip_details(session_id)
-        .await?
-        .into_iter()
-        .filter_map(parse_active_ip_detail)
-    {
-        if let Some(record_id) = detail.whitelist_record_id {
-            record_ids.insert(record_id);
-        }
-    }
-    Ok(record_ids.into_iter().collect())
+        .list_auth_mobility_session_whitelist_ids(session_id)
+        .await?)
 }
 
 pub async fn reconcile_session_ip_mobility_policy(

@@ -5,13 +5,8 @@ pub(super) fn ensure_go_success(
     translator: &Translator,
     fallback_key: &str,
 ) -> anyhow::Result<()> {
-    if crate::go_backend::response_success(&value) {
-        return Ok(());
-    }
-    anyhow::bail!(
-        "{}",
-        crate::go_backend::response_message(&value, &ssh_security_text(translator, fallback_key),)
-    )
+    crate::go_backend::ensure_response_success(&value, &ssh_security_text(translator, fallback_key))
+        .map_err(anyhow::Error::msg)
 }
 
 pub(super) fn ssh_security_availability(

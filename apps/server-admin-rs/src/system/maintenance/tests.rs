@@ -741,6 +741,24 @@ async fn automatic_backup_import_rejects_unsafe_paths_and_symlinks() {
     }
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn backup_path_validation_rejects_an_intermediate_symlink_escape() {
+    let directory = tempfile::tempdir().unwrap();
+    let backup_root = directory.path().join("backup");
+    let outside = directory.path().join("outside");
+    std::fs::create_dir_all(&backup_root).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(outside.join("escaped.knock"), b"not an archive").unwrap();
+    std::os::unix::fs::symlink(&outside, backup_root.join("linked")).unwrap();
+
+    let resolved = backup_root.join("linked").join("escaped.knock");
+    let error = validate_existing_backup_path(&backup_root, resolved)
+        .await
+        .unwrap_err();
+    assert_eq!(error.status, StatusCode::BAD_REQUEST);
+}
+
 #[tokio::test]
 async fn failed_automatic_backup_records_an_hourly_retry() {
     let (_directory, state) = maintenance_test_state().await;
@@ -845,6 +863,10 @@ fn localizes_runtime_sync_step_labels() {
     assert_eq!(
         maintenance_backup_text(&zh, "syncSteps.directModeWhitelist"),
         "直连模式白名单"
+    );
+    assert_eq!(
+        maintenance_backup_text(&zh, "syncSteps.trustedClientIps"),
+        "网关可信客户端 IP"
     );
     assert_eq!(
         maintenance_backup_text(&zh, "syncSteps.systemResourceMonitorReset"),

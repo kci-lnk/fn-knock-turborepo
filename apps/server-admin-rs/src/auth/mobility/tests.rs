@@ -624,6 +624,105 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
 }
 
 #[tokio::test]
+async fn failed_authoritative_session_delete_remains_retryable_after_grant_cleanup() {
+    let (directory, state) = mobility_test_state("retryable-session-delete").await;
+    let session_id = "retryable-session";
+    let client_ip = "203.0.113.91";
+    let session = test_browser_session(client_ip);
+    state
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .expect("session");
+
+    let owner_key = format!("auth-mobility:active-ip:{session_id}:{client_ip}");
+    let owner_record_key = crate::whitelist::whitelist_auto_owner_record_key(&owner_key);
+    let record_id = "whitelist:retryable-session";
+    assert!(
+        state
+            .store
+            .add_auth_mobility_pending_whitelist(session_id, record_id, &owner_record_key, 3600,)
+            .await
+            .expect("pending reverse index")
+    );
+    let deferred = crate::whitelist::ensure_pending_session_auto_whitelist(
+        &state,
+        &owner_key,
+        client_ip,
+        Some(now_seconds() + 3600),
+        Some("retryable".to_string()),
+        None,
+        record_id,
+    )
+    .await
+    .expect("pending record");
+    crate::whitelist::publish_deferred_session_auto_whitelist(&state, deferred)
+        .await
+        .expect("publish record");
+
+    let sqlite_path = directory.path().join("fn-knock.sqlite3");
+    let fault_connection = tokio_rusqlite::Connection::open(&sqlite_path)
+        .await
+        .expect("fault connection");
+    let session_key = crate::auth_session_keys::session_key(session_id);
+    fault_connection
+        .call(move |connection| {
+            connection.execute_batch(&format!(
+                r#"
+                CREATE TRIGGER fail_retryable_session_delete
+                BEFORE DELETE ON kv_keys
+                WHEN OLD.key = '{}'
+                BEGIN
+                    SELECT RAISE(ABORT, 'injected session deletion failure');
+                END;
+                "#,
+                session_key.replace('\'', "''")
+            ))
+        })
+        .await
+        .expect("install delete fault");
+
+    assert!(
+        destroy_session(&state, session_id).await.is_err(),
+        "fault-injected deletion should fail"
+    );
+    assert!(
+        state
+            .store
+            .get_session(session_id)
+            .await
+            .expect("session lookup")
+            .is_some(),
+        "the authoritative session must remain enumerable for retry"
+    );
+    assert!(
+        state
+            .store
+            .get_whitelist_record(record_id)
+            .await
+            .expect("whitelist lookup")
+            .is_none(),
+        "grant cleanup should remain fail-closed"
+    );
+
+    fault_connection
+        .call(|connection| connection.execute_batch("DROP TRIGGER fail_retryable_session_delete;"))
+        .await
+        .expect("remove delete fault");
+    destroy_session(&state, session_id)
+        .await
+        .expect("retry session deletion");
+    assert!(
+        state
+            .store
+            .get_session(session_id)
+            .await
+            .expect("session lookup after retry")
+            .is_none()
+    );
+}
+
+#[tokio::test]
 async fn custom_login_whitelist_is_session_indexed_and_revoked() {
     let (_directory, state) = mobility_test_state("custom-login-index").await;
     let mut config = state.store.get_config().await.expect("current config");

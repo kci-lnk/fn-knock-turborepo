@@ -150,56 +150,8 @@ pub(super) async fn import_backup_archive_from_automatic_directory(
     translator: &Translator,
 ) -> Result<Value, BackupImportError> {
     let file_path = resolve_automatic_backup_archive_path(state, relative_path).await?;
-    let file = open_automatic_backup_archive_without_following_links(&file_path).await?;
-    let metadata = file
-        .metadata()
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(BackupImportError::bad_request("Backup path must be a file"));
-    }
-    if metadata.len() > MAX_BACKUP_ARCHIVE_SIZE as u64 {
-        return Err(BackupImportError::bad_request(
-            "Backup directory import archive is too large",
-        ));
-    }
-    let mut buffer = Vec::with_capacity(metadata.len() as usize);
-    file.take(MAX_BACKUP_ARCHIVE_SIZE as u64 + 1)
-        .read_to_end(&mut buffer)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    if buffer.len() > MAX_BACKUP_ARCHIVE_SIZE {
-        return Err(BackupImportError::bad_request(
-            "Backup directory import archive is too large",
-        ));
-    }
+    let buffer = read_backup_archive_file(&file_path).await?;
     import_backup_archive_buffer(state, buffer, translator).await
-}
-
-async fn open_automatic_backup_archive_without_following_links(
-    file_path: &Path,
-) -> Result<fs::File, BackupImportError> {
-    let mut options = fs::OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    #[cfg(windows)]
-    options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
-    options.open(file_path).await.map_err(|error| {
-        #[cfg(unix)]
-        if error.raw_os_error() == Some(libc::ELOOP) {
-            return BackupImportError::bad_request("Backup path must be a file");
-        }
-        match error.kind() {
-            io::ErrorKind::NotFound => {
-                BackupImportError::new(StatusCode::NOT_FOUND, "Backup file not found")
-            }
-            io::ErrorKind::PermissionDenied => {
-                BackupImportError::new(StatusCode::FORBIDDEN, "Backup file cannot be read")
-            }
-            _ => BackupImportError::internal(error.to_string()),
-        }
-    })
 }
 
 pub(super) async fn preserved_automatic_backup_entries(

@@ -18,18 +18,14 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::DeflateEncoder};
 use serde_json::{Value, json};
-use tokio::{
-    fs,
-    io::{AsyncReadExt, AsyncWriteExt},
-    process::Command,
-};
+use tokio::{fs, io::AsyncWriteExt, process::Command};
 use uuid::Uuid;
 
 use crate::{
     app_version::{APP_BACKUP_IMPORT_MIN_VERSION, APP_BACKUP_SCHEMA_VERSION, APP_LOCAL_VERSION},
-    common_auth_locations, gateway_settings,
+    common_auth_locations, fs_utils, gateway_settings,
     i18n::Translator,
-    proxy_config, response, runtime_config, runtime_profile, scanner, ssh_security, ssl,
+    proxy_config, response, runtime_config, scanner, ssh_security, ssl,
     state::AppState,
     store::node_locale_compare_ordering,
     system_monitor, time_utils, waf, whitelist,
@@ -113,7 +109,7 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:ssh_security:",
     "fn_knock:terminal:",
     "fn_knock:traffic:",
-    "fn_knock:tunnel:runtime",
+    crate::tunnels::TUNNEL_RUNTIME_KEY,
     "fn_knock:ui:",
     "fn_knock:update:",
     "fn_knock:waf:log:",

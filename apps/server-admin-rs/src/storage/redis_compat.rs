@@ -751,6 +751,24 @@ impl Pipeline {
         Ok((deleted, T::from_pipe_outputs(outputs)?))
     }
 
+    pub(crate) async fn query_async_if_hash_field_matches<T, F>(
+        mut self,
+        conn: &mut ConnectionManager,
+        key: &str,
+        field: &str,
+        matches: F,
+    ) -> RedisResult<(bool, T)>
+    where
+        T: FromPipeOutput,
+        F: FnOnce(Option<&str>) -> bool + Send + 'static,
+    {
+        self.flush_current();
+        let (matched, outputs) = conn
+            .execute_pipeline_if_hash_field_matches(key, field, self.commands, matches)
+            .await?;
+        Ok((matched, T::from_pipe_outputs(outputs)?))
+    }
+
     fn push_simple(&mut self, name: &str, args: Vec<String>) -> &mut Self {
         self.flush_current();
         self.commands.push(CommandSpec {
@@ -1453,6 +1471,47 @@ impl ConnectionManager {
             }
             tx.commit()?;
             Ok((deleted, outputs))
+        })
+        .await
+    }
+
+    async fn execute_pipeline_if_hash_field_matches<F>(
+        &mut self,
+        key: &str,
+        field: &str,
+        commands: Vec<CommandSpec>,
+        matches: F,
+    ) -> RedisResult<(bool, Vec<CmdOutput>)>
+    where
+        F: FnOnce(Option<&str>) -> bool + Send + 'static,
+    {
+        let key = key.to_string();
+        let field = field.to_string();
+        self.call(move |conn| {
+            let tx = immediate_transaction(conn)?;
+            purge_expired_tx(&tx, &key)?;
+            let current = tx
+                .query_row(
+                    "SELECT value FROM kv_hash WHERE key = ?1 AND field = ?2",
+                    params![key, field],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            if !matches(current.as_deref()) {
+                tx.commit()?;
+                return Ok((false, Vec::new()));
+            }
+
+            let mut outputs = Vec::new();
+            for command in commands {
+                let ignore = command.ignore;
+                let output = execute_command_tx(&tx, command)?;
+                if !ignore {
+                    outputs.push(output);
+                }
+            }
+            tx.commit()?;
+            Ok((true, outputs))
         })
         .await
     }

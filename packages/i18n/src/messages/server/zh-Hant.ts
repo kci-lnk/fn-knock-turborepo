@@ -1391,6 +1391,7 @@ export const zhHantServer = {
     syncSteps: {
       runModeGatewayRoutes: "運行模式與網關路由",
       directModeWhitelist: "直連模式白名單",
+      trustedClientIps: "網關可信用戶端 IP",
       gatewayLogging: "請求日誌配置",
       wafRuntime: "WAF 配置與運行狀態",
       sslDeployment: "SSL 證書部署",

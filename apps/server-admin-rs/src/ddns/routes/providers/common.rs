@@ -2,6 +2,7 @@ use super::*;
 use tokio::io::AsyncWriteExt;
 
 pub(in crate::ddns::routes) const DEFAULT_DDNS_PROVIDER_TIMEOUT_MS: u64 = 10_000;
+pub(in crate::ddns::routes) const MAX_DDNS_PROVIDER_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 pub(in crate::ddns::routes) fn config_value(config: &HashMap<String, String>, key: &str) -> String {
     config
@@ -171,7 +172,11 @@ impl DDNSHttpRequestBuilder {
                 Ok(response) => {
                     let status = response.status();
                     let status_text = status.canonical_reason().unwrap_or_default().to_string();
-                    let body = response.bytes().await?.to_vec();
+                    let body = crate::http_body::read_response_bytes_limited(
+                        response,
+                        MAX_DDNS_PROVIDER_RESPONSE_BYTES,
+                    )
+                    .await?;
                     return Ok(DDNSHttpResponse {
                         status,
                         status_text,
@@ -189,17 +194,6 @@ impl DDNSHttpRequestBuilder {
     }
 
     async fn send_via_curl(self) -> anyhow::Result<DDNSHttpResponse> {
-        const PROXY_ENV_KEYS: [&str; 8] = [
-            "http_proxy",
-            "https_proxy",
-            "all_proxy",
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "ALL_PROXY",
-            "no_proxy",
-            "NO_PROXY",
-        ];
-
         let temp_dir = env::temp_dir().join(format!(
             "ddns-curl-{}-{}",
             std::process::id(),
@@ -213,13 +207,12 @@ impl DDNSHttpRequestBuilder {
             if !self.headers.is_empty() {
                 write_private_curl_headers(&request_header_path, &self.headers).await?;
             }
-            let mut command = tokio::process::Command::new("curl");
+            let mut command = super::super::curl_transport::command(
+                Duration::from_millis(self.client.timeout_ms),
+                MAX_DDNS_PROVIDER_RESPONSE_BYTES,
+                self.client.follow_redirects,
+            );
             command
-                .arg("-q")
-                .arg("--silent")
-                .arg("--show-error")
-                .arg("--max-time")
-                .arg(format!("{:.3}", self.client.timeout_ms as f64 / 1000.0))
                 .arg("--dump-header")
                 .arg(&response_header_path)
                 .arg("--output")
@@ -233,22 +226,10 @@ impl DDNSHttpRequestBuilder {
                 })
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::piped());
-            if self.client.follow_redirects {
-                command.arg("--location");
-            }
-            for key in PROXY_ENV_KEYS {
-                command.env_remove(key);
-            }
-            if !self.client.network_interface.is_empty()
-                && !self
-                    .client
-                    .network_interface
-                    .starts_with(DOCKER_HOST_INTERFACE_PREFIX)
-            {
-                command
-                    .arg("--interface")
-                    .arg(self.client.network_interface.as_str());
-            }
+            super::super::curl_transport::bind_network_interface(
+                &mut command,
+                &self.client.network_interface,
+            );
             if !self.headers.is_empty() {
                 let mut header_file = std::ffi::OsString::from("@");
                 header_file.push(&request_header_path);
@@ -267,31 +248,21 @@ impl DDNSHttpRequestBuilder {
             }
             let output = child.wait_with_output().await?;
             if !output.status.success() {
-                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                let detail =
+                    super::super::curl_transport::failure_detail(output.status, &output.stderr);
                 anyhow::bail!(
                     "{}",
                     ddns_text(
                         &self.client.translator,
                         "curlRequestFailed",
-                        &[(
-                            "detail",
-                            if detail.is_empty() {
-                                output
-                                    .status
-                                    .code()
-                                    .map(|code| format!("exit {code}"))
-                                    .unwrap_or_else(|| "terminated".to_string())
-                            } else {
-                                detail
-                            },
-                        )],
+                        &[("detail", detail)],
                     )
                 );
             }
             let raw_headers = tokio::fs::read_to_string(&response_header_path).await?;
             let (status, status_text) =
                 parse_curl_headers_for_response(&self.client.translator, &raw_headers)?;
-            let body = tokio::fs::read(&body_path).await.unwrap_or_default();
+            let body = read_ddns_curl_body(&body_path).await?;
             Ok(DDNSHttpResponse {
                 status,
                 status_text,
@@ -305,6 +276,23 @@ impl DDNSHttpRequestBuilder {
         }
         result
     }
+}
+
+pub(in crate::ddns::routes) async fn read_ddns_curl_body(
+    path: &std::path::Path,
+) -> anyhow::Result<Vec<u8>> {
+    let metadata = match tokio::fs::metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.len() > MAX_DDNS_PROVIDER_RESPONSE_BYTES as u64 {
+        anyhow::bail!(
+            "DDNS provider response body exceeds {} bytes",
+            MAX_DDNS_PROVIDER_RESPONSE_BYTES
+        );
+    }
+    Ok(tokio::fs::read(path).await?)
 }
 
 async fn create_private_curl_temp_dir(path: &std::path::Path) -> std::io::Result<()> {

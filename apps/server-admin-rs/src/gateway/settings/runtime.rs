@@ -368,24 +368,18 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
 }
 
 pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
-    if crate::go_backend::response_success(&value) {
-        return Ok(());
-    }
-    Err(crate::go_backend::response_message(
-        &value,
-        GO_BACKEND_UNSUCCESSFUL_RESPONSE,
-    ))
+    crate::go_backend::ensure_response_success(&value, GO_BACKEND_UNSUCCESSFUL_RESPONSE)
 }
 
 pub(super) fn ensure_gateway_portal_applied(
     requested: &Value,
     response: Value,
 ) -> Result<(), String> {
-    ensure_go_success(response.clone())?;
-
-    let Some(applied) = response.get("data").filter(|value| value.is_object()) else {
-        return Err("Go backend did not return the applied gateway portal config".to_string());
-    };
+    let applied = crate::go_backend::applied_response_object(
+        &response,
+        GO_BACKEND_UNSUCCESSFUL_RESPONSE,
+        "Go backend did not return the applied gateway portal config",
+    )?;
     let requested = normalize_gateway_portal(requested);
     let applied = normalize_gateway_portal(applied);
     if requested == applied {
@@ -401,13 +395,11 @@ pub(super) fn ensure_gateway_unmatched_route_applied(
     requested: &Value,
     response: Value,
 ) -> Result<(), String> {
-    ensure_go_success(response.clone())?;
-
-    let Some(applied) = response.get("data").filter(|value| value.is_object()) else {
-        return Err(
-            "Go backend did not return the applied gateway unmatched-route config".to_string(),
-        );
-    };
+    let applied = crate::go_backend::applied_response_object(
+        &response,
+        GO_BACKEND_UNSUCCESSFUL_RESPONSE,
+        "Go backend did not return the applied gateway unmatched-route config",
+    )?;
     let requested = normalize_gateway_unmatched_route(requested);
     let applied = normalize_gateway_unmatched_route(applied);
     if requested == applied {

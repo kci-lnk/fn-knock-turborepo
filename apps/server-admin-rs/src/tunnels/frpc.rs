@@ -22,14 +22,16 @@ use crate::{
     state::AppState,
     store::Store,
     system_events, time_utils,
-    tunnels::supervisor::{SupervisorFailure, SupervisorPhase, SupervisorSnapshot},
+    tunnels::{
+        TUNNEL_RUNTIME_KEY,
+        supervisor::{SupervisorFailure, SupervisorPhase, SupervisorSnapshot},
+    },
 };
 
 const FRPC_PRIMARY_INSTANCE_ID: &str = "primary";
 const KEY_PREFIX: &str = "fn_knock:frpc:v2";
 const INSTANCE_IDS_KEY: &str = "fn_knock:frpc:v2:instance_ids";
 const PRIMARY_INSTANCE_ID_KEY: &str = "fn_knock:frpc:v2:primary_instance_id";
-const TUNNEL_RUNTIME_KEY: &str = "fn_knock:tunnel:runtime";
 const LOG_TTL_SEC: usize = 24 * 3600;
 const PRIMARY_LOG_MAX_LEN: usize = 1000;
 const EXTRA_LOG_MAX_LEN: usize = 500;

@@ -4,7 +4,32 @@ pub(super) async fn resolve_backup_archive_path(
     relative_path: &str,
 ) -> Result<PathBuf, BackupImportError> {
     let directory = ensure_backup_directory().await?;
-    resolve_backup_archive_path_like_node(&directory, relative_path)
+    let resolved = resolve_backup_archive_path_like_node(&directory, relative_path)?;
+    validate_existing_backup_path(&directory, resolved).await
+}
+
+pub(super) async fn validate_existing_backup_path(
+    directory: &Path,
+    resolved: PathBuf,
+) -> Result<PathBuf, BackupImportError> {
+    let metadata = match fs::symlink_metadata(&resolved).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(resolved),
+        Err(error) => return Err(BackupImportError::internal(error.to_string())),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(BackupImportError::bad_request("Backup path must be a file"));
+    }
+    let canonical_root = fs::canonicalize(directory)
+        .await
+        .map_err(|error| BackupImportError::internal(error.to_string()))?;
+    let canonical_path = fs::canonicalize(&resolved)
+        .await
+        .map_err(|error| BackupImportError::internal(error.to_string()))?;
+    if !canonical_path.starts_with(&canonical_root) || canonical_path == canonical_root {
+        return Err(BackupImportError::bad_request("Invalid backup path"));
+    }
+    Ok(canonical_path)
 }
 
 pub(super) fn resolve_backup_archive_path_like_node(

@@ -868,6 +868,7 @@ fn validates_advanced_auth_echo_without_comparing_control_metadata() {
                     "target": "source_region",
                     "operator": "in",
                     "name": "",
+                    "policy_id": "ipset-v2:expected",
                     "values": [],
                     "selections": [{ "province": "浙江" }],
                     "cidrs": ["192.0.2.0/24"]
@@ -892,6 +893,7 @@ fn validates_advanced_auth_echo_without_comparing_control_metadata() {
                         "target": "source_region",
                         "operator": "in",
                         "name": "",
+                        "policy_id": "ipset-v2:expected",
                         "values": null,
                         "cidrs": ["192.0.2.0/24"]
                     }]
@@ -900,6 +902,12 @@ fn validates_advanced_auth_echo_without_comparing_control_metadata() {
         }]
     });
     ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let mut wrong_policy = applied.clone();
+    wrong_policy["data"][0]["advanced_auth"]["groups"][0]["conditions"][0]["policy_id"] =
+        json!("ipset-v2:wrong");
+    let error = ensure_go_host_protocol_modes_applied(&requested, &wrong_policy).unwrap_err();
+    assert!(error.contains("did not apply advanced authentication"));
 
     let stale_version = json!({
         "success": true,

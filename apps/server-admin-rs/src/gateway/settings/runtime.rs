@@ -284,13 +284,12 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
             .get("gateway_unmatched_route")
             .unwrap_or(&default_gateway_unmatched_route()),
     );
-    ensure_go_success(
-        state
-            .go_backend
-            .set_gateway_unmatched_route_config(&unmatched_route)
-            .await
-            .map_err(|error| error.to_string())?,
-    )
+    let unmatched_route_response = state
+        .go_backend
+        .set_gateway_unmatched_route_config(&unmatched_route)
+        .await
+        .map_err(|error| error.to_string())?;
+    ensure_gateway_unmatched_route_applied(&unmatched_route, unmatched_route_response)
 }
 
 pub(super) async fn apply_gateway_portal_host_rules_patches_if_needed(
@@ -386,5 +385,27 @@ pub(super) fn ensure_gateway_portal_applied(
 
     Err(format!(
         "Go backend did not apply gateway portal config (requested {requested}, reported {applied}); upgrade the gateway backend"
+    ))
+}
+
+pub(super) fn ensure_gateway_unmatched_route_applied(
+    requested: &Value,
+    response: Value,
+) -> Result<(), String> {
+    ensure_go_success(response.clone())?;
+
+    let Some(applied) = response.get("data").filter(|value| value.is_object()) else {
+        return Err(
+            "Go backend did not return the applied gateway unmatched-route config".to_string(),
+        );
+    };
+    let requested = normalize_gateway_unmatched_route(requested);
+    let applied = normalize_gateway_unmatched_route(applied);
+    if requested == applied {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Go backend did not apply gateway unmatched-route config (requested {requested}, reported {applied}); upgrade the gateway backend"
     ))
 }

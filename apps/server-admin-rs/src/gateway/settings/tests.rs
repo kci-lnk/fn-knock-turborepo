@@ -93,6 +93,13 @@ fn gateway_response_uses_node_defaults() {
         })
     );
     assert_eq!(
+        normalize_gateway_unmatched_route(&json!({
+            "upstream_error_detail": "reset_connection"
+        }))
+        .pointer("/upstream_error_detail"),
+        Some(&json!("reset_connection"))
+    );
+    assert_eq!(
         normalize_gateway_portal(&json!({})),
         json!({
             "enabled": true,
@@ -147,7 +154,7 @@ fn gateway_patch_merges_and_normalizes_sections() {
         "portal": { "display_style": "domain", "show_app_icon": false, "version": "v2" },
         "unmatched_route": {
             "behavior": "reset_connection",
-            "upstream_error_detail": "more"
+            "upstream_error_detail": "reset_connection"
         },
         "crawler_blocker": { "enabled": true }
     });
@@ -186,7 +193,7 @@ fn gateway_patch_merges_and_normalizes_sections() {
         config
             .pointer("/gateway_unmatched_route/upstream_error_detail")
             .and_then(Value::as_str),
-        Some("more")
+        Some("reset_connection")
     );
     assert_eq!(
         config
@@ -289,6 +296,41 @@ fn gateway_portal_runtime_echo_rejects_legacy_backend_for_v2() {
     assert!(error.contains("upgrade the gateway backend"));
     assert!(error.contains(r#""version":"v2""#));
     assert!(error.contains(r#""version":"v1""#));
+}
+
+#[test]
+fn gateway_unmatched_route_runtime_echo_accepts_applied_reset() {
+    let requested = json!({
+        "behavior": "error_page",
+        "upstream_error_detail": "reset_connection",
+    });
+    let response = json!({
+        "success": true,
+        "data": requested.clone(),
+    });
+
+    assert!(super::runtime::ensure_gateway_unmatched_route_applied(&requested, response).is_ok());
+}
+
+#[test]
+fn gateway_unmatched_route_runtime_echo_rejects_legacy_fallback() {
+    let requested = json!({
+        "behavior": "error_page",
+        "upstream_error_detail": "reset_connection",
+    });
+    let response = json!({
+        "success": true,
+        "data": {
+            "behavior": "error_page",
+            "upstream_error_detail": "less",
+        },
+    });
+
+    let error =
+        super::runtime::ensure_gateway_unmatched_route_applied(&requested, response).unwrap_err();
+    assert!(error.contains("upgrade the gateway backend"));
+    assert!(error.contains(r#""upstream_error_detail":"reset_connection""#));
+    assert!(error.contains(r#""upstream_error_detail":"less""#));
 }
 
 #[test]

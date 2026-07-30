@@ -344,9 +344,10 @@ export const enAdmin = {
     unmatchedRouteReset: "Block connection",
     upstreamErrorDetail: "Error details shown when an upstream fails",
     upstreamErrorDetailDescription:
-      "“Show less” reports only that the upstream is unavailable and does not expose its IP address, port, or underlying connection error to visitors. “Show more” displays the full connection error and is recommended only for troubleshooting.",
+      "“Show less” only reports that the upstream is unavailable. “Show more” displays the full connection error and is recommended only for troubleshooting. “Block connection” returns no error page and aborts the connection or current request stream.",
     upstreamErrorDetailLess: "Show less",
     upstreamErrorDetailMore: "Show more",
+    upstreamErrorDetailReset: "Block connection",
     throttleTitle: "Enable gateway reverse proxy throttling",
     throttleDescription:
       "Rate limit and briefly block by client IP to stop high-frequency probing, retry storms, and abnormal request floods.",

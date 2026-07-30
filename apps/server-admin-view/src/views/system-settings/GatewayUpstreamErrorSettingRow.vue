@@ -34,7 +34,7 @@ const { t } = useI18n();
     <div
       role="group"
       :aria-label="t('admin.gatewaySettings.upstreamErrorDetail')"
-      class="inline-flex w-fit rounded-md border bg-background p-1"
+      class="grid w-full gap-1 rounded-md border bg-background p-1 sm:inline-flex sm:w-fit sm:gap-0"
     >
       <Button
         type="button"
@@ -57,6 +57,17 @@ const { t } = useI18n();
         @click="selectDetail('more')"
       >
         {{ t("admin.gatewaySettings.upstreamErrorDetailMore") }}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        :variant="modelValue === 'reset_connection' ? 'default' : 'ghost'"
+        class="h-8 px-3"
+        :disabled="disabled"
+        :aria-pressed="modelValue === 'reset_connection'"
+        @click="selectDetail('reset_connection')"
+      >
+        {{ t("admin.gatewaySettings.upstreamErrorDetailReset") }}
       </Button>
     </div>
   </div>

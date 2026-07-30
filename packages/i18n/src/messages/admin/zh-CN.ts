@@ -310,9 +310,10 @@ export const zhCNAdmin = {
     unmatchedRouteReset: "阻断连接",
     upstreamErrorDetail: "上游异常时显示错误信息",
     upstreamErrorDetailDescription:
-      "“显示更少”仅提示上游服务不可用，不向访问者暴露上游 IP、端口和底层连接错误；“显示更多”会展示完整连接错误，仅建议在排障时使用。",
+      "“显示更少”仅提示上游服务不可用；“显示更多”会展示完整连接错误，仅建议在排障时使用；“阻断连接”不返回错误页面，直接中止连接或当前请求流。",
     upstreamErrorDetailLess: "显示更少",
     upstreamErrorDetailMore: "显示更多",
+    upstreamErrorDetailReset: "阻断连接",
     throttleTitle: "启用网关反代节流",
     throttleDescription:
       "按客户端 IP 做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。",

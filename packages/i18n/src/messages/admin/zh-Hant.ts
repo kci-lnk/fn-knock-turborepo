@@ -310,9 +310,10 @@ export const zhHantAdmin = {
     unmatchedRouteReset: "阻斷連接",
     upstreamErrorDetail: "上游異常時顯示錯誤資訊",
     upstreamErrorDetailDescription:
-      "「顯示更少」只提示上游服務不可用，不向訪問者暴露上游 IP、連接埠和底層連接錯誤；「顯示更多」會顯示完整連接錯誤，只建議在排障時使用。",
+      "「顯示更少」只提示上游服務不可用；「顯示更多」會顯示完整連接錯誤，只建議在排障時使用；「阻斷連接」不返回錯誤頁面，直接中止連接或目前的請求流。",
     upstreamErrorDetailLess: "顯示更少",
     upstreamErrorDetailMore: "顯示更多",
+    upstreamErrorDetailReset: "阻斷連接",
     throttleTitle: "啟用網關反代節流",
     throttleDescription:
       "按客戶端 IP 做限速與短時封禁，適合攔住高頻探測、錯誤重試風暴和異常刷請求。",

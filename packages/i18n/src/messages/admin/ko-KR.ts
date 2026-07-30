@@ -341,9 +341,10 @@ export const koKRAdmin = {
     unmatchedRouteReset: "연결 차단",
     upstreamErrorDetail: "업스트림 오류 시 표시할 정보",
     upstreamErrorDetailDescription:
-      "“간단히 표시”는 업스트림을 사용할 수 없다는 안내만 표시하며 방문자에게 업스트림 IP, 포트 또는 내부 연결 오류를 노출하지 않습니다. “자세히 표시”는 전체 연결 오류를 표시하므로 문제 해결 시에만 사용하는 것을 권장합니다.",
+      "“간단히 표시”는 업스트림을 사용할 수 없다는 안내만 표시합니다. “자세히 표시”는 전체 연결 오류를 표시하므로 문제 해결 시에만 사용하는 것을 권장합니다. “연결 차단”은 오류 페이지를 반환하지 않고 연결 또는 현재 요청 스트림을 중단합니다.",
     upstreamErrorDetailLess: "간단히 표시",
     upstreamErrorDetailMore: "자세히 표시",
+    upstreamErrorDetailReset: "연결 차단",
     throttleTitle: "게이트웨이 리버스 프록시 요청 제한",
     throttleDescription:
       "클라이언트 IP별 요청 속도를 제한하고 잠시 차단하여 잦은 탐색, 반복 재시도, 비정상적인 요청 폭주를 막습니다.",

@@ -59,10 +59,10 @@ pub(super) fn normalize_gateway_unmatched_route(value: &Value) -> Value {
         } else {
             "error_page"
         },
-        "upstream_error_detail": if value.get("upstream_error_detail").and_then(Value::as_str) == Some("more") {
-            "more"
-        } else {
-            "less"
+        "upstream_error_detail": match value.get("upstream_error_detail").and_then(Value::as_str) {
+            Some("more") => "more",
+            Some("reset_connection") => "reset_connection",
+            _ => "less",
         },
     })
 }

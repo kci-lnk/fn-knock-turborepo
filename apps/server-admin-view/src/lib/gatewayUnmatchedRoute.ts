@@ -15,7 +15,8 @@ export const isDefaultDomainAvailableForBehavior = (
 
 export const normalizeGatewayUpstreamErrorDetail = (
   value?: string | null,
-): GatewayUpstreamErrorDetail => (value === "more" ? "more" : "less");
+): GatewayUpstreamErrorDetail =>
+  value === "more" || value === "reset_connection" ? value : "less";
 
 export const buildGatewayUnmatchedRoutePatch = (
   behavior: GatewayUnmatchedRouteBehavior,

@@ -37,6 +37,21 @@ test("gateway upstream error detail defaults to less", () => {
   assert.equal(normalizeGatewayUpstreamErrorDetail(), "less");
   assert.equal(normalizeGatewayUpstreamErrorDetail("invalid"), "less");
   assert.equal(normalizeGatewayUpstreamErrorDetail("more"), "more");
+  assert.equal(
+    normalizeGatewayUpstreamErrorDetail("reset_connection"),
+    "reset_connection",
+  );
+});
+
+test("gateway upstream error setting offers connection blocking", () => {
+  const source = readSource(
+    "../src/views/system-settings/GatewayUpstreamErrorSettingRow.vue",
+  );
+
+  assert.match(source, /selectDetail\('reset_connection'\)/u);
+  assert.match(source, /admin\.gatewaySettings\.upstreamErrorDetailReset/u);
+  assert.match(source, /grid w-full gap-1/u);
+  assert.match(source, /sm:inline-flex sm:w-fit/u);
 });
 
 test("default-domain availability follows the behavior", () => {

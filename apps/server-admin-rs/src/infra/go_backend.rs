@@ -2096,15 +2096,15 @@ mod tests {
     fn gateway_unmatched_route_grpc_conversion_round_trips() {
         let parsed = parse_gateway_unmatched_route(&json!({
             "behavior": "reset_connection",
-            "upstream_error_detail": "more"
+            "upstream_error_detail": "reset_connection"
         }));
         assert_eq!(parsed.behavior, "reset_connection");
-        assert_eq!(parsed.upstream_error_detail, "more");
+        assert_eq!(parsed.upstream_error_detail, "reset_connection");
         assert_eq!(
             gateway_unmatched_route_to_json(parsed),
             json!({
                 "behavior": "reset_connection",
-                "upstream_error_detail": "more"
+                "upstream_error_detail": "reset_connection"
             })
         );
     }

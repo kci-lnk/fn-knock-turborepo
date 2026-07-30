@@ -1349,7 +1349,7 @@ export type GatewayPortalConfig = {
 };
 
 export type GatewayUnmatchedRouteBehavior = "error_page" | "reset_connection";
-export type GatewayUpstreamErrorDetail = "less" | "more";
+export type GatewayUpstreamErrorDetail = "less" | "more" | "reset_connection";
 
 export type GatewayUnmatchedRouteConfig = {
   behavior: GatewayUnmatchedRouteBehavior;

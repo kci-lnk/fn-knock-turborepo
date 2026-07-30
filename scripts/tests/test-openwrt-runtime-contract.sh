@@ -60,23 +60,23 @@ trap cleanup EXIT
 
 write_control_files "${TEST_DIR}/CONTROL" "aarch64_cortex-a53" "2.1.4" "1"
 CONTROL_FILE="${TEST_DIR}/CONTROL/control"
-rg -Fxq "Depends: ${EXPECTED_IPK_DEPENDS}" "${CONTROL_FILE}" || \
+grep -Fxq -- "Depends: ${EXPECTED_IPK_DEPENDS}" "${CONTROL_FILE}" || \
   fail "IPK control metadata has unexpected dependencies"
 
 for dependency in "${FORBIDDEN_DEPENDENCIES[@]}"; do
-  if rg -q "(^|[ ,])${dependency}([ ,]|$)" "${CONTROL_FILE}"; then
+  if grep -Eq -- "(^|[ ,])${dependency}([ ,]|$)" "${CONTROL_FILE}"; then
     fail "IPK control metadata still contains ${dependency}"
   fi
 done
 
-rg -Fq '"FN_KNOCK_DISABLE_IPTABLES=1"' deploy/openwrt/etc/init.d/fn-knock || \
+grep -Fq -- '"FN_KNOCK_DISABLE_IPTABLES=1"' deploy/openwrt/etc/init.d/fn-knock || \
   fail "OpenWrt gateway does not force-disable iptables"
 
-if rg -q 'clean\\.sh|iptables|ip6tables|nftables' deploy/openwrt/control/prerm; then
+if grep -Eq -- 'clean\.sh|iptables|ip6tables|nftables' deploy/openwrt/control/prerm; then
   fail "OpenWrt uninstall lifecycle still performs firewall cleanup"
 fi
 
-rg -Fq 'rm -f /var/lib/fn-knock/clean.sh' deploy/openwrt/control/postinst || \
+grep -Fq -- 'rm -f /var/lib/fn-knock/clean.sh' deploy/openwrt/control/postinst || \
   fail "OpenWrt upgrade does not remove a legacy firewall cleanup script"
 
 printf '[test-openwrt-runtime-contract] OpenWrt package and runtime contract passed\n'

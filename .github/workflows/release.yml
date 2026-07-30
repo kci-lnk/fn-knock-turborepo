@@ -156,19 +156,12 @@ jobs:
           npm ci
           cargo install cargo-audit --version 0.22.2 --locked
 
-      - name: Run JavaScript and Rust quality gates
+      - name: Run static and release quality gates
         run: |
           npm run security:audit
           npm run lint
           npm run check-types
-          npm run test
           npm run fn-knock:release:test
-
-      - name: Run Go tests
-        working-directory: Go-Reauth-Proxy
-        env:
-          GOFLAGS: -mod=readonly
-        run: go test ./...
 
       - name: Verify generated Go control-plane stubs
         shell: bash

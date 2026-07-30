@@ -93,6 +93,7 @@ const FAVICON_CANDIDATE_ATTRIBUTE_NAMES: [&str; 9] = [
     "data-favicon",
 ];
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
+const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE: u16 = 40_901;
 const HOST_MAPPINGS_TRANSACTION_LOCK_KEY: &str =
     "__fn_knock_internal:host-mappings-config-runtime-transaction";
 const HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS: usize = 120;
@@ -1287,6 +1288,11 @@ async fn update_host_mappings(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let previous_visibility_policies = previous_config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     if let Some(revision) = body.revision.as_deref().map(str::trim)
         && revision != host_mappings_revision(&previous_mappings)
     {
@@ -1305,7 +1311,7 @@ async fn update_host_mappings(
             );
         }
     };
-    let normalized =
+    let compiled =
         match compile_host_mapping_visibilities(&state, normalized, &previous_config).await {
             Ok(value) => value,
             Err(message) => {
@@ -1315,11 +1321,17 @@ async fn update_host_mappings(
                 );
             }
         };
+    let normalized = compiled.mappings;
+    let visibility_policies = compiled.visibility_policies;
 
     let mut candidate_config = previous_config.clone();
     ensure_object(&mut candidate_config).insert(
         "host_mappings".to_string(),
         Value::Array(normalized.clone()),
+    );
+    ensure_object(&mut candidate_config).insert(
+        "visibility_policies".to_string(),
+        Value::Object(visibility_policies.clone()),
     );
     if let Err(message) = validate_passkey_rp_config(&candidate_config) {
         return response::error(
@@ -1346,7 +1358,11 @@ async fn update_host_mappings(
 
     let updated_config = match state
         .store
-        .compare_and_set_host_mappings(&previous_mappings, &normalized)
+        .compare_and_set_host_mappings_with_visibility_policies(
+            &previous_mappings,
+            &normalized,
+            &visibility_policies,
+        )
         .await
     {
         Ok(Some(config)) => config,
@@ -1371,7 +1387,11 @@ async fn update_host_mappings(
         );
         match state
             .store
-            .compare_and_set_host_mappings(&normalized, &previous_mappings)
+            .compare_and_set_host_mappings_with_visibility_policies(
+                &normalized,
+                &previous_mappings,
+                &previous_visibility_policies,
+            )
             .await
         {
             Ok(Some(_)) => {}
@@ -1413,7 +1433,11 @@ async fn update_host_mappings(
         tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
         let _ = state
             .store
-            .compare_and_set_host_mappings(&normalized, &previous_mappings)
+            .compare_and_set_host_mappings_with_visibility_policies(
+                &normalized,
+                &previous_mappings,
+                &previous_visibility_policies,
+            )
             .await;
         return response::error(
             StatusCode::CONFLICT,
@@ -1530,7 +1554,7 @@ async fn update_host_mapping_catalog(
                 );
             }
         };
-    let normalized =
+    let compiled =
         match compile_host_mapping_visibilities(&state, normalized, &previous_config).await {
             Ok(value) => value,
             Err(message) => {
@@ -1540,6 +1564,8 @@ async fn update_host_mapping_catalog(
                 );
             }
         };
+    let normalized = compiled.mappings;
+    let visibility_policies = compiled.visibility_policies;
 
     let mut candidate_config = previous_config.clone();
     let candidate_object = ensure_object(&mut candidate_config);
@@ -1554,6 +1580,10 @@ async fn update_host_mapping_catalog(
     candidate_object.insert(
         "host_mapping_grouped_view".to_string(),
         Value::Bool(grouped_view),
+    );
+    candidate_object.insert(
+        "visibility_policies".to_string(),
+        Value::Object(visibility_policies.clone()),
     );
     if let Err(message) = validate_passkey_rp_config(&candidate_config) {
         return response::error(
@@ -1581,13 +1611,14 @@ async fn update_host_mapping_catalog(
 
     let updated_config = match state
         .store
-        .compare_and_set_host_mapping_catalog(
+        .compare_and_set_host_mapping_catalog_with_visibility_policies(
             &previous_mappings,
             &previous_groups,
             previous_grouped_view,
             &normalized,
             &groups,
             grouped_view,
+            &visibility_policies,
         )
         .await
     {
@@ -1608,15 +1639,21 @@ async fn update_host_mapping_catalog(
     };
 
     let rollback = || async {
+        let previous_visibility_policies = previous_config
+            .get("visibility_policies")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
         let rolled_back = state
             .store
-            .compare_and_set_host_mapping_catalog(
+            .compare_and_set_host_mapping_catalog_with_visibility_policies(
                 &normalized,
                 &groups,
                 grouped_view,
                 &previous_mappings,
                 &previous_groups,
                 previous_grouped_view,
+                &previous_visibility_policies,
             )
             .await;
         if !matches!(rolled_back, Ok(Some(_))) {
@@ -1681,6 +1718,21 @@ async fn update_stream_mappings(
     State(state): State<AppState>,
     Json(body): Json<MappingsBody>,
 ) -> Response {
+    update_stream_mappings_with_runtime_sync(state, body, |state, config| async move {
+        sync_stream_mappings_runtime(&state, &config).await
+    })
+    .await
+}
+
+async fn update_stream_mappings_with_runtime_sync<F, Fut>(
+    state: AppState,
+    body: MappingsBody,
+    sync_runtime: F,
+) -> Response
+where
+    F: FnOnce(AppState, Value) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
     let translator = Translator::from_state(&state).await;
     let normalized = match normalize_stream_mappings(body.mappings) {
         Ok(value) => value,
@@ -1691,6 +1743,7 @@ async fn update_stream_mappings(
             );
         }
     };
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
 
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,
@@ -1722,10 +1775,13 @@ async fn update_stream_mappings(
             );
         }
     };
-    let allow_unchanged_legacy_loops = protocol_mapping_feature
+    let protocol_mapping_enabled = protocol_mapping_feature
         .get("enabled")
         .and_then(Value::as_bool)
-        != Some(true);
+        == Some(true);
+    let only_removes_entries =
+        stream_mapping_update_only_removes_entries(previous_mappings, &normalized);
+    let allow_unchanged_legacy_loops = !protocol_mapping_enabled || only_removes_entries;
     if let Err(message) = validate_stream_mapping_update_safety(
         previous_mappings,
         &normalized,
@@ -1741,6 +1797,16 @@ async fn update_stream_mappings(
         "stream_mappings".to_string(),
         Value::Array(normalized.clone()),
     );
+    let requires_disabled_legacy_repair = protocol_mapping_enabled
+        && only_removes_entries
+        && validate_stream_mapping_runtime_safety(&updated_config).is_err();
+    if requires_disabled_legacy_repair {
+        return response::error_with_code(
+            StatusCode::CONFLICT,
+            Some(STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE),
+            admin_config_text(&translator, "streamMappings.disableBeforeLegacyRepair"),
+        );
+    }
 
     if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save stream mappings");
@@ -1750,7 +1816,18 @@ async fn update_stream_mappings(
         );
     }
 
-    if let Err(message) = sync_stream_mappings_runtime(&state, &updated_config).await {
+    let runtime_result = sync_runtime(state.clone(), updated_config.clone()).await;
+    if !protocol_mapping_enabled {
+        if let Err(message) = runtime_result {
+            tracing::warn!(
+                %message,
+                "failed to reconcile disabled stream mapping runtime after config update"
+            );
+        }
+        return response::success_empty().into_response();
+    }
+
+    if let Err(message) = runtime_result {
         rollback_stream_mappings(&state, &previous_config).await;
         tracing::warn!(%message, "failed to sync stream mappings runtime");
         return response::error(

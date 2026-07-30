@@ -384,6 +384,8 @@ export const zhHantServer = {
       localPortLoop:
         "監聽端口 {port} 不能轉發到本機相同端口，否則會形成循環；請進入協議映射修改對外端口或目標端口",
       saveFailed: "保存協議映射失敗",
+      disableBeforeLegacyRepair:
+        "仍有錯誤的舊協議映射，請先停用協議映射後再繼續刪除",
       syncFailed: "同步協議映射與網關端口放行規則失敗",
       syncFailedRolledBack: "同步協議映射與網關端口放行規則失敗，已回滾配置",
     },

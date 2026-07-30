@@ -11,13 +11,37 @@ pub(crate) fn build_host_rules_payload_for_config(config: &Value) -> Value {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    if !host_mapping_grouped_view_from_config(config) {
-        return build_host_rules_payload_with_groups(&mappings, &[]);
-    }
-    let groups =
-        normalize_host_mapping_groups(host_mapping_groups_from_config(config)).unwrap_or_default();
-    let ordered = ordered_host_mappings_for_groups(&mappings, &groups);
-    build_host_rules_payload_with_groups(&ordered, &groups)
+    let items = if !host_mapping_grouped_view_from_config(config) {
+        build_host_rules_payload_with_groups(&mappings, &[])
+    } else {
+        let groups = normalize_host_mapping_groups(host_mapping_groups_from_config(config))
+            .unwrap_or_default();
+        let ordered = ordered_host_mappings_for_groups(&mappings, &groups);
+        build_host_rules_payload_with_groups(&ordered, &groups)
+    };
+    let referenced = items
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.pointer("/visibility/policy_id"))
+        .filter_map(Value::as_str)
+        .collect::<HashSet<_>>();
+    let visibility_policies = config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|policies| policies.iter())
+        .filter(|(id, _)| referenced.contains(id.as_str()))
+        .map(|(id, policy)| {
+            let mut policy = policy.as_object().cloned().unwrap_or_default();
+            policy.insert("id".to_string(), Value::String(id.clone()));
+            Value::Object(policy)
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "items": items,
+        "visibility_policies": visibility_policies,
+    })
 }
 
 fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) -> Value {
@@ -60,8 +84,8 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     "availability": object.get("availability").cloned().unwrap_or(Value::Null),
                     "visibility": object.get("visibility").map(|visibility| json!({
                         "mode": visibility.get("mode").and_then(Value::as_str).unwrap_or("inherit"),
-                        "cidrs": visibility.get("cidrs").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
-                    })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
+                        "policy_id": visibility.get("policy_id").cloned().unwrap_or(Value::Null),
+                    })).unwrap_or_else(|| json!({ "mode": "inherit" })),
                     "advanced_auth": object.get("advanced_auth").cloned().unwrap_or(Value::Null),
                     "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
                     "group_id": group_id,

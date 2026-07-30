@@ -186,6 +186,15 @@ pub(super) fn visibility_sync_payload(runtime: &Value) -> Value {
             .map(Value::Array)
             .unwrap_or_else(|| Value::Array(Vec::new())),
     );
+    if let Some(policy_id) = runtime.get("policy_id").and_then(Value::as_str) {
+        payload.insert(
+            "policy_id".to_string(),
+            Value::String(policy_id.to_string()),
+        );
+    }
+    if let Some(policy) = runtime.get("policy").filter(|value| value.is_object()) {
+        payload.insert("policy".to_string(), policy.clone());
+    }
     if let Some(updated_at) = runtime.get("updated_at").and_then(Value::as_str) {
         payload.insert(
             "updated_at".to_string(),

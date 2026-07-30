@@ -3279,6 +3279,7 @@ name = "server-admin-rs"
 version = "2.1.6"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "async-trait",
  "axum",
  "base64 0.22.1",
@@ -3296,6 +3297,7 @@ dependencies = [
  "lettre",
  "libc",
  "mime_guess",
+ "num-traits",
  "prost",
  "protoc-bin-vendored",
  "rand 0.9.4",

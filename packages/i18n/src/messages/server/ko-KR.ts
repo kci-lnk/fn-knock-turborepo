@@ -459,6 +459,8 @@ export const koKRServer = {
       localPortLoop:
         "수신 포트 {port}을(를) 이 호스트의 동일한 포트로 전달하면 순환이 발생합니다. 프로토콜 매핑에서 외부 포트 또는 대상 포트를 변경하세요.",
       saveFailed: "프로토콜 매핑을 저장하지 못했습니다.",
+      disableBeforeLegacyRepair:
+        "잘못된 이전 프로토콜 매핑이 남아 있습니다. 삭제를 계속하기 전에 프로토콜 매핑을 비활성화하세요.",
       syncFailed:
         "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다.",
       syncFailedRolledBack:

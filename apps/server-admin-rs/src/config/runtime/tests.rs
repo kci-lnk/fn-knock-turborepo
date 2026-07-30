@@ -177,6 +177,33 @@ async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config(
     );
 }
 
+#[tokio::test]
+async fn protocol_mapping_feature_update_waits_for_the_shared_transaction_lock() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.store.get_config().await.expect("load config");
+    config["run_type"] = json!(0);
+    state.store.save_config(&config).await.expect("save config");
+
+    let guard = state.protocol_mapping_update_lock.lock().await;
+    let task_state = state.clone();
+    let mut task = tokio::spawn(async move {
+        update_protocol_mapping_feature(State(task_state), Json(json!({ "enabled": true }))).await
+    });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), &mut task)
+            .await
+            .is_err(),
+        "feature update must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    let response = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+        .await
+        .expect("feature update should finish after releasing the lock")
+        .expect("feature update task");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 #[test]
 fn builds_proxy_protocol_force_payload_from_go_envelopes() {
     assert_eq!(

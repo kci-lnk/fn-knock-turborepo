@@ -60,7 +60,15 @@ async fn gateway_visibility_allows_enabled_empty_global_rules() {
     assert_eq!(compiled.config["selections"], json!([]));
     assert_eq!(compiled.config["custom_cidrs"], json!([]));
     assert_eq!(compiled.runtime["enabled"], Value::Bool(true));
-    assert_eq!(compiled.runtime["cidrs"], json!([]));
+    assert!(compiled.runtime.get("cidrs").is_none());
+    assert!(
+        compiled.runtime["policy_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("ipset-v1:")
+    );
+    assert_eq!(compiled.runtime["source_cidr_count"], json!(0));
+    assert_eq!(compiled.runtime["range_count"], json!(0));
 }
 
 #[test]

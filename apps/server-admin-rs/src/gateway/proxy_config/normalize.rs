@@ -1,5 +1,8 @@
 use super::*;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::{
+    collections::BTreeSet,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+};
 
 use get_if_addrs::{IfAddr, get_if_addrs};
 
@@ -63,9 +66,18 @@ pub(super) async fn rollback_host_mappings_with_runtime_sync<Sync, SyncFuture>(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let previous_visibility_policies = previous_config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     let restored_config = match state
         .store
-        .compare_and_set_host_mappings(expected_current_mappings, &previous_mappings)
+        .compare_and_set_host_mappings_with_visibility_policies(
+            expected_current_mappings,
+            &previous_mappings,
+            &previous_visibility_policies,
+        )
         .await
     {
         Ok(Some(config)) => config,
@@ -518,12 +530,23 @@ pub(super) fn normalize_favicon_override(value: Option<&Value>) -> Result<String
     Ok(value.to_string())
 }
 
+#[derive(Debug)]
+pub(super) struct CompiledHostMappings {
+    pub(super) mappings: Vec<Value>,
+    pub(super) visibility_policies: Map<String, Value>,
+}
+
 pub(super) async fn compile_host_mapping_visibilities(
     state: &AppState,
     mappings: Vec<Value>,
     previous_config: &Value,
-) -> Result<Vec<Value>, String> {
+) -> Result<CompiledHostMappings, String> {
     let previous_by_host = previous_host_mappings_by_host(previous_config);
+    let mut visibility_policies = previous_config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     let mut compiled = Vec::with_capacity(mappings.len());
     for mapping in mappings {
         let Some(mut object) = mapping.as_object().cloned() else {
@@ -543,19 +566,86 @@ pub(super) async fn compile_host_mapping_visibilities(
             .get(&host)
             .and_then(|value| value.get("visibility"))
             == object.get("visibility");
-        if is_custom && !matches_previous {
+        if is_custom {
             let visibility = object
                 .get("visibility")
                 .and_then(Value::as_object)
                 .ok_or_else(|| format!("Host mapping {host} visibility must be an object"))?;
-            let next = gateway_settings::compile_host_visibility_config(state, visibility)
-                .await
-                .map_err(|message| format!("Host mapping {host} visibility: {message}"))?;
-            object.insert("visibility".to_string(), next);
+            let existing_policy_id = visibility
+                .get("policy_id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            let existing_policy_valid =
+                existing_policy_id.is_some_and(|id| visibility_policies.contains_key(id));
+            let next = if matches_previous && !existing_policy_valid {
+                let legacy_cidrs = visibility
+                    .get("cidrs")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>();
+                if legacy_cidrs.is_empty() {
+                    gateway_settings::compile_host_visibility_config(state, visibility)
+                        .await
+                        .map_err(|message| format!("Host mapping {host} visibility: {message}"))?
+                } else {
+                    let policy = crate::cidr::compile_ip_set(legacy_cidrs)
+                        .map_err(|message| format!("Host mapping {host} visibility: {message}"))?;
+                    gateway_settings::CompiledHostVisibility {
+                        config: json!({
+                            "mode": "custom",
+                            "selections": visibility.get("selections").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+                            "custom_cidrs": visibility.get("custom_cidrs").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+                            "policy_id": policy.id,
+                            "source_cidr_count": policy.source_cidr_count,
+                            "range_count": policy.range_count(),
+                        }),
+                        policy,
+                    }
+                }
+            } else if !matches_previous {
+                gateway_settings::compile_host_visibility_config(state, visibility)
+                    .await
+                    .map_err(|message| format!("Host mapping {host} visibility: {message}"))?
+            } else {
+                let mut compact = visibility.clone();
+                compact.remove("cidrs");
+                object.insert("visibility".to_string(), Value::Object(compact));
+                compiled.push(Value::Object(object));
+                continue;
+            };
+            visibility_policies.insert(next.policy.id.clone(), next.policy.to_config_value());
+            object.insert("visibility".to_string(), next.config);
+        } else if let Some(visibility) = object.get_mut("visibility").and_then(Value::as_object_mut)
+        {
+            visibility.remove("cidrs");
+            visibility.remove("policy_id");
+            visibility.remove("source_cidr_count");
+            visibility.remove("range_count");
         }
         compiled.push(Value::Object(object));
     }
-    Ok(compiled)
+    let mut referenced = compiled
+        .iter()
+        .filter_map(|mapping| mapping.pointer("/visibility/policy_id"))
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect::<BTreeSet<_>>();
+    if let Some(global_policy_id) = previous_config
+        .pointer("/gateway_visibility/policy_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        referenced.insert(global_policy_id.to_string());
+    }
+    visibility_policies.retain(|id, _| referenced.contains(id));
+    Ok(CompiledHostMappings {
+        mappings: compiled,
+        visibility_policies,
+    })
 }
 
 pub(super) fn normalize_host_mapping_visibility(
@@ -629,12 +719,20 @@ pub(super) fn normalize_host_mapping_visibility(
         source.and_then(|value| value.get("cidrs"))
     };
     let cidrs = normalized_visibility_strings(cidr_source);
-    Ok(json!({
+    let mut normalized = json!({
         "mode": mode,
         "selections": selections,
         "custom_cidrs": custom_cidrs,
         "cidrs": cidrs,
-    }))
+    });
+    if mode == "custom" {
+        for key in ["policy_id", "source_cidr_count", "range_count"] {
+            if let Some(value) = previous.and_then(|value| value.get(key)).cloned() {
+                ensure_object(&mut normalized).insert(key.to_string(), value);
+            }
+        }
+    }
+    Ok(normalized)
 }
 
 fn preserve_visibility_selection_metadata(
@@ -976,6 +1074,20 @@ pub(super) fn validate_stream_mapping_update_safety(
         }
     }
     Ok(())
+}
+
+pub(super) fn stream_mapping_update_only_removes_entries(
+    previous_mappings: &[Value],
+    next_mappings: &[Value],
+) -> bool {
+    next_mappings.len() < previous_mappings.len()
+        && next_mappings.iter().all(|next| {
+            let next_identity = stream_mapping_forward_identity(next);
+            next_identity.is_some()
+                && previous_mappings
+                    .iter()
+                    .any(|previous| stream_mapping_forward_identity(previous) == next_identity)
+        })
 }
 
 fn stream_mapping_forward_identity(mapping: &Value) -> Option<(&str, i64, &str)> {

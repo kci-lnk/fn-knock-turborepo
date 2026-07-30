@@ -13,7 +13,7 @@ use crate::{
 const CACHE_PREFIX: &str = "fn_knock:cidr";
 const SUCCESS_CACHE_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
 const PROVINCE_WIDE_VALUE: &str = "__province_all__";
-const CITY_ONLY_PROVINCES: &[&str] = &["广东", "浙江"];
+const PROVINCES_REQUIRING_CITY_AGGREGATION: &[&str] = &["广东", "浙江"];
 
 pub(crate) async fn lookup_regions(
     state: &AppState,
@@ -215,6 +215,30 @@ async fn get_cached_query_at(
         validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
         return Ok(data);
     }
+    if requires_city_aggregation(query) {
+        let data = aggregate_province_cidrs_at(state, query, base_url).await?;
+        state
+            .store
+            .set_json_value_ex(&key, &data, SUCCESS_CACHE_TTL_SECONDS)
+            .await?;
+        return Ok(data);
+    }
+    get_cached_leaf_query_at(state, query, base_url).await
+}
+
+async fn get_cached_leaf_query_at(
+    state: &AppState,
+    query: &CidrRegionQuery,
+    base_url: &str,
+) -> Result<Value, CidrError> {
+    let key = namespaced_cache_key(
+        base_url,
+        &format!("cidrs:{}", url_encode_component(&query.key())),
+    );
+    if let Some(data) = state.store.get_json_value(&key).await? {
+        validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
+        return Ok(data);
+    }
     let pairs = query.query_pairs();
     let data = fetch_data(state, base_url, "cidrs", &pairs)
         .await
@@ -227,6 +251,66 @@ async fn get_cached_query_at(
     Ok(data)
 }
 
+async fn aggregate_province_cidrs_at(
+    state: &AppState,
+    query: &CidrRegionQuery,
+    base_url: &str,
+) -> Result<Value, CidrError> {
+    let province = required_province(&query.province)?;
+    let encoded = url_encode_component(&province);
+    let cities = get_cached_data_at(
+        state,
+        base_url,
+        &format!("cities:{encoded}"),
+        &format!("provinces/{encoded}/cities"),
+        &[],
+    )
+    .await?;
+    let city_names = cities
+        .get("items")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.get("name").and_then(Value::as_str))
+        .map(normalize_string)
+        .filter(|city| !city.is_empty())
+        .collect::<Vec<_>>();
+    if city_names.is_empty() {
+        return Err(CidrError::Service(
+            "CIDR upstream response missing city data".to_string(),
+        ));
+    }
+
+    let mut ipv4 = Vec::new();
+    let mut ipv6 = Vec::new();
+    for city in city_names {
+        let city_query = CidrRegionQuery::new(province.clone(), Some(city), query.operator);
+        let data = get_cached_leaf_query_at(state, &city_query, base_url).await?;
+        ipv4.extend(json_string_array(data.pointer("/cidr_groups/4")));
+        ipv6.extend(json_string_array(data.pointer("/cidr_groups/6")));
+    }
+    let ipv4 = normalize_cidr_strings(ipv4);
+    let ipv6 = normalize_cidr_strings(ipv6);
+    let ipv4_count = ipv4.len();
+    let ipv6_count = ipv6.len();
+    let mut data = json!({
+        "province": province,
+        "city": Value::Null,
+        "cidr_groups": {
+            "4": ipv4,
+            "6": ipv6,
+        },
+        "counts": {
+            "4": ipv4_count,
+            "6": ipv6_count,
+        },
+    });
+    if let Some(operator) = query.operator {
+        data["operator"] = Value::String(operator.as_str().to_string());
+    }
+    Ok(data)
+}
+
 async fn get_cached_data(
     state: &AppState,
     logical_key: &str,
@@ -236,6 +320,16 @@ async fn get_cached_data(
     let (_, base_url) = configured_cidr_source(state)
         .await
         .map_err(CidrError::Service)?;
+    get_cached_data_at(state, &base_url, logical_key, path, query).await
+}
+
+async fn get_cached_data_at(
+    state: &AppState,
+    base_url: &str,
+    logical_key: &str,
+    path: &str,
+    query: &[(&str, &str)],
+) -> Result<Value, CidrError> {
     let key = namespaced_cache_key(&base_url, logical_key);
     if let Some(data) = state.store.get_json_value(&key).await? {
         return Ok(data);
@@ -262,21 +356,19 @@ fn validate_query(query: &CidrRegionQuery) -> Result<(), CidrError> {
     if query.province.trim().is_empty() {
         return Err(CidrError::BadRequest("province is required".to_string()));
     }
-    if query.query_city.is_none() && is_city_only_province(&query.province) {
-        return Err(CidrError::BadRequest(
-            "province-wide CIDR selection is unavailable".to_string(),
-        ));
-    }
     Ok(())
 }
 
-fn supports_province_wide(province: &str, is_municipality: bool) -> bool {
-    !is_municipality && !is_city_only_province(province)
+fn supports_province_wide(_province: &str, is_municipality: bool) -> bool {
+    !is_municipality
 }
 
-fn is_city_only_province(province: &str) -> bool {
-    let province = province.trim().trim_end_matches('省');
-    CITY_ONLY_PROVINCES.contains(&province)
+fn requires_city_aggregation(query: &CidrRegionQuery) -> bool {
+    if query.query_city.is_some() {
+        return false;
+    }
+    let province = query.province.trim().trim_end_matches('省');
+    PROVINCES_REQUIRING_CITY_AGGREGATION.contains(&province)
 }
 
 fn required_province(value: &str) -> Result<String, CidrError> {
@@ -462,17 +554,26 @@ mod tests {
     use crate::cidr::CidrOperator;
 
     #[test]
-    fn city_only_provinces_remain_explicit_business_rules() {
-        assert!(!supports_province_wide("浙江", false));
-        assert!(!supports_province_wide("浙江省", false));
-        assert!(!supports_province_wide("广东", false));
+    fn all_non_municipalities_offer_province_wide_selection() {
+        assert!(supports_province_wide("浙江", false));
+        assert!(supports_province_wide("浙江省", false));
+        assert!(supports_province_wide("广东", false));
         assert!(supports_province_wide("江苏", false));
         assert!(!supports_province_wide("北京", true));
 
-        assert!(validate_query(&CidrRegionQuery::new("浙江", None::<String>, None)).is_err());
-        assert!(validate_query(&CidrRegionQuery::new("广东省", None::<String>, None)).is_err());
+        let zhejiang = CidrRegionQuery::new("浙江", None::<String>, None);
+        let guangdong = CidrRegionQuery::new("广东省", None::<String>, None);
+        assert!(validate_query(&zhejiang).is_ok());
+        assert!(validate_query(&guangdong).is_ok());
+        assert!(requires_city_aggregation(&zhejiang));
+        assert!(requires_city_aggregation(&guangdong));
         assert!(validate_query(&CidrRegionQuery::new("浙江", Some("杭州"), None)).is_ok());
         assert!(validate_query(&CidrRegionQuery::new("江苏", None::<String>, None)).is_ok());
+        assert!(!requires_city_aggregation(&CidrRegionQuery::new(
+            "浙江",
+            Some("杭州"),
+            None,
+        )));
     }
 
     #[test]

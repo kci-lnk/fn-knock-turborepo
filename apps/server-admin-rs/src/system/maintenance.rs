@@ -27,6 +27,7 @@ use uuid::Uuid;
 
 use crate::{
     app_version::{APP_BACKUP_IMPORT_MIN_VERSION, APP_BACKUP_SCHEMA_VERSION, APP_LOCAL_VERSION},
+    gateway_settings,
     i18n::Translator,
     proxy_config, response, runtime_config, runtime_profile, ssl,
     state::AppState,

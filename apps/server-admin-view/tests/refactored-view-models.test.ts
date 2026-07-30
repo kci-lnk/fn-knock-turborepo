@@ -209,6 +209,22 @@ describe("stream mapping model", () => {
       "tcp:8080",
     );
   });
+
+  it("removes a legacy local-loop mapping without retaining it in the payload", () => {
+    const legacy: StreamMapping = {
+      protocol: "udp",
+      listen_port: 12333,
+      target: "127.0.0.1:12333",
+      use_auth: true,
+      comment: "legacy",
+    };
+
+    assert.equal(
+      isObviousLocalStreamTargetLoop(legacy.target, legacy.listen_port),
+      true,
+    );
+    assert.deepEqual(removeStreamMapping([legacy], getMappingKey(legacy)), []);
+  });
 });
 
 describe("session duration model", () => {

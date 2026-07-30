@@ -103,6 +103,55 @@ fn config_host_mappings_fingerprint(config: &Value) -> crate::storage::StorageRe
     )?))
 }
 
+fn replace_visibility_policies_for_host_mappings(
+    config: &mut Value,
+    replacement_mappings: &[Value],
+    supplied_policies: &Map<String, Value>,
+) -> crate::storage::StorageResult<()> {
+    let existing_policies = config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut referenced = BTreeSet::new();
+    for mapping in replacement_mappings {
+        if let Some(id) = mapping
+            .pointer("/visibility/policy_id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            referenced.insert(id.to_string());
+        }
+    }
+    if let Some(id) = config
+        .pointer("/gateway_visibility/policy_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        referenced.insert(id.to_string());
+    }
+    let mut next = Map::new();
+    for id in referenced {
+        let policy = supplied_policies
+            .get(&id)
+            .or_else(|| existing_policies.get(&id))
+            .cloned()
+            .ok_or_else(|| {
+                crate::storage::storage_error(format!(
+                    "visibility policy {id} is missing from the host mapping transaction"
+                ))
+            })?;
+        next.insert(id, policy);
+    }
+    let object = config
+        .as_object_mut()
+        .ok_or_else(|| crate::storage::storage_error("stored config must be a JSON object"))?;
+    object.insert("visibility_policies".to_string(), Value::Object(next));
+    Ok(())
+}
+
 fn take_config_generation_marker(
     config: &mut Value,
 ) -> crate::storage::StorageResult<Option<ConfigGenerationMarker>> {
@@ -845,6 +894,7 @@ return value
         if batched_commands > 0 {
             pipe.query_async::<()>(&mut conn).await?;
         }
+        self.refresh_config_snapshot().await?;
         Ok(())
     }
 
@@ -881,6 +931,9 @@ return value
         }
         let (cleared_keys, _): (usize, ()) =
             pipe.query_async_replacing_prefix(&mut conn, prefix).await?;
+        if prefix == "fn_knock:" {
+            self.refresh_config_snapshot().await?;
+        }
         Ok(cleared_keys)
     }
 
@@ -1005,6 +1058,55 @@ return 1
         Ok(config)
     }
 
+    /// Atomically replaces the complete config only when the persisted
+    /// generation and value still match `expected`. This is reserved for
+    /// idempotent format migrations which must update host mappings and their
+    /// shared policy table in one commit.
+    pub async fn compare_and_set_config_migration(
+        &self,
+        expected: &Value,
+        replacement: &Value,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let mut expected_config = expected.clone();
+        take_config_generation_marker(&mut expected_config)?;
+        strip_internal_config_metadata(&mut expected_config);
+        let mut replacement_config = replacement.clone();
+        strip_internal_config_metadata(&mut replacement_config);
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            if current_config != expected_config {
+                return Ok(None);
+            }
+            let host_mappings_changed =
+                config_host_mappings(&current_config) != config_host_mappings(&replacement_config);
+            let replacement_generation = if host_mappings_changed {
+                snapshot.generation.checked_add(1).ok_or_else(|| {
+                    crate::storage::storage_error("host mappings generation overflow")
+                })?
+            } else {
+                snapshot.generation
+            };
+            let replacement_raw = serde_json::to_string(&replacement_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                replacement_generation,
+            )
+            .await?
+            {
+                let mut published = replacement_config;
+                inject_config_generation_marker(&mut published, replacement_generation)?;
+                self.publish_config_snapshot(published.clone());
+                return Ok(Some(published));
+            }
+        }
+        Ok(None)
+    }
+
     /// Atomically replaces only the `host_mappings` section when its current
     /// value still exactly matches `expected`.
     ///
@@ -1016,6 +1118,26 @@ return 1
         &self,
         expected: &[Value],
         replacement: &[Value],
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        self.compare_and_set_host_mappings_inner(expected, replacement, None)
+            .await
+    }
+
+    pub async fn compare_and_set_host_mappings_with_visibility_policies(
+        &self,
+        expected: &[Value],
+        replacement: &[Value],
+        visibility_policies: &Map<String, Value>,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        self.compare_and_set_host_mappings_inner(expected, replacement, Some(visibility_policies))
+            .await
+    }
+
+    async fn compare_and_set_host_mappings_inner(
+        &self,
+        expected: &[Value],
+        replacement: &[Value],
+        visibility_policies: Option<&Map<String, Value>>,
     ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         // An unrelated top-level section may change between our read and the
@@ -1044,6 +1166,13 @@ return 1
                 "host_mappings".to_string(),
                 Value::Array(replacement.to_vec()),
             );
+            if let Some(visibility_policies) = visibility_policies {
+                replace_visibility_policies_for_host_mappings(
+                    &mut current_config,
+                    replacement,
+                    visibility_policies,
+                )?;
+            }
             let replacement_raw = serde_json::to_string(&current_config)?;
             let replacement_generation = if mappings_changed {
                 snapshot.generation.checked_add(1).ok_or_else(|| {
@@ -1061,6 +1190,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, replacement_generation)?;
+                self.publish_config_snapshot(current_config.clone());
                 return Ok(Some(current_config));
             }
         }
@@ -1078,6 +1208,52 @@ return 1
         replacement_mappings: &[Value],
         replacement_groups: &[Value],
         replacement_grouped_view: bool,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        self.compare_and_set_host_mapping_catalog_inner(
+            expected_mappings,
+            expected_groups,
+            expected_grouped_view,
+            replacement_mappings,
+            replacement_groups,
+            replacement_grouped_view,
+            None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn compare_and_set_host_mapping_catalog_with_visibility_policies(
+        &self,
+        expected_mappings: &[Value],
+        expected_groups: &[Value],
+        expected_grouped_view: bool,
+        replacement_mappings: &[Value],
+        replacement_groups: &[Value],
+        replacement_grouped_view: bool,
+        visibility_policies: &Map<String, Value>,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        self.compare_and_set_host_mapping_catalog_inner(
+            expected_mappings,
+            expected_groups,
+            expected_grouped_view,
+            replacement_mappings,
+            replacement_groups,
+            replacement_grouped_view,
+            Some(visibility_policies),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn compare_and_set_host_mapping_catalog_inner(
+        &self,
+        expected_mappings: &[Value],
+        expected_groups: &[Value],
+        expected_grouped_view: bool,
+        replacement_mappings: &[Value],
+        replacement_groups: &[Value],
+        replacement_grouped_view: bool,
+        visibility_policies: Option<&Map<String, Value>>,
     ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         for _ in 0..32 {
@@ -1125,6 +1301,13 @@ return 1
                 "host_mapping_grouped_view".to_string(),
                 Value::Bool(replacement_grouped_view),
             );
+            if let Some(visibility_policies) = visibility_policies {
+                replace_visibility_policies_for_host_mappings(
+                    &mut current_config,
+                    replacement_mappings,
+                    visibility_policies,
+                )?;
+            }
             let replacement_raw = serde_json::to_string(&current_config)?;
             let replacement_generation = if changed {
                 snapshot.generation.checked_add(1).ok_or_else(|| {
@@ -1142,6 +1325,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, replacement_generation)?;
+                self.publish_config_snapshot(current_config.clone());
                 return Ok(Some(current_config));
             }
         }
@@ -1209,6 +1393,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                self.publish_config_snapshot(current_config.clone());
                 return Ok(current_config);
             }
         }
@@ -1256,6 +1441,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                self.publish_config_snapshot(current_config.clone());
                 return Ok(current_config);
             }
         }
@@ -1309,6 +1495,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                self.publish_config_snapshot(current_config.clone());
                 return Ok(Some(current_config));
             }
         }
@@ -1372,6 +1559,8 @@ return 1
             )
             .await?
             {
+                inject_config_generation_marker(&mut replacement_config, replacement_generation)?;
+                self.publish_config_snapshot(replacement_config);
                 return Ok(());
             }
         }
@@ -1408,6 +1597,9 @@ return 1
             )
             .await?
             {
+                let mut published_config = replacement_config.clone();
+                inject_config_generation_marker(&mut published_config, replacement_generation)?;
+                self.publish_config_snapshot(published_config);
                 return Ok(());
             }
         }

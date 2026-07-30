@@ -2446,6 +2446,8 @@ export const koKRAdmin = {
     deleteTitle: "{protocol} 프로토콜 매핑을 삭제하시겠습니까?",
     deleteDescription:
       "이렇게 하면 {mapping}(이)가 중지되고 {target}에 대한 전달 규칙이 제거됩니다.",
+    disabledForLegacyRepair:
+      "잘못된 이전 기록이 남아 있어 프로토콜 매핑을 자동으로 비활성화했습니다. 정리 후 '시스템 설정 → 기능'에서 다시 활성화할 수 있습니다.",
     editTitle: "프로토콜 매핑 편집",
     createTitle: "프로토콜 매핑 추가",
     dialogDescription:
@@ -2480,6 +2482,8 @@ export const koKRAdmin = {
     actionUpdate: "업데이트됨",
     removeSuccess: "{mapping} 프로토콜 매핑이 제거되었습니다.",
     deleteFailed: "삭제 실패",
+    deleteFailedWhileDisabled:
+      "프로토콜 매핑은 비활성화되었지만 이 레코드를 삭제하지 못했습니다",
     syncSuccess: "게이트웨이에 동기화됨",
     syncDescription:
       "경로 라우트 {pathRules}개, Host 라우트 {hostRules}개, 프로토콜 매핑 {streamRules}개",

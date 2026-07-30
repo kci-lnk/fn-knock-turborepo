@@ -248,14 +248,12 @@ import {
 
 const configStore = useConfigStore();
 const { t } = useI18n();
-
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
 const isSaving = ref(false);
 const isSyncing = ref(false);
 const editingMapping = ref<StreamMapping | null>(null);
 const removingMappingKey = ref<string | null>(null);
-
 const allMappings = computed(() =>
   [...(configStore.config?.stream_mappings ?? [])]
     .map(normalizeStreamMapping)
@@ -264,7 +262,6 @@ const allMappings = computed(() =>
 const protocolMappingEnabled = computed(
   () => configStore.config?.protocol_mapping_feature?.enabled === true,
 );
-
 const filteredMappings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return allMappings.value;
@@ -324,20 +321,25 @@ function getSaveSuccessMessage(savedCount: number, isEditing: boolean): string {
     ? t("admin.streamMappings.saveMany", { action, count: savedCount })
     : t("admin.streamMappings.saveOne", { action });
 }
-
 async function removeMapping(mapping: StreamMapping) {
   removingMappingKey.value = getMappingKey(mapping);
   try {
-    await configStore.saveStreamMappings((current) =>
-      removeStreamMapping(current, getMappingKey(mapping)),
+    const result = await configStore.saveStreamMappings(
+      (current) => removeStreamMapping(current, getMappingKey(mapping)),
+      { disableFeatureOnLegacyRepairConflict: true },
     );
-    toast.success(
-      t("admin.streamMappings.removeSuccess", {
-        mapping: formatMappingLabel(mapping),
-      }),
-    );
+    const description = result.protocolMappingDisabled
+      ? t("admin.streamMappings.disabledForLegacyRepair")
+      : undefined;
+    const message = t("admin.streamMappings.removeSuccess", {
+      mapping: formatMappingLabel(mapping),
+    });
+    toast.success(message, { description });
   } catch (error: any) {
-    toast.error(t("admin.streamMappings.deleteFailed"), {
+    const titleKey = protocolMappingEnabled.value
+      ? "admin.streamMappings.deleteFailed"
+      : "admin.streamMappings.deleteFailedWhileDisabled";
+    toast.error(t(titleKey), {
       description: extractErrorMessage(error, t("common.tryLater")),
     });
   } finally {

@@ -424,6 +424,42 @@ async fn host_mapping_section_cas_requires_an_exact_array_and_preserves_other_se
 }
 
 #[tokio::test]
+async fn config_snapshot_is_published_immediately_after_save_and_host_cas() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let before = store.config_snapshot();
+    assert!(before.get("snapshot_test").is_none());
+
+    let mut saved = (*before).clone();
+    saved["snapshot_test"] = json!({"generation": 1});
+    store.save_config(&saved).await.expect("save config");
+    let after_save = store.config_snapshot();
+    assert_eq!(
+        after_save.pointer("/snapshot_test/generation"),
+        Some(&json!(1))
+    );
+    assert!(Arc::ptr_eq(&before, &store.config_snapshot()) == false);
+
+    let replacement = vec![json!({
+        "host": "snapshot.example.com",
+        "target": "http://127.0.0.1:8080"
+    })];
+    store
+        .compare_and_set_host_mappings(&[], &replacement)
+        .await
+        .expect("host CAS")
+        .expect("host CAS matched");
+    let after_cas = store.config_snapshot();
+    assert_eq!(after_cas["host_mappings"], json!(replacement));
+    assert_eq!(
+        after_cas.pointer("/snapshot_test/generation"),
+        Some(&json!(1))
+    );
+}
+
+#[tokio::test]
 async fn host_mapping_catalog_cas_updates_both_sections_atomically() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
@@ -1315,6 +1351,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "waf",
         "reverse_proxy_throttle",
         "gateway_visibility",
+        "visibility_policies",
         "gateway_proxy_headers",
         "gateway_host_response",
         "gateway_crawler_blocker",

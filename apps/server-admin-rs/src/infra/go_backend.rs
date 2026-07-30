@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tonic::{
@@ -15,12 +16,13 @@ use tonic_health::pb::{
 use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
-    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosConnectIngressConfig,
-    FnosConnectIngressStatus, FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery,
-    GatewayPortalConfig, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
-    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
-    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
-    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    BoolValue, CommonLocationExemptionsRuntime, CompiledIpSet as ProtoCompiledIpSet,
+    CrawlerBlockerConfig, FnosConnectIngressConfig, FnosConnectIngressStatus,
+    FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
+    GatewayUnmatchedRouteConfig, GatewayVisibilityConfig, GeneralBlacklistListRequest,
+    HostActiveIpStats, HostLocation, HostLocationResponse, HostRequest, HostRule,
+    HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest, IpRequest,
+    IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
     SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
     StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
@@ -33,7 +35,7 @@ use crate::grpc_proto::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
-pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 2;
+pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 3;
 pub(crate) const GATEWAY_HEALTH_PROCESS: &str = "fnknock.gateway.process";
 pub(crate) const GATEWAY_HEALTH_DATAPLANE: &str = "fnknock.gateway.dataplane";
 pub(crate) const GATEWAY_HEALTH_AUTH_BRIDGE: &str = "fnknock.gateway.auth_bridge";
@@ -176,6 +178,7 @@ impl GoBackendClient {
             "logs",
             "lifecycle",
             "host_rule_groups_v1",
+            "compiled_visibility_ipset_v1",
         ] {
             if !capabilities
                 .iter()
@@ -328,11 +331,12 @@ impl GoBackendClient {
         let mut client = self.control.clone();
         let result = match client
             .set_host_rules(self.request(HostRules {
-                items: parse_host_rules(rules),
+                items: parse_host_rules(rules.get("items").unwrap_or(rules)),
+                visibility_policies: parse_compiled_ip_sets(rules.get("visibility_policies"))?,
             }))
             .await
         {
-            Ok(response) => ok(host_rules_to_json(response.into_inner().items)),
+            Ok(response) => ok(host_rules_to_json(response.into_inner())),
             Err(error) => grpc_error(error),
         };
         status_value("set_host_rules", result)
@@ -472,7 +476,7 @@ impl GoBackendClient {
     pub async fn set_gateway_visibility(&self, config: &Value) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let result = match client
-            .set_gateway_visibility(self.request(parse_visibility(config)))
+            .set_gateway_visibility(self.request(parse_visibility(config)?))
             .await
         {
             Ok(response) => ok(visibility_to_json(response.into_inner())),
@@ -1199,6 +1203,7 @@ fn parse_host_rule_availability(value: &Value) -> Option<HostRuleAvailability> {
     })
 }
 
+#[allow(deprecated)] // Control API v3 still accepts v2 CIDRs during migration.
 fn parse_host_rule_visibility(value: Option<&Value>) -> Option<HostRuleVisibility> {
     let value = value?.as_object()?;
     Some(HostRuleVisibility {
@@ -1218,7 +1223,40 @@ fn parse_host_rule_visibility(value: Option<&Value>) -> Option<HostRuleVisibilit
                     .collect()
             })
             .unwrap_or_default(),
+        policy_id: value
+            .get("policy_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     })
+}
+
+fn parse_compiled_ip_sets(value: Option<&Value>) -> anyhow::Result<Vec<ProtoCompiledIpSet>> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|policy| {
+            let id = string_field(policy, "id");
+            let format_version = policy
+                .get("format_version")
+                .and_then(Value::as_u64)
+                .and_then(|value| u32::try_from(value).ok())
+                .unwrap_or_default();
+            let ipv4_ranges = URL_SAFE_NO_PAD
+                .decode(string_field(policy, "ipv4_ranges"))
+                .with_context(|| format!("decode compiled IP set {id} ipv4_ranges"))?;
+            let ipv6_ranges = URL_SAFE_NO_PAD
+                .decode(string_field(policy, "ipv6_ranges"))
+                .with_context(|| format!("decode compiled IP set {id} ipv6_ranges"))?;
+            Ok(ProtoCompiledIpSet {
+                id,
+                format_version,
+                ipv4_ranges,
+                ipv6_ranges,
+            })
+        })
+        .collect()
 }
 
 fn string_array(value: Option<&Value>) -> Vec<String> {
@@ -1415,12 +1453,20 @@ fn parse_throttle(value: &Value) -> ReverseProxyThrottleConfig {
     }
 }
 
-fn parse_visibility(value: &Value) -> GatewayVisibilityConfig {
-    GatewayVisibilityConfig {
+#[allow(deprecated)] // Control API v3 still accepts v2 CIDRs during migration.
+fn parse_visibility(value: &Value) -> anyhow::Result<GatewayVisibilityConfig> {
+    let policy = value
+        .get("policy")
+        .map(|policy| parse_compiled_ip_sets(Some(&Value::Array(vec![policy.clone()]))))
+        .transpose()?
+        .and_then(|mut policies| policies.pop());
+    Ok(GatewayVisibilityConfig {
         enabled: bool_field(value, "enabled", false),
         cidrs: string_vec_field(value, "cidrs"),
         updated_at: string_field(value, "updated_at"),
-    }
+        policy_id: string_field(value, "policy_id"),
+        policy,
+    })
 }
 
 fn parse_omit_targets(value: &Value) -> OmitTargetsConfig {
@@ -1590,9 +1636,11 @@ fn advanced_auth_to_json(config: Option<AdvancedAuthConfig>) -> Value {
     })
 }
 
-fn host_rules_to_json(items: Vec<HostRule>) -> Value {
-    Value::Array(
-        items
+#[allow(deprecated)] // Echo the deprecated field only for compatibility validation.
+fn host_rules_to_json(bundle: HostRules) -> Value {
+    let items = Value::Array(
+        bundle
+            .items
             .into_iter()
             .map(|item| {
                 json!({
@@ -1608,6 +1656,7 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                     "visibility": item.visibility.map(|visibility| json!({
                         "mode": visibility.mode,
                         "cidrs": visibility.cidrs,
+                        "policy_id": visibility.policy_id,
                     })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
                     "advanced_auth": advanced_auth_to_json(item.advanced_auth),
                     "protocol_mode": item.protocol_mode,
@@ -1632,7 +1681,23 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                 })
             })
             .collect(),
-    )
+    );
+    let visibility_policies = bundle
+        .visibility_policies
+        .into_iter()
+        .map(|policy| {
+            json!({
+                "id": policy.id,
+                "format_version": policy.format_version,
+                "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
+                "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "items": items,
+        "visibility_policies": visibility_policies,
+    })
 }
 
 fn stream_rules_to_json(items: Vec<StreamRule>) -> Value {
@@ -1676,11 +1741,22 @@ fn throttle_to_json(config: ReverseProxyThrottleConfig) -> Value {
     })
 }
 
+#[allow(deprecated)] // Echo the deprecated field only for compatibility validation.
 fn visibility_to_json(config: GatewayVisibilityConfig) -> Value {
+    let policy = config.policy.map(|policy| {
+        json!({
+            "id": policy.id,
+            "format_version": policy.format_version,
+            "ipv4_ranges": URL_SAFE_NO_PAD.encode(policy.ipv4_ranges),
+            "ipv6_ranges": URL_SAFE_NO_PAD.encode(policy.ipv6_ranges),
+        })
+    });
     json!({
         "enabled": config.enabled,
         "cidrs": config.cidrs,
-        "updated_at": config.updated_at
+        "updated_at": config.updated_at,
+        "policy_id": config.policy_id,
+        "policy": policy,
     })
 }
 

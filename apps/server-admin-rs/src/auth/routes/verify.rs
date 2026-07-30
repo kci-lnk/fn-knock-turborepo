@@ -197,11 +197,35 @@ pub(super) async fn resolve_auth_access_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
-    let client_ip = client_ip_for_auth(headers);
     let config = state.store.get_config().await?;
+    resolve_auth_access_with_routed_upstream_and_config(
+        state,
+        headers,
+        uri,
+        translator,
+        &config,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn resolve_auth_access_with_routed_upstream_and_config(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    translator: &Translator,
+    config: &Value,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> anyhow::Result<AuthAccess> {
+    let client_ip = client_ip_for_auth(headers);
     let access_mode = requested_access_mode(headers);
     let normal_access =
-        resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
+        resolve_preflight_normal_access(state, headers, uri, config, &client_ip, access_mode)
             .await?;
 
     resolve_auth_access_with_normal_access_and_rule_match(
@@ -209,7 +233,7 @@ pub(super) async fn resolve_auth_access_with_routed_upstream(
         headers,
         uri,
         translator,
-        &config,
+        config,
         &client_ip,
         &normal_access,
         None,

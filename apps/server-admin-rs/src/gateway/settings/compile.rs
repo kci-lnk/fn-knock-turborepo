@@ -25,26 +25,58 @@ pub(super) async fn compile_gateway_visibility_config(
     }
 
     let merged_cidrs = normalize_cidr_lines(resolved_cidrs.into_iter().chain(custom_cidrs.clone()));
-    let runtime_cidrs = if enabled { merged_cidrs } else { Vec::new() };
+    let policy = if enabled {
+        Some(
+            compile_ip_set(&merged_cidrs)
+                .map_err(|error| crate::cidr::localize_error(&translator, &error))?,
+        )
+    } else {
+        None
+    };
+    let policy_id = policy.as_ref().map(|value| value.id.clone());
+    let source_cidr_count = policy
+        .as_ref()
+        .map(|value| value.source_cidr_count)
+        .unwrap_or_default();
+    let range_count = policy
+        .as_ref()
+        .map(CompiledIpSet::range_count)
+        .unwrap_or_default();
+    let runtime_policy = policy.as_ref().map(|policy| {
+        let mut value = policy
+            .to_config_value()
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
+        value.insert("id".to_string(), Value::String(policy.id.clone()));
+        Value::Object(value)
+    });
 
     Ok(CompiledGatewayVisibility {
         config: json!({
             "enabled": enabled,
             "selections": stored_selections,
             "custom_cidrs": custom_cidrs,
+            "policy_id": policy_id,
+            "source_cidr_count": source_cidr_count,
+            "range_count": range_count,
         }),
         runtime: json!({
             "enabled": enabled,
-            "cidrs": runtime_cidrs,
+            "policy_id": policy.as_ref().map(|value| value.id.clone()),
+            "source_cidr_count": source_cidr_count,
+            "range_count": range_count,
+            "policy": runtime_policy,
             "updated_at": time_utils::now_iso(),
         }),
+        policy,
     })
 }
 
 pub(crate) async fn compile_host_visibility_config(
     state: &AppState,
     input: &Map<String, Value>,
-) -> Result<Value, String> {
+) -> Result<CompiledHostVisibility, String> {
     let translator = Translator::from_state(state).await;
     let selections = dedupe_visibility_selection_inputs(input.get("selections"))
         .map_err(|message| crate::cidr::localize_error(&translator, &message))?;
@@ -66,12 +98,19 @@ pub(crate) async fn compile_host_visibility_config(
         return Err(translator.t("server.gatewayVisibility.emptyEnabledConfig"));
     }
 
-    Ok(json!({
-        "mode": "custom",
-        "selections": stored_selections,
-        "custom_cidrs": custom_cidrs,
-        "cidrs": cidrs,
-    }))
+    let policy =
+        compile_ip_set(&cidrs).map_err(|error| crate::cidr::localize_error(&translator, &error))?;
+    Ok(CompiledHostVisibility {
+        config: json!({
+            "mode": "custom",
+            "selections": stored_selections,
+            "custom_cidrs": custom_cidrs,
+            "policy_id": policy.id,
+            "source_cidr_count": policy.source_cidr_count,
+            "range_count": policy.range_count(),
+        }),
+        policy,
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -279,7 +318,10 @@ pub(super) fn build_gateway_visibility_summary(config: &Value, runtime: &Value) 
         "enabled": config.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         "selection_count": config.get("selections").and_then(Value::as_array).map(Vec::len).unwrap_or(0),
         "custom_cidr_count": config.get("custom_cidrs").and_then(Value::as_array).map(Vec::len).unwrap_or(0),
-        "cidr_count": runtime.get("cidrs").and_then(Value::as_array).map(Vec::len).unwrap_or(0),
+        "cidr_count": runtime.get("source_cidr_count").and_then(Value::as_u64)
+            .or_else(|| runtime.get("cidrs").and_then(Value::as_array).map(|items| items.len() as u64))
+            .unwrap_or(0),
+        "range_count": runtime.get("range_count").and_then(Value::as_u64).unwrap_or(0),
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null),
     })
 }

@@ -2291,6 +2291,8 @@ export const zhCNAdmin = {
     delete: "删除",
     deleteTitle: "确认删除 {protocol} 协议映射？",
     deleteDescription: "将停止 {mapping}，并移除到 {target} 的转发规则。",
+    disabledForLegacyRepair:
+      "仍有错误的旧记录，协议映射已自动停用；清理完成后可在“系统设置 → 功能”中重新开启。",
     editTitle: "编辑协议映射",
     createTitle: "添加协议映射",
     dialogDescription:
@@ -2322,6 +2324,7 @@ export const zhCNAdmin = {
     actionUpdate: "更新",
     removeSuccess: "已移除 {mapping} 协议映射",
     deleteFailed: "删除失败",
+    deleteFailedWhileDisabled: "协议映射已停用，但删除该记录失败",
     syncSuccess: "已同步到网关",
     syncDescription:
       "路径路由 {pathRules} 条，Host 路由 {hostRules} 条，协议映射 {streamRules} 条。",

@@ -477,6 +477,8 @@ export const jaJPServer = {
       localPortLoop:
         "待受ポート {port} をこのホストの同じポートへ転送するとループが発生します。プロトコルマッピングを開き、外部ポートまたは転送先ポートを変更してください",
       saveFailed: "プロトコルマッピングの保存に失敗しました",
+      disableBeforeLegacyRepair:
+        "無効な古いプロトコルマッピングが残っています。削除を続ける前にプロトコルマッピングを無効にしてください。",
       syncFailed:
         "プロトコルマッピングとゲートウェイのポート許可ルールの同期に失敗しました",
       syncFailedRolledBack:

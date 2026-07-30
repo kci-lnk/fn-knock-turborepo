@@ -13,7 +13,11 @@ import type {
   StreamMapping,
   SubdomainModeConfig,
 } from "../types";
-import { ConfigAPI } from "../lib/api";
+import {
+  ConfigAPI,
+  STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE,
+  SystemAPI,
+} from "../lib/api";
 import { createSerialTaskQueue } from "../lib/serialTaskQueue";
 import {
   getEffectiveRuntimeCapabilities,
@@ -21,6 +25,12 @@ import {
 } from "@runtime-debug";
 import { canUseFnosConnectWafForRuntime } from "../lib/fnos-connect-waf";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
+
+const isLegacyStreamMappingRepairConflict = (error: unknown): boolean =>
+  (error as { response?: { status?: number; data?: { code?: number } } })
+    ?.response?.status === 409 &&
+  (error as { response?: { data?: { code?: number } } })?.response?.data
+    ?.code === STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE;
 
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig | null>(null);
@@ -402,19 +412,47 @@ export const useConfigStore = defineStore("config", () => {
 
   async function saveStreamMappings(
     update: (current: readonly StreamMapping[]) => StreamMapping[],
+    options: { disableFeatureOnLegacyRepairConflict?: boolean } = {},
   ) {
     return runStreamMappingsSave(async () => {
-      const current =
+      let current =
         config.value?.stream_mappings ?? (await ConfigAPI.getStreamMappings());
-      const next = update(current);
-      await ConfigAPI.updateStreamMappings(next);
+      let next = update(current);
+      let protocolMappingDisabled = false;
+      try {
+        await ConfigAPI.updateStreamMappings(next);
+      } catch (error) {
+        if (
+          !options.disableFeatureOnLegacyRepairConflict ||
+          !isLegacyStreamMappingRepairConflict(error)
+        ) {
+          throw error;
+        }
+        await SystemAPI.updateProtocolMappingFeatureConfig({ enabled: false });
+        protocolMappingDisabled = true;
+        if (config.value) {
+          config.value = {
+            ...config.value,
+            protocol_mapping_feature: { enabled: false },
+          };
+        }
+        const refreshed = await loadConfig({ force: true });
+        current =
+          refreshed?.stream_mappings ?? (await ConfigAPI.getStreamMappings());
+        next = update(current);
+        await ConfigAPI.updateStreamMappings(next);
+      }
       if (config.value) {
         config.value = {
           ...config.value,
           stream_mappings: next,
+          ...(protocolMappingDisabled
+            ? { protocol_mapping_feature: { enabled: false } }
+            : {}),
         };
       }
       await loadConfig({ force: true });
+      return { protocolMappingDisabled };
     });
   }
 

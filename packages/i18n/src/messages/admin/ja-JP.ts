@@ -2462,6 +2462,8 @@ export const jaJPAdmin = {
     deleteTitle: "{protocol} プロトコルマッピングを削除しますか？",
     deleteDescription:
       "{mapping} を停止し、{target} への転送ルールを削除します。",
+    disabledForLegacyRepair:
+      "無効な古いレコードが残っているため、プロトコルマッピングを自動的に無効化しました。整理後に「システム設定 → 機能」から再度有効にできます。",
     editTitle: "プロトコルマッピングの編集",
     createTitle: "プロトコルマッピングを追加",
     dialogDescription:
@@ -2497,6 +2499,8 @@ export const jaJPAdmin = {
     actionUpdate: "更新",
     removeSuccess: "{mapping} プロトコルマッピングを削除しました",
     deleteFailed: "削除に失敗しました",
+    deleteFailedWhileDisabled:
+      "プロトコルマッピングは無効になりましたが、このレコードを削除できませんでした",
     syncSuccess: "ゲートウェイと同期しました",
     syncDescription:
       "パスルート {pathRules} 件、Host ルート {hostRules} 件、プロトコルマッピング {streamRules} 件。",

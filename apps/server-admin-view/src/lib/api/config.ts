@@ -73,6 +73,7 @@ import {
 
 const HOST_MAPPINGS_REVISION_HEADER = "x-host-mappings-revision";
 const HOST_MAPPING_CATALOG_REVISION_HEADER = "x-host-mapping-catalog-revision";
+export const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE = 40_901;
 
 const hostMappingsRevisionFromHeaders = (
   headers: Record<string, unknown>,

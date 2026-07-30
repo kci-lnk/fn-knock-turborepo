@@ -5,8 +5,10 @@ use url::Url;
 
 use crate::{http_utils, i18n::Translator, state::AppState};
 
+mod ipset;
 mod service;
 
+pub(crate) use ipset::{CompiledIpSet, compile_ip_set};
 pub(crate) use service::{
     cities_payload, lookup_payload, lookup_region, lookup_regions, provinces_payload,
 };
@@ -395,7 +397,7 @@ mod tests {
 
     use axum::{
         Json, Router,
-        extract::{Query, State},
+        extract::{Path, Query, State},
         http::StatusCode,
         response::{IntoResponse, Response},
         routing::get,
@@ -414,6 +416,20 @@ mod tests {
         Json(json!({
             "code": 0,
             "data": { "items": [{ "name": "浙江", "city_count": 2 }], "total": 1 }
+        }))
+    }
+
+    async fn mock_cities(Path(province): Path<String>) -> Json<Value> {
+        Json(json!({
+            "code": 0,
+            "data": {
+                "province": province,
+                "items": [
+                    { "name": "杭州", "ipv4_count": 1, "ipv6_count": 0 },
+                    { "name": "宁波", "ipv4_count": 1, "ipv6_count": 0 }
+                ],
+                "total": 2
+            }
         }))
     }
 
@@ -444,10 +460,14 @@ mod tests {
 
         state.lookup_requests.fetch_add(1, Ordering::SeqCst);
         let operator = query.get("operator").cloned();
+        let city_offset = usize::from(query.get("city").map(String::as_str) == Some("宁波"));
         let mut data = json!({
             "province": query.get("province").cloned().unwrap_or_default(),
             "city": query.get("city").cloned(),
-            "cidr_groups": { "4": [format!("10.{}.0.0/16", state.cidr_suffix)], "6": [] },
+            "cidr_groups": {
+                "4": [format!("10.{}.0.0/16", usize::from(state.cidr_suffix) + city_offset)],
+                "6": []
+            },
             "counts": { "4": 1, "6": 0 }
         });
         if state.supports_operator {
@@ -463,6 +483,7 @@ mod tests {
         let requests = Arc::new(AtomicUsize::new(0));
         let app = Router::new()
             .route("/api/v1/provinces", get(mock_provinces))
+            .route("/api/v1/provinces/{province}/cities", get(mock_cities))
             .route("/api/v1/cidrs", get(mock_cidrs))
             .with_state(MockCidrState {
                 supports_operator,
@@ -595,6 +616,27 @@ mod tests {
 
         assert_eq!(error.to_string(), "CIDR operator filtering is unsupported");
         assert!(lookup_region(&state, &query).await.is_err());
+        assert_eq!(requests.load(Ordering::SeqCst), 2);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn province_wide_lookup_aggregates_city_results_and_caches_the_union() {
+        let (_directory, state) = cidr_test_state().await;
+        let (url, requests, task) = spawn_mock_cidr(true, 31).await;
+        configure_custom_source(&state, &url).await;
+        let query = CidrRegionQuery::new("浙江", None::<String>, None);
+
+        let first = lookup_region(&state, &query).await.unwrap();
+        let cached = lookup_region(&state, &query).await.unwrap();
+        let payload = lookup_payload(&state, &query, None).await.unwrap();
+
+        assert_eq!(first.cidrs, vec!["10.31.0.0/16", "10.32.0.0/16"]);
+        assert_eq!(cached, first);
+        assert!(first.selection.is_province_wide);
+        assert_eq!(first.selection.value, "__province_all__");
+        assert_eq!(payload["counts"]["ipv4"], 2);
+        assert_eq!(payload["selection"]["isProvinceWide"], true);
         assert_eq!(requests.load(Ordering::SeqCst), 2);
         task.abort();
     }

@@ -158,6 +158,7 @@ const { t } = useI18n();
           <TableCell class="whitespace-normal">
             <Button
               variant="link"
+              data-affordance="details"
               class="h-auto whitespace-normal p-0 text-left"
               @click="goToPasskeys(totp.id)"
             >
@@ -166,14 +167,16 @@ const { t } = useI18n();
           </TableCell>
           <TableCell class="min-w-0 whitespace-normal">
             <div class="flex min-w-0 flex-col gap-1">
-              <button
+              <Button
                 type="button"
-                class="min-w-0 text-left text-sm font-medium text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-60"
+                variant="link"
+                data-affordance="edit"
+                class="h-auto min-w-0 justify-start whitespace-normal p-0 text-left text-sm"
                 :disabled="isSubdomainAccessUpdating(totp.id)"
                 @click="openSubdomainAccessDialog(totp)"
               >
                 {{ getSubdomainAccessSummary(totp) }}
-              </button>
+              </Button>
               <span
                 v-if="getSubdomainAccessPreview(totp)"
                 class="truncate text-xs text-muted-foreground"
@@ -203,7 +206,8 @@ const { t } = useI18n();
                   <TooltipTrigger as-child>
                     <button
                       type="button"
-                      class="cursor-help text-xs text-muted-foreground underline-offset-4 hover:underline"
+                      data-affordance="help"
+                      class="cursor-help rounded-sm text-xs text-muted-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       @click="handleAdminPanelAccessTooltipClick(totp.id)"
                     >
                       {{

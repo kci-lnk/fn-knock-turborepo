@@ -81,34 +81,29 @@
                 <Badge variant="outline">{{ providerStatus(provider) }}</Badge>
               </TableCell>
               <TableCell class="min-w-0 max-w-[48vw] sm:max-w-none">
-                <div
+                <button
                   v-if="provider.callback_url"
-                  class="group/callback flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2"
+                  type="button"
+                  data-affordance="copy"
+                  class="flex min-w-0 max-w-full items-center rounded-md border bg-muted/30 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  :title="
+                    t('admin.oidcProviders.copyCallbackUrl', {
+                      provider: provider.name,
+                    })
+                  "
+                  :aria-label="
+                    t('admin.oidcProviders.copyCallbackUrl', {
+                      provider: provider.name,
+                    })
+                  "
+                  @click="copyCallbackUrl(provider.callback_url)"
                 >
                   <span
                     class="block min-w-0 flex-1 truncate font-mono text-xs leading-5 text-muted-foreground"
                   >
                     {{ provider.callback_url }}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    class="size-7 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/callback:opacity-100 sm:focus-visible:opacity-100"
-                    :title="
-                      t('admin.oidcProviders.copyCallbackUrl', {
-                        provider: provider.name,
-                      })
-                    "
-                    :aria-label="
-                      t('admin.oidcProviders.copyCallbackUrl', {
-                        provider: provider.name,
-                      })
-                    "
-                    @click="copyCallbackUrl(provider.callback_url)"
-                  >
-                    <Copy class="h-4 w-4" />
-                  </Button>
-                </div>
+                </button>
                 <span v-else class="text-muted-foreground">-</span>
               </TableCell>
               <TableCell class="text-right">
@@ -299,7 +294,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   CircleAlert,
-  Copy,
   LoaderCircle,
   Pencil,
   Plus,

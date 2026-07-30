@@ -3732,6 +3732,7 @@ export const zhCNAdmin = {
     updateSuccess: "更新成功",
     logsCleared: "日志已清空",
     never: "从未",
+    copyAddressAria: "复制 {version} 地址 {address}",
     copyUnavailable: "{version} 地址不可用",
     copySuccess: "{version} 地址已复制",
     copyFailed: "复制 {version} 地址失败",

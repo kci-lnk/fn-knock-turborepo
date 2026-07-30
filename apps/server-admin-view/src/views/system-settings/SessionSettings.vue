@@ -496,7 +496,7 @@ onMounted(fetchSettings);
         </div>
         <div class="flex gap-3">
           <Button
-            variant="ghost"
+            variant="outline"
             @click="resetForm"
             :disabled="!isDirty || isSaving"
           >
@@ -514,7 +514,7 @@ onMounted(fetchSettings);
 
       <template #floating>
         <Button
-          variant="ghost"
+          variant="outline"
           @click="resetForm"
           :disabled="!isDirty || isSaving"
         >

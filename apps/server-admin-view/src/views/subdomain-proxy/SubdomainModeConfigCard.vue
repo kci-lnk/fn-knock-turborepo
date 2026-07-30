@@ -206,9 +206,8 @@ const confirmRemoveAuthService = async () => {
                 >
                   <template #trigger>
                     <Button
-                      variant="ghost"
+                      variant="destructive-outline"
                       size="sm"
-                      class="h-auto p-0 text-destructive hover:bg-transparent hover:text-destructive/90"
                       :disabled="isSavingMappings"
                     >
                       {{ t("admin.subdomainProxy.deleteAuthAction") }}

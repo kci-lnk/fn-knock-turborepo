@@ -18,7 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EyeIcon, EyeOffIcon, TriangleAlert, Trash2 } from "lucide-vue-next";
+import {
+  ExternalLink,
+  EyeIcon,
+  EyeOffIcon,
+  TriangleAlert,
+  Trash2,
+} from "lucide-vue-next";
 import LogViewer from "@admin-shared/components/LogViewer.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import TunnelSupervisorStatus from "@/components/TunnelSupervisorStatus.vue";
@@ -161,13 +167,21 @@ const {
                 >
                   <p>
                     {{ t("admin.cloudflareTunnel.configSourcePrefix") }}
-                    <a
-                      href="https://one.dash.cloudflare.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="font-medium text-primary hover:underline"
-                      >Cloudflare Zero Trust Dashboard</a
+                    <Button
+                      as-child
+                      variant="link"
+                      data-affordance="details"
+                      class="h-auto gap-1 p-0 align-baseline text-xs"
                     >
+                      <a
+                        href="https://one.dash.cloudflare.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Cloudflare Zero Trust Dashboard
+                        <ExternalLink class="size-3" aria-hidden="true" />
+                      </a>
+                    </Button>
                   </p>
                   <p>{{ t("admin.cloudflareTunnel.createTunnelHint") }}</p>
                   <p>{{ t("admin.cloudflareTunnel.copyTokenHint") }}</p>

@@ -147,15 +147,21 @@ const {
                   </p>
                   <p class="leading-6 text-muted-foreground">
                     {{ t("admin.ipLocationSettings.canUse") }}
-                    <a
-                      :href="ipLookupDockerUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-1 text-primary hover:underline"
+                    <Button
+                      as-child
+                      variant="link"
+                      data-affordance="details"
+                      class="h-auto gap-1 p-0 align-baseline text-sm"
                     >
-                      go-ipaddress-api
-                      <ExternalLink class="size-3.5" />
-                    </a>
+                      <a
+                        :href="ipLookupDockerUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        go-ipaddress-api
+                        <ExternalLink class="size-3.5" aria-hidden="true" />
+                      </a>
+                    </Button>
                     {{ t("admin.ipLocationSettings.deploySuffix") }}
                   </p>
                 </div>
@@ -274,15 +280,21 @@ const {
                   </p>
                   <p class="leading-6 text-muted-foreground">
                     {{ t("admin.ipLocationSettings.canUse") }}
-                    <a
-                      :href="cidrDockerUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-1 text-primary hover:underline"
+                    <Button
+                      as-child
+                      variant="link"
+                      data-affordance="details"
+                      class="h-auto gap-1 p-0 align-baseline text-sm"
                     >
-                      go-cidr-api
-                      <ExternalLink class="size-3.5" />
-                    </a>
+                      <a
+                        :href="cidrDockerUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        go-cidr-api
+                        <ExternalLink class="size-3.5" aria-hidden="true" />
+                      </a>
+                    </Button>
                     {{ t("admin.ipLocationSettings.deploySuffix") }}
                   </p>
                 </div>

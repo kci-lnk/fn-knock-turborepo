@@ -65,8 +65,8 @@ const ruleKey = (rule: WAFRuleFile) => `${rule.source}:${rule.filename}`;
 
 const ruleActionsClass = (rule: WAFRuleFile) =>
   props.activeRuleActionsKey === ruleKey(rule)
-    ? "visible opacity-100"
-    : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100";
+    ? "opacity-100"
+    : "opacity-60 group-hover:opacity-100 group-focus-within:opacity-100";
 </script>
 
 <template>

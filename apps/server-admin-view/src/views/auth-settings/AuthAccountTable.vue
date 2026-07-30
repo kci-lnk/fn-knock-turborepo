@@ -162,14 +162,16 @@ const { t } = useI18n();
           </TableCell>
           <TableCell class="min-w-0 whitespace-normal px-5 py-4">
             <div class="flex min-w-0 flex-col gap-1.5">
-              <button
+              <Button
                 type="button"
-                class="min-w-0 text-left text-sm font-medium leading-6 text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-60"
+                variant="link"
+                data-affordance="edit"
+                class="h-auto min-w-0 justify-start whitespace-normal p-0 text-left text-sm leading-6"
                 :disabled="isSubdomainAccessUpdating(account.id)"
                 @click="openSubdomainAccessDialog(account)"
               >
                 {{ getSubdomainAccessSummary(account) }}
-              </button>
+              </Button>
               <span
                 v-if="getSubdomainAccessPreview(account)"
                 class="truncate text-xs leading-5 text-muted-foreground"
@@ -202,7 +204,8 @@ const { t } = useI18n();
                   <TooltipTrigger as-child>
                     <button
                       type="button"
-                      class="cursor-help text-xs leading-5 text-muted-foreground underline-offset-4 hover:underline"
+                      data-affordance="help"
+                      class="cursor-help rounded-sm text-xs leading-5 text-muted-foreground underline decoration-dotted decoration-muted-foreground/60 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       @click="handleAdminPanelAccessTooltipClick(account.id)"
                     >
                       <span class="text-xs leading-5 text-muted-foreground">
@@ -227,8 +230,8 @@ const { t } = useI18n();
             >
               <Button
                 size="sm"
-                variant="link"
-                class="h-8 px-2 text-sm font-medium"
+                variant="outline"
+                class="h-8 text-sm font-medium"
                 @click="openPasswordDialog(account)"
               >
                 {{
@@ -250,9 +253,9 @@ const { t } = useI18n();
               >
                 <template #trigger>
                   <Button
-                    variant="link"
+                    variant="destructive-outline"
                     size="sm"
-                    class="h-8 px-2 text-sm font-medium text-destructive hover:text-destructive"
+                    class="h-8 text-sm font-medium"
                     :disabled="isDeleting"
                   >
                     {{ t("admin.authSettings.delete") }}

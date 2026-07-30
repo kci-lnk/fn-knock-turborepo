@@ -88,9 +88,8 @@
               <Button
                 v-if="props.analysis.evidence?.length"
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                class="px-2"
                 @click="isAnalysisOpen = !isAnalysisOpen"
               >
                 {{

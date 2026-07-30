@@ -163,6 +163,7 @@ onBeforeUnmount(() => {
             <Button
               type="button"
               variant="link"
+              data-affordance="details"
               class="h-auto gap-1 px-0 text-sm"
               @click="emit('openManual')"
             >

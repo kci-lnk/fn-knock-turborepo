@@ -4025,6 +4025,7 @@ export const jaJPAdmin = {
     updateSuccess: "更新しました",
     logsCleared: "ログをクリアしました",
     never: "なし",
+    copyAddressAria: "{version} アドレス {address} をコピー",
     copyUnavailable: "{version} アドレスが利用できません",
     copySuccess: "{version} アドレスをコピーしました",
     copyFailed: "{version} アドレスのコピーに失敗しました",

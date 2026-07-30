@@ -155,7 +155,7 @@ const save = () => {
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   @click="pendingDeleteId = null"
                 >
                   {{ t("admin.subdomainProxy.cancel") }}

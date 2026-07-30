@@ -15,6 +15,7 @@ import {
   Image,
   ListTree,
   MoreHorizontal,
+  Pencil,
   Plus,
   Power,
   PowerOff,
@@ -179,7 +180,7 @@ const searchModel = computed({
 const mappingSelectionCheckboxClass =
   "size-[18px] rounded-[5px] border-muted-foreground/40 bg-background shadow-none transition-[color,background-color,border-color,opacity] hover:border-primary/70 data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground";
 const hiddenMappingSelectionCheckboxClass =
-  "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100";
+  "opacity-60 group-hover:opacity-100 group-focus-within:opacity-100";
 const isMappingTableScrolled = ref(false);
 const isGroupManagerOpen = ref(false);
 const groupSections = ref<HostMappingGroupSection[]>([]);
@@ -583,7 +584,7 @@ const handleMappingTableScroll = (event: Event) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button size="sm" variant="ghost" @click="selectedHosts = new Set()">
+        <Button size="sm" variant="outline" @click="selectedHosts = new Set()">
           {{ t("admin.subdomainProxy.clearSelection") }}
         </Button>
       </div>
@@ -927,7 +928,8 @@ const handleMappingTableScroll = (event: Event) => {
                     </Popover>
                     <button
                       type="button"
-                      class="min-w-0 flex-1 rounded-sm text-left text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      data-affordance="edit"
+                      class="group/edit inline-flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       :title="t('admin.subdomainProxy.edit')"
                       :aria-label="
                         t('admin.subdomainProxy.editMappingAria', {
@@ -939,13 +941,17 @@ const handleMappingTableScroll = (event: Event) => {
                       <span class="block truncate">
                         {{ getMappingDisplayTitle(mapping) }}
                       </span>
+                      <Pencil
+                        class="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100 [@media(hover:none)]:opacity-100"
+                        aria-hidden="true"
+                      />
                     </button>
                   </div>
                 </TableCell>
                 <TableCell class="break-all font-medium">
                   <button
                     type="button"
-                    class="break-all rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    class="inline-flex max-w-full items-start rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     :class="{
                       'text-muted-foreground hover:text-foreground':
                         isMappingUnavailable(mapping),
@@ -962,7 +968,9 @@ const handleMappingTableScroll = (event: Event) => {
                     "
                     @click="emit('copy-host', mapping)"
                   >
-                    {{ formatHost(mapping.host) }}
+                    <span class="break-all">{{
+                      formatHost(mapping.host)
+                    }}</span>
                   </button>
                 </TableCell>
                 <TableCell

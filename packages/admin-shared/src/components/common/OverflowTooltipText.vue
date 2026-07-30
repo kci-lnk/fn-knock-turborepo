@@ -131,8 +131,12 @@ onUnmounted(() => {
         <component
           :is="as"
           ref="textRef"
+          data-affordance="help"
           :class="
-            cn('block min-w-0 max-w-full truncate cursor-help', props.class)
+            cn(
+              'block min-w-0 max-w-full cursor-help truncate rounded-sm underline decoration-dotted decoration-muted-foreground/60 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              props.class,
+            )
           "
           tabindex="0"
           @click="handleTriggerClick"

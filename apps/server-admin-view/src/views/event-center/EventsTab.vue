@@ -275,9 +275,9 @@ const {
               </TableCell>
               <TableCell class="w-[340px] max-w-[340px] align-top">
                 <div class="space-y-1.5">
-                  <div class="flex items-start gap-2">
+                  <div class="flex items-center gap-2">
                     <div
-                      class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
+                      class="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-[11px] font-medium leading-none text-muted-foreground"
                     >
                       <HumanFriendlyTime :value="event.happened_at" />
                     </div>

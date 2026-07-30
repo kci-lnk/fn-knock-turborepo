@@ -86,8 +86,16 @@ const { t } = useI18n();
               </p>
               <button
                 type="button"
-                class="block text-left text-sm font-mono font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm disabled:pointer-events-none disabled:text-foreground"
+                class="inline-flex items-center rounded-sm text-left text-sm font-mono font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
                 :disabled="!lastIp.ipv4"
+                :aria-label="
+                  lastIp.ipv4
+                    ? t('admin.ddns.copyAddressAria', {
+                        version: 'IPv4',
+                        address: lastIp.ipv4,
+                      })
+                    : t('admin.ddns.copyUnavailable', { version: 'IPv4' })
+                "
                 @click="copyIpAddress('IPv4', lastIp.ipv4)"
               >
                 {{ lastIp.ipv4 || "---.---.---.---" }}
@@ -111,8 +119,16 @@ const { t } = useI18n();
               </p>
               <button
                 type="button"
-                class="block w-full min-w-0 rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
+                class="inline-flex w-full min-w-0 items-center rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
                 :disabled="!lastIp.ipv6"
+                :aria-label="
+                  lastIp.ipv6
+                    ? t('admin.ddns.copyAddressAria', {
+                        version: 'IPv6',
+                        address: lastIp.ipv6,
+                      })
+                    : t('admin.ddns.copyUnavailable', { version: 'IPv6' })
+                "
                 @click="copyIpAddress('IPv6', lastIp.ipv6)"
               >
                 <OverflowTooltipText

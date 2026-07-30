@@ -118,8 +118,16 @@ const hasTargets = computed(() => props.targets.length > 0);
                 </p>
                 <button
                   type="button"
-                  class="mt-1 block text-left text-sm font-mono font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm disabled:pointer-events-none disabled:text-foreground"
+                  class="mt-1 inline-flex items-center rounded-sm text-left text-sm font-mono font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
                   :disabled="!target.lastIP.ipv4"
+                  :aria-label="
+                    target.lastIP.ipv4
+                      ? t('admin.ddns.copyAddressAria', {
+                          version: 'IPv4',
+                          address: target.lastIP.ipv4,
+                        })
+                      : t('admin.ddns.copyUnavailable', { version: 'IPv4' })
+                  "
                   @click="copyIpAddress('IPv4', target.lastIP.ipv4)"
                 >
                   {{ target.lastIP.ipv4 || "---.---.---.---" }}
@@ -136,8 +144,16 @@ const hasTargets = computed(() => props.targets.length > 0);
                 </p>
                 <button
                   type="button"
-                  class="mt-1 block min-w-0 max-w-full rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
+                  class="mt-1 inline-flex min-w-0 max-w-full items-center rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
                   :disabled="!target.lastIP.ipv6"
+                  :aria-label="
+                    target.lastIP.ipv6
+                      ? t('admin.ddns.copyAddressAria', {
+                          version: 'IPv6',
+                          address: target.lastIP.ipv6,
+                        })
+                      : t('admin.ddns.copyUnavailable', { version: 'IPv6' })
+                  "
                   @click="copyIpAddress('IPv6', target.lastIP.ipv6)"
                 >
                   <OverflowTooltipText

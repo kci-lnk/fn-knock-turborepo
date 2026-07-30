@@ -61,6 +61,11 @@ export const useSubdomainPortDisplay = ({
   const savedEdgeClientIpProvider = computed(() =>
     resolveEdgeClientIpProvider(currentModeConfig.value),
   );
+  const isSavedEdgeClientIPActive = computed(
+    () =>
+      isEdgeClientIPModeEditable.value &&
+      savedEdgeClientIpProvider.value !== null,
+  );
   const activeEdgeClientIpProvider = computed(() =>
     resolveEdgeClientIpProvider(modeForm),
   );
@@ -70,6 +75,9 @@ export const useSubdomainPortDisplay = ({
       activeEdgeClientIpProvider.value !== null,
   );
   const shouldOmitAccessEntryPort = computed(() => {
+    if (isSavedEdgeClientIPActive.value) {
+      return true;
+    }
     if (
       shouldOmitPublicAccessEntryPort(getConfig()) &&
       configuredAccessEntryPort.value <= 0

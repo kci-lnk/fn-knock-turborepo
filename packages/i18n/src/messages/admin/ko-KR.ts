@@ -102,6 +102,8 @@ export const koKRAdmin = {
     subtitleSynology: "버전 정보 및 Synology 패키지 업그레이드 안내 보기",
     subtitleLite: "버전 정보, 변경 내역 및 정식 버전 다운로드 보기",
     subtitleGeneric: "버전 세부정보 및 수동 업그레이드 지침 보기",
+    officialWebsite: "공식 웹사이트",
+    officialDocumentation: "공식 문서",
     openGithub: "GitHub 프로젝트 열기",
     synologyUpdateTitle: "Synology 패키지는 수동 업그레이드가 필요합니다",
     synologyUpdateDescription:

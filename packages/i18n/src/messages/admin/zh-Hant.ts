@@ -92,6 +92,8 @@ export const zhHantAdmin = {
     subtitleSynology: "查看版本資訊與群暉套件升級方式",
     subtitleLite: "查看版本資訊、更新日誌與完整版下載方式",
     subtitleGeneric: "查看版本資訊與手動升級方式",
+    officialWebsite: "官方網站",
+    officialDocumentation: "官方文檔",
     openGithub: "打開 GitHub 專案頁",
     synologyUpdateTitle: "群暉套件需手動升級",
     synologyUpdateDescription: "應用內僅檢查版本，安裝請在 DSM 套件中心完成。",

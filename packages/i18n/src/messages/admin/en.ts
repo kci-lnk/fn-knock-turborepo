@@ -105,6 +105,8 @@ export const enAdmin = {
     subtitleLite:
       "View version details, release notes, and the full-version download",
     subtitleGeneric: "View version details and manual upgrade instructions",
+    officialWebsite: "Official website",
+    officialDocumentation: "Documentation",
     openGithub: "Open GitHub project",
     synologyUpdateTitle: "Manual Synology package upgrade",
     synologyUpdateDescription:

@@ -94,6 +94,8 @@ export const zhCNAdmin = {
     subtitleSynology: "查看版本信息与群晖套件升级方式",
     subtitleLite: "查看版本信息、更新日志与完整版下载方式",
     subtitleGeneric: "查看版本信息与手动升级方式",
+    officialWebsite: "官方网站",
+    officialDocumentation: "官方文档",
     openGithub: "打开 GitHub 项目页",
     synologyUpdateTitle: "群晖套件需手动升级",
     synologyUpdateDescription: "应用内仅检查版本，安装请在 DSM 套件中心完成。",

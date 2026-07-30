@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import ReleaseNotesMarkdown from "../components/ReleaseNotesMarkdown.vue";
 import { useUpdateStore } from "../store/update";
 import { useConfigStore } from "../store/config";
 import {
@@ -17,11 +18,14 @@ import {
   Terminal,
   MonitorUp,
   AlertCircle,
+  BookOpen,
   ExternalLink,
+  Globe2,
 } from "lucide-vue-next";
 import {
   FULL_VERSION_WEBSITE_URL,
-  renderReleaseNotesHtml,
+  OFFICIAL_DOCUMENTATION_URL,
+  OFFICIAL_WEBSITE_URL,
   shouldShowOneClickUpdate,
 } from "../lib/update-presentation";
 
@@ -76,13 +80,6 @@ const versionStatusMessage = computed(() => {
   }
   return t("admin.aboutUpdate.versionCheckOnly");
 });
-const releaseNotesHtml = computed(() => {
-  return renderReleaseNotesHtml(
-    status.value?.latest?.release_notes,
-    t("admin.aboutUpdate.noReleaseNotes"),
-  );
-});
-
 const downloadState = computed(() => status.value?.download.status ?? "idle");
 
 const progressValue = computed(() => status.value?.download.percent ?? 0);
@@ -212,7 +209,9 @@ onMounted(async () => {
   <div class="mx-auto space-y-6">
     <Card class="border-border/50 shadow-sm overflow-hidden">
       <CardContent class="space-y-8">
-        <div class="flex items-center justify-between px-1">
+        <div
+          class="flex flex-col gap-4 px-1 sm:flex-row sm:items-start sm:justify-between"
+        >
           <div>
             <h2 class="text-2xl font-semibold tracking-tight">
               {{ t("admin.aboutUpdate.title") }}
@@ -221,16 +220,49 @@ onMounted(async () => {
               {{ t(updateSubtitleKey) }}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="rounded-full hover:bg-muted"
-            :disabled="!status?.githubUrl"
-            :title="t('admin.aboutUpdate.openGithub')"
-            @click="openGithub"
-          >
-            <Github class="h-5 w-5" />
-          </Button>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              as-child
+              variant="outline"
+              size="sm"
+              class="border-border/70 bg-card shadow-none hover:bg-muted/60 dark:bg-muted/20 dark:hover:bg-muted/35"
+            >
+              <a
+                :href="OFFICIAL_WEBSITE_URL"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Globe2 class="h-4 w-4" />
+                {{ t("admin.aboutUpdate.officialWebsite") }}
+              </a>
+            </Button>
+            <Button
+              as-child
+              variant="outline"
+              size="sm"
+              class="border-border/70 bg-card shadow-none hover:bg-muted/60 dark:bg-muted/20 dark:hover:bg-muted/35"
+            >
+              <a
+                :href="OFFICIAL_DOCUMENTATION_URL"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <BookOpen class="h-4 w-4" />
+                {{ t("admin.aboutUpdate.officialDocumentation") }}
+              </a>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              class="rounded-full hover:bg-muted"
+              :disabled="!status?.githubUrl"
+              :title="t('admin.aboutUpdate.openGithub')"
+              :aria-label="t('admin.aboutUpdate.openGithub')"
+              @click="openGithub"
+            >
+              <Github class="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <Alert
@@ -437,10 +469,10 @@ onMounted(async () => {
             {{ t("admin.aboutUpdate.releaseNotes") }}
           </h3>
           <div class="p-5 rounded-2xl bg-muted/30 border border-border/40">
-            <div
-              class="text-sm text-muted-foreground font-sans whitespace-pre-wrap break-words leading-relaxed"
-              v-html="releaseNotesHtml"
-            ></div>
+            <ReleaseNotesMarkdown
+              :source="status?.latest?.release_notes"
+              :fallback="t('admin.aboutUpdate.noReleaseNotes')"
+            />
           </div>
         </div>
       </CardContent>

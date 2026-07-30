@@ -104,6 +104,8 @@ export const jaJPAdmin = {
       "バージョン情報と Synology パッケージのアップグレード手順を表示",
     subtitleLite: "バージョン情報、更新履歴、完全版のダウンロード方法を表示",
     subtitleGeneric: "バージョン情報と手動アップグレードの手順を表示",
+    officialWebsite: "公式サイト",
+    officialDocumentation: "公式ドキュメント",
     openGithub: "GitHub プロジェクトを開く",
     synologyUpdateTitle: "Synology パッケージの手動アップグレード",
     synologyUpdateDescription:

@@ -5,10 +5,12 @@ import { describe, it } from "node:test";
 
 import {
   FULL_VERSION_WEBSITE_URL,
-  renderReleaseNotesHtml,
+  OFFICIAL_DOCUMENTATION_URL,
+  OFFICIAL_WEBSITE_URL,
   resolveUpdateDetailsAction,
   shouldShowOneClickUpdate,
 } from "../src/lib/update-presentation";
+import { renderReleaseNotesHtml } from "../src/lib/release-notes";
 import { resolveRuntimeCapabilityRedirect } from "../src/router/runtime-access";
 import { privilegedNavigationVisibility } from "../src/views/layout/runtime-navigation";
 
@@ -68,11 +70,42 @@ describe("FPK Lite runtime behavior", () => {
       false,
     );
     const releaseNotes = renderReleaseNotesHtml(
-      "修复 <安全> [文档](https://docs.fnknock.cn/)",
+      [
+        "[**用户协议与隐私政策**](https://www.fnknock.cn/legal)",
+        "",
+        "# fn-knock 2.1.6",
+        "",
+        "- 修复 <安全>",
+        "- 查看 [文档](https://docs.fnknock.cn/)",
+        "",
+        "---",
+      ].join("\n"),
       "暂无日志",
     );
-    assert.match(releaseNotes, /修复 &lt;安全&gt;/u);
+    assert.match(releaseNotes, /<h4>fn-knock 2\.1\.6<\/h4>/u);
+    assert.match(releaseNotes, /<ul><li>修复 &lt;安全&gt;<\/li>/u);
+    assert.match(releaseNotes, /<hr>/u);
+    assert.match(
+      releaseNotes,
+      /<a href="https:\/\/www\.fnknock\.cn\/legal"[^>]*><strong>用户协议与隐私政策<\/strong><\/a>/u,
+    );
     assert.match(releaseNotes, /href="https:\/\/docs\.fnknock\.cn\/"/u);
+  });
+
+  it("escapes raw HTML and leaves unsupported links and images as plain text", () => {
+    const releaseNotes = renderReleaseNotesHtml(
+      [
+        "<script>alert('xss')</script>",
+        "[危险链接](javascript:alert('xss'))",
+        "![远程图片](https://example.com/tracker.png)",
+      ].join("\n\n"),
+      "暂无日志",
+    );
+
+    assert.doesNotMatch(releaseNotes, /<script>/u);
+    assert.match(releaseNotes, /&lt;script&gt;/u);
+    assert.doesNotMatch(releaseNotes, /href=/u);
+    assert.doesNotMatch(releaseNotes, /<img/u);
   });
 
   it("sends Lite update details to the full-version website", () => {
@@ -80,5 +113,10 @@ describe("FPK Lite runtime behavior", () => {
       type: "external",
       url: FULL_VERSION_WEBSITE_URL,
     });
+  });
+
+  it("keeps stable official website and documentation links", () => {
+    assert.equal(OFFICIAL_WEBSITE_URL, "https://www.fnknock.cn/");
+    assert.equal(OFFICIAL_DOCUMENTATION_URL, "https://docs.fnknock.cn/");
   });
 });

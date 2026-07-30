@@ -1268,7 +1268,7 @@ fn host_rule_availability_to_json(availability: Option<HostRuleAvailability>) ->
     }
 }
 
-#[allow(deprecated)] // Echo legacy CIDRs only for compatibility validation.
+#[allow(deprecated)] // Echo legacy CIDRs and compiled policy references for compatibility validation.
 fn advanced_auth_to_json(config: Option<AdvancedAuthConfig>) -> Value {
     let Some(config) = config else {
         return Value::Null;
@@ -1287,6 +1287,7 @@ fn advanced_auth_to_json(config: Option<AdvancedAuthConfig>) -> Value {
                 "name": condition.name,
                 "values": condition.values,
                 "cidrs": condition.cidrs,
+                "policy_id": condition.policy_id,
             })).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
     })
@@ -1778,6 +1779,35 @@ mod tests {
         ) {
             panic!("GoBackendClient rejected a non-empty token: {error}");
         }
+    }
+
+    #[test]
+    fn advanced_auth_grpc_conversion_preserves_compiled_policy_id() {
+        let config = json!({
+            "enabled": true,
+            "idle_ttl_seconds": 86_400,
+            "max_lifetime_seconds": 2_592_000,
+            "policy_version": "policy-v1",
+            "groups": [{
+                "id": "region",
+                "conditions": [{
+                    "id": "source-region",
+                    "target": "source_region",
+                    "operator": "in",
+                    "name": "",
+                    "values": [],
+                    "policy_id": "ipset-v2:expected"
+                }]
+            }]
+        });
+
+        let parsed = parse_advanced_auth(Some(&config)).expect("advanced auth config");
+        let echoed = advanced_auth_to_json(Some(parsed));
+
+        assert_eq!(
+            echoed.pointer("/groups/0/conditions/0/policy_id"),
+            Some(&json!("ipset-v2:expected"))
+        );
     }
 
     #[test]

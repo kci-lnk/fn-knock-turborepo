@@ -1,5 +1,4 @@
 use super::*;
-use ipnet::IpNet;
 
 pub(super) async fn sync_go_rules(state: &AppState, rules: &Value) -> Result<(), String> {
     ensure_go_success(
@@ -123,10 +122,16 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     Ok(())
 }
 
+fn host_rule_items(value: &Value) -> Option<&Vec<Value>> {
+    value
+        .get("items")
+        .and_then(Value::as_array)
+        .or_else(|| value.as_array())
+}
+
 fn host_groups_by_host(value: &Value) -> Result<HashMap<String, (String, String)>, String> {
-    let items = value
-        .as_array()
-        .ok_or_else(|| "Host-rules payload must be an array".to_string())?;
+    let items =
+        host_rule_items(value).ok_or_else(|| "Host-rules payload must be an array".to_string())?;
     let mut groups = HashMap::with_capacity(items.len());
     for item in items {
         let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
@@ -217,8 +222,7 @@ fn gateway_list_value(value: Option<&Value>) -> Value {
 }
 
 fn host_advanced_auth_by_host(value: &Value) -> Result<HashMap<String, Value>, String> {
-    let items = value
-        .as_array()
+    let items = host_rule_items(value)
         .ok_or_else(|| "Host-rules advanced-auth payload must be an array".to_string())?;
     let mut policies = HashMap::with_capacity(items.len());
     for item in items {
@@ -229,11 +233,8 @@ fn host_advanced_auth_by_host(value: &Value) -> Result<HashMap<String, Value>, S
     Ok(policies)
 }
 
-fn host_visibilities_by_host(
-    value: &Value,
-) -> Result<HashMap<String, (String, Vec<String>)>, String> {
-    let items = value
-        .as_array()
+fn host_visibilities_by_host(value: &Value) -> Result<HashMap<String, (String, String)>, String> {
+    let items = host_rule_items(value)
         .ok_or_else(|| "Host-rules visibility payload must be an array".to_string())?;
     let mut visibilities = HashMap::with_capacity(items.len());
     for item in items {
@@ -247,35 +248,21 @@ fn host_visibilities_by_host(
             Some("disabled") => "disabled",
             _ => "inherit",
         };
-        let mut seen = HashSet::new();
-        let cidrs = visibility
-            .and_then(|value| value.get("cidrs"))
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .filter_map(canonical_host_visibility_cidr)
-            .filter(|cidr| seen.insert(cidr.clone()))
-            .collect();
-        visibilities.insert(host, (mode.to_string(), cidrs));
+        let policy_id = visibility
+            .and_then(|value| value.get("policy_id"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        visibilities.insert(host, (mode.to_string(), policy_id));
     }
     Ok(visibilities)
-}
-
-fn canonical_host_visibility_cidr(value: &str) -> Option<String> {
-    let network = value.trim().parse::<IpNet>().ok()?;
-    Some(match network {
-        IpNet::V4(network) => format!("{}/{}", network.network(), network.prefix_len()),
-        IpNet::V6(network) => format!("{}/{}", network.network(), network.prefix_len()),
-    })
 }
 
 fn host_protocol_modes_by_host(
     value: &Value,
     context: &str,
 ) -> Result<HashMap<String, String>, String> {
-    let items = value
-        .as_array()
+    let items = host_rule_items(value)
         .ok_or_else(|| format!("{context} host-rules payload must be an array"))?;
     let mut modes = HashMap::with_capacity(items.len());
     for item in items {

@@ -3,9 +3,11 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     str::FromStr,
+    sync::Arc,
 };
 
 use crate::storage::redis_compat as redis;
+use arc_swap::ArcSwap;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ipnet::IpNet;
 use redis::{
@@ -61,6 +63,7 @@ mod tests;
 pub struct Store {
     manager: ConnectionManager,
     path: PathBuf,
+    config_snapshot: Arc<ArcSwap<Value>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -564,7 +567,13 @@ impl Store {
     pub async fn connect(sqlite_path: impl AsRef<Path>) -> crate::storage::StorageResult<Self> {
         let path = sqlite_path.as_ref().to_path_buf();
         let manager = ConnectionManager::open(&path).await?;
-        Ok(Self { manager, path })
+        let store = Self {
+            manager,
+            path,
+            config_snapshot: Arc::new(ArcSwap::from_pointee(default_config())),
+        };
+        store.refresh_config_snapshot().await?;
+        Ok(store)
     }
 
     fn conn(&self) -> ConnectionManager {
@@ -574,6 +583,20 @@ impl Store {
     #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn config_snapshot(&self) -> Arc<Value> {
+        self.config_snapshot.load_full()
+    }
+
+    pub async fn refresh_config_snapshot(&self) -> crate::storage::StorageResult<()> {
+        let config = self.get_config().await?;
+        self.publish_config_snapshot(config);
+        Ok(())
+    }
+
+    fn publish_config_snapshot(&self, config: Value) {
+        self.config_snapshot.store(Arc::new(config));
     }
 }
 

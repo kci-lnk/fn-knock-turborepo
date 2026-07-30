@@ -127,8 +127,35 @@ pub(super) async fn update_gateway_visibility_inner(
         .get_config()
         .await
         .map_err(|error| error.to_string())?;
-    ensure_object(&mut next_config)
-        .insert("gateway_visibility".to_string(), compiled.config.clone());
+    let config_object = ensure_object(&mut next_config);
+    config_object.insert("gateway_visibility".to_string(), compiled.config.clone());
+    let mut policies = config_object
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(policy) = &compiled.policy {
+        policies.insert(policy.id.clone(), policy.to_config_value());
+    }
+    let mut referenced = config_object
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|mapping| mapping.pointer("/visibility/policy_id"))
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect::<BTreeSet<_>>();
+    if let Some(policy_id) = compiled
+        .config
+        .get("policy_id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    {
+        referenced.insert(policy_id.to_string());
+    }
+    policies.retain(|id, _| referenced.contains(id));
+    config_object.insert("visibility_policies".to_string(), Value::Object(policies));
 
     state
         .store

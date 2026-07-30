@@ -51,6 +51,9 @@ pub struct AppStateInner {
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
     pub host_mappings_update_lock: Mutex<()>,
+    /// Serializes protocol-mapping config, its standalone feature switch,
+    /// gateway listeners, firewall rules, and rollback as one transaction.
+    pub protocol_mapping_update_lock: Mutex<()>,
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
@@ -87,6 +90,10 @@ impl AppState {
             .await
             .context("migrate legacy Redis data into SQLite")?;
             tracing::info!("{}", migration.summary());
+            store
+                .refresh_config_snapshot()
+                .await
+                .context("refresh config snapshot after legacy Redis migration")?;
         } else {
             tracing::info!("legacy Redis migration disabled for fpk-lite runtime");
         }
@@ -152,6 +159,7 @@ impl AppState {
                 automatic_backup_lock: Mutex::new(()),
                 automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
+                protocol_mapping_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),
                 tunnel_supervisors: TunnelSupervisorRegistry::default(),
                 tunnel_runtime_update_lock: Mutex::new(()),

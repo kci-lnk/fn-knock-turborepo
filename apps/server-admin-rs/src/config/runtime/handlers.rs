@@ -113,6 +113,7 @@ pub(super) async fn update_run_type(
             capability_blocked_text(&state, "direct_mode_available", &translator),
         );
     }
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
 
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,
@@ -251,6 +252,7 @@ pub(super) async fn update_protocol_mapping_feature(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -338,6 +340,7 @@ pub(super) async fn update_smart_connect(
             capability_blocked_text(&state, "smart_connect_available", &translator),
         );
     }
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
 
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,

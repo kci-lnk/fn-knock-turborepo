@@ -120,11 +120,56 @@ pub(super) async fn import_backup_archive_buffer(
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
+    let previous_keys = state
+        .store
+        .scan_keys(KNOCK_BACKUP_PREFIX, SCAN_COUNT)
+        .await
+        .map_err(|error| BackupImportError::internal(error.to_string()))?;
+    let mut previous_entries = Vec::with_capacity(previous_keys.len());
+    for key in previous_keys {
+        if let Some(entry) = state
+            .store
+            .export_backup_entry(&key)
+            .await
+            .map_err(|error| BackupImportError::internal(error.to_string()))?
+        {
+            previous_entries.push(entry);
+        }
+    }
+
     let cleared_keys = state
         .store
         .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &importable_entries, SCAN_COUNT)
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
+
+    if let Err(migration_error) = gateway_settings::migrate_visibility_policies_locked(state).await
+    {
+        let rollback_result = state
+            .store
+            .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &previous_entries, SCAN_COUNT)
+            .await;
+        let runtime_restore_result = if rollback_result.is_ok() {
+            gateway_settings::migrate_visibility_policies_locked(state).await
+        } else {
+            Ok(())
+        };
+        let ownership_result = host_mappings_lease.ensure_owned().await;
+        let release_result = host_mappings_lease.release().await;
+        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        let rollback_detail = rollback_result
+            .err()
+            .map(|error| format!("; storage rollback failed: {error}"))
+            .unwrap_or_default();
+        let runtime_detail = runtime_restore_result
+            .err()
+            .map(|error| format!("; runtime rollback failed: {error}"))
+            .unwrap_or_default();
+        return Err(BackupImportError::internal(format!(
+            "visibility policy migration failed: {migration_error}{rollback_detail}{runtime_detail}"
+        )));
+    }
 
     let (warnings, synced_steps) = sync_runtime_after_import(state, translator).await;
     let ownership_result = host_mappings_lease.ensure_owned().await;

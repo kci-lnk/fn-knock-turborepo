@@ -43,11 +43,35 @@ pub(super) async fn apply_preflight_behavior_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
+    let config = state.store.get_config().await?;
+    apply_preflight_behavior_with_routed_upstream_and_config(
+        state,
+        headers,
+        uri,
+        response,
+        &config,
+        routed_upstream,
+        routed_upstream_host,
+        routed_upstream_route_id,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_preflight_behavior_with_routed_upstream_and_config(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    response: &mut Response,
+    config: &Value,
+    routed_upstream: Option<&str>,
+    routed_upstream_host: Option<&str>,
+    routed_upstream_route_id: Option<&str>,
+) -> anyhow::Result<()> {
     let client_ip = client_ip_for_auth(headers);
     let access_mode = requested_access_mode(headers);
-    let config = state.store.get_config().await?;
     let normal_access =
-        resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
+        resolve_preflight_normal_access(state, headers, uri, config, &client_ip, access_mode)
             .await?;
 
     apply_preflight_behavior_with_normal_access(
@@ -55,7 +79,7 @@ pub(super) async fn apply_preflight_behavior_with_routed_upstream(
         headers,
         uri,
         response,
-        &config,
+        config,
         &client_ip,
         access_mode,
         &normal_access,

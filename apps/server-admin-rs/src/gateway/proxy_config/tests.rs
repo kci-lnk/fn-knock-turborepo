@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeSet;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -507,13 +508,16 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
     .await
     .unwrap();
     assert_eq!(
-        compiled[0]["visibility"]["custom_cidrs"],
+        compiled.mappings[0]["visibility"]["custom_cidrs"],
         json!(["203.0.113.0/24"])
     );
-    assert_eq!(
-        compiled[0]["visibility"]["cidrs"],
-        json!(["203.0.113.0/24"])
-    );
+    assert!(compiled.mappings[0]["visibility"].get("cidrs").is_none());
+    let policy_id = compiled.mappings[0]["visibility"]["policy_id"]
+        .as_str()
+        .unwrap();
+    assert!(policy_id.starts_with("ipset-v1:"));
+    assert_eq!(compiled.visibility_policies.len(), 1);
+    assert!(compiled.visibility_policies.contains_key(policy_id));
 
     let preserved = json!({
         "host_mappings": [{
@@ -533,10 +537,14 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        legacy[0]["visibility"],
-        preserved["host_mappings"][0]["visibility"]
+    assert!(legacy.mappings[0]["visibility"].get("cidrs").is_none());
+    assert!(
+        legacy.mappings[0]["visibility"]["policy_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("ipset-v1:")
     );
+    assert_eq!(legacy.visibility_policies.len(), 1);
 
     for custom_cidrs in [json!([]), json!(["not-a-cidr"])] {
         let error = compile_host_mapping_visibilities(
@@ -557,6 +565,41 @@ async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
     }
 }
 
+#[tokio::test]
+async fn six_hosts_share_one_content_addressed_visibility_policy() {
+    let (_directory, state) = proxy_config_test_state("http://127.0.0.1:1".to_string()).await;
+    let mappings = (0..6)
+        .map(|index| {
+            json!({
+                "host": format!("app-{index}.example.com"),
+                "visibility": {
+                    "mode": "custom",
+                    "selections": [],
+                    "custom_cidrs": ["203.0.113.0/25", "203.0.113.128/25"]
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    let compiled = compile_host_mapping_visibilities(&state, mappings, &json!({}))
+        .await
+        .unwrap();
+    assert_eq!(compiled.mappings.len(), 6);
+    assert_eq!(compiled.visibility_policies.len(), 1);
+    let ids = compiled
+        .mappings
+        .iter()
+        .filter_map(|mapping| mapping.pointer("/visibility/policy_id"))
+        .filter_map(Value::as_str)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(ids.len(), 1);
+    assert!(
+        compiled
+            .mappings
+            .iter()
+            .all(|mapping| mapping.pointer("/visibility/cidrs").is_none())
+    );
+}
+
 #[test]
 fn host_rules_payload_contains_only_compiled_visibility_fields() {
     let payload = build_host_rules_payload(&[json!({
@@ -566,7 +609,8 @@ fn host_rules_payload_contains_only_compiled_visibility_fields() {
             "mode": "custom",
             "selections": [{ "province": "浙江省" }],
             "custom_cidrs": ["203.0.113.0/24"],
-            "cidrs": ["203.0.113.0/24"]
+            "cidrs": ["203.0.113.0/24"],
+            "policy_id": "ipset-v1:test"
         }
     })]);
 
@@ -574,7 +618,7 @@ fn host_rules_payload_contains_only_compiled_visibility_fields() {
         payload[0]["visibility"],
         json!({
             "mode": "custom",
-            "cidrs": ["203.0.113.0/24"]
+            "policy_id": "ipset-v1:test"
         })
     );
 }
@@ -1371,6 +1415,7 @@ async fn manual_metadata_refresh_rolls_back_config_when_runtime_sync_fails() {
 
     let previous_config = json!({
         "run_type": 3,
+        "visibility_policies": {},
         "host_mappings": [{
             "host": "video.example.com",
             "target": format!("http://{metadata_addr}/"),
@@ -1396,6 +1441,7 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
     let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
     let previous_config = json!({
         "run_type": 3,
+        "visibility_policies": {},
         "host_mappings": [{
             "host": "video.example.com",
             "target": "http://127.0.0.1:8080",
@@ -1405,6 +1451,7 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
     });
     let changed_config = json!({
         "run_type": 3,
+        "visibility_policies": {},
         "host_mappings": [{
             "host": "video.example.com",
             "target": "http://127.0.0.1:8080",
@@ -2112,7 +2159,7 @@ fn host_rule_payload_uses_group_and_mapping_order_with_ungrouped_last() {
             { "host": "media.example.com", "target": "http://127.0.0.1:8080", "group_id": media }
         ]
     }));
-    let rules = payload.as_array().unwrap();
+    let rules = payload["items"].as_array().unwrap();
     assert_eq!(
         rules
             .iter()
@@ -2135,7 +2182,7 @@ fn host_rule_payload_stays_flat_when_grouped_view_is_disabled() {
             { "host": "media.example.com", "target": "http://127.0.0.1:8080", "group_id": group_id }
         ]
     }));
-    let rules = payload.as_array().unwrap();
+    let rules = payload["items"].as_array().unwrap();
     assert_eq!(
         rules
             .iter()
@@ -2400,27 +2447,41 @@ fn rejects_stream_mappings_that_loop_to_the_same_local_port() {
 
 #[test]
 fn disabled_stream_mappings_can_repair_legacy_local_loops_incrementally() {
-    let legacy = normalize_stream_mappings(vec![json!({
-        "protocol": "tcp",
-        "listen_port": 5555,
-        "target": "127.0.0.1:5555",
-        "comment": "legacy"
-    })])
+    let legacy = normalize_stream_mappings(vec![
+        json!({
+            "protocol": "tcp",
+            "listen_port": 5555,
+            "target": "127.0.0.1:5555",
+            "comment": "legacy TCP"
+        }),
+        json!({
+            "protocol": "udp",
+            "listen_port": 5555,
+            "target": "127.0.0.1:5555",
+            "comment": "legacy UDP"
+        }),
+    ])
     .expect("legacy mapping");
-    let comment_only_update = normalize_stream_mappings(vec![json!({
-        "protocol": "tcp",
+    let one_removed = normalize_stream_mappings(vec![json!({
+        "protocol": "udp",
         "listen_port": 5555,
         "target": "127.0.0.1:5555",
         "comment": "needs repair"
     })])
     .expect("comment update");
 
-    validate_stream_mapping_update_safety(&legacy, &comment_only_update, true)
-        .expect("disabled feature should preserve an unchanged legacy loop");
+    assert!(stream_mapping_update_only_removes_entries(
+        &legacy,
+        &one_removed
+    ));
+    validate_stream_mapping_update_safety(&legacy, &one_removed, true)
+        .expect("repair should preserve the remaining unchanged legacy loop");
     assert!(
-        validate_stream_mapping_update_safety(&legacy, &comment_only_update, false).is_err(),
+        validate_stream_mapping_update_safety(&legacy, &one_removed, false).is_err(),
         "enabled feature must reject every local loop"
     );
+    validate_stream_mapping_update_safety(&legacy, &[], true)
+        .expect("all legacy loops can be removed at once");
 
     let repaired = normalize_stream_mappings(vec![json!({
         "protocol": "tcp",
@@ -2431,6 +2492,259 @@ fn disabled_stream_mappings_can_repair_legacy_local_loops_incrementally() {
     .expect("repaired mapping");
     validate_stream_mapping_update_safety(&legacy, &repaired, false)
         .expect("repaired mapping should be accepted");
+    assert!(
+        !stream_mapping_update_only_removes_entries(&legacy, &repaired),
+        "changing a forwarding identity is an edit, not a removal-only update"
+    );
+}
+
+#[tokio::test]
+async fn disabled_stream_mapping_deletion_does_not_depend_on_gateway_runtime() {
+    let unavailable_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let unavailable_grpc_addr = unavailable_listener.local_addr().unwrap();
+    drop(unavailable_listener);
+    let (_directory, state) = proxy_config_test_state(unavailable_grpc_addr.to_string()).await;
+
+    let mappings = json!([
+        {
+            "protocol": "tcp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true,
+            "comment": "legacy TCP"
+        },
+        {
+            "protocol": "udp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true,
+            "comment": "legacy UDP"
+        }
+    ]);
+    let mut config = state.store.get_config().await.expect("load config");
+    ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
+    state.store.save_config(&config).await.expect("save config");
+    state
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({ "enabled": false }),
+        )
+        .await
+        .expect("disable protocol mappings");
+
+    let remaining = json!({
+        "protocol": "udp",
+        "listen_port": 12333,
+        "target": "127.0.0.1:12333",
+        "use_auth": true,
+        "comment": "legacy UDP"
+    });
+    let response = update_stream_mappings(
+        State(state.clone()),
+        Json(MappingsBody {
+            mappings: vec![remaining.clone()],
+            revision: None,
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("stream_mappings"),
+        Some(&json!([remaining]))
+    );
+}
+
+#[tokio::test]
+async fn enabled_stream_mapping_can_delete_the_only_legacy_udp_loop() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let mappings = json!([{
+        "protocol": "udp",
+        "listen_port": 12333,
+        "target": "127.0.0.1:12333",
+        "use_auth": true,
+        "comment": "legacy UDP"
+    }]);
+    let mut config = state.store.get_config().await.expect("load config");
+    ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
+    state.store.save_config(&config).await.expect("save config");
+    state
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({ "enabled": true }),
+        )
+        .await
+        .expect("enable protocol mappings");
+
+    let response = update_stream_mappings_with_runtime_sync(
+        state.clone(),
+        MappingsBody {
+            mappings: vec![],
+            revision: None,
+        },
+        |_state, updated_config| async move {
+            assert_eq!(updated_config.get("stream_mappings"), Some(&json!([])));
+            Ok(())
+        },
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("stream_mappings"),
+        Some(&json!([]))
+    );
+    assert_eq!(
+        runtime_config::load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("reload feature"),
+        json!({ "enabled": true })
+    );
+}
+
+#[tokio::test]
+async fn stream_mapping_update_waits_for_the_protocol_mapping_transaction_lock() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let mappings = json!([
+        {
+            "protocol": "tcp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true
+        },
+        {
+            "protocol": "udp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true
+        }
+    ]);
+    let mut config = state.store.get_config().await.expect("load config");
+    ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
+    state.store.save_config(&config).await.expect("save config");
+    state
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({ "enabled": true }),
+        )
+        .await
+        .expect("enable protocol mappings");
+
+    let guard = state.protocol_mapping_update_lock.lock().await;
+    let task_state = state.clone();
+    let mut task = tokio::spawn(async move {
+        update_stream_mappings(
+            State(task_state),
+            Json(MappingsBody {
+                mappings: vec![json!({
+                    "protocol": "udp",
+                    "listen_port": 12333,
+                    "target": "127.0.0.1:12333",
+                    "use_auth": true
+                })],
+                revision: None,
+            }),
+        )
+        .await
+    });
+
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), &mut task)
+            .await
+            .is_err(),
+        "mapping update must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    let response = tokio::time::timeout(Duration::from_secs(1), task)
+        .await
+        .expect("mapping update should finish after releasing the lock")
+        .expect("mapping update task");
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let mappings = json!([
+        {
+            "protocol": "tcp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true,
+            "comment": "legacy TCP"
+        },
+        {
+            "protocol": "udp",
+            "listen_port": 12333,
+            "target": "127.0.0.1:12333",
+            "use_auth": true,
+            "comment": "legacy UDP"
+        }
+    ]);
+    let mut config = state.store.get_config().await.expect("load config");
+    ensure_object(&mut config).insert("stream_mappings".to_string(), mappings.clone());
+    state.store.save_config(&config).await.expect("save config");
+    state
+        .store
+        .set_json_value(
+            "fn_knock:protocol-mapping:feature",
+            &json!({ "enabled": true }),
+        )
+        .await
+        .expect("enable protocol mappings");
+
+    let response = update_stream_mappings(
+        State(state.clone()),
+        Json(MappingsBody {
+            mappings: vec![json!({
+                "protocol": "udp",
+                "listen_port": 12333,
+                "target": "127.0.0.1:12333",
+                "use_auth": true,
+                "comment": "legacy UDP"
+            })],
+            revision: None,
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let response_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read response body");
+    let response_json: Value = serde_json::from_slice(&response_body).expect("parse response body");
+    assert_eq!(
+        response_json.get("code"),
+        Some(&json!(STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE))
+    );
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("stream_mappings"),
+        Some(&mappings)
+    );
+    assert_eq!(
+        runtime_config::load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("reload feature"),
+        json!({ "enabled": true })
+    );
 }
 
 #[test]

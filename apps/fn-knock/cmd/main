@@ -6,6 +6,9 @@ PKG_VAR_DIR="${TRIM_PKGVAR:-}"
 LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
+READINESS_MARKER="${PKG_VAR_DIR}/runtime.ready"
+GATEWAY_RUNTIME_LOG="${PKG_VAR_DIR}/gateway-runtime.log"
+GATEWAY_RUNTIME_LOG_PREVIOUS="${PKG_VAR_DIR}/gateway-runtime.log.1"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
 HMAC_SECRET_FILE="${PKG_VAR_DIR}/hmac_secret"
 INTERNAL_RPC_TOKEN_FILE="${PKG_VAR_DIR}/internal_rpc_token"
@@ -37,6 +40,45 @@ ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+rotate_gateway_runtime_log() {
+    local size=0
+    if [ -f "${GATEWAY_RUNTIME_LOG}" ]; then
+        size="$(wc -c < "${GATEWAY_RUNTIME_LOG}" 2>/dev/null || echo 0)"
+    fi
+    case "${size}" in
+        ''|*[!0-9]*) size=0 ;;
+    esac
+    if [ "${size}" -ge 5242880 ]; then
+        rm -f "${GATEWAY_RUNTIME_LOG_PREVIOUS}"
+        mv "${GATEWAY_RUNTIME_LOG}" "${GATEWAY_RUNTIME_LOG_PREVIOUS}"
+    fi
+}
+
+wait_runtime_ready() {
+    local attempts=0
+    local backend_pid=""
+    local gateway_pid=""
+    while [ "${attempts}" -lt 240 ]; do
+        if [ -f "${READINESS_MARKER}" ]; then
+            log_msg "Runtime readiness confirmed."
+            return 0
+        fi
+        backend_pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
+        gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+        if ! check_process "${backend_pid}" || ! check_process "${gateway_pid}"; then
+            break
+        fi
+        sleep 0.25
+        attempts=$((attempts + 1))
+    done
+    log_msg "Runtime readiness failed or timed out after 60 seconds."
+    if [ -f "${GATEWAY_RUNTIME_LOG}" ]; then
+        log_msg "Recent gateway runtime diagnostics:"
+        tail -n 40 "${GATEWAY_RUNTIME_LOG}" >> "${LOG_FILE}" 2>/dev/null || true
+    fi
+    return 1
 }
 
 cleanup_fn_connect_waf_rules() {
@@ -656,6 +698,7 @@ start_gateway() {
     local max_attempts=3
     local attempt=1
     local pid=""
+    rotate_gateway_runtime_log
 
     while [ "${attempt}" -le "${max_attempts}" ]; do
         log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT}, attempt=${attempt}/${max_attempts})..."
@@ -665,7 +708,7 @@ start_gateway() {
             -c "${GATEWAY_CONFIG_DIR}" \
             -admin-port "${GO_BACKEND_PORT}" \
             -proxy-port "${GO_REPROXY_PORT}" \
-            >/dev/null 2>&1 &
+            >> "${GATEWAY_RUNTIME_LOG}" 2>&1 &
 
         echo "$!" > "${GATEWAY_PID_FILE}"
         sleep 1
@@ -730,6 +773,7 @@ start_backend() {
         return 1
     fi
     resolve_root_share_dir
+    rm -f "${READINESS_MARKER}"
 
     log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
@@ -752,6 +796,7 @@ start_backend() {
         ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
         HMAC_SECRET="${HMAC_SECRET}" \
         ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET}" \
+        FN_KNOCK_READY_FILE="${READINESS_MARKER}" \
         "${BACKEND_ENTRY}"
     ) >> "${LOG_FILE}" 2>&1 &
 
@@ -807,6 +852,12 @@ start() {
         fi
         return 1
     fi
+    if ! wait_runtime_ready; then
+        stop_service "${BACKEND_PID_FILE}" "Backend"
+        stop_service "${GATEWAY_PID_FILE}" "Gateway"
+        write_temp_log "fn-knock runtime readiness failed; inspect ${LOG_FILE} and ${GATEWAY_RUNTIME_LOG}"
+        return 1
+    fi
     return 0
 }
 
@@ -814,6 +865,7 @@ stop() {
     log_msg "=== fn-knock stop ==="
     resolve_gateway_bin >/dev/null 2>&1 || true
     stop_service "${BACKEND_PID_FILE}" "Backend"
+    rm -f "${READINESS_MARKER}"
     if ! cleanup_fn_connect_waf_rules; then
         log_msg "Gateway kept running because FN Connect WAF rules could not be safely removed"
         return 1

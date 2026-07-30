@@ -1,4 +1,4 @@
-use std::{env, future::Future, pin::Pin, time::Duration};
+use std::{env, future::Future, path::PathBuf, pin::Pin, time::Duration};
 
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -23,6 +23,7 @@ use crate::{
     ddns_status::start_ddns_tasks,
     fnos_certificate_sync::start_fnos_certificate_sync_tasks,
     frpc::start_frpc_tasks,
+    gateway_settings::migrate_visibility_policies_on_boot,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
     maintenance::start_automatic_backup_tasks,
@@ -102,12 +103,19 @@ pub(crate) async fn run_with_settings(
     shutdown: CancellationToken,
     ready: Option<oneshot::Sender<()>>,
 ) -> anyhow::Result<()> {
-    let managed_readiness = ready.is_some();
+    let readiness_marker = env::var_os("FN_KNOCK_READY_FILE").map(PathBuf::from);
+    if let Some(path) = &readiness_marker {
+        let _ = tokio::fs::remove_file(path).await;
+    }
     // Child cancellation propagates an SCM/signal stop into every listener and
     // worker, while an application startup error can tear down its own tasks
     // without masquerading as an external service stop in the supervisor.
     let runtime_shutdown = shutdown.child_token();
     let state = AppState::new_with_shutdown(settings.clone(), runtime_shutdown.clone()).await?;
+    wait_for_gateway_control_plane(&state, &runtime_shutdown, Duration::from_secs(60)).await?;
+    migrate_visibility_policies_on_boot(&state)
+        .await
+        .map_err(anyhow::Error::msg)?;
     sync_auto_https_on_boot(state.clone()).await;
     boot::start_boot_sync_tasks(state.clone());
     start_traffic_tasks(state.clone());
@@ -203,19 +211,11 @@ pub(crate) async fn run_with_settings(
     // important on Windows: the Go data plane may issue auth requests as soon
     // as the bridge handshakes, and SCM Running must still be withheld until
     // bundle + process + data plane + auth bridge are all healthy.
-    let readiness = if profile.is_windows {
-        wait_for_readiness_while_serving(
-            servers.as_mut(),
-            wait_for_windows_gateway(
-                &state,
-                &runtime_shutdown,
-                (!managed_readiness).then_some(Duration::from_secs(60)),
-            ),
-        )
-        .await
-    } else {
-        Ok(())
-    };
+    let readiness = wait_for_readiness_while_serving(
+        servers.as_mut(),
+        wait_for_gateway(&state, &runtime_shutdown, Some(Duration::from_secs(60))),
+    )
+    .await;
     if let Err(error) = readiness {
         runtime_shutdown.cancel();
         state
@@ -223,7 +223,13 @@ pub(crate) async fn run_with_settings(
             .shutdown_all(Duration::from_secs(10))
             .await;
         stop_auth_bridge(auth_bridge).await;
+        if let Some(path) = &readiness_marker {
+            let _ = tokio::fs::remove_file(path).await;
+        }
         return Err(error);
+    }
+    if let Some(path) = &readiness_marker {
+        tokio::fs::write(path, b"ready\n").await?;
     }
     if let Some(ready) = ready {
         let _ = ready.send(());
@@ -235,6 +241,9 @@ pub(crate) async fn run_with_settings(
         .shutdown_all(Duration::from_secs(10))
         .await;
     stop_auth_bridge(auth_bridge).await;
+    if let Some(path) = &readiness_marker {
+        let _ = tokio::fs::remove_file(path).await;
+    }
     result
 }
 
@@ -267,7 +276,40 @@ where
     }
 }
 
-async fn wait_for_windows_gateway(
+async fn wait_for_gateway_control_plane(
+    state: &AppState,
+    shutdown: &CancellationToken,
+    timeout: Duration,
+) -> anyhow::Result<()> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let process_ready = state
+            .go_backend
+            .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
+            .await
+            .unwrap_or(false);
+        if process_ready {
+            match state.go_backend.verify_bundle_compatibility().await {
+                Ok(_) => return Ok(()),
+                Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
+                    tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
+                }
+                Err(error @ crate::go_backend::BundleCompatibilityError::Incompatible(_)) => {
+                    return Err(error.into());
+                }
+            }
+        }
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!("Go gateway control plane did not become ready within 60 seconds");
+        }
+        tokio::select! {
+            _ = shutdown.cancelled() => anyhow::bail!("startup cancelled"),
+            _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+        }
+    }
+}
+
+async fn wait_for_gateway(
     state: &AppState,
     shutdown: &CancellationToken,
     timeout: Option<Duration>,

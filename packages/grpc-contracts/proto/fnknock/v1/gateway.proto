@@ -52,7 +52,21 @@ message HostRuleAvailability {
 
 message HostRuleVisibility {
   string mode = 1;
-  repeated string cidrs = 2;
+  // Deprecated compatibility input. New control planes send policy_id and
+  // publish the referenced CompiledIpSet in HostRules.visibility_policies.
+  repeated string cidrs = 2 [deprecated = true];
+  string policy_id = 3;
+}
+
+// Exact, immutable IP set encoded as sorted, disjoint inclusive ranges.
+// ipv4_ranges is a concatenation of start(4 bytes) + end(4 bytes);
+// ipv6_ranges uses start(16 bytes) + end(16 bytes). All bytes are network
+// byte order. format_version 1 is content-addressed by id.
+message CompiledIpSet {
+  string id = 1;
+  uint32 format_version = 2;
+  bytes ipv4_ranges = 3;
+  bytes ipv6_ranges = 4;
 }
 
 // Advanced authentication rules are compiled by the control plane before they
@@ -154,8 +168,11 @@ message ReverseProxyThrottleConfig {
 
 message GatewayVisibilityConfig {
   bool enabled = 1;
-  repeated string cidrs = 2;
+  // Deprecated compatibility input. New control planes send policy.
+  repeated string cidrs = 2 [deprecated = true];
   string updated_at = 3;
+  string policy_id = 4;
+  CompiledIpSet policy = 5;
 }
 
 message OmitTargetsConfig {
@@ -495,6 +512,7 @@ message Rules {
 
 message HostRules {
   repeated HostRule items = 1;
+  repeated CompiledIpSet visibility_policies = 2;
 }
 
 message StreamRules {

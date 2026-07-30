@@ -2460,6 +2460,8 @@ export const enAdmin = {
     deleteTitle: "Delete {protocol} protocol mapping?",
     deleteDescription:
       "This will stop {mapping} and remove forwarding rules to {target}.",
+    disabledForLegacyRepair:
+      "Invalid legacy records remain, so protocol mappings were disabled automatically. Re-enable them in System settings → Features after cleanup.",
     editTitle: "Edit protocol mapping",
     createTitle: "Add protocol mapping",
     dialogDescription:
@@ -2494,6 +2496,8 @@ export const enAdmin = {
     actionUpdate: "Updated",
     removeSuccess: "Removed {mapping} protocol mapping",
     deleteFailed: "Delete failed",
+    deleteFailedWhileDisabled:
+      "Protocol mappings are disabled, but the record was not deleted",
     syncSuccess: "Synced to gateway",
     syncDescription:
       "{pathRules} path routes, {hostRules} Host routes, {streamRules} protocol mappings.",

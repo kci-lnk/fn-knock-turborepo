@@ -2301,6 +2301,8 @@ export const zhHantAdmin = {
     delete: "刪除",
     deleteTitle: "確認刪除 {protocol} 協議映射？",
     deleteDescription: "將停止 {mapping}，並移除到 {target} 的轉發規則。",
+    disabledForLegacyRepair:
+      "仍有錯誤的舊記錄，協議映射已自動停用；清理完成後可在「系統設定 → 功能」中重新開啟。",
     editTitle: "編輯協議映射",
     createTitle: "添加協議映射",
     dialogDescription:
@@ -2332,6 +2334,7 @@ export const zhHantAdmin = {
     actionUpdate: "更新",
     removeSuccess: "已移除 {mapping} 協議映射",
     deleteFailed: "刪除失敗",
+    deleteFailedWhileDisabled: "協議映射已停用，但刪除該記錄失敗",
     syncSuccess: "已同步到網關",
     syncDescription:
       "路徑路由 {pathRules} 條，Host 路由 {hostRules} 條，協議映射 {streamRules} 條。",

@@ -185,13 +185,7 @@ async fn handle_authorize_http(
     let access_mode = requested_access_mode(&headers);
     let mut response = empty_authorize_http_response();
 
-    let config = match state.store.get_config().await {
-        Ok(config) => config,
-        Err(error) => {
-            tracing::warn!(%error, "auth bridge authorize HTTP config resolution failed");
-            return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
-        }
-    };
+    let config = state.store.config_snapshot();
     let translator = translator_from_config(&config);
     let matched_rule_valid = request
         .subdomain_rule_match
@@ -238,7 +232,7 @@ async fn handle_authorize_http(
             Ok(access) => access,
             Err(error) => {
                 tracing::warn!(%error, "auth bridge authorize HTTP normal access resolution failed");
-                return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
+                return authorize_http_preparation_error(&translator, run_preflight, run_verify);
             }
         }
     };
@@ -320,8 +314,8 @@ fn empty_authorize_http_response() -> AuthorizeHttpResponse {
     }
 }
 
-async fn authorize_http_preparation_error(
-    state: &AppState,
+fn authorize_http_preparation_error(
+    translator: &Translator,
     run_preflight: bool,
     run_verify: bool,
 ) -> AuthorizeHttpResponse {
@@ -330,8 +324,7 @@ async fn authorize_http_preparation_error(
         response.preflight = Some(preflight_auth_response_from_http(&new_preflight_response()));
     }
     if run_verify {
-        let translator = Translator::from_state(state).await;
-        response.verify = Some(verify_auth_error_response(&translator));
+        response.verify = Some(verify_auth_error_response(translator));
     }
     response
 }
@@ -349,12 +342,14 @@ async fn handle_verify_auth(state: AppState, request: VerifyAuthRequest) -> Veri
     let uri = uri_from_auth_context(request.context.as_ref());
     let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
         routed_upstream_from_auth_context(request.context.as_ref());
-    let translator = Translator::from_state(&state).await;
-    match resolve_auth_access_with_routed_upstream(
+    let config = state.store.config_snapshot();
+    let translator = translator_from_config(&config);
+    match resolve_auth_access_with_routed_upstream_and_config(
         &state,
         &headers,
         &uri,
         &translator,
+        &config,
         routed_upstream,
         routed_upstream_host,
         routed_upstream_route_id,
@@ -483,11 +478,13 @@ async fn handle_preflight_auth(
         routed_upstream_from_auth_context(request.context.as_ref());
     let mut response = new_preflight_response();
 
-    if let Err(error) = apply_preflight_behavior_with_routed_upstream(
+    let config = state.store.config_snapshot();
+    if let Err(error) = apply_preflight_behavior_with_routed_upstream_and_config(
         &state,
         &headers,
         &uri,
         &mut response,
+        &config,
         routed_upstream,
         routed_upstream_host,
         routed_upstream_route_id,
@@ -550,7 +547,8 @@ async fn handle_verify_stream_auth(
     );
     insert_header(&mut headers, "X-Reauth-Target", &request.target);
     let uri = Uri::from_static("/");
-    let translator = Translator::from_state(&state).await;
+    let config = state.store.config_snapshot();
+    let translator = translator_from_config(&config);
 
     let session_access = match resolve_stream_session_access(
         &state,
@@ -580,7 +578,18 @@ async fn handle_verify_stream_auth(
         };
     }
 
-    match resolve_auth_access(&state, &headers, &uri, &translator).await {
+    match resolve_auth_access_with_routed_upstream_and_config(
+        &state,
+        &headers,
+        &uri,
+        &translator,
+        &config,
+        None,
+        None,
+        None,
+    )
+    .await
+    {
         Ok(access)
             if access.authenticated
                 && !(session_access.has_custom_owner

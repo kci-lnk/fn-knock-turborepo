@@ -384,6 +384,8 @@ export const zhCNServer = {
       localPortLoop:
         "监听端口 {port} 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口",
       saveFailed: "保存协议映射失败",
+      disableBeforeLegacyRepair:
+        "仍有错误的旧协议映射，请先停用协议映射后再继续删除",
       syncFailed: "同步协议映射与网关端口放行规则失败",
       syncFailedRolledBack: "同步协议映射与网关端口放行规则失败，已回滚配置",
     },

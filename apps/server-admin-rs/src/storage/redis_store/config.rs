@@ -225,6 +225,7 @@ pub fn default_config() -> Value {
         "waf": waf,
         "reverse_proxy_throttle": reverse_proxy_throttle,
         "gateway_visibility": gateway_visibility,
+        "visibility_policies": {},
         "gateway_proxy_headers": gateway_proxy_headers,
         "gateway_host_response": gateway_host_response,
         "gateway_crawler_blocker": gateway_crawler_blocker,

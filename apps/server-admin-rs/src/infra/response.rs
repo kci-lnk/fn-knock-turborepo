@@ -51,11 +51,19 @@ pub fn success_empty() -> Json<ApiEnvelope<Value>> {
 }
 
 pub fn error(status: StatusCode, message: impl Into<String>) -> axum::response::Response {
+    error_with_code(status, None, message)
+}
+
+pub fn error_with_code(
+    status: StatusCode,
+    code: Option<u16>,
+    message: impl Into<String>,
+) -> axum::response::Response {
     (
         status,
         Json(ApiEnvelope::<Value> {
             success: false,
-            code: None,
+            code,
             message: Some(message.into()),
             data: None,
         }),

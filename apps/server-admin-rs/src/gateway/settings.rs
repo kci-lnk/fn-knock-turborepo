@@ -12,7 +12,7 @@ use serde_json::{Map, Value, json};
 use url::Url;
 
 use crate::{
-    cidr::{CidrOperator, CidrRegionQuery},
+    cidr::{CidrOperator, CidrRegionQuery, CompiledIpSet, compile_ip_set},
     i18n::Translator,
     proxy_config::{self, build_gateway_auth_config},
     response,
@@ -142,6 +142,12 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
 struct CompiledGatewayVisibility {
     config: Value,
     runtime: Value,
+    policy: Option<crate::cidr::CompiledIpSet>,
+}
+
+pub(crate) struct CompiledHostVisibility {
+    pub(crate) config: Value,
+    pub(crate) policy: crate::cidr::CompiledIpSet,
 }
 
 struct CompiledGatewayTargetRuntime {
@@ -153,6 +159,7 @@ mod compile;
 mod details;
 mod handlers;
 mod hosts;
+mod migrate;
 mod normalize;
 mod patch;
 mod rollback;
@@ -163,6 +170,7 @@ use compile::*;
 use details::*;
 use handlers::*;
 use hosts::*;
+pub(crate) use migrate::{migrate_visibility_policies_locked, migrate_visibility_policies_on_boot};
 use normalize::*;
 use patch::*;
 use rollback::*;

@@ -3,8 +3,7 @@
     <PopoverAnchor as-child>
       <button
         type="button"
-        data-affordance="details"
-        class="inline-flex min-h-7 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-left text-xs leading-none transition-colors hover:border-primary/30 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="inline-flex min-h-6 max-w-full flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-left text-xs leading-none transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :class="{ 'border-primary/30 bg-primary/5': open || dialogOpen }"
         :aria-label="
           t('admin.hostTraffic.detailsAria', {
@@ -19,10 +18,6 @@
         @blur="handleTriggerBlur"
         @click.prevent="handleTriggerClick"
       >
-        <Activity
-          class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
         <span
           v-if="hasRealtimeInTraffic"
           class="inline-flex items-center gap-1"
@@ -284,12 +279,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  Activity,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Network,
-} from "lucide-vue-next";
+import { ArrowDownLeft, ArrowUpRight, Network } from "lucide-vue-next";
 import {
   Popover,
   PopoverAnchor,

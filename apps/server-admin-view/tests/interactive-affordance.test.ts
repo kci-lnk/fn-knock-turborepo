@@ -61,7 +61,7 @@ describe("interactive affordance contract", () => {
       ],
       [
         "../src/components/HostTrafficActivity.vue",
-        [/data-affordance="details"/u, /border-border\/60/u, /<Activity/u],
+        [/admin\.hostTraffic\.view/u, /hover:bg-muted\/50/u],
       ],
       [
         "../src/views/auth-settings/TotpCredentialTable.vue",
@@ -100,6 +100,15 @@ describe("interactive affordance contract", () => {
       const source = readSource(relativePath);
       assert.doesNotMatch(source, /<Copy\b/u, relativePath);
     }
+  });
+
+  it("keeps the traffic details trigger in its compact text form", () => {
+    const source = readSource("../src/components/HostTrafficActivity.vue");
+    assert.match(source, /inline-flex min-h-6[^\n"]*px-1\.5/u);
+    assert.doesNotMatch(
+      source,
+      /data-affordance="details"|<Activity\b|border-border\/60/u,
+    );
   });
 
   it("reveals inline edit icons on hover or keyboard focus", () => {

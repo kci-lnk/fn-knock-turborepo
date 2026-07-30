@@ -627,11 +627,8 @@ pub(super) async fn compile_host_mapping_visibilities(
         }
         compiled.push(Value::Object(object));
     }
-    let mut referenced = compiled
-        .iter()
-        .filter_map(|mapping| mapping.pointer("/visibility/policy_id"))
-        .filter_map(Value::as_str)
-        .map(ToString::to_string)
+    let mut referenced = referenced_host_ipset_policy_ids(&compiled)
+        .into_iter()
         .collect::<BTreeSet<_>>();
     if let Some(global_policy_id) = previous_config
         .pointer("/gateway_visibility/policy_id")

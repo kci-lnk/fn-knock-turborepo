@@ -43,13 +43,13 @@ pub(super) async fn apply_preflight_behavior_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
-    let config = state.store.get_config().await?;
+    let config = state.store.config_snapshot();
     apply_preflight_behavior_with_routed_upstream_and_config(
         state,
         headers,
         uri,
         response,
-        &config,
+        config.as_ref(),
         routed_upstream,
         routed_upstream_host,
         routed_upstream_route_id,
@@ -171,7 +171,8 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         }
     }
 
-    if config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
+    if !normal_access.authorized
+        && config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
         && !scanner::is_request_exempt_from_scan(headers, uri, config)
     {
         if scanner::is_blacklisted_for_preflight(state, client_ip).await? {
@@ -586,13 +587,12 @@ pub(super) async fn has_preflight_whitelist_access_from_sources(
     }
 
     let client_ip = normalized_ip.parse::<IpAddr>()?;
-    let targets = state.store.list_whitelist_active_concrete_targets().await?;
-    Ok(targets.iter().any(|target| {
-        sources.is_none_or(|sources| sources.contains(&target.source.as_str()))
-            && whitelist_target_matches_ip(&target.target, &target.target_type, client_ip)
-    }))
+    Ok(whitelist::whitelist_snapshot_contains(
+        state, client_ip, sources,
+    ))
 }
 
+#[cfg(test)]
 pub(super) fn whitelist_target_matches_ip(
     target: &str,
     target_type: &str,
@@ -874,7 +874,7 @@ pub(super) async fn list_auth_mobility_owner_sessions_by_ip(
         return Ok(Vec::new());
     }
 
-    let config = state.store.get_config().await?;
+    let config = state.store.config_snapshot();
     let mut owners = Vec::new();
     for (session_id, session) in state.store.list_login_sessions().await? {
         let ips =

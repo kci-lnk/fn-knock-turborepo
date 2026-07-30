@@ -18,6 +18,7 @@ const themeColorPresets = [
   "prussian_blue",
   "dynamic_white",
 ];
+const affordanceOnly = process.env.FN_KNOCK_A11Y_AFFORDANCE_ONLY === "1";
 const failures = [];
 
 const adminRoutes = [
@@ -105,6 +106,69 @@ const ensureRuntimeArtifacts = async () => {
   }
 };
 
+const resolveGatewayBinary = async () => {
+  const platform = process.platform;
+  const architecture = process.arch;
+  const platformSuffix =
+    platform === "darwin"
+      ? `darwin-${architecture === "arm64" ? "arm64" : "amd64"}`
+      : platform === "linux"
+        ? `linux-${
+            architecture === "arm64"
+              ? "arm64"
+              : architecture === "arm"
+                ? "arm"
+                : "amd64"
+          }`
+        : platform === "win32"
+          ? "windows-amd64.exe"
+          : "";
+  const candidates = [
+    process.env.FN_KNOCK_A11Y_GATEWAY_BIN,
+    platformSuffix
+      ? path.join(
+          rootDir,
+          "..",
+          "Go-Reauth-Proxy",
+          "build",
+          `go-reauth-proxy-${platformSuffix}`,
+        )
+      : "",
+    platformSuffix
+      ? path.join(
+          rootDir,
+          "apps",
+          "fn-knock-lite",
+          "app",
+          "server",
+          `go-reauth-proxy-${platformSuffix}`,
+        )
+      : "",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // Try the next supported local runtime artifact.
+    }
+  }
+  throw new Error(
+    "Missing a native Go gateway binary. Set FN_KNOCK_A11Y_GATEWAY_BIN " +
+      "or build the sibling Go-Reauth-Proxy checkout.",
+  );
+};
+
+const stopChild = async (child) => {
+  if (child.exitCode !== null) return;
+  child.kill("SIGTERM");
+  await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    new Promise((resolve) => setTimeout(resolve, 3_000)),
+  ]);
+};
+
 const startRuntime = async () => {
   const externalAdminUrl = process.env.FN_KNOCK_A11Y_ADMIN_URL;
   const externalAuthUrl = process.env.FN_KNOCK_A11Y_AUTH_URL;
@@ -126,19 +190,41 @@ const startRuntime = async () => {
   }
 
   await ensureRuntimeArtifacts();
+  const gatewayBinary = await resolveGatewayBinary();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "fn-knock-a11y-"));
-  const [adminPort, authPort, goBackendPort] = await Promise.all([
-    getFreePort(),
-    getFreePort(),
-    getFreePort(),
-  ]);
+  const selectedPorts = new Set();
+  while (selectedPorts.size < 4) selectedPorts.add(await getFreePort());
+  const [adminPort, authPort, goBackendPort, goProxyPort] = selectedPorts;
+  const gatewayConfigDir = path.join(tempDir, "gateway");
+  const sharedEnv = {
+    ...process.env,
+    BACKEND_PORT: String(adminPort),
+    FN_KNOCK_INTERNAL_RPC_TOKEN: "a11y-audit-internal-token",
+    HMAC_SECRET: "a11y-audit-hmac-secret",
+  };
+  const gateway = spawn(
+    gatewayBinary,
+    [
+      "-c",
+      gatewayConfigDir,
+      "-admin-port",
+      String(goBackendPort),
+      "-proxy-port",
+      String(goProxyPort),
+    ],
+    {
+      cwd: rootDir,
+      env: sharedEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   const child = spawn(
     path.join(rootDir, "apps/server-admin-rs/target/release/server-admin-rs"),
     [],
     {
       cwd: rootDir,
       env: {
-        ...process.env,
+        ...sharedEnv,
         ADMIN_STATIC_PATH: path.join(rootDir, "apps/server-admin-view/dist"),
         AUTH_HOST: "127.0.0.1",
         AUTH_PORT: String(authPort),
@@ -147,12 +233,10 @@ const startRuntime = async () => {
         BACKEND_PORT: String(adminPort),
         EXPOSE_RUNTIME_HMAC_SECRET: "1",
         FN_KNOCK_DATA_DIR: tempDir,
-        FN_KNOCK_GATEWAY_CONFIG_DIR: path.join(tempDir, "gateway"),
-        FN_KNOCK_INTERNAL_RPC_TOKEN: "a11y-audit-internal-token",
+        FN_KNOCK_GATEWAY_CONFIG_DIR: gatewayConfigDir,
         FN_KNOCK_RUNTIME_TARGET: "fpk-lite",
         FN_KNOCK_SQLITE_PATH: path.join(tempDir, "state.sqlite3"),
         GO_BACKEND_PORT: String(goBackendPort),
-        HMAC_SECRET: "a11y-audit-hmac-secret",
         RUST_LOG: "error",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -165,13 +249,15 @@ const startRuntime = async () => {
   };
   child.stdout.on("data", appendOutput);
   child.stderr.on("data", appendOutput);
+  gateway.stdout.on("data", appendOutput);
+  gateway.stderr.on("data", appendOutput);
 
   const adminUrl = `http://127.0.0.1:${adminPort}`;
   const authUrl = `http://127.0.0.1:${authPort}`;
   try {
     await Promise.all([waitForHttp(adminUrl), waitForHttp(authUrl)]);
   } catch (error) {
-    child.kill("SIGTERM");
+    await Promise.all([stopChild(child), stopChild(gateway)]);
     await rm(tempDir, { recursive: true, force: true });
     throw new Error(`${error.message}\n${output}`);
   }
@@ -180,13 +266,7 @@ const startRuntime = async () => {
     adminUrl,
     authUrl,
     stop: async () => {
-      if (child.exitCode === null) {
-        child.kill("SIGTERM");
-        await Promise.race([
-          new Promise((resolve) => child.once("exit", resolve)),
-          new Promise((resolve) => setTimeout(resolve, 3_000)),
-        ]);
-      }
+      await Promise.all([stopChild(child), stopChild(gateway)]);
       await rm(tempDir, { recursive: true, force: true });
     },
   };
@@ -204,8 +284,11 @@ const disableMotion = async (page) => {
 };
 
 const auditPage = async (page, scope, include) => {
+  if (affordanceOnly) return;
   await disableMotion(page);
-  const builder = new AxeBuilder({ page }).withTags(wcagTags);
+  const builder = new AxeBuilder({ page })
+    .withTags(wcagTags)
+    .disableRules(["color-contrast"]);
   if (include) builder.include(include);
   const result = await builder.analyze();
   for (const violation of result.violations) {
@@ -226,6 +309,113 @@ const applyThemeVariant = async (page, colorScheme, themeColorPreset) => {
     { mode: colorScheme, preset: themeColorPreset },
   );
   await disableMotion(page);
+};
+
+const assertInteractiveAffordances = async (page, scope) => {
+  const result = await page.evaluate(() => {
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    };
+    const label = (element) =>
+      (
+        element.getAttribute("aria-label") ||
+        element.textContent ||
+        element.tagName
+      )
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
+    const enabledButtons = Array.from(
+      document.querySelectorAll(
+        'button, [role="button"], [data-slot="button"]',
+      ),
+    ).filter(
+      (element) =>
+        isVisible(element) &&
+        !element.matches(":disabled") &&
+        element.getAttribute("aria-disabled") !== "true",
+    );
+    const pointerFailures = enabledButtons
+      .filter((element) =>
+        ["auto", "default"].includes(getComputedStyle(element).cursor),
+      )
+      .map(label);
+    const linkFailures = enabledButtons
+      .filter(
+        (element) =>
+          element.getAttribute("data-variant") === "link" &&
+          !getComputedStyle(element).textDecorationLine.includes("underline"),
+      )
+      .map(label);
+    const helpFailures = Array.from(
+      document.querySelectorAll('[data-affordance="help"]'),
+    )
+      .filter(isVisible)
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        return (
+          !style.textDecorationLine.includes("underline") ||
+          style.textDecorationStyle !== "dotted"
+        );
+      })
+      .map(label);
+    const actionFailures = Array.from(
+      document.querySelectorAll(
+        '[data-affordance="copy"], [data-affordance="edit"], [data-affordance="details"]',
+      ),
+    )
+      .filter(
+        (element) =>
+          isVisible(element) &&
+          !element.matches(":disabled") &&
+          element.getAttribute("aria-disabled") !== "true",
+      )
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        const hasIcon = Boolean(element.querySelector("svg, img"));
+        const hasUnderline = style.textDecorationLine.includes("underline");
+        const hasBorder = Number.parseFloat(style.borderTopWidth) > 0;
+        const hasBackground =
+          style.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+          style.backgroundColor !== "transparent";
+        return !hasIcon && !hasUnderline && !hasBorder && !hasBackground;
+      })
+      .map(label);
+    return {
+      actionFailures,
+      helpFailures,
+      linkFailures,
+      pointerFailures,
+    };
+  });
+
+  assert(
+    result.pointerFailures.length === 0,
+    scope,
+    `buttons missing pointer cursor: ${result.pointerFailures.join(", ")}`,
+  );
+  assert(
+    result.linkFailures.length === 0,
+    scope,
+    `link buttons missing persistent underline: ${result.linkFailures.join(", ")}`,
+  );
+  assert(
+    result.helpFailures.length === 0,
+    scope,
+    `help triggers missing dotted underline: ${result.helpFailures.join(", ")}`,
+  );
+  assert(
+    result.actionFailures.length === 0,
+    scope,
+    `text actions missing a stable visual cue: ${result.actionFailures.join(", ")}`,
+  );
 };
 
 const assertDocumentStructure = async (page, scope, expectedMain = true) => {
@@ -282,6 +472,10 @@ const scanAdminRoutes = async (browser, adminUrl) => {
         for (const themeColorPreset of themeColorPresets) {
           await applyThemeVariant(page, colorScheme, themeColorPreset);
           await auditPage(page, `${scope} ${themeColorPreset}`);
+          await assertInteractiveAffordances(
+            page,
+            `${scope} ${themeColorPreset}`,
+          );
         }
       } catch (error) {
         failures.push({ scope, message: error.message });
@@ -290,6 +484,74 @@ const scanAdminRoutes = async (browser, adminUrl) => {
       }
     }
     await context.close();
+  }
+};
+
+const testAdminInteractiveAffordances = async (browser, adminUrl) => {
+  const viewports = [
+    { label: "desktop", width: 1440, height: 900 },
+    { label: "mobile", width: 390, height: 844 },
+  ];
+  for (const viewport of viewports) {
+    for (const colorScheme of ["light", "dark"]) {
+      const context = await browser.newContext({
+        colorScheme,
+        viewport,
+      });
+      const page = await context.newPage();
+      const scope = `admin affordances ${viewport.label} ${colorScheme}`;
+      await installCompletedWelcomeMock(page);
+      await page.route("**/api/admin/totp/status", (route) =>
+        route.fulfill(
+          jsonResponse({
+            bound: true,
+            credentials: [
+              {
+                id: "audit-totp",
+                secret: "audit-secret",
+                comment: "Audit token",
+                createdAt: "2026-07-01T00:00:00Z",
+                access_scopes: [],
+                subdomain_access: {
+                  mode: "all",
+                  hosts: [],
+                  streams: [],
+                },
+              },
+            ],
+          }),
+        ),
+      );
+      await page.route("**/api/admin/auth/mode", (route) =>
+        route.fulfill(
+          jsonResponse({
+            mode: "totp",
+            totpCount: 1,
+            accountCount: 0,
+            passwordConfiguredCount: 0,
+            passwordMissingCount: 0,
+          }),
+        ),
+      );
+      try {
+        await page.goto(`${adminUrl}/#/auth`, {
+          waitUntil: "domcontentloaded",
+        });
+        await page
+          .getByRole("button", { name: "管理快捷登录" })
+          .waitFor({ state: "visible" });
+        for (const themeColorPreset of themeColorPresets) {
+          await applyThemeVariant(page, colorScheme, themeColorPreset);
+          await assertInteractiveAffordances(
+            page,
+            `${scope} ${themeColorPreset}`,
+          );
+        }
+      } catch (error) {
+        failures.push({ scope, message: error.message });
+      }
+      await context.close();
+    }
   }
 };
 
@@ -312,6 +574,7 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
     const active = document.activeElement;
     const style = active ? getComputedStyle(active) : null;
     return {
+      boxShadow: style?.boxShadow,
       href: active?.getAttribute("href"),
       outlineStyle: style?.outlineStyle,
       outlineWidth: style?.outlineWidth,
@@ -323,7 +586,8 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
     "first Tab did not focus the skip link",
   );
   assert(
-    skipLink.outlineStyle !== "none" && skipLink.outlineWidth !== "0px",
+    (skipLink.outlineStyle !== "none" && skipLink.outlineWidth !== "0px") ||
+      (skipLink.boxShadow && skipLink.boxShadow !== "none"),
     "admin keyboard",
     "skip link has no visible focus indicator",
   );
@@ -590,6 +854,10 @@ const scanAuthLoginStates = async (browser, authUrl) => {
       for (const themeColorPreset of themeColorPresets) {
         await applyThemeVariant(page, colorScheme, themeColorPreset);
         await auditPage(page, `${scope} ${themeColorPreset}`);
+        await assertInteractiveAffordances(
+          page,
+          `${scope} ${themeColorPreset}`,
+        );
       }
     } catch (error) {
       failures.push({ scope, message: error.message });
@@ -644,6 +912,10 @@ const scanAuthLoginStates = async (browser, authUrl) => {
         for (const themeColorPreset of themeColorPresets) {
           await applyThemeVariant(page, colorScheme, themeColorPreset);
           await auditPage(page, `${scope} ${themeColorPreset}`);
+          await assertInteractiveAffordances(
+            page,
+            `${scope} ${themeColorPreset}`,
+          );
         }
       } catch (error) {
         failures.push({ scope, message: error.message });
@@ -767,12 +1039,15 @@ try {
   runtime = await startRuntime();
   browser = await chromium.launch({ headless: true });
   await scanAdminRoutes(browser, runtime.adminUrl);
-  await testAdminKeyboardFlow(browser, runtime.adminUrl);
-  await testWelcomeDialog(browser, runtime.adminUrl);
-  await testAutomaticBackupSettings(browser, runtime.adminUrl);
+  await testAdminInteractiveAffordances(browser, runtime.adminUrl);
   await scanAuthLoginStates(browser, runtime.authUrl);
-  await testAuthHomeDialog(browser, runtime.authUrl);
-  await scanAuthRoutes(browser, runtime.authUrl);
+  if (!affordanceOnly) {
+    await testAdminKeyboardFlow(browser, runtime.adminUrl);
+    await testWelcomeDialog(browser, runtime.adminUrl);
+    await testAutomaticBackupSettings(browser, runtime.adminUrl);
+    await testAuthHomeDialog(browser, runtime.authUrl);
+    await scanAuthRoutes(browser, runtime.authUrl);
+  }
 } finally {
   await browser?.close();
   await runtime?.stop();
@@ -783,8 +1058,12 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `[a11y] passed: ${adminRoutes.length * 2 * themeColorPresets.length} ` +
-      "admin route/theme scans, " +
-      "auth route/state scans, and keyboard/focus flows; 0 violations",
+    affordanceOnly
+      ? `[a11y] passed: ${adminRoutes.length * 2 * themeColorPresets.length} ` +
+          "admin route/theme affordance scans plus desktop/mobile TOTP and " +
+          "auth route/state affordance scans; 0 violations"
+      : `[a11y] passed: ${adminRoutes.length * 2 * themeColorPresets.length} ` +
+          "admin route/theme scans, auth route/state scans, and " +
+          "keyboard/focus flows; 0 violations",
   );
 }

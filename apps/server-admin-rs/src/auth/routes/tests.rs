@@ -249,6 +249,160 @@ fn forwarded_headers(host: &str) -> HeaderMap {
     headers
 }
 
+#[tokio::test]
+async fn authorized_normal_access_bypasses_scanner_blacklist() {
+    let (_directory, state) = auth_route_test_state("trusted-scanner-bypass").await;
+    let client_ip = "203.0.113.77";
+    let now = time_utils::now_ms();
+    state
+        .store
+        .save_scanner_settings(&json!({
+            "enabled": true,
+            "windowMinutes": 10,
+            "threshold": 3,
+            "blacklistTtlSeconds": 3600
+        }))
+        .await
+        .expect("enable scanner");
+    state
+        .store
+        .add_scanner_blacklist_record(
+            client_ip,
+            &json!({"ip": client_ip, "source": "test"}),
+            now,
+            3600,
+        )
+        .await
+        .expect("blacklist client IP");
+    state
+        .store
+        .insert_whitelist_record(&crate::store::WhitelistRecord {
+            id: "manual-scanner-bypass".to_string(),
+            ip: client_ip.to_string(),
+            target_type: "ip".to_string(),
+            expire_at: Some(now.div_euclid(1_000) + 3_600),
+            source: "manual".to_string(),
+            created_at: now.div_euclid(1_000),
+            status: "active".to_string(),
+            comment: None,
+            ip_location: None,
+            resolved_targets: None,
+            check_interval_minutes: None,
+            last_checked_at: None,
+            last_resolved_at: None,
+            resolve_status: None,
+            resolve_message: None,
+        })
+        .await
+        .expect("store manual whitelist record");
+    crate::whitelist::rebuild_whitelist_ipset_snapshots(&state)
+        .await
+        .expect("publish whitelist snapshot");
+
+    let config = json!({"run_type": 1});
+    let mut headers = forwarded_headers("app.example.com");
+    headers.insert(
+        "x-forwarded-path",
+        HeaderValue::from_static("/definitely-uncommon-scanner-probe"),
+    );
+    let normal_access = resolve_preflight_normal_access(
+        &state,
+        &headers,
+        &Uri::from_static("/"),
+        &config,
+        client_ip,
+        RequestedAccessMode::LoginFirst,
+    )
+    .await
+    .expect("resolve authoritative manual whitelist access");
+    assert!(normal_access.authorized);
+    assert_eq!(
+        normal_access.grant_type.as_deref(),
+        Some("manual_whitelist")
+    );
+
+    let mut response = Response::new(Body::empty());
+    apply_preflight_behavior_with_normal_access(
+        &state,
+        &headers,
+        &Uri::from_static("/"),
+        &mut response,
+        &config,
+        client_ip,
+        RequestedAccessMode::LoginFirst,
+        &normal_access,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("apply authorized preflight");
+
+    assert!(response.headers().get("X-Option").is_none());
+    assert!(
+        state
+            .store
+            .scanner_suspicious_hits_since(client_ip, 0)
+            .await
+            .expect("read suspicious path hits")
+            .is_empty(),
+        "authoritatively whitelisted traffic must not increment scanner path counters"
+    );
+}
+
+#[tokio::test]
+async fn unauthorized_normal_access_still_honors_scanner_blacklist() {
+    let (_directory, state) = auth_route_test_state("ordinary-scanner-block").await;
+    let client_ip = "203.0.113.78";
+    let now = time_utils::now_ms();
+    state
+        .store
+        .save_scanner_settings(&json!({
+            "enabled": true,
+            "windowMinutes": 10,
+            "threshold": 3,
+            "blacklistTtlSeconds": 3600
+        }))
+        .await
+        .expect("enable scanner");
+    state
+        .store
+        .add_scanner_blacklist_record(
+            client_ip,
+            &json!({"ip": client_ip, "source": "test"}),
+            now,
+            3600,
+        )
+        .await
+        .expect("blacklist client IP");
+
+    let config = json!({"run_type": 1});
+    let mut response = Response::new(Body::empty());
+    apply_preflight_behavior_with_normal_access(
+        &state,
+        &forwarded_headers("app.example.com"),
+        &Uri::from_static("/"),
+        &mut response,
+        &config,
+        client_ip,
+        RequestedAccessMode::LoginFirst,
+        &PreflightNormalAccess::default(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("apply unauthorized preflight");
+
+    assert_eq!(
+        response
+            .headers()
+            .get("X-Option")
+            .and_then(|value| value.to_str().ok()),
+        Some("Deny")
+    );
+}
+
 #[test]
 fn strict_whitelist_access_mode_matches_node_header_parsing() {
     let mut headers = HeaderMap::new();
@@ -433,6 +587,9 @@ async fn automatic_ip_grant_respects_owner_subdomain_scope() {
         })
         .await
         .expect("store automatic whitelist");
+    crate::whitelist::rebuild_whitelist_ipset_snapshots(&state)
+        .await
+        .expect("publish automatic whitelist snapshot");
 
     let allowed = resolve_preflight_normal_access(
         &state,

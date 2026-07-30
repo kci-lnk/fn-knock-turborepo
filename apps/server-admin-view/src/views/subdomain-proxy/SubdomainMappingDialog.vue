@@ -209,6 +209,7 @@ const mappingWafEnabledModel = computed({
                 <Button
                   variant="link"
                   size="sm"
+                  data-affordance="edit"
                   class="h-auto p-0 text-xs"
                   :disabled="
                     !canRefreshMappingMetadata || isRefreshingMappingMetadata

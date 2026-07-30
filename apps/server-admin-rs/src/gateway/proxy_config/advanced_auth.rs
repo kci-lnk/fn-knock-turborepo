@@ -17,6 +17,16 @@ const MAX_REGEX_BYTES: usize = 512;
 const MAX_RESOLVED_CIDRS: usize = 100_000;
 const MAX_CONFIG_BYTES: usize = 8 * 1024 * 1024;
 
+struct CompiledAdvancedAuth {
+    config: Value,
+    policies: Vec<crate::cidr::CompiledIpSet>,
+}
+
+struct CompiledAdvancedAuthCondition {
+    config: Value,
+    policy: Option<crate::cidr::CompiledIpSet>,
+}
+
 fn default_advanced_auth() -> Value {
     json!({
         "enabled": false,
@@ -116,6 +126,11 @@ pub(super) async fn update_advanced_auth(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let previous_visibility_policies = previous_config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     if revision
         .as_deref()
         .is_some_and(|revision| revision != host_mappings_revision(&previous_mappings))
@@ -150,9 +165,12 @@ pub(super) async fn update_advanced_auth(
     // the last successfully compiled draft intact and only rotate the policy
     // version plus locally validated TTLs. A later edit while already disabled
     // still follows the normal compile path.
-    let advanced_auth = if previously_enabled && !requested_enabled {
+    let compiled_advanced_auth = if previously_enabled && !requested_enabled {
         match disabled_advanced_auth(&previous_mappings[index], requested) {
-            Ok(config) => config,
+            Ok(config) => CompiledAdvancedAuth {
+                config,
+                policies: Vec::new(),
+            },
             Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
         }
     } else {
@@ -161,6 +179,7 @@ pub(super) async fn update_advanced_auth(
             Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
         }
     };
+    let advanced_auth = compiled_advanced_auth.config;
     if advanced_auth
         .get("enabled")
         .and_then(Value::as_bool)
@@ -206,6 +225,25 @@ pub(super) async fn update_advanced_auth(
         return response::error(StatusCode::BAD_REQUEST, "Invalid host mapping");
     };
     mapping.insert("advanced_auth".to_string(), advanced_auth.clone());
+    let mut ipset_policies = previous_config
+        .get("visibility_policies")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    for policy in compiled_advanced_auth.policies {
+        ipset_policies.insert(policy.id.clone(), policy.to_config_value());
+    }
+    let referenced = referenced_host_ipset_policy_ids(&next_mappings);
+    if let Some(global_policy_id) = previous_config
+        .pointer("/gateway_visibility/policy_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        ipset_policies.retain(|id, _| id == global_policy_id || referenced.contains(id));
+    } else {
+        ipset_policies.retain(|id, _| referenced.contains(id));
+    }
 
     match transaction_lease.ensure_valid().await {
         Ok(true) => {}
@@ -225,7 +263,11 @@ pub(super) async fn update_advanced_auth(
     }
     match state
         .store
-        .compare_and_set_host_mappings(&previous_mappings, &next_mappings)
+        .compare_and_set_host_mappings_with_visibility_policies(
+            &previous_mappings,
+            &next_mappings,
+            &ipset_policies,
+        )
         .await
     {
         Ok(Some(_)) => {}
@@ -247,7 +289,11 @@ pub(super) async fn update_advanced_auth(
         tracing::warn!(%error, "advanced authentication transaction lease was lost");
         let _ = state
             .store
-            .compare_and_set_host_mappings(&next_mappings, &previous_mappings)
+            .compare_and_set_host_mappings_with_visibility_policies(
+                &next_mappings,
+                &previous_mappings,
+                &previous_visibility_policies,
+            )
             .await;
         return response::error(
             StatusCode::CONFLICT,
@@ -307,7 +353,7 @@ async fn compile_advanced_auth(
     state: &AppState,
     requested: &Value,
     acknowledge_broad_rules: bool,
-) -> Result<Value, String> {
+) -> Result<CompiledAdvancedAuth, String> {
     let requested = requested
         .as_object()
         .ok_or_else(|| "Advanced authentication configuration must be an object".to_string())?;
@@ -350,6 +396,7 @@ async fn compile_advanced_auth(
     let mut total_value_count = 0usize;
     let mut total_regex_count = 0usize;
     let mut seen_groups = HashSet::new();
+    let mut policies = Vec::new();
     for (group_index, group) in groups.iter().enumerate() {
         let group = group
             .as_object()
@@ -415,16 +462,19 @@ async fn compile_advanced_auth(
             )
             .await?;
             resolved_cidr_count += compiled
-                .get("cidrs")
-                .and_then(Value::as_array)
-                .map(Vec::len)
-                .unwrap_or(0);
+                .policy
+                .as_ref()
+                .map(|policy| policy.source_cidr_count)
+                .unwrap_or_default();
             if resolved_cidr_count > MAX_RESOLVED_CIDRS {
                 return Err(format!(
                     "Resolved CIDRs exceed the per-subdomain limit of {MAX_RESOLVED_CIDRS}"
                 ));
             }
-            compiled_conditions.push(compiled);
+            if let Some(policy) = compiled.policy {
+                policies.push(policy);
+            }
+            compiled_conditions.push(compiled.config);
         }
         // Broad-rule confirmation is an activation guard.  Disabling a policy
         // must remain possible even when its retained draft contains a broad
@@ -440,16 +490,19 @@ async fn compile_advanced_auth(
             "conditions": compiled_conditions,
         }));
     }
-    Ok(json!({
-        "enabled": enabled,
-        "idle_ttl_seconds": idle_ttl_seconds,
-        "max_lifetime_seconds": max_lifetime_seconds,
-        "policy_version": uuid::Uuid::new_v4().to_string(),
-        "groups": compiled_groups,
-        "compiled_at": resolved_at,
-        "cidr_source": source,
-        "cidr_source_fingerprint": source_fingerprint,
-    }))
+    Ok(CompiledAdvancedAuth {
+        config: json!({
+            "enabled": enabled,
+            "idle_ttl_seconds": idle_ttl_seconds,
+            "max_lifetime_seconds": max_lifetime_seconds,
+            "policy_version": uuid::Uuid::new_v4().to_string(),
+            "groups": compiled_groups,
+            "compiled_at": resolved_at,
+            "cidr_source": source,
+            "cidr_source_fingerprint": source_fingerprint,
+        }),
+        policies,
+    })
 }
 
 fn validated_ttls(requested: &Map<String, Value>) -> Result<(i64, i64), String> {
@@ -508,7 +561,7 @@ async fn compile_condition(
     cidr_source: &str,
     cidr_source_fingerprint: &str,
     resolved_at: &str,
-) -> Result<Value, String> {
+) -> Result<CompiledAdvancedAuthCondition, String> {
     let target = text_field(condition, "target").to_ascii_lowercase();
     let operator = text_field(condition, "operator").to_ascii_lowercase();
     let name = text_field(condition, "name");
@@ -523,9 +576,17 @@ async fn compile_condition(
             }
             let cidrs =
                 compile_source_networks(&values, operator == "equals" || operator == "not_equals")?;
-            Ok(
-                json!({"id": id, "target": target, "operator": operator, "name": "", "values": [], "cidrs": cidrs}),
-            )
+            let policy = crate::cidr::compile_ip_set(&cidrs)?;
+            Ok(CompiledAdvancedAuthCondition {
+                config: json!({
+                    "id": id, "target": target, "operator": operator, "name": "",
+                    "values": cidrs,
+                    "policy_id": policy.id.clone(),
+                    "source_cidr_count": policy.source_cidr_count,
+                    "range_count": policy.range_count(),
+                }),
+                policy: Some(policy),
+            })
         }
         "source_region" => {
             if operator != "in" && operator != "not_in" {
@@ -543,7 +604,7 @@ async fn compile_condition(
                     "Source region condition supports at most {MAX_VALUES_PER_CONDITION} selections"
                 ));
             }
-            let mut cidrs = Vec::new();
+            let mut policies = Vec::new();
             let mut compiled_selections = Vec::with_capacity(selections.len());
             for selection in selections {
                 let selection = selection
@@ -567,30 +628,34 @@ async fn compile_condition(
                 let lookup = cidr::lookup_region(state, &query)
                     .await
                     .map_err(|error| error.to_string())?;
-                if lookup.cidrs.is_empty() {
+                if lookup.is_empty() {
                     return Err(format!(
                         "Region selection {} resolved to no CIDRs",
                         query.key()
                     ));
                 }
-                cidrs.extend(lookup.cidrs);
+                policies.push(lookup.policy);
                 compiled_selections.push(
                     serde_json::to_value(lookup.selection).map_err(|error| error.to_string())?,
                 );
             }
-            cidrs.sort();
-            cidrs.dedup();
-            Ok(json!({
-                "id": id, "target": target, "operator": operator, "name": "", "values": [],
-                "selections": compiled_selections, "cidrs": cidrs, "resolved_at": resolved_at,
-                "cidr_source": cidr_source, "cidr_source_fingerprint": cidr_source_fingerprint,
-            }))
+            let policy = crate::cidr::union_ip_sets(policies.iter());
+            Ok(CompiledAdvancedAuthCondition {
+                config: json!({
+                    "id": id, "target": target, "operator": operator, "name": "", "values": [],
+                    "selections": compiled_selections, "policy_id": policy.id.clone(),
+                    "source_cidr_count": policy.source_cidr_count,
+                    "range_count": policy.range_count(), "resolved_at": resolved_at,
+                    "cidr_source": cidr_source, "cidr_source_fingerprint": cidr_source_fingerprint,
+                }),
+                policy: Some(policy),
+            })
         }
         "url_path" => {
             validate_text_operator(&operator, true, &values)?;
-            Ok(
-                json!({"id": id, "target": target, "operator": operator, "name": "", "values": values, "cidrs": []}),
-            )
+            Ok(plain_condition(json!({
+                "id": id, "target": target, "operator": operator, "name": "", "values": values,
+            })))
         }
         "request_header" => {
             if !valid_header_name(&name) {
@@ -603,18 +668,18 @@ async fn compile_condition(
             // the CAS/runtime transaction (header matching remains
             // case-insensitive at request time).
             let name = canonical_header_name(&name);
-            Ok(
-                json!({"id": id, "target": target, "operator": operator, "name": name, "values": values, "cidrs": []}),
-            )
+            Ok(plain_condition(json!({
+                "id": id, "target": target, "operator": operator, "name": name, "values": values,
+            })))
         }
         "query_parameter" => {
             if name.is_empty() {
                 return Err("Query parameter name cannot be empty".to_string());
             }
             validate_text_operator(&operator, false, &values)?;
-            Ok(
-                json!({"id": id, "target": target, "operator": operator, "name": name, "values": values, "cidrs": []}),
-            )
+            Ok(plain_condition(json!({
+                "id": id, "target": target, "operator": operator, "name": name, "values": values,
+            })))
         }
         "http_method" => {
             if operator != "in" && operator != "not_in" {
@@ -629,13 +694,20 @@ async fn compile_condition(
             if methods.is_empty() || methods.iter().any(String::is_empty) {
                 return Err("HTTP Method condition requires at least one method".to_string());
             }
-            Ok(
-                json!({"id": id, "target": target, "operator": operator, "name": "", "values": methods, "cidrs": []}),
-            )
+            Ok(plain_condition(json!({
+                "id": id, "target": target, "operator": operator, "name": "", "values": methods,
+            })))
         }
         _ => Err(format!(
             "Unsupported advanced authentication target {target}"
         )),
+    }
+}
+
+fn plain_condition(config: Value) -> CompiledAdvancedAuthCondition {
+    CompiledAdvancedAuthCondition {
+        config,
+        policy: None,
     }
 }
 

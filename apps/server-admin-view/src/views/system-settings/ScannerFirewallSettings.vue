@@ -458,7 +458,7 @@ const goToBlacklist = () => {
         </div>
         <div class="flex gap-3">
           <Button
-            variant="ghost"
+            variant="outline"
             @click="resetForm"
             :disabled="!isDirty || isSaving"
           >
@@ -479,7 +479,7 @@ const goToBlacklist = () => {
 
       <template #floating>
         <Button
-          variant="ghost"
+          variant="outline"
           @click="resetForm"
           :disabled="!isDirty || isSaving"
         >

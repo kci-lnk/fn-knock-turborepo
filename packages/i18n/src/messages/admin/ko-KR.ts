@@ -3994,6 +3994,7 @@ export const koKRAdmin = {
     updateSuccess: "업데이트됨",
     logsCleared: "로그가 지워졌습니다.",
     never: "없음",
+    copyAddressAria: "{version} 주소 {address} 복사",
     copyUnavailable: "{version} 주소를 사용할 수 없습니다.",
     copySuccess: "{version} 주소가 복사되었습니다.",
     copyFailed: "{version} 주소를 복사하지 못했습니다.",

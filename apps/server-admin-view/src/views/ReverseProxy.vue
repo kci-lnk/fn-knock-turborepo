@@ -139,7 +139,7 @@
                     v-if="isDefaultRoute(mapping.path)"
                     variant="outline"
                     size="sm"
-                    class="border-border text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-2"
+                    class="mr-2 border-border text-muted-foreground hover:text-foreground"
                     @click="requestClearDefaultRoute(mapping)"
                   >
                     {{ t("admin.reverseProxy.clearDefaultRoute") }}
@@ -148,14 +148,14 @@
                     v-else
                     variant="outline"
                     size="sm"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity mr-2"
+                    class="mr-2"
                     @click="requestSetDefaultRoute(mapping)"
                   >
                     {{ t("admin.reverseProxy.setDefaultRoute") }}
                   </Button>
 
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     @click="openEditDialog(mapping)"
                   >
@@ -176,9 +176,8 @@
                   >
                     <template #trigger>
                       <Button
-                        variant="ghost"
+                        variant="destructive-outline"
                         size="sm"
-                        class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         :disabled="removingPath === mapping.path"
                       >
                         {{ t("admin.reverseProxy.delete") }}

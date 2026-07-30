@@ -145,7 +145,7 @@
                     content-class="w-72 text-left"
                   >
                     <template #trigger>
-                      <Button size="sm" variant="ghost" :disabled="isRemoving && removingHost === h">{{ t('admin.selfSignedCA.remove') }}</Button>
+                      <Button size="sm" variant="destructive-outline" :disabled="isRemoving && removingHost === h">{{ t('admin.selfSignedCA.remove') }}</Button>
                     </template>
                   </ConfirmDangerPopover>
                 </TableCell>

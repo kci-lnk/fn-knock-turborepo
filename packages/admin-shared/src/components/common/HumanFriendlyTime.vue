@@ -130,7 +130,7 @@ onUnmounted(() => {
       <TooltipTrigger as-child>
         <button
           type="button"
-          class="cursor-help border-0 bg-transparent p-0 font-inherit text-inherit"
+          class="inline-flex items-center justify-center align-middle cursor-help rounded-sm border-0 bg-transparent p-0 font-inherit text-inherit [line-height:inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           @click="handleTriggerClick"
         >
           {{ displayText }}

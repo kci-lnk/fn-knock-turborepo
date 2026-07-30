@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { RefreshCw, SlidersHorizontal, X } from "lucide-vue-next";
+import { ExternalLink, RefreshCw, SlidersHorizontal, X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RefreshButton from "@/components/RefreshButton.vue";
@@ -209,15 +209,22 @@ defineExpose({
                     </span>
                   </TableCell>
                   <TableCell class="font-medium">
-                    <a
-                      :href="`http://${resolveServiceHost(service)}:${service.port}`"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-primary transition-colors hover:text-primary/80 hover:underline"
-                      :title="t('admin.reverseProxy.openNewWindow')"
+                    <Button
+                      as-child
+                      variant="link"
+                      data-affordance="details"
+                      class="h-auto gap-1 p-0 font-medium"
                     >
-                      {{ service.port }}
-                    </a>
+                      <a
+                        :href="`http://${resolveServiceHost(service)}:${service.port}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        :title="t('admin.reverseProxy.openNewWindow')"
+                      >
+                        {{ service.port }}
+                        <ExternalLink class="size-3.5" aria-hidden="true" />
+                      </a>
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <span

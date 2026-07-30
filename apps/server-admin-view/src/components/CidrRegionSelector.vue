@@ -210,7 +210,7 @@ onMounted(() => {
       role="alert"
     >
       <span>{{ provincesLoadError }}</span>
-      <Button type="button" variant="ghost" size="sm" @click="loadProvinces">
+      <Button type="button" variant="outline" size="sm" @click="loadProvinces">
         {{ text.retry }}
       </Button>
     </div>
@@ -242,7 +242,7 @@ onMounted(() => {
       <Button
         v-if="capabilityLoadError"
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         :disabled="capabilitiesLoading"
         @click="loadCapabilities"

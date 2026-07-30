@@ -15,6 +15,7 @@ use tokio::{
 };
 
 use crate::{
+    cidr::{CompiledIpSet, compile_ip_set},
     http_utils::{is_private_or_local_ip, normalize_ip},
     ip_location::ensure_ip_locations_enqueued,
     state::AppState,
@@ -22,6 +23,7 @@ use crate::{
 };
 
 const RUNTIME_KEY: &str = "fn_knock:common_auth_locations:runtime";
+const COMMON_LOCATION_IPSET_KEY: &str = "common_auth_locations";
 const RECENT_WINDOW_SECONDS: i64 = 7 * 24 * 3600;
 const KNOWN_COUNTRY_CHINA: &str = "中国";
 static SCHEDULED_REBUILD: LazyLock<Mutex<ScheduledRebuild>> =
@@ -91,6 +93,37 @@ pub fn start_common_auth_location_tasks(state: AppState) {
     });
 }
 
+pub async fn migrate_common_auth_location_ipset_on_boot(state: &AppState) -> anyhow::Result<()> {
+    let runtime = migrate_common_auth_location_ipset_in_storage(state).await?;
+    sync_common_auth_locations_to_gateway(state, &runtime).await
+}
+
+pub(crate) async fn migrate_common_auth_location_ipset_in_storage(
+    state: &AppState,
+) -> anyhow::Result<Value> {
+    let Some(raw) = state.store.get_string_value(RUNTIME_KEY).await? else {
+        state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
+        return Ok(compact_common_location_runtime(
+            &Value::Null,
+            false,
+            &crate::cidr::compile_ip_set(Vec::<String>::new()).map_err(anyhow::Error::msg)?,
+        ));
+    };
+    let previous: Value = serde_json::from_str(&raw)?;
+    let enabled = previous.get("enabled").and_then(Value::as_bool) == Some(true);
+    let policy = policy_from_runtime(&previous)?.into_current_format();
+    let runtime = compact_common_location_runtime(&previous, enabled, &policy);
+    state
+        .store
+        .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
+        .await?;
+    state.ipsets.publish(
+        COMMON_LOCATION_IPSET_KEY,
+        (enabled && policy.range_count() > 0).then_some(policy),
+    );
+    Ok(runtime)
+}
+
 pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Result<()> {
     let normalized = normalize_ip(ip);
     if normalized.is_empty() {
@@ -155,25 +188,13 @@ pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> an
         return Ok(false);
     }
 
-    let runtime = state
-        .store
-        .get_json_value(RUNTIME_KEY)
-        .await?
-        .unwrap_or_else(|| json!({}));
-    if runtime.get("enabled").and_then(Value::as_bool) != Some(true) {
-        return Ok(false);
-    }
     let Ok(ip) = normalized.parse::<IpAddr>() else {
         return Ok(false);
     };
-    Ok(runtime
-        .get("cidrs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .filter_map(|cidr| IpNet::from_str(cidr.trim()).ok())
-        .any(|network| network.contains(&ip)))
+    Ok(state
+        .ipsets
+        .get(COMMON_LOCATION_IPSET_KEY)
+        .is_some_and(|policy| policy.contains(ip)))
 }
 
 pub async fn rebuild_common_auth_locations_runtime_state(
@@ -263,7 +284,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
             "last_seen_at": stats.last_seen_at,
             "score": (stats.score * 100.0).round() / 100.0,
             "confidence": stats.confidence,
-            "cidrs": selected,
+            "cidr_count": selected.len(),
             "cidr_source": cidr_source,
         });
         if let Some(error) = cidr_error
@@ -274,9 +295,14 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         locations.push(location);
     }
 
+    let normalized_cidrs = normalize_cidr_lines(all_cidrs);
+    let policy = compile_ip_set(&normalized_cidrs).map_err(anyhow::Error::msg)?;
     let runtime = json!({
-        "enabled": !all_cidrs.is_empty(),
-        "cidrs": normalize_cidr_lines(all_cidrs),
+        "enabled": policy.range_count() > 0,
+        "policy_id": policy.id.clone(),
+        "source_cidr_count": policy.source_cidr_count,
+        "range_count": policy.range_count(),
+        "policy": policy.to_transport_value(),
         "locations": locations,
         "sample_count": entries.len(),
         "resolved_sample_count": resolved_sample_count,
@@ -288,6 +314,10 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
+    state.ipsets.publish(
+        COMMON_LOCATION_IPSET_KEY,
+        (policy.range_count() > 0).then_some(policy),
+    );
     if !pending_ips.is_empty() {
         schedule_common_auth_locations_rebuild_after(
             state.clone(),
@@ -327,17 +357,22 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
         .await?
         .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
         && runtime.get("enabled").and_then(Value::as_bool) != Some(true)
+        && runtime.get("policy").is_none()
         && runtime
             .get("cidrs")
             .and_then(Value::as_array)
             .is_none_or(Vec::is_empty)
     {
+        state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
         return Ok(runtime);
     }
 
     let runtime = json!({
         "enabled": false,
-        "cidrs": [],
+        "policy_id": null,
+        "source_cidr_count": 0,
+        "range_count": 0,
+        "policy": null,
         "locations": [],
         "sample_count": 0,
         "resolved_sample_count": 0,
@@ -349,6 +384,7 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
+    state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
     Ok(runtime)
 }
 
@@ -419,17 +455,28 @@ async fn sync_common_auth_locations_to_gateway(
 ) -> anyhow::Result<()> {
     let config = state.store.get_config().await?;
     let waf = config.get("waf").unwrap_or(&Value::Null);
-    let cidrs = runtime
-        .get("cidrs")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    sync_common_auth_locations_to_gateway_with_waf(state, runtime, waf).await
+}
+
+pub async fn sync_common_auth_locations_for_waf(
+    state: &AppState,
+    waf: &Value,
+) -> anyhow::Result<()> {
+    let runtime = state
+        .store
+        .get_string_value(RUNTIME_KEY)
+        .await?
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .unwrap_or_else(|| json!({}));
+    sync_common_auth_locations_to_gateway_with_waf(state, &runtime, waf).await
+}
+
+async fn sync_common_auth_locations_to_gateway_with_waf(
+    state: &AppState,
+    runtime: &Value,
+    waf: &Value,
+) -> anyhow::Result<()> {
+    let policy = policy_from_runtime(runtime)?.into_current_format();
     let enabled = waf.get("enabled").and_then(Value::as_bool).unwrap_or(false)
         && waf
             .get("common_location_exempt_enabled")
@@ -439,11 +486,13 @@ async fn sync_common_auth_locations_to_gateway(
             .get("enabled")
             .and_then(Value::as_bool)
             .unwrap_or(false)
-        && !cidrs.is_empty();
+        && policy.range_count() > 0;
     let payload = json!({
         "enabled": enabled,
         "waf_enabled": enabled,
-        "cidrs": if enabled { cidrs } else { Vec::<String>::new() },
+        "cidrs": Vec::<String>::new(),
+        "policy_id": if enabled { Some(policy.id.clone()) } else { None },
+        "policy": if enabled { Some(policy.to_transport_value()) } else { None },
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null),
     });
     let (status, response) = state
@@ -454,6 +503,76 @@ async fn sync_common_auth_locations_to_gateway(
         anyhow::bail!(error);
     }
     Ok(())
+}
+
+fn policy_from_runtime(runtime: &Value) -> anyhow::Result<CompiledIpSet> {
+    if let Some(value) = runtime.get("policy")
+        && !value.is_null()
+    {
+        return CompiledIpSet::from_transport_value(value).map_err(anyhow::Error::msg);
+    }
+    let cidrs = runtime
+        .get("cidrs")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    compile_ip_set(cidrs).map_err(anyhow::Error::msg)
+}
+
+fn compact_common_location_runtime(
+    previous: &Value,
+    enabled: bool,
+    policy: &CompiledIpSet,
+) -> Value {
+    let mut runtime = previous.as_object().cloned().unwrap_or_default();
+    runtime.remove("cidrs");
+    if let Some(locations) = runtime.get_mut("locations").and_then(Value::as_array_mut) {
+        for location in locations {
+            let Some(object) = location.as_object_mut() else {
+                continue;
+            };
+            let cidr_count = object
+                .remove("cidrs")
+                .and_then(|value| value.as_array().map(Vec::len))
+                .unwrap_or_else(|| {
+                    object
+                        .get("cidr_count")
+                        .and_then(Value::as_u64)
+                        .and_then(|value| usize::try_from(value).ok())
+                        .unwrap_or_default()
+                });
+            object.insert("cidr_count".to_string(), json!(cidr_count));
+        }
+    }
+    let active = enabled && policy.range_count() > 0;
+    runtime.insert("enabled".to_string(), Value::Bool(active));
+    runtime.insert(
+        "policy_id".to_string(),
+        if active {
+            Value::String(policy.id.clone())
+        } else {
+            Value::Null
+        },
+    );
+    runtime.insert(
+        "source_cidr_count".to_string(),
+        json!(if active { policy.source_cidr_count } else { 0 }),
+    );
+    runtime.insert(
+        "range_count".to_string(),
+        json!(if active { policy.range_count() } else { 0 }),
+    );
+    runtime.insert(
+        "policy".to_string(),
+        if active {
+            policy.to_transport_value()
+        } else {
+            Value::Null
+        },
+    );
+    Value::Object(runtime)
 }
 
 fn common_location_sync_failure(status: reqwest::StatusCode, response: &Value) -> Option<String> {
@@ -611,7 +730,7 @@ async fn resolve_region_cidrs(
     let query =
         crate::cidr::CidrRegionQuery::new(group.province.clone(), Some(group.city.clone()), None);
     match crate::cidr::lookup_region(state, &query).await {
-        Ok(result) => Ok((normalize_cidr_lines(result.cidrs), None)),
+        Ok(result) => Ok((result.cidrs(), None)),
         Err(error) => Ok((Vec::new(), Some(error.to_string()))),
     }
 }

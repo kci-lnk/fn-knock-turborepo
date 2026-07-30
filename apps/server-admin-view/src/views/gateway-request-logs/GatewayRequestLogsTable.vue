@@ -233,9 +233,9 @@ onUnmounted(disposeResizeObserver);
               class="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal py-2.5"
             >
               <div class="space-y-1.5">
-                <div class="flex items-start gap-2">
+                <div class="flex items-center gap-2">
                   <div
-                    class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
+                    class="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-[11px] font-medium leading-none text-muted-foreground"
                   >
                     <HumanFriendlyTime :value="entry.time" :locale="locale" />
                   </div>
@@ -373,7 +373,7 @@ onUnmounted(disposeResizeObserver);
             >
               <div class="flex justify-end gap-1">
                 <div
-                  class="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                  class="opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                 >
                   <ConfirmDangerPopover
                     :title="

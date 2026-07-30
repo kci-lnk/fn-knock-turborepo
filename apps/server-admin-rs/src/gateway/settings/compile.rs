@@ -14,22 +14,24 @@ pub(super) async fn compile_gateway_visibility_config(
     let custom_cidrs =
         validate_gateway_custom_cidrs(string_list(input.get("custom_cidrs")), &translator)?;
     let mut stored_selections = Vec::new();
-    let mut resolved_cidrs = Vec::new();
+    let mut region_policies = Vec::new();
 
     for selection in selections {
         let lookup = crate::cidr::lookup_region(state, &selection.query())
             .await
             .map_err(|error| crate::cidr::localize_error(&translator, &error.to_string()))?;
         stored_selections.push(lookup.selection);
-        resolved_cidrs.extend(lookup.cidrs);
+        region_policies.push(lookup.policy);
     }
 
-    let merged_cidrs = normalize_cidr_lines(resolved_cidrs.into_iter().chain(custom_cidrs.clone()));
+    let custom_policy = compile_ip_set(&custom_cidrs)
+        .map_err(|error| crate::cidr::localize_error(&translator, &error))?;
     let policy = if enabled {
-        Some(
-            compile_ip_set(&merged_cidrs)
-                .map_err(|error| crate::cidr::localize_error(&translator, &error))?,
-        )
+        Some(crate::cidr::union_ip_sets(
+            region_policies
+                .iter()
+                .chain(std::iter::once(&custom_policy)),
+        ))
     } else {
         None
     };
@@ -83,23 +85,27 @@ pub(crate) async fn compile_host_visibility_config(
     let custom_cidrs =
         validate_gateway_custom_cidrs(string_list(input.get("custom_cidrs")), &translator)?;
     let mut stored_selections = Vec::new();
-    let mut resolved_cidrs = Vec::new();
+    let mut region_policies = Vec::new();
 
     for selection in selections {
         let lookup = crate::cidr::lookup_region(state, &selection.query())
             .await
             .map_err(|error| crate::cidr::localize_error(&translator, &error.to_string()))?;
         stored_selections.push(lookup.selection);
-        resolved_cidrs.extend(lookup.cidrs);
+        region_policies.push(lookup.policy);
     }
 
-    let cidrs = normalize_cidr_lines(resolved_cidrs.into_iter().chain(custom_cidrs.clone()));
-    if cidrs.is_empty() {
+    let custom_policy = compile_ip_set(&custom_cidrs)
+        .map_err(|error| crate::cidr::localize_error(&translator, &error))?;
+    let policy = crate::cidr::union_ip_sets(
+        region_policies
+            .iter()
+            .chain(std::iter::once(&custom_policy)),
+    );
+    if policy.range_count() == 0 {
         return Err(translator.t("server.gatewayVisibility.emptyEnabledConfig"));
     }
 
-    let policy =
-        compile_ip_set(&cidrs).map_err(|error| crate::cidr::localize_error(&translator, &error))?;
     Ok(CompiledHostVisibility {
         config: json!({
             "mode": "custom",

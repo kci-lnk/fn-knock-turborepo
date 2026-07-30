@@ -31,6 +31,30 @@ fn normalizes_ssh_config_defaults() {
 }
 
 #[test]
+fn disabled_ssh_runtime_keeps_compiled_allow_policy_for_offline_reenable() {
+    let runtime = config::build_runtime_from_config(
+        &json!({
+            "enabled": false,
+            "custom_cidrs": ["192.0.2.0/24", "2001:db8::/32"]
+        }),
+        compile_ip_set(std::iter::empty::<&str>()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(runtime["enabled"], json!(false));
+    assert!(runtime.get("allowed_cidrs").is_none());
+    assert!(
+        runtime["policy_id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("ipset-v2:"))
+    );
+    assert!(runtime["policy"].is_object());
+    assert_eq!(runtime["range_count"], json!(2));
+    let policy = config::policy_from_runtime(&runtime).unwrap();
+    assert!(policy.contains("192.0.2.1".parse().unwrap()));
+    assert!(policy.contains("2001:db8::1".parse().unwrap()));
+}
+
+#[test]
 fn localizes_ssh_security_route_success_messages() {
     let zh = Translator::new("zh-CN");
     assert_eq!(

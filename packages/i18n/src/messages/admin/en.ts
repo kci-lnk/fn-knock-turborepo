@@ -4018,6 +4018,7 @@ export const enAdmin = {
     updateSuccess: "Updated",
     logsCleared: "Logs cleared",
     never: "Never",
+    copyAddressAria: "Copy {version} address {address}",
     copyUnavailable: "{version} address is unavailable",
     copySuccess: "{version} address copied",
     copyFailed: "Failed to copy {version} address",

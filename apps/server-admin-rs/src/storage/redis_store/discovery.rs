@@ -528,8 +528,10 @@ impl Store {
         let mut conn = self.conn();
         if ttl > 0 {
             let _: () = conn.set_ex(key, serialized, ttl as u64).await?;
-        } else {
+        } else if ttl == -1 {
             let _: () = conn.set(key, serialized).await?;
+        } else {
+            let _: () = conn.del(key).await?;
         }
         Ok(())
     }

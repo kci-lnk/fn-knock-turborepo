@@ -219,8 +219,16 @@ pub struct WhitelistRegionGroupRecord {
     pub id: String,
     #[serde(default)]
     pub regions: Vec<WhitelistRegionInput>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cidrs: Vec<String>,
+    #[serde(default, rename = "policyId", skip_serializing_if = "String::is_empty")]
+    pub policy_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<Value>,
+    #[serde(default, rename = "sourceCidrCount")]
+    pub source_cidr_count: usize,
+    #[serde(default, rename = "rangeCount")]
+    pub range_count: usize,
     #[serde(rename = "expireAt")]
     pub expire_at: Option<i64>,
     #[serde(default = "default_whitelist_source")]
@@ -317,22 +325,47 @@ impl WhitelistRegionGroupRecord {
             updated_at: self.updated_at,
             status: self.status.clone(),
             comment: self.comment.clone(),
-            cidr_count: self.cidrs.len(),
+            cidr_count: if self.source_cidr_count > 0 {
+                self.source_cidr_count
+            } else {
+                self.cidrs.len()
+            },
         }
     }
 
     pub fn concrete_targets(&self) -> Vec<WhitelistConcreteTarget> {
-        self.cidrs
-            .iter()
+        self.policy()
+            .map(|policy| policy.to_cidrs())
+            .unwrap_or_else(|| self.cidrs.clone())
+            .into_iter()
             .map(|cidr| WhitelistConcreteTarget {
                 record_id: self.id.clone(),
                 record_target: self.id.clone(),
                 record_target_type: "cidr".to_string(),
                 source: self.source.clone(),
-                target: cidr.clone(),
+                target: cidr,
                 target_type: "cidr".to_string(),
             })
             .collect()
+    }
+
+    pub fn policy(&self) -> Option<crate::cidr::CompiledIpSet> {
+        self.policy_result().ok()
+    }
+
+    pub fn policy_result(&self) -> Result<crate::cidr::CompiledIpSet, String> {
+        if let Some(value) = self.policy.as_ref() {
+            let policy =
+                crate::cidr::CompiledIpSet::from_transport_value(value)?.into_current_format();
+            if !self.policy_id.trim().is_empty() && self.policy_id != policy.id {
+                return Err(format!(
+                    "policy reference mismatch: expected {}, got {}",
+                    self.policy_id, policy.id
+                ));
+            }
+            return Ok(policy);
+        }
+        crate::cidr::compile_ip_set(&self.cidrs)
     }
 }
 

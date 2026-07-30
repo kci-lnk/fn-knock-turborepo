@@ -3727,6 +3727,7 @@ export const zhHantAdmin = {
     updateSuccess: "更新成功",
     logsCleared: "日誌已清空",
     never: "從未",
+    copyAddressAria: "複製 {version} 地址 {address}",
     copyUnavailable: "{version} 地址不可用",
     copySuccess: "{version} 地址已複製",
     copyFailed: "複製 {version} 地址失敗",

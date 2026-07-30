@@ -35,10 +35,34 @@ fn scanner_settings_preserve_node_defaults_and_effective_cidrs() {
     assert!(settings.enabled);
     assert_eq!(settings.window_seconds, SCANNER_BASE_WINDOW_SECONDS);
     assert_eq!(settings.cidr_exemptions, vec!["10.0.0.0/8"]);
-    assert_eq!(
-        settings.cidr_exemption_cidrs,
-        vec!["1.1.1.0/24", "10.0.0.0/8"]
-    );
+    assert!(settings.cidr_exemption_region_cidrs.is_empty());
+    assert!(settings.cidr_exemption_cidrs.is_empty());
+}
+
+#[test]
+fn scanner_compaction_removes_legacy_arrays_and_deduplicates_equal_policies() {
+    let raw = json!({
+        "enabled": true,
+        "cidrExemptions": [],
+        "cidrExemptionRegions": [{
+            "province": "浙江",
+            "city": null,
+            "label": "浙江全省",
+            "value": "__province_all__",
+            "query_city": null,
+            "is_province_wide": true,
+            "is_municipality": false
+        }],
+        "cidrExemptionRegionCidrs": ["192.0.2.0/25", "192.0.2.128/25"],
+        "cidrExemptionCidrs": ["192.0.2.0/24"]
+    });
+    let (stored, policy) = settings::compact_scanner_settings(&raw).unwrap();
+    assert!(stored.get("cidrExemptionRegionCidrs").is_none());
+    assert!(stored.get("cidrExemptionCidrs").is_none());
+    assert!(stored["cidrExemptionRegionPolicy"].is_object());
+    assert!(stored.get("cidrExemptionPolicy").is_none());
+    assert_eq!(stored["cidrExemptionPolicyId"], json!(policy.id));
+    assert_eq!(stored["cidrExemptionRangeCount"], json!(1));
 }
 
 #[test]

@@ -1,5 +1,19 @@
 use super::*;
 
+pub(crate) async fn migrate_ssh_ipset_on_boot(state: &AppState) -> anyhow::Result<()> {
+    let raw = state.store.get_json_value(RUNTIME_KEY).await?;
+    let runtime = normalize_runtime(raw);
+    let enabled = runtime.get("enabled").and_then(Value::as_bool) == Some(true);
+    let policy = policy_from_runtime(&runtime)?.into_current_format();
+    let compact = compact_runtime(enabled, &policy, runtime.get("updated_at").cloned());
+    state.store.set_json_value(RUNTIME_KEY, &compact).await?;
+    state.ipsets.publish(
+        SSH_ALLOWED_IPSET_KEY,
+        (enabled && policy.range_count() > 0).then_some(policy),
+    );
+    Ok(())
+}
+
 pub(super) async fn ssh_security_details(
     state: &AppState,
 ) -> Result<Value, crate::storage::StorageError> {
@@ -14,7 +28,8 @@ pub(super) async fn ssh_security_details(
         "summary": {
             "configured": config.get("configured_at").is_some_and(|value| !value.is_null()),
             "enabled": config.get("enabled").and_then(Value::as_bool).unwrap_or(false),
-            "allowed_cidr_count": runtime.get("allowed_cidrs").and_then(Value::as_array).map(|items| items.len()).unwrap_or_default(),
+            "allowed_cidr_count": runtime.get("source_cidr_count").and_then(Value::as_u64).unwrap_or_default(),
+            "allowed_range_count": runtime.get("range_count").and_then(Value::as_u64).unwrap_or_default(),
             "active_block_count": active_block_count,
             "ssh_ports": ports,
             "log_source": availability.log_source,
@@ -44,6 +59,8 @@ pub(super) async fn update_ssh_security_config(
     }
     state.store.save_config(&all).await?;
     state.store.set_json_value(RUNTIME_KEY, &runtime).await?;
+    publish_runtime_policy(state, &runtime)
+        .map_err(|error| SshError::Runtime(error.to_string()))?;
     apply_ssh_security_config_once(state, &config, &runtime)
         .await
         .map_err(|error| SshError::Runtime(error.to_string()))?;
@@ -82,11 +99,27 @@ pub(super) fn normalize_runtime(value: Option<Value>) -> Value {
     let raw = value
         .and_then(|value| value.as_object().cloned())
         .unwrap_or_default();
-    json!({
+    let mut runtime = json!({
         "enabled": raw.get("enabled").and_then(Value::as_bool).unwrap_or(false),
         "allowed_cidrs": normalize_cidrs(raw.get("allowed_cidrs")),
+        "policy_id": raw.get("policy_id").cloned().unwrap_or(Value::Null),
+        "source_cidr_count": raw.get("source_cidr_count").cloned().unwrap_or_else(|| json!(0)),
+        "range_count": raw.get("range_count").cloned().unwrap_or_else(|| json!(0)),
+        "policy": raw.get("policy").cloned().unwrap_or(Value::Null),
         "updated_at": normalize_timestamp(raw.get("updated_at"))
-    })
+    });
+    if runtime.get("policy").is_some_and(Value::is_null)
+        && runtime
+            .get("allowed_cidrs")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty)
+    {
+        runtime
+            .as_object_mut()
+            .expect("normalized runtime object")
+            .remove("allowed_cidrs");
+    }
+    runtime
 }
 
 pub(super) async fn compile_config_patch(
@@ -106,12 +139,36 @@ pub(super) async fn compile_config_patch(
                 .and_then(Value::as_bool)
                 .unwrap_or(false)
         });
-    let allowed_regions = resolve_allowed_regions(state, &raw, previous, translator).await?;
+    let policy_inputs_changed =
+        raw.contains_key("allowed_regions") || raw.contains_key("custom_cidrs");
     let custom_cidrs = if raw.contains_key("custom_cidrs") {
         validate_cidrs(raw.get("custom_cidrs"), translator)?;
         normalize_cidrs(raw.get("custom_cidrs"))
     } else {
         normalize_cidrs(previous.get("custom_cidrs"))
+    };
+    let previous_runtime = load_runtime(state).await?;
+    let previous_policy = policy_from_runtime(&previous_runtime)
+        .map_err(|error| SshError::Runtime(error.to_string()))?;
+    let has_semantic_allowlist = previous
+        .get("allowed_regions")
+        .and_then(Value::as_array)
+        .is_some_and(|items| !items.is_empty())
+        || custom_cidrs
+            .as_array()
+            .is_some_and(|items| !items.is_empty());
+    let reuse_policy =
+        !policy_inputs_changed && (!has_semantic_allowlist || previous_policy.range_count() > 0);
+    let allowed_regions = if reuse_policy {
+        ResolvedAllowedRegions {
+            selections: previous
+                .get("allowed_regions")
+                .cloned()
+                .unwrap_or_else(|| json!([])),
+            policy: previous_policy.clone(),
+        }
+    } else {
+        resolve_allowed_regions(state, &raw, previous, translator).await?
     };
     let config = json!({
         "enabled": enabled,
@@ -124,7 +181,15 @@ pub(super) async fn compile_config_patch(
         "configured_at": previous.get("configured_at").cloned().filter(|value| !value.is_null()).unwrap_or_else(|| Value::String(now.clone())),
         "updated_at": now
     });
-    let runtime = build_runtime_from_config(&config, allowed_regions.cidrs);
+    let runtime = if reuse_policy {
+        compact_runtime(
+            enabled,
+            &previous_policy,
+            Some(Value::String(time_utils::now_iso())),
+        )
+    } else {
+        build_runtime_from_config(&config, allowed_regions.policy).map_err(SshError::BadRequest)?
+    };
     Ok((config, runtime))
 }
 
@@ -142,13 +207,13 @@ pub(super) async fn resolve_allowed_regions(
     let Some(items) = source.and_then(Value::as_array) else {
         return Ok(ResolvedAllowedRegions {
             selections: json!([]),
-            cidrs: Vec::new(),
+            policy: compile_ip_set(std::iter::empty::<&str>()).map_err(SshError::BadRequest)?,
         });
     };
 
     let mut seen = HashSet::new();
     let mut selections = Vec::new();
-    let mut cidrs = Vec::new();
+    let mut policies = Vec::new();
     for item in items {
         let Some(query) = parse_allowed_region(item, translator)? else {
             continue;
@@ -163,12 +228,11 @@ pub(super) async fn resolve_allowed_regions(
                 SshError::BadRequest(crate::cidr::localize_error(translator, &error.to_string()))
             })?;
         selections.push(serde_json::to_value(lookup.selection).unwrap_or(Value::Null));
-        cidrs.extend(lookup.cidrs);
+        policies.push(lookup.policy);
     }
-    cidrs = normalize_cidr_strings(cidrs);
     Ok(ResolvedAllowedRegions {
         selections: Value::Array(selections),
-        cidrs,
+        policy: crate::cidr::union_ip_sets(policies.iter()),
     })
 }
 
@@ -198,24 +262,66 @@ pub(super) fn parse_allowed_region(
 
 pub(super) fn build_runtime_from_config(
     config: &Value,
-    mut resolved_region_cidrs: Vec<String>,
-) -> Value {
+    resolved_region_policy: CompiledIpSet,
+) -> Result<Value, String> {
     let custom_cidrs = config
         .get("custom_cidrs")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(Value::as_str)
-        .map(str::to_string);
-    resolved_region_cidrs.extend(custom_cidrs);
-    let allowed_cidrs = normalize_cidr_strings(resolved_region_cidrs);
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let custom_policy = compile_ip_set(&custom_cidrs)?;
+    let policy = crate::cidr::union_ip_sets([&resolved_region_policy, &custom_policy]);
+    Ok(compact_runtime(
+        config
+            .get("enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        &policy,
+        Some(Value::String(time_utils::now_iso())),
+    ))
+}
+
+pub(super) fn policy_from_runtime(runtime: &Value) -> anyhow::Result<CompiledIpSet> {
+    if let Some(value) = runtime.get("policy")
+        && !value.is_null()
+    {
+        return CompiledIpSet::from_transport_value(value).map_err(anyhow::Error::msg);
+    }
+    let cidrs = runtime
+        .get("allowed_cidrs")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    compile_ip_set(cidrs).map_err(anyhow::Error::msg)
+}
+
+pub(super) fn compact_runtime(
+    enabled: bool,
+    policy: &CompiledIpSet,
+    updated_at: Option<Value>,
+) -> Value {
+    let has_policy = policy.range_count() > 0;
     json!({
-        "enabled": config.get("enabled").and_then(Value::as_bool).unwrap_or(false),
-        "allowed_cidrs": if config.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
-            Value::Array(allowed_cidrs.into_iter().map(Value::String).collect())
-        } else {
-            json!([])
-        },
-        "updated_at": time_utils::now_iso()
+        "enabled": enabled,
+        "policy_id": has_policy.then(|| policy.id.clone()),
+        "source_cidr_count": if has_policy { policy.source_cidr_count } else { 0 },
+        "range_count": if has_policy { policy.range_count() } else { 0 },
+        "policy": has_policy.then(|| policy.to_transport_value()),
+        "updated_at": updated_at.unwrap_or_else(|| Value::String(time_utils::now_iso())),
     })
+}
+
+fn publish_runtime_policy(state: &AppState, runtime: &Value) -> anyhow::Result<()> {
+    let enabled = runtime.get("enabled").and_then(Value::as_bool) == Some(true);
+    let policy = policy_from_runtime(runtime)?;
+    state.ipsets.publish(
+        SSH_ALLOWED_IPSET_KEY,
+        (enabled && policy.range_count() > 0).then_some(policy),
+    );
+    Ok(())
 }

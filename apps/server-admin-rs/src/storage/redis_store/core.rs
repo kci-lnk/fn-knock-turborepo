@@ -113,17 +113,7 @@ fn replace_visibility_policies_for_host_mappings(
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    let mut referenced = BTreeSet::new();
-    for mapping in replacement_mappings {
-        if let Some(id) = mapping
-            .pointer("/visibility/policy_id")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            referenced.insert(id.to_string());
-        }
-    }
+    let mut referenced = referenced_host_ipset_policy_ids(replacement_mappings);
     if let Some(id) = config
         .pointer("/gateway_visibility/policy_id")
         .and_then(Value::as_str)
@@ -1200,6 +1190,7 @@ return 1
     /// Atomically replaces the Host mapping list and its UI grouping catalog.
     /// The shared generation advances when either section changes so a stale
     /// full-config writer cannot overwrite a concurrent organization update.
+    #[cfg(test)]
     pub async fn compare_and_set_host_mapping_catalog(
         &self,
         expected_mappings: &[Value],

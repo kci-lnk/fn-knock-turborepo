@@ -141,7 +141,7 @@
                 <TableCell class="text-right">
                   <div class="flex justify-end gap-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       @click="openEditDialog(mapping)"
                     >
@@ -166,9 +166,8 @@
                     >
                       <template #trigger>
                         <Button
-                          variant="ghost"
+                          variant="destructive-outline"
                           size="sm"
-                          class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           :disabled="
                             removingMappingKey === getMappingKey(mapping)
                           "

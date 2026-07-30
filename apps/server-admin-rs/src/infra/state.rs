@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use anyhow::Context;
 use serde_json::Value;
@@ -7,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     auto_https::AutoHttpsRedirectManager,
+    cidr::IpSetRegistry,
     go_backend::GoBackendClient,
     settings::Settings,
     storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
@@ -25,6 +29,13 @@ pub struct AppStateInner {
     /// workers should observe this token instead of relying on runtime drop.
     pub shutdown: CancellationToken,
     pub store: Store,
+    /// Atomically published, immutable CIDR sets used by request hot paths.
+    /// Storage retains semantic selections and compact policies; request
+    /// handling never reparses large CIDR arrays.
+    pub ipsets: IpSetRegistry,
+    /// Serializes rebuilding and publishing the complete whitelist policy to
+    /// the proxy snapshot and direct-mode firewall.
+    pub whitelist_runtime_sync_lock: Mutex<()>,
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
     pub fallback_client: reqwest::Client,
@@ -51,6 +62,9 @@ pub struct AppStateInner {
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
     pub host_mappings_update_lock: Mutex<()>,
+    /// Tracks whether the latest complete HostRules snapshot was accepted by
+    /// the matching Go gateway. Readiness must not hide a failed config sync.
+    pub gateway_config_synced: AtomicBool,
     /// Serializes protocol-mapping config, its standalone feature switch,
     /// gateway listeners, firewall rules, and rollback as one transaction.
     pub protocol_mapping_update_lock: Mutex<()>,
@@ -119,6 +133,8 @@ impl AppState {
                 settings,
                 shutdown,
                 store,
+                ipsets: IpSetRegistry::default(),
+                whitelist_runtime_sync_lock: Mutex::new(()),
                 go_backend,
                 fallback_client,
                 asset_download_client,
@@ -159,6 +175,7 @@ impl AppState {
                 automatic_backup_lock: Mutex::new(()),
                 automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
+                gateway_config_synced: AtomicBool::new(false),
                 protocol_mapping_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),
                 tunnel_supervisors: TunnelSupervisorRegistry::default(),
@@ -173,5 +190,15 @@ impl std::ops::Deref for AppState {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl AppState {
+    pub(crate) fn set_gateway_config_synced(&self, synced: bool) {
+        self.gateway_config_synced.store(synced, Ordering::Release);
+    }
+
+    pub(crate) fn gateway_config_synced(&self) -> bool {
+        self.gateway_config_synced.load(Ordering::Acquire)
     }
 }

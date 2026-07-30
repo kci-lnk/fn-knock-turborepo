@@ -65,7 +65,7 @@ async fn gateway_visibility_allows_enabled_empty_global_rules() {
         compiled.runtime["policy_id"]
             .as_str()
             .unwrap()
-            .starts_with("ipset-v1:")
+            .starts_with("ipset-v2:")
     );
     assert_eq!(compiled.runtime["source_cidr_count"], json!(0));
     assert_eq!(compiled.runtime["range_count"], json!(0));

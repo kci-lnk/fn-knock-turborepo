@@ -66,13 +66,12 @@ Function FnKnockProtectTransactionDirectory
     Return
   ${EndIf}
 
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /setowner "*S-1-5-18" /T /L /Q'
-  Pop $0
-  Pop $1
-  ${If} $0 != 0
-    StrCpy $1 "unable to transfer the installer transaction directory ownership"
-    Return
-  ${EndIf}
+  ; Keep Administrators as the bootstrap owner. Some Windows 11 configurations
+  ; reject an arbitrary owner transfer from an NSIS child even though the same
+  ; elevated token can complete and verify it through PowerShell. Ownership
+  ; does not widen access here: the protected DACL already grants only SYSTEM
+  ; and Administrators. The helper transfers the complete tree to SYSTEM and
+  ; verifies the exact owner/DACL before dispatching any transaction action.
   StrCpy $0 0
   StrCpy $1 ""
 FunctionEnd
@@ -669,7 +668,8 @@ Function FnKnockWriteTransactionScript
   ${EndIf}
   FileClose $R7
   ; File creation gives the elevated administrator ownership. Reapply the exact
-  ; allowlist and SYSTEM owner before PowerShell reads the helper.
+  ; allowlist before PowerShell reads the helper. The helper transfers the tree
+  ; to SYSTEM and validates the exact owner/DACL before any action is dispatched.
   Call FnKnockProtectTransactionDirectory
   ${If} $0 == 0
     StrCpy $FnKnockTransactionReady 1

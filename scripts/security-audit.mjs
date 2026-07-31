@@ -45,7 +45,7 @@ const rustAllowlist = new Map([
     "apps/server-admin-rs/Cargo.lock",
     {
       vulnerabilities: new Set(["RUSTSEC-2023-0071:rsa:0.9.10"]),
-      warnings: new Set(["yanked:spin:0.9.8"]),
+      warnings: new Set(),
       manifest: "apps/server-admin-rs/Cargo.toml",
       reviewedPackages: new Map([
         ["crypto-glue", "0.1.15"],
@@ -55,7 +55,7 @@ const rustAllowlist = new Map([
         ["webauthn-rs-core", "0.6.1-dev"],
       ]),
       rationale:
-        "rsa is transitive through webauthn-rs and is used only for public-key signature verification; the advisory requires observable private-key operations. No patched rsa release exists. The exact yanked spin version is also transitive through rsa/num-bigint-dig and has no RustSec vulnerability.",
+        "rsa is transitive through webauthn-rs and is used only for public-key signature verification; the advisory requires observable private-key operations. No patched rsa release exists.",
     },
   ],
 ]);

@@ -48,7 +48,6 @@ pub(crate) fn chmod_executable(_path: &Path) {}
 
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
     use super::*;
 
     #[cfg(unix)]

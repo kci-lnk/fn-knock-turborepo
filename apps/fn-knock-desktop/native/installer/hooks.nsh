@@ -35,9 +35,8 @@ Function FnKnockProtectTransactionDirectory
   Pop $2
 
   ; This directory was just created below Program Files and was already checked
-  ; for reparse-point substitution. Only claim the root here. The recursive
-  ; ACL operations below use icacls /L so they never need takeown's
-  ; version-dependent, undocumented /SKIPSL option.
+  ; for reparse-point substitution. Only claim the root here. The helper file
+  ; inherits from this protected directory and is handled separately below.
   nsExec::ExecToStack '"$SYSDIR\takeown.exe" /F "$FnKnockTransactionDir" /A'
   Pop $0
   Pop $1
@@ -46,7 +45,7 @@ Function FnKnockProtectTransactionDirectory
     Return
   ${EndIf}
 
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /reset /T /L /Q'
+  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /reset /L /Q'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -58,7 +57,10 @@ Function FnKnockProtectTransactionDirectory
   ; builds preserve read-only application-package ACEs here; once loaded from
   ; this non-writable directory, the helper replaces the DACL through the .NET
   ; ACL API and verifies the exact canonical result.
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q'
+  ; Never apply directory-only (OI)(CI) rules recursively to a regular file.
+  ; Windows 11 can protect that file while leaving it with an empty effective
+  ; DACL. Configure only the directory and let the known helper inherit it.
+  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /L /Q'
   Pop $0
   Pop $1
   ${If} $0 != 0
@@ -70,12 +72,32 @@ Function FnKnockProtectTransactionDirectory
   ; direct NSIS child, while the same elevated token succeeds when PowerShell
   ; dispatches icacls. Use the latter path before PowerShell reads the helper;
   ; the helper independently reapplies and verifies the exact owner/DACL.
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$ErrorActionPreference = $\'Stop$\'; & $\'$SYSDIR\icacls.exe$\' $\'$FnKnockTransactionDir$\' /setowner $\'*S-1-5-18$\' /T /L /Q; if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$ErrorActionPreference = $\'Stop$\'; & $\'$SYSDIR\icacls.exe$\' $\'$FnKnockTransactionDir$\' /setowner $\'*S-1-5-18$\' /L /Q; if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }"'
   Pop $0
   Pop $1
   ${If} $0 != 0
     StrCpy $1 "unable to transfer the installer transaction directory ownership through PowerShell (exit $0): $1"
     Return
+  ${EndIf}
+
+  ${If} ${FileExists} "$FnKnockTransactionScript"
+    Push $2
+    System::Call 'kernel32::GetFileAttributesW(w "$FnKnockTransactionScript") i.r2'
+    IntOp $2 $2 & 0x400
+    ${If} $2 != 0
+      StrCpy $0 1
+      StrCpy $1 "the installer transaction helper is a reparse point or could not be inspected"
+      Pop $2
+      Return
+    ${EndIf}
+    Pop $2
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$ErrorActionPreference = $\'Stop$\'; & $\'$SYSDIR\icacls.exe$\' $\'$FnKnockTransactionScript$\' /setowner $\'*S-1-5-18$\' /L /Q; if ($$LASTEXITCODE -ne 0) { exit $$LASTEXITCODE }"'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+      StrCpy $1 "unable to transfer the installer transaction helper ownership through PowerShell (exit $0): $1"
+      Return
+    ${EndIf}
   ${EndIf}
   StrCpy $0 0
   StrCpy $1 ""
@@ -567,9 +589,8 @@ Function FnKnockWriteTransactionScript
   ; Windows 10 builds even after /inheritance:r. The helper was loaded from a
   ; directory where those identities cannot write its contents; now replace
   ; every DACL with the same exact ACL constructors used for protected runtime
-  ; data, restore the SYSTEM owner, and fail closed unless verification agrees.
+  ; data and fail closed unless owner/DACL verification agrees.
   FileWrite $R7 "  Set-FnKnockDataTreeAcl $$PSScriptRoot $$systemSid $$administratorsSid $$null$\r$\n"
-  FileWrite $R7 "  Set-FnKnockDataTreeOwner $$PSScriptRoot $$icacls$\r$\n"
   FileWrite $R7 "  Assert-FnKnockInstallerTreeAcl $$PSScriptRoot$\r$\n"
   FileWrite $R7 "  switch ($$Action) {$\r$\n"
   FileWrite $R7 "    'begin' {$\r$\n"

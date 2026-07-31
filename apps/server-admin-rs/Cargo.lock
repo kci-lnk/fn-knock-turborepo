@@ -3276,7 +3276,7 @@ dependencies = [
 
 [[package]]
 name = "server-admin-rs"
-version = "2.1.7"
+version = "2.1.8"
 dependencies = [
  "anyhow",
  "arc-swap",

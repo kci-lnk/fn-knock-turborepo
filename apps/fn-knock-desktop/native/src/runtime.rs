@@ -265,7 +265,7 @@ fn ready_document_is_complete(body: &str) -> bool {
     };
     document.get("ready").and_then(Value::as_bool) == Some(true)
         && document.get("version").and_then(Value::as_str) == Some(env!("CARGO_PKG_VERSION"))
-        && document.get("control_api_version").and_then(Value::as_u64) == Some(2)
+        && document.get("control_api_version").and_then(Value::as_u64) == Some(5)
         && [
             "storage",
             "gateway_bundle",
@@ -398,7 +398,7 @@ mod tests {
         let complete = json!({
             "ready": true,
             "version": env!("CARGO_PKG_VERSION"),
-            "control_api_version": 2,
+            "control_api_version": 5,
             "components": {
                 "storage": true,
                 "gateway_bundle": true,

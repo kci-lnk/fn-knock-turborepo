@@ -61,7 +61,7 @@ foreach ($property in @("commit", "gateway_commit")) {
     throw "Staged bundle identity has an invalid or missing $property"
   }
 }
-if ([int]$BundleIdentity.control_api_version -ne 2) {
+if ([int]$BundleIdentity.control_api_version -ne 5) {
   throw "Staged bundle identity has an invalid or missing control_api_version"
 }
 $SetupPath = (Resolve-Path $SetupPath).Path

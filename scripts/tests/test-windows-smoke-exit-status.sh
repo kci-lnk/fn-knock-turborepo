@@ -4,7 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNTIME_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-smoke.ps1"
 INSTALLER_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-installer-smoke.ps1"
+WINDOWS_BUILD_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows.ps1"
+WINDOWS_FINALIZE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-finalize.ps1"
 INSTALLER_HOOK="${ROOT_DIR}/apps/fn-knock-desktop/native/installer/hooks.nsh"
+SERVICE_GO_BACKEND="${ROOT_DIR}/apps/server-admin-rs/src/infra/go_backend.rs"
+DESKTOP_RUNTIME="${ROOT_DIR}/apps/fn-knock-desktop/native/src/runtime.rs"
+DESKTOP_BUILD="${ROOT_DIR}/apps/fn-knock-desktop/native/build.rs"
 RELEASE_WORKFLOW="${ROOT_DIR}/.github/workflows/release.yml"
 WINDOWS_WORKFLOW="${ROOT_DIR}/.github/workflows/windows-x86_64.yml"
 
@@ -41,6 +46,28 @@ assert_success_exit_status() {
 
 assert_success_exit_status "${RUNTIME_SMOKE_SCRIPT}" "Invoke-SmokeCleanup" "runtime smoke"
 assert_success_exit_status "${INSTALLER_SMOKE_SCRIPT}" "Invoke-InstallerCleanup" "installer smoke"
+
+control_api_version="$(
+  sed -nE 's/.*GATEWAY_CONTROL_API_VERSION: u64 = ([0-9]+);.*/\1/p' \
+    "${SERVICE_GO_BACKEND}"
+)"
+case "${control_api_version}" in
+  ''|0|*[!0-9]*) fail "Rust service control API version must be a positive integer" ;;
+esac
+grep -Fq 'control_api_version = $ControlApiVersion' "${WINDOWS_BUILD_SCRIPT}" || \
+  fail "Windows bundle staging must derive the control API version from the Rust service"
+grep -Fq "control_api_version -ne ${control_api_version}" "${WINDOWS_FINALIZE_SCRIPT}" || \
+  fail "Windows finalization control API version must match the Rust service"
+grep -Fq "control_api_version -eq ${control_api_version}" "${RUNTIME_SMOKE_SCRIPT}" || \
+  fail "Windows runtime smoke control API version must match the Rust service"
+grep -Fq "control_api_version -eq ${control_api_version}" "${INSTALLER_SMOKE_SCRIPT}" || \
+  fail "Windows installer smoke control API version must match the Rust service"
+grep -Fq "document.get(\"control_api_version\").and_then(Value::as_u64) == Some(${control_api_version})" \
+  "${DESKTOP_RUNTIME}" || \
+  fail "Windows desktop readiness control API version must match the Rust service"
+grep -A2 -F 'document["control_api_version"].as_u64()' "${DESKTOP_BUILD}" | \
+  grep -Fq "Some(${control_api_version})" || \
+  fail "Windows desktop build validation control API version must match the Rust service"
 
 unsafe_count_calls="$(
   grep -E '\(Get-FnKnock(FirewallRules|Processes)\)\.Count' "${INSTALLER_SMOKE_SCRIPT}" |

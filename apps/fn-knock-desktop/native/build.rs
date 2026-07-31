@@ -23,7 +23,7 @@ fn validate_windows_bundle_identity() {
     }
     assert_eq!(
         document["control_api_version"].as_u64(),
-        Some(2),
+        Some(5),
         "Windows runtime bundle identity has an invalid or missing control_api_version; run npm run fn-knock:windows:prepare from the repository root"
     );
 }

@@ -34,6 +34,18 @@ $DesktopNative = Join-Path $DesktopRoot "native"
 $BundleRoot = Join-Path $DesktopRoot "bundle\windows"
 $RuntimeRoot = Join-Path $BundleRoot "runtime"
 $RustAcmeshExecutable = Join-Path $Root "apps\server-admin-rs\resources\rust-acmesh.exe"
+$ControlApiSource = Get-Content -Raw (Join-Path $Root "apps\server-admin-rs\src\infra\go_backend.rs")
+$ControlApiMatch = [regex]::Match(
+  $ControlApiSource,
+  'GATEWAY_CONTROL_API_VERSION\s*:\s*u64\s*=\s*([0-9]+)\s*;'
+)
+if (-not $ControlApiMatch.Success) {
+  throw "Unable to read GATEWAY_CONTROL_API_VERSION from the Rust service source"
+}
+$ControlApiVersion = [uint64]$ControlApiMatch.Groups[1].Value
+if ($ControlApiVersion -eq 0) {
+  throw "GATEWAY_CONTROL_API_VERSION must be positive"
+}
 
 if ($SkipDesktopBundle -and $BundleInstaller) {
   throw "SkipDesktopBundle and BundleInstaller cannot be used together"
@@ -165,7 +177,7 @@ function Stage-WindowsBundle {
     version = $Version
     commit = $Commit
     gateway_commit = $GoCommit
-    control_api_version = 2
+    control_api_version = $ControlApiVersion
     target = "windows-x86_64"
     files = @(
       "fn-knock.exe",

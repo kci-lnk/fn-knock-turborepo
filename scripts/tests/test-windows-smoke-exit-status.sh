@@ -83,6 +83,21 @@ if grep -Fq '"*S-1-5-18:F"' "${INSTALLER_HOOK}" || \
     grep -Fq '"*S-1-5-32-544:F"' "${INSTALLER_HOOK}"; then
   fail "installer transaction ACL must not add duplicate non-inheriting SID rules"
 fi
+grep -Fq 'Set-FnKnockDataTreeAcl $$PSScriptRoot $$systemSid $$administratorsSid $$null' "${INSTALLER_HOOK}" || \
+  fail "installer helper must replace inherited platform ACLs through the exact ACL API"
+grep -Fq 'Set-FnKnockDataTreeOwner $$PSScriptRoot $$icacls' "${INSTALLER_HOOK}" || \
+  fail "installer helper must restore SYSTEM ownership after canonicalizing its ACL"
+grep -Fq 'Assert-FnKnockInstallerTreeAcl $$PSScriptRoot' "${INSTALLER_HOOK}" || \
+  fail "installer helper must verify its canonicalized ACL before dispatch"
+grep -Fq "\$\$platformReadSids = @('S-1-15-2-1','S-1-15-2-2')" "${INSTALLER_HOOK}" || \
+  fail "installer ACL validation must recognize Windows application-package identities"
+grep -Fq '($$rightsMask -band [uint32]0x530D0146) -ne 0' "${INSTALLER_HOOK}" || \
+  fail "installer ACL validation must reject application-package mutation rights"
+acl_normalize_line="$(grep -nF 'Set-FnKnockDataTreeAcl $$PSScriptRoot $$systemSid $$administratorsSid $$null' "${INSTALLER_HOOK}" | cut -d: -f1)"
+acl_verify_line="$(grep -nF 'Assert-FnKnockInstallerTreeAcl $$PSScriptRoot' "${INSTALLER_HOOK}" | cut -d: -f1)"
+action_dispatch_line="$(grep -nF 'switch ($$Action)' "${INSTALLER_HOOK}" | cut -d: -f1)"
+[ "${acl_normalize_line}" -lt "${acl_verify_line}" ] && [ "${acl_verify_line}" -lt "${action_dispatch_line}" ] || \
+  fail "installer helper must normalize and verify its ACL before action dispatch"
 grep -Fq "[Console]::Error.WriteLine(('FnKnock installer ' + \$\$Action + ' failed: ' + \$\$_.Exception.Message))" "${INSTALLER_HOOK}" || \
   fail "installer transaction failures must emit a concise actionable error"
 

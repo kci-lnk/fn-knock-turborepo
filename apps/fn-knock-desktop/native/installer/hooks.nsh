@@ -54,9 +54,10 @@ Function FnKnockProtectTransactionDirectory
     Return
   ${EndIf}
 
-  ; An (OI)(CI) ACE also applies to the directory itself unless it is marked
-  ; inherit-only. Keep exactly one rule per SID so the helper's ACL allowlist
-  ; assertion sees the same canonical shape that this command creates.
+  ; Establish a safe write allowlist before the helper exists. Some Windows 10
+  ; builds preserve read-only application-package ACEs here; once loaded from
+  ; this non-writable directory, the helper replaces the DACL through the .NET
+  ; ACL API and verifies the exact canonical result.
   nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q'
   Pop $0
   Pop $1
@@ -160,12 +161,16 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "  if ($$Acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne 'S-1-5-18') { throw ('installer object is not owned by SYSTEM: ' + $$Path) }$\r$\n"
   FileWrite $R7 "  $$rules = @($$Acl.GetAccessRules($$true, $$false, [System.Security.Principal.SecurityIdentifier]))$\r$\n"
   FileWrite $R7 "  $$isDirectory = $$Acl -is [System.Security.AccessControl.DirectorySecurity]$\r$\n"
-  FileWrite $R7 "  if ($$rules.Count -ne $$AllowedSids.Count) { throw ('installer ACL has an unexpected rule count: ' + $$Path) }$\r$\n"
-  FileWrite $R7 "  $$ruleSids = @($$rules | ForEach-Object { $$_.IdentityReference.Value } | Sort-Object -Unique)$\r$\n"
-  FileWrite $R7 "  if ($$ruleSids.Count -ne $$AllowedSids.Count -or @($$ruleSids | Where-Object { $$AllowedSids -notcontains $$_ }).Count -ne 0) { throw ('installer ACL has unexpected identities: ' + $$Path) }$\r$\n"
-  FileWrite $R7 "  $$full = [System.Security.AccessControl.FileSystemRights]::FullControl; $$allow = [System.Security.AccessControl.AccessControlType]::Allow; $$none = [System.Security.AccessControl.InheritanceFlags]::None; $$both = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit$\r$\n"
-  FileWrite $R7 "  foreach ($$rule in $$rules) { if ($$rule.AccessControlType -ne $$allow -or $$rule.FileSystemRights -ne $$full -or $$rule.PropagationFlags -ne [System.Security.AccessControl.PropagationFlags]::None -or ($$rule.InheritanceFlags -ne $$none -and $$rule.InheritanceFlags -ne $$both)) { throw ('installer ACL contains a non-exact rule: ' + $$Path) } }$\r$\n"
-  FileWrite $R7 "  foreach ($$sid in $$AllowedSids) { $$sidRules = @($$rules | Where-Object { $$_.IdentityReference.Value -eq $$sid }); if ($$sidRules.Count -ne 1) { throw ('installer ACL has an unexpected SID rule count: ' + $$Path) }; $$expectedInheritance = if ($$isDirectory) { $$both } else { $$none }; if ($$sidRules[0].InheritanceFlags -ne $$expectedInheritance) { throw ('installer ACL has unexpected inheritance flags: ' + $$Path) } }$\r$\n"
+  ; Windows enforces read-compatible Program Files ACEs for packaged apps even
+  ; after SetAccessControl replaces a protected DACL. Accept those two
+  ; well-known identities only when their access mask cannot mutate contents,
+  ; delete objects, change the DACL/owner, or request generic write/all access.
+  FileWrite $R7 "  $$platformReadSids = @('S-1-15-2-1','S-1-15-2-2'); $$knownSids = @($$AllowedSids) + $$platformReadSids$\r$\n"
+  FileWrite $R7 "  if (@($$rules | Where-Object { $$knownSids -notcontains $$_.IdentityReference.Value }).Count -ne 0) { throw ('installer ACL has unexpected identities: ' + $$Path) }$\r$\n"
+  FileWrite $R7 "  $$full = [System.Security.AccessControl.FileSystemRights]::FullControl; $$allow = [System.Security.AccessControl.AccessControlType]::Allow; $$noInheritance = [System.Security.AccessControl.InheritanceFlags]::None; $$container = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit; $$both = $$container -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit; $$noPropagation = [System.Security.AccessControl.PropagationFlags]::None; $$inheritOnly = [System.Security.AccessControl.PropagationFlags]::InheritOnly$\r$\n"
+  FileWrite $R7 "  foreach ($$rule in @($$rules | Where-Object { $$AllowedSids -contains $$_.IdentityReference.Value })) { if ($$rule.AccessControlType -ne $$allow -or $$rule.FileSystemRights -ne $$full -or $$rule.PropagationFlags -ne $$noPropagation -or ($$rule.InheritanceFlags -ne $$noInheritance -and $$rule.InheritanceFlags -ne $$both)) { throw ('installer ACL contains a non-exact trusted rule: ' + $$Path) } }$\r$\n"
+  FileWrite $R7 "  foreach ($$rule in @($$rules | Where-Object { $$platformReadSids -contains $$_.IdentityReference.Value })) { $$rightsMask = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int32]$$rule.FileSystemRights), 0); if ($$rule.AccessControlType -ne $$allow -or $$rightsMask -eq 0 -or ($$rightsMask -band [uint32]0x530D0146) -ne 0) { throw ('installer ACL gives an application package unsafe access: ' + $$Path) }; if ((-not $$isDirectory -and ($$rule.InheritanceFlags -ne $$noInheritance -or $$rule.PropagationFlags -ne $$noPropagation)) -or ($$isDirectory -and (($$rule.InheritanceFlags -band (-bnot $$both)) -ne $$noInheritance -or ($$rule.PropagationFlags -ne $$noPropagation -and $$rule.PropagationFlags -ne $$inheritOnly) -or ($$rule.PropagationFlags -eq $$inheritOnly -and $$rule.InheritanceFlags -eq $$noInheritance)))) { throw ('installer ACL has unexpected application-package inheritance: ' + $$Path) } }$\r$\n"
+  FileWrite $R7 "  foreach ($$sid in $$AllowedSids) { $$sidRules = @($$rules | Where-Object { $$_.IdentityReference.Value -eq $$sid }); if ($$sidRules.Count -ne 1) { throw ('installer ACL has an unexpected trusted SID rule count: ' + $$Path) }; $$expectedInheritance = if ($$isDirectory) { $$both } else { $$noInheritance }; if ($$sidRules[0].InheritanceFlags -ne $$expectedInheritance) { throw ('installer ACL has unexpected trusted inheritance flags: ' + $$Path) } }$\r$\n"
   FileWrite $R7 "}$\r$\n"
   FileWrite $R7 "function Assert-FnKnockInstallerTreeAcl([string]$$Path) {$\r$\n"
   FileWrite $R7 "  $$allowedSids = @('S-1-5-18','S-1-5-32-544')$\r$\n"
@@ -183,7 +188,6 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "    }$\r$\n"
   FileWrite $R7 "  }$\r$\n"
   FileWrite $R7 "}$\r$\n"
-  FileWrite $R7 "Assert-FnKnockInstallerTreeAcl $$PSScriptRoot$\r$\n"
   FileWrite $R7 "$$serviceName = '${FNKNOCK_SERVICE}'$\r$\n"
   FileWrite $R7 "$$systemSid = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')$\r$\n"
   FileWrite $R7 "$$administratorsSid = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')$\r$\n"
@@ -555,6 +559,14 @@ Function FnKnockWriteTransactionScript
   FileWrite $R7 "}$\r$\n"
   FileWrite $R7 "$\r$\n"
 
+  ; icacls retains the Program Files application-package ACEs on supported
+  ; Windows 10 builds even after /inheritance:r. The helper was loaded from a
+  ; directory where those identities cannot write its contents; now replace
+  ; every DACL with the same exact ACL constructors used for protected runtime
+  ; data, restore the SYSTEM owner, and fail closed unless verification agrees.
+  FileWrite $R7 "  Set-FnKnockDataTreeAcl $$PSScriptRoot $$systemSid $$administratorsSid $$null$\r$\n"
+  FileWrite $R7 "  Set-FnKnockDataTreeOwner $$PSScriptRoot $$icacls$\r$\n"
+  FileWrite $R7 "  Assert-FnKnockInstallerTreeAcl $$PSScriptRoot$\r$\n"
   FileWrite $R7 "  switch ($$Action) {$\r$\n"
   FileWrite $R7 "    'begin' {$\r$\n"
   ; Do not inspect a stale transaction until ProgramData and its existing tree

@@ -556,7 +556,8 @@ copy_runtime_payload() {
   rsync -a "${TEMPLATE_DIR}/www/" "${data_dir}/www/"
   chmod 755 \
     "${data_dir}/etc/init.d/fn-knock" \
-    "${data_dir}/usr/bin/fn-knock-reset-panel-password"
+    "${data_dir}/usr/bin/fn-knock-reset-panel-password" \
+    "${data_dir}/usr/libexec/fn-knock-migrate-data-dir"
 }
 
 create_tarball() {

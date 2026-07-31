@@ -12,7 +12,7 @@ load_config() {
 	config_load "$CONFIG_NAME"
 	config_get_bool enabled main enabled 1
 	config_get app_home main app_home "/usr/lib/fn-knock"
-	config_get data_dir main data_dir "/var/lib/fn-knock"
+	config_get data_dir main data_dir "/etc/fn-knock/data"
 	config_get gateway_config_dir main gateway_config_dir "/etc/fn-knock/gateway"
 	config_get backend_impl main backend_impl "rust"
 	config_get rust_backend_bin main rust_backend_bin "/usr/lib/fn-knock/bin/server-admin-rs"

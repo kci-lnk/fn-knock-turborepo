@@ -1090,7 +1090,10 @@ async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.internal_rpc_token = format!("auth-route-{name}-test");
-    settings.altcha_hmac_key = Some("auth-route-altcha-test-key".to_string());
+    settings.altcha_hmac_key = None;
+    settings
+        .ensure_altcha_hmac_key()
+        .expect("persist auth route ALTCHA test key");
     let state = AppState::new(settings)
         .await
         .expect("auth route test state");

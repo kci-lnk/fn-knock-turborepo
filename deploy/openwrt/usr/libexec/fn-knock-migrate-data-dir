@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+legacy_data_dir="${FN_KNOCK_LEGACY_DATA_DIR:-/var/lib/fn-knock}"
+persistent_data_dir="${FN_KNOCK_PERSISTENT_DATA_DIR:-/etc/fn-knock/data}"
+uci_bin="${FN_KNOCK_UCI_BIN:-uci}"
+init_script="${FN_KNOCK_INIT_SCRIPT:-/etc/init.d/fn-knock}"
+
+current_data_dir="$("$uci_bin" -q get fn-knock.main.data_dir 2>/dev/null || true)"
+[ "$current_data_dir" = "$legacy_data_dir" ] || exit 0
+
+if [ -x "$init_script" ]; then
+	if ! "$init_script" stop >/dev/null 2>&1; then
+		echo "fn-knock: failed to stop service before data directory migration" >&2
+		exit 1
+	fi
+fi
+
+mkdir -p "$persistent_data_dir"
+if [ -d "$legacy_data_dir" ]; then
+	cp -a "$legacy_data_dir/." "$persistent_data_dir/"
+fi
+chmod 700 "$persistent_data_dir"
+
+"$uci_bin" set "fn-knock.main.data_dir=$persistent_data_dir"
+"$uci_bin" commit fn-knock

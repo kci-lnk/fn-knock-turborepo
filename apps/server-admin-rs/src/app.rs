@@ -103,7 +103,7 @@ pub(crate) fn init_tracing() {
 }
 
 pub(crate) async fn run_with_settings(
-    settings: Settings,
+    mut settings: Settings,
     shutdown: CancellationToken,
     ready: Option<oneshot::Sender<()>>,
 ) -> anyhow::Result<()> {
@@ -111,6 +111,7 @@ pub(crate) async fn run_with_settings(
     if let Some(path) = &readiness_marker {
         let _ = tokio::fs::remove_file(path).await;
     }
+    settings.ensure_altcha_hmac_key()?;
     // Child cancellation propagates an SCM/signal stop into every listener and
     // worker, while an application startup error can tear down its own tasks
     // without masquerading as an external service stop in the supervisor.

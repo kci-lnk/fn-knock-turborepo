@@ -1,13 +1,18 @@
 use std::{
     env,
+    fs::{self, File, OpenOptions},
+    io::{ErrorKind, Write},
     net::SocketAddr,
     path::{Path, PathBuf},
     time::Duration,
 };
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 
-use crate::runtime_profile;
+use crate::{crypto_utils::random_bytes, runtime_profile};
+
+const ALTCHA_HMAC_KEY_FILE: &str = "altcha_hmac_key";
+const ALTCHA_HMAC_KEY_LOCK_FILE: &str = ".altcha_hmac_key.lock";
 
 #[derive(Clone, Debug)]
 pub struct Settings {
@@ -174,6 +179,41 @@ impl Settings {
         }
     }
 
+    pub(crate) fn ensure_altcha_hmac_key(&mut self) -> anyhow::Result<()> {
+        if self
+            .altcha_hmac_key
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return Ok(());
+        }
+
+        let path = self.data_dir.join(ALTCHA_HMAC_KEY_FILE);
+        if let Some(value) = read_altcha_hmac_key(&path)? {
+            secure_altcha_hmac_key_permissions(&path)?;
+            self.altcha_hmac_key = Some(value);
+            return Ok(());
+        }
+
+        fs::create_dir_all(&self.data_dir).with_context(|| {
+            format!(
+                "create ALTCHA HMAC key directory {}",
+                self.data_dir.display()
+            )
+        })?;
+        let _lock = lock_altcha_hmac_key_generation(&self.data_dir)?;
+        if let Some(value) = read_altcha_hmac_key(&path)? {
+            secure_altcha_hmac_key_permissions(&path)?;
+            self.altcha_hmac_key = Some(value);
+            return Ok(());
+        }
+
+        let value = hex::encode(random_bytes::<32>());
+        write_altcha_hmac_key_atomically(&path, &value)?;
+        self.altcha_hmac_key = Some(value);
+        Ok(())
+    }
+
     pub fn backend_addr(&self) -> anyhow::Result<SocketAddr> {
         parse_addr(&self.backend_host, self.backend_port)
     }
@@ -187,6 +227,127 @@ impl Settings {
             .map(|port| parse_addr(&self.admin_view_host, port))
             .transpose()
     }
+}
+
+fn read_altcha_hmac_key(path: &Path) -> anyhow::Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(value) => {
+            let value = value.trim().to_string();
+            Ok((!value.is_empty()).then_some(value))
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error)
+            .with_context(|| format!("read persisted ALTCHA HMAC key from {}", path.display())),
+    }
+}
+
+fn lock_altcha_hmac_key_generation(data_dir: &Path) -> anyhow::Result<File> {
+    let path = data_dir.join(ALTCHA_HMAC_KEY_LOCK_FILE);
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let file = options
+        .open(&path)
+        .with_context(|| format!("open ALTCHA HMAC key lock file {}", path.display()))?;
+    file.lock()
+        .with_context(|| format!("lock ALTCHA HMAC key generation at {}", path.display()))?;
+    Ok(file)
+}
+
+fn write_altcha_hmac_key_atomically(path: &Path, value: &str) -> anyhow::Result<()> {
+    let Some(parent) = path.parent() else {
+        bail!("ALTCHA HMAC key path has no parent: {}", path.display());
+    };
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(ALTCHA_HMAC_KEY_FILE);
+    let temporary_path = parent.join(format!(
+        ".{file_name}.{}.{}.tmp",
+        std::process::id(),
+        hex::encode(random_bytes::<8>())
+    ));
+
+    let result = (|| -> anyhow::Result<()> {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&temporary_path).with_context(|| {
+            format!(
+                "create temporary ALTCHA HMAC key file {}",
+                temporary_path.display()
+            )
+        })?;
+        file.write_all(value.as_bytes()).with_context(|| {
+            format!(
+                "write temporary ALTCHA HMAC key file {}",
+                temporary_path.display()
+            )
+        })?;
+        file.sync_all().with_context(|| {
+            format!(
+                "sync temporary ALTCHA HMAC key file {}",
+                temporary_path.display()
+            )
+        })?;
+        drop(file);
+
+        replace_altcha_hmac_key_file(&temporary_path, path)?;
+        secure_altcha_hmac_key_permissions(path)?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    result
+}
+
+#[cfg(not(windows))]
+fn replace_altcha_hmac_key_file(temporary_path: &Path, path: &Path) -> anyhow::Result<()> {
+    fs::rename(temporary_path, path).with_context(|| {
+        format!(
+            "persist ALTCHA HMAC key from {} to {}",
+            temporary_path.display(),
+            path.display()
+        )
+    })
+}
+
+#[cfg(windows)]
+fn replace_altcha_hmac_key_file(temporary_path: &Path, path: &Path) -> anyhow::Result<()> {
+    if path.exists() {
+        fs::remove_file(path)
+            .with_context(|| format!("replace empty ALTCHA HMAC key file {}", path.display()))?;
+    }
+    fs::rename(temporary_path, path).with_context(|| {
+        format!(
+            "persist ALTCHA HMAC key from {} to {}",
+            temporary_path.display(),
+            path.display()
+        )
+    })
+}
+
+#[cfg(unix)]
+fn secure_altcha_hmac_key_permissions(path: &Path) -> anyhow::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+        .with_context(|| format!("secure ALTCHA HMAC key permissions for {}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn secure_altcha_hmac_key_permissions(_path: &Path) -> anyhow::Result<()> {
+    Ok(())
 }
 
 const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
@@ -782,6 +943,171 @@ mod tests {
                 );
             },
         );
+    }
+
+    #[test]
+    fn explicit_altcha_hmac_key_takes_precedence_without_touching_disk() {
+        with_env_vars(&["ALTCHA_HMAC_KEY", "FN_KNOCK_DATA_DIR"], |env| {
+            let directory = tempfile::tempdir().unwrap();
+            let data_dir = directory.path().join("data");
+            env.set("ALTCHA_HMAC_KEY", " explicit-altcha-key ");
+            env.set("FN_KNOCK_DATA_DIR", &data_dir);
+
+            let mut settings = Settings::from_env();
+            settings.ensure_altcha_hmac_key().unwrap();
+
+            assert_eq!(
+                settings.altcha_hmac_key.as_deref(),
+                Some("explicit-altcha-key")
+            );
+            assert!(!data_dir.join(ALTCHA_HMAC_KEY_FILE).exists());
+        });
+    }
+
+    #[test]
+    fn missing_altcha_hmac_key_is_generated_once_and_reused() {
+        with_env_vars(&["ALTCHA_HMAC_KEY", "FN_KNOCK_DATA_DIR"], |env| {
+            let directory = tempfile::tempdir().unwrap();
+            let data_dir = directory.path().join("data");
+            env.remove("ALTCHA_HMAC_KEY");
+            env.set("FN_KNOCK_DATA_DIR", &data_dir);
+
+            let mut first = Settings::from_env();
+            first.ensure_altcha_hmac_key().unwrap();
+            let generated = first.altcha_hmac_key.clone().unwrap();
+            assert_eq!(generated.len(), 64);
+            assert!(generated.bytes().all(|byte| byte.is_ascii_hexdigit()));
+            assert_eq!(
+                std::fs::read_to_string(data_dir.join(ALTCHA_HMAC_KEY_FILE)).unwrap(),
+                generated
+            );
+
+            let mut second = Settings::from_env();
+            second.ensure_altcha_hmac_key().unwrap();
+            assert_eq!(second.altcha_hmac_key.as_deref(), Some(generated.as_str()));
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(data_dir.join(ALTCHA_HMAC_KEY_FILE))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777;
+                assert_eq!(mode, 0o600);
+            }
+        });
+    }
+
+    #[test]
+    fn concurrent_altcha_hmac_key_generation_reuses_the_winning_key() {
+        use std::sync::{Arc, Barrier};
+
+        let directory = tempfile::tempdir().unwrap();
+        let data_dir = directory.path().join("data");
+        let mut template = Settings::from_env();
+        template.data_dir = data_dir.clone();
+        template.altcha_hmac_key = None;
+
+        let worker_count = 16;
+        let barrier = Arc::new(Barrier::new(worker_count));
+        let handles = (0..worker_count)
+            .map(|_| {
+                let barrier = Arc::clone(&barrier);
+                let mut settings = template.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    settings.ensure_altcha_hmac_key().unwrap();
+                    settings.altcha_hmac_key.unwrap()
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let generated = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>();
+        assert!(
+            generated.windows(2).all(|keys| keys[0] == keys[1]),
+            "concurrent startups did not reuse one persisted key"
+        );
+        assert_eq!(
+            std::fs::read_to_string(data_dir.join(ALTCHA_HMAC_KEY_FILE)).unwrap(),
+            generated[0]
+        );
+    }
+
+    #[test]
+    fn persisted_altcha_hmac_key_is_trimmed_and_secured() {
+        with_env_vars(&["ALTCHA_HMAC_KEY", "FN_KNOCK_DATA_DIR"], |env| {
+            let directory = tempfile::tempdir().unwrap();
+            let data_dir = directory.path().join("data");
+            std::fs::create_dir_all(&data_dir).unwrap();
+            let key_path = data_dir.join(ALTCHA_HMAC_KEY_FILE);
+            std::fs::write(&key_path, " persisted-altcha-key \n").unwrap();
+            env.remove("ALTCHA_HMAC_KEY");
+            env.set("FN_KNOCK_DATA_DIR", &data_dir);
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o644))
+                    .unwrap();
+            }
+
+            let mut settings = Settings::from_env();
+            settings.ensure_altcha_hmac_key().unwrap();
+            assert_eq!(
+                settings.altcha_hmac_key.as_deref(),
+                Some("persisted-altcha-key")
+            );
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&key_path).unwrap().permissions().mode() & 0o777;
+                assert_eq!(mode, 0o600);
+            }
+        });
+    }
+
+    #[test]
+    fn empty_altcha_hmac_key_file_is_repaired_atomically() {
+        with_env_vars(&["ALTCHA_HMAC_KEY", "FN_KNOCK_DATA_DIR"], |env| {
+            let directory = tempfile::tempdir().unwrap();
+            let data_dir = directory.path().join("data");
+            std::fs::create_dir_all(&data_dir).unwrap();
+            let key_path = data_dir.join(ALTCHA_HMAC_KEY_FILE);
+            std::fs::write(&key_path, " \n").unwrap();
+            env.remove("ALTCHA_HMAC_KEY");
+            env.set("FN_KNOCK_DATA_DIR", &data_dir);
+
+            let mut settings = Settings::from_env();
+            settings.ensure_altcha_hmac_key().unwrap();
+
+            let generated = settings.altcha_hmac_key.unwrap();
+            assert_eq!(generated.len(), 64);
+            assert_eq!(std::fs::read_to_string(key_path).unwrap(), generated);
+        });
+    }
+
+    #[test]
+    fn altcha_hmac_key_persistence_failure_is_a_startup_error() {
+        with_env_vars(&["ALTCHA_HMAC_KEY", "FN_KNOCK_DATA_DIR"], |env| {
+            let directory = tempfile::tempdir().unwrap();
+            let data_dir = directory.path().join("not-a-directory");
+            std::fs::write(&data_dir, "file").unwrap();
+            env.remove("ALTCHA_HMAC_KEY");
+            env.set("FN_KNOCK_DATA_DIR", &data_dir);
+
+            let mut settings = Settings::from_env();
+            let error = settings.ensure_altcha_hmac_key().unwrap_err();
+
+            assert!(
+                error.to_string().contains("ALTCHA HMAC key"),
+                "unexpected error: {error:#}"
+            );
+        });
     }
 
     #[test]

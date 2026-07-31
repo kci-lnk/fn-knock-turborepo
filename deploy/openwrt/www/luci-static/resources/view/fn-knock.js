@@ -158,7 +158,7 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'data_dir', '数据目录');
-		o.placeholder = '/var/lib/fn-knock';
+		o.placeholder = '/etc/fn-knock/data';
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'gateway_config_dir', '网关配置目录');

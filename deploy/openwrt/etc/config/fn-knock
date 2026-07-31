@@ -1,7 +1,7 @@
 config fn_knock 'main'
 	option enabled '1'
 	option app_home '/usr/lib/fn-knock'
-	option data_dir '/var/lib/fn-knock'
+	option data_dir '/etc/fn-knock/data'
 	option gateway_config_dir '/etc/fn-knock/gateway'
 	option backend_impl 'rust'
 	option rust_backend_bin '/usr/lib/fn-knock/bin/server-admin-rs'

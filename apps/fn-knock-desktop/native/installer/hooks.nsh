@@ -54,7 +54,10 @@ Function FnKnockProtectTransactionDirectory
     Return
   ${EndIf}
 
-  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /inheritance:r /grant:r "*S-1-5-18:F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q'
+  ; An (OI)(CI) ACE also applies to the directory itself unless it is marked
+  ; inherit-only. Keep exactly one rule per SID so the helper's ACL allowlist
+  ; assertion sees the same canonical shape that this command creates.
+  nsExec::ExecToStack '"$SYSDIR\icacls.exe" "$FnKnockTransactionDir" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q'
   Pop $0
   Pop $1
   ${If} $0 != 0

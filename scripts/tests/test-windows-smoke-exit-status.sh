@@ -77,6 +77,12 @@ grep -Fq '& $$Icacls $$Path /reset /L /Q | Out-Null' "${INSTALLER_HOOK}" || \
   fail "installer bootstrap must neutralize a stale root deny without recursive link traversal"
 grep -Fq "\$\$ownerArgs = @(\$\$Path, '/setowner', '*S-1-5-32-544', '/T', '/L', '/Q')" "${INSTALLER_HOOK}" || \
   fail "installer bootstrap must use documented icacls /L for recursive ownership repair"
+grep -Fq '"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q' "${INSTALLER_HOOK}" || \
+  fail "installer transaction ACL must grant one inheritable FullControl rule to SYSTEM and Administrators"
+if grep -Fq '"*S-1-5-18:F"' "${INSTALLER_HOOK}" || \
+    grep -Fq '"*S-1-5-32-544:F"' "${INSTALLER_HOOK}"; then
+  fail "installer transaction ACL must not add duplicate non-inheriting SID rules"
+fi
 grep -Fq "[Console]::Error.WriteLine(('FnKnock installer ' + \$\$Action + ' failed: ' + \$\$_.Exception.Message))" "${INSTALLER_HOOK}" || \
   fail "installer transaction failures must emit a concise actionable error"
 

@@ -19,7 +19,7 @@ fail() {
   exit 1
 }
 
-mkdir -p "${FAKE_BIN}" "${GO_FIXTURE}"
+mkdir -p "${FAKE_BIN}" "${GO_FIXTURE}/pkg/grpc/pb"
 
 cat > "${FAKE_BIN}/go" <<'EOF'
 #!/bin/bash
@@ -129,7 +129,10 @@ git -C "${GO_FIXTURE}" init -q
 git -C "${GO_FIXTURE}" config user.email test@example.invalid
 git -C "${GO_FIXTURE}" config user.name "Release Test"
 printf 'module go-reauth-proxy\n\ngo 1.22\n' > "${GO_FIXTURE}/go.mod"
-git -C "${GO_FIXTURE}" add go.mod
+CONTROL_API_VERSION="$(bash "${ROOT_DIR}/scripts/control-api-version.sh")"
+printf 'package pb\n\ntype ControlApiVersion int32\n\nconst (\n\tControlApiVersion_CONTROL_API_VERSION_CURRENT ControlApiVersion = %s\n)\n' \
+  "${CONTROL_API_VERSION}" > "${GO_FIXTURE}/pkg/grpc/pb/gateway.pb.go"
+git -C "${GO_FIXTURE}" add go.mod pkg/grpc/pb/gateway.pb.go
 git -C "${GO_FIXTURE}" commit -qm fixture
 GO_COMMIT="$(git -C "${GO_FIXTURE}" rev-parse HEAD)"
 

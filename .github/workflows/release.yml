@@ -32,6 +32,7 @@ jobs:
     outputs:
       version: ${{ steps.contract.outputs.version }}
       tag: ${{ steps.contract.outputs.tag }}
+      control_api_version: ${{ steps.contract.outputs.control_api_version }}
       source_sha: ${{ steps.source.outputs.sha }}
       go_sha: ${{ steps.gateway.outputs.sha }}
 
@@ -93,6 +94,7 @@ jobs:
     timeout-minutes: 90
     env:
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+      FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
 
     steps:
       - name: Checkout fn-knock
@@ -115,9 +117,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Verify frozen Go gateway version
-        env:
-          FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+      - name: Verify frozen Go gateway version and control API contract
         run: >-
           node ./scripts/fn-knock-release.mjs
           gateway-check
@@ -166,16 +166,7 @@ jobs:
       - name: Verify generated Go control-plane stubs
         shell: bash
         run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          export PATH="$(go env GOPATH)/bin:${PATH}"
-          protoc \
-            --proto_path packages/grpc-contracts/proto \
-            --go_out Go-Reauth-Proxy \
-            --go_opt module=go-reauth-proxy \
-            --go-grpc_out Go-Reauth-Proxy \
-            --go-grpc_opt module=go-reauth-proxy \
-            packages/grpc-contracts/proto/fnknock/v1/gateway.proto
+          bash ./scripts/sync-go-grpc-contract.sh Go-Reauth-Proxy
           git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
 
   build-common:
@@ -642,6 +633,7 @@ jobs:
           FN_KNOCK_RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
           FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
           FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+          FN_KNOCK_CONTROL_API_VERSION: ${{ needs.preflight.outputs.control_api_version }}
           FN_KNOCK_DOCKER_IMAGE: ${{ env.FN_KNOCK_DOCKER_IMAGE_REPO }}
           FN_KNOCK_DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
           FN_KNOCK_REQUIRE_DOCKER: ${{ github.event_name == 'push' && '1' || '0' }}

@@ -29,7 +29,7 @@ npm ci
 ./scripts/fn-knock-windows.ps1 -Mode Build -BundleInstaller -RequireCleanTree -GoRepository C:\src\Go-Reauth-Proxy
 ```
 
-统一发布工作流在开始时解析并冻结 `Go-Reauth-Proxy/main` 的 40 位提交 SHA，并从根目录 `version.json` 注入统一版本。CI 会重新生成 Go protobuf stub 并拒绝协议漂移，再运行 Go、Rust、Vue、原生管理程序、Windows 服务崩溃恢复和安装/卸载 smoke test。
+统一发布工作流在开始时解析并冻结 `Go-Reauth-Proxy/main` 的 40 位提交 SHA，并从根目录 `version.json` 注入统一产品版本。控制 API 版本只由共享 `packages/grpc-contracts/proto/fnknock/v1/gateway.proto` 的 `CONTROL_API_VERSION_CURRENT` 定义；桌面构建和 Windows 打包直接读取它，并校验 Go 生成代码一致。CI 会重新生成 Go protobuf stub 并拒绝协议漂移，再运行 Go、Rust、Vue、原生管理程序、Windows 服务崩溃恢复和安装/卸载 smoke test。
 
 发布顺序固定为：
 

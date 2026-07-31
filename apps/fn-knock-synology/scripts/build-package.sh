@@ -94,6 +94,7 @@ build_gateway_artifact() {
   fi
 
   [ -d "${gateway_dir}" ] || fail "missing Go-Reauth-Proxy checkout: ${gateway_dir}"
+  bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${gateway_dir}"
   if git -C "${gateway_dir}" rev-parse --short HEAD >/dev/null 2>&1; then
     commit="$(git -C "${gateway_dir}" rev-parse --short HEAD)"
   fi

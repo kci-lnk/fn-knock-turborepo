@@ -24,7 +24,12 @@ write_fixture() {
     "${FIXTURE}/apps/server-admin-rs" \
     "${FIXTURE}/apps/fn-knock-desktop/native" \
     "${FIXTURE}/apps/fn-knock-desktop" \
-    "${FIXTURE}/release-notes"
+    "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1" \
+    "${FIXTURE}/release-notes" \
+    "${FIXTURE}/scripts"
+  cp "${ROOT_DIR}/scripts/control-api-version.sh" "${FIXTURE}/scripts/control-api-version.sh"
+  cp "${ROOT_DIR}/packages/grpc-contracts/proto/fnknock/v1/gateway.proto" \
+    "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1/gateway.proto"
   printf '{"version":"%s"}\n' "${VERSION}" > "${FIXTURE}/version.json"
   printf 'appname=fn-knock\nversion=%s\nplatform=x86\n' "${VERSION}" > "${FIXTURE}/apps/fn-knock/manifest"
   printf '[package]\nname = "server-admin-rs"\nversion = "%s"\n' "${VERSION}" > "${FIXTURE}/apps/server-admin-rs/Cargo.toml"
@@ -61,6 +66,12 @@ expect_failure "release tag must match vX.Y.Z" run_preflight "release-${VERSION}
 
 write_fixture
 expect_failure "tag/version mismatch" run_preflight v0.0.0
+
+write_fixture
+sed -E -i.bak 's/(CONTROL_API_VERSION_CURRENT = )[0-9]+/\1 0/' \
+  "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1/gateway.proto"
+expect_failure "CONTROL_API_VERSION_CURRENT must be a single positive integer" \
+  run_preflight "${TAG}"
 
 write_fixture
 sed -i.bak "s/version=${VERSION}/version=0.0.0/" "${FIXTURE}/apps/fn-knock/manifest"

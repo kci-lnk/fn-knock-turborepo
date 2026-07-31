@@ -10,6 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "fn-knock-control-api.ps1")
 
 if (-not $IsWindows -or -not [Environment]::Is64BitProcess) {
   throw "FnKnock installer smoke tests require native 64-bit Windows"
@@ -26,6 +27,9 @@ if (-not (Test-Path -LiteralPath $SetupPath -PathType Leaf) -or
     -not $SetupPath.EndsWith(".exe", [StringComparison]::OrdinalIgnoreCase)) {
   throw "SetupPath must resolve to an NSIS .exe installer: $SetupPath"
 }
+
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$ExpectedControlApiVersion = Get-FnKnockControlApiVersion -Root $Root
 
 $ServiceName = "FnKnock"
 $FirewallRuleName = "FnKnock Gateway"
@@ -377,7 +381,7 @@ function Assert-InstalledRuntime {
     "The installed bundle target is not windows-x86_64"
   Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$bundleIdentity.version)) `
     "The installed bundle has no version"
-  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 5) `
+  Assert-Condition ([uint64]$bundleIdentity.control_api_version -eq $ExpectedControlApiVersion) `
     "The installed bundle does not use the expected control API version"
   foreach ($path in $RegistryPaths) {
     Assert-Condition (Test-Path -LiteralPath $path) `

@@ -63,6 +63,7 @@ needs_build() {
 
 [ -d "${GO_REAUTH_PROXY_DIR}" ] || \
   fail "missing Go-Reauth-Proxy checkout: ${GO_REAUTH_PROXY_DIR}. Set FN_KNOCK_GO_REAUTH_PROXY_DIR to override."
+bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REAUTH_PROXY_DIR}"
 
 BUNDLE_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
 

@@ -14,6 +14,8 @@ use serde_json::json;
 
 use crate::{i18n, platform};
 
+include!(concat!(env!("OUT_DIR"), "/control_api_version.rs"));
+
 pub const SERVICE_NAME: &str = "FnKnock";
 const READY_PATH: &str = "/__fn-knock/readyz";
 
@@ -265,7 +267,8 @@ fn ready_document_is_complete(body: &str) -> bool {
     };
     document.get("ready").and_then(Value::as_bool) == Some(true)
         && document.get("version").and_then(Value::as_str) == Some(env!("CARGO_PKG_VERSION"))
-        && document.get("control_api_version").and_then(Value::as_u64) == Some(5)
+        && document.get("control_api_version").and_then(Value::as_u64)
+            == Some(EXPECTED_CONTROL_API_VERSION)
         && [
             "storage",
             "gateway_bundle",
@@ -398,7 +401,7 @@ mod tests {
         let complete = json!({
             "ready": true,
             "version": env!("CARGO_PKG_VERSION"),
-            "control_api_version": 5,
+            "control_api_version": EXPECTED_CONTROL_API_VERSION,
             "components": {
                 "storage": true,
                 "gateway_bundle": true,

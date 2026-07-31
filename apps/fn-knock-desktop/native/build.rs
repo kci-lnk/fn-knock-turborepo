@@ -1,12 +1,41 @@
-use std::{fs, path::Path};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
-fn validate_windows_bundle_identity() {
-    if !std::env::var("TARGET").is_ok_and(|target| target.contains("windows")) {
+fn load_control_api_version(path: &Path) -> u64 {
+    let source = fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+    source
+        .lines()
+        .filter_map(|line| line.split("//").next())
+        .map(str::trim)
+        .find_map(|line| {
+            line.strip_prefix("CONTROL_API_VERSION_CURRENT")?
+                .trim()
+                .strip_prefix('=')?
+                .trim()
+                .strip_suffix(';')?
+                .trim()
+                .parse::<u64>()
+                .ok()
+        })
+        .filter(|value| *value > 0)
+        .unwrap_or_else(|| {
+            panic!(
+                "{} must define a positive CONTROL_API_VERSION_CURRENT",
+                path.display()
+            )
+        })
+}
+
+fn validate_windows_bundle_identity(manifest_dir: &Path, expected_control_api_version: u64) {
+    if !env::var("TARGET").is_ok_and(|target| target.contains("windows")) {
         return;
     }
-    let path = Path::new("../bundle/windows/runtime/bundle.json");
+    let path = manifest_dir.join("../bundle/windows/runtime/bundle.json");
     println!("cargo:rerun-if-changed={}", path.display());
-    let bytes = fs::read(path).unwrap_or_else(|error| {
+    let bytes = fs::read(&path).unwrap_or_else(|error| {
         panic!(
             "Windows runtime bundle identity is missing at {}: {error}; run npm run fn-knock:windows:prepare from the repository root",
             path.display()
@@ -23,15 +52,27 @@ fn validate_windows_bundle_identity() {
     }
     assert_eq!(
         document["control_api_version"].as_u64(),
-        Some(5),
+        Some(expected_control_api_version),
         "Windows runtime bundle identity has an invalid or missing control_api_version; run npm run fn-knock:windows:prepare from the repository root"
     );
 }
 
 fn main() {
-    validate_windows_bundle_identity();
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        let execution_level = if std::env::var("PROFILE").as_deref() == Ok("release") {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    let contract_file =
+        manifest_dir.join("../../../packages/grpc-contracts/proto/fnknock/v1/gateway.proto");
+    println!("cargo:rerun-if-changed={}", contract_file.display());
+    let control_api_version = load_control_api_version(&contract_file);
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    fs::write(
+        out_dir.join("control_api_version.rs"),
+        format!("const EXPECTED_CONTROL_API_VERSION: u64 = {control_api_version};\n"),
+    )
+    .expect("write generated control API version");
+
+    validate_windows_bundle_identity(&manifest_dir, control_api_version);
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        let execution_level = if env::var("PROFILE").as_deref() == Ok("release") {
             "requireAdministrator"
         } else {
             "asInvoker"

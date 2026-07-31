@@ -10,6 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "fn-knock-control-api.ps1")
 
 if (-not $IsWindows -or -not [Environment]::Is64BitProcess) {
   throw "FnKnock runtime smoke tests require native 64-bit Windows"
@@ -22,6 +23,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$ExpectedControlApiVersion = Get-FnKnockControlApiVersion -Root $Root
 if ([string]::IsNullOrWhiteSpace($BundleRoot)) {
   $BundleRoot = Join-Path $Root "apps\fn-knock-desktop\bundle\windows"
 }
@@ -579,7 +581,7 @@ try {
     ConvertFrom-Json
   Assert-Condition ([string]$bundleIdentity.target -eq "windows-x86_64") `
     "The staged bundle target is not windows-x86_64"
-  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 5) `
+  Assert-Condition ([uint64]$bundleIdentity.control_api_version -eq $ExpectedControlApiVersion) `
     "The staged bundle does not use the expected control API version"
 
   Write-Host "Assembling flattened smoke-test runtime at $CurrentRoot"

@@ -43,8 +43,10 @@ mkdir -p \
   "${FIXTURE}/apps/server-admin-rs" \
   "${FIXTURE}/apps/fn-knock-desktop/native" \
   "${FIXTURE}/apps/fn-knock-desktop" \
+  "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1" \
   "${FIXTURE}/release-notes" \
   "${FIXTURE}/scripts" \
+  "${GO_FIXTURE}/pkg/grpc/pb" \
   "${GO_FIXTURE}/pkg/version"
 
 for relative_path in \
@@ -57,6 +59,8 @@ for relative_path in \
   apps/fn-knock-desktop/native/Cargo.toml \
   apps/fn-knock-desktop/native/Cargo.lock \
   "release-notes/${CURRENT_VERSION}.md" \
+  packages/grpc-contracts/proto/fnknock/v1/gateway.proto \
+  scripts/control-api-version.sh \
   scripts/release-preflight.sh
 do
   cp "${ROOT_DIR}/${relative_path}" "${FIXTURE}/${relative_path}"
@@ -74,6 +78,9 @@ git -C "${FIXTURE}" commit -qm "feat: include release CLI fixture"
 
 printf 'package version\n\nvar (\n\tVersion = "%s"\n\tCommit = "unknown"\n)\n' \
   "${CURRENT_VERSION}" > "${GO_FIXTURE}/pkg/version/version.go"
+CONTROL_API_VERSION="$(bash "${ROOT_DIR}/scripts/control-api-version.sh")"
+printf 'package pb\n\ntype ControlApiVersion int32\n\nconst (\n\tControlApiVersion_CONTROL_API_VERSION_CURRENT ControlApiVersion = %s\n)\n' \
+  "${CONTROL_API_VERSION}" > "${GO_FIXTURE}/pkg/grpc/pb/gateway.pb.go"
 printf "version: '3'\nvars:\n  VERSION: '{{.FN_KNOCK_VERSION | default \"%s\"}}'\n" \
   "${CURRENT_VERSION}" > "${GO_FIXTURE}/Taskfile.yml"
 git -C "${GO_FIXTURE}" init -q
@@ -123,5 +130,12 @@ sed -i.bak "s/default \"${NEXT_PATCH}\"/default \"0.0.0\"/" \
   "${GO_FIXTURE}/Taskfile.yml"
 expect_failure "Go gateway versions are not aligned" \
   run_cli gateway-check "${NEXT_PATCH}"
+
+sed -i.bak "s/default \"0.0.0\"/default \"${NEXT_PATCH}\"/" \
+  "${GO_FIXTURE}/Taskfile.yml"
+sed -E -i.bak \
+  's/ControlApiVersion_CONTROL_API_VERSION_CURRENT ControlApiVersion = [0-9]+/ControlApiVersion_CONTROL_API_VERSION_CURRENT ControlApiVersion = 999/' \
+  "${GO_FIXTURE}/pkg/grpc/pb/gateway.pb.go"
+expect_failure "does not match gateway.proto" run_cli gateway-check "${NEXT_PATCH}"
 
 printf '[test-release-cli] all release CLI tests passed\n'

@@ -7,6 +7,7 @@ ASSETS_DIR="${WORK_DIR}/assets"
 WINDOWS_METADATA_DIR="${WORK_DIR}/windows-metadata"
 COS_OUTPUT_DIR="${WORK_DIR}/cos-output"
 VERSION="$(jq -r '.version' "${ROOT_DIR}/version.json")"
+CONTROL_API_VERSION="$(bash "${ROOT_DIR}/scripts/control-api-version.sh")"
 
 cleanup() {
   rm -rf "${WORK_DIR}"
@@ -34,6 +35,7 @@ run_finalize() {
   FN_KNOCK_RELEASE_TAG="v${VERSION}" \
   FN_KNOCK_SOURCE_COMMIT=1111111111111111111111111111111111111111 \
   FN_KNOCK_GO_SOURCE_COMMIT=2222222222222222222222222222222222222222 \
+  FN_KNOCK_CONTROL_API_VERSION="${CONTROL_API_VERSION}" \
   FN_KNOCK_DOCKER_IMAGE=kcilnk/fn-knock \
   FN_KNOCK_DOCKER_DIGEST=sha256:3333333333333333333333333333333333333333333333333333333333333333 \
   FN_KNOCK_REQUIRE_DOCKER=1 \
@@ -95,10 +97,12 @@ printf '[]\n' > "${WORK_DIR}/release-history.json"
 run_finalize >/dev/null
 jq -e \
   --arg version "${VERSION}" \
+  --argjson control_api_version "${CONTROL_API_VERSION}" \
   '
     .schema_version == 1 and
     .version == $version and
     .tag == ("v" + $version) and
+    .control_api_version == $control_api_version and
     (.artifacts | length) == 21 and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and
     ([.artifacts[].name | select(startswith("app-meta-"))] | length) == 2 and

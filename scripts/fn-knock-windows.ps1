@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "fn-knock-control-api.ps1")
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if (-not $GoRepository) {
@@ -27,6 +28,7 @@ if ($env:FN_KNOCK_GO_SOURCE_COMMIT) {
 }
 $VersionDocument = Get-Content -Raw (Join-Path $Root "version.json") | ConvertFrom-Json
 $Version = [string]$VersionDocument.version
+$ControlApiVersion = Get-FnKnockControlApiVersion -Root $Root
 $Commit = (git -C $Root rev-parse HEAD).Trim()
 $Target = "x86_64-pc-windows-msvc"
 $DesktopRoot = Join-Path $Root "apps\fn-knock-desktop"
@@ -34,18 +36,7 @@ $DesktopNative = Join-Path $DesktopRoot "native"
 $BundleRoot = Join-Path $DesktopRoot "bundle\windows"
 $RuntimeRoot = Join-Path $BundleRoot "runtime"
 $RustAcmeshExecutable = Join-Path $Root "apps\server-admin-rs\resources\rust-acmesh.exe"
-$ControlApiSource = Get-Content -Raw (Join-Path $Root "apps\server-admin-rs\src\infra\go_backend.rs")
-$ControlApiMatch = [regex]::Match(
-  $ControlApiSource,
-  'GATEWAY_CONTROL_API_VERSION\s*:\s*u64\s*=\s*([0-9]+)\s*;'
-)
-if (-not $ControlApiMatch.Success) {
-  throw "Unable to read GATEWAY_CONTROL_API_VERSION from the Rust service source"
-}
-$ControlApiVersion = [uint64]$ControlApiMatch.Groups[1].Value
-if ($ControlApiVersion -eq 0) {
-  throw "GATEWAY_CONTROL_API_VERSION must be positive"
-}
+Assert-FnKnockGoControlApiContract -Root $Root -GoRepository $GoRepository
 
 if ($SkipDesktopBundle -and $BundleInstaller) {
   throw "SkipDesktopBundle and BundleInstaller cannot be used together"

@@ -83,6 +83,9 @@ async function main() {
   const tag = process.env.FN_KNOCK_RELEASE_TAG;
   const sourceCommit = process.env.FN_KNOCK_SOURCE_COMMIT;
   const gatewayCommit = process.env.FN_KNOCK_GO_SOURCE_COMMIT;
+  const controlApiVersion = Number(
+    process.env.FN_KNOCK_CONTROL_API_VERSION ?? "",
+  );
   const dockerImage = process.env.FN_KNOCK_DOCKER_IMAGE ?? "kcilnk/fn-knock";
   const dockerDigest = process.env.FN_KNOCK_DOCKER_DIGEST ?? "";
   const requireDocker = process.env.FN_KNOCK_REQUIRE_DOCKER === "1";
@@ -94,6 +97,9 @@ async function main() {
   }
   if (tag !== `v${version}`)
     fail(`tag ${tag} does not match version ${version}`);
+  if (!Number.isSafeInteger(controlApiVersion) || controlApiVersion <= 0) {
+    fail(`control API version is invalid: ${controlApiVersion}`);
+  }
   for (const [label, value] of [
     ["source", sourceCommit],
     ["gateway", gatewayCommit],
@@ -182,6 +188,7 @@ async function main() {
     tag,
     source_commit: sourceCommit.toLowerCase(),
     gateway_commit: gatewayCommit.toLowerCase(),
+    control_api_version: controlApiVersion,
     built_at: new Date().toISOString(),
     artifacts,
     metadata_files: ["release-manifest.json", "SHA256SUMS"],

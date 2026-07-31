@@ -78,6 +78,7 @@ require_cmd jq
 require_cmd cargo
 
 VERSION="$(jq -er '.version | strings | select(length > 0)' "${ROOT_DIR}/version.json")"
+CONTROL_API_VERSION="$(bash "${ROOT_DIR}/scripts/control-api-version.sh")"
 [ -n "${TAG}" ] || TAG="v${VERSION}"
 printf '%s\n' "${TAG}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || \
   fail "release tag must match vX.Y.Z: ${TAG}"
@@ -133,8 +134,9 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
   {
     printf 'version=%s\n' "${VERSION}"
     printf 'tag=%s\n' "${TAG}"
+    printf 'control_api_version=%s\n' "${CONTROL_API_VERSION}"
     printf 'release_notes=%s\n' "${RELEASE_NOTES}"
   } >> "${GITHUB_OUTPUT}"
 fi
 
-log "release contract is valid: ${TAG}"
+log "release contract is valid: ${TAG}, control API ${CONTROL_API_VERSION}"

@@ -16,6 +16,14 @@ const GO_REPOSITORY = path.resolve(
     path.join(ROOT_DIR, "..", "Go-Reauth-Proxy"),
 );
 const VERSION_EXPRESSION = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+const CONTROL_API_CONTRACT = path.join(
+  ROOT_DIR,
+  "packages/grpc-contracts/proto/fnknock/v1/gateway.proto",
+);
+const GO_CONTROL_API_CONTRACT = path.join(
+  GO_REPOSITORY,
+  "pkg/grpc/pb/gateway.pb.go",
+);
 
 function fail(message) {
   throw new Error(`[release] ${message}`);
@@ -377,6 +385,53 @@ function assertGatewayVersionsAligned(files, expectedVersion) {
   }
 }
 
+function readSinglePositiveInteger(content, expression, label) {
+  const matches = [...content.matchAll(expression)];
+  if (matches.length !== 1) {
+    fail(`${label}: expected exactly one definition, found ${matches.length}`);
+  }
+  const value = Number(matches[0][1]);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    fail(`${label}: expected a positive integer, got ${matches[0][1]}`);
+  }
+  return value;
+}
+
+async function loadControlApiContract() {
+  const [proto, generatedGo] = await Promise.all([
+    readFile(CONTROL_API_CONTRACT, "utf8"),
+    readFile(GO_CONTROL_API_CONTRACT, "utf8").catch((error) => {
+      if (error.code === "ENOENT") {
+        fail(
+          `Go generated control API contract is missing: ${GO_CONTROL_API_CONTRACT}`,
+        );
+      }
+      throw error;
+    }),
+  ]);
+  return {
+    expected: readSinglePositiveInteger(
+      proto,
+      /^\s*CONTROL_API_VERSION_CURRENT\s*=\s*([0-9]+)\s*;/gm,
+      "gateway.proto control API version",
+    ),
+    generatedGo: readSinglePositiveInteger(
+      generatedGo,
+      /^\s*ControlApiVersion_CONTROL_API_VERSION_CURRENT\s+ControlApiVersion\s*=\s*([0-9]+)\s*$/gm,
+      "Go generated control API version",
+    ),
+  };
+}
+
+function assertControlApiContract(contract) {
+  if (contract.generatedGo !== contract.expected) {
+    fail(
+      `Go generated control API version ${contract.generatedGo} does not match gateway.proto ${contract.expected}; run npm run fn-knock:grpc:sync-go`,
+    );
+  }
+  return contract.expected;
+}
+
 function git(args, options) {
   return run("git", ["-C", ROOT_DIR, ...args], options);
 }
@@ -485,6 +540,7 @@ async function showStatus() {
   assertGitRepository(GO_REPOSITORY, gatewayGit);
   const files = await loadVersionFiles();
   const gatewayFiles = await loadGatewayVersionFiles();
+  const controlApiContract = await loadControlApiContract();
   const current = files.find(
     (file) => file.relativePath === "version.json",
   )?.version;
@@ -512,10 +568,14 @@ async function showStatus() {
     );
   }
   console.log(
+    `  [${controlApiContract.generatedGo === controlApiContract.expected ? "ok" : "mismatch"}] control API: proto=${controlApiContract.expected}, Go=${controlApiContract.generatedGo}`,
+  );
+  console.log(
     `  [${gatewayGitStatus() ? "dirty" : "clean"}] Go gateway Git worktree`,
   );
   assertVersionsAligned(files);
   assertGatewayVersionsAligned(gatewayFiles, current);
+  assertControlApiContract(controlApiContract);
 }
 
 async function checkRelease(versionArgument) {
@@ -529,10 +589,15 @@ async function checkRelease(versionArgument) {
     fail(`check version ${version} does not match version.json ${current}`);
   }
   assertGatewayVersionsAligned(gatewayFiles, version);
+  const controlApiVersion = assertControlApiContract(
+    await loadControlApiContract(),
+  );
   runPreflight(version);
   run("git", ["-C", ROOT_DIR, "diff", "--check"]);
   run("git", ["-C", GO_REPOSITORY, "diff", "--check"]);
-  console.log(`[release] v${version} is ready for the full release test suite`);
+  console.log(
+    `[release] v${version} with control API ${controlApiVersion} is ready for the full release test suite`,
+  );
   console.log(`[release] next: bun run fn-knock:release:test`);
 }
 
@@ -548,8 +613,11 @@ async function checkGateway(versionArgument) {
   }
   parseVersion(version, "expected Go gateway version");
   assertGatewayVersionsAligned(gatewayFiles, version);
+  const controlApiVersion = assertControlApiContract(
+    await loadControlApiContract(),
+  );
   console.log(
-    `[release] Go-Reauth-Proxy source and Taskfile versions match ${version}`,
+    `[release] Go-Reauth-Proxy version ${version} and control API ${controlApiVersion} are synchronized`,
   );
 }
 
@@ -560,6 +628,7 @@ async function prepareRelease(targetArgument, options) {
   assertGitRepository(GO_REPOSITORY, gatewayGit);
   const files = await loadVersionFiles();
   const gatewayFiles = await loadGatewayVersionFiles();
+  assertControlApiContract(await loadControlApiContract());
   const current = assertVersionsAligned(files);
   const nextVersion = resolveTargetVersion(current, targetArgument);
   if (compareVersions(nextVersion, current) <= 0) {

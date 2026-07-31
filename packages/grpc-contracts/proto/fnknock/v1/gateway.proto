@@ -6,6 +6,13 @@ option go_package = "go-reauth-proxy/pkg/grpc/pb;pb";
 
 import "google/protobuf/empty.proto";
 
+// Single source of truth for the Rust/Go gateway compatibility contract.
+// Generated clients and packaging tools consume this stable enum member.
+enum ControlApiVersion {
+  CONTROL_API_VERSION_UNSPECIFIED = 0;
+  CONTROL_API_VERSION_CURRENT = 5;
+}
+
 message RpcStatus {
   bool success = 1;
   int32 code = 2;

@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "fn-knock-control-api.ps1")
 
 function Assert-WindowsInstaller([string]$Path, [string]$Policy) {
   $item = Get-Item -LiteralPath $Path
@@ -49,7 +50,9 @@ function Assert-WindowsInstaller([string]$Path, [string]$Policy) {
 }
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Version = [string](Get-Content -Raw (Join-Path $Root "version.json") | ConvertFrom-Json).version
+$VersionDocument = Get-Content -Raw (Join-Path $Root "version.json") | ConvertFrom-Json
+$Version = [string]$VersionDocument.version
+$ControlApiVersion = Get-FnKnockControlApiVersion -Root $Root
 $BundleIdentityPath = Join-Path $Root "apps\fn-knock-desktop\bundle\windows\runtime\bundle.json"
 $BundleIdentity = Get-Content -Raw $BundleIdentityPath | ConvertFrom-Json
 if ([string]$BundleIdentity.version -ne $Version) {
@@ -61,7 +64,7 @@ foreach ($property in @("commit", "gateway_commit")) {
     throw "Staged bundle identity has an invalid or missing $property"
   }
 }
-if ([int]$BundleIdentity.control_api_version -ne 5) {
+if ([uint64]$BundleIdentity.control_api_version -ne $ControlApiVersion) {
   throw "Staged bundle identity has an invalid or missing control_api_version"
 }
 $SetupPath = (Resolve-Path $SetupPath).Path
@@ -107,6 +110,7 @@ $Release = @{
   version = $Version
   commit = [string]$BundleIdentity.commit
   gateway_commit = [string]$BundleIdentity.gateway_commit
+  control_api_version = $ControlApiVersion
   runtime_target = "windows"
   architecture = "x86_64"
   channel = "stable"

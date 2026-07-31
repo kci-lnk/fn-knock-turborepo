@@ -15,13 +15,14 @@ use tonic_health::pb::{
 use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
-    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosConnectIngressConfig,
-    FnosConnectIngressStatus, FnosPortIconHijackConfig, GatewayListenerConfig, GatewayPortalConfig,
-    GatewayTrustedClientIpsRuntime, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
-    HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
-    HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
-    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
-    SslDeployedCertificate, StreamRule, StreamRules, StringValue, WafConfig,
+    BoolValue, CommonLocationExemptionsRuntime, ControlApiVersion, CrawlerBlockerConfig,
+    FnosConnectIngressConfig, FnosConnectIngressStatus, FnosPortIconHijackConfig,
+    GatewayListenerConfig, GatewayPortalConfig, GatewayTrustedClientIpsRuntime,
+    GatewayUnmatchedRouteConfig, GatewayVisibilityConfig, HostActiveIpStats, HostLocation,
+    HostLocationResponse, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules,
+    LocaleConfig, LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
+    ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig, SslDeployedCertificate,
+    StreamRule, StreamRules, StringValue, WafConfig,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -45,7 +46,7 @@ use compiled_ipset::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
-pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 5;
+pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = ControlApiVersion::Current as u64;
 pub(crate) const GATEWAY_HEALTH_PROCESS: &str = "fnknock.gateway.process";
 pub(crate) const GATEWAY_HEALTH_DATAPLANE: &str = "fnknock.gateway.dataplane";
 pub(crate) const GATEWAY_HEALTH_AUTH_BRIDGE: &str = "fnknock.gateway.auth_bridge";

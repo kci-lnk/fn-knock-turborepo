@@ -119,6 +119,7 @@ ACTUAL_COMMIT_LOWER="$(printf '%s' "${ACTUAL_COMMIT}" | tr '[:upper:]' '[:lower:
 COMMIT_LOWER="$(printf '%s' "${COMMIT}" | tr '[:upper:]' '[:lower:]')"
 [ "${ACTUAL_COMMIT_LOWER}" = "${COMMIT_LOWER}" ] || \
   fail "Go checkout ${ACTUAL_COMMIT} does not match ${COMMIT}"
+bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REPOSITORY}"
 
 mkdir -p "${OUTPUT_DIR}"
 if [ "${FN_KNOCK_GO_SKIP_TESTS:-0}" != "1" ]; then

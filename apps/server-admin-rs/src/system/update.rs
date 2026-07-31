@@ -1318,7 +1318,15 @@ mod tests {
                 "sha256": "a".repeat(64),
                 "download_url_arm64": "https://cdn.fnknock.cn/files/test-arm64.fpk",
                 "sha256_arm64": "b".repeat(64),
-                "release_notes": "Lite update-check fixture"
+                "release_notes": "Lite update-check fixture",
+                "packages": {
+                    "windows": {
+                        "x86_64": {
+                            "download_url": "https://cdn.fnknock.cn/files/test.exe",
+                            "sha256": "c".repeat(64)
+                        }
+                    }
+                }
             })
             .to_string();
             let response = format!(

@@ -112,6 +112,7 @@ pub(super) async fn import_backup_archive_buffer(
         ));
     }
 
+    #[cfg(not(windows))]
     ensure_archive_commands_ready().await?;
     let payload = extract_backup_payload_from_archive(&buffer).await?;
     let entries = payload
@@ -235,6 +236,7 @@ async fn migrate_compiled_ipsets_after_import(state: &AppState) -> Result<(), St
     Ok(())
 }
 
+#[cfg(not(windows))]
 pub(super) async fn extract_backup_payload_from_archive(
     buffer: &[u8],
 ) -> Result<Value, BackupImportError> {
@@ -299,6 +301,57 @@ pub(super) async fn extract_backup_payload_from_archive(
     .await;
     let _ = fs::remove_dir_all(temp_dir).await;
     result
+}
+
+#[cfg(windows)]
+pub(super) async fn extract_backup_payload_from_archive(
+    buffer: &[u8],
+) -> Result<Value, BackupImportError> {
+    let buffer = buffer.to_vec();
+    tokio::task::spawn_blocking(move || {
+        let raw = read_backup_json_from_archive_native(&buffer)?;
+        parse_backup_payload(&raw)
+    })
+    .await
+    .map_err(|error| BackupImportError::internal(error.to_string()))?
+}
+
+#[cfg(any(windows, test))]
+pub(super) fn read_backup_json_from_archive_native(
+    buffer: &[u8],
+) -> Result<String, BackupImportError> {
+    let mut archive = ::zip::ZipArchive::new(Cursor::new(buffer)).map_err(|_| {
+        BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[]))
+    })?;
+    let file = archive
+        .by_name_decrypt(KNOCK_BACKUP_JSON_FILENAME, KNOCK_BACKUP_PASSWORD.as_bytes())
+        .map_err(|error| match error {
+            ::zip::result::ZipError::FileNotFound => BackupImportError::bad_request(format!(
+                "Backup archive is missing {KNOCK_BACKUP_JSON_FILENAME}"
+            )),
+            ::zip::result::ZipError::InvalidPassword => {
+                BackupImportError::bad_request("Backup archive password is invalid")
+            }
+            _ => BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[])),
+        })?;
+    if file.size() > MAX_BACKUP_ARCHIVE_SIZE as u64 {
+        return Err(BackupImportError::bad_request(
+            "Backup JSON payload is too large",
+        ));
+    }
+    let mut raw = Vec::new();
+    file.take((MAX_BACKUP_ARCHIVE_SIZE + 1) as u64)
+        .read_to_end(&mut raw)
+        .map_err(|_| {
+            BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[]))
+        })?;
+    if raw.len() > MAX_BACKUP_ARCHIVE_SIZE {
+        return Err(BackupImportError::bad_request(
+            "Backup JSON payload is too large",
+        ));
+    }
+    String::from_utf8(raw)
+        .map_err(|_| BackupImportError::bad_request("Backup payload is not valid UTF-8"))
 }
 
 pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError> {

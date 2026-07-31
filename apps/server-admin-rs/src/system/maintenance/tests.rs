@@ -163,9 +163,10 @@ fn builds_node_compatible_backup_filename() {
 
 #[test]
 fn writes_encrypted_zip_headers() {
+    let payload = br#"{"ok":true}"#;
     let zip = create_password_protected_zip(
         KNOCK_BACKUP_JSON_FILENAME,
-        br#"{"ok":true}"#,
+        payload,
         KNOCK_BACKUP_PASSWORD,
         1_704_067_200_000,
     )
@@ -178,6 +179,12 @@ fn writes_encrypted_zip_headers() {
     assert!(
         zip.windows(4)
             .any(|window| window == [0x50, 0x4b, 0x05, 0x06])
+    );
+    assert_eq!(
+        read_backup_json_from_archive_native(&zip)
+            .unwrap()
+            .as_bytes(),
+        payload
     );
 }
 

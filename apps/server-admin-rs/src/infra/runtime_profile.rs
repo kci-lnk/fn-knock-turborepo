@@ -48,7 +48,7 @@ pub fn get_runtime_profile(state: &AppState) -> RuntimeProfile {
 }
 
 pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities {
-    if profile.is_windows || profile.deployment_target == "windows" {
+    if profile.deployment_target == "windows" {
         return RuntimeCapabilities {
             direct_mode_available: false,
             host_firewall_available: false,

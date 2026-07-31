@@ -2,9 +2,16 @@ use std::{
     future::Future,
     io::{self, Write},
     path::{Component, Path, PathBuf},
+    time::SystemTime,
+};
+
+#[cfg(any(windows, test))]
+use std::io::{Cursor, Read};
+
+#[cfg(not(windows))]
+use std::{
     process::Stdio,
     sync::atomic::{AtomicBool, Ordering},
-    time::SystemTime,
 };
 
 use axum::{
@@ -18,7 +25,9 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::DeflateEncoder};
 use serde_json::{Value, json};
-use tokio::{fs, io::AsyncWriteExt, process::Command};
+#[cfg(not(windows))]
+use tokio::process::Command;
+use tokio::{fs, io::AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::{
@@ -55,6 +64,7 @@ const MAX_BACKUP_ARCHIVE_SIZE: usize = 128 * 1024 * 1024;
 const SCAN_COUNT: usize = 200;
 const MAINTENANCE_BACKUP_ERROR_MARKER: &str = "__maintenance_backup_error";
 
+#[cfg(not(windows))]
 static ARCHIVE_COMMANDS_READY: AtomicBool = AtomicBool::new(false);
 
 const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
@@ -206,6 +216,7 @@ impl BackupImportError {
 }
 
 mod automatic;
+#[cfg(not(windows))]
 mod commands;
 mod directory;
 mod export;

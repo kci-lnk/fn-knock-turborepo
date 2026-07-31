@@ -98,6 +98,7 @@ const LISTENER_SCOPE_APPLY_TIMEOUT: Duration = Duration::from_secs(10);
 const LISTENER_SCOPE_STABILIZATION: Duration = Duration::from_secs(1);
 const LISTENER_SCOPE_STABLE_PROBES: u8 = 3;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
+const GATEWAY_CONSOLE_LOG_FILE: &str = "gateway-console.log";
 const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
 define_windows_service!(ffi_service_main, service_main);
@@ -376,7 +377,7 @@ async fn supervise(
         &ServiceStateFile::starting(&runtime_config, gateway_pid, "waiting for gateway"),
     )?;
 
-    match wait_for_gateway_process(&go_client, &mut gateway, &shutdown).await {
+    match wait_for_gateway_control_plane(&go_client, &mut gateway, &shutdown).await {
         Ok(()) => {}
         Err(GatewayStartupFailure::Cancelled) => {
             startup_status.stop();
@@ -415,32 +416,14 @@ async fn supervise(
                 &ServiceStateFile::faulted(
                     Some(&runtime_config),
                     gateway_pid,
-                    &format!("gateway startup failed unexpectedly: {error}"),
+                    &gateway_failure_message("gateway startup failed unexpectedly", &error, &paths),
                 ),
             )?;
             return Ok(SupervisionOutcome::UnexpectedFailure(error));
         }
     }
-    match apply_gateway_listener_scope(&go_client, &mut gateway, &runtime_config, &shutdown).await {
+    match set_gateway_listener_scope(&go_client, &runtime_config).await {
         Ok(()) => {}
-        Err(GatewayStartupFailure::Cancelled) => {
-            startup_status.stop();
-            report_status(
-                status_handle,
-                ServiceState::StopPending,
-                ServiceControlAccept::empty(),
-                ServiceExitCode::NO_ERROR,
-                1,
-                Duration::from_secs(20),
-            )?;
-            shutdown_gateway_only(&go_client, &mut gateway).await;
-            write_status(
-                &paths,
-                &ServiceStateFile::stopped(&runtime_config, gateway_pid),
-            )?;
-            drop(job);
-            return Ok(SupervisionOutcome::Stopped);
-        }
         Err(GatewayStartupFailure::Deterministic(error)) => {
             let _ = gateway.start_kill();
             let _ = gateway.wait().await;
@@ -460,10 +443,17 @@ async fn supervise(
                 &ServiceStateFile::faulted(
                     Some(&runtime_config),
                     gateway_pid,
-                    &format!("gateway listener rebind failed unexpectedly: {error}"),
+                    &gateway_failure_message(
+                        "gateway listener configuration failed unexpectedly",
+                        &error,
+                        &paths,
+                    ),
                 ),
             )?;
             return Ok(SupervisionOutcome::UnexpectedFailure(error));
+        }
+        Err(GatewayStartupFailure::Cancelled) => {
+            unreachable!("setting gateway listener scope does not wait for service cancellation")
         }
     }
     if shutdown.is_cancelled() {
@@ -523,7 +513,7 @@ async fn supervise(
                 &ServiceStateFile::faulted(
                     Some(&runtime_config),
                     gateway_pid,
-                    &format!("gateway exited during startup: {error}"),
+                    &gateway_failure_message("gateway exited during startup", &error, &paths),
                 ),
             );
             return Ok(SupervisionOutcome::UnexpectedFailure(error));
@@ -556,6 +546,74 @@ async fn supervise(
             return Ok(SupervisionOutcome::DeterministicFailure(error));
         }
         return Ok(SupervisionOutcome::UnexpectedFailure(error));
+    }
+
+    let listener_result = tokio::select! {
+        biased;
+        _ = shutdown.cancelled() => Err(GatewayStartupFailure::Cancelled),
+        result = &mut app_future => Err(GatewayStartupFailure::Unexpected(
+            result.err().unwrap_or_else(|| anyhow!("Rust admin runtime stopped while verifying gateway listener readiness"))
+        )),
+        result = wait_for_gateway_listener_scope(&go_client, &mut gateway, &runtime_config, &shutdown) => result,
+    };
+    match listener_result {
+        Ok(()) => {}
+        Err(GatewayStartupFailure::Cancelled) => {
+            startup_status.stop();
+            report_status(
+                status_handle,
+                ServiceState::StopPending,
+                ServiceControlAccept::empty(),
+                ServiceExitCode::NO_ERROR,
+                1,
+                Duration::from_secs(20),
+            )?;
+            graceful_shutdown(
+                &go_client,
+                &mut gateway,
+                &mut app_future,
+                &paths,
+                &runtime_config,
+                gateway_pid,
+            )
+            .await;
+            drop(job);
+            return Ok(SupervisionOutcome::Stopped);
+        }
+        Err(GatewayStartupFailure::Deterministic(error)) => {
+            shutdown.cancel();
+            let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
+            let _ = gateway.start_kill();
+            let _ = gateway.wait().await;
+            write_status(
+                &paths,
+                &ServiceStateFile::faulted(
+                    Some(&runtime_config),
+                    gateway_pid,
+                    &format!("gateway listener readiness failed: {error}"),
+                ),
+            )?;
+            return Ok(SupervisionOutcome::DeterministicFailure(error));
+        }
+        Err(GatewayStartupFailure::Unexpected(error)) => {
+            shutdown.cancel();
+            let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
+            let _ = gateway.start_kill();
+            let _ = gateway.wait().await;
+            write_status(
+                &paths,
+                &ServiceStateFile::faulted(
+                    Some(&runtime_config),
+                    gateway_pid,
+                    &gateway_failure_message(
+                        "gateway listener readiness failed unexpectedly",
+                        &error,
+                        &paths,
+                    ),
+                ),
+            )?;
+            return Ok(SupervisionOutcome::UnexpectedFailure(error));
+        }
     }
 
     startup_status.stop();
@@ -607,7 +665,7 @@ async fn supervise(
             &ServiceStateFile::faulted(
                 Some(&runtime_config),
                 gateway_pid,
-                &format!("runtime group failed: {error}"),
+                &gateway_failure_message("runtime group failed", error, &paths),
             ),
         );
     }
@@ -658,7 +716,7 @@ async fn graceful_shutdown<F>(
     );
 }
 
-async fn wait_for_gateway_process(
+async fn wait_for_gateway_control_plane(
     client: &GoBackendClient,
     gateway: &mut tokio::process::Child,
     shutdown: &CancellationToken,
@@ -679,10 +737,6 @@ async fn wait_for_gateway_process(
             .health_serving(GATEWAY_HEALTH_PROCESS)
             .await
             .unwrap_or(false);
-        let dataplane = client
-            .health_serving(GATEWAY_HEALTH_DATAPLANE)
-            .await
-            .unwrap_or(false);
         let compatible = if process {
             match client.verify_bundle_compatibility().await {
                 Ok(_) => true,
@@ -697,12 +751,12 @@ async fn wait_for_gateway_process(
         } else {
             false
         };
-        if compatible && dataplane {
+        if compatible {
             return Ok(());
         }
         if tokio::time::Instant::now() >= deadline {
             return Err(GatewayStartupFailure::Unexpected(anyhow!(
-                "Go gateway did not become ready within 60 seconds"
+                "Go gateway control plane did not become ready within 60 seconds"
             )));
         }
         tokio::select! {
@@ -712,11 +766,9 @@ async fn wait_for_gateway_process(
     }
 }
 
-async fn apply_gateway_listener_scope(
+async fn set_gateway_listener_scope(
     client: &GoBackendClient,
-    gateway: &mut tokio::process::Child,
     config: &WindowsRuntimeConfig,
-    shutdown: &CancellationToken,
 ) -> Result<(), GatewayStartupFailure> {
     let applied_scope = client
         .set_gateway_listener_scope(&config.listener_scope)
@@ -732,10 +784,19 @@ async fn apply_gateway_listener_scope(
             config.listener_scope
         )));
     }
+    Ok(())
+}
 
+async fn wait_for_gateway_listener_scope(
+    client: &GoBackendClient,
+    gateway: &mut tokio::process::Child,
+    config: &WindowsRuntimeConfig,
+    shutdown: &CancellationToken,
+) -> Result<(), GatewayStartupFailure> {
     // SetGatewayListenerConfig queues a listener rebind in the current gateway
-    // protocol. Require the desired value, serving health, and a live data-plane
-    // socket to remain stable before SCM can observe Running.
+    // protocol. The Rust auth bridge must be started before the Go data plane
+    // can become healthy, so this stability check deliberately runs only after
+    // the Rust runtime has reported complete readiness.
     let applied_at = tokio::time::Instant::now();
     let deadline = applied_at + LISTENER_SCOPE_APPLY_TIMEOUT;
     let proxy_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), config.proxy_port);
@@ -804,6 +865,16 @@ fn spawn_gateway(
         anyhow::bail!("missing bundled gateway executable: {}", gateway.display());
     }
     let gateway_config = paths.gateway.join("config.json");
+    let gateway_log_path = gateway_console_log_path(paths);
+    let gateway_stdout = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&gateway_log_path)
+        .with_context(|| format!("open gateway log {}", gateway_log_path.display()))?;
+    let gateway_stderr = gateway_stdout
+        .try_clone()
+        .with_context(|| format!("duplicate gateway log {}", gateway_log_path.display()))?;
     let mut command = Command::new(&gateway);
     command
         .arg("--admin-port")
@@ -818,15 +889,27 @@ fn spawn_gateway(
         .arg(&paths.waf)
         .current_dir(&paths.gateway)
         .env("FN_KNOCK_INTERNAL_RPC_TOKEN", token)
+        .env("GO_REPROXY_LOG", "1")
         .env("BACKEND_PORT", config.backend_port.to_string())
         .env("AUTH_PORT", config.auth_port.to_string())
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::from(gateway_stdout))
+        .stderr(Stdio::from(gateway_stderr))
         .creation_flags(CREATE_NO_WINDOW);
     command
         .spawn()
         .with_context(|| format!("start bundled gateway {}", gateway.display()))
+}
+
+fn gateway_console_log_path(paths: &WindowsPaths) -> PathBuf {
+    paths.logs.join(GATEWAY_CONSOLE_LOG_FILE)
+}
+
+fn gateway_failure_message(prefix: &str, error: &anyhow::Error, paths: &WindowsPaths) -> String {
+    format!(
+        "{prefix}: {error}; gateway diagnostics: {}",
+        gateway_console_log_path(paths).display()
+    )
 }
 
 #[derive(Debug)]

@@ -114,7 +114,7 @@ grep -Fq '& $$Icacls $$Path /reset /L /Q | Out-Null' "${INSTALLER_HOOK}" || \
   fail "installer bootstrap must neutralize a stale root deny without recursive link traversal"
 grep -Fq "\$\$ownerArgs = @(\$\$Path, '/setowner', '*S-1-5-32-544', '/T', '/L', '/Q')" "${INSTALLER_HOOK}" || \
   fail "installer bootstrap must use documented icacls /L for recursive ownership repair"
-grep -Fq '"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /L /Q' "${INSTALLER_HOOK}" || \
+grep -Fq '"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /L /Q' "${INSTALLER_HOOK}" || \
   fail "installer transaction ACL must grant one inheritable FullControl rule to SYSTEM and Administrators"
 if grep -Fq '"*S-1-5-18:F"' "${INSTALLER_HOOK}" || \
     grep -Fq '"*S-1-5-32-544:F"' "${INSTALLER_HOOK}"; then
@@ -122,8 +122,8 @@ if grep -Fq '"*S-1-5-18:F"' "${INSTALLER_HOOK}" || \
 fi
 grep -Fq 'Set-FnKnockDataTreeAcl $$PSScriptRoot $$systemSid $$administratorsSid $$null' "${INSTALLER_HOOK}" || \
   fail "installer helper must replace inherited platform ACLs through the exact ACL API"
-grep -Fq 'Set-FnKnockDataTreeOwner $$PSScriptRoot $$icacls' "${INSTALLER_HOOK}" || \
-  fail "installer helper must restore SYSTEM ownership after canonicalizing its ACL"
+grep -Fq "\$FnKnockTransactionScript\$\\' /setowner \$\\'*S-1-5-18\$\\' /L /Q" "${INSTALLER_HOOK}" || \
+  fail "installer bootstrap must restore SYSTEM ownership before dispatching the helper"
 grep -Fq 'Assert-FnKnockInstallerTreeAcl $$PSScriptRoot' "${INSTALLER_HOOK}" || \
   fail "installer helper must verify its canonicalized ACL before dispatch"
 grep -Fq "\$\$platformReadSids = @('S-1-15-2-1','S-1-15-2-2')" "${INSTALLER_HOOK}" || \

@@ -228,6 +228,7 @@ mod sync;
 mod zip;
 
 use automatic::*;
+#[cfg(not(windows))]
 use commands::*;
 use directory::*;
 use export::*;

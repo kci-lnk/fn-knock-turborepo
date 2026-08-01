@@ -78,8 +78,7 @@ export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
   },
   {
     value: "FN_EVENT_SYSTEM_MEMORY_RECOVERED",
-    labelKey:
-      "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_MEMORY_RECOVERED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_MEMORY_RECOVERED",
   },
   {
     value: "FN_EVENT_TUNNEL_FRP_CONNECTED",
@@ -87,8 +86,7 @@ export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
   },
   {
     value: "FN_EVENT_TUNNEL_FRP_DISCONNECTED",
-    labelKey:
-      "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_FRP_DISCONNECTED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_FRP_DISCONNECTED",
   },
   {
     value: "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
@@ -100,6 +98,17 @@ export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
     labelKey:
       "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
   },
+  ...[
+    "FN_EVENT_RUNTIME_STARTED",
+    "FN_EVENT_RUNTIME_STOPPED",
+    "FN_EVENT_RUNTIME_RESTARTED",
+    "FN_EVENT_RUNTIME_HEALTH_FAILED",
+    "FN_EVENT_RUNTIME_RECOVERED",
+    "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+  ].map((value) => ({
+    value: value as SystemEventType,
+    labelKey: `admin.eventCenter.eventTypes.${value}`,
+  })),
 ];
 
 export const SYSTEM_EVENT_TYPE_FILTER_OPTIONS: Array<{
@@ -143,6 +152,10 @@ export const SYSTEM_EVENT_SOURCE_OPTIONS: Array<{
   {
     value: "SYSTEM_MONITOR",
     labelKey: "admin.eventCenter.sources.SYSTEM_MONITOR",
+  },
+  {
+    value: "RUNTIME_MONITOR",
+    labelKey: "admin.eventCenter.sources.RUNTIME_MONITOR",
   },
 ];
 
@@ -191,6 +204,12 @@ export const DEFAULT_GROUP_BY_BY_EVENT_TYPE: Record<
   FN_EVENT_TUNNEL_FRP_DISCONNECTED: "SUBJECT",
   FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED: "SUBJECT",
   FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED: "SUBJECT",
+  FN_EVENT_RUNTIME_STARTED: "SUBJECT",
+  FN_EVENT_RUNTIME_STOPPED: "SUBJECT",
+  FN_EVENT_RUNTIME_RESTARTED: "SUBJECT",
+  FN_EVENT_RUNTIME_HEALTH_FAILED: "SUBJECT",
+  FN_EVENT_RUNTIME_RECOVERED: "SUBJECT",
+  FN_EVENT_RUNTIME_ABNORMAL_EXIT: "SUBJECT",
 };
 
 export const NOTIFICATION_DELIVERY_STATUS_OPTIONS: Array<{
@@ -220,8 +239,7 @@ export const formatSystemEventSourceLabel = (source: SystemEventSource) =>
 
 export const formatNotificationGroupByLabel = (value: NotificationGroupBy) =>
   NOTIFICATION_GROUP_BY_OPTIONS.find((item) => item.value === value)
-    ?.labelKey ||
-  value;
+    ?.labelKey || value;
 
 export const formatDeliveryStatusLabel = (value: NotificationDeliveryStatus) =>
   NOTIFICATION_DELIVERY_STATUS_OPTIONS.find((item) => item.value === value)

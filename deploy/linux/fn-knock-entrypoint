@@ -18,6 +18,39 @@ GATEWAY_BIN="${APP_HOME}/bin/go-reauth-proxy"
 ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
 AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
 ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
+RUNTIME_LOG_DIR="${DATA_DIR}/runtime/logs"
+SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
+SUPERVISOR_EVENTS_DIR="${DATA_DIR}/runtime/supervisor-events"
+
+supervisor_log() {
+  local level="$1" component="$2" event="$3" reason="$4" exit_code="${5:-null}"
+  local signal="null"
+  if [[ "${exit_code}" =~ ^[0-9]+$ ]] && [ "${exit_code}" -gt 128 ]; then
+    signal="$((exit_code - 128))"
+  fi
+  mkdir -p "${RUNTIME_LOG_DIR}"
+  chmod 700 "${DATA_DIR}/runtime" "${RUNTIME_LOG_DIR}" 2>/dev/null || true
+  if [ -f "${SUPERVISOR_LOG}" ] && [ "$(wc -c < "${SUPERVISOR_LOG}")" -ge 516096 ]; then
+    mv -f "${SUPERVISOR_LOG}" "${SUPERVISOR_LOG}.1"
+  fi
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" >> "${SUPERVISOR_LOG}"
+  chmod 600 "${SUPERVISOR_LOG}" 2>/dev/null || true
+  mkdir -p "${SUPERVISOR_EVENTS_DIR}"
+  chmod 700 "${SUPERVISOR_EVENTS_DIR}" 2>/dev/null || true
+  local hint_tmp="${SUPERVISOR_EVENTS_DIR}/.hint-$$-${RANDOM:-0}.tmp"
+  local hint_path="${SUPERVISOR_EVENTS_DIR}/$(date -u '+%s')-$$-${RANDOM:-0}-${event}.json"
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
+  chmod 600 "${hint_tmp}" 2>/dev/null || true
+  mv -f "${hint_tmp}" "${hint_path}"
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \\; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \\; 2>/dev/null || true
+  local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
+  while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
+  local temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp)
+  while [ "${#temp_hints[@]}" -gt 32 ]; do rm -f "${temp_hints[0]}"; temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp); done
+}
 
 generate_random_hex() {
   if command -v openssl >/dev/null 2>&1; then
@@ -50,7 +83,15 @@ wait_for_process_or_fail() {
   sleep 1
   if ! kill -0 "${pid}" 2>/dev/null; then
     echo "[fn-knock] ${name} exited during startup" >&2
-    wait "${pid}" || true
+    set +e
+    wait "${pid}"
+    local status=$?
+    set -e
+    if [ "${name}" = "gateway" ]; then
+      supervisor_log ERROR gateway_process exited startup_exit "${status}" || true
+    else
+      supervisor_log ERROR management exited startup_exit "${status}" || true
+    fi
     exit 1
   fi
 }
@@ -75,6 +116,7 @@ cleanup() {
 stop_gracefully() {
   trap '' INT TERM
   echo "[fn-knock] stop requested; terminating services"
+  supervisor_log INFO supervisor stop_requested signal null || true
   terminate_children
   exit 0
 }
@@ -104,6 +146,7 @@ done
 
 echo "[fn-knock] starting gateway: admin=${GO_BACKEND_PORT}, proxy=${GO_REPROXY_PORT}"
 BACKEND_PORT="${BACKEND_PORT}" \
+FN_KNOCK_DATA_DIR="${DATA_DIR}" \
 FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
 FN_KNOCK_DISABLE_IPTABLES=1 \
 "${GATEWAY_BIN}" \
@@ -112,6 +155,7 @@ FN_KNOCK_DISABLE_IPTABLES=1 \
   -proxy-port "${GO_REPROXY_PORT}" &
 GATEWAY_PID=$!
 wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
+supervisor_log INFO gateway_process started supervisor_start null || true
 
 echo "[fn-knock] starting administration service: ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT}"
 (
@@ -130,6 +174,7 @@ echo "[fn-knock] starting administration service: ${ADMIN_VIEW_HOST}:${ADMIN_VIE
 ) &
 BACKEND_PID=$!
 wait_for_process_or_fail "${BACKEND_PID}" "administration service"
+supervisor_log INFO management started supervisor_start null || true
 
 echo "[fn-knock] services are ready"
 
@@ -152,6 +197,11 @@ wait "${exited_pid}"
 exited_status=$?
 set -e
 echo "[fn-knock] ${exited_name} exited unexpectedly with status ${exited_status}" >&2
+if [ "${exited_name}" = "gateway" ]; then
+  supervisor_log ERROR gateway_process exited unexpected_exit "${exited_status}" || true
+else
+  supervisor_log ERROR management exited unexpected_exit "${exited_status}" || true
+fi
 
 # A clean child exit is still unexpected. Exit non-zero so Restart=on-failure
 # restarts the complete gateway/backend process group. The explicit TERM/INT

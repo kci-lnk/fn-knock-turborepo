@@ -35,11 +35,29 @@ const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_TUNNEL_FRP_DISCONNECTED",
     "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
     "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
+    "FN_EVENT_RUNTIME_STARTED",
+    "FN_EVENT_RUNTIME_STOPPED",
+    "FN_EVENT_RUNTIME_RESTARTED",
+    "FN_EVENT_RUNTIME_HEALTH_FAILED",
+    "FN_EVENT_RUNTIME_RECOVERED",
+    "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
 ];
 const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
-const SYSTEM_EVENT_SOURCES: &[&str] = &["SERVER_ADMIN", "GO_REAUTH_PROXY", "SYSTEM_MONITOR"];
-const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] =
-    &["IP", "SESSION", "DDNS", "RESOURCE", "APPLICATION", "TUNNEL"];
+const SYSTEM_EVENT_SOURCES: &[&str] = &[
+    "SERVER_ADMIN",
+    "GO_REAUTH_PROXY",
+    "SYSTEM_MONITOR",
+    "RUNTIME_MONITOR",
+];
+const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] = &[
+    "IP",
+    "SESSION",
+    "DDNS",
+    "RESOURCE",
+    "APPLICATION",
+    "TUNNEL",
+    "COMPONENT",
+];
 const APP_UPDATE_EVENT_DEDUPE_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 const GATEWAY_VISIBILITY_EVENT_DEDUPE_KEY: &str = "gateway-visibility:global";
 const GATEWAY_VISIBILITY_EVENT_DEDUPE_TTL_SECONDS: i64 = 60;
@@ -60,6 +78,35 @@ struct InternalSystemEventBody {
     subject: Option<Value>,
     tags: Option<Vec<String>>,
     payload: Value,
+}
+
+#[derive(Clone)]
+pub(crate) struct RuntimeEventInput {
+    pub event_type: &'static str,
+    pub level: &'static str,
+    pub component: String,
+    pub payload: Value,
+}
+
+pub(crate) async fn publish_runtime_event(
+    state: &AppState,
+    input: RuntimeEventInput,
+) -> anyhow::Result<bool> {
+    publish_system_event_body(
+        state,
+        InternalSystemEventBody {
+            event_type: input.event_type.to_string(),
+            source: "RUNTIME_MONITOR".to_string(),
+            level: Some(input.level.to_string()),
+            happened_at: None,
+            dedupe_key: None,
+            dedupe_ttl_seconds: None,
+            subject: Some(json!({ "kind": "COMPONENT", "id": input.component })),
+            tags: Some(vec!["runtime".to_string()]),
+            payload: input.payload,
+        },
+    )
+    .await
 }
 
 #[derive(Deserialize)]
@@ -738,7 +785,11 @@ async fn publish_system_event_body(
     let event = build_event_envelope(body, subject, dedupe_key);
     if let Err(error) = state
         .store
-        .append_system_event(&event, event_config.retention_days)
+        .append_system_event(
+            &event,
+            event_config.retention_days,
+            event_config.max_records,
+        )
         .await
     {
         if acquired_dedupe && let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
@@ -840,7 +891,11 @@ async fn publish_internal_event(
     let event = build_event_envelope(body, subject, dedupe_key);
     match state
         .store
-        .append_system_event(&event, event_config.retention_days)
+        .append_system_event(
+            &event,
+            event_config.retention_days,
+            event_config.max_records,
+        )
         .await
     {
         Ok(()) => {
@@ -1152,6 +1207,7 @@ fn normalize_subject(value: Option<Value>) -> Result<Option<Value>, &'static str
 struct EventSystemConfig {
     enabled: bool,
     retention_days: i64,
+    max_records: i64,
     rules: Map<String, Value>,
 }
 
@@ -1179,6 +1235,11 @@ async fn load_event_system_config(
             .and_then(Value::as_i64)
             .unwrap_or(30)
             .clamp(1, 90),
+        max_records: event_system
+            .get("max_records")
+            .and_then(Value::as_i64)
+            .unwrap_or(10_000)
+            .clamp(1_000, 50_000),
         rules,
     })
 }
@@ -1221,6 +1282,11 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" => {
             Some("cloudflared_tunnel")
         }
+        "FN_EVENT_RUNTIME_STARTED"
+        | "FN_EVENT_RUNTIME_STOPPED"
+        | "FN_EVENT_RUNTIME_RESTARTED"
+        | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => Some("runtime_lifecycle"),
+        "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" => Some("runtime_health"),
         _ => None,
     }
 }
@@ -1235,7 +1301,11 @@ fn default_event_level(event_type: &str) -> &'static str {
         | "FN_EVENT_SYSTEM_MEMORY_RECOVERED"
         | "FN_EVENT_TUNNEL_FRP_CONNECTED"
         | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED"
-        | "FN_EVENT_SSH_LOGIN_SUCCESS" => "INFO",
+        | "FN_EVENT_SSH_LOGIN_SUCCESS"
+        | "FN_EVENT_RUNTIME_STARTED"
+        | "FN_EVENT_RUNTIME_STOPPED"
+        | "FN_EVENT_RUNTIME_RECOVERED" => "INFO",
+        "FN_EVENT_RUNTIME_RESTARTED" => "WARN",
         "FN_EVENT_SYSTEM_CPU_ALERT"
         | "FN_EVENT_SYSTEM_MEMORY_ALERT"
         | "FN_EVENT_AUTH_LOGIN_FAILURE"

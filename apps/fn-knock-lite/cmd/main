@@ -34,9 +34,39 @@ HMAC_SECRET="${HMAC_SECRET:-}"
 FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN:-}"
 ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET:-}"
 ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
+RUNTIME_LOG_DIR="${PKG_VAR_DIR}/runtime/logs"
+SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
+SUPERVISOR_EVENTS_DIR="${PKG_VAR_DIR}/runtime/supervisor-events"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+supervisor_log() {
+  local level="$1" component="$2" event="$3" reason="$4" exit_code="${5:-null}"
+  local signal="null"
+  if [[ "${exit_code}" =~ ^[0-9]+$ ]] && [ "${exit_code}" -gt 128 ]; then
+    signal="$((exit_code - 128))"
+  fi
+    mkdir -p "${RUNTIME_LOG_DIR}"
+    chmod 700 "${PKG_VAR_DIR}/runtime" "${RUNTIME_LOG_DIR}" 2>/dev/null || true
+  if [ -f "${SUPERVISOR_LOG}" ] && [ "$(wc -c < "${SUPERVISOR_LOG}" 2>/dev/null || echo 0)" -ge 516096 ]; then
+        mv -f "${SUPERVISOR_LOG}" "${SUPERVISOR_LOG}.1"
+    fi
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" >> "${SUPERVISOR_LOG}"
+    chmod 600 "${SUPERVISOR_LOG}" 2>/dev/null || true
+    mkdir -p "${SUPERVISOR_EVENTS_DIR}"
+    chmod 700 "${SUPERVISOR_EVENTS_DIR}" 2>/dev/null || true
+    local hint_tmp="${SUPERVISOR_EVENTS_DIR}/.hint-$$-${RANDOM:-0}.tmp"
+    local hint_path="${SUPERVISOR_EVENTS_DIR}/$(date -u '+%s')-$$-${RANDOM:-0}-${event}.json"
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
+    chmod 600 "${hint_tmp}" 2>/dev/null || true
+    mv -f "${hint_tmp}" "${hint_path}"
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \\; 2>/dev/null || true
+    local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
+    while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
 }
 
 generate_random_hex() {
@@ -571,6 +601,7 @@ start_gateway() {
     while [ "${attempt}" -le "${max_attempts}" ]; do
         log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT}, attempt=${attempt}/${max_attempts})..."
         BACKEND_PORT="${BACKEND_PORT}" \
+        FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
         "${GATEWAY_BIN}" \
             -c "${GATEWAY_CONFIG_DIR}" \
@@ -583,6 +614,7 @@ start_gateway() {
         pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
         if check_process "${pid}"; then
             log_msg "Gateway started with PID: ${pid}"
+            supervisor_log INFO gateway_process started fnos_lite_start null
             return 0
         fi
 
@@ -680,6 +712,7 @@ start_backend() {
         return 1
     fi
     log_msg "Backend started with PID: ${pid}"
+    supervisor_log INFO management started fnos_lite_start null
     return 0
 }
 
@@ -720,6 +753,7 @@ start() {
 
 stop() {
     log_msg "=== fn-knock stop ==="
+    supervisor_log INFO supervisor stop_requested fnos_lite_stop null
     resolve_gateway_bin >/dev/null 2>&1 || true
     stop_service "${BACKEND_PID_FILE}" "Backend"
     stop_service "${GATEWAY_PID_FILE}" "Gateway"

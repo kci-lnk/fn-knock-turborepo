@@ -2230,6 +2230,12 @@ export const zhCNServer = {
         frpDisconnected: "FRP 已断开",
         cloudflaredConnected: "Cloudflared 已连上",
         cloudflaredDisconnected: "Cloudflared 已断开",
+        runtimeStarted: "组件已启动",
+        runtimeStopped: "组件已停止",
+        runtimeRestarted: "组件已重启",
+        runtimeHealthFailed: "组件健康检查失败",
+        runtimeRecovered: "组件已恢复",
+        runtimeAbnormalExit: "组件异常退出",
       },
       ruleName: "{event} 通知",
       levels: {
@@ -2242,6 +2248,7 @@ export const zhCNServer = {
         serverAdmin: "管理后台",
         goReauthProxy: "认证代理",
         systemMonitor: "系统监控",
+        runtimeMonitor: "运行监控",
       },
       authMethods: {
         oidc: "外部账号",

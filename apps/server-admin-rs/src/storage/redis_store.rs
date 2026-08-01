@@ -443,6 +443,7 @@ const NOTIFICATION_RUNTIME_LOCK_PREFIX: &str = "fn_knock:notifications:runtime:l
 const NOTIFICATION_RUNTIME_COOLDOWN_PREFIX: &str = "fn_knock:notifications:runtime:cooldown:";
 const NOTIFICATION_RUNTIME_WINDOW_PREFIX: &str = "fn_knock:notifications:runtime:window:";
 const NOTIFICATION_DELIVERIES_READY_KEY: &str = "fn_knock:notifications:deliveries:ready";
+const NOTIFICATION_DELIVERY_QUEUE_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 const TRAFFIC_KEY_INDEX: &str = "fn_knock:traffic:keys";
 const ERROR5XX_KEY_INDEX: &str = "fn_knock:errors:5xx:keys";
 const WAF_LOG_DATE_PREFIX: &str = "fn_knock:waf:logs:";

@@ -1139,6 +1139,14 @@ async fn every_application_eval_operation_runs_on_sqlite() {
         .enqueue_notification_delivery("future", 30)
         .await
         .unwrap();
+    assert!(
+        store
+            .conn()
+            .ttl(NOTIFICATION_DELIVERIES_READY_KEY)
+            .await
+            .unwrap()
+            > 0
+    );
     assert_eq!(
         store
             .pull_ready_notification_delivery_ids(10, 20)
@@ -1997,6 +2005,113 @@ fn system_event_search_uses_unicode_lowercase_like_node() {
     assert!(system_event_matches_filters(
         &event, "älice", None, None, None
     ));
+}
+
+#[tokio::test]
+async fn system_event_max_records_keeps_the_newest_entries() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let base = crate::time_utils::now_ms();
+    for index in 0..=1000 {
+        let event = json!({
+            "id": format!("evt_{index:04}"),
+            "type": "FN_EVENT_RUNTIME_STARTED",
+            "source": "RUNTIME_MONITOR",
+            "level": "INFO",
+            "happened_at": crate::time_utils::iso_from_ms(base + index),
+            "subject": { "kind": "COMPONENT", "id": "management" },
+            "payload": { "component": "management" },
+        });
+        store
+            .append_system_event(&event, 30, 1000)
+            .await
+            .expect("append bounded event");
+    }
+
+    let listed = store
+        .list_system_events(1, 1, "", None, None, Some("RUNTIME_MONITOR"))
+        .await
+        .expect("list bounded events");
+    assert_eq!(listed.get("total").and_then(Value::as_i64), Some(1000));
+    assert_eq!(
+        listed.pointer("/events/0/id").and_then(Value::as_str),
+        Some("evt_1000")
+    );
+    let mut conn = store.conn();
+    assert!(conn.ttl(EVENTS_INDEX_KEY).await.unwrap() > 0);
+    assert!(conn.ttl(EVENTS_STREAM_KEY).await.unwrap() > 0);
+}
+
+#[tokio::test]
+async fn future_system_event_timestamp_cannot_extend_retention_ttl() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let event = json!({
+        "id": "future-event",
+        "happened_at": "2099-01-01T00:00:00.000Z",
+        "type": "FN_EVENT_RUNTIME_STARTED",
+    });
+    store.append_system_event(&event, 1, 1_000).await.unwrap();
+
+    let ttl = store
+        .ttl_seconds(&system_event_data_key("future-event"))
+        .await
+        .unwrap();
+    assert!(
+        ttl > 0 && ttl <= 86_400,
+        "unexpected future event TTL: {ttl}"
+    );
+}
+
+#[tokio::test]
+async fn sorted_set_record_cap_removes_oldest_members() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    for (member, score) in [("old", 1), ("middle", 2), ("new", 3)] {
+        store
+            .zadd_string_member("fn_knock:test:bounded-history", member, score)
+            .await
+            .unwrap();
+    }
+    let removed = store
+        .trim_oldest_zset_members("fn_knock:test:bounded-history", 2)
+        .await
+        .unwrap();
+    assert_eq!(removed, vec!["old".to_string()]);
+    assert_eq!(
+        store
+            .zrevrange_strings("fn_knock:test:bounded-history")
+            .await
+            .unwrap(),
+        vec!["new".to_string(), "middle".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn expired_key_gc_physically_removes_unread_keys() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let key = "fn_knock:test:expired-gc";
+    store
+        .set_string_value_with_optional_ttl(key, "stale", Some(60))
+        .await
+        .unwrap();
+    let connection = tokio_rusqlite::rusqlite::Connection::open(&store.path).unwrap();
+    connection
+        .execute("UPDATE kv_keys SET expires_at_ms = 0 WHERE key = ?1", [key])
+        .unwrap();
+    drop(connection);
+
+    assert_eq!(store.purge_expired_keys().await.unwrap(), 1);
+    assert_eq!(store.manager.key_count_by_prefix(key).await.unwrap(), 0);
 }
 
 #[test]

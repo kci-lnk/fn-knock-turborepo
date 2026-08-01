@@ -7,6 +7,7 @@ export * from "./ddns";
 export * from "./events";
 export * from "./gateway";
 export * from "./polling";
+export * from "./runtime-health";
 export * from "./scan";
 export * from "./security";
 export * from "./sessions";

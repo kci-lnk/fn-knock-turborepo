@@ -5,6 +5,7 @@ impl Store {
         &self,
         event: &Value,
         retention_days: i64,
+        max_records: i64,
     ) -> crate::storage::StorageResult<()> {
         let event_id = event.get("id").and_then(Value::as_str).unwrap_or("");
         if event_id.trim().is_empty() {
@@ -12,7 +13,9 @@ impl Store {
         }
         let now = crate::time_utils::now_ms();
         let retention_days = retention_days.clamp(1, MAX_EVENT_RETENTION_DAYS);
+        let max_records = max_records.clamp(1_000, 50_000);
         let retention_ms = retention_days * 86_400 * 1000;
+        let retention_seconds = retention_days * 86_400;
         let happened_at_ms = event
             .get("happened_at")
             .and_then(Value::as_str)
@@ -20,7 +23,8 @@ impl Store {
             .unwrap_or(now);
         let cutoff_timestamp = now - retention_ms;
         let expires_at_ms = happened_at_ms + retention_ms;
-        let ttl_seconds = ((expires_at_ms - now).max(1000) + 999) / 1000;
+        let ttl_seconds =
+            (((expires_at_ms - now).max(1000) + 999) / 1000).clamp(1, retention_seconds);
         let serialized = serde_json::to_string(event).unwrap_or_default();
 
         let mut conn = self.conn();
@@ -49,13 +53,37 @@ impl Store {
         .ignore();
         pipe.zrembyscore(EVENTS_INDEX_KEY, 0, cutoff_timestamp)
             .ignore();
+        pipe.expire(EVENTS_INDEX_KEY, retention_seconds).ignore();
         pipe.cmd("XTRIM")
             .arg(EVENTS_STREAM_KEY)
             .arg("MINID")
-            .arg("~")
             .arg(format!("{cutoff_timestamp}-0"))
             .ignore();
+        pipe.cmd("XTRIM")
+            .arg(EVENTS_STREAM_KEY)
+            .arg("MAXLEN")
+            .arg(max_records)
+            .ignore();
+        pipe.expire(EVENTS_STREAM_KEY, retention_seconds).ignore();
         let _: () = pipe.query_async(&mut conn).await?;
+        let record_count: i64 = conn.zcard(EVENTS_INDEX_KEY).await?;
+        let overflow = record_count - max_records;
+        if overflow > 0 {
+            let stale_ids = conn
+                .zrange(EVENTS_INDEX_KEY, 0, (overflow - 1) as isize)
+                .await?;
+            conn.zrem(EVENTS_INDEX_KEY, stale_ids.clone()).await?;
+            let stale_keys = stale_ids
+                .iter()
+                .flat_map(|event_id| {
+                    [
+                        system_event_data_key(event_id),
+                        system_event_stream_id_key(event_id),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            let _: i64 = conn.del(stale_keys).await?;
+        }
         Ok(())
     }
 
@@ -205,8 +233,16 @@ impl Store {
         ready_at_ms: i64,
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
-        conn.zadd(NOTIFICATION_DELIVERIES_READY_KEY, id, ready_at_ms)
-            .await
+        let mut pipe = redis::pipe();
+        pipe.zadd(NOTIFICATION_DELIVERIES_READY_KEY, id, ready_at_ms)
+            .ignore();
+        pipe.expire(
+            NOTIFICATION_DELIVERIES_READY_KEY,
+            NOTIFICATION_DELIVERY_QUEUE_TTL_SECONDS,
+        )
+        .ignore();
+        let _: () = pipe.query_async(&mut conn).await?;
+        Ok(())
     }
 
     pub async fn pull_ready_notification_delivery_ids(

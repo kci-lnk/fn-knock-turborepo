@@ -866,6 +866,19 @@ impl ConnectionManager {
         .await
     }
 
+    pub(crate) async fn purge_expired_keys(&self) -> RedisResult<usize> {
+        self.call(move |conn| {
+            let tx = immediate_transaction(conn)?;
+            let deleted = tx.execute(
+                "DELETE FROM kv_keys WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?1",
+                params![now_ms()],
+            )?;
+            tx.commit()?;
+            Ok(deleted)
+        })
+        .await
+    }
+
     async fn call<T, F>(&self, f: F) -> RedisResult<T>
     where
         T: Send + 'static,
@@ -1823,15 +1836,34 @@ fn execute_command_tx(
         }
         "XTRIM" => {
             let key = arg(&args, 0)?;
-            let min_id = parse_stream_id(arg(&args, args.len().saturating_sub(1))?)
-                .ok_or_else(|| storage_error("XTRIM MINID requires a valid stream ID"))?;
             purge_expired_tx(tx, key)?;
-            let (min_ms, min_sequence) = stream_id_sql_tuple(min_id)?;
-            tx.execute(
-                "DELETE FROM kv_stream
-                 WHERE key = ?1 AND (id_ms, id_sequence) < (?2, ?3)",
-                params![key, min_ms, min_sequence],
-            )?;
+            let strategy = arg(&args, 1)?.to_ascii_uppercase();
+            match strategy.as_str() {
+                "MINID" => {
+                    let min_id = parse_stream_id(arg(&args, args.len().saturating_sub(1))?)
+                        .ok_or_else(|| storage_error("XTRIM MINID requires a valid stream ID"))?;
+                    let (min_ms, min_sequence) = stream_id_sql_tuple(min_id)?;
+                    tx.execute(
+                        "DELETE FROM kv_stream
+                         WHERE key = ?1 AND (id_ms, id_sequence) < (?2, ?3)",
+                        params![key, min_ms, min_sequence],
+                    )?;
+                }
+                "MAXLEN" => {
+                    let max_len = parse_i64(arg(&args, args.len().saturating_sub(1))?)?.max(0);
+                    tx.execute(
+                        "DELETE FROM kv_stream
+                         WHERE key = ?1 AND rowid IN (
+                           SELECT rowid FROM kv_stream
+                           WHERE key = ?1
+                           ORDER BY id_ms DESC, id_sequence DESC
+                           LIMIT -1 OFFSET ?2
+                         )",
+                        params![key, max_len],
+                    )?;
+                }
+                _ => return Err(storage_error("XTRIM requires MINID or MAXLEN")),
+            }
             Ok(CmdOutput::Nil)
         }
         "XDEL" => {
@@ -4111,6 +4143,43 @@ mod tests {
             .await
             .expect("generate after clock rollback");
         assert_eq!(after_rollback, format!("{future_ms}-1"));
+    }
+
+    #[tokio::test]
+    async fn xtrim_maxlen_keeps_newest_entries() {
+        let mut conn = temp_manager().await;
+        for id in ["1-0", "2-0", "3-0"] {
+            let _: String = cmd("XADD")
+                .arg("fn_knock:test:maxlen-stream")
+                .arg(id)
+                .arg("value")
+                .arg(id)
+                .query_async(&mut conn)
+                .await
+                .expect("seed stream");
+        }
+        let _: () = cmd("XTRIM")
+            .arg("fn_knock:test:maxlen-stream")
+            .arg("MAXLEN")
+            .arg("~")
+            .arg(2)
+            .query_async(&mut conn)
+            .await
+            .expect("trim stream length");
+        let remaining: Vec<(String, Vec<String>)> = cmd("XRANGE")
+            .arg("fn_knock:test:maxlen-stream")
+            .arg("-")
+            .arg("+")
+            .query_async(&mut conn)
+            .await
+            .expect("read trimmed stream");
+        assert_eq!(
+            remaining
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["2-0", "3-0"]
+        );
     }
 
     #[tokio::test]

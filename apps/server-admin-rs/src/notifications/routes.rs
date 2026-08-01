@@ -60,6 +60,7 @@ const DELIVERIES_INDEX_KEY: &str = "fn_knock:notifications:deliveries:index";
 const DELIVERIES_DATA_PREFIX: &str = "fn_knock:notifications:deliveries:data:";
 const DELIVERIES_READY_KEY: &str = "fn_knock:notifications:deliveries:ready";
 const HISTORY_RETENTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
+const HISTORY_MAX_RECORDS: i64 = 50_000;
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(3000);
 const DELIVERY_INTERVAL: Duration = Duration::from_millis(1500);
 const STREAM_BATCH_SIZE: usize = 50;
@@ -119,7 +120,12 @@ const DELIVERY_STATUSES: &[&str] = &[
 const MESSAGE_TEMPLATE_MODES: &[&str] = &["default", "custom"];
 const TEMPLATE_OVERRIDE_MODES: &[&str] = &["inherit", "custom"];
 const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
-const SYSTEM_EVENT_SOURCES: &[&str] = &["SERVER_ADMIN", "GO_REAUTH_PROXY", "SYSTEM_MONITOR"];
+const SYSTEM_EVENT_SOURCES: &[&str] = &[
+    "SERVER_ADMIN",
+    "GO_REAUTH_PROXY",
+    "SYSTEM_MONITOR",
+    "RUNTIME_MONITOR",
+];
 const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_AUTH_LOGIN_SUCCESS",
     "FN_EVENT_AUTH_LOGOUT",
@@ -142,6 +148,12 @@ const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_TUNNEL_FRP_DISCONNECTED",
     "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
     "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
+    "FN_EVENT_RUNTIME_STARTED",
+    "FN_EVENT_RUNTIME_STOPPED",
+    "FN_EVENT_RUNTIME_RESTARTED",
+    "FN_EVENT_RUNTIME_HEALTH_FAILED",
+    "FN_EVENT_RUNTIME_RECOVERED",
+    "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
 ];
 
 #[derive(Deserialize)]

@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 5;
+  CONTROL_API_VERSION_CURRENT = 6;
 }
 
 message RpcStatus {
@@ -524,6 +524,20 @@ message ServerInfo {
   string commit = 6;
 }
 
+// Process-level runtime metadata. This endpoint deliberately contains no
+// configuration, request, authentication, or environment data.
+message GatewayRuntimeInfo {
+  string instance_id = 1;
+  int64 pid = 2;
+  int64 started_at_unix_ms = 3;
+  uint64 uptime_ms = 4;
+  string go_version = 5;
+  uint64 goroutines = 6;
+  uint64 heap_alloc_bytes = 7;
+  uint64 heap_sys_bytes = 8;
+  uint64 rss_bytes = 9;
+}
+
 message GatewayListenerConfig {
   // Supported values are "loopback" and "all".
   string scope = 1;
@@ -776,6 +790,7 @@ message FnosConnectIngressStatus {
 
 service GatewayControlService {
   rpc GetServerInfo(google.protobuf.Empty) returns (ServerInfo);
+  rpc GetRuntimeInfo(google.protobuf.Empty) returns (GatewayRuntimeInfo);
   rpc GetGatewayListenerConfig(google.protobuf.Empty) returns (GatewayListenerConfig);
   rpc SetGatewayListenerConfig(GatewayListenerConfig) returns (GatewayListenerConfig);
   // Resets all user-managed gateway configuration and volatile runtime data

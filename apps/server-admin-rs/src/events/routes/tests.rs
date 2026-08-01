@@ -131,6 +131,7 @@ fn honors_event_rule_defaults() {
     let config = EventSystemConfig {
         enabled: true,
         retention_days: 30,
+        max_records: 10_000,
         rules: Map::new(),
     };
     assert!(is_event_type_enabled(

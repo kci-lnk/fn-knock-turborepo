@@ -177,6 +177,30 @@ const detailFieldDefinitions = [
   { key: "status", labelKey: "admin.eventCenter.events.detailFields.status" },
   { key: "pid", labelKey: "admin.eventCenter.events.detailFields.pid" },
   {
+    key: "component",
+    labelKey: "admin.eventCenter.events.detailFields.component",
+  },
+  {
+    key: "incident_id",
+    labelKey: "admin.eventCenter.events.detailFields.incident_id",
+  },
+  {
+    key: "instance_id",
+    labelKey: "admin.eventCenter.events.detailFields.instance_id",
+  },
+  {
+    key: "reason_code",
+    labelKey: "admin.eventCenter.events.detailFields.reason_code",
+  },
+  {
+    key: "duration_ms",
+    labelKey: "admin.eventCenter.events.detailFields.duration_ms",
+  },
+  {
+    key: "process_state",
+    labelKey: "admin.eventCenter.events.detailFields.process_state",
+  },
+  {
     key: "previous_ipv4",
     labelKey: "admin.eventCenter.events.detailFields.previous_ipv4",
   },
@@ -772,7 +796,10 @@ export const useSystemEventDisplay = ({
           path: String(payload.path || "-"),
         });
       case "FN_EVENT_WAF_BLOCKED": {
-        const outcomeLabel = formatWAFOutcomeLabel(payload.action, payload.mode);
+        const outcomeLabel = formatWAFOutcomeLabel(
+          payload.action,
+          payload.mode,
+        );
         return translate("admin.eventCenter.events.wafBlocked", {
           ip: formatIpDisplay(payload.ip),
           outcome: outcomeLabel,
@@ -851,6 +878,17 @@ export const useSystemEventDisplay = ({
             : "",
         });
       }
+      case "FN_EVENT_RUNTIME_STARTED":
+      case "FN_EVENT_RUNTIME_STOPPED":
+      case "FN_EVENT_RUNTIME_RESTARTED":
+      case "FN_EVENT_RUNTIME_HEALTH_FAILED":
+      case "FN_EVENT_RUNTIME_RECOVERED":
+      case "FN_EVENT_RUNTIME_ABNORMAL_EXIT":
+        return translate("admin.eventCenter.events.runtimeStatusDescription", {
+          component: String(payload.component || event.subject?.id || "-"),
+          event: translate(`admin.eventCenter.eventTypes.${event.type}`),
+          reason: String(payload.reason_code || "-"),
+        });
       default:
         return JSON.stringify(payload);
     }

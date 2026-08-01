@@ -9,6 +9,11 @@ pub(super) async fn apply_boot_config_migrations(
     let mut mark_throttle_patch_done = false;
     let mut mark_resource_alerts_patch_done = false;
 
+    if ensure_runtime_event_config(config) {
+        config_changed = true;
+        applied.push("runtime_health_events");
+    }
+
     if state
         .store
         .get_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY)
@@ -67,6 +72,43 @@ pub(super) async fn apply_boot_config_migrations(
             .await?;
     }
     Ok(applied)
+}
+
+fn ensure_runtime_event_config(config: &mut Value) -> bool {
+    let event_system = ensure_config_object(config)
+        .entry("event_system".to_string())
+        .or_insert_with(|| json!({ "enabled": true, "retention_days": 30, "rules": {} }));
+    if !event_system.is_object() {
+        *event_system = json!({ "enabled": true, "retention_days": 30, "rules": {} });
+    }
+    let event_object = event_system
+        .as_object_mut()
+        .expect("event system is object");
+    let mut changed = false;
+    let max_records = event_object
+        .get("max_records")
+        .and_then(Value::as_i64)
+        .unwrap_or(10_000)
+        .clamp(1_000, 50_000);
+    if event_object.get("max_records").and_then(Value::as_i64) != Some(max_records) {
+        event_object.insert("max_records".to_string(), json!(max_records));
+        changed = true;
+    }
+    let rules = event_object
+        .entry("rules".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !rules.is_object() {
+        *rules = Value::Object(Map::new());
+        changed = true;
+    }
+    let rules = rules.as_object_mut().expect("rules is object");
+    for key in ["runtime_lifecycle", "runtime_health"] {
+        if !rules.contains_key(key) {
+            rules.insert(key.to_string(), json!({ "enabled": true }));
+            changed = true;
+        }
+    }
+    changed
 }
 
 pub(super) async fn apply_runtime_constraints_on_boot(
@@ -317,4 +359,39 @@ pub(super) fn set_event_resource_alert_enabled(config: &mut Value, key: &str) {
     rule.as_object_mut()
         .expect("rule is object")
         .insert("enabled".to_string(), Value::Bool(true));
+}
+
+#[cfg(test)]
+mod runtime_event_config_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_event_record_limit_is_defaulted_and_clamped() {
+        for (input, expected) in [
+            (Value::Null, 10_000),
+            (json!(999), 1_000),
+            (json!(50_001), 50_000),
+            (json!("invalid"), 10_000),
+        ] {
+            let mut config = json!({
+                "event_system": {
+                    "max_records": input,
+                    "rules": {}
+                }
+            });
+            assert!(ensure_runtime_event_config(&mut config));
+            assert_eq!(
+                config.pointer("/event_system/max_records"),
+                Some(&json!(expected))
+            );
+            assert_eq!(
+                config.pointer("/event_system/rules/runtime_lifecycle/enabled"),
+                Some(&Value::Bool(true))
+            );
+            assert_eq!(
+                config.pointer("/event_system/rules/runtime_health/enabled"),
+                Some(&Value::Bool(true))
+            );
+        }
+    }
 }

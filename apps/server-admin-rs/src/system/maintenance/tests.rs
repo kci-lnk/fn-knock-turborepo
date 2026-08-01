@@ -769,7 +769,9 @@ async fn backup_path_validation_rejects_an_intermediate_symlink_escape() {
 #[tokio::test]
 async fn failed_automatic_backup_records_an_hourly_retry() {
     let (_directory, state) = maintenance_test_state().await;
-    std::fs::write(&state.settings.data_dir, b"blocks directory creation").unwrap();
+    let backup_directory = automatic_backup_directory(&state);
+    std::fs::create_dir_all(backup_directory.parent().unwrap()).unwrap();
+    std::fs::write(backup_directory, b"blocks directory creation").unwrap();
     save_automatic_backup_config(
         &state,
         UpdateAutomaticBackupBody {

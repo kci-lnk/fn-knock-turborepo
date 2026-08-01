@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
+source "${ROOT_DIR}/scripts/fn-knock-lite-sync-go-grpc.sh"
+
 export FN_KNOCK_APP_NAME="${FN_KNOCK_APP_NAME:-fn-knock-lite}"
 export FN_KNOCK_FPK_PACKAGE_DIR="${FN_KNOCK_FPK_PACKAGE_DIR:-${ROOT_DIR}/apps/fn-knock-lite}"
 export FN_KNOCK_LOCAL_FPK_PATH="${FN_KNOCK_LOCAL_FPK_PATH:-apps/fn-knock-lite/dist/fn-knock-lite.fpk}"

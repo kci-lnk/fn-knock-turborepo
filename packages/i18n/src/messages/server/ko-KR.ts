@@ -2015,8 +2015,7 @@ export const koKRServer = {
         managedDomainInactive:
           "DNSHE 관리 도메인을 사용할 수 없습니다: {domain} (상태: {status})",
         unknownStatus: "알 수 없음",
-        recordIdMissing:
-          "DNSHE가 반환한 {type} 레코드에 내부 ID가 없습니다",
+        recordIdMissing: "DNSHE가 반환한 {type} 레코드에 내부 ID가 없습니다",
         apiError: "DNSHE API 요청 실패: {detail}",
         requestError: "DNSHE 요청 오류: {detail}",
       },
@@ -2504,6 +2503,12 @@ export const koKRServer = {
         frpDisconnected: "FRP 연결 끊김",
         cloudflaredConnected: "Cloudflared 연결됨",
         cloudflaredDisconnected: "Cloudflared 연결 끊김",
+        runtimeStarted: "컴포넌트 시작",
+        runtimeStopped: "컴포넌트 중지",
+        runtimeRestarted: "컴포넌트 재시작",
+        runtimeHealthFailed: "상태 검사 실패",
+        runtimeRecovered: "컴포넌트 복구",
+        runtimeAbnormalExit: "컴포넌트 비정상 종료",
       },
       ruleName: "{event} 알림",
       levels: {
@@ -2516,6 +2521,7 @@ export const koKRServer = {
         serverAdmin: "관리 백엔드",
         goReauthProxy: "인증 프록시",
         systemMonitor: "시스템 모니터",
+        runtimeMonitor: "런타임 모니터",
       },
       authMethods: {
         oidc: "외부 계정",

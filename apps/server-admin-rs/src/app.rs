@@ -32,6 +32,7 @@ use crate::{
     maintenance::start_automatic_backup_tasks,
     memory,
     notifications::start_notification_tasks,
+    runtime_health::{install_panic_hook, start_runtime_monitor},
     runtime_profile,
     scanner::migrate_scanner_cidr_ipset_on_boot,
     settings::Settings,
@@ -107,6 +108,7 @@ pub(crate) async fn run_with_settings(
     shutdown: CancellationToken,
     ready: Option<oneshot::Sender<()>>,
 ) -> anyhow::Result<()> {
+    install_panic_hook(&settings.data_dir);
     let readiness_marker = env::var_os("FN_KNOCK_READY_FILE").map(PathBuf::from);
     if let Some(path) = &readiness_marker {
         let _ = tokio::fs::remove_file(path).await;
@@ -117,6 +119,7 @@ pub(crate) async fn run_with_settings(
     // without masquerading as an external service stop in the supervisor.
     let runtime_shutdown = shutdown.child_token();
     let state = AppState::new_with_shutdown(settings.clone(), runtime_shutdown.clone()).await?;
+    start_runtime_monitor(state.clone()).await?;
     wait_for_gateway_control_plane(&state, &runtime_shutdown, Duration::from_secs(60)).await?;
     let migrated_cidr_caches = migrate_cidr_query_caches_on_boot(&state).await?;
     if migrated_cidr_caches > 0 {
@@ -242,6 +245,10 @@ pub(crate) async fn run_with_settings(
     if let Err(error) = readiness {
         runtime_shutdown.cancel();
         state
+            .runtime_health
+            .wait_stopped(Duration::from_secs(5))
+            .await;
+        state
             .tunnel_supervisors
             .shutdown_all(Duration::from_secs(10))
             .await;
@@ -259,6 +266,10 @@ pub(crate) async fn run_with_settings(
     }
     let result = servers.await;
     runtime_shutdown.cancel();
+    state
+        .runtime_health
+        .wait_stopped(Duration::from_secs(5))
+        .await;
     state
         .tunnel_supervisors
         .shutdown_all(Duration::from_secs(10))

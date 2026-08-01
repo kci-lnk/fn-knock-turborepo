@@ -86,14 +86,32 @@ pub(super) async fn touch_trigger_index(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let score = iso_score_ms(trigger.get("created_at").and_then(Value::as_str));
-    state
+    let count = state
         .store
-        .zadd_string_member(TRIGGERS_INDEX_KEY, id, score)
+        .zadd_trim_count_expire(
+            TRIGGERS_INDEX_KEY,
+            id,
+            score,
+            history_cutoff_score_ms().saturating_add(1),
+            HISTORY_RETENTION_TTL_SECONDS as usize,
+        )
         .await?;
-    state
-        .store
-        .zrem_range_by_score(TRIGGERS_INDEX_KEY, 0, history_cutoff_score_ms())
-        .await
+    if count > HISTORY_MAX_RECORDS {
+        let removed = state
+            .store
+            .trim_oldest_zset_members(TRIGGERS_INDEX_KEY, HISTORY_MAX_RECORDS)
+            .await?;
+        state
+            .store
+            .delete_keys(
+                &removed
+                    .iter()
+                    .map(|id| format!("{TRIGGERS_DATA_PREFIX}{id}"))
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+    }
+    Ok(())
 }
 
 pub(super) async fn save_trigger_raw(
@@ -146,14 +164,38 @@ pub(super) async fn touch_delivery_index(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let score = iso_score_ms(delivery.get("triggered_at").and_then(Value::as_str));
-    state
+    let count = state
         .store
-        .zadd_string_member(DELIVERIES_INDEX_KEY, id, score)
+        .zadd_trim_count_expire(
+            DELIVERIES_INDEX_KEY,
+            id,
+            score,
+            history_cutoff_score_ms().saturating_add(1),
+            HISTORY_RETENTION_TTL_SECONDS as usize,
+        )
         .await?;
-    state
-        .store
-        .zrem_range_by_score(DELIVERIES_INDEX_KEY, 0, history_cutoff_score_ms())
-        .await
+    if count > HISTORY_MAX_RECORDS {
+        let removed = state
+            .store
+            .trim_oldest_zset_members(DELIVERIES_INDEX_KEY, HISTORY_MAX_RECORDS)
+            .await?;
+        state
+            .store
+            .delete_keys(
+                &removed
+                    .iter()
+                    .map(|id| delivery_key(id))
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+        for id in removed {
+            state
+                .store
+                .zrem_string_member(DELIVERIES_READY_KEY, &id)
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) async fn load_delivery(

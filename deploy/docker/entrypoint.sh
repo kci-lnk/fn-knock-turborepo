@@ -23,6 +23,39 @@ HMAC_SECRET_FILE="${DATA_DIR}/hmac_secret"
 INTERNAL_RPC_TOKEN_FILE="${DATA_DIR}/internal_rpc_token"
 ADMIN_PROXY_SECRET_FILE="${DATA_DIR}/admin_proxy_secret"
 NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
+RUNTIME_LOG_DIR="${DATA_DIR}/runtime/logs"
+SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
+SUPERVISOR_EVENTS_DIR="${DATA_DIR}/runtime/supervisor-events"
+
+supervisor_log() {
+  local level="$1" component="$2" event="$3" reason="$4" exit_code="${5:-null}"
+  local signal="null"
+  if [[ "${exit_code}" =~ ^[0-9]+$ ]] && [ "${exit_code}" -gt 128 ]; then
+    signal="$((exit_code - 128))"
+  fi
+  mkdir -p "${RUNTIME_LOG_DIR}"
+  chmod 700 "${DATA_DIR}/runtime" "${RUNTIME_LOG_DIR}" 2>/dev/null || true
+  if [ -f "${SUPERVISOR_LOG}" ] && [ "$(wc -c < "${SUPERVISOR_LOG}")" -ge 516096 ]; then
+    mv -f "${SUPERVISOR_LOG}" "${SUPERVISOR_LOG}.1"
+  fi
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" >> "${SUPERVISOR_LOG}"
+  chmod 600 "${SUPERVISOR_LOG}" 2>/dev/null || true
+  mkdir -p "${SUPERVISOR_EVENTS_DIR}"
+  chmod 700 "${SUPERVISOR_EVENTS_DIR}" 2>/dev/null || true
+  local hint_tmp="${SUPERVISOR_EVENTS_DIR}/.hint-$$-${RANDOM:-0}.tmp"
+  local hint_path="${SUPERVISOR_EVENTS_DIR}/$(date -u '+%s')-$$-${RANDOM:-0}-${event}.json"
+  printf '{"time":"%s","level":"%s","component":"%s","event":"%s","reason_code":"%s","fields":{"exit_code":%s,"signal":%s}}\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
+  chmod 600 "${hint_tmp}" 2>/dev/null || true
+  mv -f "${hint_tmp}" "${hint_path}"
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \\; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \\; 2>/dev/null || true
+  local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
+  while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
+  local temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp)
+  while [ "${#temp_hints[@]}" -gt 32 ]; do rm -f "${temp_hints[0]}"; temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp); done
+}
 
 generate_random_hex() {
   if command -v openssl >/dev/null 2>&1; then
@@ -93,7 +126,15 @@ wait_for_process_or_fail() {
   sleep 1
   if ! kill -0 "${pid}" 2>/dev/null; then
     echo "[fn-knock] ${name} exited early" >&2
-    wait "${pid}" || true
+    set +e
+    wait "${pid}"
+    local status=$?
+    set -e
+    if [ "${name}" = "gateway" ]; then
+      supervisor_log ERROR gateway_process exited startup_exit "${status}" || true
+    else
+      supervisor_log ERROR management exited startup_exit "${status}" || true
+    fi
     exit 1
   fi
 }
@@ -114,7 +155,14 @@ cleanup() {
   exit "${exit_code}"
 }
 
-trap cleanup EXIT INT TERM
+stop_gracefully() {
+  trap '' INT TERM
+  supervisor_log INFO supervisor stop_requested signal null || true
+  exit 0
+}
+
+trap cleanup EXIT
+trap stop_gracefully INT TERM
 
 ensure_runtime_layout
 raise_nofile_limit "${NOFILE_LIMIT}" || true
@@ -142,6 +190,7 @@ load_or_create_secret ADMIN_PROXY_SECRET "${ADMIN_PROXY_SECRET_FILE}"
 
 echo "[fn-knock] Starting gateway on admin ${GO_BACKEND_PORT}, proxy ${GO_REPROXY_PORT}"
 BACKEND_PORT="${BACKEND_PORT}" \
+  FN_KNOCK_DATA_DIR="${DATA_DIR}" \
   FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
   "${GATEWAY_BIN}" \
     -c "${GATEWAY_CONFIG_DIR}" \
@@ -149,6 +198,7 @@ BACKEND_PORT="${BACKEND_PORT}" \
     -proxy-port "${GO_REPROXY_PORT}" &
 GATEWAY_PID=$!
 wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
+supervisor_log INFO gateway_process started supervisor_start null || true
 
 if [ -n "${ADMIN_VIEW_PORT}" ]; then
   echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
@@ -181,6 +231,16 @@ fi
 ) &
 BACKEND_PID=$!
 wait_for_process_or_fail "${BACKEND_PID}" "Rust backend"
+supervisor_log INFO management started supervisor_start null || true
 
 echo "[fn-knock] Services are up"
+set +e
 wait -n "${GATEWAY_PID}" "${BACKEND_PID}"
+exited_status=$?
+set -e
+if kill -0 "${GATEWAY_PID}" 2>/dev/null; then
+  supervisor_log ERROR management exited unexpected_exit "${exited_status}" || true
+else
+  supervisor_log ERROR gateway_process exited unexpected_exit "${exited_status}" || true
+fi
+exit 1

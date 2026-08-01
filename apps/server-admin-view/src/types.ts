@@ -1418,4 +1418,5 @@ export type ThreatOverview = {
 };
 
 export * from "./types/system-events";
+export * from "./types/runtime-health";
 export * from "./types/cidr";

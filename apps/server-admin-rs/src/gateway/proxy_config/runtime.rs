@@ -15,28 +15,72 @@ pub(crate) async fn sync_go_host_rules_locked(
     rules: &Value,
 ) -> Result<(), String> {
     state.set_gateway_config_synced(false);
-    let response = state
-        .go_backend
-        .set_host_rules(rules)
-        .await
-        .map_err(|error| error.to_string())?;
-    ensure_go_success(response.clone())?;
-    ensure_go_host_protocol_modes_applied(rules, &response)?;
-    state.set_gateway_config_synced(true);
-    Ok(())
+    state.runtime_health.operational_log(
+        "INFO",
+        "config_sync",
+        "apply_started",
+        "host_rules_pending",
+        Map::new(),
+    );
+    let result = async {
+        let response = state
+            .go_backend
+            .set_host_rules(rules)
+            .await
+            .map_err(|error| error.to_string())?;
+        ensure_go_success(response.clone())?;
+        ensure_go_host_protocol_modes_applied(rules, &response)?;
+        Ok(())
+    }
+    .await;
+    if result.is_ok() {
+        state.set_gateway_config_synced(true);
+        state.runtime_health.operational_log(
+            "INFO",
+            "config_sync",
+            "apply_completed",
+            "host_rules_applied",
+            Map::new(),
+        );
+    } else {
+        state.runtime_health.operational_log(
+            "ERROR",
+            "config_sync",
+            "apply_failed",
+            "host_rules_rejected",
+            Map::new(),
+        );
+    }
+    result
 }
 
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
     state.set_gateway_config_synced(false);
-    ensure_go_success(
-        state
-            .go_backend
-            .flush_host_rules()
-            .await
-            .map_err(|error| error.to_string())?,
-    )?;
-    state.set_gateway_config_synced(true);
-    Ok(())
+    let result = state
+        .go_backend
+        .flush_host_rules()
+        .await
+        .map_err(|error| error.to_string())
+        .and_then(ensure_go_success);
+    if result.is_ok() {
+        state.set_gateway_config_synced(true);
+        state.runtime_health.operational_log(
+            "INFO",
+            "config_sync",
+            "apply_completed",
+            "host_rules_flushed",
+            Map::new(),
+        );
+    } else {
+        state.runtime_health.operational_log(
+            "ERROR",
+            "config_sync",
+            "apply_failed",
+            "host_rules_flush_failed",
+            Map::new(),
+        );
+    }
+    result
 }
 
 pub(super) fn host_rules_payload_for_config(config: &Value) -> Option<Value> {

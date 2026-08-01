@@ -18,6 +18,7 @@ pub(crate) mod events;
 pub(crate) mod gateway;
 pub(crate) mod infra;
 pub(crate) mod notifications;
+pub(crate) mod runtime_health;
 pub(crate) mod security;
 pub(crate) mod shared;
 pub(crate) mod storage;

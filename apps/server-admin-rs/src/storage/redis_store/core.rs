@@ -223,6 +223,16 @@ impl Store {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(crate) async fn ttl_seconds(&self, key: &str) -> crate::storage::StorageResult<i64> {
+        let mut conn = self.conn();
+        conn.ttl(key).await
+    }
+
+    pub async fn purge_expired_keys(&self) -> crate::storage::StorageResult<usize> {
+        self.manager.purge_expired_keys().await
+    }
+
     /// Atomically increment a short-lived counter and attach its window TTL.
     ///
     /// This is intentionally kept in the storage layer so the production
@@ -477,17 +487,6 @@ return value
         conn.zrem(key, member).await
     }
 
-    pub async fn zrem_range_by_score(
-        &self,
-        key: &str,
-        min_score: i64,
-        max_score: i64,
-    ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        let _: () = conn.zrembyscore(key, min_score, max_score).await?;
-        Ok(())
-    }
-
     pub async fn zadd_trim_count_expire(
         &self,
         key: &str,
@@ -504,6 +503,25 @@ return value
         pipe.zcard(key);
         let values: Vec<i64> = pipe.query_async(&mut conn).await?;
         Ok(values.into_iter().next().unwrap_or_default())
+    }
+
+    pub async fn trim_oldest_zset_members(
+        &self,
+        key: &str,
+        max_records: i64,
+    ) -> crate::storage::StorageResult<Vec<String>> {
+        let max_records = max_records.max(1);
+        let mut conn = self.conn();
+        let count: i64 = conn.zcard(key).await?;
+        let overflow = count.saturating_sub(max_records);
+        if overflow == 0 {
+            return Ok(Vec::new());
+        }
+        let members: Vec<String> = conn.zrange(key, 0, (overflow - 1) as isize).await?;
+        if !members.is_empty() {
+            conn.zrem(key, members.clone()).await?;
+        }
+        Ok(members)
     }
 
     pub async fn set_string_and_zadd(

@@ -2487,6 +2487,12 @@ export const enServer = {
         frpDisconnected: "FRP disconnected",
         cloudflaredConnected: "Cloudflared connected",
         cloudflaredDisconnected: "Cloudflared disconnected",
+        runtimeStarted: "Component started",
+        runtimeStopped: "Component stopped",
+        runtimeRestarted: "Component restarted",
+        runtimeHealthFailed: "Component health failed",
+        runtimeRecovered: "Component recovered",
+        runtimeAbnormalExit: "Component exited abnormally",
       },
       ruleName: "{event} notification",
       levels: {
@@ -2499,6 +2505,7 @@ export const enServer = {
         serverAdmin: "Admin backend",
         goReauthProxy: "Auth proxy",
         systemMonitor: "System monitor",
+        runtimeMonitor: "Runtime monitor",
       },
       authMethods: {
         oidc: "External account",

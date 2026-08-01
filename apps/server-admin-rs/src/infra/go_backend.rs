@@ -129,6 +129,26 @@ impl GoBackendClient {
         status_value("get_server_info", self.get_server_info_status().await?)
     }
 
+    pub async fn get_runtime_info(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let info = client
+            .get_runtime_info(self.request(()))
+            .await
+            .context("get Go gateway runtime info")?
+            .into_inner();
+        Ok(json!({
+            "instance_id": info.instance_id,
+            "pid": info.pid,
+            "started_at_unix_ms": info.started_at_unix_ms,
+            "uptime_ms": info.uptime_ms,
+            "go_version": info.go_version,
+            "goroutines": info.goroutines,
+            "heap_alloc_bytes": info.heap_alloc_bytes,
+            "heap_sys_bytes": info.heap_sys_bytes,
+            "rss_bytes": info.rss_bytes,
+        }))
+    }
+
     pub async fn verify_bundle_compatibility(&self) -> Result<Value, BundleCompatibilityError> {
         let response = self
             .get_server_info()
@@ -171,6 +191,7 @@ impl GoBackendClient {
             "blacklist",
             "logs",
             "lifecycle",
+            "runtime_info_v1",
             "host_rule_groups_v1",
             "compiled_visibility_ipset_v1",
             "trusted_client_ip_bypass_v1",

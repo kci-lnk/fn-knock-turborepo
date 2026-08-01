@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import EventsTab from "./event-center/EventsTab.vue";
 import NotificationsTab from "./event-center/NotificationsTab.vue";
+import RuntimeTab from "./event-center/RuntimeTab.vue";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -14,7 +15,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
   router,
   defaultTab: "events",
-  allowedTabs: ["events", "notifications"],
+  allowedTabs: ["events", "runtime", "notifications"],
 });
 </script>
 
@@ -43,6 +44,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
         <TabsTrigger value="notifications">
           {{ t("admin.eventCenter.tabs.notifications") }}
         </TabsTrigger>
+        <TabsTrigger value="runtime">
+          {{ t("admin.eventCenter.tabs.runtime") }}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="events" class="min-h-0 flex-1 pt-2">
@@ -51,6 +55,10 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
 
       <TabsContent value="notifications" class="min-h-0 flex-1 pt-2">
         <NotificationsTab />
+      </TabsContent>
+
+      <TabsContent value="runtime" class="min-h-0 flex-1 pt-2">
+        <RuntimeTab :active="currentTab === 'runtime'" />
       </TabsContent>
     </Tabs>
   </div>

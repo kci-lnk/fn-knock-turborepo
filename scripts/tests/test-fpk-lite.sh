@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
+mkdir -p "${ROOT_DIR}/dist"
+WORK_DIR="$(mktemp -d "${ROOT_DIR}/dist/fpk-lite-test.XXXXXX")"
+
+cleanup() {
+  rm -rf "${WORK_DIR}"
+}
+trap cleanup EXIT
 
 fail() {
   echo "[test-fpk-lite] ERROR: $*" >&2
@@ -83,14 +90,48 @@ assert_file_contains package.json '"fn-knock:lite:build-package"'
 assert_file_contains package.json '"fn-knock:lite:fpk:deploy"'
 assert_file_contains scripts/fn-knock-lite-deploy.sh 'FN_KNOCK_WIZARD_ADMIN_VIEW_PORT.*8991'
 assert_file_contains scripts/fn-knock-lite-deploy.sh 'FN_KNOCK_WIZARD_GO_REPROXY_PORT.*8999'
+assert_file_contains scripts/fn-knock-lite-deploy.sh \
+  'source.*fn-knock-lite-sync-go-grpc\.sh'
 assert_file_contains apps/server-admin-view/src/lib/update-presentation.ts \
   'https://www\.fnknock\.cn/'
 assert_file_contains apps/fn-knock-lite/scripts/build-package.sh \
   'FN_KNOCK_FRONTEND_TARGET="fpk-lite"'
 assert_file_contains apps/fn-knock-lite/scripts/build-package.sh \
   'VITE_FN_KNOCK_DEFAULT_AUTH_PORT.*8997'
+assert_file_contains apps/fn-knock-lite/scripts/build-package.sh \
+  'source.*fn-knock-lite-sync-go-grpc\.sh'
+assert_file_contains scripts/fn-knock-lite-sync-go-grpc.sh \
+  'scripts/sync-go-grpc-contract\.sh'
+assert_file_contains scripts/fn-knock-lite-sync-go-grpc.sh \
+  'FN_KNOCK_LITE_GRPC_SYNC_GO_COMPLETED'
 assert_tree_does_not_contain package.json 'fn-knock:fpk-docker'
 assert_tree_does_not_contain .github/workflows 'fn-knock-lite'
+
+FAKE_BIN="${WORK_DIR}/bin"
+SYNC_LOG="${WORK_DIR}/grpc-sync.log"
+mkdir -p "${FAKE_BIN}"
+cat > "${FAKE_BIN}/bash" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${FN_KNOCK_TEST_SYNC_LOG}"
+EOF
+/bin/chmod 755 "${FAKE_BIN}/bash"
+
+PATH="${FAKE_BIN}:${PATH}" \
+FN_KNOCK_TEST_SYNC_LOG="${SYNC_LOG}" \
+  /bin/bash -s -- "${ROOT_DIR}/scripts/fn-knock-lite-sync-go-grpc.sh" <<'EOF'
+set -euo pipefail
+sync_helper="$1"
+source "${sync_helper}"
+/bin/bash -s -- "${sync_helper}" <<'INNER'
+set -euo pipefail
+source "$1"
+INNER
+EOF
+
+[ "$(wc -l < "${SYNC_LOG}" | tr -d '[:space:]')" = "1" ] || \
+  fail "nested Lite build/deploy entrypoints must synchronize the Go gRPC contract exactly once"
+assert_file_contains "${SYNC_LOG}" 'scripts/sync-go-grpc-contract\.sh'
 
 for release_file in \
   scripts/fn-knock-package-fpk.sh \

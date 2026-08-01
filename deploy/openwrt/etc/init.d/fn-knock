@@ -67,6 +67,43 @@ ensure_runtime_layout() {
 		"$gateway_config_dir"
 }
 
+supervisor_log() {
+	local level="$1" component="$2" event="$3" reason="$4"
+	local log_dir="$data_dir/runtime/logs"
+	local event_dir="$data_dir/runtime/supervisor-events"
+	local log_file="$log_dir/supervisor.jsonl"
+	mkdir -p "$log_dir" "$event_dir" || return 0
+	chmod 700 "$data_dir/runtime" "$log_dir" "$event_dir" 2>/dev/null || true
+  if [ -f "$log_file" ] && [ "$(wc -c < "$log_file" 2>/dev/null || echo 0)" -ge 516096 ]; then
+		mv -f "$log_file" "$log_file.1"
+	fi
+	local record
+	record="{\"time\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\",\"level\":\"$level\",\"component\":\"$component\",\"event\":\"$event\",\"reason_code\":\"$reason\",\"fields\":{\"exit_code\":null,\"signal\":null}}"
+	printf '%s\n' "$record" >> "$log_file"
+	chmod 600 "$log_file" 2>/dev/null || true
+	local temporary="$event_dir/.hint-$$-$component.tmp"
+	printf '%s\n' "$record" > "$temporary"
+	chmod 600 "$temporary" 2>/dev/null || true
+	mv -f "$temporary" "$event_dir/$(date -u '+%s')-$$-$component-$event.json"
+	find "$event_dir" -type f -name '*.json' -mtime +7 -exec rm -f {} \; 2>/dev/null || true
+	find "$event_dir" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \; 2>/dev/null || true
+	local hint_count remove_count
+	hint_count="$(find "$event_dir" -type f -name '*.json' 2>/dev/null | wc -l)"
+	if [ "$hint_count" -gt 32 ]; then
+		remove_count=$((hint_count - 32))
+		find "$event_dir" -type f -name '*.json' 2>/dev/null | sort | sed -n "1,${remove_count}p" | while IFS= read -r hint; do
+			rm -f "$hint"
+		done
+	fi
+	hint_count="$(find "$event_dir" -type f -name '.hint-*.tmp' 2>/dev/null | wc -l)"
+	if [ "$hint_count" -gt 32 ]; then
+		remove_count=$((hint_count - 32))
+		find "$event_dir" -type f -name '.hint-*.tmp' 2>/dev/null | sort | sed -n "1,${remove_count}p" | while IFS= read -r hint; do
+			rm -f "$hint"
+		done
+	fi
+}
+
 validate_port() {
 	local name="$1"
 	local value="$2"
@@ -201,6 +238,7 @@ done
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
+	supervisor_log INFO gateway_process started procd_instance_configured
 }
 
 start_service() {
@@ -234,6 +272,8 @@ start_service() {
 		-proxy-port "$go_reproxy_port"
 	procd_set_param env \
 		"BACKEND_PORT=$backend_port" \
+		"FN_KNOCK_DATA_DIR=$data_dir" \
+		"FN_KNOCK_DIAGNOSTIC_LOG_DIR=$data_dir/runtime/logs" \
 		"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
 		"FN_KNOCK_DISABLE_IPTABLES=1" \
 		"PATH=/usr/sbin:/usr/bin:/sbin:/bin"
@@ -242,6 +282,8 @@ start_service() {
 	procd_set_param stdout 1
 	procd_set_param stderr 1
 	procd_close_instance
+	supervisor_log INFO management started procd_instance_configured
+	logger -t fn-knock "runtime supervisor configured gateway and backend instances"
 
 	procd_open_instance backend
 	procd_set_param command "$rust_backend_entry"
@@ -257,9 +299,13 @@ start_service() {
 
 stop_service() {
 	load_config
+	supervisor_log INFO supervisor stop_requested procd_stop
 }
 
 reload_service() {
+	logger -t fn-knock "runtime supervisor reload requested"
+	load_config
+	supervisor_log WARN supervisor reloaded procd_reload
 	stop
 	sleep 1
 	start

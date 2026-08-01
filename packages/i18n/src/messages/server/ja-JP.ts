@@ -2094,8 +2094,7 @@ export const jaJPServer = {
         managedDomainInactive:
           "DNSHE 管理ドメインを使用できません: {domain}（状態: {status}）",
         unknownStatus: "不明",
-        recordIdMissing:
-          "DNSHE が返した {type} レコードに内部 ID がありません",
+        recordIdMissing: "DNSHE が返した {type} レコードに内部 ID がありません",
         apiError: "DNSHE API リクエストに失敗しました: {detail}",
         requestError: "DNSHE リクエストエラー: {detail}",
       },
@@ -2595,6 +2594,12 @@ export const jaJPServer = {
         frpDisconnected: "FRP 切断",
         cloudflaredConnected: "Cloudflared 接続",
         cloudflaredDisconnected: "Cloudflared 切断",
+        runtimeStarted: "コンポーネント起動",
+        runtimeStopped: "コンポーネント停止",
+        runtimeRestarted: "コンポーネント再起動",
+        runtimeHealthFailed: "ヘルスチェック失敗",
+        runtimeRecovered: "コンポーネント復旧",
+        runtimeAbnormalExit: "コンポーネント異常終了",
       },
       ruleName: "{event}通知",
       levels: {
@@ -2607,6 +2612,7 @@ export const jaJPServer = {
         serverAdmin: "管理バックエンド",
         goReauthProxy: "認証プロキシ",
         systemMonitor: "システム監視",
+        runtimeMonitor: "ランタイム監視",
       },
       authMethods: {
         oidc: "外部アカウント",

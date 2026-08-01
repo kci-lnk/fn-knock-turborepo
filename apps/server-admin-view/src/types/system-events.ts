@@ -19,14 +19,18 @@ export type SystemEventType =
   | "FN_EVENT_TUNNEL_FRP_CONNECTED"
   | "FN_EVENT_TUNNEL_FRP_DISCONNECTED"
   | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED"
-  | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED";
+  | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED"
+  | "FN_EVENT_RUNTIME_STARTED"
+  | "FN_EVENT_RUNTIME_STOPPED"
+  | "FN_EVENT_RUNTIME_RESTARTED"
+  | "FN_EVENT_RUNTIME_HEALTH_FAILED"
+  | "FN_EVENT_RUNTIME_RECOVERED"
+  | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
 
 export type SystemEventLevel = "INFO" | "WARN" | "ERROR" | "CRITICAL";
 
 export type SystemEventSource =
-  | "SERVER_ADMIN"
-  | "GO_REAUTH_PROXY"
-  | "SYSTEM_MONITOR";
+  "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
 
 export type SystemEventSubjectKind =
   | "IP"
@@ -34,7 +38,8 @@ export type SystemEventSubjectKind =
   | "DDNS"
   | "RESOURCE"
   | "APPLICATION"
-  | "TUNNEL";
+  | "TUNNEL"
+  | "COMPONENT";
 
 export interface SystemEventSubject {
   kind: SystemEventSubjectKind;
@@ -74,26 +79,13 @@ export type NotificationProviderType =
   | "telegram";
 
 export type NotificationGroupBy =
-  | "GLOBAL"
-  | "IP"
-  | "SESSION"
-  | "SUBJECT"
-  | "HOSTNAME"
-  | "PROVIDER";
+  "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
 
 export type NotificationTriggerStatus =
-  | "created"
-  | "fanout_done"
-  | "partially_failed"
-  | "completed";
+  "created" | "fanout_done" | "partially_failed" | "completed";
 
 export type NotificationDeliveryStatus =
-  | "queued"
-  | "sending"
-  | "success"
-  | "failed"
-  | "gave_up"
-  | "skipped";
+  "queued" | "sending" | "success" | "failed" | "gave_up" | "skipped";
 
 export type NotificationTestStatus = "idle" | "success" | "failed";
 
@@ -104,11 +96,7 @@ export type NotificationTemplateOverrideMode = "inherit" | "custom";
 export type NotificationSeverity = "info" | "warn" | "error" | "critical";
 
 export type NotificationFieldType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "select"
-  | "json";
+  "string" | "number" | "boolean" | "select" | "json";
 
 export interface NotificationFieldOption {
   label: string;
@@ -200,8 +188,7 @@ export interface NotificationProviderView {
   last_error?: string | null;
 }
 
-export interface NotificationProviderDetailView
-  extends NotificationProviderView {
+export interface NotificationProviderDetailView extends NotificationProviderView {
   connection_config: Record<string, unknown>;
 }
 

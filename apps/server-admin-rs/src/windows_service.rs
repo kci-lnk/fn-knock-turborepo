@@ -24,7 +24,12 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Protocol, Socket, Type};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use tokio::{net::TcpStream, process::Command, sync::oneshot};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    net::TcpStream,
+    process::Command,
+    sync::oneshot,
+};
 use tokio_util::sync::CancellationToken;
 use windows_service::{
     define_windows_service,
@@ -59,6 +64,7 @@ use crate::{
         BundleCompatibilityError, GATEWAY_CONTROL_API_VERSION, GATEWAY_HEALTH_DATAPLANE,
         GATEWAY_HEALTH_PROCESS, GoBackendClient,
     },
+    runtime_health::RotatingFile,
     settings::Settings,
 };
 
@@ -99,6 +105,7 @@ const LISTENER_SCOPE_STABILIZATION: Duration = Duration::from_secs(1);
 const LISTENER_SCOPE_STABLE_PROBES: u8 = 3;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 const GATEWAY_CONSOLE_LOG_FILE: &str = "gateway-console.log";
+const GATEWAY_CONSOLE_LOG_MAX_BYTES: u64 = 512 * 1024;
 const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
 define_windows_service!(ffi_service_main, service_main);
@@ -359,6 +366,14 @@ async fn supervise(
     let job = JobObject::new()?;
     let mut gateway = spawn_gateway(&paths, &runtime_config, &internal_token)?;
     let gateway_pid = gateway.id();
+    append_supervisor_diagnostic(
+        &paths,
+        "INFO",
+        "gateway_process",
+        "started",
+        "windows_service_start",
+        None,
+    );
     if let Err(error) = job.assign(&gateway) {
         let _ = gateway.start_kill();
         let _ = gateway.wait().await;
@@ -502,6 +517,14 @@ async fn supervise(
         }
         ready = &mut ready_rx => ready.context("Rust admin runtime exited before readiness"),
         status = gateway.wait() => {
+            append_supervisor_diagnostic(
+                &paths,
+                "ERROR",
+                "gateway_process",
+                "exited",
+                "startup_exit",
+                status.as_ref().ok().and_then(|value| value.code()),
+            );
             let error = anyhow!(
                 "Go gateway exited during startup: {}",
                 display_exit_status(status)
@@ -629,9 +652,18 @@ async fn supervise(
         &paths,
         &ServiceStateFile::running(&runtime_config, gateway_pid),
     )?;
+    append_supervisor_diagnostic(
+        &paths,
+        "INFO",
+        "management",
+        "started",
+        "windows_service_running",
+        None,
+    );
 
     let outcome = tokio::select! {
         _ = shutdown.cancelled() => {
+            append_supervisor_diagnostic(&paths, "INFO", "supervisor", "stop_requested", "scm_stop", None);
             report_status(
                 status_handle,
                 ServiceState::StopPending,
@@ -645,12 +677,21 @@ async fn supervise(
         }
         result = &mut app_future => {
             let error = result.err().unwrap_or_else(|| anyhow!("Rust admin runtime exited unexpectedly"));
+            append_supervisor_diagnostic(&paths, "ERROR", "management", "exited", "unexpected_exit", None);
             shutdown.cancel();
             let _ = go_client.request_shutdown().await;
             let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, gateway.wait()).await;
             SupervisionOutcome::UnexpectedFailure(error)
         }
         status = gateway.wait() => {
+            append_supervisor_diagnostic(
+                &paths,
+                "ERROR",
+                "gateway_process",
+                "exited",
+                "unexpected_exit",
+                status.as_ref().ok().and_then(|value| value.code()),
+            );
             shutdown.cancel();
             let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, &mut app_future).await;
             SupervisionOutcome::UnexpectedFailure(anyhow!(
@@ -866,15 +907,10 @@ fn spawn_gateway(
     }
     let gateway_config = paths.gateway.join("config.json");
     let gateway_log_path = gateway_console_log_path(paths);
-    let gateway_stdout = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&gateway_log_path)
-        .with_context(|| format!("open gateway log {}", gateway_log_path.display()))?;
-    let gateway_stderr = gateway_stdout
-        .try_clone()
-        .with_context(|| format!("duplicate gateway log {}", gateway_log_path.display()))?;
+    let gateway_console = Arc::new(Mutex::new(
+        RotatingFile::new(gateway_log_path.clone(), GATEWAY_CONSOLE_LOG_MAX_BYTES)
+            .with_context(|| format!("open gateway log {}", gateway_log_path.display()))?,
+    ));
     let mut command = Command::new(&gateway);
     command
         .arg("--admin-port")
@@ -889,20 +925,142 @@ fn spawn_gateway(
         .arg(&paths.waf)
         .current_dir(&paths.gateway)
         .env("FN_KNOCK_INTERNAL_RPC_TOKEN", token)
+        .env("FN_KNOCK_DATA_DIR", &paths.data)
+        .env(
+            "FN_KNOCK_DIAGNOSTIC_LOG_DIR",
+            paths.data.join("runtime/logs"),
+        )
         .env("GO_REPROXY_LOG", "1")
         .env("BACKEND_PORT", config.backend_port.to_string())
         .env("AUTH_PORT", config.auth_port.to_string())
         .stdin(Stdio::null())
-        .stdout(Stdio::from(gateway_stdout))
-        .stderr(Stdio::from(gateway_stderr))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .creation_flags(CREATE_NO_WINDOW);
-    command
+    let mut child = command
         .spawn()
-        .with_context(|| format!("start bundled gateway {}", gateway.display()))
+        .with_context(|| format!("start bundled gateway {}", gateway.display()))?;
+    if let Some(stdout) = child.stdout.take() {
+        spawn_gateway_console_pump(stdout, gateway_console.clone());
+    }
+    if let Some(stderr) = child.stderr.take() {
+        spawn_gateway_console_pump(stderr, gateway_console);
+    }
+    Ok(child)
+}
+
+fn spawn_gateway_console_pump<R>(mut reader: R, writer: Arc<Mutex<RotatingFile>>)
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut buffer = [0_u8; 8 * 1024];
+        loop {
+            let read = match reader.read(&mut buffer).await {
+                Ok(0) | Err(_) => break,
+                Ok(read) => read,
+            };
+            let Ok(mut writer) = writer.lock() else {
+                break;
+            };
+            if writer.write(&buffer[..read]).is_err() {
+                break;
+            }
+        }
+        if let Ok(mut writer) = writer.lock() {
+            let _ = writer.flush();
+        }
+    });
 }
 
 fn gateway_console_log_path(paths: &WindowsPaths) -> PathBuf {
     paths.logs.join(GATEWAY_CONSOLE_LOG_FILE)
+}
+
+fn append_supervisor_diagnostic(
+    paths: &WindowsPaths,
+    level: &str,
+    component: &str,
+    event: &str,
+    reason_code: &str,
+    exit_code: Option<i32>,
+) {
+    let directory = paths.data.join("runtime/logs");
+    if fs::create_dir_all(&directory).is_err() {
+        return;
+    }
+    let path = directory.join("supervisor.jsonl");
+    let record = serde_json::json!({
+        "time": OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default(),
+        "level": level,
+        "component": component,
+        "event": event,
+        "reason_code": reason_code,
+        "fields": { "exit_code": exit_code, "signal": serde_json::Value::Null },
+    });
+    let Ok(mut bytes) = serde_json::to_vec(&record) else {
+        return;
+    };
+    bytes.push(b'\n');
+    if let Ok(mut file) = RotatingFile::new(path, GATEWAY_CONSOLE_LOG_MAX_BYTES) {
+        let _ = file.write(&bytes);
+        let _ = file.flush();
+    }
+    let hints = paths.data.join("runtime/supervisor-events");
+    let hint = hints.join(format!(
+        "{}-{}-{}.json",
+        OffsetDateTime::now_utc().unix_timestamp_nanos(),
+        std::process::id(),
+        event
+    ));
+    let _ = atomic_write(&hint, &bytes);
+    cleanup_supervisor_hints(&hints);
+}
+
+fn cleanup_supervisor_hints(directory: &Path) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    let hint_max_age = Duration::from_secs(7 * 24 * 60 * 60);
+    let temp_max_age = Duration::from_secs(24 * 60 * 60);
+    let mut retained_hints = Vec::new();
+    let mut retained_temps = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let (max_age, retained) = match path.extension().and_then(|value| value.to_str()) {
+            Some("json") => (hint_max_age, &mut retained_hints),
+            Some("tmp") => (temp_max_age, &mut retained_temps),
+            _ => continue,
+        };
+        if !entry.metadata().is_ok_and(|metadata| metadata.is_file()) {
+            continue;
+        }
+        let expired = entry
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(|modified| modified.elapsed().ok())
+            .is_some_and(|age| age > max_age);
+        if expired {
+            let _ = fs::remove_file(path);
+        } else {
+            retained.push(path);
+            if retained.len() > 64 {
+                retained.sort();
+                let excess = retained.len().saturating_sub(32);
+                for path in retained.drain(..excess) {
+                    let _ = fs::remove_file(path);
+                }
+            }
+        }
+    }
+    for retained in [&mut retained_hints, &mut retained_temps] {
+        retained.sort();
+        let excess = retained.len().saturating_sub(32);
+        for path in retained.drain(..excess) {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 fn gateway_failure_message(prefix: &str, error: &anyhow::Error, paths: &WindowsPaths) -> String {

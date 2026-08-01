@@ -152,6 +152,7 @@ pub fn default_config() -> Value {
     let event_system = json!({
         "enabled": true,
         "retention_days": 30,
+        "max_records": 10000,
         "rules": {
             "login_failure": { "enabled": true },
             "ip_drift": { "enabled": true },
@@ -166,6 +167,8 @@ pub fn default_config() -> Value {
             "ssh_login_success": { "enabled": true },
             "ssh_login_failure": { "enabled": true },
             "ssh_ip_blocked": { "enabled": true },
+            "runtime_lifecycle": { "enabled": true },
+            "runtime_health": { "enabled": true },
             "cpu_alert": {
                 "enabled": true,
                 "threshold_percent": 80,

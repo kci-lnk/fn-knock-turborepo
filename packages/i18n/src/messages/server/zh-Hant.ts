@@ -2230,6 +2230,12 @@ export const zhHantServer = {
         frpDisconnected: "FRP 已斷開",
         cloudflaredConnected: "Cloudflared 已連上",
         cloudflaredDisconnected: "Cloudflared 已斷開",
+        runtimeStarted: "元件已啟動",
+        runtimeStopped: "元件已停止",
+        runtimeRestarted: "元件已重新啟動",
+        runtimeHealthFailed: "元件健康檢查失敗",
+        runtimeRecovered: "元件已恢復",
+        runtimeAbnormalExit: "元件異常結束",
       },
       ruleName: "{event} 通知",
       levels: {
@@ -2242,6 +2248,7 @@ export const zhHantServer = {
         serverAdmin: "管理後台",
         goReauthProxy: "認證代理",
         systemMonitor: "系統監控",
+        runtimeMonitor: "執行監控",
       },
       authMethods: {
         oidc: "外部帳號",

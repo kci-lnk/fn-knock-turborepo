@@ -12,6 +12,7 @@ use crate::{
     auto_https::AutoHttpsRedirectManager,
     cidr::IpSetRegistry,
     go_backend::GoBackendClient,
+    runtime_health::RuntimeHealth,
     settings::Settings,
     storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
     store::Store,
@@ -38,6 +39,7 @@ pub struct AppStateInner {
     pub whitelist_runtime_sync_lock: Mutex<()>,
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
+    pub runtime_health: RuntimeHealth,
     pub fallback_client: reqwest::Client,
     pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
@@ -88,11 +90,36 @@ impl AppState {
         settings: Settings,
         shutdown: CancellationToken,
     ) -> anyhow::Result<Self> {
-        let store = Store::connect(&settings.sqlite_path)
-            .await
-            .context("open sqlite storage")?;
+        let runtime_health = RuntimeHealth::new(&settings.data_dir, &settings.runtime_target)
+            .context("initialize runtime health diagnostics")?;
+        let store = match Store::connect(&settings.sqlite_path).await {
+            Ok(store) => {
+                runtime_health.operational_log(
+                    "INFO",
+                    "storage",
+                    "opened",
+                    "sqlite_opened",
+                    serde_json::Map::new(),
+                );
+                store
+            }
+            Err(error) => {
+                runtime_health.operational_log(
+                    "ERROR",
+                    "storage",
+                    "open_failed",
+                    "sqlite_open_failed",
+                    serde_json::Map::from_iter([(
+                        "result".to_string(),
+                        serde_json::json!("failed"),
+                    )]),
+                );
+                runtime_health.flush_operational_log().await;
+                return Err(error).context("open sqlite storage");
+            }
+        };
         if legacy_redis_migration::migration_allowed_for_runtime_target(&settings.runtime_target) {
-            let migration = legacy_redis_migration::migrate_if_available(
+            let migration = match legacy_redis_migration::migrate_if_available(
                 &store,
                 &settings.legacy_redis_url,
                 LegacyRedisMigrationOptions {
@@ -102,8 +129,31 @@ impl AppState {
                 },
             )
             .await
-            .context("migrate legacy Redis data into SQLite")?;
+            {
+                Ok(migration) => migration,
+                Err(error) => {
+                    runtime_health.operational_log(
+                        "ERROR",
+                        "storage",
+                        "migration_failed",
+                        "legacy_redis_migration_failed",
+                        serde_json::Map::from_iter([(
+                            "result".to_string(),
+                            serde_json::json!("failed"),
+                        )]),
+                    );
+                    runtime_health.flush_operational_log().await;
+                    return Err(error).context("migrate legacy Redis data into SQLite");
+                }
+            };
             tracing::info!("{}", migration.summary());
+            runtime_health.operational_log(
+                "INFO",
+                "storage",
+                "migration_completed",
+                "legacy_redis_migration_completed",
+                serde_json::Map::from_iter([("result".to_string(), serde_json::json!("success"))]),
+            );
             store
                 .refresh_config_snapshot()
                 .await
@@ -136,6 +186,7 @@ impl AppState {
                 ipsets: IpSetRegistry::default(),
                 whitelist_runtime_sync_lock: Mutex::new(()),
                 go_backend,
+                runtime_health,
                 fallback_client,
                 asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),

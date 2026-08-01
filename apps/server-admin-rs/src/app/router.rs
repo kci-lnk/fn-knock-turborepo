@@ -30,6 +30,7 @@ use crate::{
         firewall_runtime_routes, fnos_connect_waf_routes, runtime_config_routes,
         smart_connect_config_routes, terminal_feature_routes,
     },
+    runtime_health::routes::runtime_health_routes,
     runtime_profile,
     scan_assets::scan_asset_routes,
     scanner::{cidr_routes, scanner_routes},
@@ -67,6 +68,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(scanner_routes())
         .merge(security_overview_routes())
         .merge(admin_event_routes())
+        .merge(runtime_health_routes())
         .merge(internal_system_event_routes())
         .merge(system_info_routes())
         .merge(system_asset_routes())

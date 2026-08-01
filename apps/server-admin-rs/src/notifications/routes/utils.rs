@@ -325,6 +325,12 @@ pub(super) fn notification_event_label_key(event_type: &str) -> Option<&'static 
         "FN_EVENT_TUNNEL_FRP_DISCONNECTED" => "events.frpDisconnected",
         "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" => "events.cloudflaredConnected",
         "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" => "events.cloudflaredDisconnected",
+        "FN_EVENT_RUNTIME_STARTED" => "events.runtimeStarted",
+        "FN_EVENT_RUNTIME_STOPPED" => "events.runtimeStopped",
+        "FN_EVENT_RUNTIME_RESTARTED" => "events.runtimeRestarted",
+        "FN_EVENT_RUNTIME_HEALTH_FAILED" => "events.runtimeHealthFailed",
+        "FN_EVENT_RUNTIME_RECOVERED" => "events.runtimeRecovered",
+        "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => "events.runtimeAbnormalExit",
         _ => return None,
     })
 }
@@ -343,6 +349,7 @@ pub(super) fn format_notification_source_label(source: &str, translator: &Transl
     let key = match source {
         "GO_REAUTH_PROXY" => "sources.goReauthProxy",
         "SYSTEM_MONITOR" => "sources.systemMonitor",
+        "RUNTIME_MONITOR" => "sources.runtimeMonitor",
         _ => "sources.serverAdmin",
     };
     notification_template_text(translator, key, &[])

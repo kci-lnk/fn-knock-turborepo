@@ -148,6 +148,50 @@ fn builds_invite_base_url_from_public_auth_config_or_auth_host() {
 }
 
 #[test]
+fn builds_invite_base_url_without_origin_port_for_edge_providers() {
+    for (provider, aliyun_esa_enabled, tencent_edgeone_enabled) in [
+        ("Aliyun ESA", true, false),
+        ("Tencent EdgeOne", false, true),
+    ] {
+        let config = json!({
+            "run_type": 3,
+            "subdomain_mode": {
+                "edge_client_ip_enabled": true,
+                "aliyun_esa_enabled": aliyun_esa_enabled,
+                "tencent_edgeone_enabled": tencent_edgeone_enabled,
+                "public_auth_base_url": "https://auth.edge.example:7999",
+                "public_https_port": 7999
+            }
+        });
+
+        assert_eq!(
+            public_auth_base_url(&config),
+            Some("https://auth.edge.example".to_string()),
+            "explicit base provider={provider}"
+        );
+
+        let derived_config = json!({
+            "run_type": 3,
+            "host_mappings": [{
+                "host": "auth.edge.example",
+                "target": "http://127.0.0.1:7997"
+            }],
+            "subdomain_mode": {
+                "edge_client_ip_enabled": true,
+                "aliyun_esa_enabled": aliyun_esa_enabled,
+                "tencent_edgeone_enabled": tencent_edgeone_enabled,
+                "public_https_port": 7999
+            }
+        });
+        assert_eq!(
+            public_auth_base_url(&derived_config),
+            Some("https://auth.edge.example".to_string()),
+            "derived base provider={provider}"
+        );
+    }
+}
+
+#[test]
 fn builds_callback_base_url_from_public_auth_config_before_request_host() {
     let mut headers = HeaderMap::new();
     headers.insert("host", "admin.example.com:7999".parse().unwrap());

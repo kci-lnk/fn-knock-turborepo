@@ -17,6 +17,22 @@ pub(crate) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
         || is_reverse_proxy_subdomain_mode(config)
 }
 
+pub(crate) fn is_edge_client_ip_active(config: &Value) -> bool {
+    config.get("run_type").and_then(Value::as_i64) == Some(3)
+        && config
+            .pointer("/subdomain_mode/edge_client_ip_enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        && (config
+            .pointer("/subdomain_mode/aliyun_esa_enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || config
+                .pointer("/subdomain_mode/tencent_edgeone_enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false))
+}
+
 pub(crate) fn parse_target_port_i64(target: &str) -> Option<i64> {
     let normalized = target.trim();
     if normalized.is_empty() {
@@ -105,6 +121,31 @@ mod tests {
         assert!(!is_any_subdomain_routing_mode(&json!({
             "run_type": 1,
             "reverse_proxy_submode": "path"
+        })));
+    }
+
+    #[test]
+    fn detects_active_edge_client_ip_providers() {
+        for provider in ["aliyun_esa_enabled", "tencent_edgeone_enabled"] {
+            let mut config = json!({
+                "run_type": 3,
+                "subdomain_mode": {
+                    "edge_client_ip_enabled": true,
+                    "aliyun_esa_enabled": false,
+                    "tencent_edgeone_enabled": false
+                }
+            });
+            config["subdomain_mode"][provider] = Value::Bool(true);
+            assert!(is_edge_client_ip_active(&config), "provider={provider}");
+        }
+
+        assert!(!is_edge_client_ip_active(&json!({
+            "run_type": 3,
+            "subdomain_mode": {
+                "edge_client_ip_enabled": true,
+                "aliyun_esa_enabled": false,
+                "tencent_edgeone_enabled": false
+            }
         })));
     }
 

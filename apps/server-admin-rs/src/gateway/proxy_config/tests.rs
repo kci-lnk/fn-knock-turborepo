@@ -2913,3 +2913,38 @@ fn builds_gateway_auth_config_from_auth_mapping() {
         Some(true)
     );
 }
+
+#[test]
+fn gateway_auth_config_omits_origin_port_for_edge_providers() {
+    for (provider, aliyun_esa_enabled, tencent_edgeone_enabled) in [
+        ("Aliyun ESA", true, false),
+        ("Tencent EdgeOne", false, true),
+    ] {
+        let config = json!({
+            "run_type": 3,
+            "host_mappings": [{
+                "host": "auth.edge.example",
+                "target": "http://127.0.0.1:7997"
+            }],
+            "subdomain_mode": {
+                "edge_client_ip_enabled": true,
+                "aliyun_esa_enabled": aliyun_esa_enabled,
+                "tencent_edgeone_enabled": tencent_edgeone_enabled,
+                "public_auth_base_url": "https://auth.edge.example:7999",
+                "public_https_port": 7999
+            }
+        });
+
+        let auth = build_gateway_auth_config(&config);
+        assert_eq!(
+            auth.get("public_auth_base_url").and_then(Value::as_str),
+            Some("https://auth.edge.example"),
+            "provider={provider}"
+        );
+        assert_eq!(
+            auth.get("public_https_port").and_then(Value::as_i64),
+            Some(0),
+            "provider={provider}"
+        );
+    }
+}

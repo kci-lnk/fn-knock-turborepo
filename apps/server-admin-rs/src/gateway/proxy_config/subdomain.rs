@@ -417,7 +417,7 @@ pub(super) fn json_number_floor_value_or_parse(value: Option<&Value>) -> Option<
 }
 
 pub(super) use crate::proxy_utils::{
-    is_any_subdomain_routing_mode, is_reverse_proxy_subdomain_mode,
+    is_any_subdomain_routing_mode, is_edge_client_ip_active, is_reverse_proxy_subdomain_mode,
 };
 
 pub(super) fn is_cloudflared_reverse_proxy_subdomain_mode(config: &Value) -> bool {
@@ -430,20 +430,7 @@ pub(super) fn is_cloudflared_reverse_proxy_subdomain_mode(config: &Value) -> boo
 }
 
 pub(super) fn should_omit_public_access_entry_port(config: &Value) -> bool {
-    is_cloudflared_reverse_proxy_subdomain_mode(config)
-        || (config.get("run_type").and_then(Value::as_i64) == Some(3)
-            && config
-                .pointer("/subdomain_mode/edge_client_ip_enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-            && (config
-                .pointer("/subdomain_mode/aliyun_esa_enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-                || config
-                    .pointer("/subdomain_mode/tencent_edgeone_enabled")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false)))
+    is_cloudflared_reverse_proxy_subdomain_mode(config) || is_edge_client_ip_active(config)
 }
 
 pub(super) use crate::system_info::resolve_public_gateway_port;
@@ -487,6 +474,9 @@ pub(super) fn resolve_public_port_for_scheme(
     gateway_fallback: bool,
     allow_reverse_proxy_configured_port: bool,
 ) -> Option<i64> {
+    if is_edge_client_ip_active(config) {
+        return None;
+    }
     if let Some(port) = parse_explicit_url_port(raw_public_base_url, scheme) {
         return Some(port);
     }
@@ -523,7 +513,10 @@ pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) 
         "https" => "https",
         _ => return trimmed.to_string(),
     };
-    if parsed.port().is_none()
+    if is_edge_client_ip_active(config) {
+        // Edge mode is authoritative over stale origin/public-port settings.
+        let _ = parsed.set_port(None);
+    } else if parsed.port().is_none()
         && let Some(port) = resolve_public_port_for_scheme(config, scheme, trimmed, true, false)
         && !is_default_scheme_port(scheme, port)
     {

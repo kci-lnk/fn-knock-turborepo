@@ -133,13 +133,7 @@
             t("admin.components.dockerAdminGate.resetTitle")
           }}</DialogTitle>
           <DialogDescription>
-            {{
-              t(
-                isWindowsMode
-                  ? "admin.components.dockerAdminGate.resetDescriptionWindows"
-                  : "admin.components.dockerAdminGate.resetDescription",
-              )
-            }}
+            {{ resetDialogDescription }}
           </DialogDescription>
         </DialogHeader>
 
@@ -150,64 +144,18 @@
             {{ t("admin.components.dockerAdminGate.resetNotice") }}
           </div>
 
-          <div v-if="isWindowsMode" class="min-w-0 space-y-2">
+          <div
+            v-for="step in resetGuide?.steps ?? []"
+            :key="step.labelKey"
+            class="min-w-0 space-y-2"
+          >
             <p class="text-sm font-medium">
-              {{ t("admin.components.dockerAdminGate.resetStepWindows") }}
+              {{ t(step.labelKey) }}
             </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ windowsResetCommand }}</code></pre>
+            ><code>{{ step.command }}</code></pre>
           </div>
-
-          <template v-else>
-            <div class="min-w-0 space-y-2">
-              <p class="text-sm font-medium">
-                {{
-                  t(
-                    isOpenWrtMode
-                      ? "admin.components.dockerAdminGate.resetStepOpenWrtSsh"
-                      : "admin.components.dockerAdminGate.resetStepSsh",
-                  )
-                }}
-              </p>
-              <pre
-                class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-              ><code>{{ resetSshCommand }}</code></pre>
-            </div>
-
-            <div v-if="isOpenWrtMode" class="min-w-0 space-y-2">
-              <p class="text-sm font-medium">
-                {{
-                  t("admin.components.dockerAdminGate.resetStepOpenWrtCommand")
-                }}
-              </p>
-              <pre
-                class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-              ><code>{{ openWrtResetCommand }}</code></pre>
-            </div>
-
-            <template v-else>
-              <div class="min-w-0 space-y-2">
-                <p class="text-sm font-medium">
-                  {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
-                </p>
-                <pre
-                  class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-                ><code>{{ dockerComposeResetCommand }}</code></pre>
-              </div>
-
-              <div class="min-w-0 space-y-2">
-                <p class="text-sm font-medium">
-                  {{
-                    t("admin.components.dockerAdminGate.resetStepDockerExec")
-                  }}
-                </p>
-                <pre
-                  class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-                ><code>{{ dockerExecResetCommand }}</code></pre>
-              </div>
-            </template>
-          </template>
         </div>
 
         <DialogFooter>
@@ -242,11 +190,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import DockerAdminPasswordInput from "./DockerAdminPasswordInput.vue";
-import {
-  dockerAdminPanelResetCommands,
-  openWrtAdminPanelResetCommands,
-  windowsAdminPanelResetCommands,
-} from "../lib/docker-admin-panel-reset";
+import { resolveAdminPanelResetGuide } from "../lib/docker-admin-panel-reset";
 import {
   dockerAdminPasswordValidationMessageKeys,
   validateDockerAdminPassword,
@@ -272,17 +216,12 @@ const password = ref("");
 const rememberMe = ref(false);
 const showResetDialog = ref(false);
 const { t } = useI18n();
-const isOpenWrtMode = computed(() => props.deploymentTarget === "openwrt");
-const isWindowsMode = computed(() => props.deploymentTarget === "windows");
-const resetSshCommand = computed(() =>
-  isOpenWrtMode.value
-    ? openWrtAdminPanelResetCommands.ssh
-    : dockerAdminPanelResetCommands.ssh,
+const resetGuide = computed(() =>
+  resolveAdminPanelResetGuide(props.deploymentTarget),
 );
-const openWrtResetCommand = openWrtAdminPanelResetCommands.reset;
-const dockerComposeResetCommand = dockerAdminPanelResetCommands.compose;
-const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
-const windowsResetCommand = windowsAdminPanelResetCommands.reset;
+const resetDialogDescription = computed(() =>
+  resetGuide.value ? t(resetGuide.value.descriptionKey) : "",
+);
 
 const title = computed(() =>
   props.mode === "setup"
@@ -312,7 +251,9 @@ const placeholder = computed(() =>
 const autocomplete = computed(() =>
   props.mode === "setup" ? "new-password" : "current-password",
 );
-const showForgotPassword = computed(() => props.mode === "login");
+const showForgotPassword = computed(
+  () => props.mode === "login" && resetGuide.value !== null,
+);
 const showRememberMe = computed(() => props.mode === "login");
 const passwordValidationError = computed(() =>
   password.value ? validateDockerAdminPassword(password.value) : null,

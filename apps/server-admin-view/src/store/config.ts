@@ -24,6 +24,7 @@ import {
   getEffectiveRuntimeProfile,
 } from "@runtime-debug";
 import { canUseFnosConnectWafForRuntime } from "../lib/fnos-connect-waf";
+import { isProtectedAdminPanelDeploymentTarget } from "../lib/admin-panel-runtime";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 const isLegacyStreamMappingRepairConflict = (error: unknown): boolean =>
@@ -523,12 +524,8 @@ export const useConfigStore = defineStore("config", () => {
     () => runtimeProfile.value?.deployment_target === "windows",
   );
   const isProtectedAdminPanelDeployment = computed(() => {
-    const target = runtimeProfile.value?.deployment_target;
-    return (
-      target === "docker" ||
-      target === "openwrt" ||
-      target === "linux" ||
-      target === "windows"
+    return isProtectedAdminPanelDeploymentTarget(
+      runtimeProfile.value?.deployment_target,
     );
   });
   const canUseDirectMode = computed(

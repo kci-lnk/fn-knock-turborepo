@@ -3,13 +3,13 @@ import { zhCNServer } from "./zh-CN";
 export const zhHantServer = {
   ...zhCNServer,
   invalidLocale: "不支援的語言",
-  dockerAdminDenied: "Docker 管理面板僅允許內網或可信反代訪問",
+  dockerAdminDenied: "管理面板僅允許內網或可信反代訪問",
   dockerAdminDeniedTitle: "拒絕訪問",
   dockerAdminDeniedDescription:
-    "Docker 管理面板預設只允許宿主機本地、局域網、VPN 或已配置的可信反向代理訪問。公網直連會被拒絕。",
+    "管理面板預設只允許目前設備、局域網、VPN 或已配置的可信反向代理訪問。公網直連會被拒絕。",
   dockerAdminCurrentIp: "當前識別來源 IP：{ip}",
   dockerAdminProxyRequired: "請透過 {port} 管理入口訪問後台接口",
-  dockerAdminLoginRequired: "請先登入 Docker 管理面板",
+  dockerAdminLoginRequired: "請先登入管理面板",
   captchaUnavailable: "驗證碼服務暫時不可用",
   tooManyAttempts: "嘗試過於頻繁，請稍後重試",
   tooManyAttemptsWithRetry: "嘗試過於頻繁，請在 {seconds} 秒後重試",
@@ -164,9 +164,9 @@ export const zhHantServer = {
       restorePortalFailed: "恢復傳送門顯示運行態失敗",
     },
     dockerPanel: {
-      passwordNotNeeded: "目前運行模式不需要設定 Docker 管理面板密碼",
+      passwordNotNeeded: "目前部署不需要設定管理面板密碼",
       setPasswordFailed: "設定管理面板密碼失敗",
-      passwordChangeUnsupported: "目前運行模式不支援修改 Docker 管理面板密碼",
+      passwordChangeUnsupported: "目前部署不支援修改管理面板密碼",
       changePasswordFailed: "修改管理面板密碼失敗",
       tooManyAttemptsWithRetry: "嘗試過於頻繁，請在 {seconds} 秒後重試",
       tooManyAttempts: "嘗試過於頻繁，請稍後重試",

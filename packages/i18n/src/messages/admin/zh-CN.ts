@@ -2097,15 +2097,9 @@ export const zhCNAdmin = {
     changePassword: "修改密码",
     clear: "清空",
     forgotTitle: "忘记密码时",
-    forgotDescription:
-      "如果已经无法进入管理后台，可以在服务器上执行下面的命令重置密码。",
     resetResultTitle: "重置结果",
     resetResultDescription:
       "命令会清除管理面板密码状态。下次访问管理入口时，需要重新设置管理面板密码。",
-    stepLoginHost: "1. 登录宿主机",
-    stepCompose: "2. 进入 docker-compose.yml 所在目录",
-    stepDockerExec: "3. 执行重置命令",
-    stepOpenWrtReset: "2. 执行重置命令",
   },
   sslSettings: {
     title: "SSL / HTTPS",
@@ -3440,6 +3434,8 @@ export const zhCNAdmin = {
       resetTitle: "重设管理面板密码",
       resetDescription:
         "需要在设备或容器外执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。",
+      resetDescriptionDevice:
+        "请在设备上执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。",
       resetDescriptionWindows:
         "请在管理员 PowerShell 中执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除网关配置和数据。",
       resetNotice: "清理完成后，下次访问管理入口会重新进入“首次设置密码”流程。",
@@ -3449,6 +3445,7 @@ export const zhCNAdmin = {
       resetStepCompose: "2. 推荐：在 compose 部署目录执行",
       resetStepDockerExec: "3. 如果只知道容器在跑 Docker，可直接执行",
       resetStepOpenWrtCommand: "2. 执行重置命令",
+      resetStepLinux: "在服务器终端执行",
       acknowledge: "知道了",
       setupTitle: "设置管理面板密码",
       loginTitle: "登录管理面板",

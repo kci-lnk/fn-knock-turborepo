@@ -2247,15 +2247,9 @@ export const koKRAdmin = {
     changePassword: "비밀번호 변경",
     clear: "지우기",
     forgotTitle: "비밀번호를 잊어버린 경우",
-    forgotDescription:
-      "더 이상 관리 콘솔에 들어갈 수 없는 경우 서버에서 다음 명령을 실행하여 비밀번호를 재설정하세요.",
     resetResultTitle: "초기화 결과",
     resetResultDescription:
       "이 명령은 관리자 패널 비밀번호 상태를 지웁니다. 다음에 관리 콘솔을 열면 관리자 패널 비밀번호를 다시 설정해야 합니다.",
-    stepLoginHost: "1. 호스트에 로그인",
-    stepCompose: "2. docker-compose.yml 디렉터리를 엽니다.",
-    stepDockerExec: "3. 재설정 명령을 실행합니다.",
-    stepOpenWrtReset: "2. 재설정 명령을 실행합니다.",
   },
   sslSettings: {
     title: "SSL/HTTPS",
@@ -3679,6 +3673,8 @@ export const koKRAdmin = {
       resetTitle: "관리자 패널 비밀번호 재설정",
       resetDescription:
         "기기 또는 컨테이너 외부에서 재설정 명령을 실행하세요. 패널 비밀번호, 패널 세션과 로그인 백오프 상태만 초기화되며 운영 설정은 삭제되지 않습니다.",
+      resetDescriptionDevice:
+        "기기에서 재설정 명령을 실행하세요. 패널 비밀번호, 패널 세션과 로그인 백오프 상태만 초기화되며 운영 설정은 삭제되지 않습니다.",
       resetDescriptionWindows:
         "관리자 권한 PowerShell에서 재설정 명령을 실행하세요. 패널 비밀번호, 세션 및 로그인 백오프 상태만 지워지며 게이트웨이 설정과 데이터는 유지됩니다.",
       resetNotice:
@@ -3690,6 +3686,7 @@ export const koKRAdmin = {
       resetStepDockerExec:
         "3. 컨테이너가 Docker에서 실행되고 있다는 것만 알고 있는 경우 이를 직접 실행하세요.",
       resetStepOpenWrtCommand: "2. 재설정 명령을 실행합니다.",
+      resetStepLinux: "서버 터미널에서 실행",
       acknowledge: "확인",
       setupTitle: "관리자 패널 비밀번호 설정",
       loginTitle: "관리자 패널에 로그인",

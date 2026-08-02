@@ -2260,15 +2260,9 @@ export const enAdmin = {
     changePassword: "Change password",
     clear: "Clear",
     forgotTitle: "If you forget the password",
-    forgotDescription:
-      "If you can no longer enter the admin console, run these commands on the server to reset the password.",
     resetResultTitle: "Reset result",
     resetResultDescription:
       "The command clears the admin panel password state. Set the admin panel password again the next time you open the admin entry.",
-    stepLoginHost: "1. Sign in to the host",
-    stepCompose: "2. Open the docker-compose.yml directory",
-    stepDockerExec: "3. Run the reset command",
-    stepOpenWrtReset: "2. Run the reset command",
   },
   sslSettings: {
     title: "SSL / HTTPS",
@@ -3701,6 +3695,8 @@ export const enAdmin = {
       resetTitle: "Reset admin panel password",
       resetDescription:
         "Run the reset command on the device or outside the container. This only clears the panel password, panel sessions, and login backoff state. Business configuration is not deleted.",
+      resetDescriptionDevice:
+        "Run the reset command on the device. This only clears the panel password, panel sessions, and login backoff state. Business configuration is not deleted.",
       resetDescriptionWindows:
         "Run the reset command in an Administrator PowerShell window. It only clears the panel password, panel sessions, and login backoff state; gateway configuration and data are retained.",
       resetNotice:
@@ -3713,6 +3709,7 @@ export const enAdmin = {
       resetStepDockerExec:
         "3. If you only know the container is running in Docker, run this directly",
       resetStepOpenWrtCommand: "2. Run the reset command",
+      resetStepLinux: "Run in the server terminal",
       acknowledge: "Got it",
       setupTitle: "Set admin panel password",
       loginTitle: "Sign in to admin panel",

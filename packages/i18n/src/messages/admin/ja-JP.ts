@@ -2261,15 +2261,9 @@ export const jaJPAdmin = {
     changePassword: "パスワード変更",
     clear: "クリア",
     forgotTitle: "パスワードを忘れた場合",
-    forgotDescription:
-      "管理画面へアクセスできなくなった場合は、サーバー上で次のコマンドを実行してパスワードをリセットできます。",
     resetResultTitle: "リセット後の状態",
     resetResultDescription:
       "このコマンドは管理パネルのパスワード設定を消去します。次回管理画面を開いたときに、パスワードを再設定してください。",
-    stepLoginHost: "1. ホストへログイン",
-    stepCompose: "2. docker-compose.yml があるディレクトリへ移動",
-    stepDockerExec: "3. リセットコマンドを実行",
-    stepOpenWrtReset: "2. リセットコマンドを実行",
   },
   sslSettings: {
     title: "SSL / HTTPS",
@@ -3705,6 +3699,8 @@ export const jaJPAdmin = {
       resetTitle: "管理パネルのパスワードをリセット",
       resetDescription:
         "リセットコマンドはデバイス上、またはコンテナの外部で実行してください。管理パネルのパスワード、セッション、ログインのバックオフ状態だけが消去され、サービス設定は削除されません。",
+      resetDescriptionDevice:
+        "リセットコマンドはデバイス上で実行してください。管理パネルのパスワード、セッション、ログインのバックオフ状態だけが消去され、サービス設定は削除されません。",
       resetDescriptionWindows:
         "管理者権限の PowerShell でリセットコマンドを実行してください。パネルのパスワード、セッション、ログインのバックオフ状態だけが消去され、ゲートウェイの設定とデータは保持されます。",
       resetNotice:
@@ -3716,6 +3712,7 @@ export const jaJPAdmin = {
       resetStepDockerExec:
         "3. 実行中の Docker コンテナしか分からない場合は、次のコマンドを直接実行",
       resetStepOpenWrtCommand: "2. リセットコマンドを実行",
+      resetStepLinux: "サーバーのターミナルで実行",
       acknowledge: "わかりました",
       setupTitle: "管理パネルのパスワードを設定",
       loginTitle: "管理パネルへログイン",

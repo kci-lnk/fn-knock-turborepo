@@ -19,10 +19,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { ConfigAPI } from "../../lib/api";
-import {
-  dockerAdminPanelResetCommands,
-  openWrtAdminPanelResetCommands,
-} from "../../lib/docker-admin-panel-reset";
+import { resolveAdminPanelResetGuide } from "../../lib/docker-admin-panel-reset";
 import {
   dockerAdminPasswordValidationMessageKeys,
   validateDockerAdminPassword,
@@ -37,15 +34,9 @@ const { t } = useI18n();
 const newPassword = ref("");
 const confirmPassword = ref("");
 
-const isOpenWrtMode = computed(() => configStore.isOpenWrtDeployment);
-const resetSshCommand = computed(() =>
-  isOpenWrtMode.value
-    ? openWrtAdminPanelResetCommands.ssh
-    : dockerAdminPanelResetCommands.ssh,
+const resetGuide = computed(() =>
+  resolveAdminPanelResetGuide(configStore.runtimeProfile?.deployment_target),
 );
-const openWrtResetCommand = openWrtAdminPanelResetCommands.reset;
-const dockerComposeResetCommand = dockerAdminPanelResetCommands.compose;
-const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
 
 const isPanelAuthMode = computed(
   () => configStore.isProtectedAdminPanelDeployment,
@@ -216,11 +207,11 @@ const savePassword = async () => {
       </CardContent>
     </Card>
 
-    <Card>
+    <Card v-if="resetGuide">
       <CardHeader>
         <CardTitle>{{ t("admin.panelSettings.forgotTitle") }}</CardTitle>
         <CardDescription>
-          {{ t("admin.panelSettings.forgotDescription") }}
+          {{ t(resetGuide.descriptionKey) }}
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
@@ -234,43 +225,18 @@ const savePassword = async () => {
           </AlertDescription>
         </Alert>
 
-        <div class="space-y-2">
+        <div
+          v-for="step in resetGuide.steps"
+          :key="step.labelKey"
+          class="space-y-2"
+        >
           <p class="text-sm font-medium">
-            {{ t("admin.panelSettings.stepLoginHost") }}
+            {{ t(step.labelKey) }}
           </p>
           <pre
             class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ resetSshCommand }}</code></pre>
+          ><code>{{ step.command }}</code></pre>
         </div>
-
-        <div v-if="isOpenWrtMode" class="space-y-2">
-          <p class="text-sm font-medium">
-            {{ t("admin.panelSettings.stepOpenWrtReset") }}
-          </p>
-          <pre
-            class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ openWrtResetCommand }}</code></pre>
-        </div>
-
-        <template v-else>
-          <div class="space-y-2">
-            <p class="text-sm font-medium">
-              {{ t("admin.panelSettings.stepCompose") }}
-            </p>
-            <pre
-              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ dockerComposeResetCommand }}</code></pre>
-          </div>
-
-          <div class="space-y-2">
-            <p class="text-sm font-medium">
-              {{ t("admin.panelSettings.stepDockerExec") }}
-            </p>
-            <pre
-              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ dockerExecResetCommand }}</code></pre>
-          </div>
-        </template>
       </CardContent>
     </Card>
   </div>

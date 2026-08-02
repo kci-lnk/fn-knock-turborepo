@@ -4,13 +4,13 @@ export const enServer = {
   apiPathNotFound: "API path not found",
   invalidLocale: "Unsupported locale",
   dockerAdminDenied:
-    "Docker admin panel only allows private network or trusted proxy access",
+    "The admin panel only allows private network or trusted proxy access",
   dockerAdminDeniedTitle: "Access denied",
   dockerAdminDeniedDescription:
-    "The Docker admin panel only allows access from the host, LAN, VPN, or configured trusted reverse proxies by default. Direct public access is denied.",
+    "The admin panel only allows access from the current device, LAN, VPN, or configured trusted reverse proxies by default. Direct public access is denied.",
   dockerAdminCurrentIp: "Detected source IP: {ip}",
   dockerAdminProxyRequired: "Access admin APIs through the {port} admin entry.",
-  dockerAdminLoginRequired: "Sign in to the Docker admin panel first",
+  dockerAdminLoginRequired: "Sign in to the admin panel first",
   captchaUnavailable: "Captcha service is temporarily unavailable",
   tooManyAttempts: "Too many attempts. Please try again later.",
   tooManyAttemptsWithRetry:
@@ -196,10 +196,10 @@ export const enServer = {
     },
     dockerPanel: {
       passwordNotNeeded:
-        "The current run mode does not need a Docker admin panel password",
+        "The current deployment does not need an admin panel password",
       setPasswordFailed: "Failed to set admin panel password",
       passwordChangeUnsupported:
-        "The current run mode does not support changing the Docker admin panel password",
+        "The current deployment does not support changing the admin panel password",
       changePasswordFailed: "Failed to change admin panel password",
       tooManyAttemptsWithRetry:
         "Too many attempts. Retry in {seconds} seconds.",

@@ -283,6 +283,7 @@ import { useDockerAdminAccessScopes } from "./auth-settings/useDockerAdminAccess
 import { useTotpSetupWorkflow } from "./auth-settings/useTotpSetupWorkflow";
 import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 import { docsUrls } from "../lib/docs";
+import { isProtectedAdminPanelDeploymentTarget } from "../lib/admin-panel-runtime";
 import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import type {
   AuthAccount,
@@ -471,8 +472,9 @@ const {
 } = authSettingsResource;
 
 const showAdminPanelAccessColumn = computed(() => {
-  const target = dockerAdminAuthStore.state?.deployment_target;
-  return target === "docker" || target === "openwrt";
+  return isProtectedAdminPanelDeploymentTarget(
+    dockerAdminAuthStore.state?.deployment_target,
+  );
 });
 const totpTableClass = computed(() =>
   showAdminPanelAccessColumn.value

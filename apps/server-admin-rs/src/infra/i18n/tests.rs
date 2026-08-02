@@ -166,6 +166,28 @@ fn generated_catalog_serves_non_static_messages() {
 }
 
 #[test]
+fn admin_panel_runtime_messages_are_platform_neutral() {
+    let keys = [
+        "server.dockerAdminDenied",
+        "server.dockerAdminDeniedDescription",
+        "server.dockerAdminLoginRequired",
+        "server.admin.dockerPanel.passwordNotNeeded",
+        "server.admin.dockerPanel.passwordChangeUnsupported",
+    ];
+    for locale in ["zh-CN", "zh-Hant", "en", "ko-KR", "ja-JP"] {
+        let translator = Translator::new(locale);
+        for key in keys {
+            let message = translator.t(key);
+            assert_ne!(message, key, "missing {locale} key {key}");
+            assert!(
+                !message.to_ascii_lowercase().contains("docker"),
+                "platform-specific wording leaked from {locale} key {key}: {message}"
+            );
+        }
+    }
+}
+
+#[test]
 fn locale_catalog_loader_extracts_requested_language_branch() {
     assert_eq!(
         load_locale_catalog("zh-Hant").message("acmeRoutes.certNotFound"),

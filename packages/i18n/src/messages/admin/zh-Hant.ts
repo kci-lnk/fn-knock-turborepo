@@ -2107,15 +2107,9 @@ export const zhHantAdmin = {
     changePassword: "修改密碼",
     clear: "清空",
     forgotTitle: "忘記密碼時",
-    forgotDescription:
-      "如果已經無法進入管理後台，可以在伺服器上執行下面的命令重置密碼。",
     resetResultTitle: "重置結果",
     resetResultDescription:
       "命令會清除管理面板密碼狀態。下次訪問管理入口時，需要重新設定管理面板密碼。",
-    stepLoginHost: "1. 登入宿主機",
-    stepCompose: "2. 進入 docker-compose.yml 所在目錄",
-    stepDockerExec: "3. 執行重置命令",
-    stepOpenWrtReset: "2. 執行重置命令",
   },
   sslSettings: {
     title: "SSL / HTTPS",
@@ -3451,6 +3445,8 @@ export const zhHantAdmin = {
       resetTitle: "重設管理面板密碼",
       resetDescription:
         "需要在設備或容器外執行重置命令。該操作只會清除面板密碼、面板會話和登入退避狀態，不會刪除業務配置。",
+      resetDescriptionDevice:
+        "請在設備上執行重置命令。該操作只會清除面板密碼、面板工作階段和登入退避狀態，不會刪除業務配置。",
       resetDescriptionWindows:
         "請在系統管理員 PowerShell 中執行重置命令。該操作只會清除面板密碼、面板工作階段和登入退避狀態，不會刪除閘道設定和資料。",
       resetNotice:
@@ -3461,6 +3457,7 @@ export const zhHantAdmin = {
       resetStepCompose: "2. 推薦：在 compose 部署目錄執行",
       resetStepDockerExec: "3. 如果只知道容器在跑 Docker，可直接執行",
       resetStepOpenWrtCommand: "2. 執行重置命令",
+      resetStepLinux: "在伺服器終端執行",
       acknowledge: "知道了",
       setupTitle: "設定管理面板密碼",
       loginTitle: "登入管理面板",

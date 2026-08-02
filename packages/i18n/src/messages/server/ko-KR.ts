@@ -4,13 +4,13 @@ export const koKRServer = {
   apiPathNotFound: "API 경로를 찾을 수 없습니다.",
   invalidLocale: "지원되지 않는 로케일",
   dockerAdminDenied:
-    "Docker 관리 패널은 사설 네트워크 또는 신뢰할 수 있는 프록시 접근만 허용합니다.",
+    "관리 패널은 사설 네트워크 또는 신뢰할 수 있는 프록시 접근만 허용합니다.",
   dockerAdminDeniedTitle: "접근이 거부되었습니다.",
   dockerAdminDeniedDescription:
-    "Docker 관리 패널은 기본적으로 호스트, LAN, VPN 또는 설정된 신뢰할 수 있는 리버스 프록시에서의 접근만 허용합니다. 인터넷에서 직접 접근하는 요청은 거부됩니다.",
+    "관리 패널은 기본적으로 현재 기기, LAN, VPN 또는 설정된 신뢰할 수 있는 리버스 프록시에서의 접근만 허용합니다. 인터넷에서 직접 접근하는 요청은 거부됩니다.",
   dockerAdminCurrentIp: "감지된 출발지 IP: {ip}",
   dockerAdminProxyRequired: "{port} 관리 항목을 통해 관리 API에 접근합니다.",
-  dockerAdminLoginRequired: "먼저 Docker 관리 패널에 로그인하세요.",
+  dockerAdminLoginRequired: "먼저 관리 패널에 로그인하세요.",
   captchaUnavailable: "보안 문자 서비스를 일시적으로 사용할 수 없습니다",
   tooManyAttempts: "시도 횟수가 너무 많습니다. 나중에 다시 시도해 주세요.",
   tooManyAttemptsWithRetry:
@@ -189,10 +189,10 @@ export const koKRServer = {
     },
     dockerPanel: {
       passwordNotNeeded:
-        "현재 실행 모드에는 Docker 관리자 패널 비밀번호가 필요하지 않습니다.",
+        "현재 배포에는 관리자 패널 비밀번호가 필요하지 않습니다.",
       setPasswordFailed: "관리자 패널 비밀번호를 설정하지 못했습니다.",
       passwordChangeUnsupported:
-        "현재 실행 모드는 Docker 관리자 패널 비밀번호 변경을 지원하지 않습니다.",
+        "현재 배포는 관리자 패널 비밀번호 변경을 지원하지 않습니다.",
       changePasswordFailed: "관리자 패널 비밀번호를 변경하지 못했습니다.",
       tooManyAttemptsWithRetry:
         "시도 횟수가 너무 많습니다. {seconds} 초 후에 다시 시도하세요.",

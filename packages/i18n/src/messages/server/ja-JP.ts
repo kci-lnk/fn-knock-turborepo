@@ -4,14 +4,14 @@ export const jaJPServer = {
   apiPathNotFound: "API パスが見つかりません",
   invalidLocale: "サポートされていないロケールです",
   dockerAdminDenied:
-    "Docker 管理パネルには、プライベートネットワークまたは信頼済みプロキシからのみアクセスできます",
+    "管理パネルには、プライベートネットワークまたは信頼済みプロキシからのみアクセスできます",
   dockerAdminDeniedTitle: "アクセスが拒否されました",
   dockerAdminDeniedDescription:
-    "Docker 管理パネルは、デフォルトではホスト自身、LAN、VPN、または設定済みの信頼できるリバースプロキシからのみアクセスできます。インターネットからの直接アクセスは拒否されます。",
+    "管理パネルは、デフォルトでは現在のデバイス、LAN、VPN、または設定済みの信頼できるリバースプロキシからのみアクセスできます。インターネットからの直接アクセスは拒否されます。",
   dockerAdminCurrentIp: "検出されたアクセス元 IP: {ip}",
   dockerAdminProxyRequired:
     "ポート {port} の管理用エントリーポイントから管理 API へアクセスしてください",
-  dockerAdminLoginRequired: "先に Docker 管理パネルへログインしてください",
+  dockerAdminLoginRequired: "先に管理パネルへログインしてください",
   captchaUnavailable: "CAPTCHA サービスは一時的に利用できません",
   tooManyAttempts:
     "試行回数が多すぎます。しばらくしてから、もう一度お試しください。",
@@ -199,11 +199,10 @@ export const jaJPServer = {
       restorePortalFailed: "ポータル表示を実行状態に復元できませんでした",
     },
     dockerPanel: {
-      passwordNotNeeded:
-        "現在の動作モードでは Docker 管理パネルのパスワードは不要です",
+      passwordNotNeeded: "現在のデプロイでは管理パネルのパスワードは不要です",
       setPasswordFailed: "管理パネルのパスワードの設定に失敗しました",
       passwordChangeUnsupported:
-        "現在の動作モードでは、Docker 管理パネルのパスワードを変更できません",
+        "現在のデプロイでは、管理パネルのパスワードを変更できません",
       changePasswordFailed: "管理パネルのパスワードの変更に失敗しました",
       tooManyAttemptsWithRetry:
         "試行回数が多すぎます。{seconds} 秒後にもう一度お試しください",

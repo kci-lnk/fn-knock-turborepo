@@ -1201,10 +1201,10 @@ fn process_exists(pid: u32) -> Option<bool> {
         if handle.is_null() {
             return Some(false);
         }
-        let mut exit_code = 0;
+        let mut exit_code = 0u32;
         let ok = GetExitCodeProcess(handle, &mut exit_code) != 0;
         CloseHandle(handle);
-        ok.then_some(exit_code == STILL_ACTIVE)
+        ok.then_some(exit_code == STILL_ACTIVE as u32)
     }
 }
 

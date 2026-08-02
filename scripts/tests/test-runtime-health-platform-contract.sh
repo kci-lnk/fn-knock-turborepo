@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GO_REPOSITORY="${FN_KNOCK_GO_REAUTH_PROXY_REPO:-${ROOT_DIR}/../Go-Reauth-Proxy}"
+GO_REPOSITORY="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${FN_KNOCK_GO_REAUTH_PROXY_REPO:-${ROOT_DIR}/../Go-Reauth-Proxy}}"
 
 fail() {
   printf '[test-runtime-health-platform-contract] ERROR: %s\n' "$*" >&2
@@ -52,6 +52,8 @@ do
 done
 assert_contains "${WINDOWS}" 'FN_KNOCK_RUNTIME_TARGET", "windows"' 'Windows runtime target'
 assert_contains "${WINDOWS}" 'paths.data.join("runtime/logs")' 'Windows runtime log directory'
+assert_contains "${RUNTIME}" 'let mut exit_code = 0u32;' 'Windows process exit-code type'
+assert_contains "${RUNTIME}" 'exit_code == STILL_ACTIVE as u32' 'Windows active-process status type'
 
 assert_contains "${RUNTIME}" 'RUNTIME_STATE_TTL_SECONDS: i64 = 7 * 24 * 60 * 60' 'runtime state TTL'
 assert_contains "${RUNTIME}" 'PENDING_EVENT_TTL: Duration = Duration::from_secs(60 * 60)' 'pending event TTL'

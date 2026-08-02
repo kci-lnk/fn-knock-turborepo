@@ -7,12 +7,7 @@ export type AuthClientInfo = {
 };
 
 export type AuthClientLocationStatus =
-  | "idle"
-  | "queued"
-  | "processing"
-  | "success"
-  | "failed"
-  | "skipped";
+  "idle" | "queued" | "processing" | "success" | "failed" | "skipped";
 
 export type AuthClientLocationData = {
   ip: string;
@@ -57,6 +52,17 @@ export type AuthOidcState = {
   login_error?: string;
 };
 
+export type AuthLdapProvider = {
+  id: string;
+  type: "openldap" | "active_directory" | "custom";
+  name: string;
+  protocol: "ldap";
+};
+
+export type AuthLdapState = {
+  providers: AuthLdapProvider[];
+};
+
 export type AuthBootstrapData = {
   locale: LocaleConfig;
   appearance: AppearanceConfig;
@@ -65,6 +71,7 @@ export type AuthBootstrapData = {
   captcha: CaptchaPublicSettings;
   passkey: AuthPasskeyState;
   oidc?: AuthOidcState;
+  ldap?: AuthLdapState;
   redirect_to?: string;
 };
 
@@ -75,4 +82,5 @@ export type AuthSessionData = {
   client: AuthClientInfo;
   passkey: AuthPasskeyState;
   oidc?: AuthOidcState;
+  ldap?: AuthLdapState;
 };

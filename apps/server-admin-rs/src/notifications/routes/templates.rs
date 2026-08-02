@@ -365,7 +365,7 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
         "FN_EVENT_AUTH_LOGIN_SUCCESS" => {
             let auth_method = read_payload_value(event, "auth_method");
             let auth_provider_name = read_payload_value(event, "auth_provider_name");
-            if auth_method == "OIDC" && !auth_provider_name.is_empty() {
+            if matches!(auth_method.as_str(), "OIDC" | "LDAP") && !auth_provider_name.is_empty() {
                 return join_compact_parts(&[
                     notification_detail_text(
                         translator,
@@ -586,6 +586,7 @@ pub(super) fn format_auth_method_label(value: &str, translator: &Translator) -> 
         "TOTP" => "TOTP".to_string(),
         "PASSKEY" => "Passkey".to_string(),
         "OIDC" => notification_template_text(translator, "authMethods.oidc", &[]),
+        "LDAP" => notification_template_text(translator, "authMethods.ldap", &[]),
         other => other.to_string(),
     }
 }

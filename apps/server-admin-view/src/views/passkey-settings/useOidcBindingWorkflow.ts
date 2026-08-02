@@ -7,7 +7,17 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "@/lib/api";
-import type { OIDCBinding, OIDCProviderView } from "@/types";
+import type {
+  LdapBinding,
+  LdapProviderView,
+  OIDCBinding,
+  OIDCProviderView,
+} from "@/types";
+
+export type ExternalProviderOption =
+  (OIDCProviderView & { kind: "oidc" }) | (LdapProviderView & { kind: "ldap" });
+export type ExternalBinding =
+  (OIDCBinding & { protocol: "oidc" }) | (LdapBinding & { protocol: "ldap" });
 
 const AUTO_REFRESH_INTERVAL_MS = 5_000;
 
@@ -16,8 +26,8 @@ export const useOidcBindingWorkflow = (options: {
   totpId: string;
 }) => {
   const { t } = useI18n();
-  const oidcBindings = ref<OIDCBinding[]>([]);
-  const providers = ref<OIDCProviderView[]>([]);
+  const oidcBindings = ref<ExternalBinding[]>([]);
+  const providers = ref<ExternalProviderOption[]>([]);
   const showInviteDialog = ref(false);
   const inviteProviderId = ref("");
   const inviteUrl = ref("");
@@ -50,17 +60,41 @@ export const useOidcBindingWorkflow = (options: {
     });
 
   const loadOidcData = async () => {
-    const [bindings, providerList] = await Promise.all([
+    const [
+      oidcBindingList,
+      oidcProviderList,
+      ldapBindingList,
+      ldapProviderList,
+    ] = await Promise.all([
       ConfigAPI.getOIDCBindings(options.totpId),
       ConfigAPI.getOIDCProviders(),
+      ConfigAPI.getLdapBindings(options.totpId),
+      ConfigAPI.getLdapProviders(),
     ]);
-    oidcBindings.value = bindings;
-    providers.value = providerList.filter((provider) => provider.enabled);
+    oidcBindings.value = [
+      ...oidcBindingList.map((binding) => ({
+        ...binding,
+        protocol: "oidc" as const,
+      })),
+      ...ldapBindingList.map((binding) => ({
+        ...binding,
+        protocol: "ldap" as const,
+      })),
+    ];
+    providers.value = [
+      ...oidcProviderList
+        .filter((provider) => provider.enabled)
+        .map((provider) => ({ ...provider, kind: "oidc" as const })),
+      ...ldapProviderList
+        .filter((provider) => provider.enabled)
+        .map((provider) => ({ ...provider, kind: "ldap" as const })),
+    ];
   };
 
-  const formatOidcBindingLabel = (binding: OIDCBinding) =>
+  const formatOidcBindingLabel = (binding: ExternalBinding) =>
     binding.display_name ||
     binding.email ||
+    (binding.protocol === "ldap" ? binding.username : undefined) ||
     binding.provider_name ||
     binding.provider_type;
 
@@ -75,7 +109,20 @@ export const useOidcBindingWorkflow = (options: {
     );
     isOidcBindingsRefreshing.value = true;
     try {
-      const nextBindings = await ConfigAPI.getOIDCBindings(options.totpId);
+      const [nextOidcBindings, nextLdapBindings] = await Promise.all([
+        ConfigAPI.getOIDCBindings(options.totpId),
+        ConfigAPI.getLdapBindings(options.totpId),
+      ]);
+      const nextBindings: ExternalBinding[] = [
+        ...nextOidcBindings.map((binding) => ({
+          ...binding,
+          protocol: "oidc" as const,
+        })),
+        ...nextLdapBindings.map((binding) => ({
+          ...binding,
+          protocol: "ldap" as const,
+        })),
+      ];
       const addedBindings = nextBindings.filter(
         (binding) => !previousIds.has(binding.id),
       );
@@ -153,10 +200,21 @@ export const useOidcBindingWorkflow = (options: {
       return;
     }
     await runCreateInvite(async () => {
-      const result = await ConfigAPI.createOIDCInvite({
-        totp_id: options.totpId,
-        provider_id: inviteProviderId.value,
-      });
+      const provider = providers.value.find(
+        (item) => item.id === inviteProviderId.value,
+      );
+      if (!provider) {
+        throw new Error(t("admin.passkeySettings.selectProvider"));
+      }
+      const result = await (provider.kind === "ldap"
+        ? ConfigAPI.createLdapInvite({
+            totp_id: options.totpId,
+            provider_id: inviteProviderId.value,
+          })
+        : ConfigAPI.createOIDCInvite({
+            totp_id: options.totpId,
+            provider_id: inviteProviderId.value,
+          }));
       inviteUrl.value = result.invite_url;
       inviteExpiresAt.value = result.expires_at;
       try {
@@ -191,7 +249,12 @@ export const useOidcBindingWorkflow = (options: {
   const deleteOidcBinding = async (bindingId: string) => {
     options.setError("");
     await runDeleteBinding(async () => {
-      await ConfigAPI.deleteOIDCBinding(bindingId);
+      const binding = oidcBindings.value.find((item) => item.id === bindingId);
+      if (binding?.protocol === "ldap") {
+        await ConfigAPI.deleteLdapBinding(bindingId);
+      } else {
+        await ConfigAPI.deleteOIDCBinding(bindingId);
+      }
       await loadOidcData();
       toast.success(t("admin.passkeySettings.oidcDeleted"));
     });

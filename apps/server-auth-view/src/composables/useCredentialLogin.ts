@@ -19,6 +19,8 @@ interface UseCredentialLoginOptions {
   isLoginCompletionPending: () => boolean;
   isLoginCoolingDown: Ref<boolean>;
   isPasskeySupported: Ref<boolean>;
+  credentialKind: Ref<"totp" | "ldap">;
+  ldapProviderId: Ref<string>;
   loginCooldownSeconds: Ref<number>;
   loginMode: Ref<"totp" | "password">;
   password: Ref<string>;
@@ -40,6 +42,8 @@ export function useCredentialLogin({
   isLoginCompletionPending,
   isLoginCoolingDown,
   isPasskeySupported,
+  credentialKind,
+  ldapProviderId,
   loginCooldownSeconds,
   loginMode,
   password,
@@ -78,15 +82,21 @@ export function useCredentialLogin({
     ) {
       return;
     }
-    if (loginMode.value === "totp" && token.value.length !== 6) {
+    const method =
+      loginMode.value === "password" ? "password" : credentialKind.value;
+    if (method === "totp" && token.value.length !== 6) {
       reportError(translate("auth.invalidOtpLength"));
       return;
     }
     if (
-      loginMode.value === "password" &&
+      (method === "password" || method === "ldap") &&
       (!username.value.trim() || !password.value)
     ) {
       reportError(translate("auth.usernamePasswordRequired"));
+      return;
+    }
+    if (method === "ldap" && !ldapProviderId.value) {
+      reportError(translate("auth.ldapProviderRequired"));
       return;
     }
     if (!isCaptchaVerified.value || !captchaSubmission.value) {
@@ -102,11 +112,17 @@ export function useCredentialLogin({
 
     try {
       const response = await apiClient.post("/login", {
-        method: loginMode.value,
-        token: loginMode.value === "totp" ? token.value : undefined,
+        method,
+        provider_id: method === "ldap" ? ldapProviderId.value : undefined,
+        token: method === "totp" ? token.value : undefined,
         username:
-          loginMode.value === "password" ? username.value.trim() : undefined,
-        password: loginMode.value === "password" ? password.value : undefined,
+          method === "password" || method === "ldap"
+            ? username.value.trim()
+            : undefined,
+        password:
+          method === "password" || method === "ldap"
+            ? password.value
+            : undefined,
         captcha: captchaSubmission.value,
         rememberMe: rememberMe.value,
         redirect_uri: redirectUri || undefined,

@@ -41,6 +41,9 @@ import type {
   HostMappingGroup,
   HostMappingRefreshSummary,
   LocaleConfig,
+  LdapBinding,
+  LdapProviderCatalogItem,
+  LdapProviderView,
   OIDCBinding,
   OIDCProviderCatalogItem,
   OIDCProviderView,
@@ -142,6 +145,9 @@ export type {
   HostMappingGroup,
   HostMappingRefreshSummary,
   LocaleConfig,
+  LdapBinding,
+  LdapProviderCatalogItem,
+  LdapProviderView,
   OIDCBinding,
   OIDCProviderCatalogItem,
   OIDCProviderView,
@@ -834,6 +840,67 @@ export const ConfigAPI = {
     note?: string;
   }): Promise<{ invite_url: string; expires_at: string }> {
     const res = await apiClient.post("/auth/oidc/invitations", payload);
+    return res.data.data;
+  },
+  async getLdapProviderCatalog(): Promise<LdapProviderCatalogItem[]> {
+    const res = await apiClient.get("/auth/ldap/catalog");
+    return res.data.data.providers;
+  },
+  async getLdapProviders(): Promise<LdapProviderView[]> {
+    const res = await apiClient.get("/auth/ldap/providers");
+    return res.data.data.providers;
+  },
+  async createLdapProvider(payload: {
+    name?: string;
+    type: string;
+    enabled?: boolean;
+    connection_config?: Record<string, unknown>;
+  }): Promise<LdapProviderView> {
+    const res = await apiClient.post("/auth/ldap/providers", payload);
+    return res.data.data;
+  },
+  async updateLdapProvider(
+    id: string,
+    payload: {
+      name?: string;
+      enabled?: boolean;
+      connection_config?: Record<string, unknown>;
+    },
+  ): Promise<LdapProviderView> {
+    const res = await apiClient.patch(
+      `/auth/ldap/providers/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return res.data.data;
+  },
+  async deleteLdapProvider(id: string): Promise<void> {
+    await apiClient.delete(`/auth/ldap/providers/${encodeURIComponent(id)}`);
+  },
+  async testLdapProvider(
+    id: string,
+    credentials?: { username: string; password: string },
+  ): Promise<{ success: boolean; message?: string }> {
+    const res = await apiClient.post(
+      `/auth/ldap/providers/${encodeURIComponent(id)}/test`,
+      credentials ?? {},
+    );
+    return res.data;
+  },
+  async getLdapBindings(totpId: string): Promise<LdapBinding[]> {
+    const res = await apiClient.get(
+      `/auth/ldap/totp/${encodeURIComponent(totpId)}/bindings`,
+    );
+    return res.data.data.bindings;
+  },
+  async deleteLdapBinding(id: string): Promise<void> {
+    await apiClient.delete(`/auth/ldap/bindings/${encodeURIComponent(id)}`);
+  },
+  async createLdapInvite(payload: {
+    totp_id: string;
+    provider_id: string;
+    note?: string;
+  }): Promise<{ invite_url: string; expires_at: string }> {
+    const res = await apiClient.post("/auth/ldap/invitations", payload);
     return res.data.data;
   },
   // Sync routes.

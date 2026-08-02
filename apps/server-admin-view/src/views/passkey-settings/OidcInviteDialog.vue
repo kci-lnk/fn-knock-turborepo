@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { OIDCProviderView } from "@/types";
+import type { ExternalProviderOption } from "./useOidcBindingWorkflow";
 
 defineProps<{
   expiresAt: string;
@@ -26,7 +26,7 @@ defineProps<{
   isCreating: boolean;
   open: boolean;
   providerId: string;
-  providers: OIDCProviderView[];
+  providers: ExternalProviderOption[];
 }>();
 
 const emit = defineEmits<{

@@ -1,5 +1,26 @@
 use super::*;
 
+pub(crate) struct LdapBindingClaim<'a> {
+    pub invite_key: &'a str,
+    pub subject_key: &'a str,
+    pub binding_key: &'a str,
+    pub bindings_index_key: &'a str,
+    pub binding_id: &'a str,
+    pub binding: &'a Value,
+    pub provider_id: &'a str,
+    pub totp_id: &'a str,
+    pub score: i64,
+}
+
+pub(crate) struct LdapBindingUpdate<'a> {
+    pub subject_key: &'a str,
+    pub binding_key: &'a str,
+    pub bindings_index_key: &'a str,
+    pub binding_id: &'a str,
+    pub binding: &'a Value,
+    pub score: i64,
+}
+
 struct ConfigFenceSnapshot {
     config_raw: Option<String>,
     generation_raw: Option<String>,
@@ -400,6 +421,90 @@ return value
             .query_async(&mut conn)
             .await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
+    }
+
+    /// Atomically consumes an LDAP invitation and reserves/persists its
+    /// provider-scoped directory identity. Returns false when the invitation
+    /// is gone or the identity has already been claimed.
+    pub(crate) async fn claim_ldap_binding_and_consume_invite(
+        &self,
+        claim: LdapBindingClaim<'_>,
+    ) -> crate::storage::StorageResult<bool> {
+        let binding_raw = serde_json::to_string(claim.binding)?;
+        let mut conn = self.conn();
+        let claimed: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+-- fn-knock:eval:claim-ldap-binding:v2
+local invite_raw = redis.call("GET", KEYS[1])
+if not invite_raw then
+  return 0
+end
+local decoded, invite = pcall(cjson.decode, invite_raw)
+if not decoded or type(invite) ~= "table" then
+  return 0
+end
+if tostring(invite["provider_id"] or "") ~= ARGV[4]
+  or tostring(invite["totp_id"] or "") ~= ARGV[5] then
+  return 0
+end
+if redis.call("EXISTS", KEYS[2]) == 1 or redis.call("EXISTS", KEYS[3]) == 1 then
+  return 0
+end
+redis.call("SET", KEYS[2], ARGV[1])
+redis.call("SET", KEYS[3], ARGV[2])
+redis.call("ZADD", KEYS[4], ARGV[3], ARGV[1])
+redis.call("DEL", KEYS[1])
+return 1
+"#,
+            )
+            .arg(4)
+            .arg(claim.invite_key)
+            .arg(claim.subject_key)
+            .arg(claim.binding_key)
+            .arg(claim.bindings_index_key)
+            .arg(claim.binding_id)
+            .arg(binding_raw)
+            .arg(claim.score)
+            .arg(claim.provider_id)
+            .arg(claim.totp_id)
+            .query_async(&mut conn)
+            .await?;
+        Ok(claimed == 1)
+    }
+
+    /// Updates LDAP binding metadata only while the provider-scoped subject
+    /// still points at the same binding. This prevents a concurrent admin
+    /// revocation from being resurrected by an in-flight login.
+    pub(crate) async fn update_ldap_binding_if_owned(
+        &self,
+        update: LdapBindingUpdate<'_>,
+    ) -> crate::storage::StorageResult<bool> {
+        let binding_raw = serde_json::to_string(update.binding)?;
+        let mut conn = self.conn();
+        let updated: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+-- fn-knock:eval:update-ldap-binding-if-owned:v1
+if redis.call("GET", KEYS[1]) ~= ARGV[1]
+  or redis.call("EXISTS", KEYS[2]) == 0 then
+  return 0
+end
+redis.call("SET", KEYS[2], ARGV[2])
+redis.call("ZADD", KEYS[3], ARGV[3], ARGV[1])
+return 1
+"#,
+            )
+            .arg(3)
+            .arg(update.subject_key)
+            .arg(update.binding_key)
+            .arg(update.bindings_index_key)
+            .arg(update.binding_id)
+            .arg(binding_raw)
+            .arg(update.score)
+            .query_async(&mut conn)
+            .await?;
+        Ok(updated == 1)
     }
 
     pub async fn hgetall_string_map(

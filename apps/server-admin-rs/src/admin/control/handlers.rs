@@ -13,6 +13,7 @@ use crate::{
     auth::verify_totp_token,
     auth_mobility,
     i18n::Translator,
+    ldap_auth::ldap_delete_bindings_by_totp,
     oidc_admin::oidc_delete_bindings_by_totp,
     response,
     state::AppState,
@@ -526,6 +527,13 @@ pub(super) async fn totp_delete(State(state): State<AppState>, Path(id): Path<St
             }
             if let Err(error) = oidc_delete_bindings_by_totp(&state, &id).await {
                 tracing::warn!(%error, %id, "failed to delete OIDC bindings for deleted TOTP credential");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_control_text(&translator, "totp.deleteFailed"),
+                );
+            }
+            if let Err(error) = ldap_delete_bindings_by_totp(&state, &id).await {
+                tracing::warn!(%error, %id, "failed to delete LDAP bindings for deleted TOTP credential");
                 return response::error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     admin_control_text(&translator, "totp.deleteFailed"),

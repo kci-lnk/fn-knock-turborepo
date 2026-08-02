@@ -44,8 +44,8 @@ pub(super) fn build_notification_details(
             let auth_method_raw = read_payload_value(event, "auth_method");
             let auth_provider_name = read_payload_value(event, "auth_provider_name");
             let auth_method = format_auth_method_label(&auth_method_raw, translator);
-            let is_oidc_login = auth_method_raw == "OIDC";
-            let login_method_text = if is_oidc_login && !auth_provider_name.is_empty() {
+            let is_external_login = matches!(auth_method_raw.as_str(), "OIDC" | "LDAP");
+            let login_method_text = if is_external_login && !auth_provider_name.is_empty() {
                 notification_detail_text(
                     translator,
                     "authLoginSuccess.loginViaProvider",
@@ -64,7 +64,7 @@ pub(super) fn build_notification_details(
                     )],
                 )
             };
-            let login_auth_text = if is_oidc_login && !auth_provider_name.is_empty() {
+            let login_auth_text = if is_external_login && !auth_provider_name.is_empty() {
                 notification_detail_text(
                     translator,
                     "authLoginSuccess.authViaProvider",
@@ -89,7 +89,7 @@ pub(super) fn build_notification_details(
                 format_notification_bool(&read_payload_value(event, "remember_me"), translator);
             let expires_at = format_notification_datetime(&read_payload_value(event, "expires_at"));
 
-            let base_summary = if is_oidc_login {
+            let base_summary = if is_external_login {
                 let totp_part = if linked_totp_name.is_empty() {
                     String::new()
                 } else {

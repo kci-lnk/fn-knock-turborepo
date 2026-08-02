@@ -76,6 +76,13 @@ pub(super) async fn build_auth_shell_data(
     } else {
         Vec::new()
     };
+    let ldap_providers = if login_mode.allows_totp_family() {
+        crate::ldap_auth::ldap_public_providers(state)
+            .await
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let passkey = public_passkey_status(state, headers, &config).await;
     let mut data = json!({
         "locale": locale,
@@ -89,7 +96,8 @@ pub(super) async fn build_auth_shell_data(
         "client": { "ip": client_ip },
         "captcha": public_captcha_settings_from_settings(state, &captcha_settings, &translator),
         "passkey": passkey,
-        "oidc": { "providers": oidc_providers }
+        "oidc": { "providers": oidc_providers },
+        "ldap": { "providers": ldap_providers }
     });
 
     if include_redirect {

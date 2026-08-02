@@ -1201,6 +1201,47 @@ export const enServer = {
         "Use a custom provider with standard OpenID Connect Discovery.",
     },
   },
+  ldap: {
+    catalog: {
+      openldapLabel: "OpenLDAP",
+      activeDirectoryLabel: "Active Directory",
+      customLabel: "Custom LDAP",
+    },
+    listProvidersFailed: "Failed to list LDAP providers",
+    providerPayloadObject: "Provider payload must be an object",
+    createProviderFailed: "Failed to create LDAP provider",
+    providerNotFound: "LDAP provider not found",
+    loadProviderFailed: "Failed to load LDAP provider",
+    updateProviderFailed: "Failed to update LDAP provider",
+    deleteProviderFailed: "Failed to delete LDAP provider",
+    connectionTestSuccess: "LDAP connection test succeeded",
+    testProviderFailed: "LDAP connection test failed",
+    testCredentialsRequired: "Directory username and password must be provided together",
+    listBindingsFailed: "Failed to list LDAP bindings",
+    bindingNotFound: "LDAP binding not found",
+    deleteBindingFailed: "Failed to delete LDAP binding",
+    invitationFieldsRequired: "TOTP credential and LDAP provider are required",
+    loadTotpFailed: "Failed to load TOTP credentials",
+    totpMissing: "TOTP credential not found",
+    providerUnavailable: "LDAP provider is unavailable",
+    loadConfigFailed: "Failed to load configuration",
+    inviteUrlBuildFailed: "Failed to build LDAP invitation URL",
+    createInviteFailed: "Failed to create LDAP invitation",
+    loginMethodUnavailable:
+      "LDAP sign-in is unavailable in the current sign-in mode",
+    inviteInvalid: "LDAP invitation is invalid",
+    inviteExpired: "LDAP invitation has expired or was already used",
+    serviceUnavailable: "Directory service is temporarily unavailable",
+    invalidCredentialsWithRetry:
+      "Directory credentials are invalid. Retry in {seconds} seconds.",
+    invalidCredentials:
+      "Directory credentials are invalid or the account is not bound",
+    bindingConflict:
+      "This directory identity is already bound or the invitation was used",
+    bindingFailed: "Failed to bind directory identity",
+    createSessionFailed: "Failed to create sign-in session",
+    loginSuccessful: "LDAP sign-in succeeded",
+  },
   subdomainMode: {
     recommendationMissingBase:
       "Root domain or auth service is not configured, so recommended certificate domains cannot be generated yet.",
@@ -2534,6 +2575,7 @@ export const enServer = {
       },
       authMethods: {
         oidc: "External account",
+        ldap: "Directory account",
       },
       grantTypes: {
         browserSession: "Browser session",

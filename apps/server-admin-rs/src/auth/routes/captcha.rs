@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) async fn verify_captcha(
+pub(crate) async fn verify_captcha(
     state: &AppState,
     submission: &CaptchaSubmission,
     client_ip: &str,

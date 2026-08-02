@@ -32,8 +32,10 @@ ipnet = "2.12"
 num-traits = "0.2"
 regex = "1.12"
 jsonwebtoken = "9.3"
+ldap3 = { version = "0.12.1", default-features = false, features = ["tls-native"] }
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 mime_guess = "2.0"
+native-tls = { version = "0.2.18", features = ["vendored"] }
 rand = "0.9"
 redis = { version = "1.3.0", features = ["tokio-comp", "connection-manager", "streams"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["charset", "json", "rustls", "stream"] }

@@ -46,7 +46,9 @@ mod utils;
 mod verify;
 
 pub(crate) use bridge::start_auth_bridge;
+pub(crate) use captcha::verify_captcha;
 use captcha::*;
+pub(crate) use handlers::backoff_login_response;
 use handlers::*;
 use preflight::*;
 pub(crate) use preflight::{login_session_has_expired, revoke_expired_presented_session};
@@ -95,6 +97,7 @@ struct LoginBody {
     token: Option<String>,
     username: Option<String>,
     password: Option<String>,
+    provider_id: Option<String>,
     captcha: CaptchaSubmission,
     #[serde(default, rename = "rememberMe")]
     remember_me: bool,
@@ -103,7 +106,7 @@ struct LoginBody {
 
 #[derive(Deserialize)]
 #[serde(tag = "provider")]
-enum CaptchaSubmission {
+pub(crate) enum CaptchaSubmission {
     #[serde(rename = "pow")]
     Pow { proof: String },
     #[serde(rename = "turnstile")]
@@ -174,5 +177,6 @@ pub fn auth_api_routes() -> Router<AppState> {
         .route("/oidc/invite", get(oidc_invite))
         .merge(passkey_routes())
         .merge(oidc_runtime_routes())
+        .merge(crate::ldap_auth::ldap_runtime_routes())
         .fallback(auth_api_not_found)
 }

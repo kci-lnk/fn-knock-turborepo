@@ -682,7 +682,7 @@ export const useSystemEventDisplay = ({
           payload.auth_provider_name || "",
         ).trim();
         const authMethodLabel =
-          authMethod === "OIDC" && authProviderName
+          (authMethod === "OIDC" || authMethod === "LDAP") && authProviderName
             ? translate("admin.eventCenter.events.viaProvider", {
                 provider: authProviderName,
               })
@@ -718,9 +718,11 @@ export const useSystemEventDisplay = ({
       case "FN_EVENT_AUTH_LOGIN_FAILURE": {
         const attempts = String(payload.attempts || "-");
         const retryAfterSeconds = Number(payload.retry_after_seconds);
-        const isOidcFailure = String(payload.method ?? "").trim() === "OIDC";
+        const isExternalFailure = ["OIDC", "LDAP"].includes(
+          String(payload.method ?? "").trim(),
+        );
         const credentialName = String(
-          (isOidcFailure && payload.auth_provider_name) ||
+          (isExternalFailure && payload.auth_provider_name) ||
             payload.credential_name ||
             "",
         ).trim();

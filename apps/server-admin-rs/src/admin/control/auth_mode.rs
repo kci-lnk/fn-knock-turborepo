@@ -16,6 +16,7 @@ use crate::{
     crypto_utils::random_bytes,
     http_utils::url_encode_component as percent_encode,
     i18n::Translator,
+    ldap_auth::ldap_delete_bindings_by_totp,
     oidc_admin::oidc_delete_bindings_by_totp,
     response,
     state::AppState,
@@ -991,6 +992,9 @@ async fn switch_auth_login_mode(
             .store
             .set_auth_login_mode(AuthLoginMode::Password)
             .await?;
+        // Close the race with a login that passed its mode check immediately
+        // before the first revocation sweep.
+        destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
     } else {
         let (_, accounts) = projected_auth_accounts(state).await?;
         let totp_ids = state
@@ -1009,6 +1013,7 @@ async fn switch_auth_login_mode(
         apply_accounts_to_totps(state, &accounts).await?;
         destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
         state.store.set_auth_login_mode(AuthLoginMode::Totp).await?;
+        destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
     }
     if let Err(error) = refresh_gateway_auth_runtime(state).await {
         tracing::warn!(
@@ -1025,7 +1030,12 @@ async fn destroy_sessions_for_disabled_auth_mode(
     target_mode: AuthLoginMode,
 ) -> anyhow::Result<usize> {
     let disabled_methods: &[AuthMethod] = if target_mode == AuthLoginMode::Password {
-        &[AuthMethod::Totp, AuthMethod::Passkey, AuthMethod::Oidc]
+        &[
+            AuthMethod::Totp,
+            AuthMethod::Passkey,
+            AuthMethod::Oidc,
+            AuthMethod::Ldap,
+        ]
     } else {
         &[AuthMethod::Password]
     };
@@ -1076,6 +1086,7 @@ async fn delete_auth_account_and_linked_totp(state: &AppState, id: &str) -> anyh
         let _ = state.store.delete_totp(&linked_totp_id).await?;
         auth_mobility::destroy_sessions_for_totp_credential(state, &linked_totp_id).await?;
         oidc_delete_bindings_by_totp(state, &linked_totp_id).await?;
+        ldap_delete_bindings_by_totp(state, &linked_totp_id).await?;
     }
 
     if let Err(error) = refresh_gateway_auth_runtime(state).await {

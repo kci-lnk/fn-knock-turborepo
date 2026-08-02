@@ -136,7 +136,12 @@
                 binding.provider_name || binding.provider_type
               }}</TableCell>
               <TableCell>
-                <div class="font-medium">{{ binding.display_name || "-" }}</div>
+                <div class="font-medium">
+                  {{
+                    binding.display_name ||
+                    (binding.protocol === "ldap" ? binding.username : "-")
+                  }}
+                </div>
                 <div class="text-xs text-muted-foreground">
                   {{ binding.email || "" }}
                 </div>

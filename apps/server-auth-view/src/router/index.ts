@@ -73,6 +73,11 @@ const router = createRouter({
       component: () => import('../views/OidcBind.vue')
     },
     {
+      path: '/ldap/bind',
+      name: 'LdapBind',
+      component: () => import('../views/LdapBind.vue')
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: () => import('../views/NotFound.vue')

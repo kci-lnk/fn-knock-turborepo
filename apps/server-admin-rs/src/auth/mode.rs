@@ -46,6 +46,7 @@ pub(crate) enum AuthMethod {
     Password,
     Passkey,
     Oidc,
+    Ldap,
 }
 
 impl AuthMethod {
@@ -54,6 +55,8 @@ impl AuthMethod {
             Some(Self::Totp)
         } else if value.eq_ignore_ascii_case("password") {
             Some(Self::Password)
+        } else if value.eq_ignore_ascii_case("ldap") {
+            Some(Self::Ldap)
         } else {
             None
         }
@@ -65,6 +68,7 @@ impl AuthMethod {
             Self::Password => "PASSWORD",
             Self::Passkey => "PASSKEY",
             Self::Oidc => "OIDC",
+            Self::Ldap => "LDAP",
         }
     }
 

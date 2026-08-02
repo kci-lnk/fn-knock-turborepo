@@ -248,7 +248,13 @@ fn normalize_auth_path(path: &str) -> String {
 fn is_known_auth_view_path(path: &str) -> bool {
     matches!(
         normalize_auth_path(path).as_str(),
-        "/" | "/index.html" | "/login" | "/login/" | "/oidc/bind" | "/oidc/bind/"
+        "/" | "/index.html"
+            | "/login"
+            | "/login/"
+            | "/oidc/bind"
+            | "/oidc/bind/"
+            | "/ldap/bind"
+            | "/ldap/bind/"
     )
 }
 
@@ -330,6 +336,8 @@ mod tests {
         assert_eq!(normalize_auth_path("/__auth__/oidc/bind/"), "/oidc/bind/");
         assert!(is_known_auth_view_path("/auth/login"));
         assert!(is_known_auth_view_path("/__auth__/oidc/bind/"));
+        assert!(is_known_auth_view_path("/auth/ldap/bind"));
+        assert!(is_known_auth_view_path("/__auth__/ldap/bind/"));
         assert!(!is_known_auth_view_path("/auth/unknown"));
         assert!(!is_known_auth_view_path("/assets/missing.js"));
     }

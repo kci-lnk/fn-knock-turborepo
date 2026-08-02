@@ -1244,6 +1244,46 @@ export const jaJPServer = {
         "標準の OpenID Connect Discovery を使用するカスタムプロバイダー。",
     },
   },
+  ldap: {
+    catalog: {
+      openldapLabel: "OpenLDAP",
+      activeDirectoryLabel: "Active Directory",
+      customLabel: "カスタム LDAP",
+    },
+    listProvidersFailed: "LDAP プロバイダーの取得に失敗しました",
+    providerPayloadObject: "プロバイダー設定はオブジェクトである必要があります",
+    createProviderFailed: "LDAP プロバイダーの作成に失敗しました",
+    providerNotFound: "LDAP プロバイダーが見つかりません",
+    loadProviderFailed: "LDAP プロバイダーの読み込みに失敗しました",
+    updateProviderFailed: "LDAP プロバイダーの更新に失敗しました",
+    deleteProviderFailed: "LDAP プロバイダーの削除に失敗しました",
+    connectionTestSuccess: "LDAP 接続テストに成功しました",
+    testProviderFailed: "LDAP 接続テストに失敗しました",
+    testCredentialsRequired:
+      "ディレクトリユーザー名とパスワードを両方指定してください",
+    listBindingsFailed: "LDAP 連携の取得に失敗しました",
+    bindingNotFound: "LDAP 連携が見つかりません",
+    deleteBindingFailed: "LDAP 連携の削除に失敗しました",
+    invitationFieldsRequired: "TOTP 認証情報と LDAP プロバイダーが必要です",
+    loadTotpFailed: "TOTP 認証情報の読み込みに失敗しました",
+    totpMissing: "TOTP 認証情報が見つかりません",
+    providerUnavailable: "LDAP プロバイダーを利用できません",
+    loadConfigFailed: "設定の読み込みに失敗しました",
+    inviteUrlBuildFailed: "LDAP 招待 URL の生成に失敗しました",
+    createInviteFailed: "LDAP 招待の作成に失敗しました",
+    loginMethodUnavailable:
+      "現在のログインモードでは LDAP ログインを利用できません",
+    inviteInvalid: "LDAP 招待が無効です",
+    inviteExpired: "LDAP 招待の期限が切れているか、使用済みです",
+    serviceUnavailable: "ディレクトリサービスを一時的に利用できません",
+    invalidCredentialsWithRetry:
+      "ディレクトリ認証情報が無効です。{seconds} 秒後に再試行してください。",
+    invalidCredentials: "ディレクトリ認証情報が無効か、アカウントが未連携です",
+    bindingConflict: "このディレクトリ ID は連携済みか、招待が使用済みです",
+    bindingFailed: "ディレクトリ ID の連携に失敗しました",
+    createSessionFailed: "ログインセッションの作成に失敗しました",
+    loginSuccessful: "LDAP ログインに成功しました",
+  },
   subdomainMode: {
     recommendationMissingBase:
       "ルートドメインまたは認証サービスが未設定のため、推奨する証明書ドメインを生成できません。",
@@ -2640,6 +2680,7 @@ export const jaJPServer = {
       },
       authMethods: {
         oidc: "外部アカウント",
+        ldap: "ディレクトリアカウント",
       },
       grantTypes: {
         browserSession: "ブラウザセッション",

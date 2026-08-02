@@ -1153,9 +1153,55 @@ export type OIDCBinding = {
   last_used_at?: string;
 };
 
+export type LdapProviderType = "openldap" | "active_directory" | "custom";
+
+export type LdapProviderCatalogItem = {
+  type: LdapProviderType;
+  label: string;
+  defaults: {
+    transport: "ldaps" | "starttls";
+    bind_mode: "search" | "direct";
+    user_filter: string;
+    subject_attribute: string;
+    username_attribute: string;
+    display_name_attribute: string;
+    email_attribute: string;
+  };
+};
+
+export type LdapProviderView = {
+  id: string;
+  type: LdapProviderType;
+  protocol: "ldap";
+  name: string;
+  enabled: boolean;
+  connection_config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  last_test_at?: string;
+  last_test_status?: "idle" | "success" | "failed";
+  last_error?: string | null;
+};
+
+export type LdapBinding = {
+  id: string;
+  provider_id: string;
+  provider_type: LdapProviderType;
+  provider_name?: string;
+  totp_id: string;
+  subject: string;
+  dn: string;
+  username: string;
+  display_name?: string;
+  email?: string;
+  created_at: string;
+  updated_at: string;
+  last_used_at?: string;
+};
+
 export type LoginSession = {
   totpId: string;
-  method: "TOTP" | "PASSKEY" | "OIDC";
+  method: "TOTP" | "PASSWORD" | "PASSKEY" | "OIDC" | "LDAP";
   credentialId: string;
   credentialName: string;
   comment?: string;

@@ -21,6 +21,7 @@ use crate::{
     i18n::Translator,
     ip_location::ip_location_routes,
     ip_location_config::ip_location_config_routes,
+    ldap_auth::ldap_admin_routes,
     maintenance::maintenance_routes,
     notifications::notification_routes,
     oidc_admin::oidc_admin_routes,
@@ -83,6 +84,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(maintenance_routes())
         .merge(notification_routes())
         .merge(oidc_admin_routes())
+        .merge(ldap_admin_routes())
         .merge(waf_routes());
     if capabilities.acme_available {
         api = api.merge(acme_routes());

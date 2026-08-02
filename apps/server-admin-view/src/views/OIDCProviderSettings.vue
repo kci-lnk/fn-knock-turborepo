@@ -158,6 +158,8 @@
       </CardContent>
     </Card>
 
+    <LDAPProviderSettingsCard />
+
     <Dialog :open="showCreateDialog" @update:open="showCreateDialog = $event">
       <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader>
@@ -301,6 +303,7 @@ import {
 } from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import OIDCProviderFormFields from "./oidc-provider-settings/OIDCProviderFormFields.vue";
+import LDAPProviderSettingsCard from "./oidc-provider-settings/LDAPProviderSettingsCard.vue";
 import { useOIDCProviderManagement } from "./oidc-provider-settings/useOIDCProviderManagement";
 
 const { t } = useI18n();

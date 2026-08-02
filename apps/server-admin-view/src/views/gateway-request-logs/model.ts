@@ -330,6 +330,8 @@ export const credentialMethodLabel = (
       return t("admin.gatewayRequestLogs.credentialMethods.passkey");
     case "OIDC":
       return t("admin.gatewayRequestLogs.credentialMethods.oidc");
+    case "LDAP":
+      return t("admin.gatewayRequestLogs.credentialMethods.ldap");
     default:
       return value || "";
   }

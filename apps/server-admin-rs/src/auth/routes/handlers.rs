@@ -407,6 +407,30 @@ pub(super) async fn login(
             auth_route_text(&translator, "loginMethodUnavailable"),
         ));
     };
+    if method == AuthMethod::Ldap {
+        if login_mode != AuthLoginMode::Totp {
+            return with_auth_headers(response::error(
+                StatusCode::BAD_REQUEST,
+                auth_route_text(&translator, "loginMethodUnavailable"),
+            ));
+        }
+        return with_auth_headers(
+            crate::ldap_auth::login(
+                &state,
+                &headers,
+                &config,
+                &translator,
+                body.provider_id.as_deref().unwrap_or_default(),
+                body.username.as_deref().unwrap_or_default(),
+                body.password.as_deref().unwrap_or_default(),
+                body.remember_me,
+                body.redirect_uri.as_deref(),
+                &client_ip,
+                &tracking_ip,
+            )
+            .await,
+        );
+    }
     if method == AuthMethod::Password {
         if login_mode != AuthLoginMode::Password {
             return with_auth_headers(response::error(
@@ -892,7 +916,7 @@ async fn register_password_login_failure(
     }
 }
 
-pub(super) fn backoff_login_response(
+pub(crate) fn backoff_login_response(
     message: &str,
     retry_after: i64,
     blocked_until: Option<i64>,
@@ -1022,6 +1046,7 @@ mod tests {
     ) -> LoginBody {
         LoginBody {
             method: method.map(str::to_string),
+            provider_id: None,
             token: None,
             username: username.map(str::to_string),
             password: password.map(str::to_string),

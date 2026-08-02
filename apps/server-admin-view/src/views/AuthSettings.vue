@@ -553,6 +553,6 @@ function goToPasskeys(totpId: string) {
 }
 
 function goToOidcProviders() {
-  router.push("/auth/oidc-providers");
+  router.push("/auth/external-providers");
 }
 </script>

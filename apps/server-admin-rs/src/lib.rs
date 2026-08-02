@@ -30,7 +30,7 @@ pub(crate) use admin::{control as admin_control, panel as admin_panel};
 pub(crate) use app::cleanup_legacy_auth_log_storage;
 pub(crate) use auth::{
     backoff, common_locations as common_auth_locations, cookies, fnos_share_bypass,
-    hmac as hmac_auth, mobility as auth_mobility, oidc_admin, oidc_runtime,
+    hmac as hmac_auth, ldap as ldap_auth, mobility as auth_mobility, oidc_admin, oidc_runtime,
     passkey as passkey_runtime,
 };
 pub(crate) use certificates::{acme, auto_https, fnos_certificate_sync, ssl};

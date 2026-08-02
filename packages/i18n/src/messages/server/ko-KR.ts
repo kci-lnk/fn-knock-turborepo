@@ -1204,6 +1204,48 @@ export const koKRServer = {
         "표준 OpenID Connect Discovery와 함께 사용자 지정 제공자를 사용합니다.",
     },
   },
+  ldap: {
+    catalog: {
+      openldapLabel: "OpenLDAP",
+      activeDirectoryLabel: "Active Directory",
+      customLabel: "사용자 지정 LDAP",
+    },
+    listProvidersFailed: "LDAP 제공자를 불러오지 못했습니다.",
+    providerPayloadObject: "제공자 설정은 객체여야 합니다.",
+    createProviderFailed: "LDAP 제공자를 만들지 못했습니다.",
+    providerNotFound: "LDAP 제공자를 찾을 수 없습니다.",
+    loadProviderFailed: "LDAP 제공자를 불러오지 못했습니다.",
+    updateProviderFailed: "LDAP 제공자를 업데이트하지 못했습니다.",
+    deleteProviderFailed: "LDAP 제공자를 삭제하지 못했습니다.",
+    connectionTestSuccess: "LDAP 연결 테스트에 성공했습니다.",
+    testProviderFailed: "LDAP 연결 테스트에 실패했습니다.",
+    testCredentialsRequired:
+      "디렉터리 사용자 이름과 비밀번호를 함께 입력해야 합니다.",
+    listBindingsFailed: "LDAP 연결을 불러오지 못했습니다.",
+    bindingNotFound: "LDAP 연결을 찾을 수 없습니다.",
+    deleteBindingFailed: "LDAP 연결을 삭제하지 못했습니다.",
+    invitationFieldsRequired: "TOTP 자격 증명과 LDAP 제공자가 필요합니다.",
+    loadTotpFailed: "TOTP 자격 증명을 불러오지 못했습니다.",
+    totpMissing: "TOTP 자격 증명을 찾을 수 없습니다.",
+    providerUnavailable: "LDAP 제공자를 사용할 수 없습니다.",
+    loadConfigFailed: "설정을 불러오지 못했습니다.",
+    inviteUrlBuildFailed: "LDAP 초대 URL을 만들지 못했습니다.",
+    createInviteFailed: "LDAP 초대를 만들지 못했습니다.",
+    loginMethodUnavailable:
+      "현재 로그인 모드에서는 LDAP 로그인을 사용할 수 없습니다.",
+    inviteInvalid: "LDAP 초대가 잘못되었습니다.",
+    inviteExpired: "LDAP 초대가 만료되었거나 이미 사용되었습니다.",
+    serviceUnavailable: "디렉터리 서비스를 일시적으로 사용할 수 없습니다.",
+    invalidCredentialsWithRetry:
+      "디렉터리 자격 증명이 잘못되었습니다. {seconds}초 후 다시 시도하세요.",
+    invalidCredentials:
+      "디렉터리 자격 증명이 잘못되었거나 계정이 연결되지 않았습니다.",
+    bindingConflict:
+      "이 디렉터리 신원은 이미 연결되었거나 초대가 사용되었습니다.",
+    bindingFailed: "디렉터리 신원을 연결하지 못했습니다.",
+    createSessionFailed: "로그인 세션을 만들지 못했습니다.",
+    loginSuccessful: "LDAP 로그인에 성공했습니다.",
+  },
   subdomainMode: {
     recommendationMissingBase:
       "루트 도메인이나 인증 서비스가 설정되지 않아 권장 인증서 도메인을 아직 생성할 수 없습니다.",
@@ -2549,6 +2591,7 @@ export const koKRServer = {
       },
       authMethods: {
         oidc: "외부 계정",
+        ldap: "디렉터리 계정",
       },
       grantTypes: {
         browserSession: "브라우저 세션",

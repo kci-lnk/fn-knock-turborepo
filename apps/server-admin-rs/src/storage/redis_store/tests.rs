@@ -1046,6 +1046,60 @@ async fn every_application_eval_operation_runs_on_sqlite() {
         None
     );
 
+    store
+        .set_json_value(
+            "fn_knock:test:ldap:invite",
+            &json!({ "provider_id": "provider", "totp_id": "one" }),
+        )
+        .await
+        .unwrap();
+    assert!(
+        store
+            .claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+                invite_key: "fn_knock:test:ldap:invite",
+                subject_key: "fn_knock:test:ldap:subject",
+                binding_key: "fn_knock:test:ldap:binding:one",
+                bindings_index_key: "fn_knock:test:ldap:index",
+                binding_id: "one",
+                binding: &json!({ "id": "one", "totp_id": "one" }),
+                provider_id: "provider",
+                totp_id: "one",
+                score: 42,
+            })
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        store
+            .get_json_value("fn_knock:test:ldap:invite")
+            .await
+            .unwrap(),
+        None
+    );
+    store
+        .set_json_value(
+            "fn_knock:test:ldap:invite:replay",
+            &json!({ "provider_id": "provider", "totp_id": "two" }),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+                invite_key: "fn_knock:test:ldap:invite:replay",
+                subject_key: "fn_knock:test:ldap:subject",
+                binding_key: "fn_knock:test:ldap:binding:two",
+                bindings_index_key: "fn_knock:test:ldap:index",
+                binding_id: "two",
+                binding: &json!({ "id": "two", "totp_id": "two" }),
+                provider_id: "provider",
+                totp_id: "two",
+                score: 43,
+            })
+            .await
+            .unwrap()
+    );
+
     let backoff = store
         .register_login_backoff_failure("192.0.2.1")
         .await
@@ -1168,6 +1222,152 @@ async fn every_application_eval_operation_runs_on_sqlite() {
             .unwrap(),
         vec!["future".to_string()]
     );
+}
+
+#[tokio::test]
+async fn ldap_binding_claim_is_atomic_under_concurrency() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    store
+        .set_json_value(
+            "fn_knock:test:ldap:race:invite",
+            &json!({ "provider_id": "provider", "totp_id": "shared" }),
+        )
+        .await
+        .unwrap();
+
+    let left_store = store.clone();
+    let right_store = store.clone();
+    let left_binding = json!({ "id": "left", "totp_id": "shared" });
+    let right_binding = json!({ "id": "right", "totp_id": "shared" });
+    let (left, right) = tokio::join!(
+        left_store.claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+            invite_key: "fn_knock:test:ldap:race:invite",
+            subject_key: "fn_knock:test:ldap:race:subject",
+            binding_key: "fn_knock:test:ldap:race:binding:left",
+            bindings_index_key: "fn_knock:test:ldap:race:index",
+            binding_id: "left",
+            binding: &left_binding,
+            provider_id: "provider",
+            totp_id: "shared",
+            score: 1,
+        }),
+        right_store.claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+            invite_key: "fn_knock:test:ldap:race:invite",
+            subject_key: "fn_knock:test:ldap:race:subject",
+            binding_key: "fn_knock:test:ldap:race:binding:right",
+            bindings_index_key: "fn_knock:test:ldap:race:index",
+            binding_id: "right",
+            binding: &right_binding,
+            provider_id: "provider",
+            totp_id: "shared",
+            score: 2,
+        }),
+    );
+    assert_ne!(left.unwrap(), right.unwrap());
+    let winner = store
+        .get_string_value("fn_knock:test:ldap:race:subject")
+        .await
+        .unwrap()
+        .expect("subject is claimed");
+    assert!(matches!(winner.as_str(), "left" | "right"));
+    assert_eq!(
+        store
+            .zrevrange_strings("fn_knock:test:ldap:race:index")
+            .await
+            .unwrap(),
+        vec![winner]
+    );
+}
+
+#[tokio::test]
+async fn ldap_binding_claim_checks_invite_target_and_revocation_wins_updates() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let invite_key = "fn_knock:test:ldap:verified-invite";
+    let subject_key = "fn_knock:test:ldap:verified-subject";
+    let binding_key = "fn_knock:test:ldap:verified-binding";
+    let index_key = "fn_knock:test:ldap:verified-index";
+    let binding = json!({ "id": "binding", "provider_id": "provider", "totp_id": "totp" });
+    store
+        .set_json_value(
+            invite_key,
+            &json!({ "provider_id": "provider", "totp_id": "totp" }),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !store
+            .claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+                invite_key,
+                subject_key,
+                binding_key,
+                bindings_index_key: index_key,
+                binding_id: "binding",
+                binding: &binding,
+                provider_id: "other-provider",
+                totp_id: "totp",
+                score: 1,
+            })
+            .await
+            .unwrap()
+    );
+    assert!(store.get_json_value(invite_key).await.unwrap().is_some());
+
+    assert!(
+        store
+            .claim_ldap_binding_and_consume_invite(LdapBindingClaim {
+                invite_key,
+                subject_key,
+                binding_key,
+                bindings_index_key: index_key,
+                binding_id: "binding",
+                binding: &binding,
+                provider_id: "provider",
+                totp_id: "totp",
+                score: 2,
+            })
+            .await
+            .unwrap()
+    );
+    let updated = json!({ "id": "binding", "provider_id": "provider", "totp_id": "totp", "last_used_at": "now" });
+    assert!(
+        store
+            .update_ldap_binding_if_owned(LdapBindingUpdate {
+                subject_key,
+                binding_key,
+                bindings_index_key: index_key,
+                binding_id: "binding",
+                binding: &updated,
+                score: 3,
+            })
+            .await
+            .unwrap()
+    );
+
+    store
+        .delete_keys(&[subject_key.to_string(), binding_key.to_string()])
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .update_ldap_binding_if_owned(LdapBindingUpdate {
+                subject_key,
+                binding_key,
+                bindings_index_key: index_key,
+                binding_id: "binding",
+                binding: &updated,
+                score: 4,
+            })
+            .await
+            .unwrap()
+    );
+    assert!(store.get_json_value(binding_key).await.unwrap().is_none());
 }
 
 #[tokio::test]

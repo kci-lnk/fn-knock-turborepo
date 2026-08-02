@@ -2130,7 +2130,8 @@
           "runtimeMonitor": "运行监控"
         },
         "authMethods": {
-          "oidc": "外部账号"
+          "oidc": "外部账号",
+          "ldap": "目录账号"
         },
         "grantTypes": {
           "browserSession": "浏览器会话",
@@ -3145,6 +3146,43 @@
       "confirmPhrase": "清空所有数据",
       "confirmationMismatch": "确认文本不匹配",
       "clearFailed": "清空所有数据失败"
+    },
+    "ldap": {
+      "listProvidersFailed": "获取 LDAP 提供商失败",
+      "providerPayloadObject": "提供商配置必须是对象",
+      "createProviderFailed": "创建 LDAP 提供商失败",
+      "providerNotFound": "LDAP 提供商不存在",
+      "loadProviderFailed": "加载 LDAP 提供商失败",
+      "updateProviderFailed": "更新 LDAP 提供商失败",
+      "deleteProviderFailed": "删除 LDAP 提供商失败",
+      "connectionTestSuccess": "LDAP 连接测试成功",
+      "testProviderFailed": "LDAP 连接测试失败",
+      "listBindingsFailed": "获取 LDAP 绑定失败",
+      "bindingNotFound": "LDAP 绑定不存在",
+      "deleteBindingFailed": "删除 LDAP 绑定失败",
+      "invitationFieldsRequired": "必须选择 TOTP 凭据和 LDAP 提供商",
+      "loadTotpFailed": "加载 TOTP 凭据失败",
+      "totpMissing": "TOTP 凭据不存在",
+      "providerUnavailable": "LDAP 提供商不可用",
+      "loadConfigFailed": "加载配置失败",
+      "inviteUrlBuildFailed": "生成 LDAP 邀请链接失败",
+      "createInviteFailed": "创建 LDAP 邀请失败",
+      "loginMethodUnavailable": "当前登录模式不支持 LDAP 登录",
+      "inviteInvalid": "LDAP 邀请无效",
+      "inviteExpired": "LDAP 邀请已过期或已使用",
+      "serviceUnavailable": "目录服务暂时不可用",
+      "invalidCredentialsWithRetry": "目录凭据无效，请在 {seconds} 秒后重试。",
+      "invalidCredentials": "目录凭据无效或账号尚未绑定",
+      "bindingConflict": "该目录身份已绑定，或邀请已被使用",
+      "bindingFailed": "绑定目录身份失败",
+      "createSessionFailed": "创建登录会话失败",
+      "loginSuccessful": "LDAP 登录成功",
+      "testCredentialsRequired": "目录用户名和密码必须同时提供",
+      "catalog": {
+        "openldapLabel": "OpenLDAP",
+        "activeDirectoryLabel": "Active Directory",
+        "customLabel": "自定义 LDAP"
+      }
     }
   },
   "zh-Hant": {
@@ -5278,7 +5316,8 @@
           "runtimeMonitor": "執行監控"
         },
         "authMethods": {
-          "oidc": "外部帳號"
+          "oidc": "外部帳號",
+          "ldap": "目錄帳號"
         },
         "grantTypes": {
           "browserSession": "瀏覽器會話",
@@ -6293,6 +6332,43 @@
       "confirmPhrase": "清空所有資料",
       "confirmationMismatch": "確認文字不相符",
       "clearFailed": "清空所有資料失敗"
+    },
+    "ldap": {
+      "listProvidersFailed": "取得 LDAP 提供商失敗",
+      "providerPayloadObject": "提供商配置必須是物件",
+      "createProviderFailed": "建立 LDAP 提供商失敗",
+      "providerNotFound": "LDAP 提供商不存在",
+      "loadProviderFailed": "載入 LDAP 提供商失敗",
+      "updateProviderFailed": "更新 LDAP 提供商失敗",
+      "deleteProviderFailed": "刪除 LDAP 提供商失敗",
+      "connectionTestSuccess": "LDAP 連線測試成功",
+      "testProviderFailed": "LDAP 連線測試失敗",
+      "listBindingsFailed": "取得 LDAP 綁定失敗",
+      "bindingNotFound": "LDAP 綁定不存在",
+      "deleteBindingFailed": "刪除 LDAP 綁定失敗",
+      "invitationFieldsRequired": "必須選擇 TOTP 憑據和 LDAP 提供商",
+      "loadTotpFailed": "載入 TOTP 憑據失敗",
+      "totpMissing": "TOTP 憑據不存在",
+      "providerUnavailable": "LDAP 提供商不可用",
+      "loadConfigFailed": "載入配置失敗",
+      "inviteUrlBuildFailed": "產生 LDAP 邀請連結失敗",
+      "createInviteFailed": "建立 LDAP 邀請失敗",
+      "loginMethodUnavailable": "目前登入模式不支援 LDAP 登入",
+      "inviteInvalid": "LDAP 邀請無效",
+      "inviteExpired": "LDAP 邀請已過期或已使用",
+      "serviceUnavailable": "目錄服務暫時不可用",
+      "invalidCredentialsWithRetry": "目錄憑據無效，請在 {seconds} 秒後重試。",
+      "invalidCredentials": "目錄憑據無效或帳號尚未綁定",
+      "bindingConflict": "該目錄身份已綁定，或邀請已被使用",
+      "bindingFailed": "綁定目錄身份失敗",
+      "createSessionFailed": "建立登入會話失敗",
+      "loginSuccessful": "LDAP 登入成功",
+      "testCredentialsRequired": "目錄使用者名稱和密碼必須同時提供",
+      "catalog": {
+        "openldapLabel": "OpenLDAP",
+        "activeDirectoryLabel": "Active Directory",
+        "customLabel": "自訂 LDAP"
+      }
     }
   },
   "en": {
@@ -8426,7 +8502,8 @@
           "runtimeMonitor": "Runtime monitor"
         },
         "authMethods": {
-          "oidc": "External account"
+          "oidc": "External account",
+          "ldap": "Directory account"
         },
         "grantTypes": {
           "browserSession": "Browser session",
@@ -9441,6 +9518,43 @@
       "confirmPhrase": "delete all data",
       "confirmationMismatch": "The confirmation text does not match",
       "clearFailed": "Failed to clear all data"
+    },
+    "ldap": {
+      "listProvidersFailed": "Failed to list LDAP providers",
+      "providerPayloadObject": "Provider payload must be an object",
+      "createProviderFailed": "Failed to create LDAP provider",
+      "providerNotFound": "LDAP provider not found",
+      "loadProviderFailed": "Failed to load LDAP provider",
+      "updateProviderFailed": "Failed to update LDAP provider",
+      "deleteProviderFailed": "Failed to delete LDAP provider",
+      "connectionTestSuccess": "LDAP connection test succeeded",
+      "testProviderFailed": "LDAP connection test failed",
+      "listBindingsFailed": "Failed to list LDAP bindings",
+      "bindingNotFound": "LDAP binding not found",
+      "deleteBindingFailed": "Failed to delete LDAP binding",
+      "invitationFieldsRequired": "TOTP credential and LDAP provider are required",
+      "loadTotpFailed": "Failed to load TOTP credentials",
+      "totpMissing": "TOTP credential not found",
+      "providerUnavailable": "LDAP provider is unavailable",
+      "loadConfigFailed": "Failed to load configuration",
+      "inviteUrlBuildFailed": "Failed to build LDAP invitation URL",
+      "createInviteFailed": "Failed to create LDAP invitation",
+      "loginMethodUnavailable": "LDAP sign-in is unavailable in the current sign-in mode",
+      "inviteInvalid": "LDAP invitation is invalid",
+      "inviteExpired": "LDAP invitation has expired or was already used",
+      "serviceUnavailable": "Directory service is temporarily unavailable",
+      "invalidCredentialsWithRetry": "Directory credentials are invalid. Retry in {seconds} seconds.",
+      "invalidCredentials": "Directory credentials are invalid or the account is not bound",
+      "bindingConflict": "This directory identity is already bound or the invitation was used",
+      "bindingFailed": "Failed to bind directory identity",
+      "createSessionFailed": "Failed to create sign-in session",
+      "loginSuccessful": "LDAP sign-in succeeded",
+      "testCredentialsRequired": "Directory username and password must be provided together",
+      "catalog": {
+        "openldapLabel": "OpenLDAP",
+        "activeDirectoryLabel": "Active Directory",
+        "customLabel": "Custom LDAP"
+      }
     }
   },
   "ko-KR": {
@@ -11574,7 +11688,8 @@
           "runtimeMonitor": "런타임 모니터"
         },
         "authMethods": {
-          "oidc": "외부 계정"
+          "oidc": "외부 계정",
+          "ldap": "디렉터리 계정"
         },
         "grantTypes": {
           "browserSession": "브라우저 세션",
@@ -12589,6 +12704,43 @@
       "confirmPhrase": "모든 데이터 지우기",
       "confirmationMismatch": "확인 문구가 일치하지 않습니다",
       "clearFailed": "모든 데이터를 지우지 못했습니다"
+    },
+    "ldap": {
+      "listProvidersFailed": "LDAP 제공자를 불러오지 못했습니다.",
+      "providerPayloadObject": "제공자 설정은 객체여야 합니다.",
+      "createProviderFailed": "LDAP 제공자를 만들지 못했습니다.",
+      "providerNotFound": "LDAP 제공자를 찾을 수 없습니다.",
+      "loadProviderFailed": "LDAP 제공자를 불러오지 못했습니다.",
+      "updateProviderFailed": "LDAP 제공자를 업데이트하지 못했습니다.",
+      "deleteProviderFailed": "LDAP 제공자를 삭제하지 못했습니다.",
+      "connectionTestSuccess": "LDAP 연결 테스트에 성공했습니다.",
+      "testProviderFailed": "LDAP 연결 테스트에 실패했습니다.",
+      "listBindingsFailed": "LDAP 연결을 불러오지 못했습니다.",
+      "bindingNotFound": "LDAP 연결을 찾을 수 없습니다.",
+      "deleteBindingFailed": "LDAP 연결을 삭제하지 못했습니다.",
+      "invitationFieldsRequired": "TOTP 자격 증명과 LDAP 제공자가 필요합니다.",
+      "loadTotpFailed": "TOTP 자격 증명을 불러오지 못했습니다.",
+      "totpMissing": "TOTP 자격 증명을 찾을 수 없습니다.",
+      "providerUnavailable": "LDAP 제공자를 사용할 수 없습니다.",
+      "loadConfigFailed": "설정을 불러오지 못했습니다.",
+      "inviteUrlBuildFailed": "LDAP 초대 URL을 만들지 못했습니다.",
+      "createInviteFailed": "LDAP 초대를 만들지 못했습니다.",
+      "loginMethodUnavailable": "현재 로그인 모드에서는 LDAP 로그인을 사용할 수 없습니다.",
+      "inviteInvalid": "LDAP 초대가 잘못되었습니다.",
+      "inviteExpired": "LDAP 초대가 만료되었거나 이미 사용되었습니다.",
+      "serviceUnavailable": "디렉터리 서비스를 일시적으로 사용할 수 없습니다.",
+      "invalidCredentialsWithRetry": "디렉터리 자격 증명이 잘못되었습니다. {seconds}초 후 다시 시도하세요.",
+      "invalidCredentials": "디렉터리 자격 증명이 잘못되었거나 계정이 연결되지 않았습니다.",
+      "bindingConflict": "이 디렉터리 신원은 이미 연결되었거나 초대가 사용되었습니다.",
+      "bindingFailed": "디렉터리 신원을 연결하지 못했습니다.",
+      "createSessionFailed": "로그인 세션을 만들지 못했습니다.",
+      "loginSuccessful": "LDAP 로그인에 성공했습니다.",
+      "testCredentialsRequired": "디렉터리 사용자 이름과 비밀번호를 함께 입력해야 합니다.",
+      "catalog": {
+        "openldapLabel": "OpenLDAP",
+        "activeDirectoryLabel": "Active Directory",
+        "customLabel": "사용자 지정 LDAP"
+      }
     }
   },
   "ja-JP": {
@@ -14722,7 +14874,8 @@
           "runtimeMonitor": "ランタイム監視"
         },
         "authMethods": {
-          "oidc": "外部アカウント"
+          "oidc": "外部アカウント",
+          "ldap": "ディレクトリアカウント"
         },
         "grantTypes": {
           "browserSession": "ブラウザセッション",
@@ -15737,6 +15890,43 @@
       "confirmPhrase": "すべてのデータを消去",
       "confirmationMismatch": "確認テキストが一致しません",
       "clearFailed": "すべてのデータを消去できませんでした"
+    },
+    "ldap": {
+      "listProvidersFailed": "LDAP プロバイダーの取得に失敗しました",
+      "providerPayloadObject": "プロバイダー設定はオブジェクトである必要があります",
+      "createProviderFailed": "LDAP プロバイダーの作成に失敗しました",
+      "providerNotFound": "LDAP プロバイダーが見つかりません",
+      "loadProviderFailed": "LDAP プロバイダーの読み込みに失敗しました",
+      "updateProviderFailed": "LDAP プロバイダーの更新に失敗しました",
+      "deleteProviderFailed": "LDAP プロバイダーの削除に失敗しました",
+      "connectionTestSuccess": "LDAP 接続テストに成功しました",
+      "testProviderFailed": "LDAP 接続テストに失敗しました",
+      "listBindingsFailed": "LDAP 連携の取得に失敗しました",
+      "bindingNotFound": "LDAP 連携が見つかりません",
+      "deleteBindingFailed": "LDAP 連携の削除に失敗しました",
+      "invitationFieldsRequired": "TOTP 認証情報と LDAP プロバイダーが必要です",
+      "loadTotpFailed": "TOTP 認証情報の読み込みに失敗しました",
+      "totpMissing": "TOTP 認証情報が見つかりません",
+      "providerUnavailable": "LDAP プロバイダーを利用できません",
+      "loadConfigFailed": "設定の読み込みに失敗しました",
+      "inviteUrlBuildFailed": "LDAP 招待 URL の生成に失敗しました",
+      "createInviteFailed": "LDAP 招待の作成に失敗しました",
+      "loginMethodUnavailable": "現在のログインモードでは LDAP ログインを利用できません",
+      "inviteInvalid": "LDAP 招待が無効です",
+      "inviteExpired": "LDAP 招待の期限が切れているか、使用済みです",
+      "serviceUnavailable": "ディレクトリサービスを一時的に利用できません",
+      "invalidCredentialsWithRetry": "ディレクトリ認証情報が無効です。{seconds} 秒後に再試行してください。",
+      "invalidCredentials": "ディレクトリ認証情報が無効か、アカウントが未連携です",
+      "bindingConflict": "このディレクトリ ID は連携済みか、招待が使用済みです",
+      "bindingFailed": "ディレクトリ ID の連携に失敗しました",
+      "createSessionFailed": "ログインセッションの作成に失敗しました",
+      "loginSuccessful": "LDAP ログインに成功しました",
+      "testCredentialsRequired": "ディレクトリユーザー名とパスワードを両方指定してください",
+      "catalog": {
+        "openldapLabel": "OpenLDAP",
+        "activeDirectoryLabel": "Active Directory",
+        "customLabel": "カスタム LDAP"
+      }
     }
   }
 }

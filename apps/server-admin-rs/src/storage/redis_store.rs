@@ -44,6 +44,7 @@ mod waf_logs;
 mod whitelist;
 
 pub use config::default_config;
+pub(crate) use core::{LdapBindingClaim, LdapBindingUpdate};
 pub use types::*;
 
 const CONFIG_KEY: &str = "fn_knock:config";

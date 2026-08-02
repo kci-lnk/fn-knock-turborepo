@@ -6,7 +6,9 @@
         isCaptchaVerified
           ? loginMode === 'password'
             ? t('auth.passwordPrompt')
-            : t('auth.otpPrompt')
+            : credentialKind === 'ldap'
+              ? t('auth.ldapPrompt')
+              : t('auth.otpPrompt')
           : t('auth.captchaFirst')
       "
     >
@@ -144,28 +146,28 @@
           </Button>
         </div>
 
-        <div
-          v-if="
-            isPasskeySupported &&
-            isPasskeyAvailable &&
-            !isCaptchaVerified &&
-            oidcProviders.length > 0
-          "
-          class="flex w-full items-center gap-3 text-sm text-muted-foreground"
-          aria-hidden="true"
-        >
-          <div class="h-px flex-1 bg-border"></div>
-          <span class="shrink-0">OR</span>
-          <div class="h-px flex-1 bg-border"></div>
-        </div>
-
         <OidcProviderButtons
           v-if="!isCaptchaVerified && oidcProviders.length > 0"
           :active-provider-id="activeOidcProviderId"
           :disabled="isOidcLoading || isLoginCoolingDown"
           :is-loading="isOidcLoading"
           :providers="oidcProviders"
+          :show-divider="isPasskeySupported && isPasskeyAvailable"
           @login="handleOidcLogin"
+        />
+
+        <LdapLoginControls
+          v-if="
+            isCaptchaVerified &&
+            loginMode === 'totp' &&
+            ldapProviders.length > 0
+          "
+          v-model:credential-kind="credentialKind"
+          v-model:provider-id="ldapProviderId"
+          v-model:username="username"
+          v-model:password="password"
+          :providers="ldapProviders"
+          :disabled="isLoading || isLoginCoolingDown"
         />
 
         <div
@@ -221,7 +223,11 @@
 
         <div
           class="w-full flex justify-center"
-          v-if="isCaptchaVerified && loginMode === 'totp'"
+          v-if="
+            isCaptchaVerified &&
+            loginMode === 'totp' &&
+            credentialKind === 'totp'
+          "
         >
           <InputOTP
             :aria-label="t('auth.otpPrompt')"
@@ -355,7 +361,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Eye, EyeOff } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
@@ -376,12 +382,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AuthOidcProvider } from "@frontend-core/auth/types";
+import type {
+  AuthLdapProvider,
+  AuthOidcProvider,
+} from "@frontend-core/auth/types";
 import { buildAuthApiPath, fetchNoStore } from "@/lib/api";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import AuthFooter from "@/components/AuthFooter.vue";
 import AuthCard from "@/components/AuthCard.vue";
 import AuthShell from "@/components/AuthShell.vue";
+import LdapLoginControls from "@/components/LdapLoginControls.vue";
 import OidcProviderButtons from "@/components/OidcProviderButtons.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
 import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
@@ -418,9 +428,16 @@ const rememberMe = ref(false);
 const errorMessage = ref("");
 const showErrorDialog = ref(false);
 const isPasskeyAvailable = ref(false);
+const ldapProviders = ref<AuthLdapProvider[]>([]);
+const ldapProviderId = ref("");
+const credentialKind = ref<"totp" | "ldap">("totp");
 const oidcProviders = ref<AuthOidcProvider[]>([]);
 const oidcError = ref("");
 const loginMode = ref<"totp" | "password">("totp");
+watch(credentialKind, (kind) => {
+  password.value = "";
+  if (kind === "totp") username.value = "";
+});
 const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } =
   useClientIpLocation();
 
@@ -510,6 +527,8 @@ const { handleLogin, handleOtpComplete, isLoading, loginButtonLabel } =
     isLoginCompletionPending,
     isLoginCoolingDown,
     isPasskeySupported,
+    credentialKind,
+    ldapProviderId,
     loginCooldownSeconds,
     loginMode,
     password,
@@ -541,6 +560,8 @@ useLoginBootstrap({
   captchaConfig,
   isCaptchaConfigLoading,
   isPasskeyAvailable,
+  ldapProviderId,
+  ldapProviders,
   loginMode,
   navigateAfterBootstrap,
   oidcError,

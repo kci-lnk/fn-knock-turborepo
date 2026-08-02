@@ -10,6 +10,7 @@ defineProps<{
   disabled: boolean;
   isLoading: boolean;
   providers: AuthOidcProvider[];
+  showDivider?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,12 +20,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 type ProviderIconKind =
-  | "qq"
-  | "github"
-  | "google"
-  | "microsoft"
-  | "custom_oidc"
-  | "generic";
+  "qq" | "github" | "google" | "microsoft" | "custom_oidc" | "generic";
 
 const providerIconKind = (provider: AuthOidcProvider): ProviderIconKind => {
   const token = `${provider.type || ""} ${provider.name || ""} ${
@@ -45,6 +41,15 @@ const providerIconKind = (provider: AuthOidcProvider): ProviderIconKind => {
 
 <template>
   <div class="w-full space-y-2">
+    <div
+      v-if="showDivider"
+      class="flex w-full items-center gap-3 text-sm text-muted-foreground"
+      aria-hidden="true"
+    >
+      <div class="h-px flex-1 bg-border" />
+      <span class="shrink-0">{{ t("auth.or") }}</span>
+      <div class="h-px flex-1 bg-border" />
+    </div>
     <Button
       v-for="provider in providers"
       :key="provider.id"

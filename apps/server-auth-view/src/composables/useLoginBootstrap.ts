@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted, type Ref } from "vue";
 import type {
   AuthBootstrapData,
   AuthGrantType,
+  AuthLdapProvider,
   AuthOidcProvider,
 } from "@frontend-core/auth/types";
 import type { CaptchaPublicSettings } from "@frontend-core/captcha/types";
@@ -13,6 +14,8 @@ interface UseLoginBootstrapOptions {
   captchaConfig: Ref<CaptchaPublicSettings | null>;
   isCaptchaConfigLoading: Ref<boolean>;
   isPasskeyAvailable: Ref<boolean>;
+  ldapProviderId: Ref<string>;
+  ldapProviders: Ref<AuthLdapProvider[]>;
   loginMode: Ref<"totp" | "password">;
   navigateAfterBootstrap: (options: {
     authenticated: boolean;
@@ -33,6 +36,8 @@ export function useLoginBootstrap({
   captchaConfig,
   isCaptchaConfigLoading,
   isPasskeyAvailable,
+  ldapProviderId,
+  ldapProviders,
   loginMode,
   navigateAfterBootstrap,
   oidcError,
@@ -54,6 +59,14 @@ export function useLoginBootstrap({
       startLocationPolling(bootstrap.client);
       captchaConfig.value = bootstrap.captcha;
       isPasskeyAvailable.value = bootstrap.passkey.available;
+      ldapProviders.value = bootstrap.ldap?.providers || [];
+      if (
+        !ldapProviders.value.some(
+          (provider) => provider.id === ldapProviderId.value,
+        )
+      ) {
+        ldapProviderId.value = ldapProviders.value[0]?.id || "";
+      }
       oidcProviders.value = bootstrap.oidc?.providers || [];
       oidcError.value = bootstrap.oidc?.login_error || "";
       bootstrapGrantType.value = bootstrap.auth.grant_type;

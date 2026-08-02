@@ -1989,6 +1989,61 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(1));
     }
 
+    if script.contains("fn-knock:eval:claim-ldap-binding:v2") {
+        if keys.len() < 4 || argv.len() < 5 {
+            return Err(storage_error("LDAP binding EVAL arguments missing"));
+        }
+        let Some(invite_raw) = string_get_tx(tx, &keys[0])? else {
+            return Ok(CmdOutput::Int(0));
+        };
+        let Ok(invite) = serde_json::from_str::<serde_json::Value>(&invite_raw) else {
+            return Ok(CmdOutput::Int(0));
+        };
+        if invite
+            .get("provider_id")
+            .and_then(serde_json::Value::as_str)
+            != Some(argv[3].as_str())
+            || invite.get("totp_id").and_then(serde_json::Value::as_str) != Some(argv[4].as_str())
+            || string_get_tx(tx, &keys[1])?.is_some()
+            || string_get_tx(tx, &keys[2])?.is_some()
+        {
+            return Ok(CmdOutput::Int(0));
+        }
+        let score = argv[2]
+            .parse::<f64>()
+            .map_err(|_| storage_error("LDAP binding EVAL score is invalid"))?;
+        set_string_tx(tx, &keys[1], &argv[0], None)?;
+        set_string_tx(tx, &keys[2], &argv[1], None)?;
+        ensure_key_tx(tx, &keys[3], "zset", None)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO kv_zset(key, member, score) VALUES (?1, ?2, ?3)",
+            params![&keys[3], &argv[0], score],
+        )?;
+        delete_key_tx(tx, &keys[0])?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:update-ldap-binding-if-owned:v1") {
+        if keys.len() < 3 || argv.len() < 3 {
+            return Err(storage_error("LDAP binding update EVAL arguments missing"));
+        }
+        if string_get_tx(tx, &keys[0])?.as_deref() != Some(argv[0].as_str())
+            || string_get_tx(tx, &keys[1])?.is_none()
+        {
+            return Ok(CmdOutput::Int(0));
+        }
+        let score = argv[2]
+            .parse::<f64>()
+            .map_err(|_| storage_error("LDAP binding update EVAL score is invalid"))?;
+        set_string_tx(tx, &keys[1], &argv[1], None)?;
+        ensure_key_tx(tx, &keys[2], "zset", None)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO kv_zset(key, member, score) VALUES (?1, ?2, ?3)",
+            params![&keys[2], &argv[0], score],
+        )?;
+        return Ok(CmdOutput::Int(1));
+    }
+
     if script.contains("fn-knock:eval:cas-config-host-generation-raw:v1") {
         let config_key = keys
             .first()

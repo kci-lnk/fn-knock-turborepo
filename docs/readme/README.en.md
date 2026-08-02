@@ -43,7 +43,7 @@ fn-knock brings reverse proxying, access authentication, TLS certificates, DDNS,
 | Feature                 | What it provides                                                                                                                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Secure gateway          | Reverse proxy, forward authentication, access logs, Host / path routing, and TCP proxying                                       |
-| Authentication          | Passwords, TOTP, passkeys, OIDC, verification challenges, and granular authentication policies                                  |
+| Authentication          | Passwords, TOTP, passkeys, OIDC, LDAP/Active Directory, verification challenges, and granular authentication policies           |
 | Domains and TLS         | ACME certificate issuance, TLS configuration, and multi-provider DDNS                                                           |
 | Proactive protection    | IP allowlists, geo-based access policies, WAF, bot blocking, login backoff, and rate limiting                                   |
 | Outbound tunnels        | Configuration, lifecycle control, logs, and health monitoring for Cloudflare Tunnel (`cloudflared`) and the frp client (`frpc`) |
@@ -178,7 +178,7 @@ By default, the Go gateway source is read from the adjacent `../Go-Reauth-Proxy`
 | `apps/server-auth-view`   | Vue 3 sign-in UI                                                                    |
 | `apps/fn-knock-desktop`   | Rust + Win32 Windows manager and NSIS configuration                                 |
 | `apps/fn-knock`           | Native FPK integration for fnOS                                                     |
-| `apps/fn-knock-lite`      | Native lightweight FPK for non-root fnOS environments                              |
+| `apps/fn-knock-lite`      | Native lightweight FPK for non-root fnOS environments                               |
 | `apps/fn-knock-synology`  | Native SPK integration for Synology DSM 7                                           |
 | `deploy/docker`           | Dockerfile, Compose files, and image publishing configuration                       |
 | `deploy/linux`            | systemd / OpenRC installation and management scripts for general-purpose Linux      |

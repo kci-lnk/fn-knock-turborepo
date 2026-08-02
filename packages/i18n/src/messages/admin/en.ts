@@ -928,6 +928,61 @@ export const enAdmin = {
     hostFirewallDisabled:
       "Host firewall management is disabled, so automatic firewall handling and manual firewall actions are hidden.",
     actions: "Actions",
+    additionalPorts: {
+      menu: "Additional allowed ports",
+      title: "Additional allowed ports",
+      description:
+        "Manage ports that FN-KNOCK-FW should allow in addition to automatically managed ports. Changes are applied together when saved.",
+      loading: "Loading port configuration…",
+      loadFailedInline:
+        "The additional port configuration could not be loaded. Try again.",
+      retry: "Reload",
+      currentMode: "Current saved mode: {mode}",
+      applyImmediatelyHint:
+        "Saving immediately resets the firewall for the current mode.",
+      reverseModeHint:
+        "Reverse proxy mode does not create FN-KNOCK-FW. The configuration is preserved and takes effect after switching to direct or subdomain mode.",
+      reverseModeManualHint:
+        "Reverse proxy mode does not create FN-KNOCK-FW. Automatic firewall management is off: reset the firewall manually after switching to subdomain mode; direct mode still applies it automatically.",
+      unsavedModeHint:
+        "This page has unsaved mode changes. This action still uses the mode currently saved on the server.",
+      automaticTitle: "Automatically allowed",
+      automaticDescription:
+        "These ports come from the gateway, protocol mappings, or Smart Connect and do not need to be added below.",
+      noAutomaticPorts: "The current mode does not use managed firewall ports.",
+      customTitle: "Additional user-defined ports",
+      customDescription:
+        "Add up to {max} ports. Edit port numbers directly; deleting only changes the current draft.",
+      portAria: "Additional allowed port {number}",
+      portPlaceholder: "For example, 5666",
+      deletePort: "Delete port {port}",
+      empty: "No additional allowed ports are configured.",
+      addPort: "Add port",
+      protocolTitle: "Allows both TCP and UDP",
+      protocolDescription:
+        "Each port creates both TCP and UDP allow rules. Add only ports that genuinely need external access.",
+      saveAndApply: "Save and apply",
+      reverseModeName: "Reverse proxy mode",
+      noPorts: "None",
+      loadFailed: "Failed to load additional allowed ports",
+      saveFailed: "Failed to save additional allowed ports",
+      saved: "Additional allowed ports updated",
+      savedAndAppliedDescription:
+        "Saved {count} additional ports and reset the firewall for {mode}. Currently allowed ports: {ports}.",
+      savedForLaterDescription:
+        "Saved {count} additional ports. Reverse proxy mode does not currently create managed firewall rules; the ports will be included after switching modes.",
+      savedForLaterManualDescription:
+        "Saved {count} additional ports. Automatic firewall management is off: reset the firewall manually after switching to subdomain mode; direct mode still applies the ports automatically.",
+      savedModeNotice:
+        "The unsaved mode selection on this page was not applied.",
+      errors: {
+        required: "A port number is required.",
+        integer: "Ports must be integers.",
+        range: "Ports must be between 1 and 65535.",
+        duplicate: "Additional allowed ports must be unique.",
+        tooMany: "At most {max} additional allowed ports can be configured.",
+      },
+    },
     resetFirewallByMode: "Reset firewall for selected mode",
     clearFirewall: "Clear firewall",
     discardChanges: "Discard changes",
@@ -985,7 +1040,7 @@ export const enAdmin = {
     firewallResetDirect:
       "Firewall rebuilt for direct mode, keeping only port {ports} as the login entry{whitelist}.",
     firewallResetSubdomain:
-      "Firewall rebuilt for subdomain mode, keeping port {ports} for the gateway and protocol mappings.",
+      "Firewall rebuilt for subdomain mode, keeping port {ports} for the gateway, protocol mappings, and additional user-defined access.",
     unsavedModeNotice:
       " The saved run mode is still {current}. To keep {target} long term, click Save changes.",
     successDefaultRouteReset: ", and reset the default path entry",

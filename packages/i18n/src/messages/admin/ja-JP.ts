@@ -929,6 +929,61 @@ export const jaJPAdmin = {
     hostFirewallDisabled:
       "ホストのファイアウォール管理が無効なため、自動管理設定と手動操作は表示されません。",
     actions: "操作",
+    additionalPorts: {
+      menu: "追加で許可するポート",
+      title: "追加で許可するポート",
+      description:
+        "FN-KNOCK-FW で自動管理ポートに加えて許可するポートを管理します。変更は保存時にまとめて適用されます。",
+      loading: "ポート設定を読み込んでいます…",
+      loadFailedInline:
+        "追加ポートの設定を読み込めませんでした。再試行してください。",
+      retry: "再読み込み",
+      currentMode: "現在保存されているモード：{mode}",
+      applyImmediatelyHint:
+        "保存すると、現在のモードに合わせてファイアウォールを直ちにリセットします。",
+      reverseModeHint:
+        "リバースプロキシモードでは FN-KNOCK-FW を作成しません。設定は保持され、直接接続またはサブドメインモードへ切り替えた後に反映されます。",
+      reverseModeManualHint:
+        "リバースプロキシモードでは FN-KNOCK-FW を作成しません。ファイアウォールの自動管理が無効なため、サブドメインモードへ切り替えた後は手動でリセットしてください。直接接続モードでは自動的に適用されます。",
+      unsavedModeHint:
+        "このページには未保存のモード変更があります。この操作はサーバーに現在保存されているモードで実行します。",
+      automaticTitle: "システムによる自動許可",
+      automaticDescription:
+        "これらのポートはゲートウェイ、プロトコルマッピング、または Smart Connect から取得されるため、下に追加する必要はありません。",
+      noAutomaticPorts:
+        "現在のモードでは管理対象のファイアウォールポートを使用しません。",
+      customTitle: "ユーザー指定の追加許可",
+      customDescription:
+        "最大 {max} ポートまで追加できます。ポート番号は直接編集でき、削除は現在の下書きにのみ反映されます。",
+      portAria: "追加で許可するポート {number}",
+      portPlaceholder: "例：5666",
+      deletePort: "ポート {port} を削除",
+      empty: "追加で許可するポートは設定されていません。",
+      addPort: "ポートを追加",
+      protocolTitle: "TCP と UDP の両方を許可",
+      protocolDescription:
+        "各ポートに TCP と UDP の許可ルールを追加します。外部アクセスが本当に必要なポートだけを追加してください。",
+      saveAndApply: "保存して適用",
+      reverseModeName: "リバースプロキシモード",
+      noPorts: "なし",
+      loadFailed: "追加許可ポートの読み込みに失敗しました",
+      saveFailed: "追加許可ポートの保存に失敗しました",
+      saved: "追加許可ポートを更新しました",
+      savedAndAppliedDescription:
+        "追加ポートを {count} 件保存し、{mode} に合わせてファイアウォールをリセットしました。現在許可されているポート：{ports}。",
+      savedForLaterDescription:
+        "追加ポートを {count} 件保存しました。リバースプロキシモードでは現在管理対象ルールを作成しません。モード切り替え後に自動的に含まれます。",
+      savedForLaterManualDescription:
+        "追加ポートを {count} 件保存しました。ファイアウォールの自動管理が無効なため、サブドメインモードへ切り替えた後は手動でリセットしてください。直接接続モードでは自動的に適用されます。",
+      savedModeNotice: "このページの未保存のモード選択は適用されていません。",
+      errors: {
+        required: "ポート番号を入力してください。",
+        integer: "ポートは整数で入力してください。",
+        range: "ポートは 1 から 65535 の範囲で指定してください。",
+        duplicate: "追加許可ポートは重複できません。",
+        tooMany: "追加許可ポートは最大 {max} 件まで設定できます。",
+      },
+    },
     resetFirewallByMode: "選択中のモードに合わせてファイアウォールをリセット",
     clearFirewall: "ファイアウォールをクリア",
     discardChanges: "変更を破棄",
@@ -987,7 +1042,7 @@ export const jaJPAdmin = {
     firewallResetDirect:
       "直接接続モード用にファイアウォールを再構築し、ログイン用エントリーポイントとしてポート {ports} のみを残しました{whitelist}。",
     firewallResetSubdomain:
-      "サブドメインモード用にファイアウォールを再構築し、ゲートウェイとプロトコルマッピング用にポート{ports}を残しました。",
+      "サブドメインモード用にファイアウォールを再構築し、ゲートウェイ、プロトコルマッピング、ユーザー指定の追加許可用にポート{ports}を残しました。",
     unsavedModeNotice:
       " 保存済みの動作モードは {current} のままです。{target} を継続して使用するには、「変更を保存」をクリックしてください。",
     successDefaultRouteReset: "（デフォルトのパス用エントリーポイントを含む）",

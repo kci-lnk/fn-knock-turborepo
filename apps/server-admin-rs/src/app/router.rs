@@ -207,6 +207,8 @@ mod tests {
         let app = backend_router(state, false);
         let unsupported_routes = [
             (Method::POST, "/api/admin/firewall/clear"),
+            (Method::GET, "/api/admin/config/firewall_additional_ports"),
+            (Method::POST, "/api/admin/config/firewall_additional_ports"),
             (Method::GET, "/api/admin/config/fnos_connect_waf"),
             (Method::GET, "/api/admin/config/smart_connect/details"),
             (Method::GET, "/api/admin/system/dnsmasq/status"),

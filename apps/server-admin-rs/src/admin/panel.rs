@@ -362,6 +362,9 @@ pub(crate) fn build_safe_app_config(
         runtime_config::normalize_fnos_connect_waf(config.get("fnos_connect_waf"));
     let fnos_network_tuning =
         runtime_config::normalize_fnos_network_tuning(config.get("fnos_network_tuning"));
+    let firewall_additional_ports = runtime_config::normalize_firewall_additional_ports(
+        config.get("firewall_additional_ports"),
+    );
     let locale = normalize_locale_config(config.get("locale").unwrap_or(&Value::Null));
     let appearance = normalize_appearance_config(config.get("appearance").unwrap_or(&Value::Null));
 
@@ -384,6 +387,10 @@ pub(crate) fn build_safe_app_config(
         object.insert("fnos_port_icon_hijack".to_string(), fnos_port_icon_hijack);
         object.insert("fnos_connect_waf".to_string(), fnos_connect_waf);
         object.insert("fnos_network_tuning".to_string(), fnos_network_tuning);
+        object.insert(
+            "firewall_additional_ports".to_string(),
+            json!(firewall_additional_ports),
+        );
         object.insert("locale".to_string(), locale);
         object.insert("appearance".to_string(), appearance);
     }

@@ -138,6 +138,10 @@ pub fn firewall_runtime_routes() -> Router<AppState> {
             "/api/admin/config/auto_manage_firewall",
             post(update_auto_manage_firewall),
         )
+        .route(
+            "/api/admin/config/firewall_additional_ports",
+            get(get_firewall_additional_ports).post(update_firewall_additional_ports),
+        )
         .route("/api/admin/firewall/reset", post(reset_firewall))
         .route("/api/admin/firewall/clear", post(clear_firewall))
 }

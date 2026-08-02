@@ -2153,6 +2153,149 @@ fn legacy_host_mapping_update_preserves_existing_group_assignment() {
 }
 
 #[test]
+fn host_mapping_rename_preserves_advanced_auth_across_identity_edges() {
+    let advanced_auth = json!({
+        "enabled": true,
+        "idle_ttl_seconds": 3_600,
+        "max_lifetime_seconds": 86_400,
+        "policy_version": "advanced-policy-v1",
+        "groups": [{
+            "id": "group-1",
+            "conditions": [{
+                "id": "condition-1",
+                "target": "url_path",
+                "operator": "prefix",
+                "values": ["/private"]
+            }]
+        }]
+    });
+    let previous = json!({
+        "host_mappings": [
+            {
+                "host": "old.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true,
+                "advanced_auth": advanced_auth
+            },
+            {
+                "host": "alias.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }
+        ]
+    });
+
+    let explicit = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "alias.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+            json!({
+                "host": "new.example.com",
+                "previous_host": "old.example.com",
+                "target": "http://127.0.0.1:9090",
+                "use_auth": true
+            }),
+        ],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(explicit[1]["advanced_auth"], advanced_auth);
+    assert!(explicit[1].get("previous_host").is_none());
+
+    let legacy_shared_target = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "alias.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+            json!({
+                "host": "new.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+        ],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(legacy_shared_target[1]["advanced_auth"], advanced_auth);
+
+    let disabled_auth = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "alias.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+            json!({
+                "host": "new.example.com",
+                "previous_host": "old.example.com",
+                "target": "http://127.0.0.1:9090",
+                "use_auth": false
+            }),
+        ],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(disabled_auth[1]["advanced_auth"]["enabled"], json!(false));
+    assert_eq!(
+        disabled_auth[1]["advanced_auth"]["groups"],
+        advanced_auth["groups"]
+    );
+}
+
+#[test]
+fn explicit_previous_host_rejects_ambiguous_or_stale_rename_claims() {
+    let previous = json!({
+        "host_mappings": [{
+            "host": "old.example.com",
+            "target": "http://127.0.0.1:8080",
+            "use_auth": true
+        }]
+    });
+
+    let still_present = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "old.example.com",
+                "target": "http://127.0.0.1:8080",
+                "use_auth": true
+            }),
+            json!({
+                "host": "new.example.com",
+                "previous_host": "old.example.com",
+                "target": "http://127.0.0.1:9090",
+                "use_auth": true
+            }),
+        ],
+        &previous,
+    )
+    .unwrap_err();
+    assert_eq!(
+        still_present,
+        "Previous host mapping old.example.com is still present"
+    );
+
+    let missing = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "new.example.com",
+            "previous_host": "missing.example.com",
+            "target": "http://127.0.0.1:9090",
+            "use_auth": true
+        })],
+        &previous,
+    )
+    .unwrap_err();
+    assert_eq!(
+        missing,
+        "Previous host mapping missing.example.com does not exist"
+    );
+}
+
+#[test]
 fn host_rule_payload_uses_group_and_mapping_order_with_ungrouped_last() {
     let media = "11111111-1111-4111-8111-111111111111";
     let tools = "22222222-2222-4222-8222-222222222222";
@@ -2836,6 +2979,48 @@ fn localizes_proxy_config_route_errors() {
     assert_eq!(
         localize_proxy_config_error(&translator, "Duplicate host mapping video.example.com"),
         "Host 映射域名 video.example.com 重复"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping new.example.com previous host is invalid"
+        ),
+        "Host 映射 new.example.com 的原域名无效"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping new.example.com already exists and cannot be renamed from old.example.com"
+        ),
+        "Host 映射 new.example.com 已存在，不能从 old.example.com 重命名"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Previous host mapping old.example.com is still present"
+        ),
+        "原 Host 映射 old.example.com 仍在列表中，无法作为重命名来源"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Previous host mapping old.example.com does not exist"
+        ),
+        "原 Host 映射 old.example.com 不存在"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Previous host mapping old.example.com is claimed more than once"
+        ),
+        "原 Host 映射 old.example.com 被多条映射重复认领"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping new.example.com is submitted more than once"
+        ),
+        "Host 映射域名 new.example.com 重复"
     );
     assert_eq!(
         localize_proxy_config_error(&translator, "Subdomain root domain cannot contain wildcard"),

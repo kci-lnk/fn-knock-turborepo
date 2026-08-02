@@ -227,6 +227,16 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         corrected.push(format!("auto_manage_firewall -> {auto_manage_firewall}"));
     }
 
+    let firewall_additional_ports =
+        normalize_firewall_additional_ports(config.get("firewall_additional_ports"));
+    if config.get("firewall_additional_ports") != Some(&json!(firewall_additional_ports)) {
+        ensure_config_object(config).insert(
+            "firewall_additional_ports".to_string(),
+            json!(firewall_additional_ports),
+        );
+        corrected.push("firewall_additional_ports -> normalized".to_string());
+    }
+
     if !corrected.is_empty() {
         state.store.save_config(config).await?;
     }

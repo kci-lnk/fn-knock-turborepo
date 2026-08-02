@@ -238,6 +238,21 @@ export const enServer = {
         "Firewall rules cleared and historical redirects for port {port} removed",
       clearFailed: "Failed to clear firewall",
     },
+    firewallAdditionalPorts: {
+      loadFailed: "Failed to load additional allowed port configuration",
+      saveFailed: "Failed to save additional allowed port configuration",
+      updateFailedRolledBack:
+        "Failed to apply additional allowed ports; the previous configuration and firewall were restored: {message}",
+      updateFailedRollback:
+        "Failed to apply additional allowed ports: {message}; rollback failed: {rollbackError}",
+      errors: {
+        portsArrayRequired: "ports must be an array of port numbers",
+        portIntegerRequired: "Additional allowed ports must be integers",
+        portOutOfRange: "Additional allowed ports must be between 1 and 65535",
+        tooManyPorts:
+          "No more than 128 additional allowed ports may be configured",
+      },
+    },
     protocolMapping: {
       subdomainOnly: "Protocol mapping can only be enabled in subdomain mode",
       updateFeatureFailed: "Failed to update protocol mapping feature switch",
@@ -403,6 +418,16 @@ export const enServer = {
         "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend",
       revisionConflict:
         "Host mappings were updated in another page; refresh and try again",
+      renamePreviousHostInvalid:
+        "Host mapping {host} has an invalid previous host",
+      renameDestinationExists:
+        "Host mapping {host} already exists and cannot be renamed from {previousHost}",
+      renamePreviousHostStillPresent:
+        "Previous host mapping {previousHost} is still present and cannot be used as a rename source",
+      renamePreviousHostMissing:
+        "Previous host mapping {previousHost} does not exist",
+      renamePreviousHostClaimed:
+        "Previous host mapping {previousHost} is claimed by more than one mapping",
       targetInvalid:
         "Host mapping {host} target must start with http://, https://, ws://, or wss:// and include a host",
       singleAuthPortMapping:

@@ -241,6 +241,21 @@ export const jaJPServer = {
         "ファイアウォールルールを消去し、ポート {port} に関連する以前のリダイレクトを削除しました",
       clearFailed: "ファイアウォールのクリアに失敗しました",
     },
+    firewallAdditionalPorts: {
+      loadFailed: "追加許可ポート設定の読み込みに失敗しました",
+      saveFailed: "追加許可ポート設定の保存に失敗しました",
+      updateFailedRolledBack:
+        "追加許可ポートを適用できなかったため、以前の設定とファイアウォールを復元しました：{message}",
+      updateFailedRollback:
+        "追加許可ポートを適用できませんでした：{message}；ロールバック失敗：{rollbackError}",
+      errors: {
+        portsArrayRequired: "ports はポート番号の配列である必要があります",
+        portIntegerRequired: "追加許可ポートは整数である必要があります",
+        portOutOfRange:
+          "追加許可ポートは 1 から 65535 の範囲で指定してください",
+        tooManyPorts: "追加許可ポートは 128 件を超えて設定できません",
+      },
+    },
     protocolMapping: {
       subdomainOnly:
         "プロトコルマッピングはサブドメインモードでのみ有効にできます",
@@ -417,6 +432,16 @@ export const jaJPServer = {
         "ゲートウェイバックエンドが {host} の公開範囲ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
       revisionConflict:
         "別のページで Host マッピングが更新されました。更新してから再試行してください",
+      renamePreviousHostInvalid:
+        "Host マッピング {host} の変更前のホスト名が無効です",
+      renameDestinationExists:
+        "Host マッピング {host} は既に存在するため、{previousHost} から名前を変更できません",
+      renamePreviousHostStillPresent:
+        "変更前の Host マッピング {previousHost} が一覧に残っているため、名前変更元として使用できません",
+      renamePreviousHostMissing:
+        "変更前の Host マッピング {previousHost} は存在しません",
+      renamePreviousHostClaimed:
+        "変更前の Host マッピング {previousHost} が複数のマッピングから重複して指定されています",
       targetInvalid:
         "Host マッピング {host} の転送先は http://、https://、ws://、wss:// のいずれかで始め、ホスト名を含めてください",
       singleAuthPortMapping:

@@ -632,8 +632,22 @@ pub(super) fn exempt_ports(
     protocol_mapping_enabled: bool,
     run_type: i64,
 ) -> Vec<String> {
+    exempt_port_numbers(config, protocol_mapping_enabled, run_type)
+        .into_iter()
+        .map(|port| port.to_string())
+        .collect()
+}
+
+pub(super) fn automatic_exempt_port_numbers(
+    config: &Value,
+    protocol_mapping_enabled: bool,
+    run_type: i64,
+) -> Vec<i64> {
+    if run_type == 1 {
+        return Vec::new();
+    }
     let mut ports = BTreeSet::new();
-    ports.insert(gateway_port().to_string());
+    ports.insert(gateway_port());
     if run_type == 3
         && protocol_mapping_enabled
         && let Some(mappings) = config.get("stream_mappings").and_then(Value::as_array)
@@ -642,7 +656,7 @@ pub(super) fn exempt_ports(
             if let Some(port) = mapping.get("listen_port").and_then(Value::as_i64)
                 && (1..=65535).contains(&port)
             {
-                ports.insert(port.to_string());
+                ports.insert(port);
             }
         }
     }
@@ -654,7 +668,23 @@ pub(super) fn exempt_ports(
             .and_then(Value::as_str)
             .is_some_and(|value| !value.trim().is_empty())
     {
-        ports.insert(SMART_CONNECT_DNS_PORT.to_string());
+        ports.insert(SMART_CONNECT_DNS_PORT);
+    }
+    ports.into_iter().collect()
+}
+
+pub(super) fn exempt_port_numbers(
+    config: &Value,
+    protocol_mapping_enabled: bool,
+    run_type: i64,
+) -> Vec<i64> {
+    let mut ports = automatic_exempt_port_numbers(config, protocol_mapping_enabled, run_type)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    if run_type != 1 {
+        ports.extend(normalize_firewall_additional_ports(
+            config.get("firewall_additional_ports"),
+        ));
     }
     ports.into_iter().collect()
 }

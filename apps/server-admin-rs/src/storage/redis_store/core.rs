@@ -1411,6 +1411,58 @@ return 1
         ))
     }
 
+    /// Atomically replaces one ordinary top-level config value while retaining
+    /// every unrelated field from the latest stored snapshot. Host mapping
+    /// catalog fields have dedicated generation-aware APIs and must not use
+    /// this helper.
+    pub async fn set_config_top_level_value(
+        &self,
+        key: &str,
+        value: Value,
+    ) -> crate::storage::StorageResult<Value> {
+        if matches!(
+            key,
+            "host_mappings"
+                | "host_mapping_groups"
+                | "host_mapping_grouped_view"
+                | "visibility_policies"
+        ) {
+            return Err(crate::storage::storage_error(
+                "host mapping catalog fields require a generation-aware config API",
+            ));
+        }
+
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(object) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            object.insert(key.to_string(), value.clone());
+
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                snapshot.generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                self.publish_config_snapshot(current_config.clone());
+                return Ok(current_config);
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while setting a top-level value",
+        ))
+    }
+
     /// Atomically merges fields into an object-valued top-level config
     /// section. Each CAS retry starts from the latest stored config, so
     /// independent writers cannot replace one another with stale snapshots.

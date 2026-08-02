@@ -858,6 +858,7 @@ export interface AppConfig {
   run_type: RunType;
   reverse_proxy_submode: ReverseProxySubmode;
   auto_manage_firewall: boolean;
+  firewall_additional_ports: number[];
   runtime_profile?: RuntimeProfile;
   capabilities?: RuntimeCapabilities;
   whitelist_ips: string[];
@@ -902,6 +903,14 @@ export interface AppConfig {
     nonce_list: string[];
     ip_backoff: Record<string, number>;
   };
+}
+
+export interface FirewallAdditionalPortsDetails {
+  additionalPorts: number[];
+  automaticPorts: number[];
+  effectivePorts: number[];
+  runType: RunType;
+  appliedNow: boolean;
 }
 
 export type TOTPAccessScope = "docker_admin_panel";

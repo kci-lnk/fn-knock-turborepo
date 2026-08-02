@@ -64,6 +64,7 @@ export const useSubdomainMappingDialogController = ({
     mappings: HostMapping[],
     refreshedFaviconHosts?: ReadonlySet<string>,
     refreshedTitleHosts?: ReadonlySet<string>,
+    previousHosts?: ReadonlyMap<string, string>,
   ) => Promise<unknown>;
   savedRootDomain: ComputedRef<string>;
   setGatewayHostResponseDisabledHosts: (disabledHosts: string[]) => void;
@@ -460,6 +461,9 @@ export const useSubdomainMappingDialogController = ({
           titleRefreshDirty.value &&
             mappingMetadataTarget.value === normalized.target.trim()
             ? new Set([normalized.host])
+            : undefined,
+          previousHost && previousHost !== normalized.host
+            ? new Map([[normalized.host, previousHost]])
             : undefined,
         );
         if (previousHost !== normalized.host) {

@@ -855,6 +855,58 @@ export const zhHantAdmin = {
     hostFirewallDisabled:
       "宿主機防火牆管理已禁用，自動處理系統防火牆和手動防火牆操作入口不會顯示。",
     actions: "操作",
+    additionalPorts: {
+      menu: "額外放行的端口",
+      title: "額外放行的端口",
+      description:
+        "管理需要由 FN-KNOCK-FW 額外放行的端口。更改會在保存時一次性套用。",
+      loading: "正在載入端口設定…",
+      loadFailedInline: "無法載入額外端口設定，請重試。",
+      retry: "重新載入",
+      currentMode: "目前已保存模式：{mode}",
+      applyImmediatelyHint: "保存後會立即按目前模式重設防火牆。",
+      reverseModeHint:
+        "內網穿透模式不建立 FN-KNOCK-FW；設定會保留，並在切換到直連或子域模式後生效。",
+      reverseModeManualHint:
+        "內網穿透模式不建立 FN-KNOCK-FW。自動處理系統防火牆已關閉：切換到子域模式後需手動重設防火牆；切換到直連模式時仍會自動套用。",
+      unsavedModeHint:
+        "頁面上有尚未保存的模式更改；本次操作仍按後端目前已保存模式執行。",
+      automaticTitle: "系統自動放行",
+      automaticDescription:
+        "這些端口來自網關、協議映射或智能連接，無需在下方重複新增。",
+      noAutomaticPorts: "目前模式不使用受管防火牆端口。",
+      customTitle: "用戶額外放行",
+      customDescription:
+        "最多新增 {max} 個端口；可直接修改端口號，刪除只影響目前草稿。",
+      portAria: "額外放行端口 {number}",
+      portPlaceholder: "例如 5666",
+      deletePort: "刪除端口 {port}",
+      empty: "尚未設定額外放行端口。",
+      addPort: "新增端口",
+      protocolTitle: "同時放行 TCP 與 UDP",
+      protocolDescription:
+        "每個端口都會同時新增 TCP 和 UDP 放行規則，請只新增確實需要對外訪問的端口。",
+      saveAndApply: "保存並套用",
+      reverseModeName: "內網穿透",
+      noPorts: "無",
+      loadFailed: "載入額外放行端口失敗",
+      saveFailed: "保存額外放行端口失敗",
+      saved: "額外放行端口已更新",
+      savedAndAppliedDescription:
+        "已保存 {count} 個額外端口，並按{mode}重設防火牆。目前實際放行：{ports}。",
+      savedForLaterDescription:
+        "已保存 {count} 個額外端口。內網穿透模式目前不建立受管防火牆規則，切換模式後會自動納入。",
+      savedForLaterManualDescription:
+        "已保存 {count} 個額外端口。自動處理系統防火牆已關閉：切換到子域模式後需手動重設防火牆；切換到直連模式時仍會自動套用。",
+      savedModeNotice: "頁面上未保存的模式選擇未被套用。",
+      errors: {
+        required: "端口號不能為空。",
+        integer: "端口必須是整數。",
+        range: "端口必須在 1 到 65535 之間。",
+        duplicate: "額外放行端口不能重複。",
+        tooMany: "最多只能設定 {max} 個額外放行端口。",
+      },
+    },
     resetFirewallByMode: "按所選模式重設防火牆",
     clearFirewall: "清空防火牆",
     discardChanges: "放棄更改",
@@ -908,7 +960,7 @@ export const zhHantAdmin = {
     firewallResetDirect:
       "已按直連模式重建防火牆，僅保留 {ports} 端口作為登入入口{whitelist}。",
     firewallResetSubdomain:
-      "已按子域模式重建防火牆，保留 {ports} 端口供網關與協議映射使用。",
+      "已按子域模式重建防火牆，保留 {ports} 端口供網關、協議映射和用戶額外放行使用。",
     unsavedModeNotice:
       " 當前保存的運行模式仍是{current}，如需長期按{target}生效，請點擊「保存修改」。",
     successDefaultRouteReset: "，並重設默認路徑入口",
@@ -3523,8 +3575,7 @@ export const zhHantAdmin = {
     sourceDomainHint:
       "自動解析該域名取得 IPv4/IPv6，然後按目前更新範圍寫入 DDNS",
     interfaceAddressHelpTitle: "網卡地址說明",
-    interfaceAddressHelp:
-      "下方地址列表會按目前的公網／內網策略顯示可用候選",
+    interfaceAddressHelp: "下方地址列表會按目前的公網／內網策略顯示可用候選",
     chooseInterfaceFirst: "請先在上方明確選擇一張出站網卡。",
     addressOrderHelp:
       "地址會按穩定特徵重新匹配，不再依賴網卡返回列表中的位置。更換網卡會清空規則。",

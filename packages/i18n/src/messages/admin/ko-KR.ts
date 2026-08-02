@@ -920,6 +920,61 @@ export const koKRAdmin = {
     hostFirewallDisabled:
       "호스트 방화벽 관리가 비활성화되어 자동 방화벽 처리 및 수동 방화벽 작업이 숨겨집니다.",
     actions: "작업",
+    additionalPorts: {
+      menu: "추가 허용 포트",
+      title: "추가 허용 포트",
+      description:
+        "FN-KNOCK-FW에서 자동 관리 포트 외에 추가로 허용할 포트를 관리합니다. 변경 사항은 저장할 때 한 번에 적용됩니다.",
+      loading: "포트 설정을 불러오는 중…",
+      loadFailedInline:
+        "추가 포트 설정을 불러오지 못했습니다. 다시 시도하세요.",
+      retry: "다시 불러오기",
+      currentMode: "현재 저장된 모드: {mode}",
+      applyImmediatelyHint:
+        "저장하면 현재 모드에 맞게 방화벽을 즉시 재설정합니다.",
+      reverseModeHint:
+        "리버스 프록시 모드에서는 FN-KNOCK-FW를 만들지 않습니다. 설정은 유지되며 직접 연결 또는 서브도메인 모드로 전환한 뒤 적용됩니다.",
+      reverseModeManualHint:
+        "리버스 프록시 모드에서는 FN-KNOCK-FW를 만들지 않습니다. 자동 방화벽 관리가 꺼져 있으므로 서브도메인 모드로 전환한 뒤 방화벽을 수동으로 재설정해야 하며, 직접 연결 모드에서는 자동으로 적용됩니다.",
+      unsavedModeHint:
+        "페이지에 저장되지 않은 모드 변경 사항이 있습니다. 이 작업은 서버에 현재 저장된 모드를 기준으로 실행됩니다.",
+      automaticTitle: "시스템 자동 허용",
+      automaticDescription:
+        "이 포트는 게이트웨이, 프로토콜 매핑 또는 Smart Connect에서 가져오므로 아래에 다시 추가할 필요가 없습니다.",
+      noAutomaticPorts: "현재 모드는 관리형 방화벽 포트를 사용하지 않습니다.",
+      customTitle: "사용자 추가 허용",
+      customDescription:
+        "최대 {max}개 포트를 추가할 수 있습니다. 포트 번호를 직접 수정할 수 있으며 삭제는 현재 초안에만 반영됩니다.",
+      portAria: "추가 허용 포트 {number}",
+      portPlaceholder: "예: 5666",
+      deletePort: "포트 {port} 삭제",
+      empty: "설정된 추가 허용 포트가 없습니다.",
+      addPort: "포트 추가",
+      protocolTitle: "TCP와 UDP를 모두 허용",
+      protocolDescription:
+        "각 포트에 TCP와 UDP 허용 규칙이 모두 추가됩니다. 외부 접근이 꼭 필요한 포트만 추가하세요.",
+      saveAndApply: "저장 및 적용",
+      reverseModeName: "리버스 프록시 모드",
+      noPorts: "없음",
+      loadFailed: "추가 허용 포트를 불러오지 못했습니다.",
+      saveFailed: "추가 허용 포트를 저장하지 못했습니다.",
+      saved: "추가 허용 포트가 업데이트되었습니다.",
+      savedAndAppliedDescription:
+        "추가 포트 {count}개를 저장하고 {mode}에 맞게 방화벽을 재설정했습니다. 현재 실제 허용 포트: {ports}.",
+      savedForLaterDescription:
+        "추가 포트 {count}개를 저장했습니다. 리버스 프록시 모드에서는 현재 관리형 방화벽 규칙을 만들지 않으며 모드를 전환하면 자동으로 포함됩니다.",
+      savedForLaterManualDescription:
+        "추가 포트 {count}개를 저장했습니다. 자동 방화벽 관리가 꺼져 있으므로 서브도메인 모드로 전환한 뒤 방화벽을 수동으로 재설정해야 하며, 직접 연결 모드에서는 자동으로 적용됩니다.",
+      savedModeNotice:
+        "이 페이지에서 저장하지 않은 모드 선택은 적용되지 않았습니다.",
+      errors: {
+        required: "포트 번호를 입력해야 합니다.",
+        integer: "포트는 정수여야 합니다.",
+        range: "포트는 1에서 65535 사이여야 합니다.",
+        duplicate: "추가 허용 포트는 중복될 수 없습니다.",
+        tooMany: "추가 허용 포트는 최대 {max}개까지 설정할 수 있습니다.",
+      },
+    },
     resetFirewallByMode: "선택한 모드의 방화벽 재설정",
     clearFirewall: "방화벽 지우기",
     discardChanges: "변경사항 취소",
@@ -977,7 +1032,7 @@ export const koKRAdmin = {
     firewallResetDirect:
       "직접 연결 모드에 맞게 방화벽을 다시 설정했습니다. 로그인 진입점으로 {ports}번 포트만 유지합니다{whitelist}.",
     firewallResetSubdomain:
-      "서브도메인 모드에 맞게 방화벽을 다시 설정하고, 게이트웨이와 프로토콜 매핑에 사용할 {ports}번 포트를 유지했습니다.",
+      "서브도메인 모드에 맞게 방화벽을 다시 설정하고, 게이트웨이, 프로토콜 매핑 및 사용자 추가 허용에 사용할 {ports}번 포트를 유지했습니다.",
     unsavedModeNotice:
       " 저장된 실행 모드는 여전히 {current}입니다. {target}(을)를 장기간 유지하려면 변경 사항 저장을 클릭하세요.",
     successDefaultRouteReset: ", 기본 경로 항목 재설정",

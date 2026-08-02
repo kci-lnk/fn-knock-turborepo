@@ -242,6 +242,41 @@ pub(super) fn normalize_auto_manage_firewall(value: Option<&Value>) -> bool {
     value.and_then(Value::as_bool) != Some(false)
 }
 
+pub(super) const MAX_FIREWALL_ADDITIONAL_PORTS: usize = 128;
+
+pub(crate) fn normalize_firewall_additional_ports(value: Option<&Value>) -> Vec<i64> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_i64)
+        .filter(|port| (1..=65535).contains(port))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .take(MAX_FIREWALL_ADDITIONAL_PORTS)
+        .collect()
+}
+
+pub(super) fn parse_firewall_additional_ports(body: &Value) -> Result<Vec<i64>, &'static str> {
+    let Some(items) = body.get("ports").and_then(Value::as_array) else {
+        return Err("portsArrayRequired");
+    };
+    let mut ports = BTreeSet::new();
+    for item in items {
+        let Some(port) = item.as_i64() else {
+            return Err("portIntegerRequired");
+        };
+        if !(1..=65535).contains(&port) {
+            return Err("portOutOfRange");
+        }
+        ports.insert(port);
+    }
+    if ports.len() > MAX_FIREWALL_ADDITIONAL_PORTS {
+        return Err("tooManyPorts");
+    }
+    Ok(ports.into_iter().collect())
+}
+
 pub(super) fn normalize_run_mode_prompt_preferences(value: Option<&Value>) -> Value {
     json!({
         "directToReverseProxy": bool_field(value, "directToReverseProxy", false),

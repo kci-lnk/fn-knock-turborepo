@@ -301,6 +301,7 @@ export const useConfigStore = defineStore("config", () => {
     mappings: HostMapping[],
     refreshedFaviconHosts: ReadonlySet<string> = new Set(),
     refreshedTitleHosts: ReadonlySet<string> = new Set(),
+    previousHosts: ReadonlyMap<string, string> = new Map(),
   ) {
     if (hostMappingsSavePromise) {
       await hostMappingsSavePromise;
@@ -317,6 +318,7 @@ export const useConfigStore = defineStore("config", () => {
         hostMappingCatalogRevision,
         refreshedFaviconHosts,
         refreshedTitleHosts,
+        previousHosts,
       );
       if (requestId === hostMappingsSnapshotRequestId) {
         hostMappingCatalogRevision = snapshot.revision;

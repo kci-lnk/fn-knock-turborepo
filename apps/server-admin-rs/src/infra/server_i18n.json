@@ -350,7 +350,12 @@
         "backendVisibilityUnsupported": "网关后端未应用 {host} 的可见性规则，请升级网关后端",
         "hostWildcardForbidden": "Host 映射 {host} 不能包含通配符 *，请填写精确域名",
         "customIconInvalid": "Host 映射 {host} 的自定义图标无效或格式不受支持",
-        "ungrouped": "未分组"
+        "ungrouped": "未分组",
+        "renamePreviousHostInvalid": "Host 映射 {host} 的原域名无效",
+        "renameDestinationExists": "Host 映射 {host} 已存在，不能从 {previousHost} 重命名",
+        "renamePreviousHostStillPresent": "原 Host 映射 {previousHost} 仍在列表中，无法作为重命名来源",
+        "renamePreviousHostMissing": "原 Host 映射 {previousHost} 不存在",
+        "renamePreviousHostClaimed": "原 Host 映射 {previousHost} 被多条映射重复认领"
       },
       "streamMappings": {
         "payloadObjectRequired": "协议映射必须是对象",
@@ -462,6 +467,18 @@
         "deleteFailed": "删除会话失败",
         "mobilityLoadFailed": "读取会话流动详情失败",
         "deleted": "会话已删除"
+      },
+      "firewallAdditionalPorts": {
+        "loadFailed": "加载额外放行端口配置失败",
+        "saveFailed": "保存额外放行端口配置失败",
+        "updateFailedRolledBack": "应用额外放行端口失败，已恢复之前的配置和防火墙：{message}",
+        "updateFailedRollback": "应用额外放行端口失败：{message}；回滚失败：{rollbackError}",
+        "errors": {
+          "portsArrayRequired": "ports 必须是端口数组",
+          "portIntegerRequired": "额外放行端口必须是整数",
+          "portOutOfRange": "额外放行端口必须在 1 到 65535 之间",
+          "tooManyPorts": "额外放行端口不能超过 128 个"
+        }
       }
     },
     "gatewayLogs": {
@@ -2091,7 +2108,13 @@
           "frpDisconnected": "FRP 已断开",
           "cloudflaredConnected": "Cloudflared 已连上",
           "cloudflaredDisconnected": "Cloudflared 已断开",
-          "gatewayVisibilityBlocked": "网关可见性拦截"
+          "gatewayVisibilityBlocked": "网关可见性拦截",
+          "runtimeStarted": "组件已启动",
+          "runtimeStopped": "组件已停止",
+          "runtimeRestarted": "组件已重启",
+          "runtimeHealthFailed": "组件健康检查失败",
+          "runtimeRecovered": "组件已恢复",
+          "runtimeAbnormalExit": "组件异常退出"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -2103,7 +2126,8 @@
         "sources": {
           "serverAdmin": "管理后台",
           "goReauthProxy": "认证代理",
-          "systemMonitor": "系统监控"
+          "systemMonitor": "系统监控",
+          "runtimeMonitor": "运行监控"
         },
         "authMethods": {
           "oidc": "外部账号"
@@ -3474,7 +3498,12 @@
         "backendVisibilityUnsupported": "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",
         "hostWildcardForbidden": "Host 映射 {host} 不能包含萬用字元 *，請填寫精確域名",
         "customIconInvalid": "Host 映射 {host} 的自訂圖示無效或格式不受支援",
-        "ungrouped": "未分組"
+        "ungrouped": "未分組",
+        "renamePreviousHostInvalid": "Host 映射 {host} 的原網域無效",
+        "renameDestinationExists": "Host 映射 {host} 已存在，不能從 {previousHost} 重新命名",
+        "renamePreviousHostStillPresent": "原 Host 映射 {previousHost} 仍在清單中，無法作為重新命名來源",
+        "renamePreviousHostMissing": "原 Host 映射 {previousHost} 不存在",
+        "renamePreviousHostClaimed": "原 Host 映射 {previousHost} 被多個映射重複認領"
       },
       "streamMappings": {
         "payloadObjectRequired": "協議映射必須是物件",
@@ -3586,6 +3615,18 @@
         "deleteFailed": "刪除會話失敗",
         "mobilityLoadFailed": "讀取會話流動詳情失敗",
         "deleted": "會話已刪除"
+      },
+      "firewallAdditionalPorts": {
+        "loadFailed": "載入額外放行端口設定失敗",
+        "saveFailed": "保存額外放行端口設定失敗",
+        "updateFailedRolledBack": "套用額外放行端口失敗，已恢復之前的設定和防火牆：{message}",
+        "updateFailedRollback": "套用額外放行端口失敗：{message}；回滾失敗：{rollbackError}",
+        "errors": {
+          "portsArrayRequired": "ports 必須是端口陣列",
+          "portIntegerRequired": "額外放行端口必須是整數",
+          "portOutOfRange": "額外放行端口必須在 1 到 65535 之間",
+          "tooManyPorts": "額外放行端口不能超過 128 個"
+        }
       }
     },
     "gatewayLogs": {
@@ -5215,7 +5256,13 @@
           "frpDisconnected": "FRP 已斷開",
           "cloudflaredConnected": "Cloudflared 已連上",
           "cloudflaredDisconnected": "Cloudflared 已斷開",
-          "gatewayVisibilityBlocked": "網關可見性攔截"
+          "gatewayVisibilityBlocked": "網關可見性攔截",
+          "runtimeStarted": "元件已啟動",
+          "runtimeStopped": "元件已停止",
+          "runtimeRestarted": "元件已重新啟動",
+          "runtimeHealthFailed": "元件健康檢查失敗",
+          "runtimeRecovered": "元件已恢復",
+          "runtimeAbnormalExit": "元件異常結束"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -5227,7 +5274,8 @@
         "sources": {
           "serverAdmin": "管理後台",
           "goReauthProxy": "認證代理",
-          "systemMonitor": "系統監控"
+          "systemMonitor": "系統監控",
+          "runtimeMonitor": "執行監控"
         },
         "authMethods": {
           "oidc": "外部帳號"
@@ -6598,7 +6646,12 @@
         "backendVisibilityUnsupported": "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend",
         "hostWildcardForbidden": "Host mapping {host} cannot contain the * wildcard; enter an exact host",
         "customIconInvalid": "Host mapping {host} has an invalid or unsupported custom icon",
-        "ungrouped": "Ungrouped"
+        "ungrouped": "Ungrouped",
+        "renamePreviousHostInvalid": "Host mapping {host} has an invalid previous host",
+        "renameDestinationExists": "Host mapping {host} already exists and cannot be renamed from {previousHost}",
+        "renamePreviousHostStillPresent": "Previous host mapping {previousHost} is still present and cannot be used as a rename source",
+        "renamePreviousHostMissing": "Previous host mapping {previousHost} does not exist",
+        "renamePreviousHostClaimed": "Previous host mapping {previousHost} is claimed by more than one mapping"
       },
       "streamMappings": {
         "payloadObjectRequired": "Stream mapping must be an object",
@@ -6710,6 +6763,18 @@
         "deleteFailed": "Failed to delete session",
         "mobilityLoadFailed": "Failed to load session mobility details",
         "deleted": "Session deleted"
+      },
+      "firewallAdditionalPorts": {
+        "loadFailed": "Failed to load additional allowed port configuration",
+        "saveFailed": "Failed to save additional allowed port configuration",
+        "updateFailedRolledBack": "Failed to apply additional allowed ports; the previous configuration and firewall were restored: {message}",
+        "updateFailedRollback": "Failed to apply additional allowed ports: {message}; rollback failed: {rollbackError}",
+        "errors": {
+          "portsArrayRequired": "ports must be an array of port numbers",
+          "portIntegerRequired": "Additional allowed ports must be integers",
+          "portOutOfRange": "Additional allowed ports must be between 1 and 65535",
+          "tooManyPorts": "No more than 128 additional allowed ports may be configured"
+        }
       }
     },
     "gatewayLogs": {
@@ -8339,7 +8404,13 @@
           "frpDisconnected": "FRP disconnected",
           "cloudflaredConnected": "Cloudflared connected",
           "cloudflaredDisconnected": "Cloudflared disconnected",
-          "gatewayVisibilityBlocked": "Gateway visibility blocked"
+          "gatewayVisibilityBlocked": "Gateway visibility blocked",
+          "runtimeStarted": "Component started",
+          "runtimeStopped": "Component stopped",
+          "runtimeRestarted": "Component restarted",
+          "runtimeHealthFailed": "Component health failed",
+          "runtimeRecovered": "Component recovered",
+          "runtimeAbnormalExit": "Component exited abnormally"
         },
         "ruleName": "{event} notification",
         "levels": {
@@ -8351,7 +8422,8 @@
         "sources": {
           "serverAdmin": "Admin backend",
           "goReauthProxy": "Auth proxy",
-          "systemMonitor": "System monitor"
+          "systemMonitor": "System monitor",
+          "runtimeMonitor": "Runtime monitor"
         },
         "authMethods": {
           "oidc": "External account"
@@ -9722,7 +9794,12 @@
         "backendVisibilityUnsupported": "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
         "hostWildcardForbidden": "호스트 매핑 {host}에는 * 와일드카드를 사용할 수 없습니다. 정확한 호스트를 입력하세요.",
         "customIconInvalid": "호스트 매핑 {host}의 사용자 지정 아이콘이 잘못되었거나 지원되지 않는 형식입니다.",
-        "ungrouped": "미분류"
+        "ungrouped": "미분류",
+        "renamePreviousHostInvalid": "호스트 매핑 {host}의 이전 도메인이 올바르지 않습니다.",
+        "renameDestinationExists": "호스트 매핑 {host}이(가) 이미 있어 {previousHost}에서 이름을 변경할 수 없습니다.",
+        "renamePreviousHostStillPresent": "이전 호스트 매핑 {previousHost}이(가) 목록에 남아 있어 이름 변경 원본으로 사용할 수 없습니다.",
+        "renamePreviousHostMissing": "이전 호스트 매핑 {previousHost}이(가) 존재하지 않습니다.",
+        "renamePreviousHostClaimed": "이전 호스트 매핑 {previousHost}이(가) 둘 이상의 매핑에서 중복 지정되었습니다."
       },
       "streamMappings": {
         "payloadObjectRequired": "스트림 매핑은 객체여야 합니다.",
@@ -9834,6 +9911,18 @@
         "deleteFailed": "세션을 삭제하지 못했습니다.",
         "mobilityLoadFailed": "세션 이동성 세부 정보를 불러오지 못했습니다.",
         "deleted": "세션이 삭제되었습니다."
+      },
+      "firewallAdditionalPorts": {
+        "loadFailed": "추가 허용 포트 설정을 불러오지 못했습니다",
+        "saveFailed": "추가 허용 포트 설정을 저장하지 못했습니다",
+        "updateFailedRolledBack": "추가 허용 포트를 적용하지 못해 이전 설정과 방화벽을 복원했습니다: {message}",
+        "updateFailedRollback": "추가 허용 포트를 적용하지 못했습니다: {message}; 롤백 실패: {rollbackError}",
+        "errors": {
+          "portsArrayRequired": "ports는 포트 번호 배열이어야 합니다",
+          "portIntegerRequired": "추가 허용 포트는 정수여야 합니다",
+          "portOutOfRange": "추가 허용 포트는 1에서 65535 사이여야 합니다",
+          "tooManyPorts": "추가 허용 포트는 128개를 초과할 수 없습니다"
+        }
       }
     },
     "gatewayLogs": {
@@ -11463,7 +11552,13 @@
           "frpDisconnected": "FRP 연결 끊김",
           "cloudflaredConnected": "Cloudflared 연결됨",
           "cloudflaredDisconnected": "Cloudflared 연결 끊김",
-          "gatewayVisibilityBlocked": "게이트웨이 공개 범위 차단"
+          "gatewayVisibilityBlocked": "게이트웨이 공개 범위 차단",
+          "runtimeStarted": "컴포넌트 시작",
+          "runtimeStopped": "컴포넌트 중지",
+          "runtimeRestarted": "컴포넌트 재시작",
+          "runtimeHealthFailed": "상태 검사 실패",
+          "runtimeRecovered": "컴포넌트 복구",
+          "runtimeAbnormalExit": "컴포넌트 비정상 종료"
         },
         "ruleName": "{event} 알림",
         "levels": {
@@ -11475,7 +11570,8 @@
         "sources": {
           "serverAdmin": "관리 백엔드",
           "goReauthProxy": "인증 프록시",
-          "systemMonitor": "시스템 모니터"
+          "systemMonitor": "시스템 모니터",
+          "runtimeMonitor": "런타임 모니터"
         },
         "authMethods": {
           "oidc": "외부 계정"
@@ -12846,7 +12942,12 @@
         "backendVisibilityUnsupported": "ゲートウェイバックエンドが {host} の公開範囲ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
         "hostWildcardForbidden": "Host マッピング {host} にワイルドカード * は使用できません。完全なホスト名を入力してください",
         "customIconInvalid": "Host マッピング {host} のカスタムアイコンが無効か、形式がサポートされていません",
-        "ungrouped": "未分類"
+        "ungrouped": "未分類",
+        "renamePreviousHostInvalid": "Host マッピング {host} の変更前のホスト名が無効です",
+        "renameDestinationExists": "Host マッピング {host} は既に存在するため、{previousHost} から名前を変更できません",
+        "renamePreviousHostStillPresent": "変更前の Host マッピング {previousHost} が一覧に残っているため、名前変更元として使用できません",
+        "renamePreviousHostMissing": "変更前の Host マッピング {previousHost} は存在しません",
+        "renamePreviousHostClaimed": "変更前の Host マッピング {previousHost} が複数のマッピングから重複して指定されています"
       },
       "streamMappings": {
         "payloadObjectRequired": "ストリームマッピングはオブジェクトである必要があります",
@@ -12958,6 +13059,18 @@
         "deleteFailed": "セッションの削除に失敗しました",
         "mobilityLoadFailed": "セッションの IP 変更履歴の読み込みに失敗しました",
         "deleted": "セッションを削除しました"
+      },
+      "firewallAdditionalPorts": {
+        "loadFailed": "追加許可ポート設定の読み込みに失敗しました",
+        "saveFailed": "追加許可ポート設定の保存に失敗しました",
+        "updateFailedRolledBack": "追加許可ポートを適用できなかったため、以前の設定とファイアウォールを復元しました：{message}",
+        "updateFailedRollback": "追加許可ポートを適用できませんでした：{message}；ロールバック失敗：{rollbackError}",
+        "errors": {
+          "portsArrayRequired": "ports はポート番号の配列である必要があります",
+          "portIntegerRequired": "追加許可ポートは整数である必要があります",
+          "portOutOfRange": "追加許可ポートは 1 から 65535 の範囲で指定してください",
+          "tooManyPorts": "追加許可ポートは 128 件を超えて設定できません"
+        }
       }
     },
     "gatewayLogs": {
@@ -14587,7 +14700,13 @@
           "frpDisconnected": "FRP 切断",
           "cloudflaredConnected": "Cloudflared 接続",
           "cloudflaredDisconnected": "Cloudflared 切断",
-          "gatewayVisibilityBlocked": "ゲートウェイ公開範囲によるブロック"
+          "gatewayVisibilityBlocked": "ゲートウェイ公開範囲によるブロック",
+          "runtimeStarted": "コンポーネント起動",
+          "runtimeStopped": "コンポーネント停止",
+          "runtimeRestarted": "コンポーネント再起動",
+          "runtimeHealthFailed": "ヘルスチェック失敗",
+          "runtimeRecovered": "コンポーネント復旧",
+          "runtimeAbnormalExit": "コンポーネント異常終了"
         },
         "ruleName": "{event}通知",
         "levels": {
@@ -14599,7 +14718,8 @@
         "sources": {
           "serverAdmin": "管理バックエンド",
           "goReauthProxy": "認証プロキシ",
-          "systemMonitor": "システム監視"
+          "systemMonitor": "システム監視",
+          "runtimeMonitor": "ランタイム監視"
         },
         "authMethods": {
           "oidc": "外部アカウント"

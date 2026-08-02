@@ -20,6 +20,7 @@ import {
 import type { ReverseProxySubmode } from "@/types";
 import { useRunModeMessages } from "./useRunModeMessages";
 import { useRunModePromptConfirmation } from "./useRunModePromptConfirmation";
+import { useFirewallAdditionalPorts } from "./useFirewallAdditionalPorts";
 
 export const useRunModeSettingsController = () => {
   const configStore = useConfigStore();
@@ -82,20 +83,12 @@ export const useRunModeSettingsController = () => {
     },
   });
 
-  const isBusy = computed(
-    () =>
-      isSaving.value ||
-      isFirewallActionPending.value ||
-      isAutoManageFirewallPending.value,
-  );
   const canUseDirectMode = computed(() => configStore.canUseDirectMode);
   const canManageHostFirewall = computed(
     () => configStore.canManageHostFirewall,
   );
   const isDockerDeployment = computed(() => configStore.isDockerDeployment);
-  const isFpkLiteDeployment = computed(
-    () => configStore.isFpkLiteDeployment,
-  );
+  const isFpkLiteDeployment = computed(() => configStore.isFpkLiteDeployment);
   const showHostFirewallUnavailableAlert = computed(
     () =>
       !canManageHostFirewall.value &&
@@ -132,6 +125,31 @@ export const useRunModeSettingsController = () => {
     if (mode.value !== 1) return true;
     return savedReverseProxySubmode.value === reverseProxySubmode.value;
   });
+  const {
+    autoManageFirewallEnabled: firewallAdditionalPortsAutoManageEnabled,
+    details: firewallAdditionalPortsDetails,
+    hasUnsavedModeChanges: hasUnsavedFirewallModeChanges,
+    load: loadFirewallAdditionalPorts,
+    loadFailed: firewallAdditionalPortsLoadFailed,
+    loading: isFirewallAdditionalPortsLoading,
+    modeLabel: firewallAdditionalPortsModeLabel,
+    open: isFirewallAdditionalPortsDialogOpen,
+    openDialog: openFirewallAdditionalPortsDialog,
+    save: saveFirewallAdditionalPorts,
+    saving: isFirewallAdditionalPortsSaving,
+    updateOpen: handleFirewallAdditionalPortsDialogOpenChange,
+  } = useFirewallAdditionalPorts({
+    canManageHostFirewall: () => canManageHostFirewall.value,
+    hasUnsavedModeChanges: () => !isModeUnchanged.value,
+  });
+  const isBusy = computed(
+    () =>
+      isSaving.value ||
+      isFirewallActionPending.value ||
+      isAutoManageFirewallPending.value ||
+      isFirewallAdditionalPortsLoading.value ||
+      isFirewallAdditionalPortsSaving.value,
+  );
   const selectedReverseProxySubmodeLabel = computed(() =>
     reverseProxySubmode.value === "subdomain"
       ? t("admin.runModeSettings.subdomainMapping")
@@ -387,8 +405,11 @@ export const useRunModeSettingsController = () => {
     confirmDialogContent,
     confirmSave,
     dontShowAgainChecked,
+    firewallAdditionalPortsAutoManageEnabled,
     handleAutoManageFirewallChange,
     handleConfirmDialogOpenChange,
+    handleFirewallAdditionalPortsDialogOpenChange,
+    hasUnsavedFirewallModeChanges,
     hostFirewallUnavailableDescription,
     isBusy,
     isConfirmDialogOpen,
@@ -396,13 +417,22 @@ export const useRunModeSettingsController = () => {
     isDockerDeployment,
     isFpkLiteDeployment,
     isFirewallActionPending,
+    isFirewallAdditionalPortsDialogOpen,
+    isFirewallAdditionalPortsLoading,
+    isFirewallAdditionalPortsSaving,
     isModeUnchanged,
     isSaving,
     mode,
+    firewallAdditionalPortsDetails,
+    firewallAdditionalPortsLoadFailed,
+    firewallAdditionalPortsModeLabel,
+    loadFirewallAdditionalPorts,
+    openFirewallAdditionalPortsDialog,
     reset,
     resetFirewallBySelectedMode,
     reverseProxySubmode,
     save,
+    saveFirewallAdditionalPorts,
     selectReverseProxyMode,
     selectedReverseProxySubmodeLabel,
     showHostFirewallUnavailableAlert,

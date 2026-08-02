@@ -149,23 +149,79 @@ pub(super) fn normalize_host_mappings_for_catalog(
     groups: &[Value],
 ) -> Result<Vec<Value>, String> {
     let previous_by_host = previous_host_mappings_by_host(previous_config);
-    let previous_by_unique_target = previous_host_mappings_by_unique_target(previous_config);
+    let previous_by_target = previous_host_mappings_by_target(previous_config);
     let submitted_hosts = mappings
         .iter()
         .filter_map(|mapping| mapping.get("host").and_then(Value::as_str))
         .map(normalize_host_value)
         .filter(|host| !host.is_empty())
         .collect::<HashSet<_>>();
-    let mut submitted_target_counts = HashMap::<String, usize>::new();
-    for target in mappings
-        .iter()
-        .filter_map(|mapping| mapping.get("target").and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|target| !target.is_empty())
-    {
-        *submitted_target_counts
-            .entry(target.to_string())
-            .or_default() += 1;
+    let mut explicit_previous_by_host = HashMap::<String, String>::new();
+    let mut explicitly_claimed_previous_hosts = HashSet::<String>::new();
+    for mapping in &mappings {
+        let Some(object) = mapping.as_object() else {
+            continue;
+        };
+        let host = normalize_host_value(object.get("host").and_then(Value::as_str).unwrap_or(""));
+        let Some(raw_previous_host) = object.get("previous_host") else {
+            continue;
+        };
+        let Some(raw_previous_host) = raw_previous_host.as_str() else {
+            return Err(format!("Host mapping {host} previous host is invalid"));
+        };
+        let previous_host = normalize_host_value(raw_previous_host);
+        if previous_host.is_empty() {
+            return Err(format!("Host mapping {host} previous host is invalid"));
+        }
+        if previous_host == host {
+            continue;
+        }
+        if previous_by_host.contains_key(&host) {
+            return Err(format!(
+                "Host mapping {host} already exists and cannot be renamed from {previous_host}"
+            ));
+        }
+        if submitted_hosts.contains(&previous_host) {
+            return Err(format!(
+                "Previous host mapping {previous_host} is still present"
+            ));
+        }
+        if !previous_by_host.contains_key(&previous_host) {
+            return Err(format!(
+                "Previous host mapping {previous_host} does not exist"
+            ));
+        }
+        if !explicitly_claimed_previous_hosts.insert(previous_host.clone()) {
+            return Err(format!(
+                "Previous host mapping {previous_host} is claimed more than once"
+            ));
+        }
+        if explicit_previous_by_host
+            .insert(host.clone(), previous_host)
+            .is_some()
+        {
+            return Err(format!("Host mapping {host} is submitted more than once"));
+        }
+    }
+    let mut implicit_new_target_counts = HashMap::<String, usize>::new();
+    for mapping in &mappings {
+        let Some(object) = mapping.as_object() else {
+            continue;
+        };
+        let host = normalize_host_value(object.get("host").and_then(Value::as_str).unwrap_or(""));
+        if previous_by_host.contains_key(&host) || explicit_previous_by_host.contains_key(&host) {
+            continue;
+        }
+        let target = object
+            .get("target")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or("");
+        if !target.is_empty() {
+            *implicit_new_target_counts
+                .entry(target.to_string())
+                .or_default() += 1;
+        }
     }
     let valid_group_ids = groups
         .iter()
@@ -181,6 +237,7 @@ pub(super) fn normalize_host_mappings_for_catalog(
         let Some(mut object) = mapping.as_object().cloned() else {
             return Err("Host mapping must be an object".to_string());
         };
+        object.remove("previous_host");
         let raw_host = object.get("host").and_then(Value::as_str).unwrap_or("");
         if raw_host.contains('*') {
             return Err(format!(
@@ -237,24 +294,40 @@ pub(super) fn normalize_host_mappings_for_catalog(
                 "Host mapping {host} Basic Auth settings are invalid"
             ));
         }
-        // Legacy clients do not send group_id and have no stable mapping ID.
-        // A unique unchanged target is an identity fallback only when the old
-        // host disappeared and the submitted target is still unique. This
-        // distinguishes a rename from adding another host for the same app.
-        let previous = previous_by_host.get(&host).or_else(|| {
-            submitted_target_counts
-                .get(&target)
-                .is_some_and(|count| *count == 1)
-                .then(|| previous_by_unique_target.get(&target))
-                .flatten()
-                .filter(|mapping| {
-                    mapping
-                        .get("host")
-                        .and_then(Value::as_str)
-                        .map(normalize_host_value)
-                        .is_some_and(|previous_host| !submitted_hosts.contains(&previous_host))
-                })
-        });
+        // New clients explicitly identify a renamed mapping with previous_host.
+        // Legacy clients fall back to an unchanged target only when exactly one
+        // implicit new mapping and one disappeared old mapping share that target.
+        // This preserves configuration for aliases that share a target without
+        // copying a protected draft onto an unrelated new mapping.
+        let previous = previous_by_host
+            .get(&host)
+            .or_else(|| {
+                explicit_previous_by_host
+                    .get(&host)
+                    .and_then(|previous_host| previous_by_host.get(previous_host))
+            })
+            .or_else(|| {
+                implicit_new_target_counts
+                    .get(&target)
+                    .is_some_and(|count| *count == 1)
+                    .then(|| previous_by_target.get(&target))
+                    .flatten()
+                    .and_then(|candidates| {
+                        let mut disappeared = candidates.iter().filter(|mapping| {
+                            mapping
+                                .get("host")
+                                .and_then(Value::as_str)
+                                .map(normalize_host_value)
+                                .is_some_and(|previous_host| {
+                                    !submitted_hosts.contains(&previous_host)
+                                        && !explicitly_claimed_previous_hosts
+                                            .contains(&previous_host)
+                                })
+                        });
+                        let candidate = disappeared.next()?;
+                        disappeared.next().is_none().then_some(candidate)
+                    })
+            });
         let requested_group_id = object
             .contains_key("group_id")
             .then(|| object.get("group_id"))

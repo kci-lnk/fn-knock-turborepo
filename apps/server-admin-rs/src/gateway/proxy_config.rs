@@ -478,6 +478,62 @@ pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str
             &[("host", host.to_string())],
         );
     }
+    if let Some(host) = extract_between(message, "Host mapping ", " previous host is invalid") {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.renamePreviousHostInvalid",
+            &[("host", host.to_string())],
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Host mapping ")
+        && let Some((host, previous_host)) =
+            rest.split_once(" already exists and cannot be renamed from ")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.renameDestinationExists",
+            &[
+                ("host", host.to_string()),
+                ("previousHost", previous_host.to_string()),
+            ],
+        );
+    }
+    if let Some(previous_host) =
+        extract_between(message, "Previous host mapping ", " is still present")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.renamePreviousHostStillPresent",
+            &[("previousHost", previous_host.to_string())],
+        );
+    }
+    if let Some(previous_host) =
+        extract_between(message, "Previous host mapping ", " does not exist")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.renamePreviousHostMissing",
+            &[("previousHost", previous_host.to_string())],
+        );
+    }
+    if let Some(previous_host) = extract_between(
+        message,
+        "Previous host mapping ",
+        " is claimed more than once",
+    ) {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.renamePreviousHostClaimed",
+            &[("previousHost", previous_host.to_string())],
+        );
+    }
+    if let Some(host) = extract_between(message, "Host mapping ", " is submitted more than once") {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.duplicateHost",
+            &[("host", host.to_string())],
+        );
+    }
     if let Some(host) = extract_between(message, "Host mapping ", " cannot contain wildcard") {
         return admin_config_text_params(
             translator,

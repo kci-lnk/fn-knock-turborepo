@@ -200,6 +200,20 @@ export const zhHantServer = {
       clearSuccess: "已清空防火牆規則，並移除 {port} 端口相關的歷史重定向",
       clearFailed: "清空防火牆失敗",
     },
+    firewallAdditionalPorts: {
+      loadFailed: "載入額外放行端口設定失敗",
+      saveFailed: "保存額外放行端口設定失敗",
+      updateFailedRolledBack:
+        "套用額外放行端口失敗，已恢復之前的設定和防火牆：{message}",
+      updateFailedRollback:
+        "套用額外放行端口失敗：{message}；回滾失敗：{rollbackError}",
+      errors: {
+        portsArrayRequired: "ports 必須是端口陣列",
+        portIntegerRequired: "額外放行端口必須是整數",
+        portOutOfRange: "額外放行端口必須在 1 到 65535 之間",
+        tooManyPorts: "額外放行端口不能超過 128 個",
+      },
+    },
     protocolMapping: {
       subdomainOnly: "協議映射僅可在子域模式下啟用",
       updateFeatureFailed: "更新協議映射功能開關失敗",
@@ -338,6 +352,14 @@ export const zhHantServer = {
       backendVisibilityUnsupported:
         "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",
       revisionConflict: "Host 映射已在其他頁面更新，請重新整理後再試",
+      renamePreviousHostInvalid: "Host 映射 {host} 的原網域無效",
+      renameDestinationExists:
+        "Host 映射 {host} 已存在，不能從 {previousHost} 重新命名",
+      renamePreviousHostStillPresent:
+        "原 Host 映射 {previousHost} 仍在清單中，無法作為重新命名來源",
+      renamePreviousHostMissing: "原 Host 映射 {previousHost} 不存在",
+      renamePreviousHostClaimed:
+        "原 Host 映射 {previousHost} 被多個映射重複認領",
       targetInvalid:
         "Host 映射 {host} 的目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       singleAuthPortMapping: "只能有一個 Host 映射指向 AUTH_PORT 作為鑒權服務",

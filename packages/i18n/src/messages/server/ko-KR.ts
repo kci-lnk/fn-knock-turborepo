@@ -231,6 +231,20 @@ export const koKRServer = {
         "방화벽 규칙을 비우고 {port}번 포트의 이전 리디렉션 규칙을 제거했습니다.",
       clearFailed: "방화벽을 지우지 못했습니다.",
     },
+    firewallAdditionalPorts: {
+      loadFailed: "추가 허용 포트 설정을 불러오지 못했습니다",
+      saveFailed: "추가 허용 포트 설정을 저장하지 못했습니다",
+      updateFailedRolledBack:
+        "추가 허용 포트를 적용하지 못해 이전 설정과 방화벽을 복원했습니다: {message}",
+      updateFailedRollback:
+        "추가 허용 포트를 적용하지 못했습니다: {message}; 롤백 실패: {rollbackError}",
+      errors: {
+        portsArrayRequired: "ports는 포트 번호 배열이어야 합니다",
+        portIntegerRequired: "추가 허용 포트는 정수여야 합니다",
+        portOutOfRange: "추가 허용 포트는 1에서 65535 사이여야 합니다",
+        tooManyPorts: "추가 허용 포트는 128개를 초과할 수 없습니다",
+      },
+    },
     protocolMapping: {
       subdomainOnly:
         "프로토콜 매핑은 서브도메인 모드에서만 활성화할 수 있습니다.",
@@ -401,6 +415,16 @@ export const koKRServer = {
         "게이트웨이 백엔드가 {host}의 접근 범위 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
       revisionConflict:
         "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
+      renamePreviousHostInvalid:
+        "호스트 매핑 {host}의 이전 도메인이 올바르지 않습니다.",
+      renameDestinationExists:
+        "호스트 매핑 {host}이(가) 이미 있어 {previousHost}에서 이름을 변경할 수 없습니다.",
+      renamePreviousHostStillPresent:
+        "이전 호스트 매핑 {previousHost}이(가) 목록에 남아 있어 이름 변경 원본으로 사용할 수 없습니다.",
+      renamePreviousHostMissing:
+        "이전 호스트 매핑 {previousHost}이(가) 존재하지 않습니다.",
+      renamePreviousHostClaimed:
+        "이전 호스트 매핑 {previousHost}이(가) 둘 이상의 매핑에서 중복 지정되었습니다.",
       targetInvalid:
         "호스트 매핑 {host} 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       singleAuthPortMapping:

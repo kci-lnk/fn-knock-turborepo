@@ -25,6 +25,7 @@ type HostMappingUpdatePayload = Pick<
   | "favicon_override"
 > & {
   favicon?: string;
+  previous_host?: string;
   title?: string;
   visibility: {
     mode: HostMapping["visibility"]["mode"];
@@ -66,7 +67,11 @@ export const toHostMappingBasicAuthPayload = (
 
 export const toHostMappingUpdatePayload = (
   mapping: HostMapping,
-  options: { includeFavicon?: boolean; includeTitle?: boolean } = {},
+  options: {
+    includeFavicon?: boolean;
+    includeTitle?: boolean;
+    previousHost?: string;
+  } = {},
 ): HostMappingUpdatePayload => ({
   host: mapping.host,
   group_id: mapping.group_id || null,
@@ -114,5 +119,9 @@ export const toHostMappingUpdatePayload = (
   title_override: mapping.title_override.trim(),
   favicon_override: mapping.favicon_override?.trim() || "",
   ...(options.includeFavicon ? { favicon: mapping.favicon.trim() } : {}),
+  ...(options.previousHost?.trim() &&
+  options.previousHost.trim() !== mapping.host.trim()
+    ? { previous_host: options.previousHost.trim() }
+    : {}),
   ...(options.includeTitle ? { title: mapping.title.trim() } : {}),
 });

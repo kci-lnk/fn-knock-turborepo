@@ -58,7 +58,13 @@
               class="h-2.5 w-2.5 rounded-full bg-primary"
             />
           </div>
-          <input v-model="mode" type="radio" name="run-mode" :value="0" class="sr-only" />
+          <input
+            v-model="mode"
+            type="radio"
+            name="run-mode"
+            :value="0"
+            class="sr-only"
+          />
           <span class="flex-1 space-y-2">
             <span class="flex items-center gap-2">
               <span class="text-base font-semibold leading-none">
@@ -277,6 +283,14 @@
                 {{ t("admin.runModeSettings.resetFirewallByMode") }}
               </DropdownMenuItem>
               <DropdownMenuItem
+                :disabled="isBusy"
+                @select="openFirewallAdditionalPortsDialog"
+              >
+                <ShieldPlus class="h-4 w-4" />
+                {{ t("admin.runModeSettings.additionalPorts.menu") }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
                 variant="destructive"
                 :disabled="isBusy"
                 @select="clearFirewallRules"
@@ -324,78 +338,40 @@
     </CardFooter>
   </Card>
 
-  <Dialog
+  <RunModeConfirmationDialog
     :open="isConfirmDialogOpen"
+    v-model:dont-show-again="dontShowAgainChecked"
+    :content="confirmDialogContent"
+    :saving="isSaving"
+    @close="closeConfirmation"
+    @confirm="confirmSave"
     @update:open="handleConfirmDialogOpenChange"
-  >
-    <DialogContent
-      class="overflow-hidden border-border bg-card p-0 text-card-foreground shadow-xl sm:max-w-[760px]"
-    >
-      <div class="px-8 pt-8 pb-6">
-        <DialogHeader class="space-y-3 text-left">
-          <p
-            class="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground"
-          >
-            {{ t("admin.runModeSettings.switchEyebrow") }}
-          </p>
-          <DialogTitle
-            class="text-2xl font-semibold tracking-tight text-foreground"
-          >
-            {{ confirmDialogContent.title }}
-          </DialogTitle>
-          <DialogDescription
-            class="max-w-[56ch] text-sm leading-6 text-muted-foreground"
-          >
-            {{ confirmDialogContent.description }}
-          </DialogDescription>
-        </DialogHeader>
+  />
 
-        <ul class="mt-8 divide-y divide-border border-y border-border">
-          <li
-            v-for="(item, index) in confirmDialogContent.items"
-            :key="item"
-            class="grid grid-cols-[auto_1fr] items-start gap-x-4 py-4"
-          >
-            <span
-              class="pt-0.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground"
-            >
-              {{ String(index + 1).padStart(2, "0") }}
-            </span>
-            <p class="text-sm leading-6 text-foreground">
-              {{ item }}
-            </p>
-          </li>
-        </ul>
-
-        <label
-          class="mt-6 flex items-center gap-3 text-sm text-muted-foreground"
-        >
-          <Checkbox
-            :model-value="dontShowAgainChecked"
-            @update:model-value="dontShowAgainChecked = $event === true"
-          />
-          <span>{{ t("admin.runModeSettings.dontShowAgain") }}</span>
-        </label>
-      </div>
-
-      <DialogFooter class="border-t border-border bg-muted/20 px-8 py-4">
-        <Button variant="outline" @click="closeConfirmation">{{
-          t("common.cancel")
-        }}</Button>
-        <Button @click="confirmSave" :disabled="isSaving">
-          <span
-            v-if="isSaving"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          {{ t("admin.runModeSettings.confirmSwitch") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <FirewallAdditionalPortsDialog
+    :open="isFirewallAdditionalPortsDialogOpen"
+    :auto-manage-firewall-enabled="firewallAdditionalPortsAutoManageEnabled"
+    :details="firewallAdditionalPortsDetails"
+    :has-unsaved-mode-changes="hasUnsavedFirewallModeChanges"
+    :load-failed="firewallAdditionalPortsLoadFailed"
+    :loading="isFirewallAdditionalPortsLoading"
+    :mode-label="firewallAdditionalPortsModeLabel"
+    :saving="isFirewallAdditionalPortsSaving"
+    @retry="loadFirewallAdditionalPorts"
+    @save="saveFirewallAdditionalPorts"
+    @update:open="handleFirewallAdditionalPortsDialogOpenChange"
+  />
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, Info, Loader2, RefreshCw, Trash2 } from "lucide-vue-next";
+import {
+  ChevronDown,
+  Info,
+  Loader2,
+  RefreshCw,
+  ShieldPlus,
+  Trash2,
+} from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -411,19 +387,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { docsUrls } from "../../lib/docs";
+import FirewallAdditionalPortsDialog from "./FirewallAdditionalPortsDialog.vue";
+import RunModeConfirmationDialog from "./RunModeConfirmationDialog.vue";
 import { useRunModeSettingsController } from "./useRunModeSettingsController";
 
 const {
@@ -437,8 +408,14 @@ const {
   confirmDialogContent,
   confirmSave,
   dontShowAgainChecked,
+  firewallAdditionalPortsAutoManageEnabled,
+  firewallAdditionalPortsDetails,
+  firewallAdditionalPortsLoadFailed,
+  firewallAdditionalPortsModeLabel,
   handleAutoManageFirewallChange,
   handleConfirmDialogOpenChange,
+  handleFirewallAdditionalPortsDialogOpenChange,
+  hasUnsavedFirewallModeChanges,
   hostFirewallUnavailableDescription,
   isAutoManageFirewallPending,
   isBusy,
@@ -446,13 +423,19 @@ const {
   isDockerDeployment,
   isFpkLiteDeployment,
   isFirewallActionPending,
+  isFirewallAdditionalPortsDialogOpen,
+  isFirewallAdditionalPortsLoading,
+  isFirewallAdditionalPortsSaving,
   isModeUnchanged,
   isSaving,
   mode,
+  loadFirewallAdditionalPorts,
+  openFirewallAdditionalPortsDialog,
   reset,
   resetFirewallBySelectedMode,
   reverseProxySubmode,
   save,
+  saveFirewallAdditionalPorts,
   selectReverseProxyMode,
   showHostFirewallUnavailableAlert,
   t,

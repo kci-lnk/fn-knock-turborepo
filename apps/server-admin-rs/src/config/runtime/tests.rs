@@ -20,6 +20,65 @@ async fn fpk_lite_runtime_test_state() -> (tempfile::TempDir, AppState) {
     (directory, state)
 }
 
+async fn response_json(response: Response) -> Value {
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read response body");
+    serde_json::from_slice(&body).expect("parse response body")
+}
+
+struct SuccessfulFirewallReset;
+
+impl FirewallResetOperation for SuccessfulFirewallReset {
+    fn reset<'a>(&'a self, _state: &'a AppState, run_type: i64) -> FirewallResetFuture<'a> {
+        Box::pin(async move {
+            Ok(json!({
+                "runType": run_type,
+                "gatewayPort": gateway_port(),
+                "exemptPorts": [],
+                "whitelistSynced": 0,
+            }))
+        })
+    }
+}
+
+struct FailingThenSuccessfulFirewallReset {
+    attempts: std::sync::atomic::AtomicUsize,
+}
+
+impl FirewallResetOperation for FailingThenSuccessfulFirewallReset {
+    fn reset<'a>(&'a self, state: &'a AppState, _run_type: i64) -> FirewallResetFuture<'a> {
+        Box::pin(async move {
+            let attempt = self
+                .attempts
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let config = state
+                .store
+                .get_config()
+                .await
+                .map_err(|error| error.to_string())?;
+            if attempt == 0 {
+                assert_eq!(
+                    config.get("firewall_additional_ports"),
+                    Some(&json!([5666]))
+                );
+                state
+                    .store
+                    .set_config_top_level_value("default_route", json!("/concurrent"))
+                    .await
+                    .map_err(|error| error.to_string())?;
+                return Err("apply failed".to_string());
+            }
+            assert_eq!(
+                config.get("firewall_additional_ports"),
+                Some(&json!([1234]))
+            );
+            assert_eq!(config.get("default_route"), Some(&json!("/concurrent")));
+            Ok(json!({ "runType": 3 }))
+        })
+    }
+}
+
 #[test]
 fn redis_json_keys_match_node_feature_section_store() {
     assert_eq!(CAPTCHA_SETTINGS_KEY, "fn_knock:captcha:settings");
@@ -68,6 +127,18 @@ async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
         )
         .await
         .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        get_firewall_additional_ports(State(state.clone()))
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        update_firewall_additional_ports(State(state.clone()), Json(json!({ "ports": [5666] })))
+            .await
+            .status(),
         StatusCode::FORBIDDEN
     );
     assert_eq!(
@@ -202,6 +273,178 @@ async fn protocol_mapping_feature_update_waits_for_the_shared_transaction_lock()
         .expect("feature update should finish after releasing the lock")
         .expect("feature update task");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn firewall_additional_ports_successfully_save_apply_and_clear() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.store.get_config().await.expect("load config");
+    config["run_type"] = json!(0);
+    config["auto_manage_firewall"] = json!(false);
+    config["firewall_additional_ports"] = json!([1234]);
+    state.store.save_config(&config).await.expect("save config");
+
+    let response = update_firewall_additional_ports_transaction_with_reset(
+        &state,
+        vec![53, 5666],
+        &SuccessfulFirewallReset,
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(
+        body.pointer("/data/additionalPorts"),
+        Some(&json!([53, 5666]))
+    );
+    assert_eq!(body.pointer("/data/runType"), Some(&json!(0)));
+    assert_eq!(body.pointer("/data/appliedNow"), Some(&json!(true)));
+    assert!(
+        body.pointer("/data/effectivePorts")
+            .and_then(Value::as_array)
+            .is_some_and(|ports| ports.contains(&json!(gateway_port()))
+                && ports.contains(&json!(53))
+                && ports.contains(&json!(5666)))
+    );
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("firewall_additional_ports"),
+        Some(&json!([53, 5666]))
+    );
+
+    let response = update_firewall_additional_ports_transaction_with_reset(
+        &state,
+        Vec::new(),
+        &SuccessfulFirewallReset,
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(body.pointer("/data/additionalPorts"), Some(&json!([])));
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("firewall_additional_ports"),
+        Some(&json!([]))
+    );
+}
+
+#[tokio::test]
+async fn firewall_additional_ports_failure_restores_rules_without_overwriting_other_config() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.store.get_config().await.expect("load config");
+    config["firewall_additional_ports"] = json!([1234]);
+    config["default_route"] = json!("/before");
+    state.store.save_config(&config).await.expect("save config");
+
+    let reset = FailingThenSuccessfulFirewallReset {
+        attempts: std::sync::atomic::AtomicUsize::new(0),
+    };
+
+    let response =
+        update_firewall_additional_ports_transaction_with_reset(&state, vec![5666], &reset).await;
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(reset.attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload config")
+            .get("firewall_additional_ports"),
+        Some(&json!([1234]))
+    );
+    assert_eq!(
+        state
+            .store
+            .get_config()
+            .await
+            .expect("reload concurrent config")
+            .get("default_route"),
+        Some(&json!("/concurrent"))
+    );
+    assert!(
+        response_json(response)
+            .await
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("已恢复之前的配置和防火墙"))
+    );
+}
+
+#[tokio::test]
+async fn firewall_additional_ports_wait_for_the_shared_transaction_lock() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let guard = state.protocol_mapping_update_lock.lock().await;
+    let task_state = state.clone();
+    let mut task = tokio::spawn(async move {
+        update_firewall_additional_ports_transaction(&task_state, vec![5666]).await
+    });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), &mut task)
+            .await
+            .is_err(),
+        "firewall port update must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    let response = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+        .await
+        .expect("firewall port update should finish after releasing the lock")
+        .expect("firewall port update task");
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+}
+
+#[tokio::test]
+async fn manual_reset_and_clear_wait_for_the_shared_transaction_lock() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+
+    let guard = state.protocol_mapping_update_lock.lock().await;
+    let reset_state = state.clone();
+    let mut reset_task =
+        tokio::spawn(async move { reset_firewall_with_transaction_lock(&reset_state, 1).await });
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), &mut reset_task)
+            .await
+            .is_err(),
+        "manual reset must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(1), reset_task)
+            .await
+            .expect("manual reset should finish after releasing the lock")
+            .expect("manual reset task")
+            .is_err()
+    );
+
+    let guard = state.protocol_mapping_update_lock.lock().await;
+    let clear_state = state.clone();
+    let mut clear_task =
+        tokio::spawn(async move { clear_firewall_with_transaction_lock(&clear_state).await });
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), &mut clear_task)
+            .await
+            .is_err(),
+        "manual clear must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(1), clear_task)
+            .await
+            .expect("manual clear should finish after releasing the lock")
+            .expect("manual clear task")
+            .is_err()
+    );
 }
 
 #[test]
@@ -356,6 +599,33 @@ fn normalizes_auto_manage_firewall_like_node() {
 }
 
 #[test]
+fn validates_and_normalizes_firewall_additional_ports() {
+    assert_eq!(normalize_firewall_additional_ports(None), Vec::<i64>::new());
+    assert_eq!(
+        normalize_firewall_additional_ports(Some(&json!([5666, 53, 5666, 0, 65536, "7999"]))),
+        vec![53, 5666]
+    );
+    assert_eq!(
+        parse_firewall_additional_ports(&json!({ "ports": [5666, 53, 5666] })),
+        Ok(vec![53, 5666])
+    );
+    assert_eq!(
+        parse_firewall_additional_ports(&json!({ "ports": ["5666"] })),
+        Err("portIntegerRequired")
+    );
+    assert_eq!(
+        parse_firewall_additional_ports(&json!({ "ports": [0] })),
+        Err("portOutOfRange")
+    );
+    assert_eq!(
+        parse_firewall_additional_ports(
+            &json!({ "ports": (1..=MAX_FIREWALL_ADDITIONAL_PORTS + 1).collect::<Vec<_>>() })
+        ),
+        Err("tooManyPorts")
+    );
+}
+
+#[test]
 fn normalizes_runtime_mode_feature_configs_like_node() {
     assert_eq!(normalize_run_type(Some(&json!(0))), Some(0));
     assert_eq!(normalize_run_type(Some(&json!(1))), Some(1));
@@ -439,6 +709,7 @@ fn gateway_port_matches_node_parse_int_fallback() {
 #[test]
 fn firewall_exempt_ports_include_stream_and_smart_connect_ports() {
     let config = json!({
+        "firewall_additional_ports": [5666, 2222, 70000],
         "smart_connect": { "enabled": true, "selected_ipv4": "192.168.1.20" },
         "stream_mappings": [
             { "listen_port": 2222 },
@@ -450,12 +721,21 @@ fn firewall_exempt_ports_include_stream_and_smart_connect_ports() {
     assert!(ports.contains(&gateway_port().to_string()));
     assert!(ports.contains(&"2222".to_string()));
     assert!(ports.contains(&"53".to_string()));
+    assert!(ports.contains(&"5666".to_string()));
     assert!(!ports.contains(&"70000".to_string()));
 
     let disabled_ports = exempt_ports(&config, false, 3);
     assert!(disabled_ports.contains(&gateway_port().to_string()));
     assert!(disabled_ports.contains(&"53".to_string()));
-    assert!(!disabled_ports.contains(&"2222".to_string()));
+    assert!(disabled_ports.contains(&"2222".to_string()));
+    assert!(disabled_ports.contains(&"5666".to_string()));
+
+    let direct_ports = exempt_ports(&config, true, 0);
+    assert!(direct_ports.contains(&gateway_port().to_string()));
+    assert!(direct_ports.contains(&"2222".to_string()));
+    assert!(direct_ports.contains(&"5666".to_string()));
+    assert!(!direct_ports.contains(&"53".to_string()));
+    assert!(exempt_ports(&config, true, 1).is_empty());
 }
 
 #[test]

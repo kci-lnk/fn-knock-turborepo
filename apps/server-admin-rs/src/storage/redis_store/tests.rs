@@ -1456,6 +1456,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "run_type",
         "reverse_proxy_submode",
         "auto_manage_firewall",
+        "firewall_additional_ports",
         "whitelist_ips",
         "proxy_mappings",
         "host_mappings",

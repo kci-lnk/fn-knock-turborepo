@@ -697,6 +697,220 @@ pub(super) async fn update_auto_manage_firewall(
     }
 }
 
+fn build_firewall_additional_ports_details(
+    config: &Value,
+    protocol_mapping_feature: &Value,
+) -> Value {
+    let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
+    let protocol_mapping_enabled = run_type == 3
+        && protocol_mapping_feature
+            .get("enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+    json!({
+        "additionalPorts": normalize_firewall_additional_ports(
+            config.get("firewall_additional_ports")
+        ),
+        "automaticPorts": automatic_exempt_port_numbers(
+            config,
+            protocol_mapping_enabled,
+            run_type,
+        ),
+        "effectivePorts": exempt_port_numbers(
+            config,
+            protocol_mapping_enabled,
+            run_type,
+        ),
+        "runType": run_type,
+        "appliedNow": run_type != 1,
+    })
+}
+
+pub(super) async fn get_firewall_additional_ports(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    if !host_firewall_available(&state) {
+        return response::error(
+            StatusCode::FORBIDDEN,
+            capability_blocked_text(&state, "host_firewall_available", &translator),
+        );
+    }
+    let config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load firewall additional ports config");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "firewallAdditionalPorts.loadFailed"),
+            );
+        }
+    };
+    match load_protocol_mapping_feature(&state, Some(&config)).await {
+        Ok(feature) => {
+            response::ok(build_firewall_additional_ports_details(&config, &feature)).into_response()
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to load protocol mapping feature for firewall ports");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "firewallAdditionalPorts.loadFailed"),
+            )
+        }
+    }
+}
+
+pub(super) async fn update_firewall_additional_ports(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    if !host_firewall_available(&state) {
+        return response::error(
+            StatusCode::FORBIDDEN,
+            capability_blocked_text(&state, "host_firewall_available", &translator),
+        );
+    }
+    let ports = match parse_firewall_additional_ports(&body) {
+        Ok(ports) => ports,
+        Err(key) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                admin_text(
+                    &translator,
+                    &format!("firewallAdditionalPorts.errors.{key}"),
+                ),
+            );
+        }
+    };
+    update_firewall_additional_ports_transaction(&state, ports).await
+}
+
+pub(super) async fn update_firewall_additional_ports_transaction(
+    state: &AppState,
+    ports: Vec<i64>,
+) -> Response {
+    update_firewall_additional_ports_transaction_with_reset(state, ports, &RuntimeFirewallReset)
+        .await
+}
+
+pub(super) type FirewallResetFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send + 'a>>;
+
+pub(super) trait FirewallResetOperation: Sync {
+    fn reset<'a>(&'a self, state: &'a AppState, run_type: i64) -> FirewallResetFuture<'a>;
+}
+
+struct RuntimeFirewallReset;
+
+impl FirewallResetOperation for RuntimeFirewallReset {
+    fn reset<'a>(&'a self, state: &'a AppState, run_type: i64) -> FirewallResetFuture<'a> {
+        Box::pin(reset_firewall_for_run_type(state, run_type))
+    }
+}
+
+pub(super) async fn update_firewall_additional_ports_transaction_with_reset<R>(
+    state: &AppState,
+    ports: Vec<i64>,
+    reset_firewall: &R,
+) -> Response
+where
+    R: FirewallResetOperation + ?Sized,
+{
+    let translator = Translator::from_state(state).await;
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let previous_config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load config before firewall ports update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "firewallAdditionalPorts.loadFailed"),
+            );
+        }
+    };
+    let protocol_mapping_feature = match load_protocol_mapping_feature(
+        state,
+        Some(&previous_config),
+    )
+    .await
+    {
+        Ok(feature) => feature,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load protocol mapping feature before firewall ports update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "firewallAdditionalPorts.loadFailed"),
+            );
+        }
+    };
+    let previous_run_type = previous_config
+        .get("run_type")
+        .and_then(Value::as_i64)
+        .unwrap_or(3);
+    let previous_ports =
+        normalize_firewall_additional_ports(previous_config.get("firewall_additional_ports"));
+    let next_config = match state
+        .store
+        .set_config_top_level_value("firewall_additional_ports", json!(ports))
+        .await
+    {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to save firewall additional ports config");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "firewallAdditionalPorts.saveFailed"),
+            );
+        }
+    };
+
+    match reset_firewall.reset(state, previous_run_type).await {
+        Ok(_) => response::ok(build_firewall_additional_ports_details(
+            &next_config,
+            &protocol_mapping_feature,
+        ))
+        .into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to apply firewall additional ports");
+            let localized_error = localize_runtime_config_error(&translator, &error);
+            let rollback_result = match state
+                .store
+                .set_config_top_level_value("firewall_additional_ports", json!(previous_ports))
+                .await
+            {
+                Ok(_) => reset_firewall
+                    .reset(state, previous_run_type)
+                    .await
+                    .map(|_| ()),
+                Err(rollback_error) => Err(rollback_error.to_string()),
+            };
+            match rollback_result {
+                Ok(()) => response::error(
+                    StatusCode::BAD_GATEWAY,
+                    admin_text_params(
+                        &translator,
+                        "firewallAdditionalPorts.updateFailedRolledBack",
+                        &[("message", localized_error)],
+                    ),
+                ),
+                Err(rollback_error) => {
+                    tracing::warn!(%rollback_error, "failed to rollback firewall additional ports");
+                    response::error(
+                        StatusCode::BAD_GATEWAY,
+                        admin_text_params(
+                            &translator,
+                            "firewallAdditionalPorts.updateFailedRollback",
+                            &[
+                                ("message", localized_error),
+                                ("rollbackError", rollback_error),
+                            ],
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
 pub(super) async fn reset_firewall(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -720,7 +934,7 @@ pub(super) async fn reset_firewall(
             capability_blocked_text(&state, "direct_mode_available", &translator),
         );
     }
-    match reset_firewall_for_run_type(&state, run_type).await {
+    match reset_firewall_with_transaction_lock(&state, run_type).await {
         Ok(data) => Json(json!({
             "success": true,
             "data": data,
@@ -734,6 +948,14 @@ pub(super) async fn reset_firewall(
     }
 }
 
+pub(super) async fn reset_firewall_with_transaction_lock(
+    state: &AppState,
+    run_type: i64,
+) -> Result<Value, String> {
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    reset_firewall_for_run_type(state, run_type).await
+}
+
 pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !host_firewall_available(&state) {
@@ -742,35 +964,36 @@ pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
             capability_blocked_text(&state, "host_firewall_available", &translator),
         );
     }
-    let result = async {
-        clear_legacy_gateway_redirects(&state, gateway_port(), true).await?;
-        state
-            .go_backend
-            .clean_iptables()
-            .await
-            .map_err(|error| error.to_string())
-            .and_then(|value| ensure_go_success(value).map_err(|error| error.to_string()))
-    }
-    .await;
-    match result {
-        Ok(()) => {
-            let data = json!({ "gatewayPort": gateway_port() });
-            Json(json!({
-                "success": true,
-                "data": data,
-                "message": admin_text_params(
-                    &translator,
-                    "firewall.clearSuccess",
-                    &[("port", gateway_port().to_string())],
-                ),
-            }))
-            .into_response()
-        }
+    match clear_firewall_with_transaction_lock(&state).await {
+        Ok(data) => Json(json!({
+            "success": true,
+            "message": admin_text_params(
+                &translator,
+                "firewall.clearSuccess",
+                &[("port", gateway_port().to_string())],
+            ),
+            "data": data,
+        }))
+        .into_response(),
         Err(error) => response::error(
             StatusCode::BAD_GATEWAY,
             localize_runtime_config_error(&translator, &error),
         ),
     }
+}
+
+pub(super) async fn clear_firewall_with_transaction_lock(
+    state: &AppState,
+) -> Result<Value, String> {
+    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    clear_legacy_gateway_redirects(state, gateway_port(), true).await?;
+    let value = state
+        .go_backend
+        .clean_iptables()
+        .await
+        .map_err(|error| error.to_string())?;
+    ensure_go_success(value).map_err(|error| error.to_string())?;
+    Ok(json!({ "gatewayPort": gateway_port() }))
 }
 
 pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {

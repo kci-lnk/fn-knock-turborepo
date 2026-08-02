@@ -30,6 +30,7 @@ import type {
   FnosNetworkTuningUpdatePayload,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
+  FirewallAdditionalPortsDetails,
   GatewayHostResponseDetails,
   GatewayPortalConfig,
   GatewayProxyHeadersDetails,
@@ -323,6 +324,7 @@ export const ConfigAPI = {
     revision: string | null,
     refreshedFaviconHosts: ReadonlySet<string> = new Set(),
     refreshedTitleHosts: ReadonlySet<string> = new Set(),
+    previousHosts: ReadonlyMap<string, string> = new Map(),
   ): Promise<RevisionedHostMappingCatalog> {
     const res = await apiClient.post(
       "/config/host_mapping_catalog",
@@ -331,6 +333,7 @@ export const ConfigAPI = {
           toHostMappingUpdatePayload(mapping, {
             includeFavicon: refreshedFaviconHosts.has(mapping.host),
             includeTitle: refreshedTitleHosts.has(mapping.host),
+            previousHost: previousHosts.get(mapping.host),
           }),
         ),
         groups,
@@ -921,12 +924,7 @@ export type RunModePromptPreferences = {
 };
 
 export type UpdateDownloadStatus =
-  | "idle"
-  | "downloading"
-  | "verifying"
-  | "downloaded"
-  | "installing"
-  | "error";
+  "idle" | "downloading" | "verifying" | "downloaded" | "installing" | "error";
 
 export type UpdateLatestPayload = {
   version: string;
@@ -1033,6 +1031,18 @@ export const SystemAPI = {
     gatewayPort: number;
   }> {
     const res = await apiClient.post("/firewall/clear");
+    return res.data.data;
+  },
+  async getFirewallAdditionalPorts(): Promise<FirewallAdditionalPortsDetails> {
+    const res = await apiClient.get("/config/firewall_additional_ports");
+    return res.data.data;
+  },
+  async updateFirewallAdditionalPorts(
+    ports: number[],
+  ): Promise<FirewallAdditionalPortsDetails> {
+    const res = await apiClient.post("/config/firewall_additional_ports", {
+      ports,
+    });
     return res.data.data;
   },
   async getRunModePromptPreferences(): Promise<RunModePromptPreferences> {

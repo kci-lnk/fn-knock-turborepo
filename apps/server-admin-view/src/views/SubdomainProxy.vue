@@ -607,12 +607,7 @@ const {
   resetFaviconErrors,
   runSaveMappings,
   savedRootDomain,
-  saveHostMappings: (mappings, refreshedFaviconHosts, refreshedTitleHosts) =>
-    configStore.saveHostMappings(
-      mappings,
-      refreshedFaviconHosts,
-      refreshedTitleHosts,
-    ),
+  saveHostMappings: configStore.saveHostMappings,
   setGatewayHostResponseDisabledHosts: (disabledHosts) => {
     if (!configStore.config) return;
     configStore.config = {

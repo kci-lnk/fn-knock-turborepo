@@ -846,6 +846,58 @@ export const zhCNAdmin = {
     hostFirewallDisabled:
       "宿主机防火墙管理已禁用，自动处理系统防火墙和手动防火墙操作入口不会显示。",
     actions: "操作",
+    additionalPorts: {
+      menu: "额外放行的端口",
+      title: "额外放行的端口",
+      description:
+        "管理需要由 FN-KNOCK-FW 额外放行的端口。更改会在保存时一次性应用。",
+      loading: "正在加载端口配置…",
+      loadFailedInline: "无法加载额外端口配置，请重试。",
+      retry: "重新加载",
+      currentMode: "当前已保存模式：{mode}",
+      applyImmediatelyHint: "保存后会立即按当前模式重设防火墙。",
+      reverseModeHint:
+        "内网穿透模式不创建 FN-KNOCK-FW；配置会保留，并在切换到直连或子域模式后生效。",
+      reverseModeManualHint:
+        "内网穿透模式不创建 FN-KNOCK-FW。自动处理系统防火墙已关闭：切换到子域模式后需手动重设防火墙；切换到直连模式时仍会自动应用。",
+      unsavedModeHint:
+        "页面上有尚未保存的模式更改；本次操作仍按后端当前已保存模式执行。",
+      automaticTitle: "系统自动放行",
+      automaticDescription:
+        "这些端口来自网关、协议映射或智能连接，无需在下方重复添加。",
+      noAutomaticPorts: "当前模式不使用受管防火墙端口。",
+      customTitle: "用户额外放行",
+      customDescription:
+        "最多添加 {max} 个端口；可直接修改端口号，删除只影响当前草稿。",
+      portAria: "额外放行端口 {number}",
+      portPlaceholder: "例如 5666",
+      deletePort: "删除端口 {port}",
+      empty: "尚未配置额外放行端口。",
+      addPort: "新增端口",
+      protocolTitle: "同时放行 TCP 与 UDP",
+      protocolDescription:
+        "每个端口都会同时添加 TCP 和 UDP 放行规则，请只添加确实需要对外访问的端口。",
+      saveAndApply: "保存并应用",
+      reverseModeName: "内网穿透",
+      noPorts: "无",
+      loadFailed: "加载额外放行端口失败",
+      saveFailed: "保存额外放行端口失败",
+      saved: "额外放行端口已更新",
+      savedAndAppliedDescription:
+        "已保存 {count} 个额外端口，并按{mode}重设防火墙。当前实际放行：{ports}。",
+      savedForLaterDescription:
+        "已保存 {count} 个额外端口。内网穿透模式当前不创建受管防火墙规则，切换模式后会自动纳入。",
+      savedForLaterManualDescription:
+        "已保存 {count} 个额外端口。自动处理系统防火墙已关闭：切换到子域模式后需手动重设防火墙；切换到直连模式时仍会自动应用。",
+      savedModeNotice: "页面上未保存的模式选择未被应用。",
+      errors: {
+        required: "端口号不能为空。",
+        integer: "端口必须是整数。",
+        range: "端口必须在 1 到 65535 之间。",
+        duplicate: "额外放行端口不能重复。",
+        tooMany: "最多只能配置 {max} 个额外放行端口。",
+      },
+    },
     resetFirewallByMode: "按所选模式重设防火墙",
     clearFirewall: "清空防火墙",
     discardChanges: "放弃更改",
@@ -899,7 +951,7 @@ export const zhCNAdmin = {
     firewallResetDirect:
       "已按直连模式重建防火墙，仅保留 {ports} 端口作为登录入口{whitelist}。",
     firewallResetSubdomain:
-      "已按子域模式重建防火墙，保留 {ports} 端口供网关与协议映射使用。",
+      "已按子域模式重建防火墙，保留 {ports} 端口供网关、协议映射和用户额外放行使用。",
     unsavedModeNotice:
       " 当前保存的运行模式仍是{current}，如需长期按{target}生效，请点击“保存修改”。",
     successDefaultRouteReset: "，并重置默认路径入口",
@@ -3516,8 +3568,7 @@ export const zhCNAdmin = {
     sourceDomainHint:
       "自动解析该域名得到 IPv4/IPv6，然后按当前更新范围写入 DDNS",
     interfaceAddressHelpTitle: "网卡地址说明",
-    interfaceAddressHelp:
-      "下方地址列表按照当前公网/内网策略展示可用候选",
+    interfaceAddressHelp: "下方地址列表按照当前公网/内网策略展示可用候选",
     chooseInterfaceFirst: "请先在上方明确选择一张出站网卡。",
     addressOrderHelp:
       "地址会按稳定特征重新匹配，不再依赖网卡返回列表中的位置。更换网卡会清空规则。",

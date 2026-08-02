@@ -30,6 +30,8 @@
       :all-regular-mappings="visibleMappings"
       :auth-service-mapping="authServiceMapping"
       :can-manage-new-mappings="canManageNewMappings"
+      :active-deep-monitor-hosts="activeDeepMonitorHosts"
+      :can-use-deep-monitor="configStore.canUseDeepMonitor"
       :discover-button-divider-class="discoverButtonDividerClass"
       :discover-button-variant="discoverButtonVariant"
       :docs-href="docsUrls.guides.subdomainProxy"
@@ -93,6 +95,7 @@
       @open-availability="openAvailabilityDialog"
       @open-gateway-locations="openGatewayLocations"
       @open-advanced-auth="openAdvancedAuth"
+      @open-deep-monitor="openDeepMonitor"
       @open-stale-cleanup="openStaleCleanupDialog"
       @refresh-all-titles="refreshAllTitles"
       @save-order="saveMappingOrder"
@@ -246,7 +249,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import StaleHostMappingsCleanupDialog from "@/components/StaleHostMappingsCleanupDialog.vue";
 import ScanDiscoveryIntensityDialog from "@/components/ScanDiscoveryIntensityDialog.vue";
 import SubdomainActionConfirmDialog from "./subdomain-proxy/SubdomainActionConfirmDialog.vue";
@@ -292,6 +294,8 @@ import { useSubdomainModeConfig } from "./subdomain-proxy/useSubdomainModeConfig
 import { useSubdomainDestructiveActions } from "./subdomain-proxy/useSubdomainDestructiveActions";
 import { useGatewayVisibilityStatus } from "./subdomain-proxy/useGatewayVisibilityStatus";
 import { useSubdomainMappingGroups } from "./subdomain-proxy/useSubdomainMappingGroups";
+import { useActiveDeepMonitors } from "./subdomain-proxy/useActiveDeepMonitors";
+import { useSubdomainNavigation } from "./subdomain-proxy/useSubdomainNavigation";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -300,8 +304,12 @@ const staleCleanupDialogRef = ref<InstanceType<
 > | null>(null);
 const isScanIntensityDialogOpen = ref(false);
 const searchQuery = ref("");
-const router = useRouter();
 const draggableVisibleMappings = ref<HostMapping[]>([]);
+const activeDeepMonitorHosts = useActiveDeepMonitors(
+  () => configStore.canUseDeepMonitor,
+);
+const { openAdvancedAuth, openDeepMonitor, navigateToGatewayLocations } =
+  useSubdomainNavigation();
 const {
   canManageNewMappings,
   canUseRootDomainSuffix,
@@ -682,12 +690,7 @@ const {
   isAuthServiceTarget,
   isDefaultDomainAvailable,
   isSavingMappings,
-  navigateToGatewayLocations: (host) => {
-    void router.push({
-      path: "/system/gateway-locations",
-      query: { host },
-    });
-  },
+  navigateToGatewayLocations,
   refreshAllHostMappingTitles: () => configStore.refreshAllHostMappingTitles(),
   resetFaviconErrors,
   runSaveMappings,
@@ -744,11 +747,5 @@ onUnmounted(() => {
 
 function openStaleCleanupDialog() {
   void staleCleanupDialogRef.value?.open();
-}
-
-function openAdvancedAuth(host: string) {
-  void router.push({
-    path: `/subdomains/${encodeURIComponent(host)}/advanced-auth`,
-  });
 }
 </script>

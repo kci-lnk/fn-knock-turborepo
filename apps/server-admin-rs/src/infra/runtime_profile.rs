@@ -22,6 +22,7 @@ pub struct RuntimeCapabilities {
     pub system_clock_sync_available: bool,
     pub self_update_available: bool,
     pub terminal_available: bool,
+    pub deep_monitor_available: bool,
     pub auto_https_available: bool,
     pub fnos_network_tuning_available: bool,
     pub fnos_connect_waf_available: bool,
@@ -57,6 +58,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             system_clock_sync_available: false,
             self_update_available: false,
             terminal_available: false,
+            deep_monitor_available: true,
             auto_https_available: true,
             fnos_network_tuning_available: false,
             fnos_connect_waf_available: false,
@@ -93,6 +95,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             && profile.deployment_target != "docker"
             && profile.deployment_target != "openwrt"
             && profile.deployment_target != "synology",
+        deep_monitor_available: true,
         auto_https_available: !is_fpk_lite
             && profile.deployment_target != "docker"
             && profile.deployment_target != "openwrt"

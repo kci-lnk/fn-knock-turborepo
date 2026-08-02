@@ -4,6 +4,7 @@ export * from "./acme";
 export * from "./config";
 export * from "./dashboard";
 export * from "./ddns";
+export * from "./deep-monitor";
 export * from "./events";
 export * from "./gateway";
 export * from "./polling";

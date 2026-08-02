@@ -51,6 +51,7 @@ export interface RuntimeCapabilities {
   system_clock_sync_available: boolean;
   self_update_available: boolean;
   terminal_available: boolean;
+  deep_monitor_available?: boolean;
   auto_https_available?: boolean;
   fnos_network_tuning_available?: boolean;
   fnos_connect_waf_available?: boolean;
@@ -575,6 +576,98 @@ export type SidebarNavItemId =
   | "waf_logs"
   | "web_terminal"
   | "system_settings";
+
+export interface DeepMonitorSession {
+  id: string;
+  host: string;
+  state: string;
+  started_at: string;
+  deadline_at: string;
+  stopped_at: string;
+  stop_reason: string;
+  bytes_stored: number;
+  event_count: number;
+  dropped_events: number;
+  quota_bytes: number;
+  payload_limit_bytes: number;
+}
+
+export interface DeepMonitorEventSummary {
+  id: string;
+  session_id: string;
+  sequence: number;
+  type: string;
+  time: string;
+  exchange_id: string;
+  connection_id: string;
+  host: string;
+  method: string;
+  path: string;
+  status: number;
+  client_ip: string;
+  identity: string;
+  direction: string;
+  payload_bytes: number;
+  truncated: boolean;
+  notice: string;
+}
+
+export interface DeepMonitorPayloadRef {
+  part: string;
+  observed_bytes: number;
+  captured_bytes: number;
+  truncated: boolean;
+  sha256: string;
+  content_type: string;
+}
+
+export interface DeepMonitorHeader {
+  name: string;
+  values: string[];
+}
+
+export interface DeepMonitorEvent {
+  summary: DeepMonitorEventSummary | null;
+  scheme: string;
+  protocol: string;
+  request_uri: string;
+  upstream: string;
+  user_agent: string;
+  referer: string;
+  remote_addr: string;
+  auth_credential_id: string;
+  auth_credential_name: string;
+  auth_credential_method: string;
+  auth_linked_totp_id: string;
+  auth_linked_totp_name: string;
+  auth_decision: string;
+  auth_rule_group_id: string;
+  auth_grant_state: string;
+  route_type: string;
+  route_key: string;
+  tls_version: string;
+  tls_cipher: string;
+  tls_server_name: string;
+  tls_alpn: string;
+  client_request_headers: DeepMonitorHeader[];
+  upstream_request_headers: DeepMonitorHeader[];
+  upstream_response_headers: DeepMonitorHeader[];
+  client_response_headers: DeepMonitorHeader[];
+  payloads: DeepMonitorPayloadRef[];
+  timing: Record<string, number> | null;
+  websocket_frame: Record<string, unknown> | null;
+  websocket_subprotocol: string;
+  websocket_extensions: string;
+  waf_trace_id: string;
+  waf_mode: string;
+  waf_rule_ids: number[];
+  waf_action: string;
+  waf_bundle: string;
+  waf_blocked: boolean;
+  general_blacklist_blocked: boolean;
+  client_ip_source: string;
+  error: string;
+}
 
 export interface DashboardDisplayConfig {
   show_entry_status_module: boolean;

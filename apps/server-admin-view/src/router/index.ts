@@ -61,6 +61,11 @@ const router = createRouter({
             import("../views/subdomain-proxy/SubdomainAdvancedAuth.vue"),
         },
         {
+          path: "subdomains/:host/deep-monitor",
+          name: "DeepMonitor",
+          component: () => import("../views/DeepMonitor.vue"),
+        },
+        {
           path: "streams",
           name: "StreamMappings",
           component: () => import("../views/StreamMappings.vue"),
@@ -109,6 +114,16 @@ const router = createRouter({
           path: "request-logs",
           name: "GatewayRequestLogs",
           component: () => import("../views/GatewayRequestLogs.vue"),
+        },
+        {
+          path: "deep-monitor",
+          redirect: (to) => {
+            const host =
+              typeof to.query.host === "string" ? to.query.host.trim() : "";
+            return host
+              ? `/subdomains/${encodeURIComponent(host)}/deep-monitor`
+              : "/subdomains";
+          },
         },
         {
           path: "waf-logs",

@@ -23,6 +23,7 @@ use crate::grpc_proto::{
     LocaleConfig, LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
     ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig, SslDeployedCertificate,
     StreamRule, StreamRules, StringValue, WafConfig,
+    deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -32,6 +33,7 @@ use crate::grpc_proto::{
 
 mod ack;
 mod compiled_ipset;
+pub(crate) mod deep_monitor;
 mod firewall;
 mod gateway_logs;
 mod general_blacklist;
@@ -64,6 +66,7 @@ pub(crate) enum BundleCompatibilityError {
 pub struct GoBackendClient {
     control: GatewayControlServiceClient<Channel>,
     logs: GatewayLogsServiceClient<Channel>,
+    deep_monitor: DeepMonitorServiceClient<Channel>,
     security: SecurityServiceClient<Channel>,
     traffic: TrafficServiceClient<Channel>,
     waf: WafServiceClient<Channel>,
@@ -93,6 +96,9 @@ impl GoBackendClient {
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
             logs: GatewayLogsServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            deep_monitor: DeepMonitorServiceClient::new(channel.clone())
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
             security: SecurityServiceClient::new(channel.clone())
@@ -190,6 +196,7 @@ impl GoBackendClient {
             "waf",
             "blacklist",
             "logs",
+            "deep_monitor_v1",
             "lifecycle",
             "runtime_info_v1",
             "host_rule_groups_v1",

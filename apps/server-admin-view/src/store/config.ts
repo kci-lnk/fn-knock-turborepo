@@ -551,6 +551,9 @@ export const useConfigStore = defineStore("config", () => {
   const canUseTerminal = computed(
     () => capabilities.value?.terminal_available === true,
   );
+  const canUseDeepMonitor = computed(
+    () => capabilities.value?.deep_monitor_available === true,
+  );
   const canUseAutoHttps = computed(
     () => capabilities.value?.auto_https_available !== false,
   );
@@ -609,6 +612,7 @@ export const useConfigStore = defineStore("config", () => {
     canSelfUpdate,
     canSyncSystemClock,
     canUseTerminal,
+    canUseDeepMonitor,
     canUseAutoHttps,
     canUseFnosNetworkTuning,
     canUseFnosConnectWaf,

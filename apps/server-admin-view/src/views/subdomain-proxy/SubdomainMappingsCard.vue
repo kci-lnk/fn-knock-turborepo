@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   CalendarClock,
+  Activity,
   ChevronDown,
   ChevronRight,
   CircleAlert,
@@ -68,6 +69,7 @@ import {
   getMappingDisplayTitle,
   getMappingFaviconSrc,
   isHttpTargetUrl,
+  normalizeHostLike,
   type HostMappingAvailabilityState,
 } from "./model";
 import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
@@ -80,10 +82,12 @@ import {
 } from "./host-mapping-groups";
 
 const props = defineProps<{
+  activeDeepMonitorHosts: string[];
   allMappingsCount: number;
   allRegularMappings: HostMapping[];
   authServiceMapping: HostMapping | null;
   canManageNewMappings: boolean;
+  canUseDeepMonitor: boolean;
   discoverButtonDividerClass: string;
   discoverButtonVariant: ButtonVariants["variant"];
   docsHref: string;
@@ -154,6 +158,7 @@ const emit = defineEmits<{
   "open-availability": [mapping: HostMapping];
   "open-gateway-locations": [host: string];
   "open-advanced-auth": [host: string];
+  "open-deep-monitor": [host: string];
   "open-stale-cleanup": [];
   "refresh-all-titles": [];
   "save-order": [];
@@ -205,6 +210,11 @@ if (typeof window !== "undefined") {
 
 const hasGroups = computed(() => props.groups.length > 0);
 const showGroupedView = computed(() => hasGroups.value && props.groupedView);
+const activeDeepMonitorHostSet = computed(
+  () => new Set(props.activeDeepMonitorHosts.map(normalizeHostLike)),
+);
+const isDeepMonitorActive = (host: string) =>
+  activeDeepMonitorHostSet.value.has(normalizeHostLike(host));
 const isGroupedViewActive = computed(() => props.groupedView);
 const dragDisabled = computed(
   () =>
@@ -787,6 +797,7 @@ const handleMappingTableScroll = (event: Event) => {
                 :class="[
                   'group',
                   isMappingUnavailable(mapping) ? 'text-muted-foreground' : '',
+                  isDeepMonitorActive(mapping.host) ? 'bg-primary/[0.04]' : '',
                 ]"
               >
                 <TableCell
@@ -926,6 +937,21 @@ const handleMappingTableScroll = (event: Event) => {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    <span
+                      v-if="isDeepMonitorActive(mapping.host)"
+                      class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                      :title="t('admin.subdomainProxy.deepMonitorActive')"
+                    >
+                      <span class="relative flex h-1.5 w-1.5">
+                        <span
+                          class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70"
+                        />
+                        <span
+                          class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"
+                        />
+                      </span>
+                      {{ t("admin.subdomainProxy.deepMonitorActive") }}
+                    </span>
                     <button
                       type="button"
                       data-affordance="edit"
@@ -1036,6 +1062,27 @@ const handleMappingTableScroll = (event: Event) => {
                         >
                           <RouteIcon class="mr-2 h-4 w-4" />
                           {{ t("admin.subdomainProxy.paths") }}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          v-if="
+                            canUseDeepMonitor &&
+                            !isAuthServiceTarget(mapping.target)
+                          "
+                          @select="emit('open-deep-monitor', mapping.host)"
+                        >
+                          <Activity
+                            class="mr-2 h-4 w-4"
+                            :class="{
+                              'animate-pulse text-primary': isDeepMonitorActive(
+                                mapping.host,
+                              ),
+                            }"
+                          />
+                          {{
+                            isDeepMonitorActive(mapping.host)
+                              ? t("admin.subdomainProxy.deepMonitorActive")
+                              : t("admin.subdomainProxy.deepMonitor")
+                          }}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           v-if="

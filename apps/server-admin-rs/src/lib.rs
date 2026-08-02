@@ -38,7 +38,9 @@ pub(crate) use config::runtime as runtime_config;
 pub(crate) use ddns as ddns_status;
 pub(crate) use discovery::{cidr, ip_location, ip_location_config, scan_assets, scanner};
 pub(crate) use events as system_events;
-pub(crate) use gateway::{logs as gateway_logs, proxy_config, settings as gateway_settings};
+pub(crate) use gateway::{
+    deep_monitor, logs as gateway_logs, proxy_config, settings as gateway_settings,
+};
 pub(crate) use infra::{
     app_version, go_backend, i18n, memory, openapi_docs, response, runtime_profile, settings,
     state, static_files,

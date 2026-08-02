@@ -231,7 +231,7 @@ else
         /|/index.html) printf 'Cache-Control: no-cache, no-store, must-revalidate\r\n' ;;
     esac
 fi
-for HEADER_NAME in Expires Pragma ETag Last-Modified Vary; do
+for HEADER_NAME in Expires Pragma ETag Last-Modified Vary Content-Disposition; do
     HEADER_LINE="$(grep -i "^${HEADER_NAME}:" "${HEADER_FILE}" | tail -1 | tr -d '\r')"
     [ -z "${HEADER_LINE}" ] || printf '%s\r\n' "${HEADER_LINE}"
 done

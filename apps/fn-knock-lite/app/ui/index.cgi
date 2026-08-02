@@ -177,5 +177,6 @@ else
 fi
 
 emit_upstream_cache_headers
+emit_upstream_header "Content-Disposition"
 printf "\r\n"
 cat "$BODY_FILE"

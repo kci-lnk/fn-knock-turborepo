@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 6;
+  CONTROL_API_VERSION_CURRENT = 7;
 }
 
 message RpcStatus {
@@ -480,6 +480,192 @@ message GatewayLogDeleteResult {
   repeated string available_dates = 4;
 }
 
+// Deep monitoring is deliberately session scoped. Payload bytes are never
+// returned by list/watch calls and must be fetched through StreamPayload.
+message DeepMonitorSession {
+  string id = 1;
+  string host = 2;
+  string state = 3;
+  string started_at = 4;
+  string deadline_at = 5;
+  string stopped_at = 6;
+  string stop_reason = 7;
+  uint64 bytes_stored = 8;
+  uint64 event_count = 9;
+  uint64 dropped_events = 10;
+  uint64 quota_bytes = 11;
+  uint64 payload_limit_bytes = 12;
+}
+
+message DeepMonitorStartRequest {
+  string host = 1;
+  int32 duration_seconds = 2;
+  reserved 3;
+  reserved "acknowledge_raw_capture";
+}
+
+message DeepMonitorSessionRequest {
+  string session_id = 1;
+}
+
+message DeepMonitorExtendRequest {
+  string session_id = 1;
+  int32 duration_seconds = 2;
+}
+
+message DeepMonitorListRequest {
+  bool include_expired = 1;
+}
+
+message DeepMonitorSessionList {
+  repeated DeepMonitorSession items = 1;
+}
+
+message DeepMonitorPayloadRef {
+  string part = 1;
+  uint64 observed_bytes = 2;
+  uint64 captured_bytes = 3;
+  bool truncated = 4;
+  string sha256 = 5;
+  string content_type = 6;
+}
+
+message DeepMonitorTiming {
+  int64 total_ms = 1;
+  int64 dns_ms = 2;
+  int64 connect_ms = 3;
+  int64 tls_ms = 4;
+  int64 request_write_ms = 5;
+  int64 ttfb_ms = 6;
+  int64 upstream_read_ms = 7;
+  int64 auth_ms = 8;
+  int64 waf_ms = 9;
+  int64 route_ms = 10;
+}
+
+message DeepMonitorWebSocketFrame {
+  string direction = 1;
+  bool fin = 2;
+  bool rsv1 = 3;
+  bool rsv2 = 4;
+  bool rsv3 = 5;
+  uint32 opcode = 6;
+  bool masked = 7;
+  bytes mask_key = 8;
+  uint64 payload_length = 9;
+  int32 close_code = 10;
+  string close_reason = 11;
+  bool compressed = 12;
+}
+
+message DeepMonitorEventSummary {
+  string id = 1;
+  string session_id = 2;
+  uint64 sequence = 3;
+  string type = 4;
+  string time = 5;
+  string exchange_id = 6;
+  string connection_id = 7;
+  string host = 8;
+  string method = 9;
+  string path = 10;
+  int32 status = 11;
+  string client_ip = 12;
+  string identity = 13;
+  string direction = 14;
+  uint64 payload_bytes = 15;
+  bool truncated = 16;
+  string notice = 17;
+}
+
+message DeepMonitorEvent {
+  DeepMonitorEventSummary summary = 1;
+  string scheme = 2;
+  string protocol = 3;
+  string request_uri = 4;
+  string upstream = 5;
+  string user_agent = 6;
+  string referer = 7;
+  string remote_addr = 8;
+  string auth_credential_id = 9;
+  string auth_credential_name = 10;
+  string auth_credential_method = 11;
+  string auth_linked_totp_id = 12;
+  string auth_linked_totp_name = 13;
+  string auth_decision = 14;
+  string route_type = 15;
+  string route_key = 16;
+  string tls_version = 17;
+  string tls_cipher = 18;
+  string tls_server_name = 19;
+  string tls_alpn = 20;
+  HeaderList client_request_headers = 21;
+  HeaderList upstream_request_headers = 22;
+  HeaderList upstream_response_headers = 23;
+  HeaderList client_response_headers = 24;
+  repeated DeepMonitorPayloadRef payloads = 25;
+  DeepMonitorTiming timing = 26;
+  DeepMonitorWebSocketFrame websocket_frame = 27;
+  string websocket_subprotocol = 28;
+  string websocket_extensions = 29;
+  string error = 30;
+  string auth_rule_group_id = 31;
+  string auth_grant_state = 32;
+  string waf_trace_id = 33;
+  string waf_mode = 34;
+  repeated int32 waf_rule_ids = 35;
+  string waf_action = 36;
+  string waf_bundle = 37;
+  bool waf_blocked = 38;
+  bool general_blacklist_blocked = 39;
+  string client_ip_source = 40;
+}
+
+message DeepMonitorQuery {
+  string session_id = 1;
+  string cursor = 2;
+  int32 limit = 3;
+  string type = 4;
+  string search = 5;
+  string direction = 6;
+  string method = 7;
+  int32 status = 8;
+  string client_ip = 9;
+  string identity = 10;
+  string path = 11;
+}
+
+message DeepMonitorQueryResult {
+  repeated DeepMonitorEventSummary items = 1;
+  string next_cursor = 2;
+  bool has_more = 3;
+}
+
+message DeepMonitorEventRequest {
+  string session_id = 1;
+  string event_id = 2;
+}
+
+message DeepMonitorWatchRequest {
+  string session_id = 1;
+  uint64 after_sequence = 2;
+}
+
+message DeepMonitorPayloadRequest {
+  string session_id = 1;
+  string event_id = 2;
+  string part = 3;
+  uint64 offset = 4;
+}
+
+message DeepMonitorPayloadChunk {
+  bytes data = 1;
+  uint64 offset = 2;
+  uint64 total_bytes = 3;
+  bool eof = 4;
+  string content_type = 5;
+}
+
 message TrafficStats {
   uint64 total_in = 1;
   uint64 total_out = 2;
@@ -849,6 +1035,19 @@ service GatewayLogsService {
   rpc GetLogDates(google.protobuf.Empty) returns (GatewayLogDates);
   rpc QueryLogEntries(GatewayLogQuery) returns (GatewayLogQueryResult);
   rpc DeleteLogDate(StringValue) returns (GatewayLogDeleteResult);
+}
+
+service DeepMonitorService {
+  rpc StartSession(DeepMonitorStartRequest) returns (DeepMonitorSession);
+  rpc ExtendSession(DeepMonitorExtendRequest) returns (DeepMonitorSession);
+  rpc StopSession(DeepMonitorSessionRequest) returns (DeepMonitorSession);
+  rpc ListSessions(DeepMonitorListRequest) returns (DeepMonitorSessionList);
+  rpc QueryEvents(DeepMonitorQuery) returns (DeepMonitorQueryResult);
+  rpc GetEvent(DeepMonitorEventRequest) returns (DeepMonitorEvent);
+  rpc WatchEvents(DeepMonitorWatchRequest) returns (stream DeepMonitorEventSummary);
+  rpc StreamPayload(DeepMonitorPayloadRequest) returns (stream DeepMonitorPayloadChunk);
+  rpc StreamSessionArchive(DeepMonitorSessionRequest) returns (stream DeepMonitorPayloadChunk);
+  rpc DeleteSession(DeepMonitorSessionRequest) returns (RpcStatus);
 }
 
 service SecurityService {

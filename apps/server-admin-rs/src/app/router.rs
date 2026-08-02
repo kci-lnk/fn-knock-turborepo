@@ -11,6 +11,7 @@ use crate::{
     cloudflared::cloudflared_routes,
     dashboard::dashboard_routes,
     ddns_status::ddns_status_routes,
+    deep_monitor::deep_monitor_routes,
     fnos_certificate_sync::fnos_certificate_sync_routes,
     frpc::frpc_routes,
     gateway_logs::gateway_logs_routes,
@@ -75,6 +76,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(ssl_routes())
         .merge(general_blacklist_routes())
         .merge(gateway_logs_routes())
+        .merge(deep_monitor_routes())
         .merge(gateway_settings_routes())
         .merge(ip_location_routes())
         .merge(ip_location_config_routes())
@@ -231,5 +233,29 @@ mod tests {
                 .expect("OpenWrt unsupported route response");
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
         }
+    }
+
+    #[tokio::test]
+    async fn unprotected_backend_deep_monitor_does_not_require_panel_login() {
+        let (_directory, state) = openwrt_test_state().await;
+        let response = backend_router(state, false)
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/api/admin/deep-monitor/sessions")
+                    .body(Body::empty())
+                    .expect("deep monitor request"),
+            )
+            .await
+            .expect("deep monitor response");
+
+        // The unprotected backend is reached through platform-controlled
+        // ingress such as the fnOS CGI. It must reach the Go backend instead
+        // of requiring the Docker admin-panel cookie locally.
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        assert!(
+            response.headers().get("x-fn-knock-admin-auth").is_none(),
+            "deep monitor route unexpectedly required panel authentication"
+        );
     }
 }

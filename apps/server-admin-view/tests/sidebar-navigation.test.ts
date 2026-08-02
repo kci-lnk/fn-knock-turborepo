@@ -15,6 +15,15 @@ import {
 const item = (id: SidebarNavItemId) => ({ id });
 
 describe("sidebar navigation order", () => {
+  it("keeps deep monitoring under subdomain mappings instead of the sidebar", () => {
+    assert.equal(
+      (DEFAULT_SIDEBAR_MENU_ORDER as readonly string[]).includes(
+        "deep_monitor",
+      ),
+      false,
+    );
+  });
+
   it("keeps the existing default order when no preference is saved", () => {
     assert.deepEqual(
       normalizeSidebarMenuOrder(undefined),

@@ -3744,7 +3744,16 @@ export const koKRAdmin = {
     ipSourceHint:
       "현재 공인 IP를 감지하거나 선택한 인터페이스에서 읽을 수 있습니다. 고정 IP를 입력하거나 다른 도메인의 주소를 조회할 수도 있습니다.",
     interfaceOnlyFiltered:
-      "인터페이스를 직접 사용하면 DDNS에 적합한 주소만 표시하고 명백한 사설 주소는 제외합니다.",
+      "인터페이스 모드는 기본적으로 공인 후보만 사용합니다. 아래 스위치로 RFC1918/ULA 사설 주소를 허용할 수 있습니다.",
+    interfacePrivateFilterOn:
+      "RFC1918 IPv4 및 IPv6 ULA 주소를 후보로 허용했습니다. 그 밖의 비공인 범위는 계속 제외됩니다.",
+    allowPrivateAddresses: "사설 주소 허용",
+    allowPrivateAddressesHint:
+      "RFC1918 IPv4와 IPv6 ULA만 허용하며 루프백, 링크 로컬, CGNAT 및 예약 범위는 제외합니다.",
+    allowPrivateAddressesWarning:
+      "사설 네트워크에서만 접근 가능한 주소가 DNS에 게시될 수 있습니다. 명시적 우선 주소와 현재 사용 가능한 주소를 차례로 우선하며, 다시 선택할 때는 공인 후보가 사설 후보보다 앞섭니다.",
+    allowedLabel: "허용됨",
+    filteredLabel: "필터링됨",
     updateScopeHint: "IPv4, IPv6 또는 둘 다 업데이트",
     staticIpv4Label: "고정 IPv4 주소",
     staticIpv4Hint: "이 IPv4 주소가 DDNS A 레코드에 기록됩니다.",
@@ -3755,12 +3764,14 @@ export const koKRAdmin = {
       "이 도메인의 IPv4/IPv6 주소를 조회한 뒤 현재 업데이트 범위에 따라 DDNS에 기록합니다.",
     interfaceAddressHelpTitle: "인터페이스 주소 참고",
     interfaceAddressHelp:
-      "아래 목록에는 명백한 사설 주소를 제외한 후보만 표시됩니다.",
+      "아래 목록에는 현재 공인/사설 정책에 따라 사용할 수 있는 후보가 표시됩니다.",
     chooseInterfaceFirst: "먼저 위에서 아웃바운드 인터페이스를 선택하세요.",
     addressOrderHelp:
       "주소는 인터페이스 목록의 위치가 아닌 안정적인 속성으로 다시 일치됩니다. 인터페이스를 변경하면 규칙이 지워집니다.",
     filteredAddressHelp:
       "명백한 사설 주소는 제외됩니다. 목록이 비어 있으면 인터페이스를 바꾸거나 공인 IP 감지를 사용하세요.",
+    privateAddressHelp:
+      "RFC1918/ULA 주소가 후보에 포함됩니다. 우선순위는 명시적 우선 주소, 현재 사용 가능한 주소, 공인 후보, 사설 후보 순이며 CIDR 규칙이 먼저 후보 범위를 제한합니다.",
     interfaceSelectorInvalid: "인터페이스 주소 선택기가 잘못되었습니다.",
     selectorModeLabel: "선택 모드",
     selectorMode: {
@@ -3786,6 +3797,7 @@ export const koKRAdmin = {
       "{count}개 후보가 일치하여 하나를 안정적으로 선택했습니다.",
     selectorPreviewNoMatch: "현재 규칙과 일치하는 사용 가능한 주소가 없습니다.",
     selectorStatus: {
+      private: "사설",
       stable: "안정적",
       temporary: "임시/프라이버시",
       deprecated: "사용 중단됨",

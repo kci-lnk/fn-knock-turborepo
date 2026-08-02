@@ -65,6 +65,14 @@ pub(super) fn normalize_config_map(
         ),
     );
     data.insert(
+        DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD.to_string(),
+        normalize_config_boolean(
+            data.get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+                .map(String::as_str),
+        )
+        .to_string(),
+    );
+    data.insert(
         DDNS_STATIC_IPV4_FIELD.to_string(),
         normalize_static_ip(data.get(DDNS_STATIC_IPV4_FIELD).map(String::as_str), 4),
     );
@@ -111,6 +119,7 @@ pub(super) fn prepare_config_for_storage(
         config.remove(DDNS_INTERFACE_IPV6_INDEX_FIELD);
         config.remove(DDNS_INTERFACE_IPV4_SELECTOR_FIELD);
         config.remove(DDNS_INTERFACE_IPV6_SELECTOR_FIELD);
+        config.remove(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD);
     } else {
         if config
             .get(DDNS_INTERFACE_IPV4_SELECTOR_FIELD)
@@ -128,6 +137,13 @@ pub(super) fn prepare_config_for_storage(
         remove_empty(&mut config, DDNS_INTERFACE_IPV6_INDEX_FIELD);
         remove_empty(&mut config, DDNS_INTERFACE_IPV4_SELECTOR_FIELD);
         remove_empty(&mut config, DDNS_INTERFACE_IPV6_SELECTOR_FIELD);
+        if !config_flag_enabled(
+            config
+                .get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+                .map(String::as_str),
+        ) {
+            config.remove(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD);
+        }
     }
     if ip_source != "static" {
         config.remove(DDNS_STATIC_IPV4_FIELD);
@@ -213,6 +229,18 @@ pub(super) fn normalize_interface_index(value: Option<&str>) -> String {
 
 pub(super) fn normalize_static_ip(value: Option<&str>, _family: u8) -> String {
     value.unwrap_or("").trim().to_string()
+}
+
+pub(super) fn config_flag_enabled(value: Option<&str>) -> bool {
+    value.is_some_and(|value| value.trim().eq_ignore_ascii_case("true"))
+}
+
+pub(super) fn normalize_config_boolean(value: Option<&str>) -> &'static str {
+    if config_flag_enabled(value) {
+        "true"
+    } else {
+        "false"
+    }
 }
 
 pub(super) fn normalize_domain(value: &str) -> String {

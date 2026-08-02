@@ -200,23 +200,29 @@ pub(super) fn ipv6_interface_id(ip: Ipv6Addr) -> String {
     )
 }
 
+#[cfg(test)]
 pub(super) fn resolve_interface_selector(
     network: &Value,
     family: &str,
     selector: &InterfaceAddressSelector,
     current_address: Option<&str>,
 ) -> InterfaceSelection {
+    resolve_interface_selector_with_policy(network, family, selector, current_address, false)
+}
+
+pub(super) fn resolve_interface_selector_with_policy(
+    network: &Value,
+    family: &str,
+    selector: &InterfaceAddressSelector,
+    current_address: Option<&str>,
+    allow_private_addresses: bool,
+) -> InterfaceSelection {
     let includes = parse_normalized_cidrs(&selector.include_cidrs);
     let excludes = parse_normalized_cidrs(&selector.exclude_cidrs);
     let mut eligible = Vec::new();
     let mut rejected = Vec::new();
 
-    for item in network
-        .get("selectableAddresses")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-    {
+    for item in interface_candidate_addresses(network, allow_private_addresses) {
         if item.get("family").and_then(Value::as_str) != Some(family) {
             continue;
         }
@@ -295,6 +301,35 @@ pub(super) fn resolve_interface_selector(
         rejected,
         reason,
     }
+}
+
+pub(super) fn interface_candidate_addresses(
+    network: &Value,
+    allow_private_addresses: bool,
+) -> Vec<Value> {
+    let mut candidates = network
+        .get("selectableAddresses")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if allow_private_addresses {
+        for candidate in network
+            .get("privateAddresses")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+        {
+            let family = candidate.get("family").and_then(Value::as_str);
+            let address = candidate.get("address").and_then(Value::as_str);
+            if !candidates.iter().any(|existing| {
+                existing.get("family").and_then(Value::as_str) == family
+                    && existing.get("address").and_then(Value::as_str) == address
+            }) {
+                candidates.push(candidate);
+            }
+        }
+    }
+    candidates
 }
 
 fn parse_normalized_cidrs(values: &[String]) -> Vec<IpNet> {
@@ -388,13 +423,22 @@ fn canonical_ip_address(value: &str) -> Option<String> {
 }
 
 fn compare_interface_candidates(left: &Value, right: &Value) -> Ordering {
-    candidate_stability_rank(left)
-        .cmp(&candidate_stability_rank(right))
+    candidate_scope_rank(left)
+        .cmp(&candidate_scope_rank(right))
+        .then_with(|| candidate_stability_rank(left).cmp(&candidate_stability_rank(right)))
         .then_with(|| {
             let left = candidate_address(left).and_then(|value| value.parse::<IpAddr>().ok());
             let right = candidate_address(right).and_then(|value| value.parse::<IpAddr>().ok());
             left.cmp(&right)
         })
+}
+
+fn candidate_scope_rank(value: &Value) -> u8 {
+    if is_private_interface_address(value) {
+        1
+    } else {
+        0
+    }
 }
 
 fn candidate_stability_rank(value: &Value) -> u8 {

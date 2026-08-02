@@ -3766,7 +3766,16 @@ export const enAdmin = {
     ipSourceHint:
       "Detect the current outbound address, read the selected interface, enter a static IP, or resolve another domain",
     interfaceOnlyFiltered:
-      "When using an interface directly, only DDNS-ready addresses are shown and obvious private addresses are filtered.",
+      "Interface mode uses public candidates by default. Use the switch below to allow RFC1918/ULA private addresses.",
+    interfacePrivateFilterOn:
+      "RFC1918 IPv4 and IPv6 ULA addresses are allowed as candidates; other non-public ranges remain filtered.",
+    allowPrivateAddresses: "Allow private addresses",
+    allowPrivateAddressesHint:
+      "Allows only RFC1918 IPv4 and IPv6 ULA, excluding loopback, link-local, CGNAT, and reserved ranges.",
+    allowPrivateAddressesWarning:
+      "This may publish an address reachable only from the private network. An explicit preference wins, then the current usable address is retained; when reselection is needed, public candidates precede private ones.",
+    allowedLabel: "Allowed",
+    filteredLabel: "Filtered",
     updateScopeHint: "Update IPv4, IPv6, or both",
     staticIpv4Label: "Static IPv4 address",
     staticIpv4Hint: "This IPv4 address will be written to the DDNS A record",
@@ -3777,12 +3786,14 @@ export const enAdmin = {
       "Resolve this domain to IPv4/IPv6, then write the result according to the update scope",
     interfaceAddressHelpTitle: "Interface address notes",
     interfaceAddressHelp:
-      "The address list below only shows filtered candidates to avoid obvious private addresses",
+      "The address list below shows usable candidates under the current public/private policy",
     chooseInterfaceFirst: "Select an outbound interface above first.",
     addressOrderHelp:
       "Addresses are rematched by stable properties instead of their position in the interface list. Changing the interface clears the rules.",
     filteredAddressHelp:
       "Obvious private addresses are filtered. If the list is empty, change the interface or use public detection.",
+    privateAddressHelp:
+      "RFC1918/ULA addresses are included. The order is explicit preference, current usable address, public candidates, then private candidates; CIDR rules filter the candidate set first.",
     interfaceSelectorInvalid: "The interface address selector is invalid",
     selectorModeLabel: "Selection mode",
     selectorMode: {
@@ -3808,6 +3819,7 @@ export const enAdmin = {
       "Matched {count} candidates; one was selected deterministically",
     selectorPreviewNoMatch: "The current rules do not match a usable address.",
     selectorStatus: {
+      private: "Private",
       stable: "Stable",
       temporary: "Temporary/privacy",
       deprecated: "Deprecated",

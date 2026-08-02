@@ -3769,7 +3769,16 @@ export const jaJPAdmin = {
     ipSourceHint:
       "グローバル IP の検出、インターフェースからの取得、静的 IP、または別ドメインの名前解決から更新先アドレスを取得します",
     interfaceOnlyFiltered:
-      "インターフェースから直接取得する場合、DDNS に使用可能な候補だけを表示し、明らかなプライベートアドレスは除外します。",
+      "インターフェースモードでは既定でグローバル候補のみを使用します。下のスイッチで RFC1918/ULA のプライベートアドレスを許可できます。",
+    interfacePrivateFilterOn:
+      "RFC1918 IPv4 と IPv6 ULA を候補として許可しました。その他の非グローバル範囲は引き続き除外されます。",
+    allowPrivateAddresses: "プライベートアドレスを許可",
+    allowPrivateAddressesHint:
+      "RFC1918 IPv4 と IPv6 ULA のみを許可し、ループバック、リンクローカル、CGNAT、予約範囲は除外します。",
+    allowPrivateAddressesWarning:
+      "プライベートネットワーク内からのみ到達可能なアドレスが DNS に登録される場合があります。明示的な優先アドレス、現在の使用可能なアドレスの順に優先し、再選択時はグローバル候補をプライベート候補より先に選びます。",
+    allowedLabel: "許可",
+    filteredLabel: "除外",
     updateScopeHint: "IPv4、IPv6、またはその両方を更新します",
     staticIpv4Label: "静的 IPv4 アドレス",
     staticIpv4Hint: "この IPv4 アドレスを DDNS の A レコードへ書き込みます",
@@ -3780,12 +3789,14 @@ export const jaJPAdmin = {
       "このドメインを名前解決して IPv4／IPv6 を取得し、更新範囲に応じて DDNS レコードへ書き込みます",
     interfaceAddressHelpTitle: "インターフェースアドレスについて",
     interfaceAddressHelp:
-      "以下には、明らかなプライベートアドレスを誤って選択しないよう、絞り込んだ候補だけを表示します。",
+      "以下の一覧には、現在のグローバル／プライベートポリシーに基づく使用可能な候補を表示します。",
     chooseInterfaceFirst: "先に送信インターフェースを選択してください。",
     addressOrderHelp:
       "アドレス一覧の位置ではなく、変化しにくい属性で再照合します。インターフェースを変更するとルールはクリアされます。",
     filteredAddressHelp:
       "明らかなプライベートアドレスは除外されます。候補がない場合は、インターフェースを変更するか、グローバル IP 検出を使用してください。",
+    privateAddressHelp:
+      "RFC1918/ULA アドレスを候補に含めます。優先順は、明示的な優先アドレス、現在の使用可能なアドレス、グローバル候補、プライベート候補です。CIDR ルールは先に候補範囲を絞り込みます。",
     interfaceSelectorInvalid:
       "インターフェースアドレスの選択ルールが正しくありません",
     selectorModeLabel: "選択モード",
@@ -3812,6 +3823,7 @@ export const jaJPAdmin = {
     selectorPreviewNoMatch:
       "現在のルールに一致する使用可能なアドレスがありません。",
     selectorStatus: {
+      private: "プライベート",
       stable: "安定",
       temporary: "一時/プライバシー",
       deprecated: "非推奨",

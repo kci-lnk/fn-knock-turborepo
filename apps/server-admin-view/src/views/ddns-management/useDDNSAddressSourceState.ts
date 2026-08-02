@@ -10,6 +10,7 @@ import {
   NETWORK_INTERFACE_KEY,
   UPDATE_SCOPE_KEY,
   UPDATE_SCOPE_OPTIONS,
+  allowsPrivateAddresses,
   buildNetworkInterfaceAddressOptions,
   isIpSourceOptionDisabled,
   isUpdateScopeOptionDisabled,
@@ -174,6 +175,7 @@ export const useDDNSAddressSourceState = ({
       selectedNetworkInterfaceOption.value,
       "ipv4",
       formatAddressOptionLabel,
+      allowsPrivateAddresses(providerConfig.value),
     );
   });
 
@@ -182,6 +184,7 @@ export const useDDNSAddressSourceState = ({
       selectedNetworkInterfaceOption.value,
       "ipv6",
       formatAddressOptionLabel,
+      allowsPrivateAddresses(providerConfig.value),
     );
   });
 

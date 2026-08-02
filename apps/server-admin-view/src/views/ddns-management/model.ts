@@ -79,6 +79,7 @@ export const INTERFACE_IPV4_INDEX_KEY = "interface_ipv4_index";
 export const INTERFACE_IPV6_INDEX_KEY = "interface_ipv6_index";
 export const INTERFACE_IPV4_SELECTOR_KEY = "interface_ipv4_selector";
 export const INTERFACE_IPV6_SELECTOR_KEY = "interface_ipv6_selector";
+export const ALLOW_PRIVATE_ADDRESSES_KEY = "allow_private_addresses";
 export const STATIC_IPV4_KEY = "static_ipv4";
 export const STATIC_IPV6_KEY = "static_ipv6";
 export const SOURCE_DOMAIN_KEY = "source_domain";
@@ -187,6 +188,15 @@ export const normalizeDDNSPublicDnsProvider = (
 
 export const normalizeNetworkInterface = (value: string | null | undefined) =>
   value?.trim() || "";
+
+export const normalizeConfigBoolean = (
+  value: string | null | undefined,
+): "true" | "false" =>
+  value?.trim().toLowerCase() === "true" ? "true" : "false";
+
+export const allowsPrivateAddresses = (
+  config: Record<string, string>,
+) => normalizeConfigBoolean(config[ALLOW_PRIVATE_ADDRESSES_KEY]) === "true";
 
 export const normalizeInterfaceAddressIndex = (
   value: string | null | undefined,
@@ -317,6 +327,7 @@ export const buildInterfaceSelectorFromLegacyIndex = (
   family: "ipv4" | "ipv6",
   legacyIndex: string | null | undefined,
   currentAddress?: string | null,
+  allowPrivateAddresses = false,
 ): { selector: DDNSInterfaceSelector; migrated: boolean } => {
   const selector = createDefaultInterfaceSelector();
   const legacyIndexValue = legacyIndex?.trim();
@@ -324,7 +335,10 @@ export const buildInterfaceSelectorFromLegacyIndex = (
     return { selector, migrated: false };
   }
   const index = Number(legacyIndexValue);
-  const candidates = (option?.selectableAddresses || []).filter(
+  const candidates = buildInterfaceAddressCandidates(
+    option,
+    allowPrivateAddresses,
+  ).filter(
     (item) => item.family === family,
   );
   const usable = candidates.filter(
@@ -419,6 +433,9 @@ export const normalizeTargetConfigValues = (
   [INTERFACE_IPV6_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
     config?.[INTERFACE_IPV6_SELECTOR_KEY],
   ),
+  [ALLOW_PRIVATE_ADDRESSES_KEY]: normalizeConfigBoolean(
+    config?.[ALLOW_PRIVATE_ADDRESSES_KEY],
+  ),
   [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV4_KEY]),
   [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV6_KEY]),
   [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config?.[SOURCE_DOMAIN_KEY]),
@@ -444,6 +461,9 @@ export const extractCommonTargetConfig = (
   [INTERFACE_IPV6_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
     config[INTERFACE_IPV6_SELECTOR_KEY],
   ),
+  [ALLOW_PRIVATE_ADDRESSES_KEY]: normalizeConfigBoolean(
+    config[ALLOW_PRIVATE_ADDRESSES_KEY],
+  ),
   [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
   [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
   [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]),
@@ -464,6 +484,7 @@ export const resolveNetworkInterfaceOptions = (
       hasIpv6: false,
       addresses: [],
       selectableAddresses: [],
+      privateAddresses: [],
     });
   }
   return resolved;
@@ -542,13 +563,34 @@ export const buildNetworkInterfaceAddressOptions = (
     item: { address: string; family: "ipv4" | "ipv6" },
     index: number,
   ) => string,
+  allowPrivateAddresses = false,
 ) =>
-  (option?.selectableAddresses || [])
+  buildInterfaceAddressCandidates(option, allowPrivateAddresses)
     .filter((item) => item.family === family)
     .map((item, index) => ({
       value: String(index),
       label: getLabel(item, index),
     }));
+
+export const buildInterfaceAddressCandidates = (
+  option: DDNSNetworkInterfacePayload | null | undefined,
+  allowPrivateAddresses: boolean,
+) => {
+  const candidates = [...(option?.selectableAddresses || [])];
+  if (!allowPrivateAddresses) return candidates;
+  for (const candidate of option?.privateAddresses || []) {
+    if (
+      !candidates.some(
+        (existing) =>
+          existing.family === candidate.family &&
+          existing.address === candidate.address,
+      )
+    ) {
+      candidates.push(candidate);
+    }
+  }
+  return candidates;
+};
 
 export const isLikelyIPv4Address = (value: string) => {
   const parts = value.trim().split(".");

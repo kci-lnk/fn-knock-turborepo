@@ -3507,7 +3507,16 @@ export const zhHantAdmin = {
     ipSourceHint:
       "可從公網探測、網卡讀取、靜態填寫，或解析另一個域名取得目標地址",
     interfaceOnlyFiltered:
-      "從網卡直接取得時，只顯示看起來可直接用於 DDNS 的地址，並過濾明顯內網地址。",
+      "網卡模式預設僅使用公網候選；可透過下方開關允許 RFC1918/ULA 內網地址。",
+    interfacePrivateFilterOn:
+      "已允許 RFC1918 IPv4 與 IPv6 ULA 進入候選，其他非公網地址仍會過濾。",
+    allowPrivateAddresses: "允許內網地址",
+    allowPrivateAddressesHint:
+      "僅允許 RFC1918 IPv4 和 IPv6 ULA，不包含迴環、鏈路本地、CGNAT 或保留地址。",
+    allowPrivateAddressesWarning:
+      "啟用後可能把僅在私網可達的地址寫入 DNS。明確偏好優先，其次保留目前可用地址；需要重新選擇時，公網候選先於內網候選。",
+    allowedLabel: "已允許",
+    filteredLabel: "保持過濾",
     updateScopeHint: "更新 IPv4、IPv6，或同時更新兩者",
     staticIpv4Label: "靜態 IPv4 地址",
     staticIpv4Hint: "將把這個 IPv4 地址寫入 DDNS A 記錄",
@@ -3518,12 +3527,14 @@ export const zhHantAdmin = {
       "自動解析該域名取得 IPv4/IPv6，然後按目前更新範圍寫入 DDNS",
     interfaceAddressHelpTitle: "網卡地址說明",
     interfaceAddressHelp:
-      "下方地址列表只展示過濾後的候選項，用於避免誤選明顯內網地址",
+      "下方地址列表會按目前的公網／內網策略顯示可用候選",
     chooseInterfaceFirst: "請先在上方明確選擇一張出站網卡。",
     addressOrderHelp:
       "地址會按穩定特徵重新匹配，不再依賴網卡返回列表中的位置。更換網卡會清空規則。",
     filteredAddressHelp:
       "已過濾明顯內網地址；如果列表為空，請更換網卡或改用從公網取得。",
+    privateAddressHelp:
+      "已將 RFC1918/ULA 地址納入候選；順序為明確偏好、目前可用地址、公網候選、內網候選，CIDR 規則會先過濾候選範圍。",
     interfaceSelectorInvalid: "網卡地址選擇規則無效",
     selectorModeLabel: "選擇方式",
     selectorMode: {
@@ -3546,6 +3557,7 @@ export const zhHantAdmin = {
     selectorPreviewMultiple: "共匹配 {count} 個候選，已穩定選取一個",
     selectorPreviewNoMatch: "目前規則沒有匹配到可用地址。",
     selectorStatus: {
+      private: "內網",
       stable: "穩定",
       temporary: "臨時/隱私",
       deprecated: "已棄用",

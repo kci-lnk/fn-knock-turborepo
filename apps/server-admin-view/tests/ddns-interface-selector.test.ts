@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { DDNSNetworkInterfacePayload } from "../src/lib/api/ddns";
 import {
+  ALLOW_PRIVATE_ADDRESSES_KEY,
   INTERFACE_IPV6_SELECTOR_KEY,
   IP_SOURCE_KEY,
   NETWORK_INTERFACE_KEY,
   UPDATE_SCOPE_KEY,
   buildInterfaceSelectorFromLegacyIndex,
+  buildInterfaceAddressCandidates,
+  buildNetworkInterfaceAddressOptions,
   extractCommonTargetConfig,
   ipv6InterfaceIdFromAddress,
   parseInterfaceSelector,
@@ -30,7 +33,40 @@ const networkInterface: DDNSNetworkInterfacePayload = {
       temporary: false,
     },
   ],
+  privateAddresses: [
+    {
+      family: "ipv6",
+      address: "fd00::1234",
+      cidr: "fd00::1234/64",
+      internal: false,
+      temporary: false,
+    },
+  ],
 };
+
+test("private interface candidates require explicit opt-in and follow public candidates", () => {
+  assert.deepEqual(
+    buildInterfaceAddressCandidates(networkInterface, false).map(
+      (item) => item.address,
+    ),
+    ["2001:db8:1::1234"],
+  );
+  assert.deepEqual(
+    buildInterfaceAddressCandidates(networkInterface, true).map(
+      (item) => item.address,
+    ),
+    ["2001:db8:1::1234", "fd00::1234"],
+  );
+  assert.deepEqual(
+    buildNetworkInterfaceAddressOptions(
+      networkInterface,
+      "ipv6",
+      (item) => item.address,
+      true,
+    ).map((item) => item.label),
+    ["2001:db8:1::1234", "fd00::1234"],
+  );
+});
 
 test("extracts a canonical IPv6 lower-64-bit interface ID", () => {
   assert.equal(
@@ -201,7 +237,9 @@ test("loaded target normalization preserves the IPv6 selector", () => {
   });
   const normalized = extractCommonTargetConfig({
     [INTERFACE_IPV6_SELECTOR_KEY]: selector,
+    [ALLOW_PRIVATE_ADDRESSES_KEY]: "TRUE",
   });
 
   assert.equal(normalized[INTERFACE_IPV6_SELECTOR_KEY], selector);
+  assert.equal(normalized[ALLOW_PRIVATE_ADDRESSES_KEY], "true");
 });

@@ -4,6 +4,7 @@ import {
   IP_SOURCE_KEY,
   NETWORK_INTERFACE_KEY,
   UPDATE_SCOPE_KEY,
+  allowsPrivateAddresses,
   buildNetworkInterfaceAddressOptions,
   findProviderDef,
   normalizeIpSource,
@@ -117,6 +118,7 @@ export const useDDNSTargetDialogState = ({
       targetDialogNetworkInterfaceOption.value,
       "ipv4",
       formatAddressOptionLabel,
+      allowsPrivateAddresses(state.value.config),
     ),
   );
 
@@ -125,6 +127,7 @@ export const useDDNSTargetDialogState = ({
       targetDialogNetworkInterfaceOption.value,
       "ipv6",
       formatAddressOptionLabel,
+      allowsPrivateAddresses(state.value.config),
     ),
   );
 

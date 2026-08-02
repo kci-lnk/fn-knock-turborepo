@@ -662,6 +662,7 @@ fn prepares_config_for_storage_like_node() {
     assert!(!prepared.contains_key(DDNS_IP_SOURCE_FIELD));
     assert!(!prepared.contains_key(DDNS_STATIC_IPV4_FIELD));
     assert!(!prepared.contains_key(DDNS_INTERFACE_IPV4_INDEX_FIELD));
+    assert!(!prepared.contains_key(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD));
 
     let static_config = HashMap::from([
         (DDNS_IP_SOURCE_FIELD.to_string(), "static".to_string()),
@@ -678,6 +679,37 @@ fn prepares_config_for_storage_like_node() {
         prepared.get(DDNS_STATIC_IPV4_FIELD).map(String::as_str),
         Some("not-an-ip")
     );
+
+    let interface_config = HashMap::from([
+        (DDNS_IP_SOURCE_FIELD.to_string(), "interface".to_string()),
+        (
+            DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD.to_string(),
+            "TRUE".to_string(),
+        ),
+    ]);
+    let prepared = prepare_config_for_storage(
+        Some("cloudflare"),
+        normalize_config_map(Some("cloudflare"), &interface_config),
+    );
+    assert_eq!(
+        prepared
+            .get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+            .map(String::as_str),
+        Some("true")
+    );
+
+    let static_with_private_flag = HashMap::from([
+        (DDNS_IP_SOURCE_FIELD.to_string(), "static".to_string()),
+        (
+            DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD.to_string(),
+            "true".to_string(),
+        ),
+    ]);
+    let prepared = prepare_config_for_storage(
+        Some("cloudflare"),
+        normalize_config_map(Some("cloudflare"), &static_with_private_flag),
+    );
+    assert!(!prepared.contains_key(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD));
 }
 
 #[test]
@@ -1057,6 +1089,109 @@ fn interface_selector_keeps_current_address_before_ranking() {
     );
     assert_eq!(selection.selected.as_deref(), Some("2001:db8::20"));
     assert_eq!(selection.reason, "current");
+}
+
+#[test]
+fn interface_selector_private_policy_is_opt_in_and_public_first() {
+    let public = json!({
+        "family": "ipv4",
+        "address": "8.8.8.8",
+        "temporary": false,
+        "deprecated": false,
+        "tentative": false,
+        "dadFailed": false
+    });
+    let private = json!({
+        "family": "ipv4",
+        "address": "10.0.0.8",
+        "temporary": false,
+        "deprecated": false,
+        "tentative": false,
+        "dadFailed": false
+    });
+    let network = json!({
+        "selectableAddresses": [public],
+        "privateAddresses": [private]
+    });
+
+    let disabled = resolve_interface_selector_with_policy(
+        &network,
+        "ipv4",
+        &InterfaceAddressSelector::default(),
+        None,
+        false,
+    );
+    assert_eq!(disabled.selected.as_deref(), Some("8.8.8.8"));
+    assert_eq!(disabled.eligible.len(), 1);
+
+    let enabled = resolve_interface_selector_with_policy(
+        &network,
+        "ipv4",
+        &InterfaceAddressSelector::default(),
+        None,
+        true,
+    );
+    assert_eq!(enabled.selected.as_deref(), Some("8.8.8.8"));
+    assert_eq!(enabled.eligible.len(), 2);
+
+    let current_private = resolve_interface_selector_with_policy(
+        &network,
+        "ipv4",
+        &InterfaceAddressSelector::default(),
+        Some("10.0.0.8"),
+        true,
+    );
+    assert_eq!(current_private.selected.as_deref(), Some("10.0.0.8"));
+    assert_eq!(current_private.reason, "current");
+
+    let filtered_current_private = resolve_interface_selector_with_policy(
+        &network,
+        "ipv4",
+        &InterfaceAddressSelector::default(),
+        Some("10.0.0.8"),
+        false,
+    );
+    assert_eq!(
+        filtered_current_private.selected.as_deref(),
+        Some("8.8.8.8")
+    );
+    assert_eq!(filtered_current_private.reason, "ranked");
+
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("10.0.0.8".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let preferred = resolve_interface_selector_with_policy(&network, "ipv4", &selector, None, true);
+    assert_eq!(preferred.selected.as_deref(), Some("10.0.0.8"));
+    assert_eq!(preferred.reason, "preferred");
+
+    let private_only = json!({
+        "selectableAddresses": [],
+        "privateAddresses": [network["privateAddresses"][0].clone()]
+    });
+    assert_eq!(
+        resolve_interface_selector_with_policy(
+            &private_only,
+            "ipv4",
+            &InterfaceAddressSelector::default(),
+            None,
+            false,
+        )
+        .selected,
+        None
+    );
+    assert_eq!(
+        resolve_interface_selector_with_policy(
+            &private_only,
+            "ipv4",
+            &InterfaceAddressSelector::default(),
+            None,
+            true,
+        )
+        .selected
+        .as_deref(),
+        Some("10.0.0.8")
+    );
 }
 
 #[test]
@@ -1681,6 +1816,57 @@ fn interface_selectability_filters_private_ranges() {
         "family": "ipv6",
         "address": "2001:4860::1"
     })));
+    for address in [
+        "10.0.0.1",
+        "10.255.255.254",
+        "172.16.0.1",
+        "172.31.255.254",
+        "192.168.0.1",
+        "192.168.255.254",
+    ] {
+        assert!(is_private_interface_address(&json!({
+            "family": "ipv4",
+            "address": address
+        })));
+    }
+    for address in ["fc00::1", "fdff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"] {
+        assert!(is_private_interface_address(&json!({
+            "family": "ipv6",
+            "address": address
+        })));
+    }
+    for address in [
+        "9.255.255.255",
+        "11.0.0.0",
+        "100.64.0.1",
+        "127.0.0.1",
+        "169.254.1.1",
+        "172.15.255.255",
+        "172.32.0.0",
+        "192.0.2.1",
+        "192.167.255.255",
+        "192.169.0.0",
+        "224.0.0.1",
+        "240.0.0.1",
+    ] {
+        assert!(!is_private_interface_address(&json!({
+            "family": "ipv4",
+            "address": address
+        })));
+    }
+    for address in [
+        "::1",
+        "fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "fe00::1",
+        "fe80::1",
+        "2001:db8::1",
+        "ff02::1",
+    ] {
+        assert!(!is_private_interface_address(&json!({
+            "family": "ipv6",
+            "address": address
+        })));
+    }
 }
 
 #[test]
@@ -1700,19 +1886,22 @@ fn runtime_interfaces_keep_private_addresses_like_node() {
     assert_eq!(item["name"], json!("eth-private"));
     assert_eq!(item["addresses"].as_array().unwrap().len(), 1);
     assert_eq!(item["selectableAddresses"].as_array().unwrap().len(), 0);
-    assert!(
-        interface_option(
-            "docker-host:eth0",
-            "docker_host",
-            vec![json!({
-                "family": "ipv6",
-                "address": "fd00::1",
-                "cidr": "fd00::1/64",
-                "internal": false,
-                "source": "docker_host"
-            })],
-        )
-        .is_none()
+    assert_eq!(item["privateAddresses"].as_array().unwrap().len(), 1);
+    let docker_private = interface_option(
+        "docker-host:eth0",
+        "docker_host",
+        vec![json!({
+            "family": "ipv6",
+            "address": "fd00::1",
+            "cidr": "fd00::1/64",
+            "internal": false,
+            "source": "docker_host"
+        })],
+    )
+    .unwrap();
+    assert_eq!(
+        docker_private["privateAddresses"][0]["address"],
+        json!("fd00::1")
     );
 }
 

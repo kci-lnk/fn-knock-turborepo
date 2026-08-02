@@ -80,6 +80,7 @@ const DDNS_INTERFACE_IPV4_INDEX_FIELD: &str = "interface_ipv4_index";
 const DDNS_INTERFACE_IPV6_INDEX_FIELD: &str = "interface_ipv6_index";
 const DDNS_INTERFACE_IPV4_SELECTOR_FIELD: &str = "interface_ipv4_selector";
 const DDNS_INTERFACE_IPV6_SELECTOR_FIELD: &str = "interface_ipv6_selector";
+const DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD: &str = "allow_private_addresses";
 const DDNS_STATIC_IPV4_FIELD: &str = "static_ipv4";
 const DDNS_STATIC_IPV6_FIELD: &str = "static_ipv6";
 const DDNS_SOURCE_DOMAIN_FIELD: &str = "source_domain";
@@ -124,6 +125,8 @@ struct InterfaceSelectorPreviewBody {
     family: String,
     selector: Value,
     current_address: Option<String>,
+    #[serde(default)]
+    allow_private_addresses: bool,
 }
 
 #[derive(Deserialize)]
@@ -579,11 +582,12 @@ async fn resolve_interface_selector_preview(
             );
         }
     };
-    let selection = resolve_interface_selector(
+    let selection = resolve_interface_selector_with_policy(
         &network,
         &body.family,
         &selector,
         body.current_address.as_deref(),
+        body.allow_private_addresses,
     );
     let mut warnings = Vec::new();
     if selection.eligible.len() > 1 {

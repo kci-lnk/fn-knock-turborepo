@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import {
   createDefaultInterfaceSelector,
+  buildInterfaceAddressCandidates,
   buildInterfaceSelectorFromLegacyIndex,
   parseInterfaceSelector,
   serializeInterfaceSelector,
@@ -28,6 +29,7 @@ const NO_PREFERENCE = "__none__";
 const PREVIEW_DEBOUNCE_MS = 250;
 
 const props = defineProps<{
+  allowPrivateAddresses: boolean;
   currentAddress?: string | null;
   family: "ipv4" | "ipv6";
   idPrefix: string;
@@ -49,17 +51,29 @@ const migratedLegacy = ref(false);
 let lastEmitted = "";
 let previewSequence = 0;
 
-const candidates = computed(() =>
-  (props.networkInterface?.selectableAddresses || []).filter(
+const displayedCandidates = computed(() =>
+  buildInterfaceAddressCandidates(props.networkInterface, true).filter(
     (item) => item.family === props.family,
   ),
 );
+const privateCandidateKeys = computed(
+  () =>
+    new Set(
+      (props.networkInterface?.privateAddresses || []).map(
+        (item) => `${item.family}:${item.address}`,
+      ),
+    ),
+);
+const isPrivateCandidate = (
+  item: DDNSNetworkInterfacePayload["selectableAddresses"][number],
+) => privateCandidateKeys.value.has(`${item.family}:${item.address}`);
 const candidateSignature = computed(() =>
-  candidates.value
+  displayedCandidates.value
     .map(
       (item) =>
         `${item.address}:${String(item.temporary)}:${String(item.deprecated)}:${String(item.tentative)}:${String(item.dadFailed)}`,
     )
+    .concat(String(props.allowPrivateAddresses))
     .join("|"),
 );
 
@@ -73,6 +87,7 @@ const buildInitialSelector = () => {
     props.family,
     props.legacyIndex,
     props.currentAddress,
+    props.allowPrivateAddresses,
   );
   migratedLegacy.value = legacy.migrated;
   return legacy.selector;
@@ -134,13 +149,25 @@ const updatePreferredAddress = (value: string) => {
 const addressStatusLabel = (
   item: DDNSNetworkInterfacePayload["selectableAddresses"][number],
 ) => {
-  if (props.family === "ipv4") return t("admin.ddns.selectorStatus.stable");
-  if (item.dadFailed) return t("admin.ddns.selectorStatus.dadFailed");
-  if (item.tentative) return t("admin.ddns.selectorStatus.tentative");
-  if (item.deprecated) return t("admin.ddns.selectorStatus.deprecated");
-  if (item.temporary) return t("admin.ddns.selectorStatus.temporary");
-  if (item.temporary === false) return t("admin.ddns.selectorStatus.stable");
-  return t("admin.ddns.selectorStatus.unknown");
+  const labels = isPrivateCandidate(item)
+    ? [t("admin.ddns.selectorStatus.private")]
+    : [];
+  if (props.family === "ipv4") {
+    labels.push(t("admin.ddns.selectorStatus.stable"));
+  } else if (item.dadFailed) {
+    labels.push(t("admin.ddns.selectorStatus.dadFailed"));
+  } else if (item.tentative) {
+    labels.push(t("admin.ddns.selectorStatus.tentative"));
+  } else if (item.deprecated) {
+    labels.push(t("admin.ddns.selectorStatus.deprecated"));
+  } else if (item.temporary) {
+    labels.push(t("admin.ddns.selectorStatus.temporary"));
+  } else if (item.temporary === false) {
+    labels.push(t("admin.ddns.selectorStatus.stable"));
+  } else {
+    labels.push(t("admin.ddns.selectorStatus.unknown"));
+  }
+  return labels.join(" · ");
 };
 
 watch(
@@ -167,6 +194,7 @@ watch(
             family: props.family,
             selector: selector.value,
             currentAddress: props.currentAddress,
+            allowPrivateAddresses: props.allowPrivateAddresses,
           },
           controller.signal,
         );
@@ -234,7 +262,7 @@ watch(
       </Label>
       <Select
         :model-value="selector.preferredAddress || NO_PREFERENCE"
-        :disabled="candidates.length === 0"
+        :disabled="displayedCandidates.length === 0"
         @update:model-value="
           (value: any) => updatePreferredAddress(String(value))
         "
@@ -247,9 +275,10 @@ watch(
             {{ t("admin.ddns.selectorNoPreference") }}
           </SelectItem>
           <SelectItem
-            v-for="item in candidates"
+            v-for="item in displayedCandidates"
             :key="item.address"
             :value="item.address"
+            :disabled="isPrivateCandidate(item) && !allowPrivateAddresses"
           >
             {{ item.address }} · {{ addressStatusLabel(item) }}
           </SelectItem>

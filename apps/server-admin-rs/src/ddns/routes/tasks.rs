@@ -532,6 +532,12 @@ pub(super) async fn resolve_target_ips(
             if interface.is_empty() {
                 anyhow::bail!("{}", ddns_text(translator, "interfaceRequired", &[]));
             }
+            let allow_private_addresses = config_flag_enabled(
+                target
+                    .config
+                    .get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+                    .map(String::as_str),
+            );
             let ipv4_resolution = if enable_ipv4 {
                 Some(select_interface_address_detailed(
                     &interface,
@@ -545,6 +551,7 @@ pub(super) async fn resolve_target_ips(
                         .get(DDNS_INTERFACE_IPV4_INDEX_FIELD)
                         .map(String::as_str),
                     target.selection_anchor.get("ipv4").and_then(Value::as_str),
+                    allow_private_addresses,
                     translator,
                 )?)
             } else {
@@ -563,6 +570,7 @@ pub(super) async fn resolve_target_ips(
                         .get(DDNS_INTERFACE_IPV6_INDEX_FIELD)
                         .map(String::as_str),
                     target.selection_anchor.get("ipv6").and_then(Value::as_str),
+                    allow_private_addresses,
                     translator,
                 )?)
             } else {
@@ -738,6 +746,12 @@ pub(super) async fn stabilize_automatic_interface_ips(
                     })
                     .map(String::as_str),
                 current_address,
+                config_flag_enabled(
+                    target
+                        .config
+                        .get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+                        .map(String::as_str),
+                ),
                 translator,
             ) {
                 resolution = fresh;
@@ -1047,6 +1061,7 @@ pub(super) fn select_interface_address(
         selector,
         index,
         current_address,
+        false,
         translator,
     )?;
     Ok((resolution.address, Vec::new(), resolution.selection_logs))
@@ -1058,6 +1073,7 @@ pub(super) fn select_interface_address_detailed(
     selector: Option<&str>,
     index: Option<&str>,
     current_address: Option<&str>,
+    allow_private_addresses: bool,
     translator: &Translator,
 ) -> anyhow::Result<InterfaceAddressResolution> {
     let Some(item) = list_ddns_network_interfaces()
@@ -1073,11 +1089,7 @@ pub(super) fn select_interface_address_detailed(
             )
         );
     };
-    let candidates = item
-        .get("selectableAddresses")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
+    let candidates = interface_candidate_addresses(&item, allow_private_addresses)
         .into_iter()
         .filter(|item| item.get("family").and_then(Value::as_str) == Some(family))
         .collect::<Vec<_>>();
@@ -1092,7 +1104,13 @@ pub(super) fn select_interface_address_detailed(
         );
     }
     if let Some(selector) = parse_interface_selector(selector, family)? {
-        let selection = resolve_interface_selector(&item, family, &selector, current_address);
+        let selection = resolve_interface_selector_with_policy(
+            &item,
+            family,
+            &selector,
+            current_address,
+            allow_private_addresses,
+        );
         tracing::debug!(
             interface,
             family,
@@ -1161,7 +1179,13 @@ pub(super) fn select_interface_address_detailed(
     // The semantic auto selector keeps the current address when possible and
     // otherwise chooses the highest-ranked stable candidate deterministically.
     let selector = InterfaceAddressSelector::default();
-    let selection = resolve_interface_selector(&item, family, &selector, current_address);
+    let selection = resolve_interface_selector_with_policy(
+        &item,
+        family,
+        &selector,
+        current_address,
+        allow_private_addresses,
+    );
     tracing::debug!(
         interface,
         family,
@@ -1460,16 +1484,16 @@ pub(super) fn selected_interface_address_incomplete_reason(
     family: &str,
     translator: &Translator,
 ) -> Option<String> {
-    let candidates = network
-        .get("selectableAddresses")
-        .and_then(Value::as_array)
-        .map(|addresses| {
-            addresses
-                .iter()
-                .filter(|item| item.get("family").and_then(Value::as_str) == Some(family))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let allow_private_addresses = config_flag_enabled(
+        target
+            .config
+            .get(DDNS_ALLOW_PRIVATE_ADDRESSES_FIELD)
+            .map(String::as_str),
+    );
+    let candidates = interface_candidate_addresses(network, allow_private_addresses)
+        .into_iter()
+        .filter(|item| item.get("family").and_then(Value::as_str) == Some(family))
+        .collect::<Vec<_>>();
     if candidates.is_empty() {
         return None;
     }
@@ -1499,7 +1523,7 @@ pub(super) fn selected_interface_address_incomplete_reason(
     let index = normalize_interface_index(target.config.get(index_field).map(String::as_str));
     let family_label = if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string();
     if legacy_select_interface_address(
-        &candidates.into_iter().cloned().collect::<Vec<_>>(),
+        &candidates,
         family,
         Some(index.as_str()),
         target.selection_anchor.get(family).and_then(Value::as_str),
@@ -1508,11 +1532,12 @@ pub(super) fn selected_interface_address_incomplete_reason(
     {
         return None;
     }
-    let selection = resolve_interface_selector(
+    let selection = resolve_interface_selector_with_policy(
         network,
         family,
         &InterfaceAddressSelector::default(),
         target.selection_anchor.get(family).and_then(Value::as_str),
+        allow_private_addresses,
     );
     if selection.selected.is_some() {
         return None;

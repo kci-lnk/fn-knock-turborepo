@@ -959,6 +959,11 @@ pub(super) fn interface_option(name: &str, source: &str, addresses: Vec<Value>) 
         .filter(|item| is_selectable_interface_address(item))
         .cloned()
         .collect::<Vec<_>>();
+    let private = addresses
+        .iter()
+        .filter(|item| is_private_interface_address(item))
+        .cloned()
+        .collect::<Vec<_>>();
     let summary = addresses
         .iter()
         .filter_map(|item| {
@@ -972,7 +977,7 @@ pub(super) fn interface_option(name: &str, source: &str, addresses: Vec<Value>) 
         })
         .collect::<Vec<_>>()
         .join(" / ");
-    if selectable.is_empty() && source == "docker_host" {
+    if selectable.is_empty() && private.is_empty() && source == "docker_host" {
         return None;
     }
     Some(json!({
@@ -983,7 +988,8 @@ pub(super) fn interface_option(name: &str, source: &str, addresses: Vec<Value>) 
         "hasIpv4": addresses.iter().any(|item| item.get("family").and_then(Value::as_str) == Some("ipv4")),
         "hasIpv6": addresses.iter().any(|item| item.get("family").and_then(Value::as_str) == Some("ipv6")),
         "addresses": addresses,
-        "selectableAddresses": selectable
+        "selectableAddresses": selectable,
+        "privateAddresses": private
     }))
 }
 
@@ -1124,6 +1130,19 @@ pub(super) fn is_selectable_interface_address(value: &Value) -> bool {
     match value.get("family").and_then(Value::as_str) {
         Some("ipv4") => address.parse::<Ipv4Addr>().is_ok_and(is_global_ipv4),
         Some("ipv6") => address.parse::<Ipv6Addr>().is_ok_and(is_global_ipv6),
+        _ => false,
+    }
+}
+
+pub(super) fn is_private_interface_address(value: &Value) -> bool {
+    let Some(address) = value.get("address").and_then(Value::as_str) else {
+        return false;
+    };
+    match value.get("family").and_then(Value::as_str) {
+        Some("ipv4") => address.parse::<Ipv4Addr>().is_ok_and(|ip| ip.is_private()),
+        Some("ipv6") => address
+            .parse::<Ipv6Addr>()
+            .is_ok_and(|ip| ip.is_unique_local()),
         _ => false,
     }
 }

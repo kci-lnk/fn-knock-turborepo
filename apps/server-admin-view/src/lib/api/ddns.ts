@@ -132,36 +132,28 @@ export type DDNSTargetListPayload = {
   items: DDNSTargetSummaryPayload[];
 };
 
+export type DDNSNetworkInterfaceAddress = {
+  family: "ipv4" | "ipv6";
+  address: string;
+  cidr: string | null;
+  prefixLength?: number | null;
+  internal: boolean;
+  source?: "runtime" | "docker_host";
+  temporary?: boolean | null;
+  deprecated?: boolean | null;
+  tentative?: boolean | null;
+  dadFailed?: boolean | null;
+};
+
 export type DDNSNetworkInterfacePayload = {
   name: string;
   label: string;
   summary: string;
   hasIpv4: boolean;
   hasIpv6: boolean;
-  addresses: Array<{
-    family: "ipv4" | "ipv6";
-    address: string;
-    cidr: string | null;
-    prefixLength?: number | null;
-    internal: boolean;
-    source?: "runtime" | "docker_host";
-    temporary?: boolean | null;
-    deprecated?: boolean | null;
-    tentative?: boolean | null;
-    dadFailed?: boolean | null;
-  }>;
-  selectableAddresses: Array<{
-    family: "ipv4" | "ipv6";
-    address: string;
-    cidr: string | null;
-    prefixLength?: number | null;
-    internal: boolean;
-    source?: "runtime" | "docker_host";
-    temporary?: boolean | null;
-    deprecated?: boolean | null;
-    tentative?: boolean | null;
-    dadFailed?: boolean | null;
-  }>;
+  addresses: DDNSNetworkInterfaceAddress[];
+  selectableAddresses: DDNSNetworkInterfaceAddress[];
+  privateAddresses: DDNSNetworkInterfaceAddress[];
   source?: "runtime" | "docker_host";
 };
 
@@ -252,6 +244,7 @@ export const DDNSAPI = {
       family: "ipv4" | "ipv6";
       selector: DDNSInterfaceSelector;
       currentAddress?: string | null;
+      allowPrivateAddresses?: boolean;
     },
     signal?: AbortSignal,
   ): Promise<DDNSInterfaceSelectorPreviewPayload> {

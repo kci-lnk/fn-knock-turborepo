@@ -26,6 +26,7 @@ import type { DDNSNetworkInterfacePayload } from "@/lib/api";
 import {
   DEFAULT_DDNS_IP_SOURCE,
   DEFAULT_DDNS_UPDATE_SCOPE,
+  ALLOW_PRIVATE_ADDRESSES_KEY,
   INTERFACE_IPV4_INDEX_KEY,
   INTERFACE_IPV4_SELECTOR_KEY,
   INTERFACE_IPV6_INDEX_KEY,
@@ -375,8 +376,17 @@ const { t } = useI18n();
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p class="text-[11px] text-muted-foreground">
-                {{ t("admin.ddns.interfaceOnlyFiltered") }}
+              <p
+                v-if="shouldShowInterfaceBlock"
+                class="text-[11px] text-muted-foreground"
+              >
+                {{
+                  t(
+                    state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === "true"
+                      ? "admin.ddns.interfacePrivateFilterOn"
+                      : "admin.ddns.interfaceOnlyFiltered",
+                  )
+                }}
               </p>
             </div>
           </div>
@@ -460,6 +470,52 @@ const { t } = useI18n();
             class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
+              <Label
+                for="ddns-target-allow-private-addresses"
+                class="text-sm font-medium"
+              >
+                {{ t("admin.ddns.allowPrivateAddresses") }}
+              </Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                {{ t("admin.ddns.allowPrivateAddressesHint") }}
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <div class="flex min-h-10 items-center gap-3">
+                <Switch
+                  id="ddns-target-allow-private-addresses"
+                  :model-value="
+                    state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === 'true'
+                  "
+                  @update:model-value="
+                    (value: boolean) =>
+                      (state.config[ALLOW_PRIVATE_ADDRESSES_KEY] = value
+                        ? 'true'
+                        : 'false')
+                  "
+                />
+                <span class="text-sm text-muted-foreground">
+                  {{
+                    state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === "true"
+                      ? t("admin.ddns.allowedLabel")
+                      : t("admin.ddns.filteredLabel")
+                  }}
+                </span>
+              </div>
+              <p
+                v-if="state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === 'true'"
+                class="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] leading-5 text-amber-700 dark:text-amber-300"
+              >
+                {{ t("admin.ddns.allowPrivateAddressesWarning") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="shouldShowInterfaceBlock"
+            class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
+          >
+            <div class="space-y-1 mt-1.5">
               <div class="text-sm font-medium">
                 {{ t("admin.ddns.interfaceAddressHelpTitle") }}
               </div>
@@ -471,7 +527,15 @@ const { t } = useI18n();
               class="w-full max-w-md space-y-2 text-[11px] leading-5 text-muted-foreground"
             >
               <p>{{ t("admin.ddns.addressOrderHelp") }}</p>
-              <p>{{ t("admin.ddns.filteredAddressHelp") }}</p>
+              <p>
+                {{
+                  t(
+                    state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === "true"
+                      ? "admin.ddns.privateAddressHelp"
+                      : "admin.ddns.filteredAddressHelp",
+                  )
+                }}
+              </p>
             </div>
           </div>
 
@@ -488,6 +552,9 @@ const { t } = useI18n();
               </p>
             </div>
             <DDNSInterfaceSelectorEditor
+              :allow-private-addresses="
+                state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === 'true'
+              "
               :current-address="
                 state.selectionAnchor?.ipv4 || state.lastIP?.ipv4
               "
@@ -522,6 +589,9 @@ const { t } = useI18n();
               </p>
             </div>
             <DDNSInterfaceSelectorEditor
+              :allow-private-addresses="
+                state.config[ALLOW_PRIVATE_ADDRESSES_KEY] === 'true'
+              "
               :current-address="
                 state.selectionAnchor?.ipv6 || state.lastIP?.ipv6
               "

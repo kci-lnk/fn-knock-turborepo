@@ -1,0 +1,249 @@
+name: macOS CLI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/macos.yml"
+      - ".github/workflows/release.yml"
+      - "apps/server-admin-rs/**"
+      - "apps/server-admin-view/**"
+      - "apps/server-auth-view/**"
+      - "deploy/macos/**"
+      - "packages/**"
+      - "package.json"
+      - "turbo.json"
+      - "scripts/control-api-version.sh"
+      - "scripts/fn-knock-macos-package.sh"
+      - "scripts/fn-knock-macos-launchd-smoke.sh"
+      - "scripts/fn-knock-macos-smoke.sh"
+      - "scripts/fn-knock-cos-publish.mjs"
+      - "scripts/fn-knock-release-finalize.mjs"
+      - "scripts/version.sh"
+      - "scripts/verify-go-control-api-contract.sh"
+      - "scripts/tests/**"
+      - "package-lock.json"
+      - "version.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/macos.yml"
+      - ".github/workflows/release.yml"
+      - "apps/server-admin-rs/**"
+      - "apps/server-admin-view/**"
+      - "apps/server-auth-view/**"
+      - "deploy/macos/**"
+      - "packages/**"
+      - "package.json"
+      - "turbo.json"
+      - "scripts/control-api-version.sh"
+      - "scripts/fn-knock-macos-package.sh"
+      - "scripts/fn-knock-macos-launchd-smoke.sh"
+      - "scripts/fn-knock-macos-smoke.sh"
+      - "scripts/fn-knock-cos-publish.mjs"
+      - "scripts/fn-knock-release-finalize.mjs"
+      - "scripts/version.sh"
+      - "scripts/verify-go-control-api-contract.sh"
+      - "scripts/tests/**"
+      - "package-lock.json"
+      - "version.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: "22.22.3"
+  NPM_VERSION: "10.8.2"
+  PROTOC_VERSION: "35.1"
+  RUST_VERSION: "1.96.0"
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+      go_sha: ${{ steps.gateway.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Freeze source commit
+        id: source
+        shell: bash
+        run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Freeze Go gateway main commit
+        id: gateway
+        shell: bash
+        run: |
+          sha="$(git ls-remote https://github.com/kci-lnk/Go-Reauth-Proxy.git refs/heads/main | awk '{print $1}')"
+          printf '%s\n' "${sha}" | grep -Eq '^[0-9a-f]{40}$'
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: printf 'version=%s\n' "$(jq -r .version version.json)" >> "${GITHUB_OUTPUT}"
+
+  common:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ needs.preflight.outputs.go_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Test gateway and build shared assets
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          bash ./scripts/verify-go-control-api-contract.sh Go-Reauth-Proxy
+          (cd Go-Reauth-Proxy && GOFLAGS=-mod=readonly go test ./...)
+          npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          runtime="dist/fn-knock-artifacts/runtime"
+          mkdir -p \
+            "${runtime}/ui/www" \
+            "${runtime}/server-auth-view/dist" \
+            "${runtime}/server/server-admin/resources"
+          rsync -a apps/server-admin-view/dist/ "${runtime}/ui/www/"
+          rsync -a apps/server-auth-view/dist/ "${runtime}/server-auth-view/dist/"
+          cp apps/server-admin-rs/resources/acmesh.zip \
+            "${runtime}/server/server-admin/resources/acmesh.zip"
+          tar -czf macos-ci-common.tar.gz dist/fn-knock-artifacts/runtime
+
+      - name: Upload shared assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-ci-common
+          path: macos-ci-common.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    needs: [preflight, common]
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: macos-15-intel
+            protoc_asset: osx-x86_64
+            protoc_sha256: 537d73604a344ded6fc94e98e07e529d4fe3e4a0b09e59905353950fafc2a1f7
+          - arch: arm64
+            runner: macos-15
+            protoc_asset: osx-aarch_64
+            protoc_sha256: 193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2
+    runs-on: ${{ matrix.runner }}
+    env:
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+      FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
+      FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Set up verified protobuf compiler
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}-${{ matrix.protoc_asset }}.zip"
+          install_dir="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${{ matrix.protoc_asset }}.zip"
+          printf '%s  %s\n' "${{ matrix.protoc_sha256 }}" "${archive}" | shasum -a 256 --check
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          printf '%s\n' "${install_dir}/bin" >> "${GITHUB_PATH}"
+
+      - name: Download shared runtime assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: macos-ci-common
+          path: downloads
+
+      - name: Build and test native package
+        shell: bash
+        run: |
+          tar -xzf downloads/macos-ci-common.tar.gz
+          cargo test --locked --manifest-path apps/server-admin-rs/Cargo.toml macos
+          FN_KNOCK_GO_SKIP_TESTS=1 \
+            bash ./scripts/fn-knock-macos-package.sh \
+              "${{ matrix.arch }}" \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-artifacts/runtime" \
+              "${GITHUB_WORKSPACE}/Go-Reauth-Proxy" \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-macos"
+          bash ./scripts/fn-knock-macos-smoke.sh \
+            "dist/fn-knock-macos/fn-knock-macos-${FN_KNOCK_VERSION}-${{ matrix.arch }}.tar.gz"
+          bash ./deploy/macos/tests/test-macos-management.sh
+          sudo env CI=true GITHUB_RUN_ID="${GITHUB_RUN_ID}" \
+            bash ./scripts/fn-knock-macos-launchd-smoke.sh \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-macos/fn-knock-macos-${FN_KNOCK_VERSION}-${{ matrix.arch }}.tar.gz"
+
+      - name: Upload CI package
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fn-knock-macos-${{ needs.preflight.outputs.version }}-${{ matrix.arch }}
+          path: dist/fn-knock-macos/fn-knock-macos-${{ needs.preflight.outputs.version }}-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7

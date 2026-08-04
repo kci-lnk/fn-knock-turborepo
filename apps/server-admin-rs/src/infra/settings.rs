@@ -60,7 +60,7 @@ impl Settings {
             runtime_profile::detect_deployment_target(Some(&runtime_target));
         let protected_admin_runtime = matches!(
             detected_runtime_target.as_str(),
-            "docker" | "openwrt" | "linux" | "windows"
+            "docker" | "openwrt" | "linux" | "macos" | "windows"
         );
         let backend_port_default = if detected_runtime_target == "openwrt" {
             17998
@@ -101,7 +101,7 @@ impl Settings {
             backend_port,
             auth_host: env_string("AUTH_HOST", "127.0.0.1"),
             auth_port,
-            admin_view_host: if detected_runtime_target == "windows" {
+            admin_view_host: if matches!(detected_runtime_target.as_str(), "macos" | "windows") {
                 "127.0.0.1".to_string()
             } else {
                 env::var("ADMIN_VIEW_HOST")
@@ -401,6 +401,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
         "fpk-lite" | "fpk_lite" => "fpk-lite".to_string(),
         "openwrt" => "openwrt".to_string(),
         "linux" => "linux".to_string(),
+        "macos" | "darwin" => "macos".to_string(),
         "synology" | "dsm" => "synology".to_string(),
         "windows" => "windows".to_string(),
         "dev" | "development" => "dev".to_string(),
@@ -628,6 +629,7 @@ mod tests {
         assert_eq!(normalize_runtime_target_env("linux"), "linux");
         assert_eq!(normalize_runtime_target_env("synology"), "synology");
         assert_eq!(normalize_runtime_target_env("DSM"), "synology");
+        assert_eq!(normalize_runtime_target_env("darwin"), "macos");
         assert_eq!(normalize_runtime_target_env("windows"), "windows");
         assert_eq!(normalize_runtime_target_env("unknown"), "");
     }
@@ -681,6 +683,43 @@ mod tests {
                 assert_eq!(settings.backend_host, "127.0.0.1");
                 assert_eq!(settings.admin_view_port, Some(7991));
                 assert_eq!(settings.admin_view_host, "0.0.0.0");
+            },
+        );
+    }
+
+    #[test]
+    fn macos_uses_protected_loopback_admin_view() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_RUNTIME_TARGET",
+                "BACKEND_PORT",
+                "ADMIN_VIEW_PORT",
+                "ADMIN_VIEW_HOST",
+                "BACKEND_HOST",
+                "FN_KNOCK_DATA_DIR",
+            ],
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "macos");
+                env.remove("BACKEND_PORT");
+                env.remove("ADMIN_VIEW_PORT");
+                env.set("ADMIN_VIEW_HOST", "0.0.0.0");
+                env.remove("BACKEND_HOST");
+                env.set(
+                    "FN_KNOCK_DATA_DIR",
+                    "/Library/Application Support/FnKnock/data",
+                );
+
+                let settings = Settings::from_env();
+
+                assert_eq!(settings.runtime_target, "macos");
+                assert_eq!(settings.backend_host, "127.0.0.1");
+                assert_eq!(settings.backend_port, 7998);
+                assert_eq!(settings.admin_view_host, "127.0.0.1");
+                assert_eq!(settings.admin_view_port, Some(7991));
+                assert_eq!(
+                    settings.data_dir,
+                    PathBuf::from("/Library/Application Support/FnKnock/data")
+                );
             },
         );
     }

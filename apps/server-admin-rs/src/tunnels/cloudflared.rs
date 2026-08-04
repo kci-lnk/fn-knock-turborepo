@@ -59,9 +59,6 @@ fn localize_cloudflared_error(translator: &Translator, message: &str) -> String 
         "Cloudflared platform is unsupported" => {
             tunnel_manager_text(translator, "platformUnsupported")
         }
-        "Cloudflared is not installed. Install it with Homebrew first." => {
-            tunnel_manager_text(translator, "notInstalledBrew")
-        }
         value => value.to_string(),
     }
 }
@@ -356,8 +353,9 @@ impl CloudflaredManager {
     fn asset_status(&self) -> Value {
         let platform = detect_platform();
         let downloaded = match platform.as_str() {
-            "darwin" => command_exists("cloudflared"),
-            "linux-amd64" | "linux-arm64" | "linux-arm" => self.bin_path.exists(),
+            "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" => {
+                self.bin_path.exists()
+            }
             _ => false,
         };
         json!({
@@ -377,10 +375,7 @@ impl CloudflaredManager {
 
     fn executable(&self) -> Result<String, String> {
         match detect_platform().as_str() {
-            "darwin" => which("cloudflared").ok_or_else(|| {
-                "Cloudflared is not installed. Install it with Homebrew first.".to_string()
-            }),
-            "linux-amd64" | "linux-arm64" | "linux-arm" => {
+            "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" => {
                 if self.bin_path.exists() {
                     Ok(self.bin_path.to_string_lossy().to_string())
                 } else {
@@ -970,28 +965,13 @@ fn cloudflared_token_configured(token: &str) -> bool {
 
 fn detect_platform() -> String {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", _) => "darwin".to_string(),
+        ("macos", "x86_64") => "darwin-amd64".to_string(),
+        ("macos", "aarch64") => "darwin-arm64".to_string(),
         ("linux", "x86_64" | "amd64") => "linux-amd64".to_string(),
         ("linux", "aarch64" | "arm64") => "linux-arm64".to_string(),
         ("linux", "arm") => "linux-arm".to_string(),
         _ => "unsupported".to_string(),
     }
-}
-
-fn command_exists(command: &str) -> bool {
-    which(command).is_some()
-}
-
-fn which(command: &str) -> Option<String> {
-    let output = std::process::Command::new("which")
-        .arg(command)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!path.is_empty()).then_some(path)
 }
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ const KNOWN_PACKAGE_TYPES = [
   "apk",
   "synology",
   "linux",
+  "macos",
   "windows",
 ];
 const RELEASE_NOTES_HEADER = [
@@ -173,6 +174,13 @@ const packageIdentity = (artifact) => {
       type: "linux",
       arch,
       key: `files/${artifact.version}/linux/${arch}/${name}`,
+    };
+  }
+  if (artifact.platform === "macos" && name.endsWith(".tar.gz")) {
+    return {
+      type: "macos",
+      arch: architecture,
+      key: `files/${artifact.version}/macos/${architecture}/${name}`,
     };
   }
   if (artifact.platform === "windows" && name.endsWith(".exe")) {
@@ -394,14 +402,15 @@ export const buildReleasePlan = async ({
   assetsDir,
   windowsMetadataDir,
   installScriptPath,
+  macosInstallScriptPath,
   releaseNotesPath,
   version,
   publicBaseUrl,
   previousReleases = [],
 }) => {
   const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
-  if (!normalizedBaseUrl || !/^https?:\/\//.test(normalizedBaseUrl)) {
-    fail("COS_PUBLICBASICURL must be an absolute HTTP(S) URL");
+  if (!normalizedBaseUrl || !/^https:\/\//.test(normalizedBaseUrl)) {
+    fail("COS_PUBLICBASICURL must be an absolute HTTPS URL");
   }
   if (!parseVersion(version)) fail(`invalid target version: ${version}`);
 
@@ -412,10 +421,10 @@ export const buildReleasePlan = async ({
     manifest.version !== version ||
     manifest.tag !== `v${version}` ||
     !Array.isArray(manifest.artifacts) ||
-    manifest.artifacts.length !== 21
+    manifest.artifacts.length !== 23
   ) {
     fail(
-      "release-manifest.json does not describe the expected 21-file release",
+      "release-manifest.json does not describe the expected 23-file release",
     );
   }
 
@@ -452,7 +461,7 @@ export const buildReleasePlan = async ({
     }
     const entry = {
       type: identity.type,
-      ...(identity.type === "linux" || identity.type === "synology"
+      ...(["linux", "macos", "synology"].includes(identity.type)
         ? { version }
         : {}),
       arch: identity.arch,
@@ -470,7 +479,7 @@ export const buildReleasePlan = async ({
         size: artifact.size,
         sha256: artifact.sha256,
         contentType: artifactContentType(artifact.name),
-        ...(["linux", "windows"].includes(identity.type)
+        ...(["linux", "macos", "windows"].includes(identity.type)
           ? { cacheControl: POINTER_CACHE_CONTROL }
           : {}),
       }),
@@ -508,6 +517,7 @@ export const buildReleasePlan = async ({
   );
   assertKeys(packages.synology, ["armv7", "armv8", "x86_64"], "Synology");
   assertKeys(packages.linux, ["amd64", "arm", "arm64"], "Linux");
+  assertKeys(packages.macos, ["amd64", "arm64"], "macOS");
   assertKeys(packages.windows, ["x86_64"], "Windows");
 
   if (
@@ -540,6 +550,20 @@ export const buildReleasePlan = async ({
       cacheControl: POINTER_CACHE_CONTROL,
     }),
   ];
+  const macosInstallInfo = await stat(macosInstallScriptPath).catch(() => null);
+  if (!macosInstallInfo?.isFile()) {
+    fail(`macOS install script is missing: ${macosInstallScriptPath}`);
+  }
+  mutableObjects.push(
+    fileObject({
+      key: "macos/install.sh",
+      path: macosInstallScriptPath,
+      size: macosInstallInfo.size,
+      sha256: await sha256File(macosInstallScriptPath),
+      contentType: "text/x-shellscript; charset=utf-8",
+      cacheControl: POINTER_CACHE_CONTROL,
+    }),
+  );
   for (const arch of ["amd64", "arm64", "arm"]) {
     const entry = packages.linux[arch];
     const body = Buffer.from(
@@ -555,6 +579,27 @@ export const buildReleasePlan = async ({
     mutableObjects.push(
       bodyObject({
         key: `linux/latest/${arch}.env`,
+        body,
+        contentType: "text/plain; charset=utf-8",
+        cacheControl: POINTER_CACHE_CONTROL,
+      }),
+    );
+  }
+  for (const arch of ["amd64", "arm64"]) {
+    const entry = packages.macos[arch];
+    const body = Buffer.from(
+      [
+        `VERSION=${version}`,
+        `URL=${entry.download_url}`,
+        `SHA256=${entry.sha256}`,
+        `SIZE=${entry.size}`,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    mutableObjects.push(
+      bodyObject({
+        key: `macos/latest/${arch}.env`,
         body,
         contentType: "text/plain; charset=utf-8",
         cacheControl: POINTER_CACHE_CONTROL,
@@ -711,12 +756,7 @@ export const verifyLatestDocument = (actual, expected) => {
   );
 };
 
-const prepareVersionUploads = async ({
-  plan,
-  store,
-  currentVersion,
-  log,
-}) => {
+const prepareVersionUploads = async ({ plan, store, currentVersion, log }) => {
   const missing = [];
   for (const object of plan.versionObjects) {
     const head = await store.head(object.key);
@@ -1075,6 +1115,9 @@ const main = async () => {
     ),
     installScriptPath: resolve(
       process.env.FN_KNOCK_INSTALL_SCRIPT ?? "deploy/linux/install.sh",
+    ),
+    macosInstallScriptPath: resolve(
+      process.env.FN_KNOCK_MACOS_INSTALL_SCRIPT ?? "deploy/macos/install.sh",
     ),
     releaseNotesPath: resolve(
       process.env.FN_KNOCK_RELEASE_NOTES_PATH ?? `release-notes/${version}.md`,

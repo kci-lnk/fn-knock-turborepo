@@ -413,6 +413,110 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  macos:
+    needs: [preflight, build-common]
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: macos-15-intel
+            protoc_asset: osx-x86_64
+            protoc_sha256: 537d73604a344ded6fc94e98e07e529d4fe3e4a0b09e59905353950fafc2a1f7
+          - arch: arm64
+            runner: macos-15
+            protoc_asset: osx-aarch_64
+            protoc_sha256: 193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2
+    runs-on: ${{ matrix.runner }}
+    env:
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+      FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
+      FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Restore macOS Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: macos-${{ matrix.arch }}
+          add-job-id-key: "false"
+          cache-bin: "false"
+          workspaces: . -> dist/macos-build-${{ matrix.arch }}/cargo-target
+
+      - name: Set up verified protobuf compiler
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}-${{ matrix.protoc_asset }}.zip"
+          install_dir="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${{ matrix.protoc_asset }}.zip"
+          printf '%s  %s\n' "${{ matrix.protoc_sha256 }}" "${archive}" | shasum -a 256 --check
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          printf '%s\n' "${install_dir}/bin" >> "${GITHUB_PATH}"
+          "${install_dir}/bin/protoc" --version
+
+      - name: Download common runtime assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-build-common
+          path: downloads
+
+      - name: Build native unsigned macOS package
+        shell: bash
+        run: |
+          tar -xzf downloads/release-build-common.tar.gz
+          FN_KNOCK_GO_SKIP_TESTS=1 \
+            bash ./scripts/fn-knock-macos-package.sh \
+              "${{ matrix.arch }}" \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-artifacts/runtime" \
+              "${GITHUB_WORKSPACE}/Go-Reauth-Proxy" \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-macos"
+          bash ./scripts/fn-knock-macos-smoke.sh \
+            "dist/fn-knock-macos/fn-knock-macos-${FN_KNOCK_VERSION}-${{ matrix.arch }}.tar.gz"
+          bash ./deploy/macos/tests/test-macos-management.sh
+          sudo env CI=true GITHUB_RUN_ID="${GITHUB_RUN_ID}" \
+            bash ./scripts/fn-knock-macos-launchd-smoke.sh \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-macos/fn-knock-macos-${FN_KNOCK_VERSION}-${{ matrix.arch }}.tar.gz"
+          [ "$(find dist/fn-knock-macos -maxdepth 1 -type f | wc -l | tr -d ' ')" = "1" ]
+          tar -czf "release-macos-${{ matrix.arch }}-assets.tar.gz" \
+            -C dist/fn-knock-macos .
+
+      - name: Upload macOS release input
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-macos-${{ matrix.arch }}-assets
+          path: release-macos-${{ matrix.arch }}-assets.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
   assemble:
     needs: [preflight, build-common, build-rust-gnu, build-rust-musl]
     runs-on: ubuntu-24.04
@@ -588,13 +692,15 @@ jobs:
           printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
 
   publish:
-    needs: [preflight, quality, assemble, windows-unsigned, docker-manifest]
+    needs:
+      [preflight, quality, assemble, windows-unsigned, macos, docker-manifest]
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
       needs.quality.result == 'success' &&
       needs.assemble.result == 'success' &&
       needs.windows-unsigned.result == 'success' &&
+      needs.macos.result == 'success' &&
       (github.event_name != 'push' || needs.docker-manifest.result == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -667,6 +773,7 @@ jobs:
           COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
           FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/cos-publish
           FN_KNOCK_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/linux/install.sh
+          FN_KNOCK_MACOS_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/macos/install.sh
           FN_KNOCK_RELEASE_ASSETS_DIR: ${{ github.workspace }}/dist/release-assets
           FN_KNOCK_RELEASE_HISTORY_FILE: ${{ runner.temp }}/fn-knock-releases.json
           FN_KNOCK_RELEASE_NOTES_PATH: ${{ github.workspace }}/release-notes/${{ needs.preflight.outputs.version }}.md
@@ -762,6 +869,7 @@ jobs:
           COS_SECRETKEY: ${{ secrets.COS_SECRETKEY }}
           FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/cos-publish
           FN_KNOCK_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/linux/install.sh
+          FN_KNOCK_MACOS_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/macos/install.sh
           FN_KNOCK_LATEST_URL: https://cor.fnknock.cn/latest.json
           FN_KNOCK_RELEASE_ASSETS_DIR: ${{ github.workspace }}/dist/release-assets
           FN_KNOCK_RELEASE_HISTORY_FILE: ${{ runner.temp }}/fn-knock-releases.json

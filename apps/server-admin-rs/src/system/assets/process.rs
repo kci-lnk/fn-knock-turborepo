@@ -37,11 +37,3 @@ pub(super) fn summarize_process_output(stdout: &[u8], stderr: &[u8]) -> String {
         .take(500)
         .collect()
 }
-
-pub(super) fn command_succeeds(command: &str, args: &[&str]) -> bool {
-    Command::new(command)
-        .args(args)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}

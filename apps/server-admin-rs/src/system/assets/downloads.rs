@@ -6,6 +6,8 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
+const MAX_ASSET_DOWNLOAD_BYTES: u64 = 256 * 1024 * 1024;
+
 use serde_json::{Value, json};
 
 use crate::{frp_utils, fs_utils::chmod_executable, i18n::Translator, state::AppState};
@@ -20,18 +22,13 @@ use super::{
     DOWNLOAD_RESPONSE_BODY_UNREADABLE_ERROR, DOWNLOAD_RESPONSE_TIMED_OUT_PREFIX,
     DOWNLOAD_TIMED_OUT_PREFIX, DownloadProgress, FRP_DOWNLOAD_FAILED_PREFIX, FRP_MIRROR_BASE,
     UNKNOWN_DOWNLOAD_ERROR,
-    process::command_succeeds,
     text::{tunnel_manager_text, tunnel_manager_text_params},
 };
 
 pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_cloudflared_platform();
     let bin_path = data_dir.join("cloudflared").join("cloudflared");
-    let downloaded = if platform == "darwin" {
-        command_succeeds("which", &["cloudflared"])
-    } else {
-        bin_path.exists()
-    };
+    let downloaded = bin_path.exists();
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
@@ -55,10 +52,9 @@ pub(super) fn build_frp_status(data_dir: &Path, translator: &Translator) -> Valu
 pub(super) async fn download_cloudflared(state: AppState) {
     let result = async {
         let platform = detect_cloudflared_platform();
-        if platform == "darwin" {
-            return Err("Cloudflared auto download is not supported on macOS".to_string());
-        }
         let url = match platform {
+            "darwin-amd64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-darwin-amd64"),
+            "darwin-arm64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-darwin-arm64"),
             "linux-amd64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-amd64"),
             "linux-arm64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-arm64"),
             "linux-arm" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-arm"),
@@ -72,6 +68,10 @@ pub(super) async fn download_cloudflared(state: AppState) {
         if is_cancel_requested("cloudflared") {
             let _ = fs::remove_file(&temp);
             return Err(DOWNLOAD_CANCELLED_ERROR.to_string());
+        }
+        if let Err(error) = validate_downloaded_architecture(&temp, platform, "Cloudflared") {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
         }
         fs::rename(&temp, &target).map_err(|error| error.to_string())?;
         chmod_executable(&target);
@@ -98,10 +98,13 @@ pub(super) async fn download_frp(state: AppState) {
         for url in candidates {
             reset_download_file(&temp);
             match download_to_file(&state, "frp", &url, &temp).await {
-                Ok(()) => {
-                    succeeded = true;
-                    break;
-                }
+                Ok(()) => match validate_frp_archive(&temp, &archive) {
+                    Ok(()) => {
+                        succeeded = true;
+                        break;
+                    }
+                    Err(error) => last_error = Some(error),
+                },
                 Err(error) => {
                     last_error = Some(error);
                     if is_cancel_requested("frp") {
@@ -119,31 +122,7 @@ pub(super) async fn download_frp(state: AppState) {
             let _ = fs::remove_file(&temp);
             return Err(DOWNLOAD_CANCELLED_ERROR.to_string());
         }
-        fs::rename(&temp, &target).map_err(|error| error.to_string())?;
-        if let Some(extracted) = frp_extracted_dir(&state.settings.data_dir, platform)
-            && extracted.exists()
-        {
-            let _ = fs::remove_dir_all(extracted);
-        }
-        let status = Command::new("tar")
-            .arg("-xzf")
-            .arg(&target)
-            .arg("-C")
-            .arg(&frp_dir)
-            .status()
-            .map_err(|error| error.to_string())?;
-        if !status.success() {
-            return Err(format!(
-                "FRP package extraction failed with code {}",
-                status.code().unwrap_or_default()
-            ));
-        }
-        if let Some(frpc) = frp_binary_path(&state.settings.data_dir, platform, "frpc") {
-            chmod_executable(&frpc);
-        }
-        if let Some(frps) = frp_binary_path(&state.settings.data_dir, platform, "frps") {
-            chmod_executable(&frps);
-        }
+        install_frp_archive_transactionally(&temp, &target, &frp_dir, platform, &archive)?;
         Ok(())
     }
     .await;
@@ -156,7 +135,7 @@ pub(super) async fn download_to_file(
     url: &str,
     path: &Path,
 ) -> Result<(), String> {
-    tokio::time::timeout(
+    let result = tokio::time::timeout(
         state.settings.asset_download_total_timeout,
         download_to_file_inner(state, asset, url, path),
     )
@@ -165,7 +144,11 @@ pub(super) async fn download_to_file(
         Err(format_download_total_timeout_error(
             state.settings.asset_download_total_timeout,
         ))
-    })
+    });
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
 }
 
 async fn download_to_file_inner(
@@ -185,6 +168,12 @@ async fn download_to_file_inner(
         return Err(format!("HTTP {}", response.status()));
     }
     let total = response.content_length().unwrap_or(0);
+    if total > MAX_ASSET_DOWNLOAD_BYTES {
+        return Err(format!(
+            "Download exceeds {} byte safety limit",
+            MAX_ASSET_DOWNLOAD_BYTES
+        ));
+    }
     let mut loaded = 0u64;
     while let Some(chunk) = response
         .chunk()
@@ -194,8 +183,14 @@ async fn download_to_file_inner(
         if is_cancel_requested(asset) {
             return Err(DOWNLOAD_CANCELLED_ERROR.to_string());
         }
-        file.write_all(&chunk).map_err(|error| error.to_string())?;
         loaded += chunk.len() as u64;
+        if loaded > MAX_ASSET_DOWNLOAD_BYTES {
+            return Err(format!(
+                "Download exceeds {} byte safety limit",
+                MAX_ASSET_DOWNLOAD_BYTES
+            ));
+        }
+        file.write_all(&chunk).map_err(|error| error.to_string())?;
         if let Some(percent) = loaded
             .checked_mul(100)
             .and_then(|value| value.checked_div(total))
@@ -245,12 +240,199 @@ fn timeout_seconds(duration: std::time::Duration) -> u64 {
 
 pub(super) fn detect_cloudflared_platform() -> &'static str {
     match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", _) => "darwin",
+        ("macos", "x86_64") => "darwin-amd64",
+        ("macos", "aarch64") => "darwin-arm64",
         ("linux", "x86_64") => "linux-amd64",
         ("linux", "aarch64") => "linux-arm64",
         ("linux", "arm") | ("linux", "armv7") => "linux-arm",
         _ => "unsupported",
     }
+}
+
+fn validate_downloaded_architecture(
+    path: &Path,
+    platform: &str,
+    label: &str,
+) -> Result<(), String> {
+    if !platform.starts_with("darwin-") {
+        return Ok(());
+    }
+    let file_command = if cfg!(target_os = "macos") {
+        "/usr/bin/file"
+    } else {
+        "file"
+    };
+    let output = Command::new(file_command)
+        .arg("-b")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("{label} architecture validation failed: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("{label} architecture validation failed"));
+    }
+    let description = String::from_utf8_lossy(&output.stdout);
+    if downloaded_architecture_matches(platform, &description) {
+        Ok(())
+    } else {
+        Err(format!(
+            "{label} architecture mismatch for {platform}: {}",
+            description.trim()
+        ))
+    }
+}
+
+pub(super) fn downloaded_architecture_matches(platform: &str, description: &str) -> bool {
+    let description = description.trim();
+    match platform {
+        "darwin-amd64" => description.starts_with("Mach-O 64-bit executable x86_64"),
+        "darwin-arm64" => description.starts_with("Mach-O 64-bit executable arm64"),
+        _ => false,
+    }
+}
+
+pub(super) fn frp_archive_entry_path_is_safe(expected_root: &str, entry: &str) -> bool {
+    let entry = entry.strip_suffix('/').unwrap_or(entry);
+    if entry.is_empty()
+        || entry.starts_with('/')
+        || entry.chars().any(|character| character.is_control())
+    {
+        return false;
+    }
+    let mut parts = entry.split('/');
+    if parts.next() != Some(expected_root) {
+        return false;
+    }
+    parts.all(|part| !part.is_empty() && part != "." && part != "..")
+}
+
+pub(super) fn frp_archive_entry_type_is_safe(verbose_line: &str) -> bool {
+    matches!(verbose_line.as_bytes().first(), Some(b'-' | b'd'))
+}
+
+fn validate_frp_archive(path: &Path, expected_root: &str) -> Result<(), String> {
+    let list = Command::new("tar")
+        .arg("-tzf")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("FRP package validation failed: {error}"))?;
+    if !list.status.success() {
+        return Err(format!(
+            "FRP package validation failed with code {}",
+            list.status.code().unwrap_or_default()
+        ));
+    }
+    let entries = String::from_utf8(list.stdout)
+        .map_err(|_| "FRP package contains non-UTF-8 paths".to_string())?;
+    let mut found_frpc = false;
+    let mut found_frps = false;
+    for entry in entries.lines() {
+        if !frp_archive_entry_path_is_safe(expected_root, entry) {
+            return Err(format!("FRP package contains unsafe path: {entry}"));
+        }
+        let normalized = entry.strip_suffix('/').unwrap_or(entry);
+        found_frpc |= normalized == format!("{expected_root}/frpc");
+        found_frps |= normalized == format!("{expected_root}/frps");
+    }
+    if !found_frpc || !found_frps {
+        return Err("FRP package is missing frpc or frps".to_string());
+    }
+
+    let verbose = Command::new("tar")
+        .arg("-tvzf")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("FRP package validation failed: {error}"))?;
+    if !verbose.status.success() {
+        return Err(format!(
+            "FRP package validation failed with code {}",
+            verbose.status.code().unwrap_or_default()
+        ));
+    }
+    let verbose = String::from_utf8(verbose.stdout)
+        .map_err(|_| "FRP package contains invalid metadata".to_string())?;
+    if verbose
+        .lines()
+        .any(|line| !frp_archive_entry_type_is_safe(line))
+    {
+        return Err("FRP package contains links or special files".to_string());
+    }
+    Ok(())
+}
+
+fn install_frp_archive_transactionally(
+    downloaded_archive: &Path,
+    archive_target: &Path,
+    frp_dir: &Path,
+    platform: &str,
+    archive_name: &str,
+) -> Result<(), String> {
+    validate_frp_archive(downloaded_archive, archive_name)?;
+    let staging_dir = frp_dir.join(".extract.tmp");
+    let staged_root = staging_dir.join(archive_name);
+    let final_root = frp_dir.join(archive_name);
+    let backup_root = frp_dir.join(".previous.tmp");
+    reset_directory(&staging_dir)?;
+
+    let result = (|| {
+        let status = Command::new("tar")
+            .arg("-xzf")
+            .arg(downloaded_archive)
+            .arg("-C")
+            .arg(&staging_dir)
+            .status()
+            .map_err(|error| error.to_string())?;
+        if !status.success() {
+            return Err(format!(
+                "FRP package extraction failed with code {}",
+                status.code().unwrap_or_default()
+            ));
+        }
+
+        for binary_name in ["frpc", "frps"] {
+            let binary = staged_root.join(binary_name);
+            if !binary.is_file() {
+                return Err(format!("FRP package is missing {binary_name}"));
+            }
+            chmod_executable(&binary);
+            validate_downloaded_architecture(&binary, platform, binary_name)?;
+        }
+
+        fs::rename(downloaded_archive, archive_target).map_err(|error| error.to_string())?;
+        reset_path(&backup_root)?;
+        let had_previous = final_root.exists();
+        if had_previous {
+            fs::rename(&final_root, &backup_root).map_err(|error| error.to_string())?;
+        }
+        if let Err(error) = fs::rename(&staged_root, &final_root) {
+            if had_previous {
+                fs::rename(&backup_root, &final_root).map_err(|restore_error| {
+                    format!(
+                        "FRP install failed ({error}); previous version restore failed: {restore_error}"
+                    )
+                })?;
+            }
+            return Err(error.to_string());
+        }
+        reset_path(&backup_root)?;
+        Ok(())
+    })();
+
+    let _ = fs::remove_dir_all(&staging_dir);
+    result
+}
+
+fn reset_directory(path: &Path) -> Result<(), String> {
+    reset_path(path)?;
+    fs::create_dir_all(path).map_err(|error| error.to_string())
+}
+
+fn reset_path(path: &Path) -> Result<(), String> {
+    if path.is_dir() {
+        fs::remove_dir_all(path).map_err(|error| error.to_string())?;
+    } else if path.exists() {
+        fs::remove_file(path).map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 pub(super) fn downloads() -> &'static Mutex<AssetDownloads> {
@@ -296,9 +478,6 @@ pub(super) fn localize_asset_progress_error(
     match (asset, error) {
         (_, DOWNLOAD_CANCELLED_ERROR) => {
             tunnel_manager_text(translator, asset, "downloadCancelled")
-        }
-        ("cloudflared", "Cloudflared auto download is not supported on macOS") => {
-            tunnel_manager_text(translator, "cloudflared", "macAutoDownloadUnsupported")
         }
         ("cloudflared", "Cloudflared platform is unsupported")
         | ("frp", "FRP platform is unsupported") => {

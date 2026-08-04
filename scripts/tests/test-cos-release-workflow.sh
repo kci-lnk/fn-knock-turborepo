@@ -53,6 +53,10 @@ job_needs() {
     in_job && /^  [a-zA-Z0-9_-]+:$/ { exit }
     in_job && /^    needs:/ {
       sub(/^    needs:[[:space:]]*/, "")
+      if ($0 == "") {
+        getline
+        sub(/^[[:space:]]*/, "")
+      }
       print
       exit
     }
@@ -65,7 +69,9 @@ for build_job in build-common build-rust-gnu build-rust-musl windows-unsigned; d
 done
 [ "$(job_needs quality)" = "preflight" ] ||
   fail "quality must start after preflight"
-[ "$(job_needs publish)" = "[preflight, quality, assemble, windows-unsigned, docker-manifest]" ] ||
+[ "$(job_needs macos)" = "[preflight, build-common]" ] ||
+  fail "macOS packages must use the frozen source and shared runtime"
+[ "$(job_needs publish)" = "[preflight, quality, assemble, windows-unsigned, macos, docker-manifest]" ] ||
   fail "publish must wait for quality and every release artifact"
 grep -Fq "needs.quality.result == 'success'" "${WORKFLOW}" ||
   fail "publish must retain quality as a release gate"
@@ -73,6 +79,10 @@ grep -Fq -- '-SkipChecks' "${WORKFLOW}" ||
   fail "Windows release packaging must not repeat checks owned by quality/Windows CI"
 grep -Fq 'shared-key: windows-x86_64' "${WORKFLOW}" ||
   fail "Windows release packaging must restore its Rust dependency cache"
+grep -Fq "needs.macos.result == 'success'" "${WORKFLOW}" ||
+  fail "macOS packages must be a release gate"
+grep -Fq 'FN_KNOCK_MACOS_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/macos/install.sh' "${WORKFLOW}" ||
+  fail "COS publication must include the macOS installer"
 
 cos_block="$(sed -n "${cos_line},${public_line}p" "${WORKFLOW}")"
 printf '%s\n' "${cos_block}" | grep -Fq "if: github.event_name == 'push'" ||

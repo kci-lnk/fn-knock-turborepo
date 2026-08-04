@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>cn.fnknock.service</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__FN_KNOCK_APP_HOME__/bin/fn-knock-entrypoint</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__FN_KNOCK_APP_HOME__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>Umask</key>
+  <integer>63</integer>
+  <key>StandardOutPath</key>
+  <string>__FN_KNOCK_LOG_DIR__/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__FN_KNOCK_LOG_DIR__/stderr.log</string>
+</dict>
+</plist>

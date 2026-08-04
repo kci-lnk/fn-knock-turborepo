@@ -174,6 +174,8 @@ impl AppState {
         let asset_download_client = reqwest::Client::builder()
             .connect_timeout(settings.asset_download_connect_timeout)
             .read_timeout(settings.asset_download_read_timeout)
+            .https_only(true)
+            .redirect(reqwest::redirect::Policy::limited(10))
             .no_gzip()
             .build()
             .context("build asset download http client")?;

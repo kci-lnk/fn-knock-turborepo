@@ -9,6 +9,7 @@ pub struct RuntimeProfile {
     pub deployment_target: String,
     pub is_docker: bool,
     pub is_linux: bool,
+    pub is_macos: bool,
     pub is_windows: bool,
     pub is_root_process: bool,
 }
@@ -39,9 +40,11 @@ pub struct RuntimeCapabilities {
 pub fn get_runtime_profile(state: &AppState) -> RuntimeProfile {
     let deployment_target = detect_deployment_target(Some(&state.settings.runtime_target));
     let is_windows = std::env::consts::OS == "windows" || deployment_target == "windows";
+    let is_macos = std::env::consts::OS == "macos" || deployment_target == "macos";
     RuntimeProfile {
         is_docker: deployment_target == "docker",
-        is_linux: std::env::consts::OS == "linux" && !is_windows,
+        is_linux: std::env::consts::OS == "linux" && !is_windows && !is_macos,
+        is_macos,
         is_windows,
         is_root_process: is_root_process(),
         deployment_target,
@@ -70,6 +73,29 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             ssh_security_available: false,
             system_resource_monitor_available: false,
             desktop_update_managed: true,
+        };
+    }
+    if profile.deployment_target == "macos" {
+        return RuntimeCapabilities {
+            direct_mode_available: false,
+            host_firewall_available: false,
+            smart_connect_available: false,
+            fnos_certificate_sync_available: false,
+            system_clock_sync_available: false,
+            self_update_available: false,
+            terminal_available: false,
+            deep_monitor_available: true,
+            auto_https_available: true,
+            fnos_network_tuning_available: false,
+            fnos_connect_waf_available: false,
+            shared_root_available: false,
+            acme_available: true,
+            acme_resource_required: false,
+            cloudflared_available: true,
+            frpc_available: true,
+            ssh_security_available: false,
+            system_resource_monitor_available: true,
+            desktop_update_managed: false,
         };
     }
     let is_fpk_lite = profile.deployment_target == "fpk-lite";
@@ -122,7 +148,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
 pub fn admin_panel_protected_runtime(state: &AppState) -> bool {
     matches!(
         get_runtime_profile(state).deployment_target.as_str(),
-        "docker" | "openwrt" | "linux" | "windows"
+        "docker" | "openwrt" | "linux" | "macos" | "windows"
     )
 }
 
@@ -244,6 +270,9 @@ pub(crate) fn detect_deployment_target(explicit: Option<&str>) -> String {
     if cfg!(target_os = "windows") {
         return "windows".to_string();
     }
+    if cfg!(target_os = "macos") {
+        return "macos".to_string();
+    }
     "dev".to_string()
 }
 
@@ -267,6 +296,7 @@ pub(crate) fn normalize_deployment_target(value: &str) -> Option<&'static str> {
         "fpk-lite" | "fpk_lite" => Some("fpk-lite"),
         "openwrt" => Some("openwrt"),
         "linux" => Some("linux"),
+        "macos" | "darwin" => Some("macos"),
         "synology" | "dsm" => Some("synology"),
         "windows" => Some("windows"),
         "dev" | "development" => Some("dev"),
@@ -340,6 +370,7 @@ mod tests {
             deployment_target: target.to_string(),
             is_docker: target == "docker",
             is_linux: linux,
+            is_macos: target == "macos",
             is_windows: target == "windows",
             is_root_process: root,
         }
@@ -420,6 +451,26 @@ mod tests {
         assert!(capabilities.terminal_available);
         assert!(!capabilities.self_update_available);
         assert_eq!(normalize_deployment_target("linux"), Some("linux"));
+    }
+
+    #[test]
+    fn macos_exposes_safe_service_capabilities_only() {
+        let capabilities = get_runtime_capabilities(&profile("macos", false, true));
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
+        assert!(!capabilities.system_clock_sync_available);
+        assert!(!capabilities.self_update_available);
+        assert!(!capabilities.terminal_available);
+        assert!(capabilities.deep_monitor_available);
+        assert!(capabilities.auto_https_available);
+        assert!(capabilities.acme_available);
+        assert!(capabilities.cloudflared_available);
+        assert!(capabilities.frpc_available);
+        assert!(!capabilities.ssh_security_available);
+        assert!(capabilities.system_resource_monitor_available);
+        assert_eq!(normalize_deployment_target("Darwin"), Some("macos"));
     }
 
     #[test]

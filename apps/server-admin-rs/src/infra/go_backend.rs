@@ -221,7 +221,9 @@ impl GoBackendClient {
             .and_then(Value::as_str)
             .unwrap_or("")
             .trim();
-        if cfg!(target_os = "windows") && (local_commit.is_empty() || gateway_commit.is_empty()) {
+        if cfg!(any(target_os = "windows", target_os = "macos"))
+            && (local_commit.is_empty() || gateway_commit.is_empty())
+        {
             return Err(BundleCompatibilityError::Incompatible(
                 "release gateway source commit metadata is missing".to_string(),
             ));
@@ -232,23 +234,16 @@ impl GoBackendClient {
                 "gateway source commit mismatch: expected={local_commit}, reported={gateway_commit}"
             )));
         }
-        if cfg!(target_os = "windows") {
+        if cfg!(any(target_os = "windows", target_os = "macos")) {
             let gateway_os = info.get("os").and_then(Value::as_str).unwrap_or("");
             let gateway_arch = info.get("arch").and_then(Value::as_str).unwrap_or("");
-            if gateway_os != "windows" || !matches!(gateway_arch, "amd64" | "x86_64") {
-                return Err(BundleCompatibilityError::Incompatible(format!(
-                    "gateway platform mismatch: expected windows/x86_64, got {gateway_os}/{gateway_arch}"
-                )));
-            }
-            if capabilities.iter().any(|value| {
-                value
-                    .as_str()
-                    .is_some_and(|capability| capability.starts_with("firewall."))
-            }) {
-                return Err(BundleCompatibilityError::Incompatible(
-                    "Windows gateway must not advertise host firewall capabilities".to_string(),
-                ));
-            }
+            verify_gateway_platform(
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+                gateway_os,
+                gateway_arch,
+                capabilities,
+            )?;
         }
         Ok(response)
     }
@@ -659,6 +654,39 @@ impl GoBackendClient {
             Err(error) => Ok(grpc_error(error)),
         }
     }
+}
+
+fn verify_gateway_platform(
+    expected_os: &str,
+    expected_arch: &str,
+    gateway_os: &str,
+    gateway_arch: &str,
+    capabilities: &[Value],
+) -> Result<(), BundleCompatibilityError> {
+    let os_matches = match expected_os {
+        "macos" => gateway_os == "darwin",
+        other => gateway_os == other,
+    };
+    let arch_matches = match expected_arch {
+        "x86_64" => matches!(gateway_arch, "amd64" | "x86_64"),
+        "aarch64" => matches!(gateway_arch, "arm64" | "aarch64"),
+        other => gateway_arch == other,
+    };
+    if !os_matches || !arch_matches {
+        return Err(BundleCompatibilityError::Incompatible(format!(
+            "gateway platform mismatch: expected {expected_os}/{expected_arch}, got {gateway_os}/{gateway_arch}"
+        )));
+    }
+    if capabilities.iter().any(|value| {
+        value
+            .as_str()
+            .is_some_and(|capability| capability.starts_with("firewall."))
+    }) {
+        return Err(BundleCompatibilityError::Incompatible(format!(
+            "{expected_os} gateway must not advertise host firewall capabilities"
+        )));
+    }
+    Ok(())
 }
 
 fn normalize_grpc_addr(addr: &str) -> String {
@@ -1808,6 +1836,28 @@ mod tests {
         ) {
             panic!("GoBackendClient rejected a non-empty token: {error}");
         }
+    }
+
+    #[test]
+    fn macos_bundle_platform_accepts_native_darwin_architectures() {
+        let capabilities = vec![json!("http")];
+        assert!(
+            verify_gateway_platform("macos", "aarch64", "darwin", "arm64", &capabilities).is_ok()
+        );
+        assert!(
+            verify_gateway_platform("macos", "x86_64", "darwin", "amd64", &capabilities).is_ok()
+        );
+        assert!(
+            verify_gateway_platform("macos", "aarch64", "darwin", "amd64", &capabilities).is_err()
+        );
+    }
+
+    #[test]
+    fn macos_bundle_rejects_host_firewall_capabilities() {
+        let capabilities = vec![json!("firewall.iptables")];
+        assert!(
+            verify_gateway_platform("macos", "aarch64", "darwin", "arm64", &capabilities).is_err()
+        );
     }
 
     #[test]

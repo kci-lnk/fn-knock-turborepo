@@ -23,6 +23,7 @@ async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_install() {
         deployment_target: "linux".to_string(),
         is_docker: false,
         is_linux: true,
+        is_macos: false,
         is_windows: false,
         is_root_process: true,
     };
@@ -47,6 +48,7 @@ fn detects_frp_platform_names_like_node() {
     assert!(
         [
             "darwin-arm64",
+            "darwin-amd64",
             "linux-amd64",
             "linux-arm64",
             "linux-arm",
@@ -54,6 +56,57 @@ fn detects_frp_platform_names_like_node() {
         ]
         .contains(&platform)
     );
+}
+
+#[test]
+fn validates_downloaded_darwin_binary_architectures() {
+    assert!(downloads::downloaded_architecture_matches(
+        "darwin-arm64",
+        "Mach-O 64-bit executable arm64"
+    ));
+    assert!(downloads::downloaded_architecture_matches(
+        "darwin-amd64",
+        "Mach-O 64-bit executable x86_64"
+    ));
+    assert!(!downloads::downloaded_architecture_matches(
+        "darwin-arm64",
+        "Mach-O 64-bit executable x86_64"
+    ));
+    assert!(!downloads::downloaded_architecture_matches(
+        "darwin-arm64",
+        "Mach-O universal binary with 2 architectures: [x86_64] [arm64]"
+    ));
+}
+
+#[test]
+fn rejects_unsafe_frp_archive_entries() {
+    assert!(downloads::frp_archive_entry_path_is_safe(
+        "frp_0.67.0_darwin_arm64",
+        "frp_0.67.0_darwin_arm64/frpc"
+    ));
+    for unsafe_path in [
+        "../frpc",
+        "/tmp/frpc",
+        "another-root/frpc",
+        "frp_0.67.0_darwin_arm64/../frpc",
+        "frp_0.67.0_darwin_arm64//frpc",
+    ] {
+        assert!(!downloads::frp_archive_entry_path_is_safe(
+            "frp_0.67.0_darwin_arm64",
+            unsafe_path
+        ));
+    }
+    assert!(downloads::frp_archive_entry_type_is_safe(
+        "-rwxr-xr-x root/wheel frpc"
+    ));
+    assert!(downloads::frp_archive_entry_type_is_safe(
+        "drwxr-xr-x root/wheel directory"
+    ));
+    for unsafe_type in ['l', 'h', 'c', 'b', 'p'] {
+        assert!(!downloads::frp_archive_entry_type_is_safe(&format!(
+            "{unsafe_type}rwxr-xr-x root/wheel entry"
+        )));
+    }
 }
 
 #[test]

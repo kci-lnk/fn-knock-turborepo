@@ -52,6 +52,10 @@ for name in \
   "fn-knock-linux-${VERSION}-arm64.tar.gz.sha256" \
   "fn-knock-linux-${VERSION}-arm.tar.gz" \
   "fn-knock-linux-${VERSION}-arm.tar.gz.sha256" \
+  "fn-knock-macos-${VERSION}-amd64.tar.gz" \
+  "fn-knock-macos-${VERSION}-amd64.tar.gz.sha256" \
+  "fn-knock-macos-${VERSION}-arm64.tar.gz" \
+  "fn-knock-macos-${VERSION}-arm64.tar.gz.sha256" \
   "fn-knock_${VERSION}-1_aarch64_cortex-a53.ipk" \
   "fn-knock_${VERSION}-r1_aarch64_cortex-a53.apk" \
   "fn-knock_${VERSION}-1_aarch64_generic.ipk" \
@@ -90,6 +94,7 @@ printf '{"version":"%s","pub_date":"2026-07-22T00:00:00.000Z"}\n' \
   "${VERSION}" \
   > "${WINDOWS_METADATA_DIR}/fn-knock-${VERSION}-windows-x86_64-unsigned-updater.json"
 printf '#!/bin/sh\necho install\n' > "${WORK_DIR}/install.sh"
+printf '#!/bin/sh\necho macos install\n' > "${WORK_DIR}/macos-install.sh"
 printf '# fn-knock %s\n\n- Integration fixture\n' "${VERSION}" \
   > "${WORK_DIR}/release-notes.md"
 printf '[]\n' > "${WORK_DIR}/release-history.json"
@@ -103,20 +108,21 @@ jq -e \
     .version == $version and
     .tag == ("v" + $version) and
     .control_api_version == $control_api_version and
-    (.artifacts | length) == 21 and
+    (.artifacts | length) == 23 and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and
     ([.artifacts[].name | select(startswith("app-meta-"))] | length) == 2 and
     ([.artifacts[] | select(.platform == "openwrt" and (.name | endswith(".ipk"))) | .architecture] | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
     ([.artifacts[] | select(.platform == "openwrt" and (.name | endswith(".apk"))) | .architecture] | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
     ([.artifacts[] | select(.platform == "synology") | .architecture] | sort) == ["armv7", "armv8", "x86_64"] and
+    ([.artifacts[] | select(.platform == "macos") | .architecture] | sort) == ["amd64", "arm64"] and
     .metadata_files == ["release-manifest.json", "SHA256SUMS"] and
     .docker.published == true and
     .docker.reference == ("kcilnk/fn-knock:" + $version) and
     .docker.platforms == ["linux/amd64", "linux/arm64", "linux/arm/v7"]
   ' \
   "${ASSETS_DIR}/release-manifest.json" >/dev/null
-[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "22" ] || \
-  fail "SHA256SUMS does not cover 21 public deliverables and release-manifest.json"
+[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "24" ] || \
+  fail "SHA256SUMS does not cover 23 public deliverables and release-manifest.json"
 if find "${ASSETS_DIR}" -maxdepth 1 -type f \
   \( -name '*.sha256' -o \( -name '*.json' ! -name 'release-manifest.json' \) \) |
     grep -q .
@@ -127,6 +133,7 @@ fi
 COS_PUBLICBASICURL=https://cdn.example.test \
 FN_KNOCK_COS_OUTPUT_DIR="${COS_OUTPUT_DIR}" \
 FN_KNOCK_INSTALL_SCRIPT="${WORK_DIR}/install.sh" \
+FN_KNOCK_MACOS_INSTALL_SCRIPT="${WORK_DIR}/macos-install.sh" \
 FN_KNOCK_RELEASE_ASSETS_DIR="${ASSETS_DIR}" \
 FN_KNOCK_RELEASE_HISTORY_FILE="${WORK_DIR}/release-history.json" \
 FN_KNOCK_RELEASE_NOTES_PATH="${WORK_DIR}/release-notes.md" \
@@ -135,20 +142,21 @@ FN_KNOCK_WINDOWS_METADATA_DIR="${WINDOWS_METADATA_DIR}" \
   node "${ROOT_DIR}/scripts/fn-knock-cos-publish.mjs" plan >/dev/null
 jq -e \
   '
-    (.version_objects | length) == 24 and
-    (.mutable_objects | length) == 6
+    (.version_objects | length) == 26 and
+    (.mutable_objects | length) == 9
   ' \
   "${COS_OUTPUT_DIR}/publish-plan.json" >/dev/null
 jq -e \
   '
     (.packages.ipk | keys | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"] and
     (.packages.apk | keys | sort) == ["aarch64_cortex-a53", "aarch64_generic", "all", "arm_cortex-a5_vfpv4", "arm_cortex-a7_neon-vfpv4", "x86_64"]
+    and (.packages.macos | keys | sort) == ["amd64", "arm64"]
   ' \
   "${COS_OUTPUT_DIR}/latest.json" >/dev/null
 
 run_finalize >/dev/null
 
 printf 'unexpected\n' > "${ASSETS_DIR}/unexpected.bin"
-expect_failure "exactly 21 deliverables" run_finalize
+expect_failure "exactly 23 deliverables" run_finalize
 
 printf '[test-release-finalize] all inventory tests passed\n'

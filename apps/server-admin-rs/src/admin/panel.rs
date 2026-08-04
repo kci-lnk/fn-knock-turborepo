@@ -1735,6 +1735,7 @@ mod tests {
                 deployment_target: "fpk".to_string(),
                 is_docker: false,
                 is_linux: true,
+                is_macos: false,
                 is_windows: false,
                 is_root_process: true,
             },

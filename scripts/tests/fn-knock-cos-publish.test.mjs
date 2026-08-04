@@ -32,6 +32,8 @@ const artifactDefinitions = () => [
   [`fn-knock-linux-${VERSION}-amd64.tar.gz`, "linux", "amd64"],
   [`fn-knock-linux-${VERSION}-arm64.tar.gz`, "linux", "arm64"],
   [`fn-knock-linux-${VERSION}-arm.tar.gz`, "linux", "armv7"],
+  [`fn-knock-macos-${VERSION}-amd64.tar.gz`, "macos", "amd64"],
+  [`fn-knock-macos-${VERSION}-arm64.tar.gz`, "macos", "arm64"],
   [`app-meta-fn-knock_${VERSION}-r1_all.ipk`, "openwrt", "all"],
   [`app-meta-fn-knock-${VERSION}-r1.apk`, "openwrt", "all"],
   [
@@ -83,6 +85,7 @@ const createFixture = async () => {
   const assetsDir = join(root, "assets");
   const windowsMetadataDir = join(root, "windows");
   const installScriptPath = join(root, "install.sh");
+  const macosInstallScriptPath = join(root, "macos-install.sh");
   const releaseNotesPath = join(root, "release-notes.md");
   await Promise.all([
     mkdir(assetsDir, { recursive: true }),
@@ -144,6 +147,7 @@ const createFixture = async () => {
     })}\n`,
   );
   await writeFile(installScriptPath, "#!/bin/sh\necho install\n");
+  await writeFile(macosInstallScriptPath, "#!/bin/sh\necho macos install\n");
   await writeFile(
     releaseNotesPath,
     `# fn-knock ${VERSION}\n\n- Current release\n`,
@@ -154,6 +158,7 @@ const createFixture = async () => {
     assetsDir,
     windowsMetadataDir,
     installScriptPath,
+    macosInstallScriptPath,
     releaseNotesPath,
     artifacts,
   };
@@ -231,13 +236,13 @@ const oldPointers = (plan) => {
   return values;
 };
 
-test("builds a complete 21-package COS plan", async (context) => {
+test("builds a complete 23-package COS plan", async (context) => {
   const fixture = await createFixture();
   context.after(() => rm(fixture.root, { recursive: true, force: true }));
   const plan = await buildFixturePlan(fixture);
 
-  assert.equal(plan.manifest.artifacts.length, 21);
-  assert.equal(plan.versionObjects.length, 24);
+  assert.equal(plan.manifest.artifacts.length, 23);
+  assert.equal(plan.versionObjects.length, 26);
   assert.equal("header" in plan.latestCore, false);
   assert.ok(
     plan.latestCore.release_notes.startsWith(
@@ -252,6 +257,10 @@ test("builds a complete 21-package COS plan", async (context) => {
   assert.equal(
     plan.latestCore.packages.linux.arm.object_key,
     `files/${VERSION}/linux/arm/fn-knock-linux-${VERSION}-arm.tar.gz`,
+  );
+  assert.equal(
+    plan.latestCore.packages.macos.arm64.object_key,
+    `files/${VERSION}/macos/arm64/fn-knock-macos-${VERSION}-arm64.tar.gz`,
   );
   assert.match(
     plan.latestCore.packages.windows.x86_64.file_name,
@@ -273,11 +282,38 @@ test("builds a complete 21-package COS plan", async (context) => {
     plan.mutableObjects.map((object) => object.key),
     [
       "install.sh",
+      "macos/install.sh",
       "linux/latest/amd64.env",
       "linux/latest/arm64.env",
       "linux/latest/arm.env",
+      "macos/latest/amd64.env",
+      "macos/latest/arm64.env",
       "windows/stable/latest.json",
     ],
+  );
+  const macosArm64Pointer = plan.mutableObjects.find(
+    (object) => object.key === "macos/latest/arm64.env",
+  );
+  assert.equal(
+    macosArm64Pointer.body.toString("utf8"),
+    [
+      `VERSION=${VERSION}`,
+      `URL=${plan.latestCore.packages.macos.arm64.download_url}`,
+      `SHA256=${plan.latestCore.packages.macos.arm64.sha256}`,
+      `SIZE=${plan.latestCore.packages.macos.arm64.size}`,
+      "",
+    ].join("\n"),
+  );
+});
+
+test("requires HTTPS for public package and installer URLs", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  await assert.rejects(
+    buildFixturePlan(fixture, {
+      publicBaseUrl: "http://cdn.example.test/",
+    }),
+    /absolute HTTPS URL/,
   );
 });
 
@@ -348,10 +384,9 @@ test("preserves unknown latest fields while removing the legacy root header", ()
       version: VERSION,
       release_notes: "notes",
       packages: Object.fromEntries(
-        ["fpk", "ipk", "apk", "synology", "linux", "windows"].map((type) => [
-          type,
-          {},
-        ]),
+        ["fpk", "ipk", "apk", "synology", "linux", "macos", "windows"].map(
+          (type) => [type, {}],
+        ),
       ),
     },
   );

@@ -5,6 +5,7 @@ pub(crate) const FRP_VERSION: &str = "0.67.0";
 pub(crate) fn detect_frp_platform() -> &'static str {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => "darwin-arm64",
+        ("macos", "x86_64") => "darwin-amd64",
         ("linux", "x86_64") => "linux-amd64",
         ("linux", "aarch64") => "linux-arm64",
         ("linux", "arm") | ("linux", "armv7") => "linux-arm",
@@ -18,6 +19,7 @@ pub(crate) fn frp_archive_name(platform: &str) -> Option<String> {
         "linux-arm64" => Some(format!("frp_{FRP_VERSION}_linux_arm64")),
         "linux-arm" => Some(format!("frp_{FRP_VERSION}_linux_arm")),
         "darwin-arm64" => Some(format!("frp_{FRP_VERSION}_darwin_arm64")),
+        "darwin-amd64" => Some(format!("frp_{FRP_VERSION}_darwin_amd64")),
         _ => None,
     }
 }
@@ -51,6 +53,10 @@ mod tests {
         assert_eq!(
             frp_github_archive_url("frp_0.67.0_linux_amd64"),
             "https://github.com/fatedier/frp/releases/download/v0.67.0/frp_0.67.0_linux_amd64.tar.gz"
+        );
+        assert_eq!(
+            frp_archive_name("darwin-amd64"),
+            Some("frp_0.67.0_darwin_amd64".to_string())
         );
         assert!(frp_archive_name("unsupported").is_none());
     }

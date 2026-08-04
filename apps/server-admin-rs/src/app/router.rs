@@ -192,6 +192,7 @@ mod tests {
         let directory = tempfile::tempdir().expect("temporary OpenWrt router database");
         let mut settings = crate::settings::Settings::from_env();
         settings.runtime_target = "openwrt".to_string();
+        settings.admin_view_port = None;
         settings.data_dir = directory.path().join("data");
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");

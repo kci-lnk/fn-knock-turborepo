@@ -48,7 +48,7 @@ fn-knock 把反向代理、登录鉴权、证书、DDNS、访问控制、WAF、�
 | 主动防护   | IP 白名单、地区可见性、WAF、爬虫拦截、登录退避与限流                     |
 | 内网穿透   | Cloudflared、frpc 的配置、启停、日志与状态管理                           |
 | 日常运维   | 系统监控、事件审计、在线终端、通知、备份与更新检查                       |
-| 多平台交付 | fnOS、OpenWrt、Docker、Windows、Synology DSM 与通用 Linux                |
+| 多平台交付 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM 与通用 Linux         |
 
 ## 架构
 
@@ -84,6 +84,7 @@ flowchart LR
 | Windows       | Windows x86_64                  | [下载 EXE](https://get.fnknock.cn/?type=windows&arch=x86_64) · [安装说明](https://www.fnknock.cn/windows)                                                                                                                                     |
 | 群晖 Synology | DSM 7.0+ x86_64 / ARMv8 / ARMv7 | [x86_64 SPK](https://get.fnknock.cn/?type=synology&arch=x86_64) · [ARMv8 SPK](https://get.fnknock.cn/?type=synology&arch=armv8) · [ARMv7 SPK](https://get.fnknock.cn/?type=synology&arch=armv7) · [安装说明](https://www.fnknock.cn/synology) |
 | Linux         | x86_64 / ARM64 / ARMv7          | [一键安装](https://www.fnknock.cn/linux) · [部署文档](https://docs.fnknock.cn/quick-start/linux-deployment)                                                                                                                                   |
+| macOS         | macOS 13+ Intel / Apple Silicon | `curl -fsSL https://cdn.fnknock.cn/macos/install.sh \| sudo bash` · [部署说明](./deploy/macos/README.md)                                                                                                                                      |
 
 ### Docker
 
@@ -105,6 +106,16 @@ wget -qO- https://cdn.fnknock.cn/install.sh | { if [ "$(id -u)" -eq 0 ]; then sh
 
 > [!WARNING]
 > 不要把 `7991` 管理端口直接暴露到公网。远程管理请使用 VPN，或配置带 HTTPS 与访问控制的可信反向代理。
+
+### macOS
+
+macOS 13 及以上版本提供 Intel (`amd64`) 和 Apple Silicon (`arm64`) 两个原生 CLI 压缩包，使用 `launchd` 运行：
+
+```bash
+curl -fsSL https://cdn.fnknock.cn/macos/install.sh | sudo bash
+```
+
+安装后运行 `sudo knock` 管理服务。管理面板默认仅监听 `127.0.0.1:7991`；macOS 版本不支持 iptables、主机防火墙管理或网页终端。当前发行包未经 Apple Developer ID 签名或公证，请通过 Release 中的 `SHA256SUMS` 校验手动下载文件。
 
 ## 默认端口
 
@@ -182,6 +193,7 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `apps/fn-knock-synology`  | Synology DSM 7 原生 SPK 适配               |
 | `deploy/docker`           | Dockerfile、Compose 与镜像发布配置         |
 | `deploy/linux`            | systemd / OpenRC 通用 Linux 安装与管理脚本 |
+| `deploy/macos`            | launchd macOS 安装与 `knock` 管理脚本      |
 | `deploy/openwrt`          | OpenWrt APK / IPK 与 LuCI 适配             |
 | `packages/grpc-contracts` | Rust 控制面与 Go 网关的 gRPC 协议          |
 | `packages/*`              | 前端共享组件、API、国际化与工程配置        |
@@ -193,6 +205,7 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `npm run fn-knock:build-package`               | 构建 fnOS FPK                            |
 | `npm run fn-knock:lite:build-package`          | 构建 fnOS Lite FPK                       |
 | `npm run fn-knock:linux:prepare`               | 构建通用 Linux 产物                      |
+| `npm run fn-knock:macos:build -- arm64`        | 在当前原生 Mac 构建对应架构压缩包        |
 | `npm run fn-knock:openwrt:build`               | 构建 OpenWrt APK 与 IPK                  |
 | `npm run fn-knock:spk:build`                   | 构建 Synology SPK                        |
 | `npm run fn-knock:docker:build`                | 构建本地 Docker 镜像                     |

@@ -1,9 +1,21 @@
 name: macOS CLI
 
 on:
+  workflow_call:
+    outputs:
+      source_sha:
+        description: Frozen fn-knock source commit
+        value: ${{ jobs.preflight.outputs.source_sha }}
+      go_sha:
+        description: Frozen Go gateway source commit
+        value: ${{ jobs.preflight.outputs.go_sha }}
+      version:
+        description: fn-knock release version
+        value: ${{ jobs.preflight.outputs.version }}
   pull_request:
     paths:
       - ".github/workflows/macos.yml"
+      - ".github/workflows/macos-release.yml"
       - ".github/workflows/release.yml"
       - "apps/server-admin-rs/**"
       - "apps/server-admin-view/**"
@@ -27,6 +39,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/macos.yml"
+      - ".github/workflows/macos-release.yml"
       - ".github/workflows/release.yml"
       - "apps/server-admin-rs/**"
       - "apps/server-admin-view/**"

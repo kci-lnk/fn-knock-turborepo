@@ -636,6 +636,115 @@ export const buildReleasePlan = async ({
   };
 };
 
+export const buildMacosReleasePlan = async ({
+  assetsDir,
+  installScriptPath,
+  version,
+  publicBaseUrl,
+}) => {
+  const normalizedBaseUrl = normalizeBaseUrl(publicBaseUrl);
+  if (!normalizedBaseUrl || !/^https:\/\//.test(normalizedBaseUrl)) {
+    fail("COS_PUBLICBASICURL must be an absolute HTTPS URL");
+  }
+  if (!parseVersion(version)) fail(`invalid target version: ${version}`);
+
+  const packages = { macos: {} };
+  const versionObjects = [];
+  const artifacts = [];
+  for (const arch of ["amd64", "arm64"]) {
+    const name = `fn-knock-macos-${version}-${arch}.tar.gz`;
+    const path = join(assetsDir, name);
+    const info = await stat(path).catch(() => null);
+    if (!info?.isFile() || info.size <= 0) {
+      fail(`macOS release artifact is missing or empty: ${name}`);
+    }
+    const sha256 = await sha256File(path);
+    const key = `files/${version}/macos/${arch}/${name}`;
+    const entry = {
+      type: "macos",
+      version,
+      arch,
+      file_name: name,
+      object_key: key,
+      download_url: publicUrl(normalizedBaseUrl, key),
+      sha256,
+      size: info.size,
+    };
+    packages.macos[arch] = entry;
+    artifacts.push({
+      name,
+      platform: "macos",
+      architecture: arch,
+      size: info.size,
+      sha256,
+    });
+    versionObjects.push(
+      fileObject({
+        key,
+        path,
+        size: info.size,
+        sha256,
+        contentType: artifactContentType(name),
+        cacheControl: POINTER_CACHE_CONTROL,
+      }),
+    );
+  }
+  assertKeys(packages.macos, ["amd64", "arm64"], "macOS");
+
+  const installInfo = await stat(installScriptPath).catch(() => null);
+  if (!installInfo?.isFile() || installInfo.size <= 0) {
+    fail(`macOS install script is missing or empty: ${installScriptPath}`);
+  }
+  const mutableObjects = [
+    fileObject({
+      key: "macos/install.sh",
+      path: installScriptPath,
+      size: installInfo.size,
+      sha256: await sha256File(installScriptPath),
+      contentType: "text/x-shellscript; charset=utf-8",
+      cacheControl: POINTER_CACHE_CONTROL,
+    }),
+  ];
+  for (const arch of ["amd64", "arm64"]) {
+    const entry = packages.macos[arch];
+    mutableObjects.push(
+      bodyObject({
+        key: `macos/latest/${arch}.env`,
+        body: Buffer.from(
+          [
+            `VERSION=${version}`,
+            `URL=${entry.download_url}`,
+            `SHA256=${entry.sha256}`,
+            `SIZE=${entry.size}`,
+            "",
+          ].join("\n"),
+          "utf8",
+        ),
+        contentType: "text/plain; charset=utf-8",
+        cacheControl: POINTER_CACHE_CONTROL,
+      }),
+    );
+  }
+
+  return {
+    version,
+    publishMode: "macos-only",
+    manifest: {
+      schema_version: 1,
+      version,
+      tag: `v${version}`,
+      artifacts,
+    },
+    latestCore: { version, packages },
+    versionObjects,
+    mutableObjects,
+    cdnVerificationObjects: mutableObjects.map((object) => ({
+      ...object,
+      url: publicUrl(normalizedBaseUrl, object.key),
+    })),
+  };
+};
+
 export const mergeLatestDocument = (current, latestCore) => {
   const source = isRecord(current) ? current : {};
   const preservedRoot = Object.fromEntries(
@@ -651,6 +760,30 @@ export const mergeLatestDocument = (current, latestCore) => {
     ...preservedRoot,
     ...latestCore,
     packages: { ...unknownPackages, ...latestCore.packages },
+  };
+};
+
+export const mergeMacosLatestDocument = (current, latestCore) => {
+  if (!isRecord(current)) {
+    fail("macOS-only publication requires an existing latest.json");
+  }
+  if (current.version !== latestCore.version) {
+    fail(
+      `macOS-only publication requires current latest.json version ${latestCore.version}; got ${current.version ?? "missing"}`,
+    );
+  }
+  if (!isRecord(current.packages)) {
+    fail("current latest.json packages must be an object");
+  }
+  const macos = latestCore.packages?.macos;
+  if (!isRecord(macos)) fail("macOS-only plan is missing packages.macos");
+  assertKeys(macos, ["amd64", "arm64"], "macOS");
+  return {
+    ...current,
+    packages: {
+      ...current.packages,
+      macos,
+    },
   };
 };
 
@@ -819,6 +952,67 @@ const verifyCdnLatest = async ({ latestUrl, expected, fetchImpl, wait }) => {
   throw lastError;
 };
 
+const verifyCdnObjects = async ({ objects, fetchImpl, wait }) => {
+  for (const object of objects) {
+    let lastError;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const response = await fetchImpl(object.url, {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
+        if (!response.ok) {
+          fail(
+            `CDN pointer read-back returned HTTP ${response.status}: ${object.key}`,
+          );
+        }
+        const body = Buffer.from(await response.arrayBuffer());
+        if (
+          body.byteLength !== object.size ||
+          sha256Buffer(body) !== object.sha256
+        ) {
+          fail(`CDN pointer read-back does not match COS: ${object.key}`);
+        }
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 4) await wait(2000);
+      }
+    }
+    if (lastError) throw lastError;
+  }
+};
+
+export const checkMacosRelease = async ({
+  plan,
+  store,
+  log = (message) => console.log(`[cos-publish] ${message}`),
+}) => {
+  if (plan.publishMode !== "macos-only") {
+    fail("macOS preflight requires a macOS-only publish plan");
+  }
+  const latest = await store.get(LATEST_KEY);
+  const currentVersion = releaseVersionFromBody(latest?.body);
+  const currentLatest = latest
+    ? JSON.parse(latest.body.toString("utf8"))
+    : null;
+  const latestDocument = mergeMacosLatestDocument(
+    currentLatest,
+    plan.latestCore,
+  );
+  const missingVersionObjects = await prepareVersionUploads({
+    plan,
+    store,
+    currentVersion,
+    log,
+  });
+  return { latestDocument, missingVersionObjects };
+};
+
 export const publishRelease = async ({
   plan,
   store,
@@ -839,18 +1033,23 @@ export const publishRelease = async ({
   const currentVersion = releaseVersionFromBody(
     snapshots.get(LATEST_KEY)?.body,
   );
-  const versionComparison = currentVersion
-    ? compareVersions(plan.version, currentVersion)
-    : null;
-  if (versionComparison !== null && versionComparison < 0) {
-    fail(
-      `refusing to downgrade latest.json from ${currentVersion} to ${plan.version}`,
-    );
-  }
   const currentLatest = snapshots.get(LATEST_KEY)
     ? JSON.parse(snapshots.get(LATEST_KEY).body.toString("utf8"))
     : null;
-  const latestDocument = mergeLatestDocument(currentLatest, plan.latestCore);
+  let latestDocument;
+  if (plan.publishMode === "macos-only") {
+    latestDocument = mergeMacosLatestDocument(currentLatest, plan.latestCore);
+  } else {
+    const versionComparison = currentVersion
+      ? compareVersions(plan.version, currentVersion)
+      : null;
+    if (versionComparison !== null && versionComparison < 0) {
+      fail(
+        `refusing to downgrade latest.json from ${currentVersion} to ${plan.version}`,
+      );
+    }
+    latestDocument = mergeLatestDocument(currentLatest, plan.latestCore);
+  }
   const latestObject = bodyObject({
     key: LATEST_KEY,
     body: jsonBody(latestDocument),
@@ -871,6 +1070,11 @@ export const publishRelease = async ({
 
   const attempted = new Map();
   let purgeAttempted = false;
+  const purgeUrls = [
+    latestUrl,
+    ...(plan.cdnVerificationObjects ?? []).map((object) => object.url),
+  ];
+  const purgeTarget = purgeUrls.length === 1 ? latestUrl : purgeUrls;
   try {
     for (const object of [...plan.mutableObjects, latestObject]) {
       const body = object.body ?? (await readFile(object.path));
@@ -891,11 +1095,16 @@ export const publishRelease = async ({
     }
 
     purgeAttempted = true;
-    const taskId = await cdn.purgeAndWait(latestUrl);
-    log(`CDN purge completed for ${latestUrl} (task ${taskId})`);
+    const taskId = await cdn.purgeAndWait(purgeTarget);
+    log(`CDN purge completed for ${purgeUrls.join(", ")} (task ${taskId})`);
     await verifyCdnLatest({
       latestUrl,
       expected: latestDocument,
+      fetchImpl,
+      wait,
+    });
+    await verifyCdnObjects({
+      objects: plan.cdnVerificationObjects ?? [],
       fetchImpl,
       wait,
     });
@@ -905,8 +1114,8 @@ export const publishRelease = async ({
     try {
       await rollbackPointers({ store, snapshots, attempted, log });
       if (purgeAttempted && attempted.has(LATEST_KEY)) {
-        await cdn.purgeAndWait(latestUrl);
-        log(`refreshed restored CDN latest.json for ${latestUrl}`);
+        await cdn.purgeAndWait(purgeTarget);
+        log(`refreshed restored CDN pointers for ${purgeUrls.join(", ")}`);
       }
     } catch (rollbackError) {
       throw new AggregateError(
@@ -1027,8 +1236,12 @@ export const createTencentAdapters = ({
     profile: { httpProfile: { endpoint: "cdn.tencentcloudapi.com" } },
   });
   const cdn = {
-    async purgeAndWait(url) {
-      const submitted = await client.PurgeUrlsCache({ Urls: [url] });
+    async purgeAndWait(value) {
+      const urls = Array.isArray(value) ? value : [value];
+      if (urls.length === 0 || urls.some((url) => !/^https:\/\//.test(url))) {
+        fail("Tencent CDN purge requires one or more absolute HTTPS URLs");
+      }
+      const submitted = await client.PurgeUrlsCache({ Urls: urls });
       const taskId = submitted.TaskId;
       if (!taskId) fail("Tencent CDN did not return a purge task ID");
       const deadline = Date.now() + 5 * 60 * 1000;
@@ -1067,12 +1280,20 @@ const requireEnvironment = (name) => {
 
 const writePlanPreview = async (plan, outputDir) => {
   await mkdir(outputDir, { recursive: true });
-  const latestDocument = mergeLatestDocument(null, plan.latestCore);
-  await writeFile(join(outputDir, "latest.json"), jsonBody(latestDocument));
+  if (plan.publishMode === "macos-only") {
+    await writeFile(
+      join(outputDir, "macos-latest-patch.json"),
+      jsonBody(plan.latestCore),
+    );
+  } else {
+    const latestDocument = mergeLatestDocument(null, plan.latestCore);
+    await writeFile(join(outputDir, "latest.json"), jsonBody(latestDocument));
+  }
   await writeFile(
     join(outputDir, "publish-plan.json"),
     jsonBody({
       version: plan.version,
+      mode: plan.publishMode ?? "full-release",
       version_objects: plan.versionObjects.map(({ key, size, sha256 }) => ({
         key,
         size,
@@ -1092,48 +1313,74 @@ const writePlanPreview = async (plan, outputDir) => {
 
 const main = async () => {
   const command = process.argv[2] ?? "plan";
-  if (!["plan", "publish"].includes(command)) {
-    fail("usage: fn-knock-cos-publish.mjs <plan|publish>");
+  const supportedCommands = [
+    "plan",
+    "publish",
+    "plan-macos",
+    "check-macos",
+    "publish-macos",
+  ];
+  if (!supportedCommands.includes(command)) {
+    fail(
+      "usage: fn-knock-cos-publish.mjs <plan|publish|plan-macos|check-macos|publish-macos>",
+    );
   }
   const version = requireEnvironment("FN_KNOCK_VERSION");
   const publicBaseUrl = requireEnvironment("COS_PUBLICBASICURL");
-  const previousReleases = process.env.FN_KNOCK_RELEASE_HISTORY_FILE
-    ? JSON.parse(
-        await readFile(process.env.FN_KNOCK_RELEASE_HISTORY_FILE, "utf8"),
-      )
-    : await fetchPreviousReleases({
-        repository: requireEnvironment("GITHUB_REPOSITORY"),
-        token: requireEnvironment("GITHUB_TOKEN"),
-        apiUrl: process.env.GITHUB_API_URL,
-      });
-  const plan = await buildReleasePlan({
-    assetsDir: resolve(
-      process.env.FN_KNOCK_RELEASE_ASSETS_DIR ?? "dist/release-assets",
-    ),
-    windowsMetadataDir: resolve(
-      process.env.FN_KNOCK_WINDOWS_METADATA_DIR ?? "dist/cos-windows-release",
-    ),
-    installScriptPath: resolve(
-      process.env.FN_KNOCK_INSTALL_SCRIPT ?? "deploy/linux/install.sh",
-    ),
-    macosInstallScriptPath: resolve(
-      process.env.FN_KNOCK_MACOS_INSTALL_SCRIPT ?? "deploy/macos/install.sh",
-    ),
-    releaseNotesPath: resolve(
-      process.env.FN_KNOCK_RELEASE_NOTES_PATH ?? `release-notes/${version}.md`,
-    ),
-    version,
-    publicBaseUrl,
-    previousReleases,
-  });
+  const macosOnly = command.endsWith("-macos");
+  let plan;
+  if (macosOnly) {
+    plan = await buildMacosReleasePlan({
+      assetsDir: resolve(
+        process.env.FN_KNOCK_MACOS_RELEASE_ASSETS_DIR ??
+          "dist/macos-release-assets",
+      ),
+      installScriptPath: resolve(
+        process.env.FN_KNOCK_MACOS_INSTALL_SCRIPT ?? "deploy/macos/install.sh",
+      ),
+      version,
+      publicBaseUrl,
+    });
+  } else {
+    const previousReleases = process.env.FN_KNOCK_RELEASE_HISTORY_FILE
+      ? JSON.parse(
+          await readFile(process.env.FN_KNOCK_RELEASE_HISTORY_FILE, "utf8"),
+        )
+      : await fetchPreviousReleases({
+          repository: requireEnvironment("GITHUB_REPOSITORY"),
+          token: requireEnvironment("GITHUB_TOKEN"),
+          apiUrl: process.env.GITHUB_API_URL,
+        });
+    plan = await buildReleasePlan({
+      assetsDir: resolve(
+        process.env.FN_KNOCK_RELEASE_ASSETS_DIR ?? "dist/release-assets",
+      ),
+      windowsMetadataDir: resolve(
+        process.env.FN_KNOCK_WINDOWS_METADATA_DIR ?? "dist/cos-windows-release",
+      ),
+      installScriptPath: resolve(
+        process.env.FN_KNOCK_INSTALL_SCRIPT ?? "deploy/linux/install.sh",
+      ),
+      macosInstallScriptPath: resolve(
+        process.env.FN_KNOCK_MACOS_INSTALL_SCRIPT ?? "deploy/macos/install.sh",
+      ),
+      releaseNotesPath: resolve(
+        process.env.FN_KNOCK_RELEASE_NOTES_PATH ??
+          `release-notes/${version}.md`,
+      ),
+      version,
+      publicBaseUrl,
+      previousReleases,
+    });
+  }
   const outputDir = resolve(
     process.env.FN_KNOCK_COS_OUTPUT_DIR ?? "dist/cos-publish",
   );
   await writePlanPreview(plan, outputDir);
   console.log(
-    `[cos-publish] validated ${plan.manifest.artifacts.length} release artifacts for ${version}`,
+    `[cos-publish] validated ${plan.manifest.artifacts.length} ${macosOnly ? "macOS " : ""}release artifacts for ${version}`,
   );
-  if (command === "plan") {
+  if (["plan", "plan-macos"].includes(command)) {
     console.log(`[cos-publish] wrote dry-run plan to ${outputDir}`);
     return;
   }
@@ -1145,6 +1392,13 @@ const main = async () => {
     region: requireEnvironment("COS_REGION"),
     accelerateDomain: requireEnvironment("COS_ACC"),
   });
+  if (command === "check-macos") {
+    const result = await checkMacosRelease({ plan, store: adapters.store });
+    console.log(
+      `[cos-publish] macOS preflight passed; ${result.missingVersionObjects.length} immutable object(s) will be uploaded`,
+    );
+    return;
+  }
   await publishRelease({
     plan,
     ...adapters,

@@ -6,9 +6,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  buildMacosReleasePlan,
   buildReleasePlan,
+  checkMacosRelease,
   compareVersions,
   composeReleaseNotes,
+  mergeMacosLatestDocument,
   mergeLatestDocument,
   normalizeCosAccelerateDomain,
   publishRelease,
@@ -173,6 +176,29 @@ const buildFixturePlan = (fixture, overrides = {}) =>
     ...overrides,
   });
 
+const buildMacosFixturePlan = (fixture, overrides = {}) =>
+  buildMacosReleasePlan({
+    assetsDir: fixture.assetsDir,
+    installScriptPath: fixture.macosInstallScriptPath,
+    version: VERSION,
+    publicBaseUrl: "https://cdn.example.test/",
+    ...overrides,
+  });
+
+const currentMacosLatest = () => ({
+  version: VERSION,
+  update_available: true,
+  force_update: false,
+  custom_root: { preserved: true },
+  packages: {
+    fpk: { amd64: { file_name: "kept.fpk" } },
+    linux: { arm64: { file_name: "kept.tar.gz" } },
+    macos: { stale: { file_name: "old-macos.tar.gz" } },
+    windows: { x86_64: { file_name: "kept.exe" } },
+    custom: { channel: "kept" },
+  },
+});
+
 class FakeStore {
   constructor(initial = {}) {
     this.objects = new Map();
@@ -306,6 +332,38 @@ test("builds a complete 23-package COS plan", async (context) => {
   );
 });
 
+test("builds a two-architecture macOS-only COS plan", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+
+  assert.equal(plan.publishMode, "macos-only");
+  assert.deepEqual(
+    plan.manifest.artifacts.map((artifact) => artifact.architecture),
+    ["amd64", "arm64"],
+  );
+  assert.deepEqual(
+    plan.versionObjects.map((object) => object.key),
+    [
+      `files/${VERSION}/macos/amd64/fn-knock-macos-${VERSION}-amd64.tar.gz`,
+      `files/${VERSION}/macos/arm64/fn-knock-macos-${VERSION}-arm64.tar.gz`,
+    ],
+  );
+  assert.deepEqual(
+    plan.mutableObjects.map((object) => object.key),
+    ["macos/install.sh", "macos/latest/amd64.env", "macos/latest/arm64.env"],
+  );
+  assert.deepEqual(Object.keys(plan.latestCore.packages.macos).sort(), [
+    "amd64",
+    "arm64",
+  ]);
+  assert.ok(
+    plan.cdnVerificationObjects.every((object) =>
+      object.url.startsWith("https://cdn.example.test/macos/"),
+    ),
+  );
+});
+
 test("requires HTTPS for public package and installer URLs", async (context) => {
   const fixture = await createFixture();
   context.after(() => rm(fixture.root, { recursive: true, force: true }));
@@ -396,6 +454,30 @@ test("preserves unknown latest fields while removing the legacy root header", ()
   assert.deepEqual(merged.packages.fpk, {});
 });
 
+test("macOS-only merge preserves every non-macOS latest field", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+  const current = currentMacosLatest();
+  const merged = mergeMacosLatestDocument(current, plan.latestCore);
+
+  assert.equal(merged.version, VERSION);
+  assert.deepEqual(merged.custom_root, current.custom_root);
+  assert.deepEqual(merged.packages.fpk, current.packages.fpk);
+  assert.deepEqual(merged.packages.linux, current.packages.linux);
+  assert.deepEqual(merged.packages.windows, current.packages.windows);
+  assert.deepEqual(merged.packages.custom, current.packages.custom);
+  assert.deepEqual(merged.packages.macos, plan.latestCore.packages.macos);
+  assert.throws(
+    () =>
+      mergeMacosLatestDocument(
+        { ...current, version: "3.4.4" },
+        plan.latestCore,
+      ),
+    /requires current latest\.json version 3\.4\.5/,
+  );
+});
+
 test("rejects tampered artifacts and duplicate architectures", async (context) => {
   const fixture = await createFixture();
   context.after(() => rm(fixture.root, { recursive: true, force: true }));
@@ -466,6 +548,152 @@ test("uploads versioned objects before pointers and latest.json last", async (co
       result.latestDocument,
     ),
   );
+});
+
+test("publishes only macOS pointers and preserves the current release", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+  const current = currentMacosLatest();
+  const initial = Object.fromEntries(
+    plan.mutableObjects.map((object) => [object.key, `old:${object.key}\n`]),
+  );
+  initial["latest.json"] = `${JSON.stringify(current)}\n`;
+  const store = new FakeStore(initial);
+  const purges = [];
+
+  const preflight = await checkMacosRelease({
+    plan,
+    store,
+    log: () => {},
+  });
+  assert.equal(preflight.missingVersionObjects.length, 2);
+  assert.deepEqual(store.operations, []);
+
+  const result = await publishRelease({
+    plan,
+    store,
+    cdn: {
+      async purgeAndWait(urls) {
+        purges.push(urls);
+        return "macos-task";
+      },
+    },
+    latestUrl: "https://cdn.example.test/latest.json",
+    fetchImpl: async (url) => {
+      if (url === "https://cdn.example.test/latest.json") {
+        return new Response((await store.get("latest.json")).body, {
+          status: 200,
+        });
+      }
+      const object = plan.cdnVerificationObjects.find(
+        (candidate) => candidate.url === url,
+      );
+      assert.ok(object, `unexpected CDN verification URL: ${url}`);
+      return new Response((await store.get(object.key)).body, { status: 200 });
+    },
+    wait: async () => {},
+    log: () => {},
+  });
+
+  assert.equal(result.latestDocument.version, VERSION);
+  assert.deepEqual(result.latestDocument.custom_root, current.custom_root);
+  assert.deepEqual(result.latestDocument.packages.fpk, current.packages.fpk);
+  assert.deepEqual(
+    result.latestDocument.packages.linux,
+    current.packages.linux,
+  );
+  assert.deepEqual(
+    result.latestDocument.packages.windows,
+    current.packages.windows,
+  );
+  assert.deepEqual(
+    result.latestDocument.packages.macos,
+    plan.latestCore.packages.macos,
+  );
+  assert.deepEqual(purges, [
+    [
+      "https://cdn.example.test/latest.json",
+      "https://cdn.example.test/macos/install.sh",
+      "https://cdn.example.test/macos/latest/amd64.env",
+      "https://cdn.example.test/macos/latest/arm64.env",
+    ],
+  ]);
+  const writes = store.operations.filter((operation) =>
+    operation.startsWith("put:"),
+  );
+  assert.equal(writes.at(-1), "put:latest.json");
+  assert.ok(writes.every((operation) => !operation.includes("linux/")));
+  assert.ok(writes.every((operation) => !operation.includes("windows/")));
+});
+
+test("macOS-only preflight refuses a different or missing current version", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+  for (const latest of [null, { ...currentMacosLatest(), version: "3.4.4" }]) {
+    const store = new FakeStore(
+      latest ? { "latest.json": `${JSON.stringify(latest)}\n` } : {},
+    );
+    await assert.rejects(
+      checkMacosRelease({ plan, store, log: () => {} }),
+      /requires (an existing latest\.json|current latest\.json version 3\.4\.5)/,
+    );
+    assert.deepEqual(store.operations, []);
+  }
+});
+
+test("macOS-only preflight refuses different same-version package bytes", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+  const first = plan.versionObjects[0];
+  const store = new FakeStore({
+    "latest.json": `${JSON.stringify(currentMacosLatest())}\n`,
+    [first.key]: "different macOS build\n",
+  });
+  await assert.rejects(
+    checkMacosRelease({ plan, store, log: () => {} }),
+    /same-version COS object (size|SHA-256) mismatch/,
+  );
+  assert.deepEqual(store.operations, []);
+});
+
+test("macOS-only publication restores every pointer after CDN failure", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const plan = await buildMacosFixturePlan(fixture);
+  const initial = Object.fromEntries(
+    plan.mutableObjects.map((object) => [object.key, `old:${object.key}\n`]),
+  );
+  initial["latest.json"] = `${JSON.stringify(currentMacosLatest())}\n`;
+  const store = new FakeStore(initial);
+  const purges = [];
+
+  await assert.rejects(
+    publishRelease({
+      plan,
+      store,
+      cdn: {
+        async purgeAndWait(urls) {
+          purges.push(urls);
+          if (purges.length === 1) throw new Error("macOS purge failed");
+          return "restore-task";
+        },
+      },
+      latestUrl: "https://cdn.example.test/latest.json",
+      fetchImpl: async () => new Response("{}", { status: 200 }),
+      wait: async () => {},
+      log: () => {},
+    }),
+    /macOS purge failed/,
+  );
+
+  assert.equal(purges.length, 2);
+  assert.ok(Array.isArray(purges[0]));
+  for (const [key, body] of Object.entries(initial)) {
+    assert.equal((await store.get(key)).body.toString("utf8"), body);
+  }
 });
 
 test("requires an exact CDN latest document", async (context) => {

@@ -1,0 +1,231 @@
+name: macOS Supplemental Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish both macOS architectures to the current stable release
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fn-knock-stable-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/macos.yml
+
+  plan-and-publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      FN_KNOCK_VERSION: ${{ needs.build.outputs.version }}
+      FN_KNOCK_MACOS_RELEASE_ASSETS_DIR: ${{ github.workspace }}/dist/macos-release-assets
+      FN_KNOCK_MACOS_INSTALL_SCRIPT: ${{ github.workspace }}/deploy/macos/install.sh
+      FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/macos-cos-publish
+      COS_PUBLICBASICURL: https://cdn.fnknock.cn
+
+    steps:
+      - name: Checkout frozen fn-knock source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.build.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Install release dependencies
+        shell: bash
+        run: npm ci --ignore-scripts
+
+      - name: Download both native macOS packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: fn-knock-macos-${{ needs.build.outputs.version }}-*
+          path: dist/macos-release-assets
+          merge-multiple: true
+
+      - name: Validate macOS supplemental publish plan
+        shell: bash
+        run: |
+          expected_amd64="fn-knock-macos-${FN_KNOCK_VERSION}-amd64.tar.gz"
+          expected_arm64="fn-knock-macos-${FN_KNOCK_VERSION}-arm64.tar.gz"
+          test -s "${FN_KNOCK_MACOS_RELEASE_ASSETS_DIR}/${expected_amd64}"
+          test -s "${FN_KNOCK_MACOS_RELEASE_ASSETS_DIR}/${expected_arm64}"
+          test "$(find "${FN_KNOCK_MACOS_RELEASE_ASSETS_DIR}" -maxdepth 1 -type f | wc -l | tr -d ' ')" = "2"
+          node ./scripts/fn-knock-cos-publish.mjs plan-macos
+
+      - name: Upload macOS supplemental publish plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fn-knock-macos-${{ needs.build.outputs.version }}-publish-plan
+          path: dist/macos-cos-publish
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preflight current COS release without mutation
+        if: inputs.publish
+        shell: bash
+        env:
+          COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}
+          COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
+          COS_REGION: ${{ vars.COS_REGION || secrets.COS_REGION }}
+          COS_SECRETID: ${{ secrets.COS_SECRETID }}
+          COS_SECRETKEY: ${{ secrets.COS_SECRETKEY }}
+        run: node ./scripts/fn-knock-cos-publish.mjs check-macos
+
+      - name: Attest native macOS packages
+        if: inputs.publish
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/macos-release-assets/*.tar.gz
+
+      - name: Add macOS packages to the existing GitHub Release
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${FN_KNOCK_VERSION}"
+          release_json="$(gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" --json isDraft,isPrerelease,tagName)"
+          jq -e --arg tag "${tag}" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
+            <<<"${release_json}" >/dev/null
+
+          work_dir="${RUNNER_TEMP}/fn-knock-macos-release"
+          remote_dir="${work_dir}/remote"
+          mkdir -p "${remote_dir}"
+          gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" \
+            --json assets --jq '.assets[].name' | sort > "${work_dir}/assets-before.txt"
+          grep -Fxq "SHA256SUMS" "${work_dir}/assets-before.txt"
+          gh release download "${tag}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "SHA256SUMS" --dir "${remote_dir}"
+          cp "${remote_dir}/SHA256SUMS" "${work_dir}/SHA256SUMS"
+
+          uploaded_assets_file="${work_dir}/uploaded-assets.txt"
+          : > "${uploaded_assets_file}"
+          github_mutated=false
+          rollback_github() {
+            exit_code=$?
+            if [ "${exit_code}" -ne 0 ] && [ "${github_mutated}" = true ]; then
+              set +e
+              gh release upload "${tag}" "${remote_dir}/SHA256SUMS" \
+                --repo "${GITHUB_REPOSITORY}" --clobber
+              while IFS= read -r uploaded_name; do
+                [ -n "${uploaded_name}" ] || continue
+                gh release delete-asset "${tag}" "${uploaded_name}" \
+                  --repo "${GITHUB_REPOSITORY}" --yes
+              done < "${uploaded_assets_file}"
+              set -e
+            fi
+            exit "${exit_code}"
+          }
+          trap rollback_github EXIT
+
+          upload_args=()
+          for arch in amd64 arm64; do
+            name="fn-knock-macos-${FN_KNOCK_VERSION}-${arch}.tar.gz"
+            local_file="${FN_KNOCK_MACOS_RELEASE_ASSETS_DIR}/${name}"
+            if grep -Fxq "${name}" "${work_dir}/assets-before.txt"; then
+              arch_dir="${remote_dir}/${arch}"
+              mkdir -p "${arch_dir}"
+              gh release download "${tag}" --repo "${GITHUB_REPOSITORY}" \
+                --pattern "${name}" --dir "${arch_dir}"
+              test "$(sha256sum "${local_file}" | awk '{print $1}')" = \
+                "$(sha256sum "${arch_dir}/${name}" | awk '{print $1}')"
+            else
+              upload_args+=("${local_file}")
+              printf '%s\n' "${name}" >> "${uploaded_assets_file}"
+            fi
+            awk -v target="${name}" '
+              {
+                candidate = $2
+                sub(/^\*/, "", candidate)
+                if (candidate != target) print
+              }
+            ' "${work_dir}/SHA256SUMS" > "${work_dir}/SHA256SUMS.next"
+            mv "${work_dir}/SHA256SUMS.next" "${work_dir}/SHA256SUMS"
+            (cd "${FN_KNOCK_MACOS_RELEASE_ASSETS_DIR}" && sha256sum "${name}") \
+              >> "${work_dir}/SHA256SUMS"
+          done
+          LC_ALL=C sort -k2,2 -o "${work_dir}/SHA256SUMS" "${work_dir}/SHA256SUMS"
+
+          if [ "${#upload_args[@]}" -gt 0 ]; then
+            github_mutated=true
+            gh release upload "${tag}" "${upload_args[@]}" \
+              --repo "${GITHUB_REPOSITORY}"
+          fi
+          github_mutated=true
+          gh release upload "${tag}" "${work_dir}/SHA256SUMS" \
+            --repo "${GITHUB_REPOSITORY}" --clobber
+
+          verify_dir="${work_dir}/verify"
+          mkdir -p "${verify_dir}"
+          gh release download "${tag}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "fn-knock-macos-${FN_KNOCK_VERSION}-*.tar.gz" \
+            --pattern "SHA256SUMS" --dir "${verify_dir}"
+          grep -E "  fn-knock-macos-${FN_KNOCK_VERSION}-(amd64|arm64)\\.tar\\.gz$" \
+            "${verify_dir}/SHA256SUMS" > "${verify_dir}/MACOS_SHA256SUMS"
+          test "$(wc -l < "${verify_dir}/MACOS_SHA256SUMS" | tr -d ' ')" = "2"
+          (cd "${verify_dir}" && sha256sum --check MACOS_SHA256SUMS)
+          touch "${work_dir}/mutation-complete"
+          trap - EXIT
+
+      - name: Publish macOS COS objects and commit latest.json last
+        if: inputs.publish
+        shell: bash
+        env:
+          COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}
+          COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
+          COS_REGION: ${{ vars.COS_REGION || secrets.COS_REGION }}
+          COS_SECRETID: ${{ secrets.COS_SECRETID }}
+          COS_SECRETKEY: ${{ secrets.COS_SECRETKEY }}
+          FN_KNOCK_LATEST_URL: https://cor.fnknock.cn/latest.json
+        run: node ./scripts/fn-knock-cos-publish.mjs publish-macos
+
+      - name: Roll back GitHub Release if COS publication failed
+        if: ${{ failure() && inputs.publish }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${FN_KNOCK_VERSION}"
+          work_dir="${RUNNER_TEMP}/fn-knock-macos-release"
+          if [ ! -f "${work_dir}/mutation-complete" ]; then
+            exit 0
+          fi
+          gh release upload "${tag}" "${work_dir}/remote/SHA256SUMS" \
+            --repo "${GITHUB_REPOSITORY}" --clobber
+          while IFS= read -r uploaded_name; do
+            [ -n "${uploaded_name}" ] || continue
+            gh release delete-asset "${tag}" "${uploaded_name}" \
+              --repo "${GITHUB_REPOSITORY}" --yes
+          done < "${work_dir}/uploaded-assets.txt"
+
+      - name: Summarize dry run
+        if: ${{ !inputs.publish }}
+        shell: bash
+        run: |
+          {
+            printf '### macOS supplemental release dry run\n\n'
+            printf 'Built and validated Intel and Apple Silicon packages for `%s`.\n' "${FN_KNOCK_VERSION}"
+            printf 'No GitHub Release, COS, CDN, or latest.json state was changed.\n'
+          } >> "${GITHUB_STEP_SUMMARY}"

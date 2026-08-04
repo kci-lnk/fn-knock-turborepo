@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SUPPLEMENTAL_WORKFLOW="${ROOT_DIR}/.github/workflows/macos-release.yml"
 fail() { printf '[test-macos-release-contract] ERROR: %s\n' "$*" >&2; exit 1; }
 
 for script in \
@@ -42,5 +43,37 @@ if grep -Fq '"${ARCHIVE}.sha256"' "${ROOT_DIR}/scripts/fn-knock-macos-package.sh
 fi
 grep -Fq '<key>Umask</key>' "${ROOT_DIR}/deploy/macos/cn.fnknock.service.plist" || \
   fail "LaunchDaemon does not set a restrictive umask"
+
+[ -f "${SUPPLEMENTAL_WORKFLOW}" ] || fail "macOS supplemental release workflow is missing"
+grep -Fq 'uses: ./.github/workflows/macos.yml' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not reuse the native CI build"
+grep -Fq 'group: fn-knock-stable-release' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not share the stable release lock"
+grep -Fq 'node ./scripts/fn-knock-cos-publish.mjs plan-macos' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not generate a dry-run plan"
+grep -Fq 'node ./scripts/fn-knock-cos-publish.mjs check-macos' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not preflight COS"
+grep -Fq 'node ./scripts/fn-knock-cos-publish.mjs publish-macos' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not publish COS transactionally"
+grep -Fq 'subject-path: dist/macos-release-assets/*.tar.gz' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not attest both archives"
+grep -Fq -- '- name: Roll back GitHub Release if COS publication failed' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release does not compensate GitHub mutations"
+grep -Fq 'gh release delete-asset "${tag}" "${uploaded_name}"' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental rollback does not remove newly added assets"
+grep -Fq 'type: boolean' "${SUPPLEMENTAL_WORKFLOW}" || \
+  fail "macOS supplemental release publish confirmation is not boolean"
+
+preflight_line="$(grep -nF 'node ./scripts/fn-knock-cos-publish.mjs check-macos' "${SUPPLEMENTAL_WORKFLOW}" | cut -d: -f1)"
+github_line="$(grep -nF -- '- name: Add macOS packages to the existing GitHub Release' "${SUPPLEMENTAL_WORKFLOW}" | cut -d: -f1)"
+publish_line="$(grep -nF 'node ./scripts/fn-knock-cos-publish.mjs publish-macos' "${SUPPLEMENTAL_WORKFLOW}" | cut -d: -f1)"
+[ "${preflight_line}" -lt "${github_line}" ] || \
+  fail "COS preflight must happen before GitHub Release mutation"
+[ "${github_line}" -lt "${publish_line}" ] || \
+  fail "latest.json must be committed after GitHub Release assets"
+grep -Fq 'publishMode: "macos-only"' "${ROOT_DIR}/scripts/fn-knock-cos-publish.mjs" || \
+  fail "macOS COS plan is not marked as a partial publication"
+grep -Fq '...current.packages,' "${ROOT_DIR}/scripts/fn-knock-cos-publish.mjs" || \
+  fail "macOS latest merge does not preserve other package nodes"
 
 printf '[test-macos-release-contract] macOS release contract passed\n'

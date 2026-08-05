@@ -29,6 +29,7 @@ const props = defineProps<{
   isModeValid: boolean;
   isSavingMappings: boolean;
   isSavingMode: boolean;
+  omitPublicPortConfiguration: boolean;
   ready: boolean;
   removeAuthService: () => Promise<unknown>;
   resetModeForm: () => void;
@@ -218,7 +219,7 @@ const confirmRemoveAuthService = async () => {
             </div>
 
             <div
-              v-if="!edgeClientIpEnabledModel"
+              v-if="!omitPublicPortConfiguration && !edgeClientIpEnabledModel"
               class="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end"
             >
               <div class="space-y-1">
@@ -241,7 +242,10 @@ const confirmRemoveAuthService = async () => {
             </div>
           </div>
 
-          <div class="rounded-lg border px-4 py-4">
+          <div
+            v-if="isEdgeClientIpModeEditable"
+            class="rounded-lg border px-4 py-4"
+          >
             <div class="flex flex-col gap-4">
               <div class="flex items-start justify-between gap-4">
                 <div class="space-y-1">
@@ -256,17 +260,10 @@ const confirmRemoveAuthService = async () => {
                       t("admin.subdomainProxy.edgeClientIpProviderDescription")
                     }}
                   </p>
-                  <p
-                    v-if="!isEdgeClientIpModeEditable"
-                    class="text-xs text-amber-600"
-                  >
-                    {{ t("admin.subdomainProxy.edgeClientIpNotEditable") }}
-                  </p>
                 </div>
                 <Switch
                   id="edge-client-ip-enabled"
                   v-model="edgeClientIpEnabledModel"
-                  :disabled="!isEdgeClientIpModeEditable"
                 />
               </div>
 
@@ -280,9 +277,8 @@ const confirmRemoveAuthService = async () => {
                     v-for="option in edgeClientIpProviderOptions"
                     :key="option.value"
                     type="button"
-                    :disabled="!isEdgeClientIpModeEditable"
                     :class="[
-                      'rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      'rounded-xl border p-4 text-left transition-colors',
                       activeEdgeClientIpProvider === option.value
                         ? 'border-primary bg-primary/5 shadow-sm'
                         : 'border-border bg-background hover:border-primary/40 hover:bg-muted/40',

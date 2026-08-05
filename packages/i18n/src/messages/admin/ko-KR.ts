@@ -2227,20 +2227,33 @@ export const koKRAdmin = {
     logsCleared: "로그가 지워졌습니다.",
     managed: {
       pageDescription:
-        "최소 권한 API Token으로 Tunnel, Ingress 및 DNS를 자동 관리하며 수동 Token 모드도 유지합니다.",
+        "API Token을 붙여넣으면 fn-knock이 Tunnel과 도메인을 자동으로 설정합니다. 일반적으로 Cloudflare 대시보드를 다시 열 필요가 없습니다.",
       connectionTitle: "API 연결",
+      connectionHeading: "Cloudflare 연결",
       connectionDescription:
-        "Token은 쓰기 전용으로 로컬에 암호화되며 API, 로그, 진단에 노출되지 않습니다.",
+        "필요한 권한이 있는 Token을 붙여넣으세요. 로컬에 암호화되며 화면, 로그 또는 진단에 표시되지 않습니다.",
+      connectionSummary: "API Token이 안전하게 저장되었습니다",
+      connectionSummaryWithZone:
+        "{zone}에 연결됨; Tunnel과 DNS를 자동 관리할 수 있습니다",
+      connectionNotConfiguredSummary:
+        "1단계: API Token을 붙여넣고 Cloudflare 연결",
+      viewOrChange: "보기 또는 변경",
+      viewDetails: "세부 정보 보기",
       connectedStatus: "API Token 설정됨",
       replaceTokenPlaceholder: "새 Cloudflare API Token 붙여넣기",
       replaceToken: "Token 교체",
       connect: "연결 및 검증",
       disconnect: "로컬 자격 증명 제거",
-      permissionsTitle: "최소 권한 템플릿",
       driftTitle: "원격 설정 변경 감지",
       driftDescription:
         "Cloudflare 상태가 변경되었습니다. 적용 전에 다시 미리 확인하세요.",
       tunnelTitle: "Tunnel 및 도메인 동기화",
+      tunnelHeading: "공개 접속 자동 설정",
+      tunnelIntro:
+        "처음 설정할 때는 전용 Tunnel을 권장합니다. 미리 확인한 뒤 적용하면 Tunnel, Ingress 및 와일드카드 DNS를 자동 생성합니다.",
+      tunnelSummaryConfigured:
+        "{hostname} 관리 중; 새 하위 도메인은 Cloudflare 변경이 필요 없습니다",
+      tunnelSummaryNotConfigured: "2단계: 권장 설정으로 Tunnel과 DNS 생성",
       tunnelMode: "Tunnel 모드",
       dedicatedTunnel: "전용 Tunnel(권장)",
       existingTunnel: "기존 Tunnel 사용",
@@ -2251,6 +2264,7 @@ export const koKRAdmin = {
       selectTunnel: "기존 Tunnel 선택",
       preview: "원격 변경 미리보기",
       previewTitle: "원격 변경 미리보기",
+      technicalDetails: "권한 검사 세부 정보",
       publicHostname: "공개 호스트 이름",
       originService: "로컬 원본 서비스",
       zone: "Cloudflare Zone",
@@ -2302,14 +2316,45 @@ export const koKRAdmin = {
       previewCleanup: "제거 미리보기",
     },
     optimization: {
-      title: "IPv4 최적화 Beta",
+      title: "접속 속도 최적화",
+      heading: "더 빠른 Cloudflare 진입점 테스트 및 선택",
       description:
-        "정확한 서비스 도메인에 최적화 경로를 추가하고 와일드카드 Tunnel을 항상 폴백으로 유지합니다.",
+        "선택 기능입니다. 설정된 도메인에 적합한 진입점을 테스트해 선택하며 문제가 생기면 표준 Tunnel로 자동 복귀합니다.",
+      summaryFallback:
+        "안정적인 표준 Tunnel 사용 중; 언제든 다시 속도를 테스트할 수 있습니다",
+      summaryActive: "현재 IP {ip}; {count}/{total}개 도메인 최적화됨",
+      summaryNotApplied:
+        "선택 사항: 속도 테스트 전에 Tunnel 설정에서 활성화하세요",
       fallbackStatus: "표준 Tunnel 폴백",
       activeStatus: "최적화 활성",
       betaTitle: "실험적 기능",
       betaDescription:
         "Cloudflare for SaaS Custom Hostname을 생성합니다. 요금제 미지원이나 인증서 검증 실패는 기본 Tunnel에 영향을 주지 않습니다.",
+      sources: {
+        title: "후보 IP 소스",
+        advancedTitle: "고급: 후보 IP 소스",
+        description:
+          "Cloudflare 공식 대역과 해외 공공·인프라 사이트의 DNS 결과를 결합합니다. 소스 호스트 이름은 주소 단서일 뿐 국가나 데이터 센터를 고정하지 않습니다.",
+        officialRanges: "Cloudflare 공식 IPv4 대역",
+        officialRangesShort: "공식 대역",
+        officialRangesDescription:
+          "Cloudflare 공개 대역에서 결정적으로 샘플링합니다. 계속 활성화하는 것을 권장합니다.",
+        builtinTitle: "내장 해외 공공·인프라 사이트",
+        customTitle: "사용자 지정 후보 사이트",
+        customPlaceholder: "한 줄에 호스트 이름 하나(예: www.example.org)",
+        customDescription: "최대 {max}개이며 다음 스캔부터 적용됩니다.",
+        safety:
+          "Cloudflare와 Google DoH가 동일하게 반환하고 Cloudflare 공식 대역에 속하는 주소만 사용합니다. 서비스 DNS를 제3자에 CNAME하지 않으며 로컬 DNS의 Fake-IP도 사용하지 않습니다.",
+        save: "후보 소스 저장",
+        saved: "후보 소스를 저장했습니다.",
+        saveFailed: "후보 소스 저장 실패",
+        builtins: {
+          "sweden-government": "스웨덴 정부",
+          "us-library-of-congress": "미국 의회도서관",
+          icann: "ICANN 인터넷 인프라",
+          visa: "Visa 결제 인프라",
+        },
+      },
       reconcileRequiredTitle: "먼저 Cloudflare 설정을 적용하세요",
       reconcileRequiredDescription:
         "Tunnel 섹션에서 최적화를 활성화하고 변경 사항을 미리 본 뒤 계획을 적용해야 속도 테스트 또는 최적 IP 게시를 시작할 수 있습니다.",
@@ -2344,7 +2389,15 @@ export const koKRAdmin = {
       loss: "패킷 손실",
       bandwidth: "다운로드 대역폭",
       score: "점수",
+      source: "후보 소스",
+      colo: "실제 PoP",
+      vantage: "측정 위치",
+      publicIp: "측정 공인 IP",
+      defaultColo: "기본 인입 PoP",
       selection: "선택",
+      selectedResult: "적용할 속도 테스트 결과",
+      allCandidates: "후보 IP {count}개 모두 보기",
+      technicalStatus: "자동 검사 및 전환 기록",
       recommended: "권장",
       select: "선택",
       apply: "선택한 IP 적용",

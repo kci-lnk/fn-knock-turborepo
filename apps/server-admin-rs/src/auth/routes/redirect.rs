@@ -367,10 +367,10 @@ pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) 
     if !matches!(parsed.scheme(), "http" | "https") {
         return Some(trimmed.to_string());
     }
-    if is_edge_client_ip_active(config) {
-        // Edge providers expose the auth service on the scheme's standard
-        // public port. A persisted origin port such as 7999 must not leak into
-        // browser-facing login, callback, or invitation URLs.
+    if should_omit_public_access_entry_port(config) {
+        // Edge providers and managed Cloudflare Tunnel expose the auth service
+        // on the scheme's standard public port. A persisted origin port such
+        // as 7999 must not leak into browser-facing URLs.
         let _ = parsed.set_port(None);
     } else if parsed.port().is_none()
         && let Some(port) =
@@ -443,7 +443,7 @@ pub(super) fn resolve_public_port_for_scheme(
     gateway_fallback: bool,
     allow_reverse_proxy_configured_port: bool,
 ) -> Option<u16> {
-    if is_edge_client_ip_active(config) {
+    if should_omit_public_access_entry_port(config) {
         return None;
     }
     if let Some(port) = parse_explicit_url_port(raw_public_base_url, scheme) {
@@ -454,7 +454,7 @@ pub(super) fn resolve_public_port_for_scheme(
     {
         return Some(port);
     }
-    if should_omit_public_access_entry_port(config) || !gateway_fallback {
+    if !gateway_fallback {
         return None;
     }
     resolve_public_gateway_port(config)

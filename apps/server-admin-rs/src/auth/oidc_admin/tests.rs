@@ -192,6 +192,28 @@ fn builds_invite_base_url_without_origin_port_for_edge_providers() {
 }
 
 #[test]
+fn builds_invite_base_url_without_stale_origin_port_for_cloudflared() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "cloudflared",
+        "host_mappings": [{
+            "host": "auth.tunnel.example",
+            "target": "http://127.0.0.1:7997"
+        }],
+        "subdomain_mode": {
+            "public_auth_base_url": "https://auth.tunnel.example:7999",
+            "public_https_port": 7999
+        }
+    });
+
+    assert_eq!(
+        public_auth_base_url(&config),
+        Some("https://auth.tunnel.example".to_string())
+    );
+}
+
+#[test]
 fn builds_callback_base_url_from_public_auth_config_before_request_host() {
     let mut headers = HeaderMap::new();
     headers.insert("host", "admin.example.com:7999".parse().unwrap());

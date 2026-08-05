@@ -2240,20 +2240,34 @@ export const enAdmin = {
     logsCleared: "Logs cleared",
     managed: {
       pageDescription:
-        "Use a least-privilege API Token to manage Tunnel, Ingress, and DNS automatically, while retaining manual Token mode.",
+        "Paste an API Token and fn-knock configures the Tunnel and domains automatically, usually without another visit to the Cloudflare dashboard.",
       connectionTitle: "API connection",
+      connectionHeading: "Connect Cloudflare",
       connectionDescription:
-        "The Token is write-only and encrypted locally. APIs, logs, and diagnostics never return it.",
+        "Paste a Token with the required permissions. It is encrypted locally and never shown in pages, logs, or diagnostics.",
+      connectionSummary: "API Token stored securely",
+      connectionSummaryWithZone:
+        "Connected to {zone}; Tunnel and DNS can be managed automatically",
+      connectionNotConfiguredSummary:
+        "Step 1: paste an API Token and connect Cloudflare",
+      viewOrChange: "View or change",
+      viewDetails: "View details",
       connectedStatus: "API Token configured",
       replaceTokenPlaceholder: "Paste a new Cloudflare API Token",
       replaceToken: "Replace Token",
       connect: "Connect and verify",
       disconnect: "Remove local credential",
-      permissionsTitle: "Least-privilege template",
       driftTitle: "Remote configuration drift detected",
       driftDescription:
         "Cloudflare state changed since the local snapshot. Run preview again before applying.",
       tunnelTitle: "Tunnel and domain sync",
+      tunnelHeading: "Configure public access automatically",
+      tunnelIntro:
+        "For a first setup, keep Dedicated Tunnel selected. After preview and confirmation, fn-knock creates the Tunnel, Ingress, and wildcard DNS automatically.",
+      tunnelSummaryConfigured:
+        "Managing {hostname}; new subdomains need no Cloudflare changes",
+      tunnelSummaryNotConfigured:
+        "Step 2: create the Tunnel and DNS with the recommended settings",
       tunnelMode: "Tunnel mode",
       dedicatedTunnel: "Dedicated Tunnel (recommended)",
       existingTunnel: "Use an existing Tunnel",
@@ -2264,6 +2278,7 @@ export const enAdmin = {
       selectTunnel: "Select an existing Tunnel",
       preview: "Preview remote changes",
       previewTitle: "Remote change preview",
+      technicalDetails: "Permission check details",
       publicHostname: "Public hostname",
       originService: "Local origin service",
       zone: "Cloudflare Zone",
@@ -2316,14 +2331,47 @@ export const enAdmin = {
       previewCleanup: "Preview removal",
     },
     optimization: {
-      title: "IPv4 optimization Beta",
+      title: "Access speed optimization",
+      heading: "Test and choose a faster Cloudflare entry point",
       description:
-        "Adds an optimized route for exact business hostnames while always retaining the wildcard Tunnel as fallback.",
+        "Optional. fn-knock tests available routes and picks a better entry point for configured domains, falling back to the standard Tunnel if needed.",
+      summaryFallback:
+        "Using the stable standard Tunnel; you can run another speed test anytime",
+      summaryActive: "Current IP {ip}; {count}/{total} domains are optimized",
+      summaryNotApplied:
+        "Optional: enable this in Tunnel settings before running a speed test",
       fallbackStatus: "Standard Tunnel fallback",
       activeStatus: "Optimization active",
       betaTitle: "Experimental feature",
       betaDescription:
         "Creates Cloudflare for SaaS Custom Hostnames. An unsupported plan or failed certificate validation never affects the base Tunnel.",
+      sources: {
+        title: "Candidate IP sources",
+        advancedTitle: "Advanced: candidate IP sources",
+        description:
+          "Combines Cloudflare's official ranges with DNS results from overseas public and infrastructure sites. A source hostname is only an address hint, not a fixed country or data center.",
+        officialRanges: "Official Cloudflare IPv4 ranges",
+        officialRangesShort: "Official range",
+        officialRangesDescription:
+          "Uses deterministic samples from Cloudflare's published ranges. Keeping this enabled is recommended.",
+        builtinTitle: "Built-in overseas public and infrastructure sites",
+        customTitle: "Custom candidate sites",
+        customPlaceholder:
+          "One hostname per line, for example: www.example.org",
+        customDescription:
+          "Up to {max} hostnames. Changes apply to the next scan.",
+        safety:
+          "Only matching Cloudflare and Google DoH answers that belong to an official Cloudflare range are accepted. Business DNS is never CNAMEd to these third parties, and local Fake-IP DNS answers are not used.",
+        save: "Save candidate sources",
+        saved: "Candidate sources saved",
+        saveFailed: "Failed to save candidate sources",
+        builtins: {
+          "sweden-government": "Swedish Government",
+          "us-library-of-congress": "U.S. Library of Congress",
+          icann: "ICANN Internet infrastructure",
+          visa: "Visa payment infrastructure",
+        },
+      },
       reconcileRequiredTitle: "Apply the Cloudflare configuration first",
       reconcileRequiredDescription:
         "Enable optimization in the Tunnel section, preview the changes, and apply the plan before running a speed test or publishing an optimized IP.",
@@ -2358,7 +2406,15 @@ export const enAdmin = {
       loss: "Packet loss",
       bandwidth: "Download bandwidth",
       score: "Score",
+      source: "Candidate source",
+      colo: "Actual PoP",
+      vantage: "Probe vantage",
+      publicIp: "Probe public IP",
+      defaultColo: "Default ingress PoP",
       selection: "Selection",
+      selectedResult: "Speed-test result ready to apply",
+      allCandidates: "View all {count} candidate IPs",
+      technicalStatus: "Automatic checks and switch history",
       recommended: "Recommended",
       select: "Select",
       apply: "Apply selected IP",

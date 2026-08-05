@@ -1,6 +1,6 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import type { AppConfig, SubdomainModeConfig } from "@/types";
-import { shouldOmitPublicAccessEntryPort } from "@/lib/reverse-proxy-submode";
+import { isCloudflaredReverseProxySubdomainMode } from "@/lib/reverse-proxy-submode";
 import {
   formatHostWithOptionalPort,
   isDefaultPublicPort,
@@ -60,30 +60,32 @@ export const useSubdomainPortDisplay = ({
   const isEdgeClientIPModeEditable = computed(
     () => getConfig()?.run_type === 3,
   );
-  const savedEdgeClientIpProvider = computed(() =>
+  const resolvedSavedEdgeClientIpProvider = computed(() =>
     resolveEdgeClientIpProvider(currentModeConfig.value),
   );
+  const savedEdgeClientIpProvider = computed(() =>
+    isEdgeClientIPModeEditable.value
+      ? resolvedSavedEdgeClientIpProvider.value
+      : null,
+  );
   const isSavedEdgeClientIPActive = computed(
-    () =>
-      isEdgeClientIPModeEditable.value &&
-      savedEdgeClientIpProvider.value !== null,
+    () => savedEdgeClientIpProvider.value !== null,
   );
   const activeEdgeClientIpProvider = computed(() =>
-    resolveEdgeClientIpProvider(modeForm),
+    isEdgeClientIPModeEditable.value
+      ? resolveEdgeClientIpProvider(modeForm)
+      : null,
   );
   const isEdgeClientIPActive = computed(
     () =>
       isEdgeClientIPModeEditable.value &&
       activeEdgeClientIpProvider.value !== null,
   );
+  const omitPublicPortConfiguration = computed(() =>
+    isCloudflaredReverseProxySubdomainMode(getConfig()),
+  );
   const shouldOmitAccessEntryPort = computed(() => {
-    if (isSavedEdgeClientIPActive.value) {
-      return true;
-    }
-    if (
-      shouldOmitPublicAccessEntryPort(getConfig()) &&
-      configuredAccessEntryPort.value <= 0
-    ) {
+    if (isSavedEdgeClientIPActive.value || omitPublicPortConfiguration.value) {
       return true;
     }
     return isDefaultPublicPort(displayAccessEntryPort.value);
@@ -95,13 +97,7 @@ export const useSubdomainPortDisplay = ({
       shouldOmitAccessEntryPort.value,
     );
   const shouldOmitDraftAuthServicePublicPort = computed(() => {
-    if (isEdgeClientIPActive.value) {
-      return true;
-    }
-    if (
-      shouldOmitPublicAccessEntryPort(getConfig()) &&
-      configuredAuthServicePublicPort.value <= 0
-    ) {
+    if (isEdgeClientIPActive.value || omitPublicPortConfiguration.value) {
       return true;
     }
     return isDefaultPublicPort(authServicePublicPort.value);
@@ -127,6 +123,7 @@ export const useSubdomainPortDisplay = ({
     formatAuthServiceHostWithPublicPort,
     formatHostWithAccessEntryPort,
     isEdgeClientIPModeEditable,
+    omitPublicPortConfiguration,
     savedEdgeClientIpProvider,
     selectEdgeClientIpProvider,
   };

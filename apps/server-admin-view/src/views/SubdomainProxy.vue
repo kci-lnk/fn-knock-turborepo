@@ -15,6 +15,7 @@
       :is-mode-valid="isModeValid"
       :is-saving-mappings="isSavingMappings"
       :is-saving-mode="isSavingMode"
+      :omit-public-port-configuration="omitPublicPortConfiguration"
       :remove-auth-service="removeAuthService"
       :reset-mode-form="resetModeForm"
       :root-domain-validation-message="rootDomainValidationMessage"
@@ -360,6 +361,7 @@ const {
   formatAuthServiceHostWithPublicPort,
   formatHostWithAccessEntryPort,
   isEdgeClientIPModeEditable,
+  omitPublicPortConfiguration,
   savedEdgeClientIpProvider,
   selectEdgeClientIpProvider,
 } = useSubdomainPortDisplay({

@@ -3133,3 +3133,30 @@ fn gateway_auth_config_omits_origin_port_for_edge_providers() {
         );
     }
 }
+
+#[test]
+fn gateway_auth_config_omits_stale_origin_port_for_cloudflared() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "cloudflared",
+        "host_mappings": [{
+            "host": "auth.tunnel.example",
+            "target": "http://127.0.0.1:7997"
+        }],
+        "subdomain_mode": {
+            "public_auth_base_url": "https://auth.tunnel.example:7999",
+            "public_https_port": 7999
+        }
+    });
+
+    let auth = build_gateway_auth_config(&config);
+    assert_eq!(
+        auth.get("public_auth_base_url").and_then(Value::as_str),
+        Some("https://auth.tunnel.example")
+    );
+    assert_eq!(
+        auth.get("public_https_port").and_then(Value::as_i64),
+        Some(0)
+    );
+}

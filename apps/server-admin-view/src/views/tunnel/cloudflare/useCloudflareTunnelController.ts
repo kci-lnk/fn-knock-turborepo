@@ -76,6 +76,9 @@ export const useCloudflareTunnelController = () => {
   const takeoverResourceIds = ref<string[]>([]);
   const optimizationScan = ref<CloudflareOptimizationScan | null>(null);
   const selectedCandidateIp = ref("");
+  const optimizationOfficialRanges = ref(true);
+  const optimizationBuiltinIds = ref<string[]>([]);
+  const optimizationCustomHostnames = ref("");
   const isConnectingCloudflare = ref(false);
   const isLoadingManagedState = ref(false);
   const isPreviewingReconcile = ref(false);
@@ -84,6 +87,8 @@ export const useCloudflareTunnelController = () => {
   const isScanningOptimization = ref(false);
   const isApplyingOptimization = ref(false);
   const isFallingBackOptimization = ref(false);
+  const isSavingOptimizationSources = ref(false);
+  let optimizationSourcesLoaded = false;
   let scanPollTimer: number | undefined;
   let managedStatePollTimer: number | undefined;
   const protocol = ref<CloudflaredProtocol>("auto");
@@ -293,6 +298,15 @@ export const useCloudflareTunnelController = () => {
       apiTokenConfigured.value = next.apiTokenConfigured;
       tunnelTokenConfigured.value = next.tunnelTokenConfigured;
       optimizationEnabled.value = next.optimization.enabled;
+      if (!optimizationSourcesLoaded) {
+        const sources = next.optimization.candidateSources;
+        optimizationOfficialRanges.value = sources.officialRanges;
+        optimizationBuiltinIds.value = sources.builtins
+          .filter((source) => source.enabled)
+          .map((source) => source.id);
+        optimizationCustomHostnames.value = sources.customHostnames.join("\n");
+        optimizationSourcesLoaded = true;
+      }
       const managedTunnel = next.managed.tunnel;
       if (managedTunnel?.ownership === "adopted") {
         tunnelMode.value = "existing";
@@ -487,6 +501,47 @@ export const useCloudflareTunnelController = () => {
           t("admin.cloudflareTunnel.optimization.scanFailed"),
         ),
       });
+    }
+  };
+
+  const toggleOptimizationBuiltin = (id: string, enabled: boolean) => {
+    const current = new Set(optimizationBuiltinIds.value);
+    if (enabled) current.add(id);
+    else current.delete(id);
+    optimizationBuiltinIds.value = [...current];
+  };
+
+  const saveOptimizationSources = async () => {
+    isSavingOptimizationSources.value = true;
+    try {
+      const sources = await CloudflaredAPI.saveOptimizationSourceSettings({
+        officialRanges: optimizationOfficialRanges.value,
+        builtinIds: optimizationBuiltinIds.value,
+        customHostnames: optimizationCustomHostnames.value
+          .split(/[\n,]+/u)
+          .map((value) => value.trim())
+          .filter(Boolean),
+      });
+      optimizationOfficialRanges.value = sources.officialRanges;
+      optimizationBuiltinIds.value = sources.builtins
+        .filter((source) => source.enabled)
+        .map((source) => source.id);
+      optimizationCustomHostnames.value = sources.customHostnames.join("\n");
+      if (managedState.value) {
+        managedState.value.optimization.candidateSources = sources;
+      }
+      toast.success(
+        t("admin.cloudflareTunnel.optimization.sources.saved"),
+      );
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.optimization.sources.saveFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.sources.saveFailed"),
+        ),
+      });
+    } finally {
+      isSavingOptimizationSources.value = false;
     }
   };
 
@@ -724,6 +779,7 @@ export const useCloudflareTunnelController = () => {
     isApplyingReconcile,
     isConnectingCloudflare,
     isFallingBackOptimization,
+    isSavingOptimizationSources,
     isLoadingManagedState,
     isPreviewingReconcile,
     isReverseProxySubdomainMode,
@@ -738,6 +794,9 @@ export const useCloudflareTunnelController = () => {
     optimization,
     optimizationApplied,
     optimizationEnabled,
+    optimizationBuiltinIds,
+    optimizationCustomHostnames,
+    optimizationOfficialRanges,
     optimizationScan,
     protocol,
     publicWildcardHostname,
@@ -745,6 +804,7 @@ export const useCloudflareTunnelController = () => {
     reconcilePlan,
     running,
     saveConfig,
+    saveOptimizationSources,
     showInitDialog,
     showApiToken,
     showToken,
@@ -755,6 +815,7 @@ export const useCloudflareTunnelController = () => {
     stopCloudflared,
     supervisor,
     takeoverResourceIds,
+    toggleOptimizationBuiltin,
     t,
     token,
     tunnelMode,

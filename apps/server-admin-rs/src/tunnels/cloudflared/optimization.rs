@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
     time::{Duration, Instant},
@@ -11,7 +11,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use ipnet::Ipv4Net;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,7 @@ use super::{
 };
 
 const OPTIMIZATION_RUNTIME_KEY: &str = "fn_knock:cloudflared:optimization:runtime:v1";
+const OPTIMIZATION_SETTINGS_KEY: &str = "fn_knock:cloudflared:optimization:settings:v1";
 const SPEEDTEST_HOST: &str = "speed.cloudflare.com";
 const SPEEDTEST_PATH: &str = "/__down";
 const MAX_CANDIDATES: usize = 128;
@@ -48,9 +49,11 @@ const _: () = {
 };
 const MAX_CUSTOM_HOSTNAMES: usize = 100;
 const MAX_CUSTOM_HOSTNAME_CREATES_PER_RECONCILE: usize = 10;
+const MAX_CUSTOM_SOURCE_HOSTNAMES: usize = 16;
 const WEEK_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const HEALTH_INTERVAL_MS: i64 = 15 * 60 * 1000;
 const CONFIRMATION_DELAY_MS: i64 = 10 * 60 * 1000;
+const SCAN_APPLY_TTL_MS: i64 = 10 * 60 * 1000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CapabilityProbeResult {
@@ -83,6 +86,99 @@ const CLOUDFLARE_IPV4_FALLBACK: &[&str] = &[
     "198.41.128.0/17",
 ];
 
+#[derive(Clone, Copy, Debug)]
+struct BuiltinCandidateSource {
+    id: &'static str,
+    hostname: &'static str,
+    category: &'static str,
+}
+
+// These hostnames are only resolved into candidate Cloudflare IPv4 addresses.
+// fn-knock never publishes a customer CNAME to, or sends HTTP traffic with the
+// third-party hostname/SNI to, any source in this catalog.
+const BUILTIN_CANDIDATE_SOURCES: &[BuiltinCandidateSource] = &[
+    BuiltinCandidateSource {
+        id: "sweden-government",
+        hostname: "www.gov.se",
+        category: "government",
+    },
+    BuiltinCandidateSource {
+        id: "us-library-of-congress",
+        hostname: "www.loc.gov",
+        category: "public-institution",
+    },
+    BuiltinCandidateSource {
+        id: "icann",
+        hostname: "www.icann.org",
+        category: "internet-infrastructure",
+    },
+    BuiltinCandidateSource {
+        id: "visa",
+        hostname: "www.visa.com",
+        category: "payment-infrastructure",
+    },
+];
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OptimizationSourceSettings {
+    #[serde(default = "default_true")]
+    official_ranges: bool,
+    #[serde(default = "default_builtin_source_ids")]
+    builtin_ids: Vec<String>,
+    #[serde(default)]
+    custom_hostnames: Vec<String>,
+}
+
+impl Default for OptimizationSourceSettings {
+    fn default() -> Self {
+        Self {
+            official_ranges: true,
+            builtin_ids: default_builtin_source_ids(),
+            custom_hostnames: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct CandidateSeed {
+    ip: Ipv4Addr,
+    source_types: Vec<String>,
+    source_hostnames: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct LatencyProbeMetrics {
+    median_latency_ms: f64,
+    jitter_ms: f64,
+    loss_ratio: f64,
+    colo: Option<String>,
+    cf_ray: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct BusinessProbeResult {
+    status: u16,
+    colo: Option<String>,
+    cf_ray: Option<String>,
+}
+
+#[derive(Debug)]
+struct OptimizationScanResult {
+    candidates: Vec<OptimizationCandidate>,
+    vantage: Value,
+    source_warnings: Vec<String>,
+    source_fingerprint: String,
+}
+
+#[derive(Clone, Debug)]
+struct ConfirmationSnapshot {
+    pending: OptimizationCandidate,
+    current: OptimizationCandidate,
+    hostname: String,
+    selected_at: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct OptimizationCandidate {
@@ -94,6 +190,24 @@ pub(super) struct OptimizationCandidate {
     score: f64,
     #[serde(default)]
     verified_at: Option<String>,
+    #[serde(default)]
+    source_types: Vec<String>,
+    #[serde(default)]
+    source_hostnames: Vec<String>,
+    #[serde(default)]
+    colo: Option<String>,
+    #[serde(default)]
+    cf_ray: Option<String>,
+    #[serde(default)]
+    business_hostname: Option<String>,
+    #[serde(default)]
+    business_status: Option<u16>,
+    #[serde(default)]
+    business_colo: Option<String>,
+    #[serde(default)]
+    business_cf_ray: Option<String>,
+    #[serde(default)]
+    business_validated: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,6 +236,168 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/admin/cloudflared/optimization/fallback",
             post(fallback_optimization),
         )
+        .route(
+            "/api/admin/cloudflared/optimization/settings",
+            put(update_source_settings),
+        )
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_builtin_source_ids() -> Vec<String> {
+    BUILTIN_CANDIDATE_SOURCES
+        .iter()
+        .map(|source| source.id.to_string())
+        .collect()
+}
+
+async fn load_source_settings(
+    state: &AppState,
+) -> Result<OptimizationSourceSettings, CloudflareApiError> {
+    let stored = state
+        .store
+        .get_json_value(OPTIMIZATION_SETTINGS_KEY)
+        .await
+        .map_err(local_error_display)?;
+    let Some(value) = stored else {
+        return Ok(OptimizationSourceSettings::default());
+    };
+    let settings = serde_json::from_value(value)
+        .map_err(|error| local_error(format!("Invalid optimization source settings: {error}")))?;
+    normalize_source_settings(settings).map_err(local_error)
+}
+
+fn source_settings_fingerprint(settings: &OptimizationSourceSettings) -> String {
+    let serialized = serde_json::to_string(settings).unwrap_or_default();
+    crypto_utils::sha256_hex_str(&serialized)
+}
+
+fn normalize_source_settings(
+    mut settings: OptimizationSourceSettings,
+) -> Result<OptimizationSourceSettings, String> {
+    let available_ids = BUILTIN_CANDIDATE_SOURCES
+        .iter()
+        .map(|source| source.id)
+        .collect::<HashSet<_>>();
+    let mut seen_ids = HashSet::new();
+    settings
+        .builtin_ids
+        .retain(|id| available_ids.contains(id.as_str()) && seen_ids.insert(id.clone()));
+
+    let mut custom = Vec::new();
+    let mut seen_hosts = HashSet::new();
+    for value in settings.custom_hostnames {
+        let hostname = normalize_candidate_hostname(&value)?;
+        if seen_hosts.insert(hostname.clone()) {
+            custom.push(hostname);
+        }
+    }
+    if custom.len() > MAX_CUSTOM_SOURCE_HOSTNAMES {
+        return Err(format!(
+            "At most {MAX_CUSTOM_SOURCE_HOSTNAMES} custom candidate hostnames are allowed"
+        ));
+    }
+    settings.custom_hostnames = custom;
+    if !settings.official_ranges
+        && settings.builtin_ids.is_empty()
+        && settings.custom_hostnames.is_empty()
+    {
+        return Err(
+            "Enable the official ranges or configure at least one candidate hostname".to_string(),
+        );
+    }
+    Ok(settings)
+}
+
+fn normalize_candidate_hostname(value: &str) -> Result<String, String> {
+    let value = value.trim().trim_end_matches('.').to_ascii_lowercase();
+    if value.is_empty()
+        || value.len() > 253
+        || value.contains("://")
+        || value.contains('/')
+        || value.contains('*')
+    {
+        return Err(format!("Invalid candidate hostname: {value}"));
+    }
+    if value.parse::<IpAddr>().is_ok() {
+        return Err(format!(
+            "Candidate source must be a hostname, not an IP address: {value}"
+        ));
+    }
+    let ascii = idna::domain_to_ascii(&value)
+        .map_err(|_| format!("Invalid candidate hostname: {value}"))?
+        .to_ascii_lowercase();
+    if ascii.len() > 253
+        || !ascii.contains('.')
+        || ascii.split('.').any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || label.starts_with('-')
+                || label.ends_with('-')
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+    {
+        return Err(format!("Invalid candidate hostname: {value}"));
+    }
+    Ok(ascii)
+}
+
+async fn update_source_settings(
+    State(state): State<AppState>,
+    Json(body): Json<OptimizationSourceSettings>,
+) -> Response {
+    let settings = match normalize_source_settings(body) {
+        Ok(value) => value,
+        Err(error) => return response::error(StatusCode::BAD_REQUEST, error),
+    };
+    if let Err(error) = state
+        .store
+        .set_json_value(OPTIMIZATION_SETTINGS_KEY, &json!(settings.clone()))
+        .await
+    {
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to save optimization candidate sources: {error}"),
+        );
+    }
+    let mut runtime = load_runtime(&state).await;
+    let runtime_object = ensure_object(&mut runtime);
+    runtime_object.remove("pendingCandidate");
+    runtime_object.insert("nextFullScanAtMs".to_string(), json!(0));
+    runtime_object.insert(
+        "lastSwitchReason".to_string(),
+        json!("candidate-sources-updated"),
+    );
+    if let Err(error) = save_runtime(&state, &runtime).await {
+        return api_error_response(error);
+    }
+    state.cloudflared_schedule_notify.notify_one();
+    response::ok(public_source_settings(&settings)).into_response()
+}
+
+fn public_source_settings(settings: &OptimizationSourceSettings) -> Value {
+    let enabled = settings
+        .builtin_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    json!({
+        "officialRanges": settings.official_ranges,
+        "builtins": BUILTIN_CANDIDATE_SOURCES.iter().map(|source| json!({
+            "id": source.id,
+            "hostname": source.hostname,
+            "category": source.category,
+            "enabled": enabled.contains(source.id),
+        })).collect::<Vec<_>>(),
+        "customHostnames": settings.custom_hostnames,
+        "maxCustomHostnames": MAX_CUSTOM_SOURCE_HOSTNAMES,
+        "resolutionPolicy": "cloudflare-google-doh-intersection",
+        "publishPolicy": "extract-ip-only",
+    })
 }
 
 pub(super) fn start_tasks(state: AppState) {
@@ -172,9 +448,13 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         "createdAt": time_utils::now_iso(),
         "startedAt": Value::Null,
         "completedAt": Value::Null,
+        "completedAtMs": Value::Null,
         "cancelRequested": false,
         "candidates": [],
         "recommendedIp": Value::Null,
+        "vantage": Value::Null,
+        "sourceWarnings": [],
+        "sourceFingerprint": Value::Null,
         "error": Value::Null,
     });
     {
@@ -227,7 +507,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         )
         .await;
         match result {
-            Ok(Ok(_candidates)) if is_job_cancelled(&scan_state, &scan_id).await => {
+            Ok(Ok(_result)) if is_job_cancelled(&scan_state, &scan_id).await => {
                 update_job(
                     &scan_state,
                     &scan_id,
@@ -239,8 +519,24 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                 )
                 .await;
             }
-            Ok(Ok(candidates)) => {
-                let recommended = candidates.first().map(|candidate| candidate.ip.clone());
+            Ok(Ok(result)) => {
+                let completed_at_ms = time_utils::now_ms();
+                let recommended = result
+                    .candidates
+                    .first()
+                    .map(|candidate| candidate.ip.clone());
+                let mut runtime = load_runtime(&scan_state).await;
+                let runtime_object = ensure_object(&mut runtime);
+                runtime_object.insert("lastVantage".to_string(), result.vantage.clone());
+                runtime_object.insert(
+                    "lastSourceWarnings".to_string(),
+                    json!(result.source_warnings.clone()),
+                );
+                runtime_object.insert(
+                    "lastCandidates".to_string(),
+                    json!(result.candidates.clone()),
+                );
+                let _ = save_runtime(&scan_state, &runtime).await;
                 update_job(
                     &scan_state,
                     &scan_id,
@@ -249,8 +545,12 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                         "phase": "completed",
                         "progress": 100,
                         "completedAt": time_utils::now_iso(),
-                        "candidates": candidates,
+                        "completedAtMs": completed_at_ms,
+                        "candidates": result.candidates,
                         "recommendedIp": recommended,
+                        "vantage": result.vantage,
+                        "sourceWarnings": result.source_warnings,
+                        "sourceFingerprint": result.source_fingerprint,
                     }),
                 )
                 .await;
@@ -323,6 +623,27 @@ async fn apply_optimization(
         job.get("candidates").cloned().unwrap_or_else(|| json!([])),
     )
     .unwrap_or_default();
+    let completed_at_ms = job
+        .get("completedAtMs")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    if !scan_is_fresh(completed_at_ms, time_utils::now_ms()) {
+        return response::error(
+            StatusCode::CONFLICT,
+            "Optimization scan has expired; run a new speed test before applying a candidate",
+        );
+    }
+    let settings = match load_source_settings(&state).await {
+        Ok(value) => value,
+        Err(error) => return api_error_response(error),
+    };
+    let current_fingerprint = source_settings_fingerprint(&settings);
+    if job.get("sourceFingerprint").and_then(Value::as_str) != Some(current_fingerprint.as_str()) {
+        return response::error(
+            StatusCode::CONFLICT,
+            "Optimization candidate sources changed after this scan; run a new speed test",
+        );
+    }
     let requested = body
         .candidate_ip
         .as_deref()
@@ -336,6 +657,12 @@ async fn apply_optimization(
             "Select a candidate returned by the completed scan",
         );
     };
+    if !candidate.business_validated {
+        return response::error(
+            StatusCode::CONFLICT,
+            "The selected candidate has not passed business hostname TLS and SNI validation",
+        );
+    }
     let _guard = state.cloudflared_manage_lock.lock().await;
     let mut managed = load_managed_config(&state).await;
     if !optimization_is_enabled(&managed) {
@@ -360,16 +687,9 @@ async fn apply_optimization(
     let previous_publish_suppressed = ownership
         .pointer("/optimization/publishSuppressed")
         .cloned();
-    let selected = json!({
-        "ip": candidate.ip,
-        "medianLatencyMs": candidate.median_latency_ms,
-        "jitterMs": candidate.jitter_ms,
-        "lossRatio": candidate.loss_ratio,
-        "downloadMbps": candidate.download_mbps,
-        "score": candidate.score,
-        "selectedAt": time_utils::now_iso(),
-        "source": "manual",
-    });
+    let mut selected = serde_json::to_value(candidate).unwrap_or_else(|_| json!({}));
+    ensure_object(&mut selected).insert("selectedAt".to_string(), json!(time_utils::now_iso()));
+    ensure_object(&mut selected).insert("source".to_string(), json!("manual"));
     ensure_nested_object(&mut ownership, &["optimization"])
         .insert("selected".to_string(), selected.clone());
     ensure_nested_object(&mut ownership, &["optimization"])
@@ -419,6 +739,7 @@ async fn apply_optimization(
     }
     let mut runtime = load_runtime(&state).await;
     let runtime_object = ensure_object(&mut runtime);
+    runtime_object.remove("pendingCandidate");
     runtime_object.insert("lastCandidates".to_string(), json!(candidates));
     runtime_object.insert("lastSwitchReason".to_string(), json!("manual-speed-test"));
     if let Err(error) = save_runtime(&state, &runtime).await {
@@ -459,6 +780,17 @@ async fn fallback_optimization(State(state): State<AppState>) -> Response {
 
 pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &Value) -> Value {
     let runtime = load_runtime(state).await;
+    let (sources, source_settings_error) = match load_source_settings(state).await {
+        Ok(value) => (value, None),
+        Err(error) => (
+            OptimizationSourceSettings {
+                official_ranges: false,
+                builtin_ids: Vec::new(),
+                custom_hostnames: Vec::new(),
+            },
+            Some(error.to_string()),
+        ),
+    };
     let local = state.store.get_config().await.unwrap_or_else(|_| json!({}));
     let host_states = ownership
         .pointer("/optimization/customHostnames")
@@ -488,6 +820,13 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
         });
         values.into_iter().take(5).collect::<Vec<_>>()
     };
+    let mut public_sources = public_source_settings(&sources);
+    ensure_object(&mut public_sources).insert(
+        "error".to_string(),
+        source_settings_error
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
     json!({
         "enabled": managed.get("optimizationEnabled").and_then(Value::as_bool).unwrap_or(false),
         "beta": true,
@@ -499,6 +838,9 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
         "edgeHostname": ownership.pointer("/optimization/edgeDns/name").cloned().unwrap_or(Value::Null),
         "fallbackOrigin": ownership.pointer("/optimization/fallbackOrigin").cloned().unwrap_or(Value::Null),
         "capabilityProbe": ownership.pointer("/optimization/capabilityProbe").cloned().unwrap_or(Value::Null),
+        "candidateSources": public_sources,
+        "vantage": runtime.get("lastVantage").cloned().unwrap_or(Value::Null),
+        "sourceWarnings": runtime.get("lastSourceWarnings").cloned().unwrap_or_else(|| json!([])),
         "domains": domains,
         "schedule": {
             "fullScanIntervalDays": 7,
@@ -520,6 +862,9 @@ pub(super) fn plan_warnings(enabled: bool) -> Vec<Value> {
     }
     vec![
         json!("Optimization is a Beta feature measured from this server's network vantage point."),
+        json!(
+            "Built-in and custom third-party hostnames are used only to discover candidate Cloudflare IPs. Business DNS is never pointed at those hostnames."
+        ),
         json!(
             "Cloudflare for SaaS includes up to 100 exact Custom Hostnames on non-Enterprise plans; excess domains use the wildcard Tunnel."
         ),
@@ -1104,10 +1449,34 @@ pub(super) async fn reconcile_resources(
                 continue;
             }
             None => {
-                available -= 1;
-                created_this_run += 1;
-                api.create_custom_hostname(zone_id, &host, &origin_hostname)
-                    .await?
+                match api
+                    .create_custom_hostname(zone_id, &host, &origin_hostname)
+                    .await
+                {
+                    Ok(custom) => {
+                        available = available.saturating_sub(1);
+                        created_this_run += 1;
+                        custom
+                    }
+                    Err(error) if is_capability_unsupported_api_error(&error) => {
+                        // The included limit is not an entitlement guarantee:
+                        // account-specific quotas can be lower or already
+                        // exhausted. Keep the wildcard Tunnel serving this and
+                        // all remaining hosts instead of aborting reconciliation.
+                        available = 0;
+                        set_host_state(
+                            ownership,
+                            &host,
+                            json!({
+                                "status": "quota",
+                                "message": format!("Custom Hostname quota is unavailable: {error}")
+                            }),
+                        );
+                        save_managed_state(state, ownership).await?;
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                }
             }
         };
         let custom_id = custom
@@ -1401,7 +1770,18 @@ async fn ensure_fallback_origin(
             None,
         ),
         Some(remote) if remote.eq_ignore_ascii_case(desired_origin) => {
-            if owned_origin.is_none() || owned_kind.is_none() {
+            if let (Some(_), Some(kind)) = (owned_origin, owned_kind) {
+                (
+                    remote_value
+                        .clone()
+                        .unwrap_or_else(|| json!({ "origin": remote })),
+                    kind,
+                    current
+                        .as_ref()
+                        .and_then(|value| value.get("previousOrigin"))
+                        .and_then(Value::as_str),
+                )
+            } else {
                 if !takeover {
                     return Err(CloudflareApiError {
                         status: Some(StatusCode::CONFLICT),
@@ -1416,27 +1796,32 @@ async fn ensure_fallback_origin(
                     "adopted",
                     None,
                 )
-            } else {
+            }
+        }
+        Some(remote) if owned_origin == Some(remote) => {
+            if let Some(kind) = owned_kind {
                 (
-                    remote_value
-                        .clone()
-                        .unwrap_or_else(|| json!({ "origin": remote })),
-                    owned_kind.unwrap(),
+                    api.update_fallback_origin(zone_id, desired_origin).await?,
+                    kind,
                     current
                         .as_ref()
                         .and_then(|value| value.get("previousOrigin"))
                         .and_then(Value::as_str),
                 )
+            } else if takeover {
+                (
+                    api.update_fallback_origin(zone_id, desired_origin).await?,
+                    "adopted",
+                    Some(remote),
+                )
+            } else {
+                return Err(CloudflareApiError {
+                    status: Some(StatusCode::CONFLICT),
+                    message: "A different Cloudflare for SaaS fallback origin exists; preview and explicitly confirm takeover"
+                        .to_string(),
+                });
             }
         }
-        Some(remote) if owned_origin == Some(remote) && owned_kind.is_some() => (
-            api.update_fallback_origin(zone_id, desired_origin).await?,
-            owned_kind.unwrap(),
-            current
-                .as_ref()
-                .and_then(|value| value.get("previousOrigin"))
-                .and_then(Value::as_str),
-        ),
         Some(remote) if takeover => (
             api.update_fallback_origin(zone_id, desired_origin).await?,
             "adopted",
@@ -1958,7 +2343,7 @@ async fn cleanup_removed_hosts(
 }
 
 async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApiError> {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let guard = state.cloudflared_manage_lock.lock().await;
     let managed = load_managed_config(state).await;
     if managed.get("mode").and_then(Value::as_str) != Some("managed") {
         return Ok(());
@@ -2013,41 +2398,90 @@ async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApiError> {
         .get("nextFullScanAtMs")
         .and_then(Value::as_i64)
         .unwrap_or(0);
-    if next_scan == 0 || now >= next_scan {
-        let _scan_guard = state.cloudflared_scan_lock.lock().await;
-        let candidates = time::timeout(Duration::from_secs(180), run_scan(state, None))
-            .await
-            .map_err(|_| local_error("Optimization scan exceeded the three-minute limit"))??;
-        apply_automatic_scan_result(
-            state,
-            &api,
-            &managed,
-            &mut ownership,
-            &mut runtime,
-            &candidates,
-        )
-        .await?;
-        let jitter = weekly_jitter_ms();
-        let next = now + WEEK_MS + jitter;
-        let runtime_object = ensure_object(&mut runtime);
-        runtime_object.insert("lastFullScanAtMs".to_string(), json!(now));
-        runtime_object.insert(
-            "lastFullScanAt".to_string(),
-            json!(time_utils::iso_from_ms(now)),
-        );
-        runtime_object.insert("nextFullScanAtMs".to_string(), json!(next));
-        runtime_object.insert(
-            "nextFullScanAt".to_string(),
-            json!(time_utils::iso_from_ms(next)),
-        );
-    } else if let Some(confirm_at) = runtime
-        .pointer("/pendingCandidate/confirmAtMs")
-        .and_then(Value::as_i64)
-        && now >= confirm_at
-    {
-        confirm_pending_candidate(state, &api, &managed, &mut ownership, &mut runtime).await?;
+    let scan_due = next_scan == 0 || now >= next_scan;
+    let confirmation_due = !scan_due
+        && runtime
+            .pointer("/pendingCandidate/confirmAtMs")
+            .and_then(Value::as_i64)
+            .is_some_and(|confirm_at| now >= confirm_at);
+    let confirmation = if confirmation_due {
+        match confirmation_snapshot(&ownership, &runtime) {
+            Ok(value) => value,
+            Err(error) => {
+                ensure_object(&mut runtime).remove("pendingCandidate");
+                ensure_object(&mut runtime)
+                    .insert("lastError".to_string(), json!(error.to_string()));
+                save_runtime(state, &runtime).await?;
+                return Ok(());
+            }
+        }
+    } else {
+        None
+    };
+    if !scan_due && confirmation.is_none() {
+        ensure_object(&mut runtime).insert("lastError".to_string(), Value::Null);
+        return save_runtime(state, &runtime).await;
     }
     ensure_object(&mut runtime).insert("lastError".to_string(), Value::Null);
+    save_runtime(state, &runtime).await?;
+    drop(guard);
+
+    if scan_due {
+        run_scheduled_scan(state).await
+    } else if let Some(snapshot) = confirmation {
+        run_scheduled_confirmation(state, snapshot).await
+    } else {
+        Ok(())
+    }
+}
+
+async fn run_scheduled_scan(state: &AppState) -> Result<(), CloudflareApiError> {
+    let _scan_guard = state.cloudflared_scan_lock.lock().await;
+    let scan = time::timeout(Duration::from_secs(180), run_scan(state, None))
+        .await
+        .map_err(|_| local_error("Optimization scan exceeded the three-minute limit"))??;
+
+    let _guard = state.cloudflared_manage_lock.lock().await;
+    let managed = load_managed_config(state).await;
+    if managed.get("mode").and_then(Value::as_str) != Some("managed")
+        || !optimization_is_enabled(&managed)
+    {
+        return Ok(());
+    }
+    let settings = load_source_settings(state).await?;
+    if source_settings_fingerprint(&settings) != scan.source_fingerprint {
+        let mut runtime = load_runtime(state).await;
+        let object = ensure_object(&mut runtime);
+        object.insert("nextFullScanAtMs".to_string(), json!(0));
+        object.insert(
+            "lastError".to_string(),
+            json!("Candidate sources changed during the scheduled scan; discarded stale results"),
+        );
+        return save_runtime(state, &runtime).await;
+    }
+    let mut ownership = load_managed_state(state).await;
+    let mut runtime = load_runtime(state).await;
+    let runtime_object = ensure_object(&mut runtime);
+    runtime_object.insert("lastVantage".to_string(), scan.vantage);
+    runtime_object.insert(
+        "lastSourceWarnings".to_string(),
+        json!(scan.source_warnings),
+    );
+    apply_automatic_scan_result(&mut ownership, &mut runtime, &scan.candidates);
+    let completed_at = time_utils::now_ms();
+    let next = completed_at + WEEK_MS + weekly_jitter_ms();
+    let runtime_object = ensure_object(&mut runtime);
+    runtime_object.insert("lastFullScanAtMs".to_string(), json!(completed_at));
+    runtime_object.insert(
+        "lastFullScanAt".to_string(),
+        json!(time_utils::iso_from_ms(completed_at)),
+    );
+    runtime_object.insert("nextFullScanAtMs".to_string(), json!(next));
+    runtime_object.insert(
+        "nextFullScanAt".to_string(),
+        json!(time_utils::iso_from_ms(next)),
+    );
+    runtime_object.insert("lastError".to_string(), Value::Null);
     save_runtime(state, &runtime).await
 }
 
@@ -2158,35 +2592,44 @@ async fn try_verified_backup_candidate(
     Ok(false)
 }
 
-async fn apply_automatic_scan_result(
-    state: &AppState,
-    api: &CloudflareApi,
-    managed: &Value,
+fn apply_automatic_scan_result(
     ownership: &mut Value,
     runtime: &mut Value,
     candidates: &[OptimizationCandidate],
-) -> Result<(), CloudflareApiError> {
-    let Some(best) = candidates.first() else {
-        return Ok(());
-    };
+) {
     ensure_object(runtime).insert("lastCandidates".to_string(), json!(candidates));
-    let current_score = ownership
-        .pointer("/optimization/selected/score")
-        .and_then(Value::as_f64);
-    if current_score.is_none() {
-        let previous = ownership.pointer("/optimization/selected").cloned();
-        set_selected(ownership, best, "automatic");
-        save_managed_state(state, ownership).await?;
-        if let Err(error) = reconcile_resources(state, api, managed, ownership, true, None).await {
-            restore_selected(ownership, previous);
-            save_managed_state(state, ownership).await?;
-            return Err(error);
-        }
-        return Ok(());
-    }
-    if best.score > current_score.unwrap_or(f64::MAX) * 0.85 {
+    let Some(current_ip) = ownership
+        .pointer("/optimization/selected/ip")
+        .and_then(Value::as_str)
+    else {
         ensure_object(runtime).remove("pendingCandidate");
-        return Ok(());
+        ensure_object(runtime).insert(
+            "lastSwitchReason".to_string(),
+            json!("awaiting-initial-manual-selection"),
+        );
+        return;
+    };
+    let Some(current) = candidates
+        .iter()
+        .find(|candidate| candidate.ip == current_ip)
+    else {
+        ensure_object(runtime).remove("pendingCandidate");
+        ensure_object(runtime).insert(
+            "lastError".to_string(),
+            json!("Current preferred IP could not be measured; automatic switching was skipped"),
+        );
+        return;
+    };
+    let Some(best) = candidates
+        .iter()
+        .find(|candidate| candidate.ip != current_ip)
+    else {
+        ensure_object(runtime).remove("pendingCandidate");
+        return;
+    };
+    if !score_is_15_percent_better(best.score, current.score) {
+        ensure_object(runtime).remove("pendingCandidate");
+        return;
     }
     let now = time_utils::now_ms();
     ensure_object(runtime).insert(
@@ -2197,71 +2640,151 @@ async fn apply_automatic_scan_result(
             "confirmAtMs": now + CONFIRMATION_DELAY_MS,
         }),
     );
-    Ok(())
 }
 
-async fn confirm_pending_candidate(
-    state: &AppState,
-    api: &CloudflareApi,
-    managed: &Value,
-    ownership: &mut Value,
-    runtime: &mut Value,
-) -> Result<(), CloudflareApiError> {
-    let Some(candidate) = runtime
+fn confirmation_snapshot(
+    ownership: &Value,
+    runtime: &Value,
+) -> Result<Option<ConfirmationSnapshot>, CloudflareApiError> {
+    let Some(pending) = runtime
         .pointer("/pendingCandidate/candidate")
         .cloned()
         .and_then(|value| serde_json::from_value::<OptimizationCandidate>(value).ok())
     else {
-        return Ok(());
+        return Ok(None);
     };
-    let ip = candidate
+    let current = ownership
+        .pointer("/optimization/selected")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<OptimizationCandidate>(value).ok())
+        .ok_or_else(|| local_error("Current optimization candidate is unavailable"))?;
+    pending
         .ip
         .parse::<Ipv4Addr>()
         .map_err(|_| local_error("Pending optimization candidate is invalid"))?;
-    let confirmed = probe_latency(ip).await;
-    let current_score = ownership
-        .pointer("/optimization/selected/score")
-        .and_then(Value::as_f64)
-        .unwrap_or(f64::MAX);
-    ensure_object(runtime).remove("pendingCandidate");
-    if let Some((latency, jitter, loss)) = confirmed
-        && loss <= candidate.loss_ratio
-    {
-        let mut updated = candidate;
-        updated.median_latency_ms = latency;
-        updated.jitter_ms = jitter;
-        updated.loss_ratio = loss;
-        updated.score = score_candidate(latency, jitter, loss, updated.download_mbps);
-        if updated.score <= current_score * 0.85 {
-            let previous = ownership.pointer("/optimization/selected").cloned();
-            set_selected(ownership, &updated, "automatic");
-            save_managed_state(state, ownership).await?;
-            if let Err(error) =
-                reconcile_resources(state, api, managed, ownership, true, None).await
-            {
-                restore_selected(ownership, previous);
-                save_managed_state(state, ownership).await?;
-                return Err(error);
-            }
+    current
+        .ip
+        .parse::<Ipv4Addr>()
+        .map_err(|_| local_error("Current optimization candidate is invalid"))?;
+    let hostname = optimized_health_hostname(ownership)
+        .ok_or_else(|| local_error("No active optimized hostname is available for confirmation"))?;
+    Ok(Some(ConfirmationSnapshot {
+        pending,
+        current,
+        hostname,
+        selected_at: ownership
+            .pointer("/optimization/selected/selectedAt")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    }))
+}
+
+async fn remeasure_candidate(
+    mut candidate: OptimizationCandidate,
+    hostname: &str,
+) -> Option<OptimizationCandidate> {
+    let ip = candidate.ip.parse::<Ipv4Addr>().ok()?;
+    let metrics = probe_latency_metrics(ip).await?;
+    if metrics.loss_ratio > 1.0 / 3.0 {
+        return None;
+    }
+    let mut downloads = Vec::new();
+    for _ in 0..2 {
+        if let Some(mbps) = probe_download(ip, DOWNLOAD_BYTES).await {
+            downloads.push(mbps);
         }
     }
-    Ok(())
+    downloads.sort_by(|left, right| left.partial_cmp(right).unwrap_or(Ordering::Equal));
+    let download_mbps = median(&downloads)?;
+    let business = probe_custom_hostname_details(hostname, ip).await.ok()?;
+    candidate.median_latency_ms = metrics.median_latency_ms;
+    candidate.jitter_ms = metrics.jitter_ms;
+    candidate.loss_ratio = metrics.loss_ratio;
+    candidate.download_mbps = download_mbps;
+    candidate.score = score_candidate(
+        metrics.median_latency_ms,
+        metrics.jitter_ms,
+        metrics.loss_ratio,
+        download_mbps,
+    );
+    candidate.verified_at = Some(time_utils::now_iso());
+    candidate.colo = metrics.colo;
+    candidate.cf_ray = metrics.cf_ray;
+    candidate.business_hostname = Some(hostname.to_string());
+    candidate.business_status = Some(business.status);
+    candidate.business_colo = business.colo;
+    candidate.business_cf_ray = business.cf_ray;
+    candidate.business_validated = true;
+    Some(candidate)
+}
+
+async fn run_scheduled_confirmation(
+    state: &AppState,
+    snapshot: ConfirmationSnapshot,
+) -> Result<(), CloudflareApiError> {
+    let (pending, current) = tokio::join!(
+        remeasure_candidate(snapshot.pending.clone(), &snapshot.hostname),
+        remeasure_candidate(snapshot.current.clone(), &snapshot.hostname),
+    );
+
+    let _guard = state.cloudflared_manage_lock.lock().await;
+    let managed = load_managed_config(state).await;
+    if managed.get("mode").and_then(Value::as_str) != Some("managed")
+        || !optimization_is_enabled(&managed)
+    {
+        return Ok(());
+    }
+    let Some(api) = api_for_background(state).await? else {
+        return Ok(());
+    };
+    let mut ownership = load_managed_state(state).await;
+    let mut runtime = load_runtime(state).await;
+    let pending_is_current = runtime
+        .pointer("/pendingCandidate/candidate/ip")
+        .and_then(Value::as_str)
+        == Some(snapshot.pending.ip.as_str());
+    let selected_is_current = ownership
+        .pointer("/optimization/selected/ip")
+        .and_then(Value::as_str)
+        == Some(snapshot.current.ip.as_str())
+        && ownership
+            .pointer("/optimization/selected/selectedAt")
+            .and_then(Value::as_str)
+            == snapshot.selected_at.as_deref();
+    if !pending_is_current || !selected_is_current {
+        return Ok(());
+    }
+    ensure_object(&mut runtime).remove("pendingCandidate");
+    let (Some(pending), Some(current)) = (pending, current) else {
+        ensure_object(&mut runtime).insert(
+            "lastError".to_string(),
+            json!("Automatic candidate confirmation failed; current route was left unchanged"),
+        );
+        return save_runtime(state, &runtime).await;
+    };
+    if score_is_15_percent_better(pending.score, current.score) {
+        let previous = ownership.pointer("/optimization/selected").cloned();
+        set_selected(&mut ownership, &pending, "automatic");
+        save_managed_state(state, &ownership).await?;
+        if let Err(error) =
+            reconcile_resources(state, &api, &managed, &mut ownership, true, None).await
+        {
+            restore_selected(&mut ownership, previous);
+            save_managed_state(state, &ownership).await?;
+            return Err(error);
+        }
+        ensure_object(&mut runtime)
+            .insert("lastSwitchReason".to_string(), json!("automatic-confirmed"));
+    }
+    ensure_object(&mut runtime).insert("lastError".to_string(), Value::Null);
+    save_runtime(state, &runtime).await
 }
 
 fn set_selected(ownership: &mut Value, candidate: &OptimizationCandidate, source: &str) {
-    ensure_nested_object(ownership, &["optimization"]).insert(
-        "selected".to_string(),
-        json!({
-            "ip": candidate.ip,
-            "medianLatencyMs": candidate.median_latency_ms,
-            "jitterMs": candidate.jitter_ms,
-            "lossRatio": candidate.loss_ratio,
-            "downloadMbps": candidate.download_mbps,
-            "score": candidate.score,
-            "selectedAt": time_utils::now_iso(),
-            "source": source,
-        }),
-    );
+    let mut selected = serde_json::to_value(candidate).unwrap_or_else(|_| json!({}));
+    ensure_object(&mut selected).insert("selectedAt".to_string(), json!(time_utils::now_iso()));
+    ensure_object(&mut selected).insert("source".to_string(), json!(source));
+    ensure_nested_object(ownership, &["optimization"]).insert("selected".to_string(), selected);
 }
 
 fn restore_selected(ownership: &mut Value, previous: Option<Value>) {
@@ -2279,34 +2802,82 @@ fn restore_selected(ownership: &mut Value, previous: Option<Value>) {
 async fn run_scan(
     state: &AppState,
     job_id: Option<&str>,
-) -> Result<Vec<OptimizationCandidate>, CloudflareApiError> {
+) -> Result<OptimizationScanResult, CloudflareApiError> {
+    let settings = load_source_settings(state).await?;
+    let source_fingerprint = source_settings_fingerprint(&settings);
     let prefixes = load_cloudflare_prefixes(state).await;
-    let ips = sample_candidate_ips(&prefixes);
-    let total = ips.len().max(1);
+    let ownership = load_managed_state(state).await;
+    let current_ip = ownership
+        .pointer("/optimization/selected/ip")
+        .and_then(Value::as_str)
+        .and_then(|value| value.parse::<Ipv4Addr>().ok())
+        .filter(|ip| candidate_ip_is_cloudflare(*ip, &prefixes));
+    let (mut seeds, source_warnings) = load_candidate_seeds(state, &settings, &prefixes).await;
+    if let Some(ip) = current_ip {
+        merge_current_candidate_seed(&mut seeds, ip);
+    }
+    let vantage = probe_local_vantage(state).await;
+    let business_hostname = scan_validation_hostname(&ownership).ok_or_else(|| {
+        local_error(
+            "No active business or capability hostname is available for TLS and SNI validation",
+        )
+    })?;
+    if let Some(job_id) = job_id {
+        update_job(
+            state,
+            job_id,
+            json!({
+                "vantage": vantage,
+                "sourceWarnings": source_warnings,
+                "candidateSourceCount": seeds.len(),
+                "businessValidationHostname": business_hostname,
+                "sourceFingerprint": source_fingerprint,
+            }),
+        )
+        .await;
+    }
+    let total = seeds.len().max(1);
     let mut join_set = JoinSet::new();
     let mut results = Vec::new();
     let mut processed_count = 0usize;
-    for chunk in ips.chunks(PROBE_CONCURRENCY) {
+    for chunk in seeds.chunks(PROBE_CONCURRENCY) {
         if let Some(job_id) = job_id
             && is_job_cancelled(state, job_id).await
         {
-            return Ok(Vec::new());
+            return Ok(OptimizationScanResult {
+                candidates: Vec::new(),
+                vantage,
+                source_warnings,
+                source_fingerprint,
+            });
         }
-        for ip in chunk.iter().copied() {
-            join_set.spawn(async move { (ip, probe_latency(ip).await) });
+        for seed in chunk.iter().cloned() {
+            join_set.spawn(async move {
+                let metrics = probe_latency_metrics(seed.ip).await;
+                (seed, metrics)
+            });
         }
         while let Some(result) = join_set.join_next().await {
-            if let Ok((ip, Some((latency, jitter, loss)))) = result
-                && loss <= 1.0 / 3.0
+            if let Ok((seed, Some(metrics))) = result
+                && metrics.loss_ratio <= 1.0 / 3.0
             {
                 results.push(OptimizationCandidate {
-                    ip: ip.to_string(),
-                    median_latency_ms: latency,
-                    jitter_ms: jitter,
-                    loss_ratio: loss,
+                    ip: seed.ip.to_string(),
+                    median_latency_ms: metrics.median_latency_ms,
+                    jitter_ms: metrics.jitter_ms,
+                    loss_ratio: metrics.loss_ratio,
                     download_mbps: 0.0,
                     score: f64::MAX,
                     verified_at: Some(time_utils::now_iso()),
+                    source_types: seed.source_types,
+                    source_hostnames: seed.source_hostnames,
+                    colo: metrics.colo,
+                    cf_ray: metrics.cf_ray,
+                    business_hostname: Some(business_hostname.clone()),
+                    business_status: None,
+                    business_colo: None,
+                    business_cf_ray: None,
+                    business_validated: false,
                 });
             }
         }
@@ -2326,7 +2897,18 @@ async fn run_scan(
             .partial_cmp(&right.median_latency_ms)
             .unwrap_or(Ordering::Equal)
     });
-    results.truncate(DOWNLOAD_SHORTLIST);
+    if let Some(current_ip) = current_ip.map(|ip| ip.to_string())
+        && let Some(position) = results
+            .iter()
+            .position(|candidate| candidate.ip == current_ip)
+        && position >= DOWNLOAD_SHORTLIST
+    {
+        let current = results.remove(position);
+        results.truncate(DOWNLOAD_SHORTLIST.saturating_sub(1));
+        results.push(current);
+    } else {
+        results.truncate(DOWNLOAD_SHORTLIST);
+    }
     if let Some(job_id) = job_id {
         update_job(
             state,
@@ -2338,6 +2920,7 @@ async fn run_scan(
     let download_total = results.len().max(1);
     let mut download_tasks = JoinSet::new();
     for mut candidate in results {
+        let validation_hostname = business_hostname.clone();
         download_tasks.spawn(async move {
             let ip = candidate.ip.parse::<Ipv4Addr>().ok()?;
             let mut samples = Vec::new();
@@ -2354,6 +2937,14 @@ async fn run_scan(
                 candidate.loss_ratio,
                 candidate.download_mbps,
             );
+            let probe = probe_custom_hostname_details(&validation_hostname, ip)
+                .await
+                .ok()?;
+            candidate.business_hostname = Some(validation_hostname);
+            candidate.business_status = Some(probe.status);
+            candidate.business_colo = probe.colo;
+            candidate.business_cf_ray = probe.cf_ray;
+            candidate.business_validated = true;
             Some(candidate)
         });
     }
@@ -2364,7 +2955,12 @@ async fn run_scan(
             && is_job_cancelled(state, job_id).await
         {
             download_tasks.abort_all();
-            return Ok(Vec::new());
+            return Ok(OptimizationScanResult {
+                candidates: Vec::new(),
+                vantage,
+                source_warnings,
+                source_fingerprint,
+            });
         }
         if let Ok(Some(candidate)) = result {
             measured.push(candidate);
@@ -2387,7 +2983,277 @@ async fn run_scan(
             .partial_cmp(&right.score)
             .unwrap_or(Ordering::Equal)
     });
-    Ok(results)
+    Ok(OptimizationScanResult {
+        candidates: results,
+        vantage,
+        source_warnings,
+        source_fingerprint,
+    })
+}
+
+async fn load_candidate_seeds(
+    state: &AppState,
+    settings: &OptimizationSourceSettings,
+    prefixes: &[Ipv4Net],
+) -> (Vec<CandidateSeed>, Vec<String>) {
+    let selected_builtins = settings
+        .builtin_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut hostname_sources = BUILTIN_CANDIDATE_SOURCES
+        .iter()
+        .filter(|source| selected_builtins.contains(source.id))
+        .map(|source| {
+            (
+                source.hostname.to_string(),
+                "builtin".to_string(),
+                source.id.to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+    hostname_sources.extend(
+        settings
+            .custom_hostnames
+            .iter()
+            .cloned()
+            .map(|hostname| (hostname.clone(), "custom".to_string(), hostname)),
+    );
+
+    let mut resolved = Vec::new();
+    for chunk in hostname_sources.chunks(8) {
+        let mut tasks = JoinSet::new();
+        for (index, (hostname, source_type, source_id)) in chunk.iter().cloned().enumerate() {
+            let client = state.fallback_client.clone();
+            tasks.spawn(async move {
+                let result = resolve_candidate_hostname(&client, &hostname).await;
+                (index, hostname, source_type, source_id, result)
+            });
+        }
+        let mut chunk_results = Vec::new();
+        while let Some(task) = tasks.join_next().await {
+            if let Ok(value) = task {
+                chunk_results.push(value);
+            }
+        }
+        chunk_results.sort_by_key(|value| value.0);
+        resolved.extend(chunk_results);
+    }
+
+    let mut seeds = Vec::new();
+    let mut indexes = HashMap::new();
+    let mut warnings = Vec::new();
+    for (_, hostname, source_type, source_id, result) in resolved {
+        let ips = match result {
+            Ok(value) => value,
+            Err(error) => {
+                warnings.push(format!("{hostname}: {error}"));
+                continue;
+            }
+        };
+        let mut accepted = 0usize;
+        for ip in ips {
+            if !candidate_ip_is_cloudflare(ip, prefixes) {
+                continue;
+            }
+            accepted += 1;
+            merge_candidate_seed(&mut seeds, &mut indexes, ip, &source_type, Some(&hostname));
+        }
+        if accepted == 0 {
+            warnings.push(format!(
+                "{hostname} ({source_id}) did not resolve to a verified Cloudflare IPv4 address"
+            ));
+        }
+    }
+    if settings.official_ranges {
+        for ip in sample_candidate_ips(prefixes) {
+            merge_candidate_seed(&mut seeds, &mut indexes, ip, "official-range", None);
+            if seeds.len() >= MAX_CANDIDATES {
+                break;
+            }
+        }
+    }
+    seeds.truncate(MAX_CANDIDATES);
+    (seeds, warnings)
+}
+
+fn candidate_ip_is_cloudflare(ip: Ipv4Addr, prefixes: &[Ipv4Net]) -> bool {
+    prefixes.iter().any(|prefix| prefix.contains(&ip))
+}
+
+fn merge_candidate_seed(
+    seeds: &mut Vec<CandidateSeed>,
+    indexes: &mut HashMap<Ipv4Addr, usize>,
+    ip: Ipv4Addr,
+    source_type: &str,
+    source_hostname: Option<&str>,
+) {
+    if let Some(index) = indexes.get(&ip).copied() {
+        let seed = &mut seeds[index];
+        if !seed.source_types.iter().any(|value| value == source_type) {
+            seed.source_types.push(source_type.to_string());
+        }
+        if let Some(hostname) = source_hostname
+            && !seed.source_hostnames.iter().any(|value| value == hostname)
+        {
+            seed.source_hostnames.push(hostname.to_string());
+        }
+        return;
+    }
+    if seeds.len() >= MAX_CANDIDATES {
+        return;
+    }
+    indexes.insert(ip, seeds.len());
+    seeds.push(CandidateSeed {
+        ip,
+        source_types: vec![source_type.to_string()],
+        source_hostnames: source_hostname
+            .map(|value| vec![value.to_string()])
+            .unwrap_or_default(),
+    });
+}
+
+fn merge_current_candidate_seed(seeds: &mut Vec<CandidateSeed>, ip: Ipv4Addr) {
+    if let Some(seed) = seeds.iter_mut().find(|seed| seed.ip == ip) {
+        if !seed.source_types.iter().any(|value| value == "current") {
+            seed.source_types.push("current".to_string());
+        }
+        return;
+    }
+    if seeds.len() >= MAX_CANDIDATES {
+        seeds.pop();
+    }
+    seeds.push(CandidateSeed {
+        ip,
+        source_types: vec!["current".to_string()],
+        source_hostnames: Vec::new(),
+    });
+}
+
+async fn resolve_candidate_hostname(
+    client: &reqwest::Client,
+    hostname: &str,
+) -> Result<Vec<Ipv4Addr>, String> {
+    let (cloudflare, google) = tokio::join!(
+        query_doh_ipv4(client, "https://cloudflare-dns.com/dns-query", hostname),
+        query_doh_ipv4(client, "https://dns.google/resolve", hostname),
+    );
+    let cloudflare = cloudflare.map_err(|error| format!("Cloudflare DoH failed: {error}"))?;
+    let google = google.map_err(|error| format!("Google DoH failed: {error}"))?;
+    let agreed = intersect_doh_answers(&cloudflare, &google);
+    if agreed.is_empty() {
+        return Err("the two trusted DoH resolvers returned no matching IPv4 address".to_string());
+    }
+    Ok(agreed)
+}
+
+fn intersect_doh_answers(
+    cloudflare: &HashSet<Ipv4Addr>,
+    google: &HashSet<Ipv4Addr>,
+) -> Vec<Ipv4Addr> {
+    let mut agreed = cloudflare.intersection(google).copied().collect::<Vec<_>>();
+    agreed.sort();
+    agreed
+}
+
+async fn query_doh_ipv4(
+    client: &reqwest::Client,
+    endpoint: &str,
+    hostname: &str,
+) -> Result<HashSet<Ipv4Addr>, String> {
+    let mut url = url::Url::parse(endpoint).map_err(|error| error.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("name", hostname)
+        .append_pair("type", "A");
+    let response = client
+        .get(url)
+        .header(reqwest::header::ACCEPT, "application/dns-json")
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?
+        .error_for_status()
+        .map_err(|error| error.to_string())?;
+    let value = response
+        .json::<Value>()
+        .await
+        .map_err(|error| error.to_string())?;
+    if value.get("Status").and_then(Value::as_u64).unwrap_or(0) != 0 {
+        return Err(format!(
+            "DNS response status {}",
+            value.get("Status").and_then(Value::as_u64).unwrap_or(0)
+        ));
+    }
+    Ok(value
+        .get("Answer")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|answer| answer.get("type").and_then(Value::as_u64) == Some(1))
+        .filter_map(|answer| answer.get("data").and_then(Value::as_str))
+        .filter_map(|value| value.parse::<Ipv4Addr>().ok())
+        .collect())
+}
+
+async fn probe_local_vantage(state: &AppState) -> Value {
+    let measured_at = time_utils::now_iso();
+    let response = state
+        .fallback_client
+        .get("https://www.cloudflare.com/cdn-cgi/trace")
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await;
+    let Ok(response) = response else {
+        return json!({
+            "id": "local-server",
+            "label": "fn-knock server",
+            "publicIp": Value::Null,
+            "defaultColo": Value::Null,
+            "measuredAt": measured_at,
+        });
+    };
+    let text = response.text().await.unwrap_or_default();
+    let trace = parse_trace(&text);
+    json!({
+        "id": "local-server",
+        "label": "fn-knock server",
+        "publicIp": trace.get("ip").cloned().unwrap_or_default(),
+        "defaultColo": trace.get("colo").cloned().unwrap_or_default(),
+        "measuredAt": measured_at,
+    })
+}
+
+fn parse_trace(value: &str) -> HashMap<String, String> {
+    value
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect()
+}
+
+fn scan_validation_hostname(ownership: &Value) -> Option<String> {
+    optimized_health_hostname(ownership).or_else(|| {
+        ownership
+            .pointer("/optimization/customHostnames")
+            .and_then(Value::as_object)
+            .and_then(|items| {
+                items.iter().find_map(|(hostname, state)| {
+                    (state.get("sslStatus").and_then(Value::as_str) == Some("active"))
+                        .then(|| hostname.clone())
+                })
+            })
+            .or_else(|| {
+                let probe = ownership.pointer("/optimization/capabilityProbe")?;
+                (probe.get("sslStatus").and_then(Value::as_str) == Some("active"))
+                    .then(|| {
+                        probe
+                            .get("hostname")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .flatten()
+            })
+    })
 }
 
 async fn load_cloudflare_prefixes(state: &AppState) -> Vec<Ipv4Net> {
@@ -2448,8 +3314,18 @@ fn sample_candidate_ips(prefixes: &[Ipv4Net]) -> Vec<Ipv4Addr> {
 }
 
 async fn probe_latency(ip: Ipv4Addr) -> Option<(f64, f64, f64)> {
+    let metrics = probe_latency_metrics(ip).await?;
+    Some((
+        metrics.median_latency_ms,
+        metrics.jitter_ms,
+        metrics.loss_ratio,
+    ))
+}
+
+async fn probe_latency_metrics(ip: Ipv4Addr) -> Option<LatencyProbeMetrics> {
     let client = speedtest_client(SPEEDTEST_HOST, ip, Duration::from_secs(4)).ok()?;
     let mut samples = Vec::new();
+    let mut cf_ray = None;
     for _ in 0..LATENCY_PROBES {
         let started = Instant::now();
         let response = client
@@ -2457,7 +3333,16 @@ async fn probe_latency(ip: Ipv4Addr) -> Option<(f64, f64, f64)> {
             .header(reqwest::header::CACHE_CONTROL, "no-store")
             .send()
             .await;
-        if response.is_ok_and(|response| response.status().is_success()) {
+        if let Ok(response) = response
+            && response.status().is_success()
+        {
+            if cf_ray.is_none() {
+                cf_ray = response
+                    .headers()
+                    .get("cf-ray")
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_string);
+            }
             samples.push(started.elapsed().as_secs_f64() * 1000.0);
         }
     }
@@ -2469,7 +3354,14 @@ async fn probe_latency(ip: Ipv4Addr) -> Option<(f64, f64, f64)> {
     let latency = median(&samples)?;
     let jitter =
         samples.last().copied().unwrap_or(latency) - samples.first().copied().unwrap_or(latency);
-    Some((latency, jitter, loss))
+    let colo = cf_ray.as_deref().and_then(cf_ray_colo);
+    Some(LatencyProbeMetrics {
+        median_latency_ms: latency,
+        jitter_ms: jitter,
+        loss_ratio: loss,
+        colo,
+        cf_ray,
+    })
 }
 
 async fn probe_download(ip: Ipv4Addr, bytes: usize) -> Option<f64> {
@@ -2503,6 +3395,10 @@ fn speedtest_client(
     timeout: Duration,
 ) -> Result<reqwest::Client, reqwest::Error> {
     reqwest::Client::builder()
+        // Candidate measurements must reach the supplied IP directly. A
+        // process-level HTTPS proxy would otherwise handle CONNECT by hostname
+        // and silently bypass this explicit resolver override.
+        .no_proxy()
         .connect_timeout(Duration::from_secs(2))
         .timeout(timeout)
         .https_only(true)
@@ -2511,7 +3407,17 @@ fn speedtest_client(
 }
 
 async fn probe_custom_hostname(hostname: &str, ip: Ipv4Addr) -> Result<(), String> {
+    probe_custom_hostname_details(hostname, ip)
+        .await
+        .map(|_| ())
+}
+
+async fn probe_custom_hostname_details(
+    hostname: &str,
+    ip: Ipv4Addr,
+) -> Result<BusinessProbeResult, String> {
     let client = reqwest::Client::builder()
+        .no_proxy()
         .connect_timeout(Duration::from_secs(3))
         .timeout(Duration::from_secs(8))
         .https_only(true)
@@ -2526,7 +3432,11 @@ async fn probe_custom_hostname(hostname: &str, ip: Ipv4Addr) -> Result<(), Strin
         .await
         .map_err(|error| format!("Preferred edge TLS probe failed: {error}"))?;
     let status = response.status();
-    let has_cf_ray = response.headers().contains_key("cf-ray");
+    let cf_ray = response
+        .headers()
+        .get("cf-ray")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
     let mut response = response;
     let mut body = Vec::new();
     while body.len() < 32 * 1024 {
@@ -2547,16 +3457,39 @@ async fn probe_custom_hostname(hostname: &str, ip: Ipv4Addr) -> Result<(), Strin
     {
         return Err("Cloudflare rejected the preferred edge route".to_string());
     }
-    if !has_cf_ray {
+    if cf_ray.is_none() {
         return Err(format!(
             "Preferred edge returned HTTP {status} without a Cloudflare Ray ID"
         ));
     }
-    Ok(())
+    Ok(BusinessProbeResult {
+        status: status.as_u16(),
+        colo: cf_ray.as_deref().and_then(cf_ray_colo),
+        cf_ray,
+    })
+}
+
+fn cf_ray_colo(value: &str) -> Option<String> {
+    let colo = value.rsplit_once('-')?.1.trim().to_ascii_uppercase();
+    (colo.len() == 3 && colo.bytes().all(|byte| byte.is_ascii_alphanumeric())).then_some(colo)
 }
 
 fn score_candidate(latency: f64, jitter: f64, loss: f64, download_mbps: f64) -> f64 {
     latency + 2.0 * jitter + 1500.0 * loss + 800.0 / download_mbps.max(1.0)
+}
+
+fn score_is_15_percent_better(candidate: f64, current: f64) -> bool {
+    candidate.is_finite()
+        && current.is_finite()
+        && candidate >= 0.0
+        && current > 0.0
+        && candidate <= current * 0.85
+}
+
+fn scan_is_fresh(completed_at_ms: i64, now_ms: i64) -> bool {
+    completed_at_ms > 0
+        && now_ms >= completed_at_ms
+        && now_ms.saturating_sub(completed_at_ms) <= SCAN_APPLY_TTL_MS
 }
 
 fn median(values: &[f64]) -> Option<f64> {
@@ -2942,12 +3875,186 @@ mod tests {
     }
 
     #[test]
+    fn source_settings_include_builtins_and_normalize_custom_hostnames() {
+        let defaults = OptimizationSourceSettings::default();
+        assert!(defaults.official_ranges);
+        assert_eq!(defaults.builtin_ids.len(), BUILTIN_CANDIDATE_SOURCES.len());
+
+        let normalized = normalize_source_settings(OptimizationSourceSettings {
+            official_ranges: true,
+            builtin_ids: vec![
+                "sweden-government".to_string(),
+                "sweden-government".to_string(),
+                "us-fbi".to_string(),
+                "removed-source".to_string(),
+            ],
+            custom_hostnames: vec![
+                " WWW.Example.org. ".to_string(),
+                "www.example.org".to_string(),
+            ],
+        })
+        .expect("settings should normalize");
+        assert_eq!(normalized.builtin_ids, vec!["sweden-government"]);
+        assert_eq!(normalized.custom_hostnames, vec!["www.example.org"]);
+    }
+
+    #[test]
+    fn source_settings_reject_urls_ips_and_an_empty_source_set() {
+        for value in [
+            "https://www.example.org",
+            "28.0.2.55",
+            "*.example.org",
+            "example.org/path",
+        ] {
+            assert!(normalize_candidate_hostname(value).is_err(), "{value}");
+        }
+        assert!(
+            normalize_source_settings(OptimizationSourceSettings {
+                official_ranges: false,
+                builtin_ids: Vec::new(),
+                custom_hostnames: Vec::new(),
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn fake_ip_is_rejected_even_when_a_candidate_hostname_returns_it() {
+        let prefixes = parse_prefixes(&CLOUDFLARE_IPV4_FALLBACK.join("\n"));
+        assert!(!candidate_ip_is_cloudflare(
+            "28.0.2.55".parse().expect("valid fake IP"),
+            &prefixes
+        ));
+        assert!(candidate_ip_is_cloudflare(
+            "104.18.26.94".parse().expect("valid Cloudflare IP"),
+            &prefixes
+        ));
+
+        let real = "104.18.26.94".parse().expect("valid Cloudflare IP");
+        let fake = "28.0.2.55".parse().expect("valid fake IP");
+        let cloudflare = HashSet::from([real, fake]);
+        let google = HashSet::from([real]);
+        assert_eq!(intersect_doh_answers(&cloudflare, &google), vec![real]);
+    }
+
+    #[test]
+    fn candidate_sources_merge_without_losing_provenance() {
+        let ip = "104.18.26.94".parse().expect("valid IP");
+        let mut seeds = Vec::new();
+        let mut indexes = HashMap::new();
+        merge_candidate_seed(&mut seeds, &mut indexes, ip, "builtin", Some("www.gov.se"));
+        merge_candidate_seed(&mut seeds, &mut indexes, ip, "official-range", None);
+        assert_eq!(seeds.len(), 1);
+        assert_eq!(seeds[0].source_hostnames, vec!["www.gov.se"]);
+        assert_eq!(seeds[0].source_types, vec!["builtin", "official-range"]);
+    }
+
+    #[test]
+    fn extracts_real_pop_from_cloudflare_ray_instead_of_geoip() {
+        assert_eq!(cf_ray_colo("a261079199891d1c-SIN").as_deref(), Some("SIN"));
+        assert_eq!(cf_ray_colo("bad"), None);
+        assert_eq!(cf_ray_colo("ray-too-long"), None);
+    }
+
+    #[test]
     fn score_penalizes_loss_latency_jitter_and_low_bandwidth() {
         let baseline = score_candidate(30.0, 2.0, 0.0, 100.0);
         assert!(score_candidate(60.0, 2.0, 0.0, 100.0) > baseline);
         assert!(score_candidate(30.0, 20.0, 0.0, 100.0) > baseline);
         assert!(score_candidate(30.0, 2.0, 0.2, 100.0) > baseline);
         assert!(score_candidate(30.0, 2.0, 0.0, 5.0) > baseline);
+    }
+
+    #[test]
+    fn automatic_switch_requires_a_full_fifteen_percent_lead() {
+        assert!(score_is_15_percent_better(85.0, 100.0));
+        assert!(!score_is_15_percent_better(85.01, 100.0));
+        assert!(!score_is_15_percent_better(f64::NAN, 100.0));
+        assert!(!score_is_15_percent_better(10.0, 0.0));
+    }
+
+    #[test]
+    fn automatic_first_round_uses_the_freshly_measured_current_candidate() {
+        let candidate = |ip: &str, score: f64| OptimizationCandidate {
+            ip: ip.to_string(),
+            median_latency_ms: score,
+            jitter_ms: 0.0,
+            loss_ratio: 0.0,
+            download_mbps: 100.0,
+            score,
+            verified_at: Some(time_utils::now_iso()),
+            source_types: Vec::new(),
+            source_hostnames: Vec::new(),
+            colo: Some("SIN".to_string()),
+            cf_ray: None,
+            business_hostname: Some("app.example.com".to_string()),
+            business_status: Some(200),
+            business_colo: Some("SIN".to_string()),
+            business_cf_ray: None,
+            business_validated: true,
+        };
+        let mut ownership = json!({
+            "optimization": {
+                "selected": { "ip": "104.16.1.1", "score": 1.0 }
+            }
+        });
+        let mut runtime = json!({});
+        apply_automatic_scan_result(
+            &mut ownership,
+            &mut runtime,
+            &[
+                candidate("104.16.2.2", 80.0),
+                candidate("104.16.1.1", 100.0),
+            ],
+        );
+        assert_eq!(
+            runtime.pointer("/pendingCandidate/candidate/ip"),
+            Some(&json!("104.16.2.2"))
+        );
+    }
+
+    #[test]
+    fn current_candidate_is_kept_inside_the_global_seed_limit() {
+        let mut seeds = (0..MAX_CANDIDATES)
+            .map(|index| CandidateSeed {
+                ip: Ipv4Addr::new(104, 16, (index / 256) as u8, index as u8),
+                source_types: vec!["official-range".to_string()],
+                source_hostnames: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let current = Ipv4Addr::new(104, 17, 1, 1);
+        merge_current_candidate_seed(&mut seeds, current);
+        assert_eq!(seeds.len(), MAX_CANDIDATES);
+        assert!(
+            seeds
+                .iter()
+                .any(|seed| seed.ip == current && seed.source_types == vec!["current"])
+        );
+    }
+
+    #[test]
+    fn completed_scans_expire_after_ten_minutes() {
+        let completed = 1_000_000;
+        assert!(scan_is_fresh(completed, completed));
+        assert!(scan_is_fresh(completed, completed + SCAN_APPLY_TTL_MS));
+        assert!(!scan_is_fresh(completed, completed + SCAN_APPLY_TTL_MS + 1));
+        assert!(!scan_is_fresh(completed, completed - 1));
+        assert!(!scan_is_fresh(0, completed));
+    }
+
+    #[test]
+    fn source_fingerprint_changes_with_the_effective_configuration() {
+        let defaults = OptimizationSourceSettings::default();
+        let mut changed = defaults.clone();
+        changed.official_ranges = false;
+        assert_eq!(
+            source_settings_fingerprint(&defaults),
+            source_settings_fingerprint(&defaults.clone())
+        );
+        assert_ne!(
+            source_settings_fingerprint(&defaults),
+            source_settings_fingerprint(&changed)
+        );
     }
 
     #[test]

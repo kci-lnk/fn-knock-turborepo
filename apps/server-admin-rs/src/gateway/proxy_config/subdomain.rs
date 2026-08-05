@@ -471,7 +471,7 @@ pub(super) fn resolve_public_port_for_scheme(
     gateway_fallback: bool,
     allow_reverse_proxy_configured_port: bool,
 ) -> Option<i64> {
-    if is_edge_client_ip_active(config) {
+    if should_omit_public_access_entry_port(config) {
         return None;
     }
     if let Some(port) = parse_explicit_url_port(raw_public_base_url, scheme) {
@@ -482,7 +482,7 @@ pub(super) fn resolve_public_port_for_scheme(
     {
         return Some(port);
     }
-    if should_omit_public_access_entry_port(config) || !gateway_fallback {
+    if !gateway_fallback {
         return None;
     }
     resolve_public_gateway_port(config)
@@ -510,8 +510,9 @@ pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) 
         "https" => "https",
         _ => return trimmed.to_string(),
     };
-    if is_edge_client_ip_active(config) {
-        // Edge mode is authoritative over stale origin/public-port settings.
+    if should_omit_public_access_entry_port(config) {
+        // Edge and managed Cloudflare ingress use the scheme's standard
+        // browser-facing port. Stale origin ports must never leak into URLs.
         let _ = parsed.set_port(None);
     } else if parsed.port().is_none()
         && let Some(port) = resolve_public_port_for_scheme(config, scheme, trimmed, true, false)

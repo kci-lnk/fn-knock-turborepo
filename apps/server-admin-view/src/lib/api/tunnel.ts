@@ -130,6 +130,38 @@ export type CloudflareOptimizationCandidate = {
   downloadMbps: number;
   score: number;
   verifiedAt?: string | null;
+  sourceTypes: Array<"official-range" | "builtin" | "custom" | string>;
+  sourceHostnames: string[];
+  colo: string | null;
+  cfRay: string | null;
+  businessHostname: string | null;
+  businessStatus: number | null;
+  businessColo: string | null;
+  businessCfRay: string | null;
+  businessValidated: boolean;
+};
+
+export type CloudflareOptimizationVantage = {
+  id: string;
+  label: string;
+  publicIp: string | null;
+  defaultColo: string | null;
+  measuredAt: string;
+};
+
+export type CloudflareOptimizationCandidateSources = {
+  officialRanges: boolean;
+  builtins: Array<{
+    id: string;
+    hostname: string;
+    category: string;
+    enabled: boolean;
+  }>;
+  customHostnames: string[];
+  maxCustomHostnames: number;
+  resolutionPolicy: string;
+  publishPolicy: string;
+  error?: string | null;
 };
 
 export type CloudflareOptimizationScan = {
@@ -140,9 +172,15 @@ export type CloudflareOptimizationScan = {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  completedAtMs?: number | null;
   cancelRequested: boolean;
   candidates: CloudflareOptimizationCandidate[];
   recommendedIp: string | null;
+  vantage: CloudflareOptimizationVantage | null;
+  sourceWarnings: string[];
+  candidateSourceCount?: number;
+  businessValidationHostname?: string | null;
+  sourceFingerprint?: string | null;
   error: string | null;
 };
 
@@ -204,6 +242,9 @@ export type CloudflareManagedState = {
       testedAt?: string;
       message?: string;
     } | null;
+    candidateSources: CloudflareOptimizationCandidateSources;
+    vantage: CloudflareOptimizationVantage | null;
+    sourceWarnings: string[];
     domains: CloudflareOptimizationDomain[];
     schedule: {
       fullScanIntervalDays: number;
@@ -453,6 +494,17 @@ export const CloudflaredAPI = {
   },
   async startOptimizationScan(): Promise<CloudflareOptimizationScan> {
     const res = await apiClient.post("/cloudflared/optimization/scans");
+    return res.data.data;
+  },
+  async saveOptimizationSourceSettings(payload: {
+    officialRanges: boolean;
+    builtinIds: string[];
+    customHostnames: string[];
+  }): Promise<CloudflareOptimizationCandidateSources> {
+    const res = await apiClient.put(
+      "/cloudflared/optimization/settings",
+      payload,
+    );
     return res.data.data;
   },
   async getOptimizationScan(id: string): Promise<CloudflareOptimizationScan> {

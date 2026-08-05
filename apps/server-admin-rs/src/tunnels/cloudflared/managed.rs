@@ -1376,7 +1376,7 @@ pub(super) async fn upsert_managed_dns(
             })
         })
         .or_else(|| matching.into_iter().next());
-    let body = json!({
+    let mut body = json!({
         "type": request.record_type,
         "name": request.name,
         "content": request.content,
@@ -1384,6 +1384,14 @@ pub(super) async fn upsert_managed_dns(
         "ttl": if request.proxied { 1 } else { 60 },
         "comment": format!("{DNS_COMMENT_PREFIX} ({})", request.instance_id),
         "tags": ["fn-knock:managed", format!("fn-knock-instance:{}", request.instance_id)]
+    });
+    let existing_uses_comment_only = existing.is_some_and(|record| {
+        record.get("comment").and_then(Value::as_str)
+            == Some(format!("{DNS_COMMENT_PREFIX} ({})", request.instance_id).as_str())
+            && record
+                .get("tags")
+                .and_then(Value::as_array)
+                .is_none_or(Vec::is_empty)
     });
     let existing_id = match existing {
         Some(record) => {
@@ -1402,6 +1410,9 @@ pub(super) async fn upsert_managed_dns(
                     message: format!("DNS record {} is not owned by fn-knock", request.name),
                 });
             }
+            if owned && managed_dns_matches_desired(record, &request) {
+                return Ok(managed_dns_result(record, &request));
+            }
             Some(id)
         }
         None => None,
@@ -1412,6 +1423,9 @@ pub(super) async fn upsert_managed_dns(
             None => api.create_dns_record(request.zone_id, body).await,
         }
     };
+    if existing_uses_comment_only && let Some(object) = body.as_object_mut() {
+        object.remove("tags");
+    }
     let result = match write(body.clone()).await {
         Ok(result) => result,
         Err(error) if dns_tag_quota_is_zero(&error) => {
@@ -1431,13 +1445,31 @@ pub(super) async fn upsert_managed_dns(
         }
         Err(error) => return Err(error),
     };
-    Ok(json!({
-        "id": result.get("id").cloned().unwrap_or(Value::Null),
+    Ok(managed_dns_result(&result, &request))
+}
+
+fn managed_dns_result(record: &Value, request: &ManagedDnsRequest<'_>) -> Value {
+    json!({
+        "id": record.get("id").cloned().unwrap_or(Value::Null),
         "name": request.name,
         "type": request.record_type,
         "content": request.content,
         "proxied": request.proxied,
-    }))
+    })
+}
+
+fn managed_dns_matches_desired(record: &Value, request: &ManagedDnsRequest<'_>) -> bool {
+    let expected_comment = format!("{DNS_COMMENT_PREFIX} ({})", request.instance_id);
+    let expected_ttl = if request.proxied { 1 } else { 60 };
+    record.get("type").and_then(Value::as_str) == Some(request.record_type)
+        && record
+            .get("name")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.eq_ignore_ascii_case(request.name))
+        && dns_content_matches(record, request.record_type, request.content)
+        && record.get("proxied").and_then(Value::as_bool) == Some(request.proxied)
+        && record.get("ttl").and_then(Value::as_u64) == Some(expected_ttl)
+        && record.get("comment").and_then(Value::as_str) == Some(expected_comment.as_str())
 }
 
 fn dns_tag_quota_is_zero(error: &CloudflareApiError) -> bool {
@@ -2251,6 +2283,131 @@ mod tests {
         .await
         .expect("retry DNS creation without unsupported tags");
         assert_eq!(record["id"], json!("record-id"));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn unchanged_comment_only_dns_records_do_not_trigger_remote_writes() {
+        async fn list_records() -> Json<Value> {
+            Json(json!({
+                "success": true,
+                "result": [{
+                    "id": "record-id",
+                    "name": "*.example.com",
+                    "type": "CNAME",
+                    "content": "tunnel.cfargotunnel.com",
+                    "proxied": true,
+                    "ttl": 1,
+                    "comment": "Managed by fn-knock (test)",
+                    "tags": []
+                }],
+                "result_info": { "total_pages": 1 }
+            }))
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock Cloudflare API");
+        let address = listener.local_addr().expect("mock API address");
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route("/zones/zone-id/dns_records", get(list_records)),
+            )
+            .await
+            .expect("serve mock Cloudflare API");
+        });
+        let api =
+            CloudflareApi::with_base_url(Client::new(), "test-token", format!("http://{address}"));
+
+        let record = upsert_managed_dns(
+            &api,
+            ManagedDnsRequest {
+                zone_id: "zone-id",
+                name: "*.example.com",
+                record_type: "CNAME",
+                content: "tunnel.cfargotunnel.com",
+                proxied: true,
+                owned_id: Some("record-id"),
+                takeover: false,
+                instance_id: "test",
+            },
+        )
+        .await
+        .expect("keep unchanged comment-only DNS record");
+        assert_eq!(record["id"], json!("record-id"));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn drifted_comment_only_dns_records_update_without_retrying_tags() {
+        async fn list_records() -> Json<Value> {
+            Json(json!({
+                "success": true,
+                "result": [{
+                    "id": "record-id",
+                    "name": "edge.example.com",
+                    "type": "A",
+                    "content": "104.16.1.1",
+                    "proxied": false,
+                    "ttl": 60,
+                    "comment": "Managed by fn-knock (test)",
+                    "tags": []
+                }],
+                "result_info": { "total_pages": 1 }
+            }))
+        }
+
+        async fn update_record(Json(body): Json<Value>) -> Json<Value> {
+            assert!(body.get("tags").is_none());
+            assert_eq!(body["content"], json!("104.16.2.2"));
+            Json(json!({
+                "success": true,
+                "result": {
+                    "id": "record-id",
+                    "name": "edge.example.com",
+                    "type": "A",
+                    "content": "104.16.2.2",
+                    "proxied": false,
+                    "ttl": 60,
+                    "comment": "Managed by fn-knock (test)",
+                    "tags": []
+                }
+            }))
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock Cloudflare API");
+        let address = listener.local_addr().expect("mock API address");
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/zones/zone-id/dns_records", get(list_records))
+                    .route("/zones/zone-id/dns_records/record-id", patch(update_record)),
+            )
+            .await
+            .expect("serve mock Cloudflare API");
+        });
+        let api =
+            CloudflareApi::with_base_url(Client::new(), "test-token", format!("http://{address}"));
+
+        upsert_managed_dns(
+            &api,
+            ManagedDnsRequest {
+                zone_id: "zone-id",
+                name: "edge.example.com",
+                record_type: "A",
+                content: "104.16.2.2",
+                proxied: false,
+                owned_id: Some("record-id"),
+                takeover: false,
+                instance_id: "test",
+            },
+        )
+        .await
+        .expect("update comment-only DNS record without tags");
         server.abort();
     }
 

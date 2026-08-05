@@ -2242,20 +2242,33 @@ export const jaJPAdmin = {
     logsCleared: "ログを消去しました",
     managed: {
       pageDescription:
-        "最小権限の API Token で Tunnel、Ingress、DNS を自動管理し、手動 Token モードも維持します。",
+        "API Token を貼り付けると、fn-knock が Tunnel とドメインを自動設定します。通常は Cloudflare ダッシュボードを再操作する必要はありません。",
       connectionTitle: "API 接続",
+      connectionHeading: "Cloudflare に接続",
       connectionDescription:
-        "Token は書き込み専用でローカルに暗号化され、API・ログ・診断には表示されません。",
+        "必要な権限を持つ Token を貼り付けてください。ローカルで暗号化され、画面・ログ・診断には表示されません。",
+      connectionSummary: "API Token は安全に保存されています",
+      connectionSummaryWithZone:
+        "{zone} に接続済み。Tunnel と DNS を自動管理できます",
+      connectionNotConfiguredSummary:
+        "ステップ 1：API Token を貼り付けて Cloudflare に接続",
+      viewOrChange: "表示・変更",
+      viewDetails: "詳細を表示",
       connectedStatus: "API Token 設定済み",
       replaceTokenPlaceholder: "新しい Cloudflare API Token を貼り付け",
       replaceToken: "Token を交換",
       connect: "接続して検証",
       disconnect: "ローカル認証情報を削除",
-      permissionsTitle: "最小権限テンプレート",
       driftTitle: "リモート設定の差異を検出",
       driftDescription:
         "Cloudflare の状態が変わりました。再度プレビューしてから適用してください。",
       tunnelTitle: "Tunnel とドメイン同期",
+      tunnelHeading: "公開アクセスを自動設定",
+      tunnelIntro:
+        "初回は「専用 Tunnel」のまま進むことを推奨します。プレビューして確認すると、Tunnel、Ingress、ワイルドカード DNS を自動作成します。",
+      tunnelSummaryConfigured:
+        "{hostname} を管理中。新しいサブドメインで Cloudflare の変更は不要です",
+      tunnelSummaryNotConfigured: "ステップ 2：推奨設定で Tunnel と DNS を作成",
       tunnelMode: "Tunnel モード",
       dedicatedTunnel: "専用 Tunnel（推奨）",
       existingTunnel: "既存の Tunnel を使用",
@@ -2266,6 +2279,7 @@ export const jaJPAdmin = {
       selectTunnel: "既存の Tunnel を選択",
       preview: "リモート変更をプレビュー",
       previewTitle: "リモート変更プレビュー",
+      technicalDetails: "権限チェックの詳細",
       publicHostname: "公開ホスト名",
       originService: "ローカルオリジンサービス",
       zone: "Cloudflare Zone",
@@ -2317,14 +2331,44 @@ export const jaJPAdmin = {
       previewCleanup: "削除をプレビュー",
     },
     optimization: {
-      title: "IPv4 最適化 Beta",
+      title: "アクセス速度の最適化",
+      heading: "より速い Cloudflare エントリーポイントを測定・選択",
       description:
-        "正確な業務ドメインに最適化経路を追加し、ワイルドカード Tunnel を常にフォールバックとして残します。",
+        "任意機能です。設定済みドメインに適した入口を測定して選択し、問題時は標準 Tunnel に自動復帰します。",
+      summaryFallback: "安定した標準 Tunnel を使用中。いつでも再測定できます",
+      summaryActive: "現在の IP {ip}、{count}/{total} ドメインを最適化済み",
+      summaryNotApplied:
+        "任意：速度テストの前に Tunnel 設定で有効にしてください",
       fallbackStatus: "標準 Tunnel フォールバック",
       activeStatus: "最適化が有効",
       betaTitle: "実験的機能",
       betaDescription:
         "Cloudflare for SaaS Custom Hostname を作成します。プラン非対応や証明書検証失敗でも基本 Tunnel には影響しません。",
+      sources: {
+        title: "候補 IP ソース",
+        advancedTitle: "詳細設定：候補 IP ソース",
+        description:
+          "Cloudflare 公式レンジと海外の公共・インフラサイトの DNS 結果を組み合わせます。ソース名はアドレスの手掛かりであり、国やデータセンターを固定するものではありません。",
+        officialRanges: "Cloudflare 公式 IPv4 レンジ",
+        officialRangesShort: "公式レンジ",
+        officialRangesDescription:
+          "公開済み公式レンジから決定的にサンプリングします。有効のままにすることを推奨します。",
+        builtinTitle: "組み込みの海外公共・インフラサイト",
+        customTitle: "カスタム候補サイト",
+        customPlaceholder: "1 行に 1 ホスト名（例：www.example.org）",
+        customDescription: "最大 {max} 件。次回のスキャンから反映されます。",
+        safety:
+          "Cloudflare と Google DoH が一致し、Cloudflare 公式レンジに属する回答だけを採用します。業務 DNS を第三者へ CNAME せず、ローカル DNS の Fake-IP も使用しません。",
+        save: "候補ソースを保存",
+        saved: "候補ソースを保存しました",
+        saveFailed: "候補ソースを保存できませんでした",
+        builtins: {
+          "sweden-government": "スウェーデン政府",
+          "us-library-of-congress": "米国議会図書館",
+          icann: "ICANN インターネット基盤",
+          visa: "Visa 決済基盤",
+        },
+      },
       reconcileRequiredTitle: "先に Cloudflare 設定を適用してください",
       reconcileRequiredDescription:
         "Tunnel セクションで最適化を有効にし、変更をプレビューして適用してから、速度テストまたは最適 IP の公開を行ってください。",
@@ -2359,7 +2403,15 @@ export const jaJPAdmin = {
       loss: "パケットロス",
       bandwidth: "ダウンロード帯域",
       score: "スコア",
+      source: "候補ソース",
+      colo: "実際の PoP",
+      vantage: "測定地点",
+      publicIp: "測定元の公開 IP",
+      defaultColo: "既定の入口 PoP",
       selection: "選択",
+      selectedResult: "適用する速度テスト結果",
+      allCandidates: "候補 IP {count} 件をすべて表示",
+      technicalStatus: "自動チェックと切り替え履歴",
       recommended: "推奨",
       select: "選択",
       apply: "選択した IP を適用",

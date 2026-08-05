@@ -34,7 +34,7 @@ const {
 <template>
   <ConfigCollapsibleCard
     :title="t('admin.cloudflareTunnel.manual.title')"
-    :configured="tunnelTokenConfigured"
+    :configured="true"
     :ready="configLoaded"
     expanded-content-class="p-0 sm:p-0"
   >

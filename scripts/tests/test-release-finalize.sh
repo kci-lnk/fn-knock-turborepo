@@ -107,6 +107,8 @@ jq -e \
     .schema_version == 1 and
     .version == $version and
     .tag == ("v" + $version) and
+    .channel == "stable" and
+    .prerelease == false and
     .control_api_version == $control_api_version and
     (.artifacts | length) == 23 and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and

@@ -32,6 +32,8 @@ jobs:
     outputs:
       version: ${{ steps.contract.outputs.version }}
       tag: ${{ steps.contract.outputs.tag }}
+      release_channel: ${{ steps.contract.outputs.release_channel }}
+      prerelease: ${{ steps.contract.outputs.prerelease }}
       control_api_version: ${{ steps.contract.outputs.control_api_version }}
       source_sha: ${{ steps.source.outputs.sha }}
       go_sha: ${{ steps.gateway.outputs.sha }}
@@ -334,6 +336,7 @@ jobs:
     timeout-minutes: 120
     env:
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+      FN_KNOCK_RELEASE_CHANNEL: ${{ needs.preflight.outputs.release_channel }}
 
     steps:
       - name: Checkout fn-knock
@@ -737,6 +740,7 @@ jobs:
         env:
           FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
           FN_KNOCK_RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          FN_KNOCK_RELEASE_CHANNEL: ${{ needs.preflight.outputs.release_channel }}
           FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
           FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
           FN_KNOCK_CONTROL_API_VERSION: ${{ needs.preflight.outputs.control_api_version }}
@@ -760,6 +764,7 @@ jobs:
           diff -u /tmp/manifest-assets /tmp/directory-assets
 
       - name: Read previous GitHub Release notes
+        if: needs.preflight.outputs.prerelease != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -769,6 +774,7 @@ jobs:
           > "${RUNNER_TEMP}/fn-knock-releases.json"
 
       - name: Validate Tencent COS publish plan
+        if: needs.preflight.outputs.prerelease != 'true'
         env:
           COS_PUBLICBASICURL: ${{ vars.COS_PUBLICBASICURL || secrets.COS_PUBLICBASICURL }}
           FN_KNOCK_COS_OUTPUT_DIR: ${{ github.workspace }}/dist/cos-publish
@@ -814,17 +820,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.preflight.outputs.tag }}
           VERSION: ${{ needs.preflight.outputs.version }}
+          PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
         shell: bash
         run: |
-          if gh release view "${TAG}" --json isDraft >/tmp/release.json 2>/dev/null; then
-            jq -e '.isDraft == true' /tmp/release.json >/dev/null ||
+          if gh release view "${TAG}" --json isDraft,isPrerelease >/tmp/release.json 2>/dev/null; then
+            jq -e --argjson prerelease "${PRERELEASE}" \
+              '.isDraft == true and .isPrerelease == $prerelease' \
+              /tmp/release.json >/dev/null ||
               { echo "Published release ${TAG} already exists; refusing to overwrite it" >&2; exit 1; }
           else
-            gh release create "${TAG}" \
-              --draft \
-              --verify-tag \
-              --title "fn-knock ${VERSION}" \
+            release_args=(
+              --draft
+              --verify-tag
+              --title "fn-knock ${VERSION}"
               --notes-file "release-notes/${VERSION}.md"
+            )
+            if [ "${PRERELEASE}" = "true" ]; then
+              release_args+=(--prerelease)
+            fi
+            gh release create "${TAG}" "${release_args[@]}"
           fi
 
           find dist/release-assets -maxdepth 1 -type f -exec basename {} \; | sort > /tmp/expected-assets
@@ -840,7 +854,7 @@ jobs:
           diff -u /tmp/expected-assets /tmp/actual-assets
 
       - name: Publish and verify Docker latest
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && needs.preflight.outputs.prerelease != 'true'
         env:
           DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
         shell: bash
@@ -859,7 +873,7 @@ jobs:
           printf '%s\n' "${latest}" | grep -q 'linux/arm/v7'
 
       - name: Publish to Tencent COS and refresh latest CDN cache
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && needs.preflight.outputs.prerelease != 'true'
         env:
           COS_ACC: ${{ vars.COS_ACC || secrets.COS_ACC }}
           COS_BUCKET: ${{ vars.COS_BUCKET || secrets.COS_BUCKET }}
@@ -883,6 +897,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.preflight.outputs.tag }}
+          PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
         shell: bash
         run: |
-          gh release edit "${TAG}" --draft=false --latest
+          if [ "${PRERELEASE}" = "true" ]; then
+            gh release edit "${TAG}" --draft=false --prerelease
+          else
+            gh release edit "${TAG}" --draft=false --latest
+          fi

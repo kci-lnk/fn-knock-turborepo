@@ -95,6 +95,11 @@ if (-not $ReleaseBaseUrl) {
 }
 $Url = "$($ReleaseBaseUrl.TrimEnd('/'))/$ArtifactName"
 $PublishedAt = [DateTimeOffset]::UtcNow.ToString("o")
+$ReleaseChannel = if ($env:FN_KNOCK_RELEASE_CHANNEL) {
+  [string]$env:FN_KNOCK_RELEASE_CHANNEL
+} else {
+  "stable"
+}
 if (-not $ReleaseNotesPath) {
   $ReleaseNotesPath = Join-Path $Root "release-notes\$Version.md"
 }
@@ -113,7 +118,7 @@ $Release = @{
   control_api_version = $ControlApiVersion
   runtime_target = "windows"
   architecture = "x86_64"
-  channel = "stable"
+  channel = $ReleaseChannel
   signature_policy = $SignaturePolicy.ToLowerInvariant()
   published_at = $PublishedAt
   release_notes = $ReleaseNotes

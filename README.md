@@ -221,6 +221,8 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 
 发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `bun run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。完成后运行 `bun run release check` 和 `bun run fn-knock:release:test`，并先提交、推送 Go 仓库。工具不会自动提交、打 Tag 或推送。
 
+`version.json` 的 `releaseChannel` 控制发布渠道，可取 `stable` 或 `beta`。Beta 仍使用纯数字 `X.Y.Z` 版本号和 `vX.Y.Z` Tag，但 GitHub Release 会标记为 Pre-release；CI 只发布固定版本的安装包与 Docker 镜像，不更新 Docker `latest`、腾讯 COS/CDN、自动更新清单或 GitHub Latest Release。发布说明必须明确提醒用户这是测试版本。
+
 `release status`、`release prepare`、`release gateway-check`、`release check`、发布前置检查以及 Windows/通用 Go 构建都会校验控制 API 契约；如果 Go stub 尚未从当前 proto 生成，流程会在产出安装包或发布资产前失败，并提示运行同步命令。正式发布 CI 还会重新生成全部 Go stub 并要求工作区无差异。
 
 推送与 `version.json` 一致的 `vX.Y.Z` Tag 后，发布工作流会冻结当前源码和 Go 网关提交，完成质量门禁、多平台构建、架构校验、校验清单、SBOM / provenance 及 GitHub Release 发布。

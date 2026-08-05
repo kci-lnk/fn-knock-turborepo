@@ -93,6 +93,7 @@ async function main() {
   const dockerImage = process.env.FN_KNOCK_DOCKER_IMAGE ?? "kcilnk/fn-knock";
   const dockerDigest = process.env.FN_KNOCK_DOCKER_DIGEST ?? "";
   const requireDocker = process.env.FN_KNOCK_REQUIRE_DOCKER === "1";
+  const releaseChannel = process.env.FN_KNOCK_RELEASE_CHANNEL ?? "stable";
 
   if (!directory || !version || !tag || !sourceCommit || !gatewayCommit) {
     fail(
@@ -101,6 +102,9 @@ async function main() {
   }
   if (tag !== `v${version}`)
     fail(`tag ${tag} does not match version ${version}`);
+  if (!new Set(["stable", "beta"]).has(releaseChannel)) {
+    fail(`release channel is invalid: ${releaseChannel}`);
+  }
   if (!Number.isSafeInteger(controlApiVersion) || controlApiVersion <= 0) {
     fail(`control API version is invalid: ${controlApiVersion}`);
   }
@@ -192,6 +196,8 @@ async function main() {
     schema_version: 1,
     version,
     tag,
+    channel: releaseChannel,
+    prerelease: releaseChannel !== "stable",
     source_commit: sourceCommit.toLowerCase(),
     gateway_commit: gatewayCommit.toLowerCase(),
     control_api_version: controlApiVersion,

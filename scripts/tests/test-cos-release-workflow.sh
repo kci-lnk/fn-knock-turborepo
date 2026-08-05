@@ -30,6 +30,12 @@ public_line="$(line_of '- name: Publish immutable GitHub Release')"
 
 [ "$(grep -Fc 'gh release edit "${TAG}" --draft=false --latest' "${WORKFLOW}")" = "1" ] ||
   fail "workflow must have exactly one public GitHub Release commit point"
+grep -Fq "needs.preflight.outputs.prerelease != 'true'" "${WORKFLOW}" ||
+  fail "beta releases must not mutate stable latest channels"
+grep -Fq 'release_args+=(--prerelease)' "${WORKFLOW}" ||
+  fail "beta GitHub Releases must be marked as prereleases"
+grep -Fq 'gh release edit "${TAG}" --draft=false --prerelease' "${WORKFLOW}" ||
+  fail "beta GitHub Releases must remain prereleases when published"
 grep -Fq "timeout-minutes: 60" "${WORKFLOW}" || fail "publish timeout was not increased"
 grep -Fq "group: fn-knock-stable-release" "${WORKFLOW}" ||
   fail "stable release mutations must use one global concurrency group"

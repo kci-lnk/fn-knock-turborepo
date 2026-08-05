@@ -74,6 +74,9 @@ do
   grep -Fqx 'package.tgz' <<< "${spk_listing}" || fail "${synology_arch} SPK is missing package.tgz"
   tar -xOf "${output_path}" INFO | grep -Fqx "arch=\"${synology_arch}\"" || \
     fail "${synology_arch} SPK INFO has the wrong architecture"
+  expected_beta="$(jq -r 'if (.releaseChannel // "stable") == "stable" then "no" else "yes" end' "${ROOT_DIR}/version.json")"
+  tar -xOf "${output_path}" INFO | grep -Fqx "beta=\"${expected_beta}\"" || \
+    fail "${synology_arch} SPK INFO has the wrong beta marker"
 
   tar -xOf "${output_path}" package.tgz > "${PACKAGE_TGZ}"
   payload_listing="$(tar -tzf "${PACKAGE_TGZ}")"

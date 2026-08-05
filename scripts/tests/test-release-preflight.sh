@@ -62,6 +62,15 @@ write_fixture
 run_preflight "${TAG}" >/dev/null
 
 write_fixture
+jq '.releaseChannel = "beta"' "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
+mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
+GITHUB_OUTPUT="${WORK_DIR}/preflight-output.txt" run_preflight "${TAG}" >/dev/null
+grep -Fqx 'release_channel=beta' "${WORK_DIR}/preflight-output.txt" || \
+  fail "beta release channel was not exported"
+grep -Fqx 'prerelease=true' "${WORK_DIR}/preflight-output.txt" || \
+  fail "beta release was not marked as a prerelease"
+
+write_fixture
 expect_failure "release tag must match vX.Y.Z" run_preflight "release-${VERSION}"
 
 write_fixture

@@ -1,5 +1,6 @@
 {
-  "version": "2.1.11",
+  "version": "2.2.0",
+  "releaseChannel": "beta",
   "githubUrl": "https://github.com/kci-lnk/fn-knock-turborepo",
   "backupSchemaVersion": 1,
   "backupImportMinVersion": "1.4.0"

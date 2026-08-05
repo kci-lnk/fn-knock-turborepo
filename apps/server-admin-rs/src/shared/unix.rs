@@ -43,17 +43,46 @@ pub(crate) fn send_signal(pid: i32, signal: i32) -> io::Result<()> {
     ))
 }
 
+#[cfg(unix)]
 pub(crate) fn process_exists(pid: i32) -> bool {
     if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
         return false;
     }
     match send_signal(pid, 0) {
         Ok(()) => true,
-        #[cfg(unix)]
         Err(error) => error.raw_os_error() == Some(libc::EPERM),
-        #[cfg(not(unix))]
-        Err(_) => false,
     }
+}
+
+#[cfg(windows)]
+pub(crate) fn process_exists(pid: i32) -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, STILL_ACTIVE},
+        System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+    };
+
+    let Ok(pid) = u32::try_from(pid) else {
+        return false;
+    };
+    if pid == 0 || pid == std::process::id() {
+        return false;
+    }
+    // SAFETY: the returned handle is checked and closed on every path.
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut exit_code = 0u32;
+        let ok = GetExitCodeProcess(handle, &mut exit_code) != 0;
+        CloseHandle(handle);
+        ok && exit_code == STILL_ACTIVE as u32
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn process_exists(_pid: i32) -> bool {
+    false
 }
 
 #[cfg(unix)]

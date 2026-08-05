@@ -76,6 +76,18 @@ fn validates_downloaded_darwin_binary_architectures() {
         "darwin-arm64",
         "Mach-O universal binary with 2 architectures: [x86_64] [arm64]"
     ));
+    assert!(downloads::downloaded_windows_architecture_matches(
+        "windows-amd64",
+        0x8664
+    ));
+    assert!(downloads::downloaded_windows_architecture_matches(
+        "windows-386",
+        0x014c
+    ));
+    assert!(!downloads::downloaded_windows_architecture_matches(
+        "windows-amd64",
+        0x014c
+    ));
 }
 
 #[test]
@@ -133,11 +145,15 @@ fn localizes_system_asset_and_dnsmasq_messages() {
         "已开始下载 Cloudflared"
     );
     assert_eq!(
-        cloudflared_delete_unsupported_message(&zh, "darwin").as_deref(),
-        Some("MAC 平台请手动移除 cloudflared")
+        cloudflared_delete_unsupported_message(&zh, "unsupported").as_deref(),
+        Some("当前平台不受支持")
     );
     assert_eq!(
-        cloudflared_delete_unsupported_message(&zh, "linux-amd64"),
+        cloudflared_delete_unsupported_message(&zh, "darwin-amd64"),
+        None
+    );
+    assert_eq!(
+        cloudflared_delete_unsupported_message(&zh, "windows-amd64"),
         None
     );
     assert_eq!(

@@ -7,7 +7,15 @@ use axum::{
 };
 use serde_json::{Value, json};
 
-use crate::{i18n::Translator, response, state::AppState};
+use crate::{
+    cloudflared,
+    cloudflared_utils::{
+        cloudflared_asset_name, cloudflared_binary_path, cloudflared_install_metadata_path,
+    },
+    i18n::Translator,
+    response,
+    state::AppState,
+};
 
 use super::{
     clock::{cached_clock_status, refresh_clock_status, sync_system_clock},
@@ -91,19 +99,32 @@ pub(super) async fn cloudflared_cancel(State(state): State<AppState>) -> Respons
 
 pub(super) async fn cloudflared_delete(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    if let Some(message) =
-        cloudflared_delete_unsupported_message(&translator, detect_cloudflared_platform())
-    {
+    let platform = detect_cloudflared_platform();
+    if let Some(message) = cloudflared_delete_unsupported_message(&translator, platform) {
         return response::error(StatusCode::INTERNAL_SERVER_ERROR, message);
     }
-    let path = state
-        .settings
-        .data_dir
-        .join("cloudflared")
-        .join("cloudflared");
+    let Some(path) = cloudflared_binary_path(&state.settings.data_dir, platform) else {
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tunnel_manager_text(&translator, "cloudflared", "platformUnsupported"),
+        );
+    };
+    let _manage_guard = state.cloudflared_manage_lock.lock().await;
+    let should_resume = match cloudflared::pause_cloudflared_for_asset_update(&state).await {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, "failed to stop cloudflared before deleting its binary");
+            return response::error(StatusCode::INTERNAL_SERVER_ERROR, error);
+        }
+    };
     if path.exists()
         && let Err(error) = fs::remove_file(&path)
     {
+        if let Err(resume_error) =
+            cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await
+        {
+            tracing::error!(%resume_error, "failed to resume cloudflared after delete failure");
+        }
         tracing::warn!(%error, path = %path.display(), "failed to delete cloudflared binary");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -114,6 +135,12 @@ pub(super) async fn cloudflared_delete(State(state): State<AppState>) -> Respons
                 &[("detail", error.to_string())],
             ),
         );
+    }
+    let metadata_path = cloudflared_install_metadata_path(&state.settings.data_dir);
+    if metadata_path.exists()
+        && let Err(error) = fs::remove_file(&metadata_path)
+    {
+        tracing::warn!(%error, path = %metadata_path.display(), "failed to delete cloudflared install metadata");
     }
     reset_progress("cloudflared");
     response::success_message(tunnel_manager_text(
@@ -128,8 +155,9 @@ pub(super) fn cloudflared_delete_unsupported_message(
     translator: &Translator,
     platform: &str,
 ) -> Option<String> {
-    (platform == "darwin")
-        .then(|| tunnel_manager_text(translator, "cloudflared", "macManualRemove"))
+    cloudflared_asset_name(platform)
+        .is_none()
+        .then(|| tunnel_manager_text(translator, "cloudflared", "platformUnsupported"))
 }
 
 pub(super) async fn frp_status(State(state): State<AppState>) -> Response {

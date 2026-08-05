@@ -103,8 +103,160 @@ export type FrpcInstancePollPayload = {
 export type CloudflaredProtocol = "auto" | "http2" | "quic";
 
 export type CloudflaredConfig = {
-  token: string;
+  mode: "manual" | "managed";
   protocol: CloudflaredProtocol;
+  apiTokenConfigured: boolean;
+  tunnelTokenConfigured: boolean;
+  accountId: string | null;
+  zoneId: string | null;
+  zoneName: string | null;
+  tunnel: CloudflareTunnelSummary | null;
+  optimizationEnabled: boolean;
+};
+
+export type CloudflareTunnelSummary = {
+  id: string;
+  name: string;
+  status?: string | null;
+  connections?: number;
+  ownership?: "dedicated" | "adopted";
+};
+
+export type CloudflareOptimizationCandidate = {
+  ip: string;
+  medianLatencyMs: number;
+  jitterMs: number;
+  lossRatio: number;
+  downloadMbps: number;
+  score: number;
+  verifiedAt?: string | null;
+};
+
+export type CloudflareOptimizationScan = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  phase: string;
+  progress: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelRequested: boolean;
+  candidates: CloudflareOptimizationCandidate[];
+  recommendedIp: string | null;
+  error: string | null;
+};
+
+export type CloudflareOptimizationDomain = {
+  hostname: string;
+  status: string;
+  sslStatus: string | null;
+  customHostnameId: string | null;
+  optimized: boolean;
+  message: string | null;
+};
+
+export type CloudflareManagedState = {
+  mode: "manual" | "managed";
+  apiTokenConfigured: boolean;
+  tunnelTokenConfigured: boolean;
+  connection: {
+    accountId: string | null;
+    zoneId: string | null;
+    zoneName: string | null;
+    configuredRootDomain: string;
+    rootDomainDrift: boolean;
+    remoteError: string | null;
+  };
+  tunnels: CloudflareTunnelSummary[];
+  managed: {
+    tunnel?: CloudflareTunnelSummary;
+    wildcardDns?: { id: string; name: string; content: string };
+    ingress?: { hostname: string };
+    updatedAt?: string;
+  };
+  optimization: {
+    enabled: boolean;
+    beta: boolean;
+    ipv4Only: boolean;
+    selected:
+      | (CloudflareOptimizationCandidate & {
+          selectedAt?: string;
+          source?: string;
+        })
+      | null;
+    fallbackActive: boolean;
+    publishSuppressed: boolean;
+    originHostname: string | null;
+    edgeHostname: string | null;
+    fallbackOrigin: {
+      origin: string;
+      status: string;
+      errors?: string[];
+      ownership?: "dedicated" | "adopted";
+      updatedAt?: string;
+    } | null;
+    capabilityProbe: {
+      status: "pending" | "awaiting-candidate" | "compatible" | "unsupported";
+      hostname?: string;
+      hostnameStatus?: string;
+      sslStatus?: string;
+      testedIp?: string;
+      testedAt?: string;
+      message?: string;
+    } | null;
+    domains: CloudflareOptimizationDomain[];
+    schedule: {
+      fullScanIntervalDays: number;
+      healthCheckIntervalMinutes: number;
+      nextFullScanAt: string | null;
+      lastFullScanAt: string | null;
+      lastHealthAt: string | null;
+      healthFailures: number;
+      lastSwitchReason: string | null;
+      lastError: string | null;
+    };
+    scans: CloudflareOptimizationScan[];
+  };
+  permissions: string[];
+};
+
+export type CloudflareReconcileOperation = {
+  id: string;
+  kind: string;
+  action: "create" | "update" | "delete" | "keep" | "fallback" | "probe";
+  target: string;
+  owned: boolean;
+};
+
+export type CloudflareReconcileConflict = {
+  id: string;
+  kind: string;
+  target: string;
+  message: string;
+  takeoverAllowed: boolean;
+};
+
+export type CloudflareReconcilePlan = {
+  planId: string;
+  expiresAt: string;
+  action: "apply" | "cleanup";
+  rootDomain: string;
+  accountId: string;
+  zoneId: string;
+  selectedTunnelId: string | null;
+  remoteFingerprint: string;
+  capabilities: Record<
+    "zoneRead" | "tunnelEdit" | "dnsEdit" | "sslCertificatesEdit",
+    {
+      required: boolean;
+      readable: boolean | null;
+      writeVerified: boolean | null;
+    }
+  >;
+  operations: CloudflareReconcileOperation[];
+  conflicts: CloudflareReconcileConflict[];
+  warnings: string[];
+  canApply: boolean;
 };
 
 export type CloudflaredStatusPayload = {
@@ -260,8 +412,76 @@ export const CloudflaredAPI = {
     const res = await apiClient.get("/cloudflared/config");
     return res.data.data;
   },
-  async saveConfig(config: CloudflaredConfig): Promise<void> {
+  async saveConfig(config: {
+    protocol: CloudflaredProtocol;
+    token?: string;
+    clearToken?: boolean;
+  }): Promise<void> {
     await apiClient.post("/cloudflared/config", config);
+  },
+  async saveCloudflareCredential(
+    apiToken: string,
+  ): Promise<CloudflareManagedState> {
+    const res = await apiClient.put("/cloudflared/cloudflare/credential", {
+      apiToken,
+    });
+    return res.data.data;
+  },
+  async deleteCloudflareCredential(): Promise<void> {
+    await apiClient.delete("/cloudflared/cloudflare/credential");
+  },
+  async getCloudflareState(): Promise<CloudflareManagedState> {
+    const res = await apiClient.get("/cloudflared/cloudflare/state");
+    return res.data.data;
+  },
+  async previewReconcile(payload: {
+    action?: "apply" | "cleanup";
+    tunnelMode: "dedicated" | "existing";
+    tunnelId?: string;
+    optimizationEnabled: boolean;
+    deleteDedicatedTunnel?: boolean;
+  }): Promise<CloudflareReconcilePlan> {
+    const res = await apiClient.post("/cloudflared/reconcile/preview", payload);
+    return res.data.data;
+  },
+  async applyReconcile(payload: {
+    planId: string;
+    takeoverResourceIds?: string[];
+  }): Promise<CloudflareManagedState> {
+    const res = await apiClient.post("/cloudflared/reconcile/apply", payload);
+    return res.data.data;
+  },
+  async startOptimizationScan(): Promise<CloudflareOptimizationScan> {
+    const res = await apiClient.post("/cloudflared/optimization/scans");
+    return res.data.data;
+  },
+  async getOptimizationScan(id: string): Promise<CloudflareOptimizationScan> {
+    const res = await apiClient.get(
+      `/cloudflared/optimization/scans/${encodeURIComponent(id)}`,
+    );
+    return res.data.data;
+  },
+  async cancelOptimizationScan(id: string): Promise<void> {
+    await apiClient.delete(
+      `/cloudflared/optimization/scans/${encodeURIComponent(id)}`,
+    );
+  },
+  async applyOptimization(payload: {
+    scanId: string;
+    candidateIp?: string;
+  }): Promise<{
+    selected: CloudflareOptimizationCandidate;
+    state: unknown;
+  }> {
+    const res = await apiClient.post(
+      "/cloudflared/optimization/apply",
+      payload,
+    );
+    return res.data.data;
+  },
+  async fallbackOptimization(): Promise<{ fallbackActive: boolean }> {
+    const res = await apiClient.post("/cloudflared/optimization/fallback");
+    return res.data.data;
   },
   async start(): Promise<{ pid: number }> {
     const res = await apiClient.post("/cloudflared/start");

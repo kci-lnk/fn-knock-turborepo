@@ -814,6 +814,13 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
         .set_string_value("fn_knock:test:included", "changed")
         .await
         .unwrap();
+    let cloudflared_directory = state.settings.data_dir.join("cloudflared");
+    std::fs::create_dir_all(&cloudflared_directory).unwrap();
+    std::fs::write(
+        cloudflared_directory.join("cloudflared.json"),
+        r#"{"token":"restore-secret","protocol":"auto"}"#,
+    )
+    .unwrap();
 
     let translator = Translator::from_state(&state).await;
     let result = import_backup_archive_buffer(&state, archive.buffer, &translator)
@@ -833,6 +840,15 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     assert_eq!(config["enabled"], json!(true));
     assert_eq!(config["interval_hours"], json!(12));
     assert_eq!(config["retention_days"], json!(30));
+    let cloudflared_config =
+        std::fs::read_to_string(cloudflared_directory.join("cloudflared.json")).unwrap();
+    assert!(!cloudflared_config.contains("restore-secret"));
+    assert!(
+        !cloudflared_directory
+            .join("cloudflare-api-token.enc")
+            .exists()
+    );
+    assert!(!cloudflared_directory.join("tunnel-token.enc").exists());
 }
 
 #[tokio::test]

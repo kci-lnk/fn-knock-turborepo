@@ -13,11 +13,22 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs as tokio_fs, process::Command, sync::Mutex};
 
+mod cloudflare_api;
+mod managed;
+mod optimization;
+mod secrets;
+
+use secrets::{CloudflaredSecretStore, SecretKind, atomic_private_write};
+
 use crate::{
+    cloudflared_utils::{
+        cloudflared_asset_name, cloudflared_binary_checksum_is_current, cloudflared_binary_path,
+        cloudflared_install_is_current, detect_cloudflared_platform,
+    },
     i18n::Translator,
     response,
     state::AppState,
@@ -74,12 +85,20 @@ struct CloudflaredManager {
     config_path: PathBuf,
     bin_path: PathBuf,
     pid_path: PathBuf,
+    runtime_token_path: PathBuf,
 }
 
 #[derive(Deserialize)]
 struct LogsQuery {
     limit: Option<String>,
     cursor: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+struct CloudflaredPidRecord {
+    pid: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    creation_time: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -99,10 +118,12 @@ pub fn cloudflared_routes() -> Router<AppState> {
         .route("/api/admin/cloudflared/stop", post(stop))
         .route("/api/admin/cloudflared/logs", get(logs).delete(clear_logs))
         .route("/api/admin/cloudflared/poll", get(poll))
+        .merge(managed::routes())
 }
 
 pub fn start_cloudflared_tasks(state: AppState) {
     manager(&state).ensure_dir();
+    optimization::start_tasks(state.clone());
     tokio::spawn(async move {
         match should_resume_tunnel(&state).await {
             Ok(true) => {
@@ -124,6 +145,28 @@ pub fn start_cloudflared_tasks(state: AppState) {
             Err(error) => tracing::warn!(%error, "failed to load cloudflared resume state"),
         }
     });
+}
+
+pub(crate) fn schedule_managed_reconcile_after_host_mappings_change(state: AppState) {
+    optimization::schedule_after_host_mappings_change(state);
+}
+
+pub(crate) async fn clear_credentials_after_backup_restore(state: &AppState) -> Result<(), String> {
+    let _guard = state.cloudflared_manage_lock.lock().await;
+    if let Ok(handle) = ensure_cloudflared_supervisor(state).await {
+        handle.stop().await?;
+    }
+    let manager = manager(state);
+    // Reading first performs the legacy plaintext migration and rewrites the
+    // non-secret config before both encrypted credentials are removed.
+    let _ = manager.read_config()?;
+    manager.secret_store().delete(SecretKind::ApiToken)?;
+    manager.secret_store().delete(SecretKind::TunnelToken)?;
+    match tokio_fs::remove_file(&manager.runtime_token_path).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 async fn status(State(state): State<AppState>) -> Response {
@@ -152,13 +195,11 @@ async fn status(State(state): State<AppState>) -> Response {
 }
 
 async fn config(State(state): State<AppState>) -> Response {
+    let _guard = state.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match manager(&state).read_config() {
-        Ok(config) => response::ok(json!({
-            "token": config.token,
-            "protocol": config.protocol,
-        }))
-        .into_response(),
+        Ok(config) => response::ok(managed::public_config_state(&state, &config.protocol).await)
+            .into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to read cloudflared config");
             response::error(
@@ -170,25 +211,111 @@ async fn config(State(state): State<AppState>) -> Response {
 }
 
 async fn save_config(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+    let _guard = state.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
+    let manager = manager(&state);
+    let previous_config = match manager.read_config() {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to read cloudflared config before update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                cloudflared_text(&translator, "configReadFailed"),
+            );
+        }
+    };
+    let previous_managed = managed::load_managed_config(&state).await;
+    let token_input = body.get("token").and_then(Value::as_str).map(str::trim);
+    let clear_token = body.get("clearToken").and_then(Value::as_bool) == Some(true);
+    let replacement_token = (!clear_token)
+        .then_some(token_input)
+        .flatten()
+        .filter(|value| !value.is_empty());
+    let credential_changed = clear_token || replacement_token.is_some();
+    let credential_result = if clear_token {
+        manager.secret_store().delete(SecretKind::TunnelToken)
+    } else if let Some(token) = replacement_token {
+        manager.secret_store().write(SecretKind::TunnelToken, token)
+    } else {
+        Ok(())
+    };
+    if let Err(error) = credential_result {
+        tracing::warn!(%error, "failed to update cloudflared Tunnel Token");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            cloudflared_text(&translator, "configWriteFailed"),
+        );
+    }
+    if credential_changed && let Err(error) = managed::mark_manual_mode(&state).await {
+        let rollback =
+            restore_manual_config(&state, &manager, &previous_config, &previous_managed).await;
+        tracing::warn!(%error, ?rollback, "failed to mark cloudflared manual mode");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            cloudflared_text(&translator, "configWriteFailed"),
+        );
+    }
     let config = CloudflaredConfig {
-        token: body
-            .get("token")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
+        token: replacement_token.map(str::to_string).unwrap_or_else(|| {
+            if clear_token {
+                String::new()
+            } else {
+                previous_config.token.clone()
+            }
+        }),
         protocol: normalize_protocol(body.get("protocol").and_then(Value::as_str)),
     };
-    match manager(&state).write_config(&config) {
+    match manager.write_config(&config) {
         Ok(()) => {
-            let restart = match ensure_cloudflared_supervisor(&state).await {
-                Ok(handle) if handle.snapshot().desired_running => handle.restart().await.map(drop),
-                Ok(_) => Ok(()),
-                Err(error) => Err(error),
+            let handle = match ensure_cloudflared_supervisor(&state).await {
+                Ok(handle) => handle,
+                Err(error) => {
+                    let rollback = restore_manual_config(
+                        &state,
+                        &manager,
+                        &previous_config,
+                        &previous_managed,
+                    )
+                    .await;
+                    if let Err(rollback_error) = rollback {
+                        tracing::error!(%rollback_error, "failed to roll back cloudflared config update");
+                    }
+                    return response::error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        localize_cloudflared_error(&translator, &error),
+                    );
+                }
+            };
+            let previously_desired = handle.snapshot().desired_running;
+            let restart = if clear_token {
+                handle.stop().await
+            } else if previously_desired {
+                handle.restart().await.map(drop)
+            } else {
+                Ok(())
             };
             match restart {
                 Ok(()) => response::success_empty().into_response(),
                 Err(error) => {
+                    let rollback = restore_manual_config(
+                        &state,
+                        &manager,
+                        &previous_config,
+                        &previous_managed,
+                    )
+                    .await;
+                    if let Err(rollback_error) = rollback {
+                        tracing::error!(%rollback_error, "failed to roll back cloudflared config update");
+                    } else {
+                        let recovery = if previously_desired {
+                            handle.start().await.map(drop)
+                        } else {
+                            handle.stop().await
+                        };
+                        if let Err(recovery_error) = recovery {
+                            tracing::error!(%recovery_error, "failed to restore cloudflared runtime after rollback");
+                        }
+                    }
                     tracing::warn!(%error, "failed to restart cloudflared after config update");
                     response::error(
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -198,6 +325,11 @@ async fn save_config(State(state): State<AppState>, Json(body): Json<Value>) -> 
             }
         }
         Err(error) => {
+            let rollback =
+                restore_manual_config(&state, &manager, &previous_config, &previous_managed).await;
+            if let Err(rollback_error) = rollback {
+                tracing::error!(%rollback_error, "failed to roll back cloudflared config update");
+            }
             tracing::warn!(%error, "failed to write cloudflared config");
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -207,7 +339,27 @@ async fn save_config(State(state): State<AppState>, Json(body): Json<Value>) -> 
     }
 }
 
+async fn restore_manual_config(
+    state: &AppState,
+    manager: &CloudflaredManager,
+    previous_config: &CloudflaredConfig,
+    previous_managed: &Value,
+) -> Result<(), String> {
+    if previous_config.token.is_empty() {
+        manager.secret_store().delete(SecretKind::TunnelToken)?;
+    } else {
+        manager
+            .secret_store()
+            .write(SecretKind::TunnelToken, &previous_config.token)?;
+    }
+    managed::save_managed_config(state, previous_managed)
+        .await
+        .map_err(|error| error.to_string())?;
+    manager.write_config(previous_config)
+}
+
 async fn start(State(state): State<AppState>) -> Response {
+    let _guard = state.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
     if !manager.downloaded() {
@@ -238,6 +390,7 @@ async fn start(State(state): State<AppState>) -> Response {
 }
 
 async fn stop(State(state): State<AppState>) -> Response {
+    let _guard = state.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let result = match ensure_cloudflared_supervisor(&state).await {
         Ok(handle) => handle.stop().await,
@@ -338,10 +491,19 @@ async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
 impl CloudflaredManager {
     fn new(data_dir: &Path) -> Self {
         let dir = data_dir.join("cloudflared");
+        let bin_path = cloudflared_binary_path(data_dir, detect_cloudflared_platform())
+            .unwrap_or_else(|| {
+                dir.join(if cfg!(windows) {
+                    "cloudflared.exe"
+                } else {
+                    "cloudflared"
+                })
+            });
         Self {
             config_path: dir.join("cloudflared.json"),
-            bin_path: dir.join("cloudflared"),
+            bin_path,
             pid_path: dir.join("cloudflared.pid"),
+            runtime_token_path: dir.join("tunnel-token.runtime"),
             dir,
         }
     }
@@ -351,15 +513,12 @@ impl CloudflaredManager {
     }
 
     fn asset_status(&self) -> Value {
-        let platform = detect_platform();
-        let downloaded = match platform.as_str() {
-            "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" => {
-                self.bin_path.exists()
-            }
-            _ => false,
-        };
+        let platform = detect_cloudflared_platform();
+        let supported = cloudflared_asset_name(platform).is_some();
+        let downloaded = supported
+            && cloudflared_install_is_current(self.dir.parent().unwrap_or(&self.dir), platform);
         json!({
-            "supported": platform != "unsupported",
+            "supported": supported,
             "platform": platform,
             "downloaded": downloaded,
             "progress": { "status": "idle", "percent": 0 }
@@ -374,15 +533,17 @@ impl CloudflaredManager {
     }
 
     fn executable(&self) -> Result<String, String> {
-        match detect_platform().as_str() {
-            "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" => {
-                if self.bin_path.exists() {
-                    Ok(self.bin_path.to_string_lossy().to_string())
-                } else {
-                    Err("Cloudflared is not initialized".to_string())
-                }
-            }
-            _ => Err("Cloudflared platform is unsupported".to_string()),
+        if cloudflared_asset_name(detect_cloudflared_platform()).is_none() {
+            return Err("Cloudflared platform is unsupported".to_string());
+        }
+        let data_dir = self.dir.parent().unwrap_or(&self.dir);
+        let platform = detect_cloudflared_platform();
+        if cloudflared_install_is_current(data_dir, platform)
+            && cloudflared_binary_checksum_is_current(data_dir, platform)
+        {
+            Ok(self.bin_path.to_string_lossy().to_string())
+        } else {
+            Err("Cloudflared is not initialized".to_string())
         }
     }
 
@@ -390,20 +551,37 @@ impl CloudflaredManager {
         self.ensure_dir();
         if !self.config_path.exists() {
             let config = CloudflaredConfig {
-                token: String::new(),
+                token: self
+                    .secret_store()
+                    .read(SecretKind::TunnelToken)?
+                    .unwrap_or_default(),
                 protocol: "auto".to_string(),
             };
             self.write_config(&config)?;
             return Ok(config);
         }
         let raw = fs::read_to_string(&self.config_path).map_err(|error| error.to_string())?;
-        let value = serde_json::from_str::<Value>(&raw).unwrap_or_else(|_| json!({}));
+        let mut value = serde_json::from_str::<Value>(&raw).unwrap_or_else(|_| json!({}));
+        let legacy_token = value
+            .get("token")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if !legacy_token.is_empty() {
+            self.secret_store()
+                .write(SecretKind::TunnelToken, &legacy_token)?;
+            if let Some(object) = value.as_object_mut() {
+                object.remove("token");
+                object.insert("credential_migrated".to_string(), json!(true));
+            }
+            self.write_non_secret_value(&value)?;
+        }
         Ok(CloudflaredConfig {
-            token: value
-                .get("token")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
+            token: self
+                .secret_store()
+                .read(SecretKind::TunnelToken)?
+                .unwrap_or_default(),
             protocol: normalize_protocol(value.get("protocol").and_then(Value::as_str)),
         })
     }
@@ -411,14 +589,28 @@ impl CloudflaredManager {
     fn write_config(&self, config: &CloudflaredConfig) -> Result<(), String> {
         self.ensure_dir();
         let value = json!({
-            "token": config.token,
             "protocol": normalize_protocol(Some(&config.protocol)),
+            "credential_migrated": true,
         });
-        fs::write(
+        self.write_non_secret_value(&value)
+    }
+
+    fn write_non_secret_value(&self, value: &Value) -> Result<(), String> {
+        atomic_private_write(
             &self.config_path,
-            serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string()),
+            serde_json::to_string_pretty(value)
+                .unwrap_or_else(|_| "{}".to_string())
+                .as_bytes(),
         )
         .map_err(|error| error.to_string())
+    }
+
+    fn secret_store(&self) -> CloudflaredSecretStore {
+        CloudflaredSecretStore::new(self.dir.clone())
+    }
+
+    fn write_runtime_token(&self, token: &str) -> Result<(), String> {
+        atomic_private_write(&self.runtime_token_path, token.as_bytes())
     }
 }
 
@@ -426,7 +618,9 @@ fn manager(state: &AppState) -> CloudflaredManager {
     CloudflaredManager::new(&state.settings.data_dir)
 }
 
-async fn ensure_cloudflared_supervisor(state: &AppState) -> Result<SupervisorHandle, String> {
+pub(crate) async fn ensure_cloudflared_supervisor(
+    state: &AppState,
+) -> Result<SupervisorHandle, String> {
     if let Some(handle) = state
         .tunnel_supervisors
         .get(CLOUDFLARED_SUPERVISOR_KEY)
@@ -465,6 +659,26 @@ async fn ensure_cloudflared_supervisor(state: &AppState) -> Result<SupervisorHan
         .await)
 }
 
+pub(crate) async fn pause_cloudflared_for_asset_update(state: &AppState) -> Result<bool, String> {
+    let handle = ensure_cloudflared_supervisor(state).await?;
+    let snapshot = handle.snapshot();
+    let should_resume = snapshot.desired_running || snapshot.running;
+    if should_resume {
+        handle.stop().await?;
+    }
+    Ok(should_resume)
+}
+
+pub(crate) async fn resume_cloudflared_after_asset_update(
+    state: &AppState,
+    should_resume: bool,
+) -> Result<(), String> {
+    if should_resume {
+        ensure_cloudflared_supervisor(state).await?.start().await?;
+    }
+    Ok(())
+}
+
 struct CloudflaredProcessAdapter {
     state: AppState,
     manager: CloudflaredManager,
@@ -487,41 +701,85 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
         if !cloudflared_token_configured(&config.token) {
             return Err("Cloudflared token is required".to_string());
         }
+        let executable = self.manager.executable()?;
+        ensure_token_file_supported(&executable).await?;
         *self
             .secret
             .write()
             .unwrap_or_else(|error| error.into_inner()) = config.token.clone();
-        let executable = self.manager.executable()?;
+        self.manager.write_runtime_token(&config.token)?;
         Ok(ProcessLaunch {
             executable: executable.into(),
-            args: build_args(&config).into_iter().map(Into::into).collect(),
+            args: build_args(&config, &self.manager.runtime_token_path)
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             current_dir: self.manager.dir.clone(),
         })
     }
 
     async fn find_existing_pid(&self) -> Option<u32> {
-        let runtime_pid = self
-            .state
-            .store
-            .get_json_value(CLOUDFLARED_RUNTIME_KEY)
-            .await
-            .ok()
-            .flatten()
-            .and_then(|value| serde_json::from_value::<SupervisorSnapshot>(value).ok())
-            .and_then(|snapshot| snapshot.pid);
-        for pid in [runtime_pid, read_pid_file(&self.manager.pid_path).await]
-            .into_iter()
-            .flatten()
+        let pid_record = read_pid_record(&self.manager.pid_path).await;
+        #[cfg(windows)]
         {
-            if is_owned_cloudflared_pid(pid, &self.current_secret()).await {
-                return Some(pid);
+            let record = pid_record?;
+            if is_owned_cloudflared_pid(
+                record.pid,
+                &self.current_secret(),
+                &self.manager.bin_path,
+                &self.manager.runtime_token_path,
+                record.creation_time,
+            )
+            .await
+            {
+                return Some(record.pid);
             }
+            return None;
         }
-        None
+        #[cfg(not(windows))]
+        {
+            let runtime_pid = self
+                .state
+                .store
+                .get_json_value(CLOUDFLARED_RUNTIME_KEY)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|value| serde_json::from_value::<SupervisorSnapshot>(value).ok())
+                .and_then(|snapshot| snapshot.pid);
+            for pid in [runtime_pid, pid_record.map(|record| record.pid)]
+                .into_iter()
+                .flatten()
+            {
+                if is_owned_cloudflared_pid(
+                    pid,
+                    &self.current_secret(),
+                    &self.manager.bin_path,
+                    &self.manager.runtime_token_path,
+                    None,
+                )
+                .await
+                {
+                    return Some(pid);
+                }
+            }
+            None
+        }
     }
 
     async fn owns_live_pid(&self, pid: u32) -> bool {
-        is_owned_cloudflared_pid(pid, &self.current_secret()).await
+        let creation_time = read_pid_record(&self.manager.pid_path)
+            .await
+            .filter(|record| record.pid == pid)
+            .and_then(|record| record.creation_time);
+        is_owned_cloudflared_pid(
+            pid,
+            &self.current_secret(),
+            &self.manager.bin_path,
+            &self.manager.runtime_token_path,
+            creation_time,
+        )
+        .await
     }
 
     async fn persist_snapshot(&self, snapshot: &SupervisorSnapshot) -> Result<(), String> {
@@ -638,12 +896,55 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
 
     async fn remove_pid_file(&self) {
         let _ = tokio_fs::remove_file(&self.manager.pid_path).await;
+        let _ = tokio_fs::remove_file(&self.manager.runtime_token_path).await;
     }
 
     async fn write_pid_file(&self, pid: u32) {
         let _ = tokio_fs::create_dir_all(&self.manager.dir).await;
-        let _ = tokio_fs::write(&self.manager.pid_path, format!("{pid}\n")).await;
+        #[cfg(windows)]
+        let content = serde_json::to_vec(&CloudflaredPidRecord {
+            pid,
+            creation_time: windows_process_creation_time(pid),
+        })
+        .unwrap_or_else(|_| format!(r#"{{"pid":{pid}}}"#).into_bytes());
+        #[cfg(not(windows))]
+        let content = format!("{pid}\n").into_bytes();
+        let _ = tokio_fs::write(&self.manager.pid_path, content).await;
     }
+}
+
+async fn ensure_token_file_supported(executable: &str) -> Result<(), String> {
+    let mut command = Command::new(executable);
+    command.arg("--version");
+    #[cfg(windows)]
+    command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+    let output = command
+        .output()
+        .await
+        .map_err(|error| format!("Failed to check cloudflared version: {error}"))?;
+    let text = format!(
+        "{} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    if cloudflared_version_supports_token_file(&text) {
+        Ok(())
+    } else {
+        Err("Cloudflared 2025.4.0 or later is required for secure token-file startup".to_string())
+    }
+}
+
+fn cloudflared_version_supports_token_file(output: &str) -> bool {
+    output
+        .split(|character: char| !(character.is_ascii_digit() || character == '.'))
+        .find_map(|candidate| {
+            let mut parts = candidate.split('.');
+            let year = parts.next()?.parse::<u32>().ok()?;
+            let month = parts.next()?.parse::<u32>().ok()?;
+            let patch = parts.next().unwrap_or("0").parse::<u32>().ok()?;
+            Some((year, month, patch) >= (2025, 4, 0))
+        })
+        .unwrap_or(false)
 }
 
 impl CloudflaredProcessAdapter {
@@ -737,24 +1038,126 @@ async fn emit_cloudflared_connectivity_with_state(
     }
 }
 
-async fn read_pid_file(path: &Path) -> Option<u32> {
-    tokio_fs::read_to_string(path)
-        .await
+async fn read_pid_record(path: &Path) -> Option<CloudflaredPidRecord> {
+    let raw = tokio_fs::read_to_string(path).await.ok()?;
+    if let Ok(record) = serde_json::from_str::<CloudflaredPidRecord>(&raw) {
+        return (record.pid > 0).then_some(record);
+    }
+    raw.trim()
+        .parse::<u32>()
         .ok()
-        .and_then(|value| value.trim().parse::<u32>().ok())
         .filter(|pid| *pid > 0)
+        .map(|pid| CloudflaredPidRecord {
+            pid,
+            creation_time: None,
+        })
 }
 
-async fn is_owned_cloudflared_pid(pid: u32, token: &str) -> bool {
+async fn is_owned_cloudflared_pid(
+    pid: u32,
+    token: &str,
+    executable: &Path,
+    token_file: &Path,
+    expected_creation_time: Option<u64>,
+) -> bool {
     if pid == std::process::id() || !i32::try_from(pid).is_ok_and(crate::unix::process_exists) {
         return false;
     }
-    let args = read_process_args(pid).await;
-    args.as_deref()
-        .is_some_and(|args| is_cloudflared_process_args(args, token))
+    #[cfg(windows)]
+    {
+        let _ = (token, token_file);
+        let Some(expected_creation_time) = expected_creation_time else {
+            return false;
+        };
+        return windows_process_creation_time(pid) == Some(expected_creation_time)
+            && windows_process_executable(pid)
+                .is_some_and(|actual| windows_paths_match(&actual, executable));
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = expected_creation_time;
+        let args = read_process_args(pid).await;
+        args.as_deref()
+            .is_some_and(|args| is_cloudflared_process_args(args, token, executable, token_file))
+    }
 }
 
+#[cfg(windows)]
+fn windows_process_creation_time(pid: u32) -> Option<u64> {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, FILETIME},
+        System::Threading::{GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+    };
+
+    // SAFETY: the process handle is checked, all FILETIME pointers are valid,
+    // and the handle is closed before returning.
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return None;
+        }
+        let mut creation = FILETIME::default();
+        let mut exit = FILETIME::default();
+        let mut kernel = FILETIME::default();
+        let mut user = FILETIME::default();
+        let ok = GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) != 0;
+        CloseHandle(handle);
+        ok.then_some((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
+    }
+}
+
+#[cfg(windows)]
+fn windows_process_executable(pid: u32) -> Option<PathBuf> {
+    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{
+            OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+            QueryFullProcessImageNameW,
+        },
+    };
+
+    // Windows permits paths longer than MAX_PATH. Start generously and retry if
+    // the process image path does not fit in the first buffer.
+    for capacity in [512usize, 32_768] {
+        // SAFETY: the process handle and output buffer are checked, and the
+        // handle is closed before every return from this iteration.
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle.is_null() {
+                return None;
+            }
+            let mut buffer = vec![0u16; capacity];
+            let mut size = u32::try_from(buffer.len()).ok()?;
+            let ok = QueryFullProcessImageNameW(
+                handle,
+                PROCESS_NAME_WIN32,
+                buffer.as_mut_ptr(),
+                &mut size,
+            ) != 0;
+            CloseHandle(handle);
+            if ok {
+                buffer.truncate(usize::try_from(size).ok()?);
+                return Some(PathBuf::from(OsString::from_wide(&buffer)));
+            }
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+fn windows_paths_match(actual: &Path, expected: &Path) -> bool {
+    let actual = fs::canonicalize(actual).unwrap_or_else(|_| actual.to_path_buf());
+    let expected = fs::canonicalize(expected).unwrap_or_else(|_| expected.to_path_buf());
+    actual
+        .to_string_lossy()
+        .eq_ignore_ascii_case(&expected.to_string_lossy())
+}
+
+#[cfg(not(windows))]
 async fn read_process_args(pid: u32) -> Option<Vec<String>> {
+    #[cfg(target_os = "linux")]
     if let Ok(bytes) = tokio_fs::read(format!("/proc/{pid}/cmdline")).await
         && !bytes.is_empty()
     {
@@ -769,33 +1172,114 @@ async fn read_process_args(pid: u32) -> Option<Vec<String>> {
             return Some(args);
         }
     }
-    let output = Command::new("ps")
-        .args(["-ww", "-p", &pid.to_string(), "-o", "args="])
-        .output()
-        .await
-        .ok()?;
-    output.status.success().then(|| {
-        String::from_utf8_lossy(&output.stdout)
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>()
-    })
+    #[cfg(target_os = "macos")]
+    {
+        read_macos_process_args(pid)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let output = Command::new("ps")
+            .args(["-ww", "-p", &pid.to_string(), "-o", "args="])
+            .output()
+            .await
+            .ok()?;
+        output.status.success().then(|| {
+            String::from_utf8_lossy(&output.stdout)
+                .split_whitespace()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+    }
 }
 
-fn is_cloudflared_process_args(args: &[String], token: &str) -> bool {
-    let executable = args
-        .first()
-        .and_then(|value| Path::new(value).file_name())
-        .and_then(|value| value.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    (executable == "cloudflared" || executable == "cloudflared.exe")
+#[cfg(target_os = "macos")]
+fn read_macos_process_args(pid: u32) -> Option<Vec<String>> {
+    let mut mib = [
+        libc::CTL_KERN,
+        libc::KERN_PROCARGS2,
+        i32::try_from(pid).ok()?,
+    ];
+    let mut size = 0usize;
+    // SAFETY: mib and the size out-pointer are valid. A null output buffer is
+    // the documented sizing query for sysctl.
+    if unsafe {
+        libc::sysctl(
+            mib.as_mut_ptr(),
+            mib.len() as u32,
+            std::ptr::null_mut(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    } != 0
+        || size < std::mem::size_of::<i32>()
+    {
+        return None;
+    }
+    let mut bytes = vec![0u8; size];
+    // SAFETY: bytes has `size` writable bytes and sysctl updates size to the
+    // number of bytes actually written.
+    if unsafe {
+        libc::sysctl(
+            mib.as_mut_ptr(),
+            mib.len() as u32,
+            bytes.as_mut_ptr().cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    } != 0
+    {
+        return None;
+    }
+    bytes.truncate(size);
+    parse_macos_procargs2(&bytes)
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn parse_macos_procargs2(bytes: &[u8]) -> Option<Vec<String>> {
+    let argc_bytes: [u8; 4] = bytes.get(..4)?.try_into().ok()?;
+    let argc = usize::try_from(i32::from_ne_bytes(argc_bytes)).ok()?;
+    if argc == 0 {
+        return None;
+    }
+    let mut cursor = 4 + bytes.get(4..)?.iter().position(|byte| *byte == 0)?;
+    while bytes.get(cursor) == Some(&0) {
+        cursor += 1;
+    }
+    let mut args = Vec::with_capacity(argc);
+    while args.len() < argc && cursor < bytes.len() {
+        let remainder = bytes.get(cursor..)?;
+        let end = remainder.iter().position(|byte| *byte == 0)?;
+        args.push(String::from_utf8_lossy(&remainder[..end]).into_owned());
+        cursor += end + 1;
+        while bytes.get(cursor) == Some(&0) {
+            cursor += 1;
+        }
+    }
+    (args.len() == argc).then_some(args)
+}
+
+#[cfg(any(not(windows), test))]
+fn is_cloudflared_process_args(
+    args: &[String],
+    token: &str,
+    executable: &Path,
+    token_file: &Path,
+) -> bool {
+    args.first().is_some_and(|value| {
+        let actual = fs::canonicalize(value).unwrap_or_else(|_| PathBuf::from(value));
+        let expected = fs::canonicalize(executable).unwrap_or_else(|_| executable.to_path_buf());
+        actual == expected
+    }) && !token.is_empty()
         && args.iter().any(|value| value == "tunnel")
         && args.iter().any(|value| value == "run")
-        && !token.is_empty()
-        && args
+        && (args
             .windows(2)
             .any(|pair| pair[0] == "--token" && pair[1] == token)
+            || args
+                .windows(2)
+                .any(|pair| pair[0] == "--token-file" && Path::new(&pair[1]) == token_file))
 }
 
 fn redact_cloudflared_line(line: &str, token: &str) -> String {
@@ -947,31 +1431,20 @@ fn normalize_protocol(value: Option<&str>) -> String {
     }
 }
 
-fn build_args(config: &CloudflaredConfig) -> Vec<String> {
+fn build_args(config: &CloudflaredConfig, token_file: &Path) -> Vec<String> {
     let mut args = vec!["tunnel".to_string(), "--no-autoupdate".to_string()];
     if config.protocol != "auto" {
         args.push("--protocol".to_string());
         args.push(config.protocol.clone());
     }
     args.push("run".to_string());
-    args.push("--token".to_string());
-    args.push(config.token.clone());
+    args.push("--token-file".to_string());
+    args.push(token_file.to_string_lossy().to_string());
     args
 }
 
 fn cloudflared_token_configured(token: &str) -> bool {
     !token.is_empty()
-}
-
-fn detect_platform() -> String {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", "x86_64") => "darwin-amd64".to_string(),
-        ("macos", "aarch64") => "darwin-arm64".to_string(),
-        ("linux", "x86_64" | "amd64") => "linux-amd64".to_string(),
-        ("linux", "aarch64" | "arm64") => "linux-arm64".to_string(),
-        ("linux", "arm") => "linux-arm".to_string(),
-        _ => "unsupported".to_string(),
-    }
 }
 
 #[cfg(test)]
@@ -986,10 +1459,13 @@ mod tests {
 
     #[test]
     fn builds_cloudflared_args() {
-        let args = build_args(&CloudflaredConfig {
-            token: "tok".to_string(),
-            protocol: "quic".to_string(),
-        });
+        let args = build_args(
+            &CloudflaredConfig {
+                token: "tok".to_string(),
+                protocol: "quic".to_string(),
+            },
+            Path::new("/run/fn-knock/tunnel-token"),
+        );
         assert_eq!(
             args,
             vec![
@@ -998,10 +1474,24 @@ mod tests {
                 "--protocol",
                 "quic",
                 "run",
-                "--token",
-                "tok"
+                "--token-file",
+                "/run/fn-knock/tunnel-token"
             ]
         );
+    }
+
+    #[test]
+    fn requires_cloudflared_version_with_token_file_support() {
+        assert!(cloudflared_version_supports_token_file(
+            "cloudflared version 2025.4.0 (built 2025-04-01)"
+        ));
+        assert!(cloudflared_version_supports_token_file(
+            "cloudflared version 2026.7.1"
+        ));
+        assert!(!cloudflared_version_supports_token_file(
+            "cloudflared version 2025.3.2"
+        ));
+        assert!(!cloudflared_version_supports_token_file("unknown"));
     }
 
     #[test]
@@ -1074,7 +1564,21 @@ mod tests {
                 "--token".to_string(),
                 "secret".to_string(),
             ],
-            "secret"
+            "secret",
+            Path::new("/opt/cloudflared"),
+            Path::new("/tmp/token")
+        ));
+        assert!(is_cloudflared_process_args(
+            &[
+                "/opt/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token-file".to_string(),
+                "/tmp/token".to_string(),
+            ],
+            "secret",
+            Path::new("/opt/cloudflared"),
+            Path::new("/tmp/token")
         ));
         assert!(!is_cloudflared_process_args(
             &[
@@ -1084,11 +1588,83 @@ mod tests {
                 "--token".to_string(),
                 "other-secret".to_string(),
             ],
-            "secret"
+            "secret",
+            Path::new("/opt/cloudflared"),
+            Path::new("/tmp/token")
+        ));
+        assert!(!is_cloudflared_process_args(
+            &[
+                "/other/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token-file".to_string(),
+                "/tmp/token".to_string(),
+            ],
+            "secret",
+            Path::new("/opt/cloudflared"),
+            Path::new("/tmp/token")
+        ));
+        assert!(!is_cloudflared_process_args(
+            &[
+                "/opt/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token-file".to_string(),
+                "/tmp/token".to_string(),
+            ],
+            "",
+            Path::new("/opt/cloudflared"),
+            Path::new("/tmp/token")
+        ));
+        assert!(is_cloudflared_process_args(
+            &[
+                "/Library/Application Support/FnKnock/cloudflared".to_string(),
+                "tunnel".to_string(),
+                "run".to_string(),
+                "--token-file".to_string(),
+                "/Library/Application Support/FnKnock/token".to_string(),
+            ],
+            "secret",
+            Path::new("/Library/Application Support/FnKnock/cloudflared"),
+            Path::new("/Library/Application Support/FnKnock/token")
         ));
         assert_eq!(
             redact_cloudflared_line("failed token=secret", "secret"),
             "failed token=[REDACTED]"
         );
+    }
+
+    #[test]
+    fn parses_macos_procargs_without_splitting_spaces() {
+        let mut bytes = 4i32.to_ne_bytes().to_vec();
+        bytes.extend_from_slice(b"/Library/Application Support/FnKnock/cloudflared\0\0");
+        bytes.extend_from_slice(
+            b"/Library/Application Support/FnKnock/cloudflared\0tunnel\0run\0--token-file\0",
+        );
+        assert_eq!(
+            parse_macos_procargs2(&bytes).unwrap(),
+            vec![
+                "/Library/Application Support/FnKnock/cloudflared",
+                "tunnel",
+                "run",
+                "--token-file",
+            ]
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reads_live_macos_process_arguments_without_ps() {
+        let args = read_macos_process_args(std::process::id()).unwrap();
+        assert!(!args.is_empty());
+    }
+
+    #[test]
+    fn deserializes_windows_pid_identity_records() {
+        let json =
+            serde_json::from_str::<CloudflaredPidRecord>(r#"{"pid":42,"creation_time":123456}"#)
+                .unwrap();
+        assert_eq!(json.pid, 42);
+        assert_eq!(json.creation_time, Some(123456));
     }
 }

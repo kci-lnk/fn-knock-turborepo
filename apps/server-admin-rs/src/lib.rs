@@ -49,9 +49,9 @@ pub(crate) use security::{
     general_blacklist, overview as security_overview, ssh as ssh_security, whitelist,
 };
 pub(crate) use shared::{
-    auth_mobility_keys, auth_session_keys, crypto_utils, frp_utils, fs_utils, http_body,
-    http_utils, json_utils, net_utils, node_compat, proxy_utils, text_utils, time_utils, unix,
-    version_utils,
+    auth_mobility_keys, auth_session_keys, cloudflared_utils, crypto_utils, frp_utils, fs_utils,
+    http_body, http_utils, json_utils, net_utils, node_compat, proxy_utils, text_utils, time_utils,
+    unix, version_utils,
 };
 pub(crate) use storage::store;
 pub(crate) use system::{

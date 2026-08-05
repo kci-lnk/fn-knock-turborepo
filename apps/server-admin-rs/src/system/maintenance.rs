@@ -32,7 +32,7 @@ use uuid::Uuid;
 
 use crate::{
     app_version::{APP_BACKUP_IMPORT_MIN_VERSION, APP_BACKUP_SCHEMA_VERSION, APP_LOCAL_VERSION},
-    common_auth_locations, fs_utils, gateway_settings,
+    cloudflared, common_auth_locations, fs_utils, gateway_settings,
     i18n::Translator,
     proxy_config, response, runtime_config, scanner, ssh_security, ssl,
     state::AppState,
@@ -88,6 +88,7 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:backoff:",
     "fn_knock:cidr:",
     "fn_knock:cloudflared:logs",
+    "fn_knock:cloudflared:optimization:runtime",
     "fn_knock:cloudflared:runtime:v2",
     "fn_knock:common_auth_locations:runtime",
     "fn_knock:config:backup:",

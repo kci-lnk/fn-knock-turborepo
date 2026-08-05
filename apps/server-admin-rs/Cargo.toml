@@ -15,6 +15,7 @@ incremental = false
 
 [dependencies]
 anyhow = "1.0"
+aes-gcm = "0.10"
 arc-swap = "1.7"
 async-trait = "0.1"
 axum = { version = "0.8.9", features = ["macros"] }

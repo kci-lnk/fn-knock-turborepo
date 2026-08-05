@@ -1,7 +1,7 @@
 use std::{
     fs,
-    io::Write,
-    path::Path,
+    io::{Read, Seek, SeekFrom, Write},
+    path::{Path, PathBuf},
     process::Command,
     sync::{Mutex, MutexGuard},
 };
@@ -9,8 +9,21 @@ use std::{
 const MAX_ASSET_DOWNLOAD_BYTES: u64 = 256 * 1024 * 1024;
 
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
-use crate::{frp_utils, fs_utils::chmod_executable, i18n::Translator, state::AppState};
+use crate::{
+    cloudflared,
+    cloudflared_utils::{
+        CloudflaredAssetSpec, cloudflared_asset_spec, cloudflared_binary_path,
+        cloudflared_install_is_current, cloudflared_install_metadata_path,
+    },
+    frp_utils,
+    fs_utils::{chmod_executable, replace_file},
+    i18n::Translator,
+    state::AppState,
+};
+
+pub(super) use crate::cloudflared_utils::detect_cloudflared_platform;
 
 pub(super) use crate::frp_utils::{
     detect_frp_platform, frp_archive_name, frp_binary_path, frp_extracted_dir,
@@ -27,8 +40,7 @@ use super::{
 
 pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_cloudflared_platform();
-    let bin_path = data_dir.join("cloudflared").join("cloudflared");
-    let downloaded = bin_path.exists();
+    let downloaded = cloudflared_install_is_current(data_dir, platform);
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
@@ -52,17 +64,16 @@ pub(super) fn build_frp_status(data_dir: &Path, translator: &Translator) -> Valu
 pub(super) async fn download_cloudflared(state: AppState) {
     let result = async {
         let platform = detect_cloudflared_platform();
-        let url = match platform {
-            "darwin-amd64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-darwin-amd64"),
-            "darwin-arm64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-darwin-arm64"),
-            "linux-amd64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-amd64"),
-            "linux-arm64" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-arm64"),
-            "linux-arm" => format!("{CLOUDFLARED_MIRROR_BASE}/cloudflared-linux-arm"),
-            _ => return Err("Cloudflared platform is unsupported".to_string()),
-        };
+        let asset = cloudflared_asset_spec(platform)
+            .ok_or_else(|| "Cloudflared platform is unsupported".to_string())?;
+        let url = format!(
+            "{CLOUDFLARED_MIRROR_BASE}/{}?version={}&sha256={}",
+            asset.file_name, asset.version, asset.sha256
+        );
         let dir = state.settings.data_dir.join("cloudflared");
         fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
-        let target = dir.join("cloudflared");
+        let target = cloudflared_binary_path(&state.settings.data_dir, platform)
+            .ok_or_else(|| "Cloudflared platform is unsupported".to_string())?;
         let temp = dir.join("cloudflared.tmp");
         download_to_file(&state, "cloudflared", &url, &temp).await?;
         if is_cancel_requested("cloudflared") {
@@ -73,12 +84,201 @@ pub(super) async fn download_cloudflared(state: AppState) {
             let _ = fs::remove_file(&temp);
             return Err(error);
         }
-        fs::rename(&temp, &target).map_err(|error| error.to_string())?;
-        chmod_executable(&target);
+        if let Err(error) = validate_cloudflared_checksum(&temp, asset) {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
+        }
+
+        // Keep tunnel state changes and the executable swap serialized with
+        // config/managed-tunnel operations. The download itself happens first,
+        // so a running tunnel is paused only for the short replacement window.
+        let _manage_guard = state.cloudflared_manage_lock.lock().await;
+        let should_resume = cloudflared::pause_cloudflared_for_asset_update(&state).await?;
+        let install = install_cloudflared_binary_transactionally(
+            &temp,
+            &target,
+            &state.settings.data_dir,
+            asset,
+        );
+        let transaction = match install {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                if let Err(resume_error) = cloudflared::resume_cloudflared_after_asset_update(
+                    &state,
+                    should_resume,
+                )
+                .await
+                {
+                    return Err(format!(
+                        "{error}; previous cloudflared resume failed: {resume_error}"
+                    ));
+                }
+                return Err(error);
+            }
+        };
+        if let Err(start_error) =
+            cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await
+        {
+            transaction.rollback()?;
+            let recovery =
+                cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await;
+            return Err(match recovery {
+                Ok(()) => format!(
+                    "Cloudflared update failed to start ({start_error}); previous binary restored"
+                ),
+                Err(recovery_error) => format!(
+                    "Cloudflared update failed to start ({start_error}); previous binary restored but restart failed: {recovery_error}"
+                ),
+            });
+        }
+        transaction.commit()?;
         Ok(())
     }
     .await;
+    if result.is_err() {
+        let _ = fs::remove_file(
+            state
+                .settings
+                .data_dir
+                .join("cloudflared")
+                .join("cloudflared.tmp"),
+        );
+    }
     finish_download("cloudflared", result);
+}
+
+struct CloudflaredInstallTransaction {
+    target: PathBuf,
+    target_backup: PathBuf,
+    metadata: PathBuf,
+    metadata_backup: PathBuf,
+    metadata_temp: PathBuf,
+    had_target: bool,
+    had_metadata: bool,
+}
+
+impl CloudflaredInstallTransaction {
+    fn rollback(self) -> Result<(), String> {
+        let mut errors = Vec::new();
+        if let Err(error) = reset_path(&self.target) {
+            errors.push(format!("remove replacement: {error}"));
+        }
+        if self.had_target
+            && let Err(error) = replace_file(&self.target_backup, &self.target)
+        {
+            errors.push(format!("restore previous binary: {error}"));
+        }
+        if let Err(error) = reset_path(&self.metadata) {
+            errors.push(format!("remove replacement metadata: {error}"));
+        }
+        if self.had_metadata
+            && let Err(error) = replace_file(&self.metadata_backup, &self.metadata)
+        {
+            errors.push(format!("restore previous metadata: {error}"));
+        }
+        let _ = reset_path(&self.metadata_temp);
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Cloudflared previous version restore failed: {}",
+                errors.join("; ")
+            ))
+        }
+    }
+
+    fn commit(self) -> Result<(), String> {
+        reset_path(&self.target_backup)?;
+        reset_path(&self.metadata_backup)?;
+        reset_path(&self.metadata_temp)
+    }
+}
+
+fn validate_cloudflared_checksum(path: &Path, asset: CloudflaredAssetSpec) -> Result<(), String> {
+    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    let actual = hex::encode(hasher.finalize());
+    if actual == asset.sha256 {
+        Ok(())
+    } else {
+        Err(format!(
+            "Cloudflared checksum mismatch for {} {}: expected {}, got {actual}",
+            asset.platform, asset.version, asset.sha256
+        ))
+    }
+}
+
+fn install_cloudflared_binary_transactionally(
+    downloaded: &Path,
+    target: &Path,
+    data_dir: &Path,
+    asset: CloudflaredAssetSpec,
+) -> Result<CloudflaredInstallTransaction, String> {
+    let directory = target
+        .parent()
+        .ok_or_else(|| "Cloudflared target directory is missing".to_string())?;
+    let target_backup = directory.join("cloudflared.previous");
+    let metadata = cloudflared_install_metadata_path(data_dir);
+    let metadata_backup = directory.join("install.previous.json");
+    let metadata_temp = directory.join("install.tmp.json");
+    reset_path(&target_backup)?;
+    reset_path(&metadata_backup)?;
+    reset_path(&metadata_temp)?;
+    fs::write(
+        &metadata_temp,
+        serde_json::to_vec_pretty(&json!({
+            "version": asset.version,
+            "platform": asset.platform,
+            "asset": asset.file_name,
+            "sha256": asset.sha256,
+        }))
+        .map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let had_target = target.exists();
+    if had_target {
+        replace_file(target, &target_backup).map_err(|error| error.to_string())?;
+    }
+    let had_metadata = metadata.exists();
+    if had_metadata && let Err(error) = replace_file(&metadata, &metadata_backup) {
+        if had_target {
+            let _ = replace_file(&target_backup, target);
+        }
+        return Err(error.to_string());
+    }
+
+    let transaction = CloudflaredInstallTransaction {
+        target: target.to_path_buf(),
+        target_backup,
+        metadata,
+        metadata_backup,
+        metadata_temp,
+        had_target,
+        had_metadata,
+    };
+    if let Err(error) = replace_file(downloaded, &transaction.target) {
+        transaction.rollback().map_err(|restore_error| {
+            format!("Cloudflared install failed ({error}); {restore_error}")
+        })?;
+        return Err(error.to_string());
+    }
+    chmod_executable(&transaction.target);
+    if let Err(error) = replace_file(&transaction.metadata_temp, &transaction.metadata) {
+        transaction.rollback().map_err(|restore_error| {
+            format!("Cloudflared metadata install failed ({error}); {restore_error}")
+        })?;
+        return Err(error.to_string());
+    }
+    Ok(transaction)
 }
 
 pub(super) async fn download_frp(state: AppState) {
@@ -238,22 +438,20 @@ fn timeout_seconds(duration: std::time::Duration) -> u64 {
     duration.as_secs().max(1)
 }
 
-pub(super) fn detect_cloudflared_platform() -> &'static str {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", "x86_64") => "darwin-amd64",
-        ("macos", "aarch64") => "darwin-arm64",
-        ("linux", "x86_64") => "linux-amd64",
-        ("linux", "aarch64") => "linux-arm64",
-        ("linux", "arm") | ("linux", "armv7") => "linux-arm",
-        _ => "unsupported",
-    }
-}
-
 fn validate_downloaded_architecture(
     path: &Path,
     platform: &str,
     label: &str,
 ) -> Result<(), String> {
+    if platform.starts_with("windows-") {
+        let machine = read_pe_machine(path)
+            .map_err(|error| format!("{label} architecture validation failed: {error}"))?;
+        return downloaded_windows_architecture_matches(platform, machine)
+            .then_some(())
+            .ok_or_else(|| {
+                format!("{label} architecture mismatch for {platform}: PE machine 0x{machine:04x}")
+            });
+    }
     if !platform.starts_with("darwin-") {
         return Ok(());
     }
@@ -279,6 +477,37 @@ fn validate_downloaded_architecture(
             description.trim()
         ))
     }
+}
+
+fn read_pe_machine(path: &Path) -> Result<u16, String> {
+    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut dos_header = [0u8; 64];
+    file.read_exact(&mut dos_header)
+        .map_err(|error| error.to_string())?;
+    if &dos_header[..2] != b"MZ" {
+        return Err("missing DOS executable signature".to_string());
+    }
+    let pe_offset = u32::from_le_bytes(
+        dos_header[0x3c..0x40]
+            .try_into()
+            .map_err(|_| "invalid DOS executable header".to_string())?,
+    );
+    file.seek(SeekFrom::Start(u64::from(pe_offset)))
+        .map_err(|error| error.to_string())?;
+    let mut pe_header = [0u8; 6];
+    file.read_exact(&mut pe_header)
+        .map_err(|error| error.to_string())?;
+    if &pe_header[..4] != b"PE\0\0" {
+        return Err("missing PE executable signature".to_string());
+    }
+    Ok(u16::from_le_bytes([pe_header[4], pe_header[5]]))
+}
+
+pub(super) fn downloaded_windows_architecture_matches(platform: &str, machine: u16) -> bool {
+    matches!(
+        (platform, machine),
+        ("windows-386", 0x014c) | ("windows-amd64", 0x8664)
+    )
 }
 
 pub(super) fn downloaded_architecture_matches(platform: &str, description: &str) -> bool {
@@ -614,5 +843,55 @@ pub(super) fn is_cancel_requested(asset: &str) -> bool {
 pub(super) fn reset_download_file(path: &Path) {
     if path.exists() {
         let _ = fs::remove_file(path);
+    }
+}
+
+#[cfg(test)]
+mod cloudflared_install_tests {
+    use super::*;
+
+    const TEST_ASSET: CloudflaredAssetSpec = CloudflaredAssetSpec {
+        platform: "test-platform",
+        file_name: "cloudflared-test",
+        version: "2026.7.3",
+        sha256: "9a3a45d01531a20e89ac6ae10b0b0beb0492acd7216a368aa062d1a5fecaf9cd",
+    };
+
+    #[test]
+    fn verifies_the_pinned_cloudflared_checksum() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cloudflared.tmp");
+        fs::write(&path, b"binary").unwrap();
+        validate_cloudflared_checksum(&path, TEST_ASSET).unwrap();
+        fs::write(&path, b"modified").unwrap();
+        assert!(validate_cloudflared_checksum(&path, TEST_ASSET).is_err());
+    }
+
+    #[test]
+    fn rolls_back_both_binary_and_install_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let data_dir = directory.path();
+        let cloudflared_dir = data_dir.join("cloudflared");
+        fs::create_dir_all(&cloudflared_dir).unwrap();
+        let downloaded = cloudflared_dir.join("cloudflared.tmp");
+        let target = cloudflared_dir.join("cloudflared");
+        let metadata = cloudflared_install_metadata_path(data_dir);
+        fs::write(&downloaded, b"binary").unwrap();
+        fs::write(&target, b"previous").unwrap();
+        fs::write(&metadata, b"previous metadata").unwrap();
+
+        let transaction =
+            install_cloudflared_binary_transactionally(&downloaded, &target, data_dir, TEST_ASSET)
+                .unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"binary");
+        assert!(
+            fs::read_to_string(&metadata)
+                .unwrap()
+                .contains(TEST_ASSET.sha256)
+        );
+
+        transaction.rollback().unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"previous");
+        assert_eq!(fs::read(&metadata).unwrap(), b"previous metadata");
     }
 }

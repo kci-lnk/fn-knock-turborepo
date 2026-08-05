@@ -3408,6 +3408,7 @@ dependencies = [
 name = "server-admin-rs"
 version = "2.1.11"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "arc-swap",
  "async-trait",

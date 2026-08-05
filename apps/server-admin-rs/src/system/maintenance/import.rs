@@ -153,6 +153,18 @@ pub(super) async fn import_backup_archive_buffer(
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
+    // Credentials belong to this installation and must be cleared before any
+    // restored runtime state can be synchronized or allowed to start.
+    if let Err(error) = cloudflared::clear_credentials_after_backup_restore(state).await {
+        let ownership_result = host_mappings_lease.ensure_owned().await;
+        let release_result = host_mappings_lease.release().await;
+        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        return Err(BackupImportError::internal(format!(
+            "Cloudflared credentials could not be cleared before backup restore: {error}"
+        )));
+    }
+
     let previous_keys = state
         .store
         .scan_keys(KNOCK_BACKUP_PREFIX, SCAN_COUNT)

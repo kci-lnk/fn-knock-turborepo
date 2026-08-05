@@ -1530,6 +1530,7 @@ async fn update_host_mappings(
         state.clone(),
         updated_config.clone(),
     );
+    crate::cloudflared::schedule_managed_reconcile_after_host_mappings_change(state.clone());
 
     host_mappings_response(normalized)
 }
@@ -1772,6 +1773,7 @@ async fn update_host_mapping_catalog(
             state.clone(),
             updated_config,
         );
+        crate::cloudflared::schedule_managed_reconcile_after_host_mappings_change(state.clone());
     }
 
     host_mapping_catalog_response(normalized, groups, grouped_view)

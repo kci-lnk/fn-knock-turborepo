@@ -5,6 +5,9 @@ import {
   CloudflaredAPI,
   ConfigAPI,
   SystemAPI,
+  type CloudflareManagedState,
+  type CloudflareOptimizationScan,
+  type CloudflareReconcilePlan,
   type CloudflaredProtocol,
   type TunnelSupervisorStatus,
 } from "@/lib/api";
@@ -57,10 +60,32 @@ export const useCloudflareTunnelController = () => {
   const logs = ref<string[]>([]);
   const cloudflaredLogAnalysis = ref<CloudflaredLogAnalysis | null>(null);
   const showInitDialog = ref(false);
-  const showToken = ref(true);
+  const showToken = ref(false);
+  const showApiToken = ref(false);
   const configLoaded = ref(false);
   const hasCloudflaredLogBaseline = ref(false);
   const token = ref("");
+  const tunnelTokenConfigured = ref(false);
+  const apiToken = ref("");
+  const apiTokenConfigured = ref(false);
+  const managedState = ref<CloudflareManagedState | null>(null);
+  const tunnelMode = ref<"dedicated" | "existing">("dedicated");
+  const selectedTunnelId = ref("");
+  const optimizationEnabled = ref(false);
+  const reconcilePlan = ref<CloudflareReconcilePlan | null>(null);
+  const takeoverResourceIds = ref<string[]>([]);
+  const optimizationScan = ref<CloudflareOptimizationScan | null>(null);
+  const selectedCandidateIp = ref("");
+  const isConnectingCloudflare = ref(false);
+  const isLoadingManagedState = ref(false);
+  const isPreviewingReconcile = ref(false);
+  const isApplyingReconcile = ref(false);
+  const deleteDedicatedTunnel = ref(false);
+  const isScanningOptimization = ref(false);
+  const isApplyingOptimization = ref(false);
+  const isFallingBackOptimization = ref(false);
+  let scanPollTimer: number | undefined;
+  let managedStatePollTimer: number | undefined;
   const protocol = ref<CloudflaredProtocol>("auto");
   const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort({
     onError: (error) => {
@@ -153,7 +178,7 @@ export const useCloudflareTunnelController = () => {
       isInit.value &&
       !supervisor.value.desiredRunning &&
       !supervisor.value.running &&
-      token.value,
+      (tunnelTokenConfigured.value || token.value.trim()),
   );
   const canStop = computed(
     () => supervisor.value.desiredRunning || supervisor.value.running,
@@ -165,9 +190,8 @@ export const useCloudflareTunnelController = () => {
   );
   const rootDomain = computed(
     () =>
-      configStore.config?.subdomain_mode?.root_domain
-        ?.trim()
-        .toLowerCase() || "",
+      configStore.config?.subdomain_mode?.root_domain?.trim().toLowerCase() ||
+      "",
   );
   const publicWildcardHostname = computed(() =>
     rootDomain.value ? `*.${rootDomain.value}` : "*.example.com",
@@ -216,6 +240,20 @@ export const useCloudflareTunnelController = () => {
     });
   });
 
+  const optimization = computed(() => managedState.value?.optimization ?? null);
+  const optimizationApplied = computed(
+    () => optimization.value?.enabled === true,
+  );
+  const reconcileHasUnconfirmedConflicts = computed(() => {
+    const plan = reconcilePlan.value;
+    if (!plan) return false;
+    return plan.conflicts.some(
+      (conflict) =>
+        !conflict.takeoverAllowed ||
+        !takeoverResourceIds.value.includes(conflict.id),
+    );
+  });
+
   const loadStatus = async () => {
     await runLoadStatus(async () => {
       const status = await CloudflaredAPI.getStatus();
@@ -233,11 +271,298 @@ export const useCloudflareTunnelController = () => {
     await runLoadConfig(
       async () => {
         const config = await CloudflaredAPI.getConfig();
-        token.value = config.token || "";
+        token.value = "";
+        tunnelTokenConfigured.value = config.tunnelTokenConfigured;
+        apiTokenConfigured.value = config.apiTokenConfigured;
         protocol.value = config.protocol || "auto";
+        optimizationEnabled.value = config.optimizationEnabled;
+        if (config.tunnel?.ownership === "adopted") {
+          tunnelMode.value = "existing";
+          selectedTunnelId.value = config.tunnel.id;
+        }
       },
       { onFinally: () => (configLoaded.value = true) },
     );
+  };
+  const loadManagedState = async (options?: { silent?: boolean }) => {
+    if (isLoadingManagedState.value) return;
+    isLoadingManagedState.value = true;
+    try {
+      const next = await CloudflaredAPI.getCloudflareState();
+      managedState.value = next;
+      apiTokenConfigured.value = next.apiTokenConfigured;
+      tunnelTokenConfigured.value = next.tunnelTokenConfigured;
+      optimizationEnabled.value = next.optimization.enabled;
+      const managedTunnel = next.managed.tunnel;
+      if (managedTunnel?.ownership === "adopted") {
+        tunnelMode.value = "existing";
+        selectedTunnelId.value = managedTunnel.id;
+      } else if (managedTunnel?.ownership === "dedicated") {
+        tunnelMode.value = "dedicated";
+      }
+      const latestScan = next.optimization.scans[0];
+      if (latestScan && !optimizationScan.value) {
+        optimizationScan.value = latestScan;
+      }
+    } catch (error) {
+      if (!options?.silent) {
+        toast.error(t("admin.cloudflareTunnel.managed.loadFailed"), {
+          description: extractErrorMessage(
+            error,
+            t("admin.cloudflareTunnel.managed.loadFailed"),
+          ),
+        });
+      }
+    } finally {
+      isLoadingManagedState.value = false;
+    }
+  };
+
+  const connectCloudflare = async () => {
+    const value = apiToken.value.trim();
+    if (!value) return;
+    isConnectingCloudflare.value = true;
+    try {
+      managedState.value = await CloudflaredAPI.saveCloudflareCredential(value);
+      apiToken.value = "";
+      apiTokenConfigured.value = true;
+      toast.success(t("admin.cloudflareTunnel.managed.connected"));
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.managed.connectFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.managed.connectFailed"),
+        ),
+      });
+    } finally {
+      isConnectingCloudflare.value = false;
+    }
+  };
+
+  const disconnectCloudflare = async () => {
+    isConnectingCloudflare.value = true;
+    try {
+      await CloudflaredAPI.deleteCloudflareCredential();
+      apiTokenConfigured.value = false;
+      apiToken.value = "";
+      if (managedState.value) managedState.value.apiTokenConfigured = false;
+      toast.success(t("admin.cloudflareTunnel.managed.disconnected"));
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.managed.disconnectFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.managed.disconnectFailed"),
+        ),
+      });
+    } finally {
+      isConnectingCloudflare.value = false;
+    }
+  };
+
+  const previewReconcile = async () => {
+    isPreviewingReconcile.value = true;
+    reconcilePlan.value = null;
+    takeoverResourceIds.value = [];
+    try {
+      reconcilePlan.value = await CloudflaredAPI.previewReconcile({
+        tunnelMode: tunnelMode.value,
+        tunnelId:
+          tunnelMode.value === "existing"
+            ? selectedTunnelId.value || undefined
+            : undefined,
+        optimizationEnabled: optimizationEnabled.value,
+      });
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.managed.previewFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.managed.previewFailed"),
+        ),
+      });
+    } finally {
+      isPreviewingReconcile.value = false;
+    }
+  };
+
+  const previewCleanup = async () => {
+    isPreviewingReconcile.value = true;
+    reconcilePlan.value = null;
+    takeoverResourceIds.value = [];
+    try {
+      reconcilePlan.value = await CloudflaredAPI.previewReconcile({
+        action: "cleanup",
+        tunnelMode: tunnelMode.value,
+        tunnelId: selectedTunnelId.value || undefined,
+        optimizationEnabled: optimizationEnabled.value,
+        deleteDedicatedTunnel: deleteDedicatedTunnel.value,
+      });
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.managed.previewFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.managed.previewFailed"),
+        ),
+      });
+    } finally {
+      isPreviewingReconcile.value = false;
+    }
+  };
+
+  const applyReconcile = async () => {
+    if (!reconcilePlan.value || reconcileHasUnconfirmedConflicts.value) return;
+    isApplyingReconcile.value = true;
+    try {
+      managedState.value = await CloudflaredAPI.applyReconcile({
+        planId: reconcilePlan.value.planId,
+        takeoverResourceIds: takeoverResourceIds.value,
+      });
+      tunnelTokenConfigured.value = managedState.value.tunnelTokenConfigured;
+      reconcilePlan.value = null;
+      takeoverResourceIds.value = [];
+      await loadConfig();
+      toast.success(t("admin.cloudflareTunnel.managed.applied"));
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.managed.applyFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.managed.applyFailed"),
+        ),
+      });
+    } finally {
+      isApplyingReconcile.value = false;
+    }
+  };
+
+  const pollOptimizationScan = async (id: string) => {
+    if (scanPollTimer) window.clearTimeout(scanPollTimer);
+    try {
+      const scan = await CloudflaredAPI.getOptimizationScan(id);
+      optimizationScan.value = scan;
+      isScanningOptimization.value = ["queued", "running"].includes(
+        scan.status,
+      );
+      if (scan.status === "completed") {
+        selectedCandidateIp.value = scan.recommendedIp || "";
+        await loadManagedState({ silent: true });
+        return;
+      }
+      if (["failed", "cancelled"].includes(scan.status)) return;
+      scanPollTimer = window.setTimeout(
+        () => void pollOptimizationScan(id),
+        1500,
+      );
+    } catch (error) {
+      isScanningOptimization.value = false;
+      toast.error(t("admin.cloudflareTunnel.optimization.scanFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.scanFailed"),
+        ),
+      });
+    }
+  };
+
+  const startOptimizationScan = async () => {
+    if (!optimizationApplied.value) {
+      toast.warning(
+        t("admin.cloudflareTunnel.optimization.reconcileRequiredTitle"),
+        {
+          description: t(
+            "admin.cloudflareTunnel.optimization.reconcileRequiredDescription",
+          ),
+        },
+      );
+      return;
+    }
+    isScanningOptimization.value = true;
+    try {
+      const scan = await CloudflaredAPI.startOptimizationScan();
+      optimizationScan.value = scan;
+      await pollOptimizationScan(scan.id);
+    } catch (error) {
+      isScanningOptimization.value = false;
+      toast.error(t("admin.cloudflareTunnel.optimization.scanFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.scanFailed"),
+        ),
+      });
+    }
+  };
+
+  const cancelOptimizationScan = async () => {
+    const scan = optimizationScan.value;
+    if (!scan) return;
+    try {
+      await CloudflaredAPI.cancelOptimizationScan(scan.id);
+      if (scanPollTimer) window.clearTimeout(scanPollTimer);
+      isScanningOptimization.value = false;
+      optimizationScan.value = {
+        ...scan,
+        status: "cancelled",
+        phase: "cancelled",
+      };
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.optimization.cancelFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.cancelFailed"),
+        ),
+      });
+    }
+  };
+
+  const applyOptimization = async () => {
+    const scan = optimizationScan.value;
+    if (!scan || scan.status !== "completed" || !optimizationApplied.value) {
+      if (!optimizationApplied.value) {
+        toast.warning(
+          t("admin.cloudflareTunnel.optimization.reconcileRequiredTitle"),
+          {
+            description: t(
+              "admin.cloudflareTunnel.optimization.reconcileRequiredDescription",
+            ),
+          },
+        );
+      }
+      return;
+    }
+    isApplyingOptimization.value = true;
+    try {
+      await CloudflaredAPI.applyOptimization({
+        scanId: scan.id,
+        candidateIp: selectedCandidateIp.value || undefined,
+      });
+      await loadManagedState({ silent: true });
+      toast.success(t("admin.cloudflareTunnel.optimization.applied"));
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.optimization.applyFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.applyFailed"),
+        ),
+      });
+    } finally {
+      isApplyingOptimization.value = false;
+    }
+  };
+
+  const fallbackOptimization = async () => {
+    isFallingBackOptimization.value = true;
+    try {
+      await CloudflaredAPI.fallbackOptimization();
+      await loadManagedState({ silent: true });
+      toast.success(t("admin.cloudflareTunnel.optimization.fallbackApplied"));
+    } catch (error) {
+      toast.error(t("admin.cloudflareTunnel.optimization.fallbackFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.cloudflareTunnel.optimization.fallbackFailed"),
+        ),
+      });
+    } finally {
+      isFallingBackOptimization.value = false;
+    }
   };
   const selectAsDefaultTunnel = async () => {
     await ConfigAPI.updateDefaultTunnel("cloudflared");
@@ -299,9 +624,13 @@ export const useCloudflareTunnelController = () => {
     await runSaveConfig(async () => {
       const shouldRestart = supervisor.value.desiredRunning;
       await CloudflaredAPI.saveConfig({
-        token: token.value.trim(),
         protocol: protocol.value,
+        ...(token.value.trim() ? { token: token.value.trim() } : {}),
       });
+      if (token.value.trim()) {
+        tunnelTokenConfigured.value = true;
+        token.value = "";
+      }
       await loadStatus();
       if (shouldRestart) {
         toast.success(t("admin.cloudflareTunnel.restartSuccess"));
@@ -353,13 +682,28 @@ export const useCloudflareTunnelController = () => {
       loadConfig(),
       loadAccessEntryPort(),
       configStore.config ? Promise.resolve() : configStore.loadConfig(),
+      loadManagedState({ silent: true }),
     ]);
     cloudflaredPolling.start();
+    managedStatePollTimer = window.setInterval(() => {
+      if (apiTokenConfigured.value) {
+        void loadManagedState({ silent: true });
+      }
+    }, 60_000);
   });
-  onUnmounted(() => cloudflaredPolling.stop());
+  onUnmounted(() => {
+    cloudflaredPolling.stop();
+    if (scanPollTimer) window.clearTimeout(scanPollTimer);
+    if (managedStatePollTimer) window.clearInterval(managedStatePollTimer);
+  });
 
   return {
     authServiceHost,
+    apiToken,
+    apiTokenConfigured,
+    applyOptimization,
+    applyReconcile,
+    cancelOptimizationScan,
     canStart,
     canStop,
     cloudflaredLogAnalysis,
@@ -369,26 +713,57 @@ export const useCloudflareTunnelController = () => {
     cloudflaredProtocolLabel,
     cloudflaredProtocolOptions,
     configLoaded,
+    connectCloudflare,
+    disconnectCloudflare,
+    deleteDedicatedTunnel,
+    fallbackOptimization,
     gotoResources,
     hasSubdomainRoot,
     isClearingLogs,
+    isApplyingOptimization,
+    isApplyingReconcile,
+    isConnectingCloudflare,
+    isFallingBackOptimization,
+    isLoadingManagedState,
+    isPreviewingReconcile,
     isReverseProxySubdomainMode,
     isSaving,
+    isScanningOptimization,
     isStarting,
     isStopping,
     logs,
+    managedState,
     onClearLogsClick,
     pid,
+    optimization,
+    optimizationApplied,
+    optimizationEnabled,
+    optimizationScan,
     protocol,
     publicWildcardHostname,
+    reconcileHasUnconfirmedConflicts,
+    reconcilePlan,
     running,
     saveConfig,
     showInitDialog,
+    showApiToken,
     showToken,
+    selectedCandidateIp,
+    selectedTunnelId,
+    startOptimizationScan,
     startCloudflared,
     stopCloudflared,
     supervisor,
+    takeoverResourceIds,
     t,
     token,
+    tunnelMode,
+    tunnelTokenConfigured,
+    previewReconcile,
+    previewCleanup,
   };
 };
+
+export type CloudflareTunnelController = ReturnType<
+  typeof useCloudflareTunnelController
+>;

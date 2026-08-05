@@ -530,12 +530,16 @@ impl SupervisorActor {
             Some(launch) => launch,
             None => self.adapter.prepare_launch().await?,
         };
-        let mut child = Command::new(&launch.executable)
+        let mut command = Command::new(&launch.executable);
+        command
             .args(&launch.args)
             .current_dir(&launch.current_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+        let mut child = command
             .spawn()
             .map_err(|error| format!("failed to spawn process: {error}"))?;
         let pid = child
@@ -1478,15 +1482,30 @@ async fn terminate_pid(pid: u32) -> Result<(), String> {
     }
     #[cfg(windows)]
     {
-        let status = Command::new("taskkill")
+        let taskkill = std::env::var_os("SystemRoot")
+            .map(PathBuf::from)
+            .map(|root| root.join("System32").join("taskkill.exe"))
+            .filter(|path| path.is_file())
+            .unwrap_or_else(|| PathBuf::from("taskkill.exe"));
+        let mut command = Command::new(taskkill);
+        command
             .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+        let status = command
             .status()
             .await
             .map_err(|error| format!("failed to run taskkill: {error}"))?;
-        return status
-            .success()
-            .then_some(())
-            .ok_or_else(|| format!("taskkill failed for pid {pid}"));
+        if !status.success() {
+            return Err(format!("taskkill failed for pid {pid}"));
+        }
+        let pid_i32 = i32::try_from(pid).map_err(|_| "invalid process id".to_string())?;
+        for _ in 0..20 {
+            if !crate::unix::process_exists(pid_i32) {
+                return Ok(());
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+        return Err(format!("process is still running after taskkill: {pid}"));
     }
     #[cfg(not(any(unix, windows)))]
     {

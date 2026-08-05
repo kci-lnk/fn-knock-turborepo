@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -78,6 +79,19 @@ pub struct AppStateInner {
     /// Serializes read-modify-write updates to the legacy aggregate tunnel
     /// runtime record shared by frpc and cloudflared supervisors.
     pub tunnel_runtime_update_lock: Mutex<()>,
+    /// Serializes Cloudflare discovery, preview/apply, DNS reconciliation and
+    /// optimization cutovers so a scheduled run cannot race an admin action.
+    pub cloudflared_manage_lock: Mutex<()>,
+    /// In-memory preview cache. Plans intentionally do not survive a restart;
+    /// every apply must be based on recently observed Cloudflare state.
+    pub cloudflared_plans: Mutex<HashMap<String, Value>>,
+    /// Bounded, non-secret optimization scan state exposed to the admin UI.
+    pub cloudflared_scan_jobs: RwLock<HashMap<String, Value>>,
+    /// Serializes manual and scheduled optimization scans so their combined
+    /// probe concurrency and download traffic stay within the advertised cap.
+    pub cloudflared_scan_lock: Mutex<()>,
+    /// Wakes the Cloudflare reconciler after config, mapping or credential changes.
+    pub cloudflared_schedule_notify: Notify,
 }
 
 impl AppState {
@@ -233,6 +247,11 @@ impl AppState {
                 waf_rules_update_lock: Mutex::new(()),
                 tunnel_supervisors: TunnelSupervisorRegistry::default(),
                 tunnel_runtime_update_lock: Mutex::new(()),
+                cloudflared_manage_lock: Mutex::new(()),
+                cloudflared_plans: Mutex::new(HashMap::new()),
+                cloudflared_scan_jobs: RwLock::new(HashMap::new()),
+                cloudflared_scan_lock: Mutex::new(()),
+                cloudflared_schedule_notify: Notify::new(),
             }),
         })
     }

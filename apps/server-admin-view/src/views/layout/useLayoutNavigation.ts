@@ -3,8 +3,8 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import {
   BellRing,
+  ChartNoAxesCombined,
   FileKey2,
-  FileSearch,
   Fingerprint,
   Globe2,
   LayoutDashboard,
@@ -151,14 +151,12 @@ export const useLayoutNavigation = () => {
       path: "/events",
       icon: BellRing,
     });
-    if (configStore.config?.gateway_logging?.enabled) {
-      items.push({
-        id: "gateway_request_logs",
-        name: t("admin.nav.requestLogs"),
-        path: "/request-logs",
-        icon: FileSearch,
-      });
-    }
+    items.push({
+      id: "gateway_request_logs",
+      name: t("admin.nav.requestLogs"),
+      path: "/request-analysis",
+      icon: ChartNoAxesCombined,
+    });
     if (configStore.config?.waf?.enabled) {
       items.push({
         id: "waf_logs",

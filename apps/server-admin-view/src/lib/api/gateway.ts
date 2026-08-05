@@ -6,6 +6,7 @@ import type {
   CidrProvincesPayload,
   CidrSelectorPayload,
   GatewayLogDatesPayload,
+  GatewayLogAnalyticsPayload,
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
   GatewayLoggingConfig,
@@ -30,6 +31,7 @@ export type {
   CidrSelectorPayload,
   GatewayHostResponseDetails,
   GatewayLogDatesPayload,
+  GatewayLogAnalyticsPayload,
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
   GatewayLoggingConfig,
@@ -87,6 +89,22 @@ export const GatewayLogsAPI = {
     page?: number;
   }): Promise<GatewayLogEntriesPayload> {
     const res = await apiClient.get("/gateway-logs/entries", {
+      params,
+    });
+    return res.data.data;
+  },
+  async getAnalytics(params: {
+    from: string;
+    to: string;
+  }): Promise<GatewayLogAnalyticsPayload> {
+    const res = await apiClient.get("/gateway-logs/analytics", { params });
+    return res.data.data;
+  },
+  async refreshAnalyticsGeo(params: {
+    from: string;
+    to: string;
+  }): Promise<{ refreshing: boolean }> {
+    const res = await apiClient.post("/gateway-logs/analytics", undefined, {
       params,
     });
     return res.data.data;

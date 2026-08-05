@@ -17,6 +17,13 @@ use crate::{
     state::AppState,
 };
 
+mod analytics;
+
+use analytics::{
+    hydrate_analytics_response, release_geo_refresh, spawn_geo_refresh, try_acquire_geo_refresh,
+    with_geo_refresh_lease,
+};
+
 fn gateway_logs_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.gatewayLogs.{key}"))
 }
@@ -33,6 +40,12 @@ struct GatewayLogQuery {
     logged_in: Option<String>,
     credential: Option<String>,
     waf_status: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GatewayLogAnalyticsQuery {
+    from: Option<String>,
+    to: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +66,10 @@ pub fn gateway_logs_routes() -> Router<AppState> {
         )
         .route("/api/admin/gateway-logs/directory", get(directory))
         .route("/api/admin/gateway-logs/dates", get(dates))
+        .route(
+            "/api/admin/gateway-logs/analytics",
+            get(analytics).post(refresh_analytics_geo),
+        )
         .route(
             "/api/admin/gateway-logs/entries",
             get(entries).delete(delete_entries),
@@ -189,6 +206,81 @@ async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQu
             )
         }
     }
+}
+
+async fn analytics(
+    State(state): State<AppState>,
+    Query(query): Query<GatewayLogAnalyticsQuery>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let result = state
+        .go_backend
+        .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
+            from_date: query.from.unwrap_or_default(),
+            to_date: query.to.unwrap_or_default(),
+        })
+        .await
+        .and_then(go_backend_data);
+
+    match result {
+        Ok(data) => response::ok(hydrate_analytics_response(&state, data).await).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to analyze gateway log entries");
+            response::error(
+                StatusCode::BAD_REQUEST,
+                gateway_logs_text(&translator, "readEntriesFailed"),
+            )
+        }
+    }
+}
+
+async fn refresh_analytics_geo(
+    State(state): State<AppState>,
+    Query(query): Query<GatewayLogAnalyticsQuery>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let lock_id = match try_acquire_geo_refresh(&state).await {
+        Ok(Some(lock_id)) => lock_id,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                gateway_logs_text(&translator, "geoRefreshActive"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to acquire gateway analytics geo refresh lock");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                gateway_logs_text(&translator, "geoRefreshFailed"),
+            );
+        }
+    };
+    let result = with_geo_refresh_lease(&state, &lock_id, async {
+        state
+            .go_backend
+            .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
+                from_date: query.from.unwrap_or_default(),
+                to_date: query.to.unwrap_or_default(),
+            })
+            .await
+            .and_then(go_backend_data)
+    })
+    .await;
+
+    let data = match result {
+        Ok(data) => data,
+        Err(error) => {
+            release_geo_refresh(&state, &lock_id).await;
+            tracing::warn!(%error, "failed to prepare gateway analytics geo refresh");
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                gateway_logs_text(&translator, "geoRefreshFailed"),
+            );
+        }
+    };
+
+    spawn_geo_refresh(&state, data, lock_id);
+    response::ok(json!({ "refreshing": true })).into_response()
 }
 
 async fn delete_entries(State(state): State<AppState>, body: Bytes) -> Response {
@@ -579,14 +671,13 @@ fn infer_gateway_log_client_ip(entry: &Value) -> String {
     if let Some(client_ip) = entry
         .get("client_ip")
         .and_then(Value::as_str)
+        .map(str::trim)
         .filter(|value| !value.is_empty())
     {
         let normalized = normalize_ip(client_ip);
-        return if normalized.is_empty() {
-            client_ip.to_string()
-        } else {
-            normalized
-        };
+        if !normalized.is_empty() {
+            return normalized;
+        }
     }
 
     let provider_candidates = split_forwarded_ips(entry.get("eo_connecting_ip"))
@@ -611,11 +702,7 @@ fn infer_gateway_log_client_ip(entry: &Value) -> String {
         }
     }
 
-    if remote_ip.is_empty() {
-        remote_raw.to_string()
-    } else {
-        remote_ip
-    }
+    remote_ip
 }
 
 fn split_forwarded_ips(value: Option<&Value>) -> Vec<String> {
@@ -740,7 +827,14 @@ mod tests {
                 "remote_ip": "10.0.0.2",
                 "eo_connecting_ip": "203.0.113.6"
             })),
-            "   "
+            "203.0.113.6"
+        );
+        assert_eq!(
+            infer_gateway_log_client_ip(&json!({
+                "client_ip": "not-an-ip",
+                "remote_ip": "also-invalid"
+            })),
+            ""
         );
     }
 

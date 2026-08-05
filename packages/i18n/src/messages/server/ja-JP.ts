@@ -638,6 +638,8 @@ export const jaJPServer = {
     readDirectoryFailed: "ログディレクトリの読み取りに失敗しました",
     readDatesFailed: "ログ日付の読み取りに失敗しました",
     readEntriesFailed: "リクエストログの読み取りに失敗しました",
+    geoRefreshActive: "IP 所在地の検索キューはすでに実行中です",
+    geoRefreshFailed: "IP 所在地の検索キューを開始できませんでした",
     deleteEntriesFailed: "リクエストログの削除に失敗しました",
     invalidJsonObject: "リクエスト本文は有効な JSON オブジェクトではありません",
   },

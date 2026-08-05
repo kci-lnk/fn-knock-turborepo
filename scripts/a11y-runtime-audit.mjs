@@ -33,7 +33,7 @@ const adminRoutes = [
   "/auth/oidc-providers",
   "/events",
   "/ssh-security",
-  "/request-logs",
+  "/request-analysis",
   "/waf-logs",
   "/system",
   "/system?tab=maintenance",

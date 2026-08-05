@@ -31,6 +31,9 @@ use super::{
 
 const OPTIMIZATION_RUNTIME_KEY: &str = "fn_knock:cloudflared:optimization:runtime:v1";
 const OPTIMIZATION_SETTINGS_KEY: &str = "fn_knock:cloudflared:optimization:settings:v1";
+const CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE: &str = "cloudflare-saas-required";
+const CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR: &str =
+    "No active business or capability hostname is available for TLS and SNI validation";
 const SPEEDTEST_HOST: &str = "speed.cloudflare.com";
 const SPEEDTEST_PATH: &str = "/__down";
 const MAX_CANDIDATES: usize = 128;
@@ -455,6 +458,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         "vantage": Value::Null,
         "sourceWarnings": [],
         "sourceFingerprint": Value::Null,
+        "errorCode": Value::Null,
         "error": Value::Null,
     });
     {
@@ -556,6 +560,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                 .await;
             }
             Ok(Err(error)) => {
+                let error_code = optimization_scan_error_code(&error);
                 update_job(
                     &scan_state,
                     &scan_id,
@@ -563,6 +568,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                         "status": "failed",
                         "phase": "failed",
                         "completedAt": time_utils::now_iso(),
+                        "errorCode": error_code,
                         "error": error.to_string(),
                     }),
                 )
@@ -1937,8 +1943,14 @@ async fn ensure_capability_probe(
             {
                 Ok(value) => value,
                 Err(error) if is_capability_unsupported_api_error(&error) => {
-                    disable_unsupported_optimization(state, managed, ownership, &error.to_string())
-                        .await?;
+                    disable_unsupported_optimization(
+                        state,
+                        managed,
+                        ownership,
+                        &error.to_string(),
+                        Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE),
+                    )
+                    .await?;
                     return Ok(CapabilityProbeResult::Unsupported);
                 }
                 Err(error) => return Err(error),
@@ -2000,8 +2012,14 @@ async fn ensure_capability_probe(
                 cleanup_object.insert("id".to_string(), json!(custom_id));
                 cleanup_object.insert("validationDns".to_string(), json!(validation_dns));
                 cleanup_capability_probe(api, zone_id, &cleanup).await?;
-                disable_unsupported_optimization(state, managed, ownership, &error.to_string())
-                    .await?;
+                disable_unsupported_optimization(
+                    state,
+                    managed,
+                    ownership,
+                    &error.to_string(),
+                    Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE),
+                )
+                .await?;
                 return Ok(CapabilityProbeResult::Unsupported);
             }
             Err(error) => return Err(error),
@@ -2085,7 +2103,7 @@ async fn ensure_capability_probe(
         }
         Err(error) => {
             cleanup_capability_probe(api, zone_id, &probe_state).await?;
-            disable_unsupported_optimization(state, managed, ownership, &error).await?;
+            disable_unsupported_optimization(state, managed, ownership, &error, None).await?;
             Ok(CapabilityProbeResult::Unsupported)
         }
     }
@@ -2145,15 +2163,18 @@ async fn disable_unsupported_optimization(
     managed: &Value,
     ownership: &mut Value,
     reason: &str,
+    reason_code: Option<&str>,
 ) -> Result<(), CloudflareApiError> {
-    ensure_nested_object(ownership, &["optimization"]).insert(
-        "capabilityProbe".to_string(),
-        json!({
-            "status": "unsupported",
-            "message": reason,
-            "testedAt": time_utils::now_iso(),
-        }),
-    );
+    let mut capability_probe = json!({
+        "status": "unsupported",
+        "message": reason,
+        "testedAt": time_utils::now_iso(),
+    });
+    if let Some(reason_code) = reason_code {
+        ensure_object(&mut capability_probe).insert("reasonCode".to_string(), json!(reason_code));
+    }
+    ensure_nested_object(ownership, &["optimization"])
+        .insert("capabilityProbe".to_string(), capability_probe);
     ensure_nested_object(ownership, &["optimization"])
         .insert("fallbackActive".to_string(), json!(true));
     ensure_nested_object(ownership, &["optimization"])
@@ -2817,11 +2838,8 @@ async fn run_scan(
         merge_current_candidate_seed(&mut seeds, ip);
     }
     let vantage = probe_local_vantage(state).await;
-    let business_hostname = scan_validation_hostname(&ownership).ok_or_else(|| {
-        local_error(
-            "No active business or capability hostname is available for TLS and SNI validation",
-        )
-    })?;
+    let business_hostname = scan_validation_hostname(&ownership)
+        .ok_or_else(|| local_error(CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR))?;
     if let Some(job_id) = job_id {
         update_job(
             state,
@@ -3701,6 +3719,11 @@ fn scan_job_active(job: &Value) -> bool {
     ) && job.get("cancelRequested").and_then(Value::as_bool) != Some(true)
 }
 
+fn optimization_scan_error_code(error: &CloudflareApiError) -> Option<&'static str> {
+    (error.message == CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR)
+        .then_some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
+}
+
 fn json_pointer_escape(value: &str) -> String {
     value.replace('~', "~0").replace('/', "~1")
 }
@@ -4112,6 +4135,18 @@ mod tests {
         ] {
             assert!(!is_capability_unsupported_api_error(&error));
         }
+    }
+
+    #[test]
+    fn scan_errors_expose_a_stable_cloudflare_saas_code() {
+        let missing_hostname = local_error(CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR);
+        assert_eq!(
+            optimization_scan_error_code(&missing_hostname),
+            Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
+        );
+
+        let unrelated = local_error("latency probe failed");
+        assert_eq!(optimization_scan_error_code(&unrelated), None);
     }
 
     #[test]

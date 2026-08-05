@@ -181,6 +181,7 @@ export type CloudflareOptimizationScan = {
   candidateSourceCount?: number;
   businessValidationHostname?: string | null;
   sourceFingerprint?: string | null;
+  errorCode?: string | null;
   error: string | null;
 };
 
@@ -240,6 +241,7 @@ export type CloudflareManagedState = {
       sslStatus?: string;
       testedIp?: string;
       testedAt?: string;
+      reasonCode?: string;
       message?: string;
     } | null;
     candidateSources: CloudflareOptimizationCandidateSources;

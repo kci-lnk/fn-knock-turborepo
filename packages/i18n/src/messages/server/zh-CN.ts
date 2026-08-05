@@ -524,6 +524,8 @@ export const zhCNServer = {
     readDirectoryFailed: "读取日志目录失败",
     readDatesFailed: "读取日志日期失败",
     readEntriesFailed: "读取请求日志失败",
+    geoRefreshActive: "IP 归属地识别队列正在运行",
+    geoRefreshFailed: "启动 IP 归属地识别队列失败",
     deleteEntriesFailed: "删除请求日志失败",
     invalidJsonObject: "请求体不是有效的 JSON 对象",
   },

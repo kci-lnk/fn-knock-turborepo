@@ -524,6 +524,8 @@ export const zhHantServer = {
     readDirectoryFailed: "讀取日誌目錄失敗",
     readDatesFailed: "讀取日誌日期失敗",
     readEntriesFailed: "讀取請求日誌失敗",
+    geoRefreshActive: "IP 歸屬地識別佇列正在執行",
+    geoRefreshFailed: "啟動 IP 歸屬地識別佇列失敗",
     deleteEntriesFailed: "刪除請求日誌失敗",
     invalidJsonObject: "請求體不是有效的 JSON 物件",
   },

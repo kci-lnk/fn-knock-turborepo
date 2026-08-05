@@ -611,6 +611,8 @@ export const koKRServer = {
     readDirectoryFailed: "로그 디렉터리를 읽지 못했습니다.",
     readDatesFailed: "로그 날짜를 읽지 못했습니다.",
     readEntriesFailed: "요청 로그를 읽지 못했습니다.",
+    geoRefreshActive: "IP 위치 조회 대기열이 이미 실행 중입니다.",
+    geoRefreshFailed: "IP 위치 조회 대기열을 시작하지 못했습니다.",
     deleteEntriesFailed: "요청 로그를 삭제하지 못했습니다.",
     invalidJsonObject: "요청 본문이 유효한 JSON 객체가 아닙니다.",
   },

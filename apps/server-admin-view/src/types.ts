@@ -817,6 +817,79 @@ export interface GatewayLogDeletePayload {
   available_dates: string[];
 }
 
+export interface GatewayLogAnalyticsBucket {
+  key: string;
+  count: number;
+  share: number;
+}
+
+export interface GatewayLogAnalyticsRegionBucket extends GatewayLogAnalyticsBucket {
+  country_code?: string;
+  province?: string;
+  city?: string;
+}
+
+export interface GatewayLogAnalyticsPayload {
+  range: {
+    from: string;
+    to: string;
+    timezone: string;
+    granularity: "hour" | "6h" | "day";
+    available_dates: string[];
+  };
+  summary: {
+    requests: number;
+    unique_clients: number;
+    client_errors: number;
+    server_errors: number;
+    average_duration_ms: number;
+    p95_duration_ms: number;
+    bytes_in: number;
+    bytes_out: number;
+    server_error_rate: number;
+  };
+  series: Array<{
+    bucket_start: string;
+    requests: number;
+    client_errors: number;
+    server_errors: number;
+  }>;
+  dimensions: {
+    paths: GatewayLogAnalyticsBucket[];
+    routes: GatewayLogAnalyticsBucket[];
+    hosts: GatewayLogAnalyticsBucket[];
+    upstreams: GatewayLogAnalyticsBucket[];
+    referrers: GatewayLogAnalyticsBucket[];
+    utm_sources: GatewayLogAnalyticsBucket[];
+    utm_mediums: GatewayLogAnalyticsBucket[];
+    utm_campaigns: GatewayLogAnalyticsBucket[];
+    devices: GatewayLogAnalyticsBucket[];
+    browsers: GatewayLogAnalyticsBucket[];
+    operating_systems: GatewayLogAnalyticsBucket[];
+    statuses: GatewayLogAnalyticsBucket[];
+    methods: GatewayLogAnalyticsBucket[];
+    latency_bands: GatewayLogAnalyticsBucket[];
+    auth_decisions: GatewayLogAnalyticsBucket[];
+    waf_actions: GatewayLogAnalyticsBucket[];
+  };
+  geo: {
+    status: "complete" | "resolving" | "partial";
+    region_status: "complete" | "resolving" | "partial";
+    resolved_clients: number;
+    resolved_region_clients: number;
+    pending_clients: number;
+    total_clients: number;
+    coverage: number;
+    region_coverage: number;
+    refreshing: boolean;
+    items: GatewayLogAnalyticsBucket[];
+    regions: GatewayLogAnalyticsRegionBucket[];
+  };
+  quality: {
+    invalid_entries: number;
+  };
+}
+
 export interface FnKnockBackupImportArchiveRequest {
   filename?: string;
   archive_base64: string;

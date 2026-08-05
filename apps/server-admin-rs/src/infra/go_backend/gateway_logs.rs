@@ -2,10 +2,10 @@ use reqwest::StatusCode;
 use serde_json::{Value, json};
 
 use super::{
-    GoBackendClient, grpc_error, log_dates_to_json, log_delete_to_json, log_query_to_json,
-    logging_to_json, ok, parse_logging, status_value,
+    GoBackendClient, grpc_error, log_analytics_to_json, log_dates_to_json, log_delete_to_json,
+    log_query_to_json, logging_to_json, ok, parse_logging, status_value,
 };
-use crate::grpc_proto::{GatewayLogQuery, StringValue};
+use crate::grpc_proto::{GatewayLogAnalyticsQuery, GatewayLogQuery, StringValue};
 
 #[allow(dead_code)]
 impl GoBackendClient {
@@ -64,6 +64,18 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("query_log_entries", result)
+    }
+
+    pub async fn analyze_log_entries(
+        &self,
+        query: GatewayLogAnalyticsQuery,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client.analyze_log_entries(self.request(query)).await {
+            Ok(response) => ok(log_analytics_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("analyze_log_entries", result)
     }
 
     pub async fn delete_log_date(&self, date: &str) -> anyhow::Result<Value> {

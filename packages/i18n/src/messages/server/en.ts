@@ -610,6 +610,8 @@ export const enServer = {
     readDirectoryFailed: "Failed to read the log directory",
     readDatesFailed: "Failed to read log dates",
     readEntriesFailed: "Failed to read request logs",
+    geoRefreshActive: "The IP location lookup queue is already running",
+    geoRefreshFailed: "Failed to start the IP location lookup queue",
     deleteEntriesFailed: "Failed to delete request logs",
     invalidJsonObject: "Request body is not a valid JSON object",
   },
@@ -1216,7 +1218,8 @@ export const enServer = {
     deleteProviderFailed: "Failed to delete LDAP provider",
     connectionTestSuccess: "LDAP connection test succeeded",
     testProviderFailed: "LDAP connection test failed",
-    testCredentialsRequired: "Directory username and password must be provided together",
+    testCredentialsRequired:
+      "Directory username and password must be provided together",
     listBindingsFailed: "Failed to list LDAP bindings",
     bindingNotFound: "LDAP binding not found",
     deleteBindingFailed: "Failed to delete LDAP binding",

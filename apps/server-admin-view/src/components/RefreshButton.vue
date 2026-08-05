@@ -88,6 +88,7 @@ const resolvedLabel = computed(
     :disabled="props.disabled"
     :class="props.class"
     :aria-label="resolvedLabel"
+    :title="props.iconOnly ? resolvedLabel : undefined"
     @click="$emit('click')"
   >
     <RefreshCw class="h-4 w-4" :class="iconClass" />

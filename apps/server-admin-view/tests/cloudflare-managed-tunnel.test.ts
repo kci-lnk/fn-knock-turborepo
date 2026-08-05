@@ -123,4 +123,39 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /!optimizationApplied/u);
     assert.match(optimization, /reconcileRequiredDescription/u);
   });
+
+  it("guides users through the Cloudflare for SaaS prerequisite", () => {
+    const optimization = readSource(
+      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
+    );
+    assert.match(optimization, /no active business or capability hostname/u);
+    assert.match(optimization, /cloudflareSaasRequiredTitle/u);
+    assert.match(optimization, /cloudflareSaasRequiredDescription/u);
+    assert.match(optimization, /optimizationScan\.value\?\.errorCode/u);
+    assert.match(optimization, /probe\?\.reasonCode/u);
+    assert.ok(
+      optimization.match(/\{\{ capabilityProbeMessage \}\}/gu)?.length === 2,
+      "the capability alert and technical status should use the same localized message",
+    );
+
+    const api = readSource("../src/lib/api/tunnel.ts");
+    assert.match(api, /errorCode\?: string \| null/u);
+    assert.match(api, /reasonCode\?: string/u);
+
+    const backend = readSource(
+      "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+    );
+    assert.match(backend, /CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE/u);
+    assert.match(backend, /"errorCode": error_code/u);
+    assert.match(backend, /"reasonCode"\.to_string\(\)/u);
+
+    const messages = readSource(
+      "../../../packages/i18n/src/messages/admin/zh-CN.ts",
+    );
+    assert.match(messages, /账号与域名相关资源授予完整编辑权限/u);
+    assert.match(messages, /如果已在上方配置 Cloudflare API Token，此处无需填写/u);
+    assert.match(messages, /SSL\/TLS → 自定义主机名/u);
+    assert.match(messages, /100 个自定义主机名/u);
+    assert.match(messages, /绑定付款方式不会立即扣费/u);
+  });
 });

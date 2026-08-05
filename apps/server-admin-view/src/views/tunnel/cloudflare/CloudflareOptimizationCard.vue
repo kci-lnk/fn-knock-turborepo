@@ -87,6 +87,31 @@ const switchReasonKeys: Record<string, string> = {
   "health-failover": "healthFailover",
   "health-fallback": "healthFallback",
 };
+const cloudflareSaasRequiredErrorCode = "cloudflare-saas-required";
+const legacyCloudflareSaasErrorMarkers = [
+  "no active business or capability hostname",
+  "not entitled",
+  "not enabled for this zone",
+  "not available on your plan",
+  "plan does not support",
+  "requires an enterprise plan",
+  "upgrade your plan",
+  "no quota has been allocated",
+  "(1404)",
+];
+const requiresCloudflareSaasSetup = (
+  errorCode?: string | null,
+  message?: string | null,
+) => {
+  if (errorCode === cloudflareSaasRequiredErrorCode) return true;
+  const normalized = message?.toLowerCase();
+  return (
+    normalized !== undefined &&
+    legacyCloudflareSaasErrorMarkers.some((marker) =>
+      normalized.includes(marker),
+    )
+  );
+};
 const scanPhaseLabel = (phase: string) => {
   const key = phaseKeys[phase];
   return key ? t(`admin.cloudflareTunnel.optimization.phases.${key}`) : phase;
@@ -127,6 +152,36 @@ const selectedCandidate = computed(() =>
   optimizationScan.value?.candidates.find(
     (candidate) => candidate.ip === selectedCandidateIp.value,
   ),
+);
+const capabilityRequiresCloudflareSaas = computed(() => {
+  const probe = optimization.value?.capabilityProbe;
+  return requiresCloudflareSaasSetup(probe?.reasonCode, probe?.message);
+});
+const capabilityProbeMessage = computed(() => {
+  const probe = optimization.value?.capabilityProbe;
+  if (!probe) return "";
+  if (capabilityRequiresCloudflareSaas.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
+    );
+  }
+  return (
+    probe.message ||
+    t(`admin.cloudflareTunnel.optimization.capability.${probe.status}`)
+  );
+});
+const scanRequiresCloudflareSaas = computed(() =>
+  requiresCloudflareSaasSetup(
+    optimizationScan.value?.errorCode,
+    optimizationScan.value?.error,
+  ),
+);
+const scanErrorMessage = computed(() =>
+  scanRequiresCloudflareSaas.value
+    ? t(
+        "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
+      )
+    : optimizationScan.value?.error || "",
 );
 </script>
 
@@ -341,24 +396,25 @@ const selectedCandidate = computed(() =>
             optimization?.capabilityProbe &&
             optimization.capabilityProbe.status === 'unsupported'
           "
-          :variant="
-            optimization.capabilityProbe.status === 'unsupported'
-              ? 'destructive'
-              : 'default'
-          "
+          variant="destructive"
           class="items-start"
         >
-          <ShieldCheck class="size-4" />
+          <TriangleAlert
+            v-if="capabilityRequiresCloudflareSaas"
+            class="size-4"
+          />
+          <ShieldCheck v-else class="size-4" />
           <AlertTitle>
-            {{ t("admin.cloudflareTunnel.optimization.capabilityProbe") }}
+            {{
+              capabilityRequiresCloudflareSaas
+                ? t(
+                    "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle",
+                  )
+                : t("admin.cloudflareTunnel.optimization.capabilityProbe")
+            }}
           </AlertTitle>
           <AlertDescription>
-            {{
-              optimization.capabilityProbe.message ||
-              t(
-                `admin.cloudflareTunnel.optimization.capability.${optimization.capabilityProbe.status}`,
-              )
-            }}
+            {{ capabilityProbeMessage }}
           </AlertDescription>
         </Alert>
 
@@ -470,7 +526,14 @@ const selectedCandidate = computed(() =>
             class="items-start"
           >
             <TriangleAlert class="size-4" />
-            <AlertDescription>{{ optimizationScan.error }}</AlertDescription>
+            <AlertTitle v-if="scanRequiresCloudflareSaas">
+              {{
+                t(
+                  "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle",
+                )
+              }}
+            </AlertTitle>
+            <AlertDescription>{{ scanErrorMessage }}</AlertDescription>
           </Alert>
 
           <div
@@ -657,12 +720,7 @@ const selectedCandidate = computed(() =>
                 {{ t("admin.cloudflareTunnel.optimization.capabilityProbe") }}
               </div>
               <div class="mt-1">
-                {{
-                  optimization?.capabilityProbe?.message ||
-                  t(
-                    `admin.cloudflareTunnel.optimization.capability.${optimization?.capabilityProbe?.status || "pending"}`,
-                  )
-                }}
+                {{ capabilityProbeMessage }}
               </div>
             </div>
             <div>

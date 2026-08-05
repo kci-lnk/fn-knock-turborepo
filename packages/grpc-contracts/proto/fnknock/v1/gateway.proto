@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 7;
+  CONTROL_API_VERSION_CURRENT = 8;
 }
 
 message RpcStatus {
@@ -439,6 +439,7 @@ message GatewayLogEntry {
   bool general_blacklist_blocked = 43;
   string auth_rule_group_id = 44;
   string auth_grant_state = 45;
+  string client_ip = 46;
 }
 
 message GatewayLogDates {
@@ -478,6 +479,68 @@ message GatewayLogDeleteResult {
   string logs_dir = 2;
   bool deleted = 3;
   repeated string available_dates = 4;
+}
+
+message GatewayLogAnalyticsQuery {
+  string from_date = 1;
+  string to_date = 2;
+}
+
+message GatewayLogAnalyticsSummary {
+  int64 requests = 1;
+  int64 unique_clients = 2;
+  int64 client_errors = 3;
+  int64 server_errors = 4;
+  double average_duration_ms = 5;
+  int64 p95_duration_ms = 6;
+  uint64 bytes_in = 7;
+  uint64 bytes_out = 8;
+  double server_error_rate = 9;
+}
+
+message GatewayLogAnalyticsPoint {
+  string bucket_start = 1;
+  int64 requests = 2;
+  int64 client_errors = 3;
+  int64 server_errors = 4;
+}
+
+message GatewayLogAnalyticsBucket {
+  string key = 1;
+  int64 count = 2;
+}
+
+message GatewayLogAnalyticsClient {
+  string ip = 1;
+  int64 count = 2;
+}
+
+message GatewayLogAnalyticsResult {
+  string from_date = 1;
+  string to_date = 2;
+  string timezone = 3;
+  string granularity = 4;
+  repeated string available_dates = 5;
+  GatewayLogAnalyticsSummary summary = 6;
+  repeated GatewayLogAnalyticsPoint series = 7;
+  repeated GatewayLogAnalyticsBucket paths = 8;
+  repeated GatewayLogAnalyticsBucket routes = 9;
+  repeated GatewayLogAnalyticsBucket hosts = 10;
+  repeated GatewayLogAnalyticsBucket upstreams = 11;
+  repeated GatewayLogAnalyticsBucket referrers = 12;
+  repeated GatewayLogAnalyticsBucket utm_sources = 13;
+  repeated GatewayLogAnalyticsBucket utm_mediums = 14;
+  repeated GatewayLogAnalyticsBucket utm_campaigns = 15;
+  repeated GatewayLogAnalyticsBucket devices = 16;
+  repeated GatewayLogAnalyticsBucket browsers = 17;
+  repeated GatewayLogAnalyticsBucket operating_systems = 18;
+  repeated GatewayLogAnalyticsBucket statuses = 19;
+  repeated GatewayLogAnalyticsBucket methods = 20;
+  repeated GatewayLogAnalyticsBucket latency_bands = 21;
+  repeated GatewayLogAnalyticsBucket auth_decisions = 22;
+  repeated GatewayLogAnalyticsBucket waf_actions = 23;
+  repeated GatewayLogAnalyticsClient clients = 24;
+  int64 invalid_entries = 25;
 }
 
 // Deep monitoring is deliberately session scoped. Payload bytes are never
@@ -1034,6 +1097,7 @@ service GatewayLogsService {
   rpc GetLoggingDirectory(google.protobuf.Empty) returns (StringValue);
   rpc GetLogDates(google.protobuf.Empty) returns (GatewayLogDates);
   rpc QueryLogEntries(GatewayLogQuery) returns (GatewayLogQueryResult);
+  rpc AnalyzeLogEntries(GatewayLogAnalyticsQuery) returns (GatewayLogAnalyticsResult);
   rpc DeleteLogDate(StringValue) returns (GatewayLogDeleteResult);
 }
 

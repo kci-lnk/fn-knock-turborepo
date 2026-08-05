@@ -3,8 +3,6 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
-  Info,
-  Settings,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -12,7 +10,6 @@ import {
   Ban,
   Unlock,
 } from "lucide-vue-next";
-import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/RefreshButton.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -28,8 +25,6 @@ import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerP
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import { docsUrls } from "../lib/docs";
 import {
   LIMIT_OPTIONS,
   LOGIN_FILTER_OPTIONS,
@@ -47,7 +42,6 @@ import GatewayRequestLogsTable from "./gateway-request-logs/GatewayRequestLogsTa
 
 const router = useRouter();
 const { t, locale } = useI18n();
-
 const isDetailsOpen = ref(false);
 const activeEntry = ref<GatewayLogEntry | null>(null);
 const {
@@ -75,7 +69,6 @@ const {
   handleStatusChange,
   handleWAFStatusChange,
   isDeleting,
-  isLoggingEnabled,
   limit,
   loading,
   logsDir,
@@ -90,16 +83,10 @@ const {
   shouldFloatPagination,
   showTableSkeleton,
 } = useGatewayRequestLogsResource();
-
 const viewDetails = (entry: GatewayLogEntry) => {
   activeEntry.value = entry;
   isDetailsOpen.value = true;
 };
-
-const goToSettings = () => {
-  router.push({ path: "/system", query: { tab: "gateway-logging" } });
-};
-
 const goToWAFTrace = (traceId?: string) => {
   if (!traceId) return;
   router.push({ path: "/waf-logs", query: { trace_id: traceId } });
@@ -190,26 +177,12 @@ const detailCopyText = computed(() =>
 
 <template>
   <div class="flex h-full flex-col gap-3">
-    <div
-      class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-    >
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
-          <h2 class="text-lg font-semibold tracking-tight">
-            {{ t("admin.gatewayRequestLogs.title") }}
-          </h2>
-          <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground">
-          {{ t("admin.gatewayRequestLogs.description") }}
-        </p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <DocsLinkButton :href="docsUrls.guides.requestLogs" />
+    <Teleport defer to="#request-analysis-logs-actions">
+      <div class="flex w-full flex-wrap items-center justify-end gap-2">
         <RefreshButton
           :loading="loading"
           :disabled="loading"
+          class="px-2.5 [&_span]:hidden [&_svg]:mr-0 sm:px-3 sm:[&_span]:inline sm:[&_svg]:mr-1.5"
           @click="refreshAll"
         />
         <ConfirmDangerPopover
@@ -229,7 +202,7 @@ const detailCopyText = computed(() =>
           <template #trigger>
             <Button
               variant="outline"
-              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              class="border-destructive/30 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive sm:px-4 sm:text-sm"
               :disabled="
                 selectedUnblockedLogIps.length === 0 || isMutatingBlacklistIps
               "
@@ -260,7 +233,7 @@ const detailCopyText = computed(() =>
           <template #trigger>
             <Button
               variant="outline"
-              class="text-foreground"
+              class="px-2.5 text-xs text-foreground sm:px-4 sm:text-sm"
               :disabled="
                 selectedBlockedLogIps.length === 0 || isMutatingBlacklistIps
               "
@@ -288,7 +261,7 @@ const detailCopyText = computed(() =>
           <template #trigger>
             <Button
               variant="outline"
-              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              class="border-destructive/30 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive sm:px-4 sm:text-sm"
               :disabled="isDeleting"
             >
               <Trash2 class="mr-2 h-4 w-4" />
@@ -297,30 +270,12 @@ const detailCopyText = computed(() =>
           </template>
         </ConfirmDangerPopover>
       </div>
-    </div>
-
-    <Alert
-      v-if="!isLoggingEnabled"
-      class="flex items-center gap-3 rounded-lg border-dashed bg-muted/20 px-4 py-3 text-foreground shadow-none"
-    >
-      <Info class="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div
-        class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p class="text-sm text-muted-foreground">
-          {{ t("admin.gatewayRequestLogs.disabledNotice") }}
-        </p>
-        <Button variant="ghost" class="shrink-0" @click="goToSettings">
-          <Settings class="mr-2 h-4 w-4" />
-          {{ t("admin.gatewayRequestLogs.goSettings") }}
-        </Button>
-      </div>
-    </Alert>
+    </Teleport>
 
     <div
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"
     >
-      <div class="border-b px-4 py-3">
+      <div class="border-b px-3 py-3 sm:px-4">
         <div class="flex flex-col gap-2 lg:flex-row lg:items-start">
           <SearchInput
             v-model="searchQuery"
@@ -330,13 +285,16 @@ const detailCopyText = computed(() =>
           />
 
           <div
-            class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:justify-end"
+            class="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:justify-end"
           >
             <Select
               :model-value="selectedDate"
               @update:model-value="handleDateChange"
             >
-              <div class="w-full min-w-0 sm:w-[148px]">
+              <div
+                class="order-1 w-full min-w-0 sm:order-none sm:w-[148px]"
+              >
+                <!-- prettier-ignore -->
                 <SelectTrigger :aria-label="t('admin.gatewayRequestLogs.datePlaceholder')" class="w-full min-w-0">
                   <SelectValue
                     :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')"
@@ -358,7 +316,9 @@ const detailCopyText = computed(() =>
               :model-value="selectedStatus"
               @update:model-value="handleStatusChange"
             >
-              <div class="w-full min-w-0 sm:w-[156px]">
+              <div
+                class="order-2 w-full min-w-0 sm:order-none sm:w-[156px]"
+              >
                 <SelectTrigger
                   :aria-label="t('admin.gatewayRequestLogs.statusPlaceholder')"
                   class="w-full min-w-0"
@@ -385,7 +345,9 @@ const detailCopyText = computed(() =>
               :model-value="selectedLoggedIn"
               @update:model-value="handleLoggedInChange"
             >
-              <div class="w-full min-w-0 sm:w-[168px]">
+              <div
+                class="order-3 w-full min-w-0 sm:order-none sm:w-[168px]"
+              >
                 <SelectTrigger
                   :aria-label="t('admin.gatewayRequestLogs.loginPlaceholder')"
                   class="w-full min-w-0"
@@ -412,7 +374,9 @@ const detailCopyText = computed(() =>
               :model-value="selectedCredential"
               @update:model-value="handleCredentialChange"
             >
-              <div class="w-full min-w-0 sm:w-[220px]">
+              <div
+                class="order-5 col-span-2 w-full min-w-0 sm:order-none sm:col-span-1 sm:w-[220px]"
+              >
                 <SelectTrigger
                   :aria-label="
                     t('admin.gatewayRequestLogs.credentialPlaceholder')
@@ -447,7 +411,9 @@ const detailCopyText = computed(() =>
               :model-value="selectedWAFStatus"
               @update:model-value="handleWAFStatusChange"
             >
-              <div class="w-full min-w-0 sm:w-[144px]">
+              <div
+                class="order-4 w-full min-w-0 sm:order-none sm:w-[144px]"
+              >
                 <SelectTrigger
                   :aria-label="t('admin.gatewayRequestLogs.wafPlaceholder')"
                   class="w-full min-w-0"
@@ -492,7 +458,7 @@ const detailCopyText = computed(() =>
               keyword: searchQuery.trim(),
             })
           }}</span>
-          <span class="break-all">{{
+          <span class="hidden break-all sm:inline">{{
             t("admin.gatewayRequestLogs.directoryLabel", {
               directory: logsDir || "-",
             })
@@ -530,7 +496,7 @@ const detailCopyText = computed(() =>
         floating-class="min-w-0 max-w-[calc(100vw-2rem)] rounded-[1.25rem] p-2"
       >
         <template #inline>
-          <div class="border-t px-4 py-3">
+          <div class="border-t px-3 py-3 sm:px-4">
             <div
               class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
             >
@@ -548,21 +514,27 @@ const detailCopyText = computed(() =>
               <div class="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   variant="outline"
-                  class="h-8 px-3"
+                  class="h-8 px-2.5 sm:px-3"
+                  :aria-label="t('admin.gatewayRequestLogs.firstPage')"
                   :disabled="loading || !canLoadNewer"
                   @click="handleLoadFirst"
                 >
-                  <ChevronsLeft class="mr-1.5 h-4 w-4" />
-                  {{ t("admin.gatewayRequestLogs.firstPage") }}
+                  <ChevronsLeft class="h-4 w-4 sm:mr-1.5" />
+                  <span class="hidden sm:inline">{{
+                    t("admin.gatewayRequestLogs.firstPage")
+                  }}</span>
                 </Button>
                 <Button
                   variant="outline"
-                  class="h-8 px-3"
+                  class="h-8 px-2.5 sm:px-3"
+                  :aria-label="t('admin.gatewayRequestLogs.previousPage')"
                   :disabled="loading || !canLoadNewer"
                   @click="handleLoadNewer"
                 >
-                  <ChevronLeft class="mr-1.5 h-4 w-4" />
-                  {{ t("admin.gatewayRequestLogs.previousPage") }}
+                  <ChevronLeft class="h-4 w-4 sm:mr-1.5" />
+                  <span class="hidden sm:inline">{{
+                    t("admin.gatewayRequestLogs.previousPage")
+                  }}</span>
                 </Button>
                 <Button
                   class="h-8 px-3"
@@ -574,7 +546,7 @@ const detailCopyText = computed(() =>
                 </Button>
 
                 <div
-                  class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
+                  class="flex items-center gap-2 text-xs text-muted-foreground sm:ml-1"
                 >
                   <span>{{ t("admin.gatewayRequestLogs.pageSize") }}</span>
                   <Select

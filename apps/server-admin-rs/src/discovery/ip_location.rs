@@ -132,6 +132,37 @@ pub async fn ensure_ip_location_enqueued(
     Ok(serde_json::to_value(ensure_enqueued(state, ip).await?).unwrap_or_else(|_| json!({})))
 }
 
+pub async fn get_ip_location_snapshot(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<Value> {
+    let normalized_ip = http_utils::normalize_ip(ip);
+    if normalized_ip.is_empty() {
+        return Ok(json!({
+            "status": "skipped",
+            "result": null,
+        }));
+    }
+
+    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
+        && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
+    {
+        return Ok(serde_json::to_value(build_snapshot(
+            ip,
+            &normalized_ip,
+            &build_success_state(result, 0),
+        ))
+        .unwrap_or_else(|_| json!({})));
+    }
+
+    Ok(serde_json::to_value(build_snapshot(
+        ip,
+        &normalized_ip,
+        &get_state(state, &normalized_ip).await?,
+    ))
+    .unwrap_or_else(|_| json!({})))
+}
+
 pub async fn register_usage(
     state: &AppState,
     ip: &str,

@@ -1,4 +1,5 @@
 import type { GatewayLogEntry } from "../../types";
+import { AUTH_DECISION_LABEL_KEYS } from "@/lib/gatewayLogLabels";
 import { routeTypeLabel as resolveRouteTypeLabel } from "@/lib/routeType";
 import { normalizeIpKey } from "../../composables/useIpLocationBatch";
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
@@ -271,34 +272,9 @@ export const authDecisionLabel = (
   value: string | undefined,
   t: GatewayLogTranslator,
 ) => {
-  switch (value) {
-    case "passed":
-      return t("admin.gatewayRequestLogs.authDecisions.passed");
-    case "redirected":
-      return t("admin.gatewayRequestLogs.authDecisions.redirected");
-    case "denied":
-      return t("admin.gatewayRequestLogs.authDecisions.denied");
-    case "access_denied":
-      return t("admin.gatewayRequestLogs.authDecisions.accessDenied");
-    case "root_mode_redirect":
-      return t("admin.gatewayRequestLogs.authDecisions.rootModeRedirect");
-    case "not_required":
-      return t("admin.gatewayRequestLogs.authDecisions.notRequired");
-    case "proxy":
-      return t("admin.gatewayRequestLogs.authDecisions.proxy");
-    case "error":
-      return t("admin.gatewayRequestLogs.authDecisions.error");
-    case "general_blacklist_blocked":
-      return t(
-        "admin.gatewayRequestLogs.authDecisions.generalBlacklistBlocked",
-      );
-    case "connection_reset":
-      return t("admin.gatewayRequestLogs.authDecisions.connectionReset");
-    case "subdomain_rule_allowed":
-      return t("admin.gatewayRequestLogs.authDecisions.subdomainRuleAllowed");
-    default:
-      return value || "-";
-  }
+  const normalized = value?.trim().toLowerCase() || "";
+  const translationKey = AUTH_DECISION_LABEL_KEYS[normalized];
+  return translationKey ? t(translationKey) : value || "-";
 };
 
 const authGrantStateLabel = (

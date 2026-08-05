@@ -1713,6 +1713,7 @@ fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
     object.insert("duration_ms".to_string(), json!(entry.duration_ms));
     object.insert("remote_ip".to_string(), Value::String(entry.remote_ip));
     object.insert("remote_addr".to_string(), Value::String(entry.remote_addr));
+    object.insert("client_ip".to_string(), Value::String(entry.client_ip));
     object.insert("user_agent".to_string(), Value::String(entry.user_agent));
     object.insert("referer".to_string(), Value::String(entry.referer));
     object.insert("logged_in".to_string(), Value::Bool(entry.logged_in));
@@ -1780,6 +1781,70 @@ fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
         Value::Bool(entry.general_blacklist_blocked),
     );
     Value::Object(object)
+}
+
+fn log_analytics_buckets_to_json(
+    items: Vec<crate::grpc_proto::GatewayLogAnalyticsBucket>,
+) -> Value {
+    Value::Array(
+        items
+            .into_iter()
+            .map(|item| json!({ "key": item.key, "count": item.count }))
+            .collect(),
+    )
+}
+
+fn log_analytics_to_json(result: crate::grpc_proto::GatewayLogAnalyticsResult) -> Value {
+    let summary = result.summary.unwrap_or_default();
+    json!({
+        "range": {
+            "from": result.from_date,
+            "to": result.to_date,
+            "timezone": result.timezone,
+            "granularity": result.granularity,
+            "available_dates": result.available_dates,
+        },
+        "summary": {
+            "requests": summary.requests,
+            "unique_clients": summary.unique_clients,
+            "client_errors": summary.client_errors,
+            "server_errors": summary.server_errors,
+            "average_duration_ms": summary.average_duration_ms,
+            "p95_duration_ms": summary.p95_duration_ms,
+            "bytes_in": summary.bytes_in,
+            "bytes_out": summary.bytes_out,
+            "server_error_rate": summary.server_error_rate,
+        },
+        "series": result.series.into_iter().map(|point| json!({
+            "bucket_start": point.bucket_start,
+            "requests": point.requests,
+            "client_errors": point.client_errors,
+            "server_errors": point.server_errors,
+        })).collect::<Vec<_>>(),
+        "dimensions": {
+            "paths": log_analytics_buckets_to_json(result.paths),
+            "routes": log_analytics_buckets_to_json(result.routes),
+            "hosts": log_analytics_buckets_to_json(result.hosts),
+            "upstreams": log_analytics_buckets_to_json(result.upstreams),
+            "referrers": log_analytics_buckets_to_json(result.referrers),
+            "utm_sources": log_analytics_buckets_to_json(result.utm_sources),
+            "utm_mediums": log_analytics_buckets_to_json(result.utm_mediums),
+            "utm_campaigns": log_analytics_buckets_to_json(result.utm_campaigns),
+            "devices": log_analytics_buckets_to_json(result.devices),
+            "browsers": log_analytics_buckets_to_json(result.browsers),
+            "operating_systems": log_analytics_buckets_to_json(result.operating_systems),
+            "statuses": log_analytics_buckets_to_json(result.statuses),
+            "methods": log_analytics_buckets_to_json(result.methods),
+            "latency_bands": log_analytics_buckets_to_json(result.latency_bands),
+            "auth_decisions": log_analytics_buckets_to_json(result.auth_decisions),
+            "waf_actions": log_analytics_buckets_to_json(result.waf_actions),
+        },
+        "clients": result.clients.into_iter().map(|client| json!({
+            "ip": client.ip,
+            "count": client.count,
+        })).collect::<Vec<_>>(),
+        "quality": { "invalid_entries": result.invalid_entries },
+    })
 }
 
 fn log_query_to_json(result: crate::grpc_proto::GatewayLogQueryResult) -> Value {
@@ -1913,6 +1978,38 @@ mod tests {
                 "queue_depth": 7
             })
         );
+    }
+
+    #[test]
+    fn log_analytics_grpc_conversion_preserves_internal_geo_candidates() {
+        let value = log_analytics_to_json(crate::grpc_proto::GatewayLogAnalyticsResult {
+            from_date: "2026-08-01".to_string(),
+            to_date: "2026-08-02".to_string(),
+            granularity: "hour".to_string(),
+            summary: Some(crate::grpc_proto::GatewayLogAnalyticsSummary {
+                requests: 4,
+                unique_clients: 2,
+                server_error_rate: 0.25,
+                ..Default::default()
+            }),
+            paths: vec![crate::grpc_proto::GatewayLogAnalyticsBucket {
+                key: "/".to_string(),
+                count: 4,
+            }],
+            clients: vec![crate::grpc_proto::GatewayLogAnalyticsClient {
+                ip: "203.0.113.7".to_string(),
+                count: 3,
+            }],
+            ..Default::default()
+        });
+
+        assert_eq!(value.pointer("/summary/requests"), Some(&json!(4)));
+        assert_eq!(
+            value.pointer("/summary/server_error_rate"),
+            Some(&json!(0.25))
+        );
+        assert_eq!(value.pointer("/dimensions/paths/0/key"), Some(&json!("/")));
+        assert_eq!(value.pointer("/clients/0/ip"), Some(&json!("203.0.113.7")));
     }
 
     #[test]

@@ -115,9 +115,16 @@ const router = createRouter({
           redirect: "/events",
         },
         {
+          path: "request-analysis",
+          name: "RequestAnalysis",
+          component: () => import("../views/RequestAnalysis.vue"),
+        },
+        {
           path: "request-logs",
-          name: "GatewayRequestLogs",
-          component: () => import("../views/GatewayRequestLogs.vue"),
+          redirect: (to) => ({
+            path: "/request-analysis",
+            query: { ...to.query, tab: "logs" },
+          }),
         },
         {
           path: "deep-monitor",

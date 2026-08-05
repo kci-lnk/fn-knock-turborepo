@@ -109,7 +109,10 @@ onUnmounted(disposeResizeObserver);
 </script>
 
 <template>
-  <div v-if="hasHorizontalOverflow" class="border-b px-4 py-2">
+  <div
+    v-if="hasHorizontalOverflow"
+    class="hidden border-b px-4 py-2 md:block"
+  >
     <div
       :ref="setTopScrollbarRef"
       class="overflow-x-auto overscroll-x-contain rounded-full bg-muted/35 p-1"
@@ -139,7 +142,242 @@ onUnmounted(disposeResizeObserver);
       class="h-full overflow-auto overscroll-x-contain"
       @scroll="syncHorizontalScroll('table')"
     >
-      <Table v-if="!(loading && entriesCount === 0)" class="min-w-[1060px]">
+      <div class="divide-y md:hidden">
+        <div
+          v-if="loading"
+          class="flex min-h-48 items-center justify-center px-4 text-center text-sm text-muted-foreground"
+        >
+          {{ t("admin.gatewayRequestLogs.loading") }}
+        </div>
+        <div
+          v-else-if="entriesCount === 0"
+          class="flex min-h-48 items-center justify-center px-4 text-center text-sm text-muted-foreground"
+        >
+          {{ t("admin.gatewayRequestLogs.empty") }}
+        </div>
+        <template v-else>
+          <div class="flex items-center justify-between gap-3 px-3 py-2.5">
+            <label class="flex min-w-0 items-center gap-2 text-xs">
+              <Checkbox
+                :model-value="isAllDisplayedRowsSelected"
+                :aria-label="t('common.selectAll')"
+                :disabled="!hasSelectableDisplayedRows"
+                @update:model-value="
+                  (value) =>
+                    emit('update:isAllDisplayedRowsSelected', Boolean(value))
+                "
+              />
+              <span class="truncate">{{ t("common.selectAll") }}</span>
+            </label>
+            <span class="shrink-0 text-[11px] text-muted-foreground">
+              {{
+                t("admin.gatewayRequestLogs.rowsCount", {
+                  count: entriesCount,
+                })
+              }}
+            </span>
+          </div>
+
+          <article
+            v-for="entry in entries"
+            :key="entry.selectionKey"
+            class="space-y-3 px-3 py-3"
+          >
+            <div class="flex items-start gap-2.5">
+              <Checkbox
+                class="mt-0.5"
+                :model-value="selectedLogEntryKeys.has(entry.selectionKey)"
+                :aria-label="
+                  t('common.selectItem', {
+                    item: entry.actionIp || entry.selectionKey,
+                  })
+                "
+                :disabled="!entry.actionIp"
+                @update:model-value="
+                  toggleLogEntrySelection(entry.selectionKey)
+                "
+              />
+              <div class="min-w-0 flex-1 space-y-1.5">
+                <div class="flex min-w-0 items-center gap-2">
+                  <span
+                    class="inline-flex h-5 shrink-0 items-center rounded-full bg-muted px-2 text-[10px] font-medium leading-none text-muted-foreground"
+                  >
+                    <HumanFriendlyTime :value="entry.time" :locale="locale" />
+                  </span>
+                  <span
+                    class="shrink-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground"
+                  >
+                    {{ entry.method || "-" }}
+                  </span>
+                  <span
+                    class="ml-auto inline-flex shrink-0 items-center gap-1.5 font-mono text-xs"
+                    :class="getStatusTextClass(entry.status)"
+                  >
+                    <span
+                      class="h-1.5 w-1.5 rounded-full"
+                      :class="getStatusDotClass(entry.status)"
+                    ></span>
+                    {{ entry.status }}
+                  </span>
+                </div>
+                <p class="truncate text-sm font-medium" :title="entry.host">
+                  {{ entry.host || "-" }}
+                </p>
+                <p
+                  class="break-all font-mono text-[11px] leading-4 text-muted-foreground"
+                >
+                  {{ entry.request_uri || entry.path || "-" }}
+                </p>
+                <button
+                  v-if="hasWAFSignal(entry)"
+                  type="button"
+                  class="inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-normal leading-4 transition-colors disabled:cursor-default disabled:opacity-70"
+                  :class="getWAFBadgeClass(entry)"
+                  :title="wafBadgeTitle(entry)"
+                  :disabled="!entry.waf_trace_id"
+                  @click.stop="goToWafTrace(entry.waf_trace_id)"
+                >
+                  <ShieldX
+                    v-if="isWAFBlocked(entry)"
+                    class="h-2.5 w-2.5 shrink-0"
+                  />
+                  <ShieldCheck
+                    v-else-if="getWAFAction(entry) === 'pass'"
+                    class="h-2.5 w-2.5 shrink-0"
+                  />
+                  <ShieldAlert v-else class="h-2.5 w-2.5 shrink-0" />
+                  <span class="shrink-0">{{ wafBadgeLabel(entry) }}</span>
+                  <span class="truncate font-mono">{{
+                    wafBadgeMeta(entry)
+                  }}</span>
+                </button>
+              </div>
+            </div>
+
+            <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div class="min-w-0">
+                <dt class="text-[10px] text-muted-foreground">
+                  {{ t("admin.gatewayRequestLogs.columns.clientIp") }}
+                </dt>
+                <dd class="truncate font-mono" :title="getEntryClientIp(entry)">
+                  {{ getEntryClientIp(entry) || "-" }}
+                </dd>
+                <dd
+                  v-if="getEntryIpLocationText(entry)"
+                  class="truncate text-[10px] text-muted-foreground"
+                  :title="getEntryIpLocationText(entry)"
+                >
+                  {{ getEntryIpLocationText(entry) }}
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="text-[10px] text-muted-foreground">
+                  {{ t("admin.gatewayRequestLogs.columns.login") }}
+                </dt>
+                <dd class="truncate">
+                  {{
+                    entry.logged_in
+                      ? t("admin.gatewayRequestLogs.loggedIn")
+                      : t("admin.gatewayRequestLogs.notLoggedIn")
+                  }}
+                </dd>
+                <dd
+                  class="truncate text-[10px] text-muted-foreground"
+                  :title="authDecisionLabel(entry.auth_decision)"
+                >
+                  {{ authDecisionLabel(entry.auth_decision) }}
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="text-[10px] text-muted-foreground">
+                  {{ t("admin.gatewayRequestLogs.columns.route") }}
+                </dt>
+                <dd class="truncate" :title="routeTypeLabel(entry.route_type)">
+                  {{ routeTypeLabel(entry.route_type) }}
+                </dd>
+                <dd
+                  class="truncate text-[10px] text-muted-foreground"
+                  :title="entry.route_key || '-'"
+                >
+                  {{ entry.route_key || "-" }}
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="text-[10px] text-muted-foreground">
+                  {{ t("admin.gatewayRequestLogs.columns.duration") }}
+                </dt>
+                <dd class="font-mono">{{ formatDuration(entry.duration_ms) }}</dd>
+              </div>
+            </dl>
+
+            <div class="flex items-center justify-end gap-1 border-t pt-2">
+              <ConfirmDangerPopover
+                :title="
+                  isGeneralBlacklisted(entry.actionIp)
+                    ? t('admin.gatewayRequestLogs.unblacklistOneTitle')
+                    : t('admin.gatewayRequestLogs.blacklistOneTitle')
+                "
+                :description="
+                  isGeneralBlacklisted(entry.actionIp)
+                    ? t('admin.gatewayRequestLogs.unblacklistOneDescription', {
+                        ip: entry.actionIp || '-',
+                      })
+                    : t('admin.gatewayRequestLogs.blacklistOneDescription', {
+                        ip: entry.actionIp || '-',
+                      })
+                "
+                :loading="isMutatingBlacklistIps"
+                :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                :on-confirm="
+                  () =>
+                    isGeneralBlacklisted(entry.actionIp)
+                      ? releaseIpsFromLogs([entry.actionIp])
+                      : blockIpsFromLogs([entry.actionIp])
+                "
+              >
+                <template #trigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 px-2.5 text-xs"
+                    :class="
+                      isGeneralBlacklisted(entry.actionIp)
+                        ? 'text-foreground hover:text-foreground'
+                        : 'text-destructive hover:text-destructive'
+                    "
+                    :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                  >
+                    <Unlock
+                      v-if="isGeneralBlacklisted(entry.actionIp)"
+                      class="mr-1.5 h-3.5 w-3.5"
+                    />
+                    <Ban v-else class="mr-1.5 h-3.5 w-3.5" />
+                    {{
+                      isGeneralBlacklisted(entry.actionIp)
+                        ? t("admin.gatewayRequestLogs.unblacklistOne")
+                        : t("admin.gatewayRequestLogs.blacklistOne")
+                    }}
+                  </Button>
+                </template>
+              </ConfirmDangerPopover>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                @click="viewDetails(entry)"
+              >
+                <Eye class="mr-1.5 h-3.5 w-3.5" />
+                {{ t("common.viewDetails") }}
+              </Button>
+            </div>
+          </article>
+        </template>
+      </div>
+
+      <Table
+        v-if="!(loading && entriesCount === 0)"
+        class="hidden min-w-[1060px] md:table"
+      >
         <TableHeader class="sticky top-0 z-10 bg-background/95 backdrop-blur">
           <TableRow>
             <TableHead
@@ -441,30 +679,31 @@ onUnmounted(disposeResizeObserver);
           </TableRow>
         </TableBody>
       </Table>
-      <TableSkeletonBlock
-        v-else-if="showTableSkeleton"
-        :header-widths="[
-          'w-4',
-          'w-56',
-          'w-16',
-          'w-16',
-          'w-20',
-          'w-20',
-          'w-14',
-          'w-10',
-        ]"
-        :row-widths="[
-          'w-4',
-          'w-64',
-          'w-12',
-          'w-20',
-          'w-24',
-          'w-24',
-          'w-14',
-          'w-10',
-        ]"
-      />
-      <div v-else class="h-[380px]" aria-hidden="true"></div>
+      <div v-else-if="showTableSkeleton" class="hidden md:block">
+        <TableSkeletonBlock
+          :header-widths="[
+            'w-4',
+            'w-56',
+            'w-16',
+            'w-16',
+            'w-20',
+            'w-20',
+            'w-14',
+            'w-10',
+          ]"
+          :row-widths="[
+            'w-4',
+            'w-64',
+            'w-12',
+            'w-20',
+            'w-24',
+            'w-24',
+            'w-14',
+            'w-10',
+          ]"
+        />
+      </div>
+      <div v-else class="hidden h-[380px] md:block" aria-hidden="true"></div>
     </div>
   </div>
 </template>

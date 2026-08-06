@@ -35,6 +35,7 @@ use crate::{
     system_events, time_utils,
     tunnels::{
         TUNNEL_RUNTIME_KEY,
+        connectivity::{ConnectedEventAction, TunnelConnectivityGate, TunnelDisconnectEvent},
         supervisor::{
             OutputStream, ProcessLaunch, SupervisorFailure, SupervisorHandle, SupervisorSnapshot,
             TunnelProcessAdapter,
@@ -72,12 +73,6 @@ fn localize_cloudflared_error(translator: &Translator, message: &str) -> String 
         }
         value => value.to_string(),
     }
-}
-
-#[derive(Default)]
-struct CloudflaredConnectionState {
-    connected: bool,
-    stop_requested: bool,
 }
 
 struct CloudflaredManager {
@@ -651,7 +646,7 @@ pub(crate) async fn ensure_cloudflared_supervisor(
     let adapter = Arc::new(CloudflaredProcessAdapter {
         state: state.clone(),
         manager: manager(state),
-        connection: Arc::new(Mutex::new(CloudflaredConnectionState::default())),
+        connection: Arc::new(Mutex::new(TunnelConnectivityGate::default())),
         secret: RwLock::new(
             manager(state)
                 .read_config()
@@ -688,7 +683,7 @@ pub(crate) async fn resume_cloudflared_after_asset_update(
 struct CloudflaredProcessAdapter {
     state: AppState,
     manager: CloudflaredManager,
-    connection: Arc<Mutex<CloudflaredConnectionState>>,
+    connection: Arc<Mutex<TunnelConnectivityGate>>,
     secret: RwLock<String>,
 }
 
@@ -849,10 +844,7 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
 
     async fn set_expected_stop(&self, expected: bool) {
         let mut connection = self.connection.lock().await;
-        connection.stop_requested = expected;
-        if expected {
-            connection.connected = false;
-        }
+        connection.set_expected_stop(expected);
     }
 
     async fn on_unexpected_exit(&self, pid: Option<u32>, failure: &SupervisorFailure) {
@@ -979,7 +971,7 @@ async fn append_logs(state: &AppState, lines: Vec<String>) -> crate::storage::St
 
 async fn handle_cloudflared_runtime_signal(
     state: &AppState,
-    connection: &Arc<Mutex<CloudflaredConnectionState>>,
+    connection: &Arc<Mutex<TunnelConnectivityGate>>,
     line: &str,
 ) {
     let Some(message) = normalize_tunnel_event_message(line) else {
@@ -997,51 +989,103 @@ async fn handle_cloudflared_runtime_signal(
 
 async fn emit_cloudflared_connectivity_with_state(
     state: &AppState,
-    connection: &Arc<Mutex<CloudflaredConnectionState>>,
+    connection: &Arc<Mutex<TunnelConnectivityGate>>,
     connected: bool,
     message: Option<&str>,
     pid: Option<u32>,
 ) {
-    {
-        let mut run = connection.lock().await;
-        if connected {
-            if run.connected {
-                return;
-            }
-            run.connected = true;
-        } else {
-            if !run.connected {
-                return;
-            }
-            run.connected = false;
-            if run.stop_requested {
-                return;
+    if connected {
+        let mut connection = connection.lock().await;
+        match connection.observe_connected(tokio::time::Instant::now()) {
+            ConnectedEventAction::Ignore => return,
+            ConnectedEventAction::PublishConnected => {}
+            ConnectedEventAction::PublishDisconnectThenConnected(disconnected) => {
+                publish_cloudflared_connectivity_event(
+                    state,
+                    false,
+                    disconnected.pid,
+                    disconnected.message.as_deref(),
+                    Some(&disconnected.happened_at),
+                )
+                .await;
             }
         }
+        let event_pid = cloudflared_event_pid(state, pid).await;
+        publish_cloudflared_connectivity_event(state, true, event_pid, message, None).await;
+        return;
     }
-    let event_pid = if pid.is_some() {
-        pid
-    } else {
-        state
-            .tunnel_supervisors
-            .get(CLOUDFLARED_SUPERVISOR_KEY)
-            .await
-            .and_then(|handle| handle.snapshot().pid)
+
+    let mut connection_guard = connection.lock().await;
+    let observed_at = tokio::time::Instant::now();
+    let disconnected = TunnelDisconnectEvent {
+        happened_at: time_utils::now_iso(),
+        message: message.map(str::to_string),
+        pid: cloudflared_event_pid(state, pid).await,
     };
+    let Some(timer) = connection_guard.observe_disconnected(observed_at, disconnected) else {
+        return;
+    };
+    drop(connection_guard);
+    let state = state.clone();
+    let connection = Arc::clone(connection);
+    let shutdown = state.shutdown.clone();
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = tokio::time::sleep_until(timer.deadline) => {}
+            _ = timer.cancelled() => return,
+            _ = shutdown.cancelled() => return,
+        }
+        let mut connection = connection.lock().await;
+        let Some(disconnected) = connection.confirm_disconnect(&timer, tokio::time::Instant::now())
+        else {
+            return;
+        };
+        publish_cloudflared_connectivity_event(
+            &state,
+            false,
+            disconnected.pid,
+            disconnected.message.as_deref(),
+            Some(&disconnected.happened_at),
+        )
+        .await;
+    });
+}
+
+async fn publish_cloudflared_connectivity_event(
+    state: &AppState,
+    connected: bool,
+    pid: Option<u32>,
+    message: Option<&str>,
+    happened_at: Option<&str>,
+) {
     if let Err(error) = system_events::publish_tunnel_connectivity_event(
         state,
-        "cloudflared",
-        connected,
-        event_pid,
-        message,
-        None,
-        None,
-        None,
+        system_events::TunnelConnectivityEvent {
+            tunnel: "cloudflared",
+            connected,
+            pid,
+            message,
+            instance_id: None,
+            instance_name: None,
+            is_primary: None,
+            happened_at,
+        },
     )
     .await
     {
         tracing::warn!(%error, "failed to publish cloudflared connectivity event");
     }
+}
+
+async fn cloudflared_event_pid(state: &AppState, pid: Option<u32>) -> Option<u32> {
+    if pid.is_some() {
+        return pid;
+    }
+    state
+        .tunnel_supervisors
+        .get(CLOUDFLARED_SUPERVISOR_KEY)
+        .await
+        .and_then(|handle| handle.snapshot().pid)
 }
 
 async fn read_pid_record(path: &Path) -> Option<CloudflaredPidRecord> {

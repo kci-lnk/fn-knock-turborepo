@@ -434,15 +434,16 @@ fn builds_waf_blocked_event_like_node_helper_truthiness() {
 
 #[test]
 fn builds_tunnel_connectivity_event_like_node() {
-    let body = tunnel_connectivity_body(
-        "frp",
-        false,
-        Some(1234),
-        Some("Primary: session shutdown"),
-        Some("primary"),
-        Some("Primary"),
-        Some(true),
-    );
+    let body = tunnel_connectivity_body(TunnelConnectivityEvent {
+        tunnel: "frp",
+        connected: false,
+        pid: Some(1234),
+        message: Some("Primary: session shutdown"),
+        instance_id: Some("primary"),
+        instance_name: Some("Primary"),
+        is_primary: Some(true),
+        happened_at: Some("2026-08-06T12:34:56Z"),
+    });
 
     assert_eq!(body.event_type, "FN_EVENT_TUNNEL_FRP_DISCONNECTED");
     assert_eq!(body.source, "SERVER_ADMIN");
@@ -457,18 +458,29 @@ fn builds_tunnel_connectivity_event_like_node() {
     assert_eq!(body.payload.get("instance_id"), Some(&json!("primary")));
     assert_eq!(body.payload.get("instance_name"), Some(&json!("Primary")));
     assert_eq!(body.payload.get("is_primary"), Some(&json!(true)));
+    assert_eq!(body.happened_at.as_deref(), Some("2026-08-06T12:34:56Z"));
     assert_eq!(
         body.payload.get("message"),
         Some(&json!("Primary: session shutdown"))
     );
 
-    let body = tunnel_connectivity_body("cloudflared", true, None, None, None, None, None);
+    let body = tunnel_connectivity_body(TunnelConnectivityEvent {
+        tunnel: "cloudflared",
+        connected: true,
+        pid: None,
+        message: None,
+        instance_id: None,
+        instance_name: None,
+        is_primary: None,
+        happened_at: None,
+    });
     assert_eq!(body.event_type, "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED");
     assert_eq!(body.level.as_deref(), Some("INFO"));
     assert_eq!(
         body.subject,
         Some(json!({ "kind": "TUNNEL", "id": "cloudflared" }))
     );
+    assert!(body.happened_at.is_none());
     assert!(body.payload.get("pid").is_none());
 }
 

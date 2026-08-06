@@ -490,41 +490,35 @@ fn auth_session_ip_drift_body(payload: Value) -> InternalSystemEventBody {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub async fn publish_tunnel_connectivity_event(
-    state: &AppState,
-    tunnel: &str,
-    connected: bool,
-    pid: Option<u32>,
-    message: Option<&str>,
-    instance_id: Option<&str>,
-    instance_name: Option<&str>,
-    is_primary: Option<bool>,
-) -> anyhow::Result<bool> {
-    publish_system_event_body(
-        state,
-        tunnel_connectivity_body(
-            tunnel,
-            connected,
-            pid,
-            message,
-            instance_id,
-            instance_name,
-            is_primary,
-        ),
-    )
-    .await
+pub struct TunnelConnectivityEvent<'a> {
+    pub tunnel: &'a str,
+    pub connected: bool,
+    pub pid: Option<u32>,
+    pub message: Option<&'a str>,
+    pub instance_id: Option<&'a str>,
+    pub instance_name: Option<&'a str>,
+    pub is_primary: Option<bool>,
+    pub happened_at: Option<&'a str>,
 }
 
-fn tunnel_connectivity_body(
-    tunnel: &str,
-    connected: bool,
-    pid: Option<u32>,
-    message: Option<&str>,
-    instance_id: Option<&str>,
-    instance_name: Option<&str>,
-    is_primary: Option<bool>,
-) -> InternalSystemEventBody {
+pub async fn publish_tunnel_connectivity_event(
+    state: &AppState,
+    event: TunnelConnectivityEvent<'_>,
+) -> anyhow::Result<bool> {
+    publish_system_event_body(state, tunnel_connectivity_body(event)).await
+}
+
+fn tunnel_connectivity_body(event: TunnelConnectivityEvent<'_>) -> InternalSystemEventBody {
+    let TunnelConnectivityEvent {
+        tunnel,
+        connected,
+        pid,
+        message,
+        instance_id,
+        instance_name,
+        is_primary,
+        happened_at,
+    } = event;
     let tunnel = if tunnel == "frp" {
         "frp"
     } else {
@@ -582,7 +576,7 @@ fn tunnel_connectivity_body(
         event_type: event_type.to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some(if connected { "INFO" } else { "ERROR" }.to_string()),
-        happened_at: None,
+        happened_at: happened_at.map(str::to_string),
         dedupe_key: None,
         dedupe_ttl_seconds: None,
         subject: Some(json!({ "kind": "TUNNEL", "id": subject_id })),

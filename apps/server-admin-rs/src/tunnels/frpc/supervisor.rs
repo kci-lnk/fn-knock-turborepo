@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 
 use super::*;
-use crate::tunnels::supervisor::{
-    OutputStream, ProcessLaunch, SupervisorHandle, TunnelProcessAdapter,
+use crate::tunnels::{
+    connectivity::{ConnectedEventAction, TunnelConnectivityGate, TunnelDisconnectEvent},
+    supervisor::{OutputStream, ProcessLaunch, SupervisorHandle, TunnelProcessAdapter},
 };
 
 pub(super) fn supervisor_key(id: &str) -> String {
@@ -29,7 +30,7 @@ pub(super) async fn ensure_frpc_supervisor(
     let adapter = Arc::new(FrpcProcessAdapter {
         state: state.clone(),
         meta: meta.clone(),
-        connection: Arc::new(Mutex::new(FrpcConnectionState::default())),
+        connection: Arc::new(Mutex::new(TunnelConnectivityGate::default())),
         secrets: std::sync::RwLock::new(secrets),
     });
     Ok(state
@@ -41,7 +42,7 @@ pub(super) async fn ensure_frpc_supervisor(
 struct FrpcProcessAdapter {
     state: AppState,
     meta: FrpcInstanceMeta,
-    connection: Arc<Mutex<FrpcConnectionState>>,
+    connection: Arc<Mutex<TunnelConnectivityGate>>,
     secrets: std::sync::RwLock<Vec<String>>,
 }
 
@@ -163,10 +164,7 @@ impl TunnelProcessAdapter for FrpcProcessAdapter {
 
     async fn set_expected_stop(&self, expected: bool) {
         let mut connection = self.connection.lock().await;
-        connection.stop_requested = expected;
-        if expected {
-            connection.connected = false;
-        }
+        connection.set_expected_stop(expected);
     }
 
     async fn on_unexpected_exit(&self, pid: Option<u32>, failure: &SupervisorFailure) {
@@ -322,7 +320,7 @@ fn format_failure_summary(label: &str, pid: Option<u32>, failure: &SupervisorFai
 async fn handle_frpc_runtime_signal(
     state: &AppState,
     meta: &FrpcInstanceMeta,
-    connection: &Arc<Mutex<FrpcConnectionState>>,
+    connection: &Arc<Mutex<TunnelConnectivityGate>>,
     line: &str,
 ) {
     let Some(message) = normalize_frpc_tunnel_event_message(line) else {
@@ -351,38 +349,93 @@ async fn handle_frpc_runtime_signal(
 async fn emit_frpc_connectivity_with_state(
     state: &AppState,
     meta: &FrpcInstanceMeta,
-    connection: &Arc<Mutex<FrpcConnectionState>>,
+    connection: &Arc<Mutex<TunnelConnectivityGate>>,
     connected: bool,
     message: Option<&str>,
     pid: Option<u32>,
 ) {
-    {
+    let event_message = message.map(|value| format!("{}: {value}", meta.name));
+    if connected {
         let mut connection = connection.lock().await;
-        if connected {
-            if connection.connected {
-                return;
-            }
-            connection.connected = true;
-        } else {
-            if !connection.connected {
-                return;
-            }
-            connection.connected = false;
-            if connection.stop_requested {
-                return;
+        match connection.observe_connected(tokio::time::Instant::now()) {
+            ConnectedEventAction::Ignore => return,
+            ConnectedEventAction::PublishConnected => {}
+            ConnectedEventAction::PublishDisconnectThenConnected(disconnected) => {
+                publish_frpc_connectivity_event(
+                    state,
+                    meta,
+                    false,
+                    disconnected.pid,
+                    disconnected.message.as_deref(),
+                    Some(&disconnected.happened_at),
+                )
+                .await;
             }
         }
+        publish_frpc_connectivity_event(state, meta, true, pid, event_message.as_deref(), None)
+            .await;
+        return;
     }
-    let event_message = message.map(|value| format!("{}: {value}", meta.name));
+
+    let disconnected = TunnelDisconnectEvent {
+        happened_at: time_utils::now_iso(),
+        message: event_message,
+        pid,
+    };
+    let Some(timer) = connection
+        .lock()
+        .await
+        .observe_disconnected(tokio::time::Instant::now(), disconnected)
+    else {
+        return;
+    };
+    let state = state.clone();
+    let meta = meta.clone();
+    let connection = Arc::clone(connection);
+    let shutdown = state.shutdown.clone();
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = tokio::time::sleep_until(timer.deadline) => {}
+            _ = timer.cancelled() => return,
+            _ = shutdown.cancelled() => return,
+        }
+        let mut connection = connection.lock().await;
+        let Some(disconnected) = connection.confirm_disconnect(&timer, tokio::time::Instant::now())
+        else {
+            return;
+        };
+        publish_frpc_connectivity_event(
+            &state,
+            &meta,
+            false,
+            disconnected.pid,
+            disconnected.message.as_deref(),
+            Some(&disconnected.happened_at),
+        )
+        .await;
+    });
+}
+
+async fn publish_frpc_connectivity_event(
+    state: &AppState,
+    meta: &FrpcInstanceMeta,
+    connected: bool,
+    pid: Option<u32>,
+    message: Option<&str>,
+    happened_at: Option<&str>,
+) {
     if let Err(error) = system_events::publish_tunnel_connectivity_event(
         state,
-        "frp",
-        connected,
-        pid,
-        event_message.as_deref(),
-        Some(&meta.id),
-        Some(&meta.name),
-        Some(meta.is_primary),
+        system_events::TunnelConnectivityEvent {
+            tunnel: "frp",
+            connected,
+            pid,
+            message,
+            instance_id: Some(&meta.id),
+            instance_name: Some(&meta.name),
+            is_primary: Some(meta.is_primary),
+            happened_at,
+        },
     )
     .await
     {

@@ -43,12 +43,6 @@ const FRPC_DISCONNECTED_PATTERNS: &[&str] = &[
     "session shutdown",
 ];
 
-#[derive(Default)]
-struct FrpcConnectionState {
-    connected: bool,
-    stop_requested: bool,
-}
-
 #[derive(Debug)]
 struct FrpcHttpError {
     status: StatusCode,

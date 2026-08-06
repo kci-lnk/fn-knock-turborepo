@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+MACOS_WORKFLOW="${ROOT_DIR}/.github/workflows/macos.yml"
 SUPPLEMENTAL_WORKFLOW="${ROOT_DIR}/.github/workflows/macos-release.yml"
 fail() { printf '[test-macos-release-contract] ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -24,10 +25,15 @@ grep -Fq 'FN_KNOCK_DISABLE_IPTABLES=1' "${ROOT_DIR}/deploy/macos/fn-knock-entryp
   fail "macOS gateway does not disable iptables"
 grep -Fq 'ADMIN_VIEW_HOST=127.0.0.1' "${ROOT_DIR}/deploy/macos/fn-knock.env" || \
   fail "macOS admin view is not loopback-only by default"
-grep -Fq 'macos-15-intel' "${ROOT_DIR}/.github/workflows/macos.yml" || \
+grep -Fq 'macos-15-intel' "${MACOS_WORKFLOW}" || \
   fail "Intel runner is missing"
-grep -Fq 'runner: macos-15' "${ROOT_DIR}/.github/workflows/macos.yml" || \
+grep -Fq 'runner: macos-15' "${MACOS_WORKFLOW}" || \
   fail "Apple Silicon runner is missing"
+grep -Fq '      - "v*"' "${MACOS_WORKFLOW}" || \
+  fail "macOS CLI workflow is not triggered by release tags"
+if grep -Fq '  pull_request:' "${MACOS_WORKFLOW}" || grep -Fq '    branches: [main]' "${MACOS_WORKFLOW}"; then
+  fail "macOS CLI workflow must not run for every pull request or main branch push"
+fi
 grep -Fq 'fn-knock-macos-${version}-amd64.tar.gz' "${ROOT_DIR}/scripts/fn-knock-release-finalize.mjs" || \
   fail "amd64 release inventory entry is missing"
 grep -Fq 'fn-knock-macos-${version}-arm64.tar.gz' "${ROOT_DIR}/scripts/fn-knock-release-finalize.mjs" || \

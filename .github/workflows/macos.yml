@@ -12,53 +12,9 @@ on:
       version:
         description: fn-knock release version
         value: ${{ jobs.preflight.outputs.version }}
-  pull_request:
-    paths:
-      - ".github/workflows/macos.yml"
-      - ".github/workflows/macos-release.yml"
-      - ".github/workflows/release.yml"
-      - "apps/server-admin-rs/**"
-      - "apps/server-admin-view/**"
-      - "apps/server-auth-view/**"
-      - "deploy/macos/**"
-      - "packages/**"
-      - "package.json"
-      - "turbo.json"
-      - "scripts/control-api-version.sh"
-      - "scripts/fn-knock-macos-package.sh"
-      - "scripts/fn-knock-macos-launchd-smoke.sh"
-      - "scripts/fn-knock-macos-smoke.sh"
-      - "scripts/fn-knock-cos-publish.mjs"
-      - "scripts/fn-knock-release-finalize.mjs"
-      - "scripts/version.sh"
-      - "scripts/verify-go-control-api-contract.sh"
-      - "scripts/tests/**"
-      - "package-lock.json"
-      - "version.json"
   push:
-    branches: [main]
-    paths:
-      - ".github/workflows/macos.yml"
-      - ".github/workflows/macos-release.yml"
-      - ".github/workflows/release.yml"
-      - "apps/server-admin-rs/**"
-      - "apps/server-admin-view/**"
-      - "apps/server-auth-view/**"
-      - "deploy/macos/**"
-      - "packages/**"
-      - "package.json"
-      - "turbo.json"
-      - "scripts/control-api-version.sh"
-      - "scripts/fn-knock-macos-package.sh"
-      - "scripts/fn-knock-macos-launchd-smoke.sh"
-      - "scripts/fn-knock-macos-smoke.sh"
-      - "scripts/fn-knock-cos-publish.mjs"
-      - "scripts/fn-knock-release-finalize.mjs"
-      - "scripts/version.sh"
-      - "scripts/verify-go-control-api-contract.sh"
-      - "scripts/tests/**"
-      - "package-lock.json"
-      - "version.json"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:

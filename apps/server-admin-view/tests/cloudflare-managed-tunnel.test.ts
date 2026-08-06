@@ -106,6 +106,14 @@ describe("managed Cloudflare Tunnel", () => {
     }
   });
 
+  it("does not animate button geometry when Cloudflare actions enter loading state", () => {
+    const button = readSource(
+      "../../../packages/ui-vue/src/components/ui/button/index.ts",
+    );
+    assert.match(button, /transition-colors/u);
+    assert.doesNotMatch(button, /transition-all/u);
+  });
+
   it("keeps third-party candidate hostnames DNS-only and provenance visible", () => {
     const backend = readSource(
       "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",

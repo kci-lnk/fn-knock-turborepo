@@ -1,5 +1,36 @@
 use super::*;
 
+const UPDATE_JSON_CAS_SCRIPT: &str = r#"
+-- fn-knock:eval:update-json-cas:v1
+local current = redis.call("GET", KEYS[1])
+if not current then return -1 end
+if current ~= ARGV[1] then return 0 end
+local ttl = redis.call("PTTL", KEYS[1])
+if ttl == -2 or ttl == 0 then return -1 end
+if ttl > 0 then
+  redis.call("SET", KEYS[1], ARGV[2], "PX", ttl)
+else
+  redis.call("SET", KEYS[1], ARGV[2])
+end
+return 1
+"#;
+
+async fn compare_and_set_json(
+    conn: &mut ConnectionManager,
+    key: &str,
+    expected_raw: &str,
+    next_raw: &str,
+) -> crate::storage::StorageResult<i64> {
+    redis::cmd("EVAL")
+        .arg(UPDATE_JSON_CAS_SCRIPT)
+        .arg(1)
+        .arg(key)
+        .arg(expected_raw)
+        .arg(next_raw)
+        .query_async(conn)
+        .await
+}
+
 impl Store {
     pub async fn get_auth_login_mode(
         &self,
@@ -518,29 +549,7 @@ impl Store {
                 object.insert(field.clone(), value.clone());
             }
             let next_raw = serde_json::to_string(&current)?;
-            let result: i64 = redis::cmd("EVAL")
-                .arg(
-                    r#"
--- fn-knock:eval:update-session-json-cas:v2
-local current = redis.call("GET", KEYS[1])
-if not current then return -1 end
-if current ~= ARGV[1] then return 0 end
-local ttl = redis.call("PTTL", KEYS[1])
-if ttl == -2 or ttl == 0 then return -1 end
-if ttl > 0 then
-  redis.call("SET", KEYS[1], ARGV[2], "PX", ttl)
-else
-  redis.call("SET", KEYS[1], ARGV[2])
-end
-return 1
-"#,
-                )
-                .arg(1)
-                .arg(&key)
-                .arg(&expected_raw)
-                .arg(next_raw)
-                .query_async(&mut conn)
-                .await?;
+            let result = compare_and_set_json(&mut conn, &key, &expected_raw, &next_raw).await?;
             match result {
                 1 => return Ok(Some(current)),
                 0 => continue,
@@ -1246,22 +1255,69 @@ return whitelist_ids
     }
 
     pub async fn delete_passkey(&self, id: &str) -> crate::storage::StorageResult<bool> {
-        let mut passkeys = self.get_passkeys().await?;
-        let original_len = passkeys.len();
-        passkeys.retain(|passkey| passkey.get("id").and_then(Value::as_str) != Some(id));
-        if passkeys.len() == original_len {
-            return Ok(false);
+        let mut conn = self.conn();
+        let key = "fn_knock:passkeys";
+        loop {
+            let Some(expected_raw) = conn.get::<_, Option<String>>(key).await? else {
+                return Ok(false);
+            };
+            let mut passkeys = serde_json::from_str::<Vec<Value>>(&expected_raw)?;
+            let original_len = passkeys.len();
+            passkeys.retain(|passkey| passkey.get("id").and_then(Value::as_str) != Some(id));
+            if passkeys.len() == original_len {
+                return Ok(false);
+            }
+            let next_raw = serde_json::to_string(&passkeys)?;
+            match compare_and_set_json(&mut conn, key, &expected_raw, &next_raw).await? {
+                1 => return Ok(true),
+                0 => continue,
+                -1 => return Ok(false),
+                _ => {
+                    return Err(crate::storage::storage_error(
+                        "unexpected passkey deletion CAS result",
+                    ));
+                }
+            }
         }
-        self.set_json_value("fn_knock:passkeys", &Value::Array(passkeys))
-            .await?;
-        Ok(true)
     }
 
-    pub async fn add_passkey(&self, passkey: &Value) -> crate::storage::StorageResult<()> {
-        let mut passkeys = self.get_passkeys().await?;
-        passkeys.push(passkey.clone());
-        self.set_json_value("fn_knock:passkeys", &Value::Array(passkeys))
-            .await
+    pub async fn add_passkey(&self, passkey: &Value) -> crate::storage::StorageResult<bool> {
+        let mut conn = self.conn();
+        let key = "fn_knock:passkeys";
+        loop {
+            let expected_raw = match conn.get::<_, Option<String>>(key).await? {
+                Some(value) => value,
+                None => {
+                    let _: Option<String> = redis::cmd("SET")
+                        .arg(key)
+                        .arg("[]")
+                        .arg("NX")
+                        .query_async(&mut conn)
+                        .await?;
+                    continue;
+                }
+            };
+            let mut passkeys = serde_json::from_str::<Vec<Value>>(&expected_raw)?;
+            let id = passkey.get("id").and_then(Value::as_str);
+            if id.is_some_and(|id| {
+                passkeys
+                    .iter()
+                    .any(|stored| stored.get("id").and_then(Value::as_str) == Some(id))
+            }) {
+                return Ok(false);
+            }
+            passkeys.push(passkey.clone());
+            let next_raw = serde_json::to_string(&passkeys)?;
+            match compare_and_set_json(&mut conn, key, &expected_raw, &next_raw).await? {
+                1 => return Ok(true),
+                0 | -1 => continue,
+                _ => {
+                    return Err(crate::storage::storage_error(
+                        "unexpected passkey insertion CAS result",
+                    ));
+                }
+            }
+        }
     }
 
     pub async fn update_passkey_counter(
@@ -1272,16 +1328,51 @@ return whitelist_ids
         backup_eligible: Option<bool>,
         backup_state: Option<bool>,
     ) -> crate::storage::StorageResult<bool> {
-        let mut passkeys = self.get_passkeys().await?;
-        let mut found = false;
-        for passkey in &mut passkeys {
-            if passkey.get("id").and_then(Value::as_str) != Some(id) {
-                continue;
-            }
-            if let Some(object) = passkey.as_object_mut() {
-                object.insert("counter".to_string(), json!(counter));
+        let mut conn = self.conn();
+        let key = "fn_knock:passkeys";
+        loop {
+            let Some(expected_raw) = conn.get::<_, Option<String>>(key).await? else {
+                return Ok(false);
+            };
+            let mut passkeys = serde_json::from_str::<Vec<Value>>(&expected_raw)?;
+            let mut found = false;
+            for passkey in &mut passkeys {
+                if passkey.get("id").and_then(Value::as_str) != Some(id) {
+                    continue;
+                }
+                let Some(object) = passkey.as_object_mut() else {
+                    continue;
+                };
+                let stored_counter = object
+                    .get("counter")
+                    .and_then(Value::as_u64)
+                    .and_then(|value| u32::try_from(value).ok())
+                    .unwrap_or(0);
+                let credential_counter = object
+                    .get("webauthnCredential")
+                    .and_then(Value::as_object)
+                    .and_then(|credential| credential.get("counter"))
+                    .and_then(Value::as_u64)
+                    .and_then(|value| u32::try_from(value).ok())
+                    .unwrap_or(0);
+                let next_counter = counter.max(stored_counter).max(credential_counter);
+                let existing_backup_eligible = object
+                    .get("backupEligible")
+                    .or_else(|| object.get("backup_eligible"))
+                    .and_then(Value::as_bool)
+                    .or_else(|| {
+                        object
+                            .get("webauthnCredential")
+                            .and_then(Value::as_object)
+                            .and_then(|credential| credential.get("backup_eligible"))
+                            .and_then(Value::as_bool)
+                    })
+                    .unwrap_or(false);
+
+                object.insert("counter".to_string(), json!(next_counter));
                 object.insert("lastUsedAt".to_string(), json!(last_used_at));
                 if let Some(value) = backup_eligible {
+                    let value = value || existing_backup_eligible;
                     object.insert("backupEligible".to_string(), json!(value));
                     object.insert("backup_eligible".to_string(), json!(value));
                 }
@@ -1289,15 +1380,41 @@ return whitelist_ids
                     object.insert("backupState".to_string(), json!(value));
                     object.insert("backup_state".to_string(), json!(value));
                 }
+                if let Some(credential) = object
+                    .get_mut("webauthnCredential")
+                    .and_then(Value::as_object_mut)
+                {
+                    credential.insert("counter".to_string(), json!(next_counter));
+                    if let Some(value) = backup_eligible {
+                        credential.insert(
+                            "backup_eligible".to_string(),
+                            json!(value || existing_backup_eligible),
+                        );
+                    }
+                    if let Some(value) = backup_state {
+                        credential.insert("backup_state".to_string(), json!(value));
+                    }
+                }
                 found = true;
+                break;
+            }
+            if !found {
+                return Ok(false);
+            }
+
+            let next_raw = serde_json::to_string(&passkeys)?;
+            let result = compare_and_set_json(&mut conn, key, &expected_raw, &next_raw).await?;
+            match result {
+                1 => return Ok(true),
+                0 => continue,
+                -1 => return Ok(false),
+                _ => {
+                    return Err(crate::storage::storage_error(
+                        "unexpected passkey update CAS result",
+                    ));
+                }
             }
         }
-        if !found {
-            return Ok(false);
-        }
-        self.set_json_value("fn_knock:passkeys", &Value::Array(passkeys))
-            .await?;
-        Ok(true)
     }
 
     pub async fn set_passkey_challenge(

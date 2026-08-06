@@ -6,7 +6,12 @@ export const useAuthBrowserCapabilities = () => {
 
   const refreshBrowserCapabilities = () => {
     isPasskeySupported.value =
-      typeof window !== "undefined" && !!window.PublicKeyCredential;
+      typeof window !== "undefined" &&
+      window.isSecureContext &&
+      typeof window.PublicKeyCredential === "function" &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.credentials?.create === "function" &&
+      typeof navigator.credentials?.get === "function";
     canUseNativePow.value =
       typeof window !== "undefined" &&
       window.isSecureContext &&

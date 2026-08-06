@@ -286,6 +286,50 @@ fn registration_excludes_only_passkeys_for_the_binding_account() {
 }
 
 #[test]
+fn registration_state_is_bound_to_the_binding_account() {
+    let state = json!({
+        "type": "register",
+        "totp_id": "totp-1"
+    });
+
+    assert!(registration_state_matches_account(&state, "totp-1"));
+    assert!(!registration_state_matches_account(&state, "totp-2"));
+    assert!(!registration_state_matches_account(
+        &json!({ "type": "auth", "totp_id": "totp-1" }),
+        "totp-1"
+    ));
+    assert!(!registration_state_matches_account(
+        &json!({ "type": "register" }),
+        "totp-1"
+    ));
+}
+
+#[test]
+fn normalizes_legacy_top_level_registration_transports() {
+    let legacy = json!({
+        "transports": ["internal", "hybrid"],
+        "response": {
+            "attestationObject": "attestation",
+            "clientDataJSON": "client-data"
+        }
+    });
+    let normalized = normalize_registration_credential(&legacy);
+    assert_eq!(
+        normalized.pointer("/response/transports"),
+        Some(&json!(["internal", "hybrid"]))
+    );
+
+    let modern = json!({
+        "transports": ["usb"],
+        "response": { "transports": ["internal"] }
+    });
+    assert_eq!(
+        normalize_registration_credential(&modern).pointer("/response/transports"),
+        Some(&json!(["internal"]))
+    );
+}
+
+#[test]
 fn android_registration_options_target_google_password_manager() {
     let rp_info = RpInfo {
         rp_id: "auth.example.com".to_string(),
@@ -293,8 +337,13 @@ fn android_registration_options_target_google_password_manager() {
         mode: "auth_host".to_string(),
     };
     let webauthn = build_webauthn(&rp_info).expect("valid rp config");
-    let (options, registration_state) =
-        start_passkey_registration_for_client(&webauthn, None, true).expect("registration options");
+    let (options, registration_state) = start_passkey_registration_for_client(
+        &webauthn,
+        passkey_user_handle("totp-android"),
+        None,
+        true,
+    )
+    .expect("registration options");
     let state = serde_json::to_value(registration_state).expect("registration state serializes");
     let options = serde_json::to_value(options.public_key).expect("options serialize");
 
@@ -315,10 +364,7 @@ fn android_registration_options_target_google_password_manager() {
         Some(&json!("platform"))
     );
     assert_eq!(options.pointer("/hints/0"), Some(&json!("client-device")));
-    assert_eq!(
-        options.pointer("/extensions/credentialProtectionPolicy"),
-        None
-    );
+    assert_eq!(options.pointer("/extensions"), None);
     assert_eq!(state.pointer("/rs/policy"), Some(&json!("required")));
 }
 
@@ -330,9 +376,13 @@ fn standard_registration_uses_passkey_policy() {
         mode: "auth_host".to_string(),
     };
     let webauthn = build_webauthn(&rp_info).expect("valid rp config");
-    let (options, registration_state) =
-        start_passkey_registration_for_client(&webauthn, None, false)
-            .expect("registration options");
+    let (options, registration_state) = start_passkey_registration_for_client(
+        &webauthn,
+        passkey_user_handle("totp-standard"),
+        None,
+        false,
+    )
+    .expect("registration options");
     let state = serde_json::to_value(registration_state).expect("registration state serializes");
     let options = serde_json::to_value(options.public_key).expect("options serialize");
 
@@ -340,8 +390,33 @@ fn standard_registration_uses_passkey_policy() {
         options.pointer("/authenticatorSelection/userVerification"),
         Some(&json!("required"))
     );
+    assert_eq!(
+        options.pointer("/authenticatorSelection/residentKey"),
+        Some(&json!("preferred"))
+    );
+    assert_eq!(
+        options.pointer("/authenticatorSelection/requireResidentKey"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        options.pointer("/authenticatorSelection/authenticatorAttachment"),
+        None
+    );
     assert_eq!(options.pointer("/hints"), None);
+    assert_eq!(options.pointer("/extensions"), None);
     assert_eq!(state.pointer("/rs/policy"), Some(&json!("required")));
+}
+
+#[test]
+fn passkey_user_handles_are_stable_and_unique_per_account() {
+    let first = passkey_user_handle("totp-account-1");
+    let repeated = passkey_user_handle("totp-account-1");
+    let second = passkey_user_handle("totp-account-2");
+
+    assert_eq!(first, repeated);
+    assert_ne!(first, second);
+    assert_eq!(first.get_version_num(), 8);
+    assert_eq!(first.get_variant(), uuid::Variant::RFC4122);
 }
 
 #[test]
@@ -366,6 +441,13 @@ fn detects_android_passkey_clients_from_client_hints_or_user_agent() {
         HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5)"),
     );
     assert!(!is_android_passkey_client(&desktop_headers));
+
+    assert!(use_android_google_password_manager(&client_hints, None));
+    assert!(!use_android_google_password_manager(
+        &client_hints,
+        Some("standard")
+    ));
+    assert!(!use_android_google_password_manager(&desktop_headers, None));
 }
 
 #[test]
@@ -414,6 +496,38 @@ fn legacy_stored_credentials_authenticate_with_required_user_verification() {
     );
     assert_eq!(options.pointer("/hints"), None);
     assert_eq!(state.pointer("/ast/policy"), Some(&json!("required")));
+}
+
+#[test]
+fn passkey_availability_excludes_orphaned_and_malformed_credentials() {
+    let public_key = cose_key_to_base64url(&test_cose_key()).expect("legacy public key encodes");
+    let passkeys = vec![
+        json!({
+            "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3, 4]),
+            "totpId": "totp-1",
+            "publicKey": public_key
+        }),
+        json!({
+            "id": URL_SAFE_NO_PAD.encode([5u8, 6, 7, 8]),
+            "totpId": "deleted-account",
+            "publicKey": public_key
+        }),
+        json!({
+            "id": "malformed",
+            "totpId": "totp-1",
+            "publicKey": "malformed"
+        }),
+    ];
+    let totps = vec![crate::store::TotpCredential {
+        id: "totp-1".to_string(),
+        secret: "secret".to_string(),
+        comment: "Admin".to_string(),
+        created_at: time_utils::now_iso(),
+        access_scopes: Value::Array(Vec::new()),
+        subdomain_access: json!({ "mode": "all", "hosts": [] }),
+    }];
+
+    assert_eq!(valid_linked_passkey_count(&passkeys, &totps), 1);
 }
 
 fn test_cose_key() -> COSEKey {

@@ -33,8 +33,12 @@ export const resolvePasskeyRegistrationError = (
 
   switch (details.name) {
     case "AbortError":
-    case "NotAllowedError":
       return messages.cancelled;
+    // WebAuthn uses NotAllowedError as a catch-all for cancellation, timeout,
+    // policy rejection, and an unavailable authenticator. Do not misdiagnose
+    // every Windows provider failure as the user cancelling the prompt.
+    case "NotAllowedError":
+      return messages.unavailable;
     case "InvalidStateError":
       return messages.alreadyRegistered;
     case "ConstraintError":
@@ -44,10 +48,22 @@ export const resolvePasskeyRegistrationError = (
     case "UnknownError":
       return messages.unavailable;
     default:
-      return details.message
-        .toLowerCase()
-        .includes("unknown transient reason")
+      return details.message.toLowerCase().includes("unknown transient reason")
         ? messages.unavailable
         : messages.failed;
   }
 };
+
+const STANDARD_PROFILE_RETRY_ERRORS = new Set([
+  "ConstraintError",
+  "NotSupportedError",
+  "OperationError",
+  "UnknownError",
+]);
+
+export const shouldRetryPasskeyRegistrationWithStandardProfile = (
+  error: unknown,
+  isAndroid: boolean,
+) =>
+  isAndroid &&
+  STANDARD_PROFILE_RETRY_ERRORS.has(getPasskeyErrorDetails(error).name);

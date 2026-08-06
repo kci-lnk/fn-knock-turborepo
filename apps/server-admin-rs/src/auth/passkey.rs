@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashSet},
+    str::FromStr,
+};
 
 use axum::{
     Json, Router,
@@ -10,11 +13,13 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use url::Url;
 use uuid::Uuid;
 use webauthn_rs::prelude::*;
 use webauthn_rs_core::proto::{
-    AttestationMetadata, AuthenticatorTransport, RegisteredExtensions, UserVerificationPolicy,
+    AttestationMetadata, AuthenticatorTransport, RegisteredExtensions, ResidentKeyRequirement,
+    UserVerificationPolicy,
 };
 
 use crate::{
@@ -36,7 +41,6 @@ use crate::{
 const RP_NAME: &str = "fn-knock";
 const PASSKEY_CHALLENGE_TTL_SECONDS: usize = 300;
 const PASSKEY_BIND_TTL_SECONDS: usize = 600;
-const PASSKEY_ADMIN_UUID: Uuid = Uuid::from_bytes(*b"fn-knock-admin!!");
 const CA_HOSTS_KEY: &str = "fn_knock:ca:hosts";
 
 #[derive(Deserialize)]
@@ -50,6 +54,8 @@ struct AuthVerifyBody {
 #[derive(Deserialize)]
 struct RegisterOptionsBody {
     token: String,
+    #[serde(default, rename = "registrationProfile")]
+    registration_profile: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -111,12 +117,13 @@ async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
             ));
         }
     };
-    let passkey_count = state
-        .store
-        .get_passkeys()
-        .await
-        .map(|items| items.len())
-        .unwrap_or(0);
+    let passkey_count = match (
+        state.store.get_passkeys().await,
+        state.store.get_totps().await,
+    ) {
+        (Ok(passkeys), Ok(totps)) => valid_linked_passkey_count(&passkeys, &totps),
+        _ => 0,
+    };
     let passkey_login_enabled = state
         .store
         .get_auth_login_mode()
@@ -166,8 +173,27 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
         ));
     }
 
+    let linked_totp_ids = match state.store.get_totps().await {
+        Ok(totps) => totps
+            .into_iter()
+            .map(|credential| credential.id)
+            .collect::<HashSet<_>>(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load passkey account links");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "loadPasskeysFailed"),
+            ));
+        }
+    };
     let credentials = passkeys
         .iter()
+        .filter(|passkey| {
+            passkey
+                .get("totpId")
+                .and_then(Value::as_str)
+                .is_some_and(|id| linked_totp_ids.contains(id))
+        })
         .filter_map(stored_passkey)
         .collect::<Vec<_>>();
     if credentials.is_empty() {
@@ -391,7 +417,32 @@ async fn auth_verify(
         .unwrap_or(&unknown_device)
         .to_string();
     let totp_id = string_field(matched, "totpId").unwrap_or("").to_string();
-    let linked_totp_name = linked_totp_name(&state, &totp_id).await;
+    let totp_credential = match state.store.get_totps().await {
+        Ok(totps) => totps.into_iter().find(|totp| totp.id == totp_id),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load account linked to passkey");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "verifyFailed"),
+            ));
+        }
+    };
+    let Some(totp_credential) = totp_credential else {
+        return register_passkey_failure(
+            &state,
+            &tracking_ip,
+            &user_agent(&headers),
+            credential_name,
+            None,
+            &translator,
+            "notFoundWithRetry",
+            "notFound",
+            StatusCode::TOO_MANY_REQUESTS,
+        )
+        .await;
+    };
+    let linked_totp_name = (!totp_credential.comment.trim().is_empty())
+        .then(|| totp_credential.comment.trim().to_string());
     let auth_result = match webauthn.finish_passkey_authentication(&credential, &auth_state) {
         Ok(value) => value,
         Err(error) => {
@@ -411,6 +462,34 @@ async fn auth_verify(
         }
     };
 
+    match state
+        .store
+        .update_passkey_counter(
+            &credential.id,
+            auth_result.counter(),
+            &time_utils::now_iso(),
+            Some(auth_result.backup_eligible()),
+            Some(auth_result.backup_state()),
+        )
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(id = %credential.id, "verified passkey disappeared before metadata update");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "verifyFailed"),
+            ));
+        }
+        Err(error) => {
+            tracing::warn!(%error, id = %credential.id, "failed to persist verified passkey metadata");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "verifyFailed"),
+            ));
+        }
+    }
+
     let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -421,12 +500,6 @@ async fn auth_verify(
             ));
         }
     };
-    let totp_credential = state
-        .store
-        .get_totps()
-        .await
-        .ok()
-        .and_then(|totps| totps.into_iter().find(|totp| totp.id == totp_id));
     let created = match auth_mobility::create_login_session(
         &state,
         &config,
@@ -437,7 +510,7 @@ async fn auth_verify(
             credential_name: credential_name.to_string(),
             totp_id: totp_id.to_string(),
             linked_totp_name: linked_totp_name.clone(),
-            totp_credential,
+            totp_credential: Some(totp_credential),
             client_ip: client_ip.clone(),
             user_agent: user_agent(&headers),
             remember_me: body.remember_me,
@@ -459,19 +532,6 @@ async fn auth_verify(
             StatusCode::INTERNAL_SERVER_ERROR,
             passkey_text(&translator, "createSessionFailed"),
         ));
-    }
-    if let Err(error) = state
-        .store
-        .update_passkey_counter(
-            &credential.id,
-            auth_result.counter(),
-            &time_utils::now_iso(),
-            backup_flags.map(|flags| flags.backup_eligible),
-            backup_flags.map(|flags| flags.backup_state),
-        )
-        .await
-    {
-        tracing::warn!(%error, id = %credential.id, "failed to update passkey counter");
     }
     if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset passkey login backoff");
@@ -709,6 +769,22 @@ async fn register_options(
             ));
         }
     };
+    let binding_account_exists = match state.store.get_totps().await {
+        Ok(totps) => totps.into_iter().any(|totp| totp.id == totp_id),
+        Err(error) => {
+            tracing::warn!(%error, "failed to validate passkey binding account");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "createRegistrationOptionsFailed"),
+            ));
+        }
+    };
+    if !binding_account_exists {
+        return with_auth_headers(response::error(
+            StatusCode::UNAUTHORIZED,
+            passkey_text(&translator, "bindTokenExpired"),
+        ));
+    }
     let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -741,9 +817,11 @@ async fn register_options(
             ));
         }
     };
-    let android_google_password_manager = is_android_passkey_client(&headers);
+    let android_google_password_manager =
+        use_android_google_password_manager(&headers, body.registration_profile.as_deref());
     let (options, registration_state) = match start_passkey_registration_for_client(
         &webauthn,
+        passkey_user_handle(&totp_id),
         (!exclude.is_empty()).then_some(exclude),
         android_google_password_manager,
     ) {
@@ -778,7 +856,8 @@ async fn register_options(
         },
         "rp_id": rp_info.rp_id,
         "origin": rp_info.origin,
-        "mode": rp_info.mode
+        "mode": rp_info.mode,
+        "totp_id": totp_id
     });
     if let Err(error) = state
         .store
@@ -864,6 +943,29 @@ async fn register_verify(
             ));
         }
     };
+    if !registration_state_matches_account(&state_json, &totp_id) {
+        tracing::warn!("passkey registration state does not match binding account");
+        return with_auth_headers(response::error(
+            StatusCode::BAD_REQUEST,
+            passkey_text(&translator, "invalidResponse"),
+        ));
+    }
+    let binding_account_exists = match state.store.get_totps().await {
+        Ok(totps) => totps.into_iter().any(|totp| totp.id == totp_id),
+        Err(error) => {
+            tracing::warn!(%error, "failed to validate passkey binding account");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "registerFailed"),
+            ));
+        }
+    };
+    if !binding_account_exists {
+        return with_auth_headers(response::error(
+            StatusCode::UNAUTHORIZED,
+            passkey_text(&translator, "bindTokenExpired"),
+        ));
+    }
     let registration_state: PasskeyRegistration =
         match serde_json::from_value(state_json.get("state").cloned().unwrap_or(Value::Null)) {
             Ok(value) => value,
@@ -875,17 +977,17 @@ async fn register_verify(
                 ));
             }
         };
-    let credential: RegisterPublicKeyCredential =
-        match serde_json::from_value(body.credential.clone()) {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(%error, "failed to decode passkey registration credential");
-                return with_auth_headers(response::error(
-                    StatusCode::BAD_REQUEST,
-                    passkey_text(&translator, "invalidResponse"),
-                ));
-            }
-        };
+    let credential_value = normalize_registration_credential(&body.credential);
+    let credential: RegisterPublicKeyCredential = match serde_json::from_value(credential_value) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, "failed to decode passkey registration credential");
+            return with_auth_headers(response::error(
+                StatusCode::BAD_REQUEST,
+                passkey_text(&translator, "invalidResponse"),
+            ));
+        }
+    };
     let rp_info = RpInfo {
         rp_id: state_json
             .get("rp_id")
@@ -967,18 +1069,27 @@ async fn register_verify(
         "id": id,
         "totpId": totp_id,
         "publicKey": public_key,
-        "counter": 0,
+        "counter": stored_credential.counter,
         "transports": transports,
         "deviceName": device_name,
         "createdAt": time_utils::now_iso(),
         "webauthnCredential": stored_credential
     });
-    if let Err(error) = state.store.add_passkey(&passkey).await {
-        tracing::warn!(%error, "failed to store registered passkey");
-        return with_auth_headers(response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            passkey_text(&translator, "registerFailed"),
-        ));
+    match state.store.add_passkey(&passkey).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return with_auth_headers(response::error(
+                StatusCode::CONFLICT,
+                passkey_text(&translator, "alreadyRegistered"),
+            ));
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to store registered passkey");
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "registerFailed"),
+            ));
+        }
     }
     with_auth_headers(response::success_empty().into_response())
 }
@@ -988,12 +1099,13 @@ pub(crate) async fn public_passkey_status(
     headers: &HeaderMap,
     config: &Value,
 ) -> Value {
-    let passkey_count = state
-        .store
-        .get_passkeys()
-        .await
-        .map(|items| items.len())
-        .unwrap_or(0);
+    let passkey_count = match (
+        state.store.get_passkeys().await,
+        state.store.get_totps().await,
+    ) {
+        (Ok(passkeys), Ok(totps)) => valid_linked_passkey_count(&passkeys, &totps),
+        _ => 0,
+    };
     let passkey_login_enabled = state
         .store
         .get_auth_login_mode()
@@ -1049,17 +1161,42 @@ async fn build_passkey_bind_status(state: &AppState, totp_id: &str) -> anyhow::R
     }))
 }
 
-async fn linked_totp_name(state: &AppState, totp_id: &str) -> Option<String> {
-    state
-        .store
-        .get_totps()
-        .await
-        .ok()?
-        .into_iter()
-        .find(|totp| totp.id == totp_id)
-        .map(|totp| totp.comment)
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
+fn registration_state_matches_account(state: &Value, totp_id: &str) -> bool {
+    state.get("type").and_then(Value::as_str) == Some("register")
+        && state.get("totp_id").and_then(Value::as_str) == Some(totp_id)
+}
+
+fn valid_linked_passkey_count(passkeys: &[Value], totps: &[crate::store::TotpCredential]) -> usize {
+    let totp_ids = totps
+        .iter()
+        .map(|credential| credential.id.as_str())
+        .collect::<HashSet<_>>();
+    passkeys
+        .iter()
+        .filter(|passkey| {
+            passkey
+                .get("totpId")
+                .and_then(Value::as_str)
+                .is_some_and(|id| totp_ids.contains(id))
+        })
+        .filter(|passkey| stored_passkey(passkey).is_some())
+        .count()
+}
+
+fn normalize_registration_credential(credential: &Value) -> Value {
+    let mut normalized = credential.clone();
+    let legacy_transports = normalized.get("transports").cloned();
+    let Some(transports) = legacy_transports.filter(Value::is_array) else {
+        return normalized;
+    };
+    let Some(response) = normalized
+        .get_mut("response")
+        .and_then(Value::as_object_mut)
+    else {
+        return normalized;
+    };
+    response.entry("transports").or_insert(transports);
+    normalized
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1145,24 +1282,51 @@ fn passkey_backoff_response(
 
 fn start_passkey_registration_for_client(
     webauthn: &Webauthn,
+    user_unique_id: Uuid,
     exclude_credentials: Option<Vec<CredentialID>>,
     android_google_password_manager: bool,
 ) -> WebauthnResult<(CreationChallengeResponse, PasskeyRegistration)> {
-    if android_google_password_manager {
+    let (mut options, registration_state) = if android_google_password_manager {
         webauthn.start_google_passkey_in_google_password_manager_only_registration(
-            PASSKEY_ADMIN_UUID,
+            user_unique_id,
             "admin",
             "admin",
             exclude_credentials,
-        )
+        )?
     } else {
         webauthn.start_passkey_registration(
-            PASSKEY_ADMIN_UUID,
+            user_unique_id,
             "admin",
             "admin",
             exclude_credentials,
-        )
+        )?
+    };
+
+    if !android_google_password_manager
+        && let Some(selection) = options.public_key.authenticator_selection.as_mut()
+    {
+        // Prefer a discoverable credential so Windows passkey providers are offered,
+        // while retaining the Level 1 fallback for authenticators without storage.
+        selection.resident_key = Some(ResidentKeyRequirement::Preferred);
+        selection.require_resident_key = false;
     }
+
+    // The server enforces user verification independently and does not consume
+    // these optional outputs, so keep the request minimal across providers.
+    options.public_key.extensions = None;
+    Ok((options, registration_state))
+}
+
+fn passkey_user_handle(account_id: &str) -> Uuid {
+    let digest = Sha256::digest(format!("fn-knock:passkey-user:{account_id}").as_bytes());
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+
+    // Mark the deterministic, opaque value as an RFC 9562 custom UUID. The
+    // source is an internal random account id rather than a username or email.
+    bytes[6] = (bytes[6] & 0x0f) | 0x80;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
 }
 
 fn is_android_passkey_client(headers: &HeaderMap) -> bool {
@@ -1178,6 +1342,13 @@ fn is_android_passkey_client(headers: &HeaderMap) -> bool {
         .get(header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.to_ascii_lowercase().contains("android"))
+}
+
+fn use_android_google_password_manager(
+    headers: &HeaderMap,
+    requested_profile: Option<&str>,
+) -> bool {
+    is_android_passkey_client(headers) && requested_profile != Some("standard")
 }
 
 fn stored_passkey(value: &Value) -> Option<Passkey> {
@@ -1405,10 +1576,9 @@ fn credential_id_matches(value: Option<&Value>, credential_id: &str) -> bool {
 
 fn build_webauthn(rp_info: &RpInfo) -> anyhow::Result<Webauthn> {
     let origin = Url::parse(&rp_info.origin)?;
-    let builder = WebauthnBuilder::new(&rp_info.rp_id, &origin)?
-        .rp_name(RP_NAME)
-        .allow_subdomains(rp_info.mode == "parent_domain")
-        .allow_any_port(true);
+    // A parent RP ID scopes credentials across subdomains, but each ceremony
+    // should still verify the exact browser origin (including its port).
+    let builder = WebauthnBuilder::new(&rp_info.rp_id, &origin)?.rp_name(RP_NAME);
     Ok(builder.build()?)
 }
 

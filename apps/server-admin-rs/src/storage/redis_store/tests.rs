@@ -1,6 +1,121 @@
 use super::*;
 use tokio_rusqlite::OptionalExtension;
 
+#[tokio::test]
+async fn passkey_usage_updates_the_persisted_webauthn_credential_monotonically() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("passkey-counter.sqlite3"))
+        .await
+        .expect("open store");
+    store
+        .add_passkey(&json!({
+            "id": "credential-1",
+            "counter": 3,
+            "backupEligible": true,
+            "backupState": false,
+            "webauthnCredential": {
+                "counter": 7,
+                "backup_eligible": true,
+                "backup_state": false
+            }
+        }))
+        .await
+        .expect("seed passkey");
+
+    assert!(
+        store
+            .update_passkey_counter(
+                "credential-1",
+                5,
+                "2026-08-06T00:00:00Z",
+                Some(false),
+                Some(true),
+            )
+            .await
+            .expect("update passkey")
+    );
+    let updated = store.get_passkeys().await.expect("load updated passkey");
+    assert_eq!(updated[0]["counter"], json!(7));
+    assert_eq!(updated[0]["backupEligible"], json!(true));
+    assert_eq!(updated[0]["backupState"], json!(true));
+    assert_eq!(updated[0]["webauthnCredential"]["counter"], json!(7));
+    assert_eq!(
+        updated[0]["webauthnCredential"]["backup_eligible"],
+        json!(true)
+    );
+    assert_eq!(
+        updated[0]["webauthnCredential"]["backup_state"],
+        json!(true)
+    );
+
+    let lower = store.clone();
+    let higher = store.clone();
+    let (lower_result, higher_result) = tokio::join!(
+        lower.update_passkey_counter(
+            "credential-1",
+            8,
+            "2026-08-06T00:00:01Z",
+            Some(true),
+            Some(true),
+        ),
+        higher.update_passkey_counter(
+            "credential-1",
+            12,
+            "2026-08-06T00:00:02Z",
+            Some(true),
+            Some(true),
+        )
+    );
+    assert!(lower_result.expect("lower concurrent update"));
+    assert!(higher_result.expect("higher concurrent update"));
+    let updated = store.get_passkeys().await.expect("load final passkey");
+    assert_eq!(updated[0]["counter"], json!(12));
+    assert_eq!(updated[0]["webauthnCredential"]["counter"], json!(12));
+
+    let first_add = store.clone();
+    let second_add = store.clone();
+    let second_credential = json!({
+        "id": "credential-2",
+        "counter": 0,
+        "webauthnCredential": { "counter": 0 }
+    });
+    let third_credential = json!({
+        "id": "credential-3",
+        "counter": 0,
+        "webauthnCredential": { "counter": 0 }
+    });
+    let (first_add_result, second_add_result) = tokio::join!(
+        first_add.add_passkey(&second_credential),
+        second_add.add_passkey(&third_credential)
+    );
+    first_add_result.expect("first concurrent insertion");
+    second_add_result.expect("second concurrent insertion");
+    let inserted = store.get_passkeys().await.expect("load inserted passkeys");
+    assert_eq!(inserted.len(), 3);
+
+    let deleting = store.clone();
+    let updating = store.clone();
+    let (delete_result, update_result) = tokio::join!(
+        deleting.delete_passkey("credential-1"),
+        updating.update_passkey_counter(
+            "credential-1",
+            15,
+            "2026-08-06T00:00:03Z",
+            Some(true),
+            Some(true),
+        )
+    );
+    assert!(delete_result.expect("concurrent deletion"));
+    let _ = update_result.expect("concurrent update during deletion");
+    let remaining = store.get_passkeys().await.expect("load remaining passkeys");
+    assert_eq!(remaining.len(), 2);
+    assert!(
+        remaining
+            .iter()
+            .all(|passkey| passkey["id"] != json!("credential-1"))
+    );
+}
+
 #[test]
 fn sorts_backup_strings_like_node_locale_compare() {
     let mut values = [

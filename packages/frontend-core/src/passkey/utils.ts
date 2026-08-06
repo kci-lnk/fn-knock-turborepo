@@ -1,6 +1,6 @@
 function base64UrlToUint8Array(value: string) {
-  const padding = '='.repeat((4 - (value.length % 4)) % 4);
-  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   const array = new Uint8Array(raw.length);
 
@@ -13,11 +13,14 @@ function base64UrlToUint8Array(value: string) {
 
 function arrayBufferToBase64Url(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
-  let binary = '';
+  let binary = "";
   bytes.forEach((value) => {
     binary += String.fromCharCode(value);
   });
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 export function normalizeCreationOptions(options: any) {
@@ -47,10 +50,8 @@ export function normalizeRequestOptions(options: any) {
 }
 
 export function serializeCredential(credential: PublicKeyCredential) {
-  const response =
-    credential.response as
-      | AuthenticatorAttestationResponse
-      | AuthenticatorAssertionResponse;
+  const response = credential.response as
+    AuthenticatorAttestationResponse | AuthenticatorAssertionResponse;
   const base = {
     id: credential.id,
     rawId: arrayBufferToBase64Url(credential.rawId),
@@ -58,13 +59,13 @@ export function serializeCredential(credential: PublicKeyCredential) {
     clientExtensionResults: credential.getClientExtensionResults(),
   };
 
-  if ('attestationObject' in response) {
+  if ("attestationObject" in response) {
     return {
       ...base,
-      transports: (response as any).getTransports?.(),
       response: {
         attestationObject: arrayBufferToBase64Url(response.attestationObject),
         clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+        transports: response.getTransports?.(),
       },
     };
   }

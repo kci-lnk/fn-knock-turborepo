@@ -2101,16 +2101,18 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(1));
     }
 
-    if script.contains("fn-knock:eval:update-session-json-cas:v2") {
+    if script.contains("fn-knock:eval:update-json-cas:v1")
+        || script.contains("fn-knock:eval:update-session-json-cas:v2")
+    {
         let key = keys
             .first()
-            .ok_or_else(|| storage_error("session update EVAL key missing"))?;
+            .ok_or_else(|| storage_error("JSON update EVAL key missing"))?;
         let expected_raw = argv
             .first()
-            .ok_or_else(|| storage_error("session update EVAL expected value missing"))?;
+            .ok_or_else(|| storage_error("JSON update EVAL expected value missing"))?;
         let next_raw = argv
             .get(1)
-            .ok_or_else(|| storage_error("session update EVAL next value missing"))?;
+            .ok_or_else(|| storage_error("JSON update EVAL next value missing"))?;
         let Some(current_raw) = string_get_tx(tx, key)? else {
             return Ok(CmdOutput::Int(-1));
         };

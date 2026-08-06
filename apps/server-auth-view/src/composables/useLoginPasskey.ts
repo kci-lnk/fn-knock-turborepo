@@ -4,6 +4,7 @@ import {
   serializeCredential,
 } from "@frontend-core/passkey/utils";
 import { apiClient } from "@/lib/api";
+import { getPasskeyErrorDetails } from "@/lib/passkey-errors";
 import { useKnownPasskeyCredentials } from "./useKnownPasskeyCredentials";
 import { usePasskeyRegistration } from "./usePasskeyRegistration";
 
@@ -128,9 +129,11 @@ export const useLoginPasskey = ({
     }
     isPasskeyLoading.value = true;
     clearError();
+    let requestRpId = "";
     try {
       const optionsRes = await apiClient.post("/passkey/auth/options");
       const requestOptions = normalizeRequestOptions(optionsRes.data.data);
+      requestRpId = requestOptions.rpId || "";
       const credential = await navigator.credentials.get({
         publicKey: requestOptions,
       });
@@ -160,6 +163,22 @@ export const useLoginPasskey = ({
         ),
       );
     } catch (error: any) {
+      if (!error?.response) {
+        const details = getPasskeyErrorDetails(error);
+        console.warn("Passkey authentication failed", {
+          name: details.name,
+          message: details.message,
+          origin: window.location.origin,
+          rpId: requestRpId,
+          platform:
+            (
+              navigator as Navigator & {
+                userAgentData?: { platform?: string };
+              }
+            ).userAgentData?.platform || navigator.platform,
+          secureContext: window.isSecureContext,
+        });
+      }
       reportError(
         resolveLoginCooldownMessage(
           error?.response?.data?.message ||

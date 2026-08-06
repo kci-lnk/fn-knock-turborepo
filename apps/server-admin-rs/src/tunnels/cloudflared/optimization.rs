@@ -828,6 +828,8 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
                 "sslStatus": current.and_then(|value| value.get("sslStatus")).cloned().unwrap_or(Value::Null),
                 "customHostnameId": current.and_then(|value| value.get("id")).cloned().unwrap_or(Value::Null),
                 "optimized": current.is_some_and(exact_route_is_optimized),
+                "messageCode": current.and_then(|value| value.get("messageCode")).cloned().unwrap_or(Value::Null),
+                "messageDetail": current.and_then(|value| value.get("messageDetail")).cloned().unwrap_or(Value::Null),
                 "message": current.and_then(|value| value.get("message")).cloned().unwrap_or(Value::Null),
             })
         })
@@ -887,22 +889,40 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
     })
 }
 
+const PLAN_WARNINGS: [(&str, &str); 4] = [
+    (
+        "betaVantage",
+        "Optimization is a Beta feature measured from this server's network vantage point.",
+    ),
+    (
+        "candidateDiscoveryOnly",
+        "Built-in and custom third-party hostnames are used only to discover candidate Cloudflare IPs. Business DNS is never pointed at those hostnames.",
+    ),
+    (
+        "customHostnameQuota",
+        "Cloudflare for SaaS includes up to 100 exact Custom Hostnames on non-Enterprise plans; excess domains use the wildcard Tunnel.",
+    ),
+    (
+        "wildcardFallback",
+        "The wildcard Tunnel remains configured and is restored automatically if the preferred edge path fails.",
+    ),
+];
+
 pub(super) fn plan_warnings(enabled: bool) -> Vec<Value> {
     if !enabled {
         return Vec::new();
     }
-    vec![
-        json!("Optimization is a Beta feature measured from this server's network vantage point."),
-        json!(
-            "Built-in and custom third-party hostnames are used only to discover candidate Cloudflare IPs. Business DNS is never pointed at those hostnames."
-        ),
-        json!(
-            "Cloudflare for SaaS includes up to 100 exact Custom Hostnames on non-Enterprise plans; excess domains use the wildcard Tunnel."
-        ),
-        json!(
-            "The wildcard Tunnel remains configured and is restored automatically if the preferred edge path fails."
-        ),
-    ]
+    PLAN_WARNINGS
+        .iter()
+        .map(|(_, message)| json!(message))
+        .collect()
+}
+
+pub(super) fn plan_warning_codes(enabled: bool) -> Vec<&'static str> {
+    if !enabled {
+        return Vec::new();
+    }
+    PLAN_WARNINGS.iter().map(|(code, _)| *code).collect()
 }
 
 pub(super) async fn append_cleanup_remote_snapshot(
@@ -926,6 +946,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
                 "id": "optimization:cleanup-fallback-origin",
                 "kind": "custom-hostname",
                 "target": "Cloudflare for SaaS fallback origin",
+                "messageCode": "fallbackOriginChanged",
                 "message": "The previously managed fallback origin has been changed by another configuration",
                 "takeoverAllowed": false,
             }));
@@ -956,6 +977,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
                 "id": format!("optimization:cleanup-custom-hostname:{id}"),
                 "kind": "custom-hostname",
                 "target": hostname,
+                "messageCode": "managedCustomHostnameChanged",
                 "message": "A previously managed Custom Hostname was changed by another configuration",
                 "takeoverAllowed": false,
             }));
@@ -973,6 +995,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
                 "id": format!("optimization:cleanup-capability-hostname:{id}"),
                 "kind": "custom-hostname",
                 "target": hostname,
+                "messageCode": "capabilityHostnameChanged",
                 "message": "The previously managed capability Custom Hostname was changed by another configuration",
                 "takeoverAllowed": false,
             }));
@@ -1071,6 +1094,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
                     "id": format!("optimization:cleanup-dns:{id}"),
                     "kind": "dns",
                     "target": name.clone(),
+                    "messageCode": "managedOptimizationDnsChanged",
                     "message": "A previously managed optimization DNS record has been claimed or changed by another configuration",
                     "takeoverAllowed": false,
                 }));
@@ -1171,6 +1195,7 @@ pub(super) async fn append_preview(
             "id": "optimization:fallback-origin",
             "kind": "custom-hostname",
             "target": "Cloudflare for SaaS fallback origin",
+            "messageCode": "unownedFallbackOrigin",
             "message": "A Zone-wide fallback origin already exists and is not owned by fn-knock",
             "takeoverAllowed": true,
         })),
@@ -1316,6 +1341,7 @@ pub(super) async fn append_preview(
                 "id": format!("custom-hostname:{host}"),
                 "kind": "custom-hostname",
                 "target": host,
+                "messageCode": "unownedCustomHostname",
                 "message": "An unowned Cloudflare for SaaS Custom Hostname already exists",
                 "takeoverAllowed": true,
             })),
@@ -1393,6 +1419,7 @@ pub(super) async fn append_preview(
                         "id": format!("optimization:dns:{host}"),
                         "kind": "dns",
                         "target": host,
+                        "messageCode": "exactDnsConflict",
                         "message": "An unowned exact DNS record prevents optimization",
                         "takeoverAllowed": true,
                     }));
@@ -1630,6 +1657,7 @@ pub(super) async fn reconcile_resources(
                     &host,
                     json!({
                         "status": "conflict",
+                        "messageCode": "customHostnameOwnershipConflict",
                         "message": "Custom Hostname is not owned by fn-knock"
                     }),
                 );
@@ -1640,7 +1668,11 @@ pub(super) async fn reconcile_resources(
                 set_host_state(
                     ownership,
                     &host,
-                    json!({ "status": "quota", "message": "Custom Hostname quota is exhausted" }),
+                    json!({
+                        "status": "quota",
+                        "messageCode": "customHostnameQuotaExhausted",
+                        "message": "Custom Hostname quota is exhausted"
+                    }),
                 );
                 save_managed_state(state, ownership).await?;
                 continue;
@@ -1651,6 +1683,7 @@ pub(super) async fn reconcile_resources(
                     &host,
                     json!({
                         "status": "queued",
+                        "messageCode": "certificateRateLimited",
                         "message": "Queued to respect Cloudflare certificate issuance rate limits"
                     }),
                 );
@@ -1678,6 +1711,8 @@ pub(super) async fn reconcile_resources(
                             &host,
                             json!({
                                 "status": "quota",
+                                "messageCode": "customHostnameQuotaUnavailable",
+                                "messageDetail": error.to_string(),
                                 "message": format!("Custom Hostname quota is unavailable: {error}")
                             }),
                         );
@@ -1697,9 +1732,14 @@ pub(super) async fn reconcile_resources(
             continue;
         }
         let mut host_state = current_owned;
-        if let Some(recoverable) = recovery.as_ref() {
+        {
             let object = ensure_object(&mut host_state);
             object.remove("message");
+            object.remove("messageCode");
+            object.remove("messageDetail");
+        }
+        if let Some(recoverable) = recovery.as_ref() {
+            let object = ensure_object(&mut host_state);
             object.insert("ownership".to_string(), json!("recovered"));
             object.insert(
                 "recoveredFromInstance".to_string(),
@@ -1893,7 +1933,10 @@ pub(super) async fn reconcile_resources(
                                     "lastVerifiedAt".to_string(),
                                     json!(time_utils::now_iso()),
                                 );
-                                ensure_object(&mut host_state).remove("message");
+                                let object = ensure_object(&mut host_state);
+                                object.remove("message");
+                                object.remove("messageCode");
+                                object.remove("messageDetail");
                             }
                             Err(error) if error.status == Some(StatusCode::CONFLICT) => {
                                 ensure_object(&mut host_state)
@@ -3933,6 +3976,7 @@ async fn inspect_auxiliary_dns(
             "id": logical_id,
             "kind": "dns",
             "target": name,
+            "messageCode": "optimizationDnsConflict",
             "message": "An unowned DNS record already uses the optimization hostname",
             "takeoverAllowed": true,
         }));

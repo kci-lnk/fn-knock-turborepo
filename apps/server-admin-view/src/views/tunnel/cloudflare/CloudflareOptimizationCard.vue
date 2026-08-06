@@ -23,6 +23,10 @@ import {
   TriangleAlert,
   Zap,
 } from "lucide-vue-next";
+import type {
+  CloudflareOptimizationDomain,
+  CloudflareOptimizationVantage,
+} from "@/lib/api";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
 
 const { controller } = defineProps<{
@@ -39,6 +43,7 @@ const {
   isLoadingManagedState,
   isSavingOptimizationSources,
   isScanningOptimization,
+  locale,
   optimization,
   optimizationApplied,
   optimizationBuiltinIds,
@@ -61,7 +66,9 @@ const formatNumber = (value: number, digits = 1) =>
 const formatDate = (value?: string | null) => {
   if (!value) return "-";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString(locale.value);
 };
 
 const phaseKeys: Record<string, string> = {
@@ -88,6 +95,28 @@ const switchReasonKeys: Record<string, string> = {
   "manual-fallback": "manualFallback",
   "health-failover": "healthFailover",
   "health-fallback": "healthFallback",
+};
+const capabilityStatusKeys: Record<string, string> = {
+  pending: "pending",
+  "awaiting-candidate": "awaiting-candidate",
+  compatible: "compatible",
+  unsupported: "unsupported",
+};
+const legacyDomainMessageCodes: Record<string, string> = {
+  "Custom Hostname is not owned by fn-knock": "customHostnameOwnershipConflict",
+  "Custom Hostname quota is exhausted": "customHostnameQuotaExhausted",
+  "Queued to respect Cloudflare certificate issuance rate limits":
+    "certificateRateLimited",
+};
+const domainMessageKeys: Record<string, string> = {
+  customHostnameOwnershipConflict:
+    "admin.cloudflareTunnel.optimization.domainMessages.customHostnameOwnershipConflict",
+  customHostnameQuotaExhausted:
+    "admin.cloudflareTunnel.optimization.domainMessages.customHostnameQuotaExhausted",
+  certificateRateLimited:
+    "admin.cloudflareTunnel.optimization.domainMessages.certificateRateLimited",
+  customHostnameQuotaUnavailable:
+    "admin.cloudflareTunnel.optimization.domainMessages.customHostnameQuotaUnavailable",
 };
 const cloudflareSaasRequiredErrorCode = "cloudflare-saas-required";
 const cloudflareSaasValidationPendingErrorCode =
@@ -138,6 +167,18 @@ const domainStatusLabel = (status: string) => {
     ? t(`admin.cloudflareTunnel.optimization.domainStatuses.${key}`)
     : status;
 };
+const domainMessageLabel = (domain: CloudflareOptimizationDomain) => {
+  if (!domain.message) return "";
+  let code = domain.messageCode || legacyDomainMessageCodes[domain.message];
+  let detail = domain.messageDetail || "";
+  const quotaUnavailablePrefix = "Custom Hostname quota is unavailable: ";
+  if (!code && domain.message.startsWith(quotaUnavailablePrefix)) {
+    code = "customHostnameQuotaUnavailable";
+    detail = domain.message.slice(quotaUnavailablePrefix.length);
+  }
+  const key = code ? domainMessageKeys[code] : undefined;
+  return key ? t(key, { detail }) : domain.message;
+};
 const switchReasonLabel = (reason: string) => {
   const key = switchReasonKeys[reason];
   return key
@@ -160,6 +201,37 @@ const candidateSourceLabel = (candidate: {
     ? t("admin.cloudflareTunnel.optimization.sources.officialRangesShort")
     : "-";
 };
+const sourceSettingsErrorLabel = (message: string) => {
+  const prefix = "Invalid optimization source settings: ";
+  return message.startsWith(prefix)
+    ? t("admin.cloudflareTunnel.optimization.sources.settingsInvalid", {
+        detail: message.slice(prefix.length),
+      })
+    : message;
+};
+const sourceWarningLabel = (warning: string) => {
+  const unverified = warning.match(
+    /^(.+) \(([^()]*)\) did not resolve to a verified Cloudflare IPv4 address$/u,
+  );
+  if (unverified) {
+    return t("admin.cloudflareTunnel.optimization.sources.unverifiedAddress", {
+      hostname: unverified[1],
+      source: unverified[2],
+    });
+  }
+  const separator = warning.indexOf(": ");
+  if (separator > 0) {
+    return t("admin.cloudflareTunnel.optimization.sources.resolveFailed", {
+      hostname: warning.slice(0, separator),
+      detail: warning.slice(separator + 2),
+    });
+  }
+  return warning;
+};
+const vantageLabel = (vantage: CloudflareOptimizationVantage) =>
+  vantage.id === "local-server"
+    ? t("admin.cloudflareTunnel.optimization.vantages.localServer")
+    : vantage.label;
 const optimizedDomainCount = computed(
   () =>
     optimization.value?.domains.filter((item) => item.optimized).length || 0,
@@ -180,7 +252,8 @@ const capabilityValidationPending = computed(
 );
 const optimizationResourceConflict = computed(
   () =>
-    optimizationReadinessErrorCode.value === cloudflareResourceConflictErrorCode,
+    optimizationReadinessErrorCode.value ===
+    cloudflareResourceConflictErrorCode,
 );
 const capabilityProbeMessage = computed(() => {
   const probe = optimization.value?.capabilityProbe;
@@ -195,10 +268,10 @@ const capabilityProbeMessage = computed(() => {
       "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
     );
   }
-  return (
-    probe.message ||
-    t(`admin.cloudflareTunnel.optimization.capability.${probe.status}`)
-  );
+  const key = capabilityStatusKeys[probe.status];
+  return key
+    ? t(`admin.cloudflareTunnel.optimization.capability.${key}`)
+    : probe.message || probe.status;
 });
 const scanRequiresCloudflareSaas = computed(() =>
   requiresCloudflareSaasSetup(
@@ -302,7 +375,9 @@ const scanErrorMessage = computed(() => {
             <div class="flex items-center gap-2 text-base font-semibold">
               <Zap class="size-5" />
               {{ t("admin.cloudflareTunnel.optimization.heading") }}
-              <Badge variant="secondary">Beta</Badge>
+              <Badge variant="secondary">{{
+                t("admin.cloudflareTunnel.optimization.betaBadge")
+              }}</Badge>
             </div>
             <p class="mt-1 text-sm text-muted-foreground">
               {{ t("admin.cloudflareTunnel.optimization.description") }}
@@ -353,7 +428,9 @@ const scanErrorMessage = computed(() => {
             >
               <TriangleAlert class="size-4" />
               <AlertDescription>
-                {{ optimization.candidateSources.error }}
+                {{
+                  sourceSettingsErrorLabel(optimization.candidateSources.error)
+                }}
               </AlertDescription>
             </Alert>
 
@@ -577,14 +654,12 @@ const scanErrorMessage = computed(() => {
           <AlertTitle>
             {{
               optimizationResourceConflict
-                ? t(
-                    "admin.cloudflareTunnel.optimization.resourceConflictTitle",
-                  )
+                ? t("admin.cloudflareTunnel.optimization.resourceConflictTitle")
                 : capabilityValidationPending
-                ? t(
-                    "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
-                  )
-                : t("admin.cloudflareTunnel.optimization.notReadyTitle")
+                  ? t(
+                      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
+                    )
+                  : t("admin.cloudflareTunnel.optimization.notReadyTitle")
             }}
           </AlertTitle>
           <AlertDescription>
@@ -594,10 +669,10 @@ const scanErrorMessage = computed(() => {
                     "admin.cloudflareTunnel.optimization.resourceConflictDescription",
                   )
                 : capabilityValidationPending
-                ? t(
-                    "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
-                  )
-                : t("admin.cloudflareTunnel.optimization.notReadyDescription")
+                  ? t(
+                      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
+                    )
+                  : t("admin.cloudflareTunnel.optimization.notReadyDescription")
             }}
           </AlertDescription>
         </Alert>
@@ -620,7 +695,7 @@ const scanErrorMessage = computed(() => {
           >
             <span>
               {{ t("admin.cloudflareTunnel.optimization.vantage") }}:
-              {{ optimizationScan.vantage.label }}
+              {{ vantageLabel(optimizationScan.vantage) }}
             </span>
             <span>
               {{ t("admin.cloudflareTunnel.optimization.publicIp") }}:
@@ -641,7 +716,7 @@ const scanErrorMessage = computed(() => {
                 v-for="warning in optimizationScan.sourceWarnings"
                 :key="warning"
               >
-                {{ warning }}
+                {{ sourceWarningLabel(warning) }}
               </div>
             </AlertDescription>
           </Alert>
@@ -715,7 +790,9 @@ const scanErrorMessage = computed(() => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>IPv4</TableHead>
+                    <TableHead>{{
+                      t("admin.cloudflareTunnel.optimization.ipv4")
+                    }}</TableHead>
                     <TableHead>{{
                       t("admin.cloudflareTunnel.optimization.source")
                     }}</TableHead>
@@ -821,7 +898,7 @@ const scanErrorMessage = computed(() => {
                   v-if="domain.message"
                   class="mt-1 text-xs text-destructive"
                 >
-                  {{ domain.message }}
+                  {{ domainMessageLabel(domain) }}
                 </div>
               </div>
               <Badge :variant="domain.optimized ? 'default' : 'secondary'">

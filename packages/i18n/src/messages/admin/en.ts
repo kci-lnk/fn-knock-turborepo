@@ -2253,6 +2253,7 @@ export const enAdmin = {
       viewOrChange: "View or change",
       viewDetails: "View details",
       connectedStatus: "API Token configured",
+      apiTokenLabel: "Cloudflare API Token",
       replaceTokenPlaceholder: "Paste a new Cloudflare API Token",
       replaceToken: "Replace Token",
       connect: "Connect and verify",
@@ -2281,6 +2282,13 @@ export const enAdmin = {
       technicalDetails: "Permission check details",
       publicHostname: "Public hostname",
       originService: "Local origin service",
+      tunnelLabel: "Tunnel",
+      tunnelStatuses: {
+        healthy: "Healthy",
+        degraded: "Degraded",
+        down: "Down",
+        inactive: "Inactive",
+      },
       zone: "Cloudflare Zone",
       accountId: "Account ID",
       zoneId: "Zone ID",
@@ -2307,9 +2315,56 @@ export const enAdmin = {
         update: "Update",
         delete: "Delete",
         keep: "Keep",
+        keepDeleted: "Already absent",
         fallback: "Standard fallback",
         probe: "Capability probe",
         recover: "Recover fn-knock resource",
+      },
+      operationTargets: {
+        optimizedHostnames: "fn-knock optimized hostnames",
+        managedWildcardCname: "Managed wildcard CNAME",
+      },
+      conflictTargets: {
+        fallbackOrigin: "Cloudflare for SaaS fallback origin",
+      },
+      conflictMessages: {
+        managedIngressChanged:
+          "The managed Tunnel Ingress changed after fn-knock last wrote it.",
+        managedDnsChanged:
+          "The previously managed DNS record was claimed or changed by another configuration.",
+        unownedIngress:
+          "A Tunnel Ingress rule not owned by fn-knock already uses this hostname.",
+        unownedDns:
+          "A DNS record not owned by fn-knock already uses this hostname.",
+        cloudflareSaasUnavailable:
+          "Cloudflare for SaaS is not enabled or this Zone has no Custom Hostname quota. Enable it before applying optimization. Technical detail: {detail}",
+        permissionError: "Cloudflare permission check failed: {detail}",
+        fallbackOriginChanged:
+          "The previously managed fallback origin was changed by another configuration.",
+        managedCustomHostnameChanged:
+          "A previously managed Custom Hostname was changed by another configuration.",
+        capabilityHostnameChanged:
+          "The previously managed capability-probe Custom Hostname was changed by another configuration.",
+        managedOptimizationDnsChanged:
+          "A previously managed optimization DNS record was claimed or changed by another configuration.",
+        unownedFallbackOrigin:
+          "A Zone-wide fallback origin already exists and is not owned by fn-knock.",
+        unownedCustomHostname:
+          "A Cloudflare for SaaS Custom Hostname not owned by fn-knock already exists.",
+        exactDnsConflict:
+          "An exact DNS record not owned by fn-knock prevents optimization.",
+        optimizationDnsConflict:
+          "A DNS record not owned by fn-knock already uses the optimization hostname.",
+      },
+      planWarnings: {
+        betaVantage:
+          "Optimization is a Beta feature measured from this server's network vantage point.",
+        candidateDiscoveryOnly:
+          "Built-in and custom third-party hostnames are used only to discover candidate Cloudflare IPs. Business DNS is never pointed at those hostnames.",
+        customHostnameQuota:
+          "Cloudflare for SaaS includes up to 100 exact Custom Hostnames on non-Enterprise plans; excess domains use the wildcard Tunnel.",
+        wildcardFallback:
+          "The wildcard Tunnel remains configured and is restored automatically if the preferred edge path fails.",
       },
       expiresAt: "Expires {time}",
       operationCount: "{count} operations",
@@ -2333,6 +2388,11 @@ export const enAdmin = {
     },
     optimization: {
       title: "Access speed optimization",
+      betaBadge: "Beta",
+      ipv4: "IPv4",
+      vantages: {
+        localServer: "fn-knock server",
+      },
       heading: "Test and choose a faster Cloudflare entry point",
       description:
         "Optional. fn-knock tests available routes and picks a better entry point for configured domains, falling back to the standard Tunnel if needed.",
@@ -2366,6 +2426,10 @@ export const enAdmin = {
         save: "Save candidate sources",
         saved: "Candidate sources saved",
         saveFailed: "Failed to save candidate sources",
+        settingsInvalid: "Invalid optimization source settings: {detail}",
+        unverifiedAddress:
+          "{hostname} ({source}) did not resolve to a verified Cloudflare IPv4 address.",
+        resolveFailed: "Failed to resolve {hostname}: {detail}",
         builtins: {
           "sweden-government": "Swedish Government",
           "us-library-of-congress": "U.S. Library of Congress",
@@ -2444,6 +2508,15 @@ export const enAdmin = {
         queued: "Queued for reconciliation",
         probeFailed: "Direct probe failed",
       },
+      domainMessages: {
+        customHostnameOwnershipConflict:
+          "The Custom Hostname is not owned by fn-knock.",
+        customHostnameQuotaExhausted: "The Custom Hostname quota is exhausted.",
+        certificateRateLimited:
+          "Queued to respect Cloudflare certificate issuance rate limits.",
+        customHostnameQuotaUnavailable:
+          "The Custom Hostname quota is unavailable: {detail}",
+      },
       switchReasons: {
         manualSpeedTest: "Selected manually after a completed speed test",
         manualFallback: "Manually returned to the wildcard Tunnel",
@@ -2461,6 +2534,7 @@ export const enAdmin = {
     },
     manual: {
       title: "Advanced: manual Tunnel Token",
+      tunnelTokenLabel: "Tunnel Token",
       tokenDescription:
         "Leave this empty when the Cloudflare API Token above is configured. Use it only for a manual Tunnel connection; leaving it empty keeps the existing Token, and a complete cloudflared command is also accepted.",
       replaceTokenPlaceholder:

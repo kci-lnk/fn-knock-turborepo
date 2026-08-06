@@ -60,6 +60,13 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(managed, /ConfigCollapsibleCard/u);
     assert.match(managed, /reconcilePlan\.operations/u);
     assert.match(managed, /toggleTakeover/u);
+    assert.match(managed, /planWarningLabel/u);
+    assert.match(managed, /warningCodes/u);
+    assert.match(managed, /conflictMessageLabel/u);
+    assert.match(managed, /operationTargetLabel/u);
+    assert.match(managed, /keepDeleted/u);
+    assert.match(managed, /toLocaleString\(locale\.value\)/u);
+    assert.doesNotMatch(managed, /text-muted-foreground">Tunnel</u);
 
     const optimization = readSource(
       "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
@@ -72,17 +79,26 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /candidateSources/u);
     assert.match(optimization, /businessColo \|\| candidate\.colo/u);
     assert.match(optimization, /optimizationCustomHostnames/u);
+    assert.match(optimization, /sourceWarningLabel/u);
+    assert.match(optimization, /domainMessageLabel/u);
+    assert.match(optimization, /toLocaleString\(locale\.value\)/u);
+    assert.doesNotMatch(optimization, />Beta</u);
+    assert.doesNotMatch(optimization, /<TableHead>IPv4/u);
 
     const connection = readSource(
       "../src/views/tunnel/cloudflare/CloudflareApiConnectionCard.vue",
     );
     assert.match(connection, /ConfigCollapsibleCard/u);
+    assert.match(connection, /managed\.apiTokenLabel/u);
+    assert.doesNotMatch(connection, />Cloudflare API Token</u);
     assert.doesNotMatch(connection, /permissionsTitle|CheckCircle2/u);
 
     const manual = readSource(
       "../src/views/tunnel/cloudflare/CloudflareManualConfigCard.vue",
     );
     assert.match(manual, /:configured="true"/u);
+    assert.match(manual, /manual\.tunnelTokenLabel/u);
+    assert.doesNotMatch(manual, />Tunnel Token</u);
 
     for (const source of [page, connection, managed, optimization, manual]) {
       assert.match(source, /#actions="\{ collapse \}"/u);
@@ -102,11 +118,25 @@ describe("managed Cloudflare Tunnel", () => {
     assert.doesNotMatch(backend, /content:\s*source\.hostname/u);
     assert.doesNotMatch(backend, /www\.fbi\.gov/u);
 
+    const managedBackend = readSource(
+      "../../server-admin-rs/src/tunnels/cloudflared/managed.rs",
+    );
+    assert.match(managedBackend, /"warningCodes"/u);
+    assert.match(managedBackend, /"messageCode": "unownedIngress"/u);
+    assert.match(backend, /plan_warning_codes/u);
+    assert.match(backend, /"messageCode": "unownedCustomHostname"/u);
+    assert.match(backend, /"messageCode": "customHostnameQuotaExhausted"/u);
+
     for (const locale of ["zh-CN", "zh-Hant", "en", "ja-JP", "ko-KR"]) {
       const messages = readSource(
         `../../../packages/i18n/src/messages/admin/${locale}.ts`,
       );
       assert.doesNotMatch(messages, /us-fbi/u);
+      assert.match(messages, /planWarnings/u);
+      assert.match(messages, /candidateDiscoveryOnly/u);
+      assert.match(messages, /conflictMessages/u);
+      assert.match(messages, /domainMessages/u);
+      assert.match(messages, /resolveFailed/u);
     }
   });
 
@@ -160,12 +190,15 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(backend, /OPTIMIZATION_NOT_READY_ERROR_CODE/u);
     assert.match(backend, /"errorCode": error_code/u);
     assert.match(backend, /"reasonCode"\.to_string\(\)/u);
+    assert.match(backend, /"scanReady": scan_ready/u);
     assert.match(
       backend,
-      /"scanReady": scan_ready/u,
+      /"scanReadinessErrorCode": scan_readiness_error_code/u,
     );
-    assert.match(backend, /"scanReadinessErrorCode": scan_readiness_error_code/u);
-    assert.match(backend, /recoverable_fn_knock_custom_hostname_from_snapshot/u);
+    assert.match(
+      backend,
+      /recoverable_fn_knock_custom_hostname_from_snapshot/u,
+    );
     assert.match(backend, /"recover"/u);
     assert.match(
       backend,

@@ -2102,6 +2102,7 @@ export const zhHantAdmin = {
       viewOrChange: "檢視或修改",
       viewDetails: "檢視詳情",
       connectedStatus: "API Token 已設定",
+      apiTokenLabel: "Cloudflare API Token",
       replaceTokenPlaceholder: "貼上新的 Cloudflare API Token",
       replaceToken: "更換 Token",
       connect: "連線並驗證",
@@ -2127,6 +2128,13 @@ export const zhHantAdmin = {
       technicalDetails: "權限檢查詳情",
       publicHostname: "公網主機名稱",
       originService: "本機回源服務",
+      tunnelLabel: "Tunnel",
+      tunnelStatuses: {
+        healthy: "健康",
+        degraded: "效能下降",
+        down: "離線",
+        inactive: "未啟用",
+      },
       zone: "Cloudflare 區域",
       accountId: "帳戶 ID",
       zoneId: "區域 ID",
@@ -2145,7 +2153,7 @@ export const zhHantAdmin = {
         ingress: "Ingress 規則",
         dns: "DNS 記錄",
         optimization: "優選資源",
-        customHostname: "Custom Hostname",
+        customHostname: "自訂主機名稱",
         permission: "權限",
       },
       operationActions: {
@@ -2153,9 +2161,51 @@ export const zhHantAdmin = {
         update: "更新",
         delete: "刪除",
         keep: "保留",
+        keepDeleted: "已不存在",
         fallback: "標準回退",
         probe: "能力探測",
         recover: "復原 fn-knock 資源",
+      },
+      operationTargets: {
+        optimizedHostnames: "fn-knock 優選主機名稱",
+        managedWildcardCname: "託管的萬用字元 CNAME",
+      },
+      conflictTargets: {
+        fallbackOrigin: "Cloudflare for SaaS 回退來源站",
+      },
+      conflictMessages: {
+        managedIngressChanged:
+          "fn-knock 上次寫入後，託管的 Tunnel Ingress 已發生變更。",
+        managedDnsChanged: "先前託管的 DNS 記錄已被其他設定接管或修改。",
+        unownedIngress:
+          "已有不屬於 fn-knock 的 Tunnel Ingress 規則使用此主機名稱。",
+        unownedDns: "已有不屬於 fn-knock 的 DNS 記錄使用此主機名稱。",
+        cloudflareSaasUnavailable:
+          "Cloudflare for SaaS 未啟用，或此 Zone 沒有自訂主機名稱配額。請先啟用優選所需功能。技術詳情：{detail}",
+        permissionError: "Cloudflare 權限檢查失敗：{detail}",
+        fallbackOriginChanged: "先前託管的回退來源站已被其他設定修改。",
+        managedCustomHostnameChanged:
+          "先前託管的自訂主機名稱已被其他設定修改。",
+        capabilityHostnameChanged:
+          "先前託管的能力探測自訂主機名稱已被其他設定修改。",
+        managedOptimizationDnsChanged:
+          "先前託管的優選 DNS 記錄已被其他設定接管或修改。",
+        unownedFallbackOrigin:
+          "此 Zone 已存在不屬於 fn-knock 的全域回退來源站。",
+        unownedCustomHostname:
+          "已存在不屬於 fn-knock 的 Cloudflare for SaaS 自訂主機名稱。",
+        exactDnsConflict: "不屬於 fn-knock 的精確 DNS 記錄阻止了優選。",
+        optimizationDnsConflict:
+          "已有不屬於 fn-knock 的 DNS 記錄使用優選主機名稱。",
+      },
+      planWarnings: {
+        betaVantage: "優選是測試功能，測速結果以目前伺服器的網路位置為準。",
+        candidateDiscoveryOnly:
+          "內建與自訂的第三方主機名稱僅用於發現候選 Cloudflare IP；業務 DNS 絕不會指向這些主機名稱。",
+        customHostnameQuota:
+          "Cloudflare for SaaS 的非 Enterprise 方案最多包含 100 個精確自訂主機名稱；超出數量的網域會使用萬用字元 Tunnel。",
+        wildcardFallback:
+          "萬用字元 Tunnel 會持續保留；若偏好的邊緣路徑失效，系統會自動恢復使用它。",
       },
       expiresAt: "有效至 {time}",
       operationCount: "{count} 項操作",
@@ -2177,6 +2227,11 @@ export const zhHantAdmin = {
     },
     optimization: {
       title: "存取速度優選",
+      betaBadge: "測試版",
+      ipv4: "IPv4",
+      vantages: {
+        localServer: "fn-knock 伺服器",
+      },
       heading: "測試並選擇更快的 Cloudflare 入口",
       description:
         "選用功能。程式會測速並為已設定網域選擇更合適的入口；失敗時自動回到標準 Tunnel。",
@@ -2187,7 +2242,7 @@ export const zhHantAdmin = {
       activeStatus: "優選已啟用",
       betaTitle: "實驗性功能",
       betaDescription:
-        "會建立 Cloudflare for SaaS Custom Hostname；套餐或憑證驗證不支援時不影響基礎 Tunnel。",
+        "會建立 Cloudflare for SaaS 自訂主機名稱；方案或憑證驗證不支援時不影響基礎 Tunnel。",
       sources: {
         title: "候選 IP 來源",
         advancedTitle: "進階：候選 IP 來源",
@@ -2206,6 +2261,10 @@ export const zhHantAdmin = {
         save: "儲存候選來源",
         saved: "候選來源已儲存",
         saveFailed: "儲存候選來源失敗",
+        settingsInvalid: "優選候選來源設定無效：{detail}",
+        unverifiedAddress:
+          "{hostname}（{source}）未解析到已驗證的 Cloudflare IPv4 位址。",
+        resolveFailed: "解析 {hostname} 失敗：{detail}",
         builtins: {
           "sweden-government": "瑞典政府",
           "us-library-of-congress": "美國國會圖書館",
@@ -2221,7 +2280,7 @@ export const zhHantAdmin = {
         pending: "正在等待 Cloudflare 完成網域與憑證驗證。",
         "awaiting-candidate":
           "驗證已完成，正在等待優選候選 IP 進行 SNI 直連測試。",
-        compatible: "目前 Zone 已通過 Custom Hostname、憑證與 SNI 直連驗證。",
+        compatible: "目前 Zone 已通過自訂主機名稱、憑證與 SNI 直連驗證。",
         unsupported: "目前 Zone、套餐或憑證流程不支援優選，已保留標準 Tunnel。",
       },
       cloudflareSaasRequiredTitle: "需要啟用 Cloudflare for SaaS",
@@ -2232,7 +2291,7 @@ export const zhHantAdmin = {
         "Cloudflare for SaaS 已啟用。fn-knock 正在準備驗證記錄，或等待 Cloudflare 完成憑證簽發與部署。通常需要幾分鐘；主機名稱與憑證狀態都變為「有效」後即可開始測速，無需重複啟用功能或綁定付款方式。",
       resourceConflictTitle: "需要對帳 Cloudflare 資源",
       resourceConflictDescription:
-        "偵測到已設定網域存在尚未與目前 fn-knock 設定對帳的 Cloudflare Custom Hostname 或精確 DNS 記錄；這不是憑證簽發等待。請在 Tunnel 卡片重新產生預檢並套用。可驗證為上一套 fn-knock 設定建立的資源會保留現有有效憑證並無損復原；真正的第三方資源仍會要求你明確確認接管。",
+        "偵測到已設定網域存在尚未與目前 fn-knock 設定對帳的 Cloudflare 自訂主機名稱或精確 DNS 記錄；這不是憑證簽發等待。請在 Tunnel 卡片重新產生預檢並套用。可驗證為上一套 fn-knock 設定建立的資源會保留現有有效憑證並無損復原；真正的第三方資源仍會要求你明確確認接管。",
       notReadyTitle: "優選驗證尚未就緒",
       notReadyDescription:
         "目前沒有可用於 TLS 與 SNI 驗證的已啟用主機名稱。請等待自動檢查完成；若長時間未恢復，請重新預檢並套用 Cloudflare 設定後再測速。",
@@ -2281,6 +2340,13 @@ export const zhHantAdmin = {
         queued: "等待下輪對帳",
         probeFailed: "直連驗證失敗",
       },
+      domainMessages: {
+        customHostnameOwnershipConflict: "此自訂主機名稱不屬於 fn-knock。",
+        customHostnameQuotaExhausted: "自訂主機名稱配額已用盡。",
+        certificateRateLimited:
+          "為遵守 Cloudflare 憑證簽發速率限制，已進入佇列。",
+        customHostnameQuotaUnavailable: "自訂主機名稱配額不可用：{detail}",
+      },
       switchReasons: {
         manualSpeedTest: "測速完成後手動選擇",
         manualFallback: "手動回退到萬用字元 Tunnel",
@@ -2296,6 +2362,7 @@ export const zhHantAdmin = {
     },
     manual: {
       title: "進階：手動 Tunnel Token",
+      tunnelTokenLabel: "Tunnel Token",
       tokenDescription:
         "若已在上方設定 Cloudflare API Token，此處無需填寫。僅在手動接入 Tunnel 時使用；留空會保留現有 Token，也可貼上完整 cloudflared 指令。",
       replaceTokenPlaceholder: "貼上新的 Tunnel Token（留空則不變更）",

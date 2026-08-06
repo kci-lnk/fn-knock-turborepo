@@ -191,6 +191,8 @@ export type CloudflareOptimizationDomain = {
   sslStatus: string | null;
   customHostnameId: string | null;
   optimized: boolean;
+  messageCode?: string | null;
+  messageDetail?: string | null;
   message: string | null;
 };
 
@@ -273,6 +275,7 @@ export type CloudflareReconcileOperation = {
     | "update"
     | "delete"
     | "keep"
+    | "keep-deleted"
     | "fallback"
     | "probe"
     | "recover";
@@ -284,6 +287,8 @@ export type CloudflareReconcileConflict = {
   id: string;
   kind: string;
   target: string;
+  messageCode?: string;
+  detail?: string;
   message: string;
   takeoverAllowed: boolean;
 };
@@ -308,6 +313,7 @@ export type CloudflareReconcilePlan = {
   operations: CloudflareReconcileOperation[];
   conflicts: CloudflareReconcileConflict[];
   warnings: string[];
+  warningCodes?: string[];
   canApply: boolean;
 };
 

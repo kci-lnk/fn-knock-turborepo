@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { LoaderCircle, RefreshCw, ShieldAlert } from "lucide-vue-next";
+import type {
+  CloudflareReconcileConflict,
+  CloudflareReconcileOperation,
+} from "@/lib/api";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
 
 const { controller } = defineProps<{
@@ -28,6 +32,7 @@ const {
   isApplyingReconcile,
   isLoadingManagedState,
   isPreviewingReconcile,
+  locale,
   managedState,
   optimizationEnabled,
   previewReconcile,
@@ -51,7 +56,9 @@ const toggleTakeover = (id: string, checked: boolean | "indeterminate") => {
 const formatDate = (value?: string | null) => {
   if (!value) return "-";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString(locale.value);
 };
 
 const operationKindKeys: Record<string, string> = {
@@ -67,15 +74,99 @@ const operationActionKeys: Record<string, string> = {
   update: "update",
   delete: "delete",
   keep: "keep",
+  "keep-deleted": "keepDeleted",
   fallback: "fallback",
   probe: "probe",
   recover: "recover",
+};
+const legacyPlanWarningCodes: Record<string, string> = {
+  "Optimization is a Beta feature measured from this server's network vantage point.":
+    "betaVantage",
+  "Built-in and custom third-party hostnames are used only to discover candidate Cloudflare IPs. Business DNS is never pointed at those hostnames.":
+    "candidateDiscoveryOnly",
+  "Cloudflare for SaaS includes up to 100 exact Custom Hostnames on non-Enterprise plans; excess domains use the wildcard Tunnel.":
+    "customHostnameQuota",
+  "The wildcard Tunnel remains configured and is restored automatically if the preferred edge path fails.":
+    "wildcardFallback",
+};
+const planWarningKeys: Record<string, string> = {
+  betaVantage: "admin.cloudflareTunnel.managed.planWarnings.betaVantage",
+  candidateDiscoveryOnly:
+    "admin.cloudflareTunnel.managed.planWarnings.candidateDiscoveryOnly",
+  customHostnameQuota:
+    "admin.cloudflareTunnel.managed.planWarnings.customHostnameQuota",
+  wildcardFallback:
+    "admin.cloudflareTunnel.managed.planWarnings.wildcardFallback",
+};
+const operationTargetKeys: Record<string, string> = {
+  "optimization:cleanup":
+    "admin.cloudflareTunnel.managed.operationTargets.optimizedHostnames",
+  "dns:wildcard-dns":
+    "admin.cloudflareTunnel.managed.operationTargets.managedWildcardCname",
+};
+const legacyConflictMessageCodes: Record<string, string> = {
+  "The managed Tunnel ingress changed after fn-knock last wrote it":
+    "managedIngressChanged",
+  "The previously managed DNS record has been claimed or changed by another configuration":
+    "managedDnsChanged",
+  "An unowned Tunnel ingress rule already uses this hostname": "unownedIngress",
+  "An unowned DNS record already uses this hostname": "unownedDns",
+  "The previously managed fallback origin has been changed by another configuration":
+    "fallbackOriginChanged",
+  "A previously managed Custom Hostname was changed by another configuration":
+    "managedCustomHostnameChanged",
+  "The previously managed capability Custom Hostname was changed by another configuration":
+    "capabilityHostnameChanged",
+  "A previously managed optimization DNS record has been claimed or changed by another configuration":
+    "managedOptimizationDnsChanged",
+  "A Zone-wide fallback origin already exists and is not owned by fn-knock":
+    "unownedFallbackOrigin",
+  "An unowned Cloudflare for SaaS Custom Hostname already exists":
+    "unownedCustomHostname",
+  "An unowned exact DNS record prevents optimization": "exactDnsConflict",
+  "An unowned DNS record already uses the optimization hostname":
+    "optimizationDnsConflict",
+};
+const conflictMessageKeys: Record<string, string> = {
+  managedIngressChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.managedIngressChanged",
+  managedDnsChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.managedDnsChanged",
+  unownedIngress:
+    "admin.cloudflareTunnel.managed.conflictMessages.unownedIngress",
+  unownedDns: "admin.cloudflareTunnel.managed.conflictMessages.unownedDns",
+  cloudflareSaasUnavailable:
+    "admin.cloudflareTunnel.managed.conflictMessages.cloudflareSaasUnavailable",
+  permissionError:
+    "admin.cloudflareTunnel.managed.conflictMessages.permissionError",
+  fallbackOriginChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.fallbackOriginChanged",
+  managedCustomHostnameChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.managedCustomHostnameChanged",
+  capabilityHostnameChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.capabilityHostnameChanged",
+  managedOptimizationDnsChanged:
+    "admin.cloudflareTunnel.managed.conflictMessages.managedOptimizationDnsChanged",
+  unownedFallbackOrigin:
+    "admin.cloudflareTunnel.managed.conflictMessages.unownedFallbackOrigin",
+  unownedCustomHostname:
+    "admin.cloudflareTunnel.managed.conflictMessages.unownedCustomHostname",
+  exactDnsConflict:
+    "admin.cloudflareTunnel.managed.conflictMessages.exactDnsConflict",
+  optimizationDnsConflict:
+    "admin.cloudflareTunnel.managed.conflictMessages.optimizationDnsConflict",
 };
 const capabilityKeys: Record<string, string> = {
   zoneRead: "zoneRead",
   tunnelEdit: "tunnelEdit",
   dnsEdit: "dnsEdit",
   sslCertificatesEdit: "sslCertificatesEdit",
+};
+const tunnelStatusKeys: Record<string, string> = {
+  healthy: "healthy",
+  degraded: "degraded",
+  down: "down",
+  inactive: "inactive",
 };
 const operationKindLabel = (value: string) => {
   const key = operationKindKeys[value];
@@ -89,9 +180,38 @@ const operationActionLabel = (value: string) => {
     ? t(`admin.cloudflareTunnel.managed.operationActions.${key}`)
     : value;
 };
+const operationTargetLabel = (operation: CloudflareReconcileOperation) => {
+  const key = operationTargetKeys[operation.id];
+  return key ? t(key) : operation.target;
+};
+const conflictTargetLabel = (conflict: CloudflareReconcileConflict) => {
+  if (conflict.id === "permission:ssl-certificates") {
+    return t("admin.cloudflareTunnel.managed.capabilities.sslCertificatesEdit");
+  }
+  if (
+    conflict.id === "optimization:fallback-origin" ||
+    conflict.id === "optimization:cleanup-fallback-origin"
+  ) {
+    return t("admin.cloudflareTunnel.managed.conflictTargets.fallbackOrigin");
+  }
+  return conflict.target;
+};
+const conflictMessageLabel = (conflict: CloudflareReconcileConflict) => {
+  const code =
+    conflict.messageCode ?? legacyConflictMessageCodes[conflict.message];
+  const key = code ? conflictMessageKeys[code] : undefined;
+  return key ? t(key, { detail: conflict.detail || "" }) : conflict.message;
+};
 const capabilityLabel = (value: string) => {
   const key = capabilityKeys[value];
   return key ? t(`admin.cloudflareTunnel.managed.capabilities.${key}`) : value;
+};
+const tunnelStatusLabel = (status?: string | null) => {
+  if (!status) return "-";
+  const key = tunnelStatusKeys[status];
+  return key
+    ? t(`admin.cloudflareTunnel.managed.tunnelStatuses.${key}`)
+    : status;
 };
 const capabilityStatusLabel = (capability: {
   required: boolean;
@@ -102,6 +222,13 @@ const capabilityStatusLabel = (capability: {
   return capability.readable
     ? t("admin.cloudflareTunnel.managed.capabilityReadable")
     : t("admin.cloudflareTunnel.managed.capabilityMissing");
+};
+const planWarningLabel = (warning: string, index: number) => {
+  const code =
+    reconcilePlan.value?.warningCodes?.[index] ??
+    legacyPlanWarningCodes[warning];
+  const key = code ? planWarningKeys[code] : undefined;
+  return key ? t(key) : warning;
 };
 </script>
 
@@ -181,7 +308,7 @@ const capabilityStatusLabel = (capability: {
                   :key="item.id"
                   :value="item.id"
                 >
-                  {{ item.name }} · {{ item.status || "-" }}
+                  {{ item.name }} · {{ tunnelStatusLabel(item.status) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -194,7 +321,9 @@ const capabilityStatusLabel = (capability: {
           <div>
             <Label for="cloudflare-optimization-enabled">
               {{ t("admin.cloudflareTunnel.optimization.title") }}
-              <Badge variant="secondary" class="ml-1">Beta</Badge>
+              <Badge variant="secondary" class="ml-1">{{
+                t("admin.cloudflareTunnel.optimization.betaBadge")
+              }}</Badge>
             </Label>
             <p
               class="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground"
@@ -231,8 +360,11 @@ const capabilityStatusLabel = (capability: {
                 {{ t("admin.cloudflareTunnel.managed.previewTitle") }}
               </div>
               <div class="text-xs text-muted-foreground">
-                {{ t("admin.cloudflareTunnel.managed.expiresAt") }}:
-                {{ formatDate(reconcilePlan.expiresAt) }}
+                {{
+                  t("admin.cloudflareTunnel.managed.expiresAt", {
+                    time: formatDate(reconcilePlan.expiresAt),
+                  })
+                }}
               </div>
             </div>
             <Badge
@@ -281,7 +413,9 @@ const capabilityStatusLabel = (capability: {
               class="flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm"
             >
               <div class="min-w-0">
-                <div class="truncate font-medium">{{ operation.target }}</div>
+                <div class="truncate font-medium">
+                  {{ operationTargetLabel(operation) }}
+                </div>
                 <div class="text-xs text-muted-foreground">
                   {{ operationKindLabel(operation.kind) }}
                 </div>
@@ -299,9 +433,9 @@ const capabilityStatusLabel = (capability: {
             class="items-start"
           >
             <ShieldAlert class="size-4" />
-            <AlertTitle>{{ conflict.target }}</AlertTitle>
+            <AlertTitle>{{ conflictTargetLabel(conflict) }}</AlertTitle>
             <AlertDescription class="space-y-3">
-              <p>{{ conflict.message }}</p>
+              <p>{{ conflictMessageLabel(conflict) }}</p>
               <label
                 v-if="conflict.takeoverAllowed"
                 class="flex cursor-pointer items-center gap-2 text-sm"
@@ -321,8 +455,11 @@ const capabilityStatusLabel = (capability: {
             v-if="reconcilePlan.warnings.length"
             class="list-disc space-y-1 pl-5 text-xs text-muted-foreground"
           >
-            <li v-for="warning in reconcilePlan.warnings" :key="warning">
-              {{ warning }}
+            <li
+              v-for="(warning, index) in reconcilePlan.warnings"
+              :key="reconcilePlan.warningCodes?.[index] || warning"
+            >
+              {{ planWarningLabel(warning, index) }}
             </li>
           </ul>
 
@@ -347,7 +484,9 @@ const capabilityStatusLabel = (capability: {
           class="grid gap-3 sm:grid-cols-3"
         >
           <div class="rounded-md border bg-muted/20 p-3">
-            <div class="text-xs text-muted-foreground">Tunnel</div>
+            <div class="text-xs text-muted-foreground">
+              {{ t("admin.cloudflareTunnel.managed.tunnelLabel") }}
+            </div>
             <div class="mt-1 font-medium">
               {{ managedState.managed.tunnel.name }}
             </div>

@@ -701,6 +701,7 @@ async fn build_plan(
         "operations": operations,
         "conflicts": conflicts,
         "warnings": optimization::plan_warnings(request.optimization_enabled),
+        "warningCodes": optimization::plan_warning_codes(request.optimization_enabled),
         "canApply": can_apply,
     }))
 }
@@ -1110,6 +1111,7 @@ fn inspect_cleanup_ingress(
             "id": "ingress:cleanup",
             "kind": "ingress",
             "target": hostname,
+            "messageCode": "managedIngressChanged",
             "message": "The managed Tunnel ingress changed after fn-knock last wrote it",
             "takeoverAllowed": true,
         })),
@@ -1164,6 +1166,7 @@ fn inspect_cleanup_dns(
         "id": logical_id,
         "kind": "dns",
         "target": record.get("name").cloned().unwrap_or(Value::Null),
+        "messageCode": "managedDnsChanged",
         "message": "The previously managed DNS record has been claimed or changed by another configuration",
         "takeoverAllowed": true,
     }));
@@ -1215,6 +1218,7 @@ fn inspect_ingress(
                     "id": format!("ingress:{hostname}"),
                     "kind": "ingress",
                     "target": hostname,
+                    "messageCode": "unownedIngress",
                     "message": "An unowned Tunnel ingress rule already uses this hostname",
                     "takeoverAllowed": true,
                 }));
@@ -1236,6 +1240,7 @@ fn inspect_ingress(
                     "id": format!("ingress:{hostname}"),
                     "kind": "ingress",
                     "target": hostname,
+                    "messageCode": "unownedIngress",
                     "message": "An unowned Tunnel ingress rule already uses this hostname",
                     "takeoverAllowed": true,
                 }));
@@ -1305,6 +1310,7 @@ fn inspect_dns(
                     "id": format!("dns:{logical_id}"),
                     "kind": "dns",
                     "target": name,
+                    "messageCode": "unownedDns",
                     "message": "An unowned DNS record already uses this hostname",
                     "takeoverAllowed": true,
                 }));
@@ -1873,6 +1879,8 @@ fn custom_hostname_access_conflict(error: CloudflareApiError) -> Value {
             "id": "capability:cloudflare-for-saas",
             "kind": "capability",
             "target": "Cloudflare for SaaS",
+            "messageCode": "cloudflareSaasUnavailable",
+            "detail": error.to_string(),
             "message": format!(
                 "Cloudflare for SaaS is not enabled or has no Custom Hostname quota for this Zone. Enable it in the Cloudflare dashboard before applying optimization: {error}"
             ),
@@ -1883,6 +1891,8 @@ fn custom_hostname_access_conflict(error: CloudflareApiError) -> Value {
         "id": "permission:ssl-certificates",
         "kind": "permission",
         "target": "SSL and Certificates Edit",
+        "messageCode": "permissionError",
+        "detail": error.to_string(),
         "message": error.to_string(),
         "takeoverAllowed": false,
     })

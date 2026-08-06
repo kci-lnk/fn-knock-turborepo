@@ -81,7 +81,9 @@ const {
 
         <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div class="space-y-2">
-            <Label for="cloudflare-api-token">Cloudflare API Token</Label>
+            <Label for="cloudflare-api-token">
+              {{ t("admin.cloudflareTunnel.managed.apiTokenLabel") }}
+            </Label>
             <div class="relative">
               <Input
                 id="cloudflare-api-token"

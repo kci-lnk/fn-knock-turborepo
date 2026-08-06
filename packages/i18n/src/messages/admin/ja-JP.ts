@@ -2255,6 +2255,7 @@ export const jaJPAdmin = {
       viewOrChange: "表示・変更",
       viewDetails: "詳細を表示",
       connectedStatus: "API Token 設定済み",
+      apiTokenLabel: "Cloudflare API Token",
       replaceTokenPlaceholder: "新しい Cloudflare API Token を貼り付け",
       replaceToken: "Token を交換",
       connect: "接続して検証",
@@ -2282,6 +2283,13 @@ export const jaJPAdmin = {
       technicalDetails: "権限チェックの詳細",
       publicHostname: "公開ホスト名",
       originService: "ローカルオリジンサービス",
+      tunnelLabel: "Tunnel",
+      tunnelStatuses: {
+        healthy: "正常",
+        degraded: "性能低下",
+        down: "停止",
+        inactive: "無効",
+      },
       zone: "Cloudflare Zone",
       accountId: "アカウント ID",
       zoneId: "Zone ID",
@@ -2300,7 +2308,7 @@ export const jaJPAdmin = {
         ingress: "Ingress ルール",
         dns: "DNS レコード",
         optimization: "最適化リソース",
-        customHostname: "Custom Hostname",
+        customHostname: "カスタムホスト名",
         permission: "権限",
       },
       operationActions: {
@@ -2308,9 +2316,56 @@ export const jaJPAdmin = {
         update: "更新",
         delete: "削除",
         keep: "維持",
+        keepDeleted: "既に存在しません",
         fallback: "標準フォールバック",
         probe: "機能プローブ",
         recover: "fn-knock リソースを復旧",
+      },
+      operationTargets: {
+        optimizedHostnames: "fn-knock 最適化ホスト名",
+        managedWildcardCname: "管理対象のワイルドカード CNAME",
+      },
+      conflictTargets: {
+        fallbackOrigin: "Cloudflare for SaaS フォールバックオリジン",
+      },
+      conflictMessages: {
+        managedIngressChanged:
+          "fn-knock が最後に書き込んだ後、管理対象の Tunnel Ingress が変更されました。",
+        managedDnsChanged:
+          "以前に管理していた DNS レコードが、別の設定によって引き継がれたか変更されました。",
+        unownedIngress:
+          "fn-knock が所有していない Tunnel Ingress ルールが、このホスト名を既に使用しています。",
+        unownedDns:
+          "fn-knock が所有していない DNS レコードが、このホスト名を既に使用しています。",
+        cloudflareSaasUnavailable:
+          "Cloudflare for SaaS が有効でないか、この Zone にカスタムホスト名の割り当てがありません。最適化に必要な機能を先に有効にしてください。技術詳細：{detail}",
+        permissionError: "Cloudflare の権限チェックに失敗しました：{detail}",
+        fallbackOriginChanged:
+          "以前に管理していたフォールバックオリジンが別の設定で変更されました。",
+        managedCustomHostnameChanged:
+          "以前に管理していたカスタムホスト名が別の設定で変更されました。",
+        capabilityHostnameChanged:
+          "以前に管理していた機能プローブ用カスタムホスト名が別の設定で変更されました。",
+        managedOptimizationDnsChanged:
+          "以前に管理していた最適化 DNS レコードが、別の設定によって引き継がれたか変更されました。",
+        unownedFallbackOrigin:
+          "fn-knock が所有していない Zone 全体のフォールバックオリジンが既に存在します。",
+        unownedCustomHostname:
+          "fn-knock が所有していない Cloudflare for SaaS カスタムホスト名が既に存在します。",
+        exactDnsConflict:
+          "fn-knock が所有していない完全一致 DNS レコードが最適化を妨げています。",
+        optimizationDnsConflict:
+          "fn-knock が所有していない DNS レコードが最適化ホスト名を既に使用しています。",
+      },
+      planWarnings: {
+        betaVantage:
+          "最適化はベータ機能です。測定結果は、このサーバーのネットワーク上の位置を基準にしています。",
+        candidateDiscoveryOnly:
+          "組み込みおよびカスタムのサードパーティーホスト名は、Cloudflare IP の候補検出にのみ使用されます。業務 DNS がこれらのホスト名を参照することはありません。",
+        customHostnameQuota:
+          "Cloudflare for SaaS では、Enterprise 以外のプランで完全一致のカスタムホスト名を最大 100 件利用できます。超過したドメインにはワイルドカード Tunnel が使用されます。",
+        wildcardFallback:
+          "ワイルドカード Tunnel は常に維持され、優先エッジ経路で障害が発生した場合は自動的に復元されます。",
       },
       expiresAt: "有効期限 {time}",
       operationCount: "{count} 件の操作",
@@ -2333,6 +2388,11 @@ export const jaJPAdmin = {
     },
     optimization: {
       title: "アクセス速度の最適化",
+      betaBadge: "ベータ",
+      ipv4: "IPv4",
+      vantages: {
+        localServer: "fn-knock サーバー",
+      },
       heading: "より速い Cloudflare エントリーポイントを測定・選択",
       description:
         "任意機能です。設定済みドメインに適した入口を測定して選択し、問題時は標準 Tunnel に自動復帰します。",
@@ -2344,7 +2404,7 @@ export const jaJPAdmin = {
       activeStatus: "最適化が有効",
       betaTitle: "実験的機能",
       betaDescription:
-        "Cloudflare for SaaS Custom Hostname を作成します。プラン非対応や証明書検証失敗でも基本 Tunnel には影響しません。",
+        "Cloudflare for SaaS のカスタムホスト名を作成します。プラン非対応や証明書検証失敗でも基本 Tunnel には影響しません。",
       sources: {
         title: "候補 IP ソース",
         advancedTitle: "詳細設定：候補 IP ソース",
@@ -2363,6 +2423,10 @@ export const jaJPAdmin = {
         save: "候補ソースを保存",
         saved: "候補ソースを保存しました",
         saveFailed: "候補ソースを保存できませんでした",
+        settingsInvalid: "最適化候補ソースの設定が無効です：{detail}",
+        unverifiedAddress:
+          "{hostname}（{source}）は、検証済みの Cloudflare IPv4 アドレスに解決されませんでした。",
+        resolveFailed: "{hostname} の名前解決に失敗しました：{detail}",
         builtins: {
           "sweden-government": "スウェーデン政府",
           "us-library-of-congress": "米国議会図書館",
@@ -2379,7 +2443,7 @@ export const jaJPAdmin = {
         "awaiting-candidate":
           "検証が完了し、SNI 直接テスト用の最適 IP を待っています。",
         compatible:
-          "この Zone は Custom Hostname、証明書、SNI 直接検証に合格しました。",
+          "この Zone はカスタムホスト名、証明書、SNI 直接検証に合格しました。",
         unsupported:
           "この Zone、プラン、または証明書フローは最適化に非対応です。標準 Tunnel を維持します。",
       },
@@ -2391,7 +2455,7 @@ export const jaJPAdmin = {
         "Cloudflare for SaaS は有効です。fn-knock が検証レコードを準備しているか、Cloudflare による証明書の発行・配備を待っています。通常は数分で完了し、ホスト名と証明書の両方が「有効」になると速度テストを開始できます。機能の再有効化や支払い方法の再登録は不要です。",
       resourceConflictTitle: "Cloudflare リソースの再同期が必要です",
       resourceConflictDescription:
-        "設定済みドメインに、この fn-knock 設定と所有権を再同期していない Cloudflare Custom Hostname または完全一致 DNS レコードがあります。証明書発行の待機状態ではありません。Tunnel 設定を再度プレビューして適用してください。以前の fn-knock 設定だと検証できたリソースは有効な証明書を置き換えずに復旧し、無関係なリソースだけ明示的な引き継ぎ確認を求めます。",
+        "設定済みドメインに、この fn-knock 設定と所有権を再同期していない Cloudflare カスタムホスト名または完全一致 DNS レコードがあります。証明書発行の待機状態ではありません。Tunnel 設定を再度プレビューして適用してください。以前の fn-knock 設定だと検証できたリソースは有効な証明書を置き換えずに復旧し、無関係なリソースだけ明示的な引き継ぎ確認を求めます。",
       notReadyTitle: "最適化の検証準備が完了していません",
       notReadyDescription:
         "TLS と SNI の検証に使用できる有効なホスト名がまだありません。自動チェックの完了を待ってください。長時間復旧しない場合は、Cloudflare 設定を再度プレビューして適用してから速度テストを開始してください。",
@@ -2440,6 +2504,16 @@ export const jaJPAdmin = {
         queued: "次回の同期待ち",
         probeFailed: "直接接続検証失敗",
       },
+      domainMessages: {
+        customHostnameOwnershipConflict:
+          "このカスタムホスト名は fn-knock の所有ではありません。",
+        customHostnameQuotaExhausted:
+          "カスタムホスト名の割り当て上限に達しました。",
+        certificateRateLimited:
+          "Cloudflare の証明書発行レート制限に従って待機しています。",
+        customHostnameQuotaUnavailable:
+          "カスタムホスト名の割り当てを利用できません：{detail}",
+      },
       switchReasons: {
         manualSpeedTest: "速度テスト完了後に手動選択",
         manualFallback: "ワイルドカード Tunnel へ手動復帰",
@@ -2455,6 +2529,7 @@ export const jaJPAdmin = {
     },
     manual: {
       title: "詳細設定：手動 Tunnel Token",
+      tunnelTokenLabel: "Tunnel Token",
       tokenDescription:
         "上で Cloudflare API Token を設定済みの場合、ここは入力不要です。Tunnel を手動接続するときだけ使用してください。空欄なら既存 Token を保持し、cloudflared コマンド全体も貼り付けられます。",
       replaceTokenPlaceholder: "新しい Tunnel Token（空欄なら維持）",

@@ -53,7 +53,9 @@ const {
       <div class="divide-y divide-border">
         <div class="grid items-start gap-2 p-4 sm:grid-cols-[220px_1fr] sm:p-6">
           <div class="space-y-1">
-            <Label for="cloudflared-token">Tunnel Token</Label>
+            <Label for="cloudflared-token">
+              {{ t("admin.cloudflareTunnel.manual.tunnelTokenLabel") }}
+            </Label>
             <p class="pr-4 text-xs leading-relaxed text-muted-foreground">
               {{ t("admin.cloudflareTunnel.manual.tokenDescription") }}
             </p>

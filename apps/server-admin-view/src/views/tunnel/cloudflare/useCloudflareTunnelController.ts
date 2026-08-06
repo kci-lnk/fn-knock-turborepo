@@ -50,7 +50,7 @@ const stoppedSupervisor = (): TunnelSupervisorStatus => ({
 });
 
 export const useCloudflareTunnelController = () => {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const router = useRouter();
   const configStore = useConfigStore();
   const isInit = ref(false);
@@ -496,8 +496,7 @@ export const useCloudflareTunnelController = () => {
     }
     if (!optimizationScanReady.value) {
       const resourceConflict =
-        optimizationReadinessErrorCode.value ===
-        "cloudflare-resource-conflict";
+        optimizationReadinessErrorCode.value === "cloudflare-resource-conflict";
       const validationPending =
         optimizationReadinessErrorCode.value ===
         "cloudflare-saas-validation-pending";
@@ -506,16 +505,16 @@ export const useCloudflareTunnelController = () => {
           resourceConflict
             ? "admin.cloudflareTunnel.optimization.resourceConflictTitle"
             : validationPending
-            ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle"
-            : "admin.cloudflareTunnel.optimization.notReadyTitle",
+              ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle"
+              : "admin.cloudflareTunnel.optimization.notReadyTitle",
         ),
         {
           description: t(
             resourceConflict
               ? "admin.cloudflareTunnel.optimization.resourceConflictDescription"
               : validationPending
-              ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription"
-              : "admin.cloudflareTunnel.optimization.notReadyDescription",
+                ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription"
+                : "admin.cloudflareTunnel.optimization.notReadyDescription",
           ),
         },
       );
@@ -563,9 +562,7 @@ export const useCloudflareTunnelController = () => {
       if (managedState.value) {
         managedState.value.optimization.candidateSources = sources;
       }
-      toast.success(
-        t("admin.cloudflareTunnel.optimization.sources.saved"),
-      );
+      toast.success(t("admin.cloudflareTunnel.optimization.sources.saved"));
     } catch (error) {
       toast.error(t("admin.cloudflareTunnel.optimization.sources.saveFailed"), {
         description: extractErrorMessage(
@@ -821,6 +818,7 @@ export const useCloudflareTunnelController = () => {
     isStarting,
     isStopping,
     logs,
+    locale,
     managedState,
     onClearLogsClick,
     pid,

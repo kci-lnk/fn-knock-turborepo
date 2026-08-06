@@ -2092,6 +2092,7 @@ export const zhCNAdmin = {
       viewOrChange: "查看或修改",
       viewDetails: "查看详情",
       connectedStatus: "API Token 已配置",
+      apiTokenLabel: "Cloudflare API Token",
       replaceTokenPlaceholder: "粘贴新的 Cloudflare API Token",
       replaceToken: "更换 Token",
       connect: "连接并验证",
@@ -2117,6 +2118,13 @@ export const zhCNAdmin = {
       technicalDetails: "权限检查详情",
       publicHostname: "公网主机名",
       originService: "本地回源服务",
+      tunnelLabel: "Tunnel",
+      tunnelStatuses: {
+        healthy: "健康",
+        degraded: "性能下降",
+        down: "离线",
+        inactive: "未激活",
+      },
       zone: "Cloudflare 区域",
       accountId: "帐户 ID",
       zoneId: "区域 ID",
@@ -2135,7 +2143,7 @@ export const zhCNAdmin = {
         ingress: "Ingress 规则",
         dns: "DNS 记录",
         optimization: "优选资源",
-        customHostname: "Custom Hostname",
+        customHostname: "自定义主机名",
         permission: "权限",
       },
       operationActions: {
@@ -2143,9 +2151,50 @@ export const zhCNAdmin = {
         update: "更新",
         delete: "删除",
         keep: "保留",
+        keepDeleted: "已不存在",
         fallback: "标准回退",
         probe: "能力探测",
         recover: "恢复 fn-knock 资源",
+      },
+      operationTargets: {
+        optimizedHostnames: "fn-knock 优选主机名",
+        managedWildcardCname: "托管的通配 CNAME",
+      },
+      conflictTargets: {
+        fallbackOrigin: "Cloudflare for SaaS 回退源站",
+      },
+      conflictMessages: {
+        managedIngressChanged:
+          "fn-knock 上次写入后，托管的 Tunnel Ingress 已发生变化。",
+        managedDnsChanged: "此前托管的 DNS 记录已被其他配置接管或修改。",
+        unownedIngress:
+          "已有不属于 fn-knock 的 Tunnel Ingress 规则使用此主机名。",
+        unownedDns: "已有不属于 fn-knock 的 DNS 记录使用此主机名。",
+        cloudflareSaasUnavailable:
+          "Cloudflare for SaaS 未启用，或此 Zone 没有自定义主机名配额。请先启用优选所需功能。技术详情：{detail}",
+        permissionError: "Cloudflare 权限检查失败：{detail}",
+        fallbackOriginChanged: "此前托管的回退源站已被其他配置修改。",
+        managedCustomHostnameChanged:
+          "此前托管的自定义主机名已被其他配置修改。",
+        capabilityHostnameChanged:
+          "此前托管的能力探测自定义主机名已被其他配置修改。",
+        managedOptimizationDnsChanged:
+          "此前托管的优选 DNS 记录已被其他配置接管或修改。",
+        unownedFallbackOrigin: "此 Zone 已存在不属于 fn-knock 的全局回退源站。",
+        unownedCustomHostname:
+          "已存在不属于 fn-knock 的 Cloudflare for SaaS 自定义主机名。",
+        exactDnsConflict: "不属于 fn-knock 的精确 DNS 记录阻止了优选。",
+        optimizationDnsConflict:
+          "已有不属于 fn-knock 的 DNS 记录使用优选主机名。",
+      },
+      planWarnings: {
+        betaVantage: "优选是测试功能，测速结果基于当前服务器的网络位置。",
+        candidateDiscoveryOnly:
+          "内置和自定义的第三方主机名仅用于发现候选 Cloudflare IP；业务 DNS 绝不会指向这些主机名。",
+        customHostnameQuota:
+          "Cloudflare for SaaS 的非 Enterprise 套餐最多包含 100 个精确自定义主机名；超出数量的域名将使用通配 Tunnel。",
+        wildcardFallback:
+          "通配 Tunnel 会一直保留；当首选边缘路径失效时，系统会自动恢复使用它。",
       },
       expiresAt: "有效至 {time}",
       operationCount: "{count} 项操作",
@@ -2167,6 +2216,11 @@ export const zhCNAdmin = {
     },
     optimization: {
       title: "访问速度优选",
+      betaBadge: "测试版",
+      ipv4: "IPv4",
+      vantages: {
+        localServer: "fn-knock 服务器",
+      },
       heading: "测试并选择更快的 Cloudflare 入口",
       description:
         "可选功能。程序会测速并为已配置域名选择更合适的入口；失败时自动回到标准 Tunnel。",
@@ -2177,7 +2231,7 @@ export const zhCNAdmin = {
       activeStatus: "优选已启用",
       betaTitle: "实验性功能",
       betaDescription:
-        "会创建 Cloudflare for SaaS Custom Hostname。套餐或证书验证不支持时不会影响基础 Tunnel。",
+        "会创建 Cloudflare for SaaS 自定义主机名。套餐或证书验证不支持时不会影响基础 Tunnel。",
       sources: {
         title: "候选 IP 来源",
         advancedTitle: "高级：候选 IP 来源",
@@ -2197,6 +2251,10 @@ export const zhCNAdmin = {
         save: "保存候选来源",
         saved: "候选来源已保存",
         saveFailed: "保存候选来源失败",
+        settingsInvalid: "优选候选来源设置无效：{detail}",
+        unverifiedAddress:
+          "{hostname}（{source}）未解析到已验证的 Cloudflare IPv4 地址。",
+        resolveFailed: "解析 {hostname} 失败：{detail}",
         builtins: {
           "sweden-government": "瑞典政府",
           "us-library-of-congress": "美国国会图书馆",
@@ -2212,7 +2270,7 @@ export const zhCNAdmin = {
         pending: "正在等待 Cloudflare 完成域名与证书验证。",
         "awaiting-candidate":
           "验证已完成，正在等待优选候选 IP 进行 SNI 直连测试。",
-        compatible: "当前 Zone 已通过 Custom Hostname、证书与 SNI 直连验证。",
+        compatible: "当前 Zone 已通过自定义主机名、证书与 SNI 直连验证。",
         unsupported: "当前 Zone、套餐或证书流程不支持优选，已保持标准 Tunnel。",
       },
       cloudflareSaasRequiredTitle: "需要启用 Cloudflare for SaaS",
@@ -2223,7 +2281,7 @@ export const zhCNAdmin = {
         "Cloudflare for SaaS 已启用。fn-knock 正在准备验证记录，或等待 Cloudflare 完成证书签发与部署。通常需要几分钟；主机名和证书状态均变为“有效”后即可开始测速，无需重复开通功能或绑定付款方式。",
       resourceConflictTitle: "需要对账 Cloudflare 资源",
       resourceConflictDescription:
-        "检测到已配置域名存在尚未与当前 fn-knock 配置对账的 Cloudflare Custom Hostname 或精确 DNS 记录；这不是证书签发等待。请在 Tunnel 卡片重新生成预检并应用。能够验证为上一套 fn-knock 配置创建的资源会保留现有有效证书并无损恢复；真正的第三方资源仍会要求你明确确认接管。",
+        "检测到已配置域名存在尚未与当前 fn-knock 配置对账的 Cloudflare 自定义主机名或精确 DNS 记录；这不是证书签发等待。请在 Tunnel 卡片重新生成预检并应用。能够验证为上一套 fn-knock 配置创建的资源会保留现有有效证书并无损恢复；真正的第三方资源仍会要求你明确确认接管。",
       notReadyTitle: "优选验证尚未就绪",
       notReadyDescription:
         "暂时没有可用于 TLS 与 SNI 验证的已激活主机名。请等待自动检查完成；如果长时间没有恢复，请重新预检并应用 Cloudflare 配置后再测速。",
@@ -2272,6 +2330,13 @@ export const zhCNAdmin = {
         queued: "等待下轮对账",
         probeFailed: "直连验证失败",
       },
+      domainMessages: {
+        customHostnameOwnershipConflict: "此自定义主机名不属于 fn-knock。",
+        customHostnameQuotaExhausted: "自定义主机名配额已用尽。",
+        certificateRateLimited:
+          "为遵守 Cloudflare 证书签发速率限制，已进入队列。",
+        customHostnameQuotaUnavailable: "自定义主机名配额不可用：{detail}",
+      },
       switchReasons: {
         manualSpeedTest: "测速完成后手动选择",
         manualFallback: "手动回退到通配 Tunnel",
@@ -2287,6 +2352,7 @@ export const zhCNAdmin = {
     },
     manual: {
       title: "高级：手动 Tunnel Token",
+      tunnelTokenLabel: "Tunnel Token",
       tokenDescription:
         "如果已在上方配置 Cloudflare API Token，此处无需填写。仅在手动接入 Tunnel 时使用；留空会保留已有 Token，也可粘贴完整 cloudflared 命令。",
       replaceTokenPlaceholder: "粘贴新的 Tunnel Token（留空不修改）",

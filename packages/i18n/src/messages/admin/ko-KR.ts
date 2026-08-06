@@ -2240,6 +2240,7 @@ export const koKRAdmin = {
       viewOrChange: "보기 또는 변경",
       viewDetails: "세부 정보 보기",
       connectedStatus: "API Token 설정됨",
+      apiTokenLabel: "Cloudflare API Token",
       replaceTokenPlaceholder: "새 Cloudflare API Token 붙여넣기",
       replaceToken: "Token 교체",
       connect: "연결 및 검증",
@@ -2267,6 +2268,13 @@ export const koKRAdmin = {
       technicalDetails: "권한 검사 세부 정보",
       publicHostname: "공개 호스트 이름",
       originService: "로컬 원본 서비스",
+      tunnelLabel: "Tunnel",
+      tunnelStatuses: {
+        healthy: "정상",
+        degraded: "성능 저하",
+        down: "오프라인",
+        inactive: "비활성",
+      },
       zone: "Cloudflare Zone",
       accountId: "계정 ID",
       zoneId: "Zone ID",
@@ -2285,7 +2293,7 @@ export const koKRAdmin = {
         ingress: "Ingress 규칙",
         dns: "DNS 레코드",
         optimization: "최적화 리소스",
-        customHostname: "Custom Hostname",
+        customHostname: "사용자 지정 호스트 이름",
         permission: "권한",
       },
       operationActions: {
@@ -2293,9 +2301,56 @@ export const koKRAdmin = {
         update: "업데이트",
         delete: "삭제",
         keep: "유지",
+        keepDeleted: "이미 없음",
         fallback: "표준 폴백",
         probe: "기능 검사",
         recover: "fn-knock 리소스 복구",
+      },
+      operationTargets: {
+        optimizedHostnames: "fn-knock 최적화 호스트 이름",
+        managedWildcardCname: "관리되는 와일드카드 CNAME",
+      },
+      conflictTargets: {
+        fallbackOrigin: "Cloudflare for SaaS 폴백 원본",
+      },
+      conflictMessages: {
+        managedIngressChanged:
+          "fn-knock이 마지막으로 기록한 후 관리되는 Tunnel Ingress가 변경되었습니다.",
+        managedDnsChanged:
+          "이전에 관리하던 DNS 레코드가 다른 설정에 의해 인수되거나 변경되었습니다.",
+        unownedIngress:
+          "fn-knock 소유가 아닌 Tunnel Ingress 규칙이 이미 이 호스트 이름을 사용합니다.",
+        unownedDns:
+          "fn-knock 소유가 아닌 DNS 레코드가 이미 이 호스트 이름을 사용합니다.",
+        cloudflareSaasUnavailable:
+          "Cloudflare for SaaS가 활성화되지 않았거나 이 Zone에 사용자 지정 호스트 이름 할당량이 없습니다. 최적화에 필요한 기능을 먼저 활성화하세요. 기술 세부 정보: {detail}",
+        permissionError: "Cloudflare 권한 검사 실패: {detail}",
+        fallbackOriginChanged:
+          "이전에 관리하던 폴백 원본이 다른 설정에 의해 변경되었습니다.",
+        managedCustomHostnameChanged:
+          "이전에 관리하던 사용자 지정 호스트 이름이 다른 설정에 의해 변경되었습니다.",
+        capabilityHostnameChanged:
+          "이전에 관리하던 기능 검사용 사용자 지정 호스트 이름이 다른 설정에 의해 변경되었습니다.",
+        managedOptimizationDnsChanged:
+          "이전에 관리하던 최적화 DNS 레코드가 다른 설정에 의해 인수되거나 변경되었습니다.",
+        unownedFallbackOrigin:
+          "fn-knock 소유가 아닌 Zone 전체 폴백 원본이 이미 존재합니다.",
+        unownedCustomHostname:
+          "fn-knock 소유가 아닌 Cloudflare for SaaS 사용자 지정 호스트 이름이 이미 존재합니다.",
+        exactDnsConflict:
+          "fn-knock 소유가 아닌 정확한 DNS 레코드가 최적화를 막고 있습니다.",
+        optimizationDnsConflict:
+          "fn-knock 소유가 아닌 DNS 레코드가 이미 최적화 호스트 이름을 사용합니다.",
+      },
+      planWarnings: {
+        betaVantage:
+          "최적화는 베타 기능이며, 이 서버의 네트워크 위치를 기준으로 측정됩니다.",
+        candidateDiscoveryOnly:
+          "기본 제공 및 사용자 지정 타사 호스트 이름은 후보 Cloudflare IP를 찾는 데만 사용됩니다. 비즈니스 DNS는 이러한 호스트 이름을 가리키지 않습니다.",
+        customHostnameQuota:
+          "Cloudflare for SaaS의 비 Enterprise 요금제에서는 최대 100개의 정확한 사용자 지정 호스트 이름을 사용할 수 있으며, 초과 도메인은 와일드카드 Tunnel을 사용합니다.",
+        wildcardFallback:
+          "와일드카드 Tunnel은 계속 유지되며 기본 에지 경로에 장애가 발생하면 자동으로 복원됩니다.",
       },
       expiresAt: "만료 {time}",
       operationCount: "작업 {count}개",
@@ -2318,6 +2373,11 @@ export const koKRAdmin = {
     },
     optimization: {
       title: "접속 속도 최적화",
+      betaBadge: "베타",
+      ipv4: "IPv4",
+      vantages: {
+        localServer: "fn-knock 서버",
+      },
       heading: "더 빠른 Cloudflare 진입점 테스트 및 선택",
       description:
         "선택 기능입니다. 설정된 도메인에 적합한 진입점을 테스트해 선택하며 문제가 생기면 표준 Tunnel로 자동 복귀합니다.",
@@ -2330,7 +2390,7 @@ export const koKRAdmin = {
       activeStatus: "최적화 활성",
       betaTitle: "실험적 기능",
       betaDescription:
-        "Cloudflare for SaaS Custom Hostname을 생성합니다. 요금제 미지원이나 인증서 검증 실패는 기본 Tunnel에 영향을 주지 않습니다.",
+        "Cloudflare for SaaS 사용자 지정 호스트 이름을 생성합니다. 요금제 미지원이나 인증서 검증 실패는 기본 Tunnel에 영향을 주지 않습니다.",
       sources: {
         title: "후보 IP 소스",
         advancedTitle: "고급: 후보 IP 소스",
@@ -2349,6 +2409,10 @@ export const koKRAdmin = {
         save: "후보 소스 저장",
         saved: "후보 소스를 저장했습니다.",
         saveFailed: "후보 소스 저장 실패",
+        settingsInvalid: "최적화 후보 소스 설정이 잘못되었습니다: {detail}",
+        unverifiedAddress:
+          "{hostname}({source})이 검증된 Cloudflare IPv4 주소로 확인되지 않았습니다.",
+        resolveFailed: "{hostname} 확인 실패: {detail}",
         builtins: {
           "sweden-government": "스웨덴 정부",
           "us-library-of-congress": "미국 의회도서관",
@@ -2365,7 +2429,7 @@ export const koKRAdmin = {
         "awaiting-candidate":
           "검증이 완료되어 SNI 직접 검사에 사용할 최적 IP를 기다리는 중입니다.",
         compatible:
-          "이 Zone은 Custom Hostname, 인증서 및 SNI 직접 검증을 통과했습니다.",
+          "이 Zone은 사용자 지정 호스트 이름, 인증서 및 SNI 직접 검증을 통과했습니다.",
         unsupported:
           "이 Zone, 요금제 또는 인증서 절차는 최적화를 지원하지 않아 표준 Tunnel을 유지합니다.",
       },
@@ -2377,7 +2441,7 @@ export const koKRAdmin = {
         "Cloudflare for SaaS가 활성화되어 있습니다. fn-knock이 검증 레코드를 준비 중이거나 Cloudflare의 인증서 발급 및 배포를 기다리고 있습니다. 일반적으로 몇 분 정도 걸리며 호스트 이름과 인증서 상태가 모두 활성으로 바뀌면 속도 테스트를 시작할 수 있습니다. 기능을 다시 활성화하거나 결제 수단을 다시 등록할 필요가 없습니다.",
       resourceConflictTitle: "Cloudflare 리소스 재조정 필요",
       resourceConflictDescription:
-        "설정된 도메인에 현재 fn-knock 구성과 소유권이 조정되지 않은 Cloudflare Custom Hostname 또는 정확한 DNS 레코드가 있습니다. 인증서 발급 대기 상태가 아닙니다. Tunnel 구성을 다시 미리 보고 적용하세요. 이전 fn-knock 구성으로 확인된 리소스는 활성 인증서를 교체하지 않고 복구하며, 관련 없는 리소스만 명시적인 인수 확인을 요구합니다.",
+        "설정된 도메인에 현재 fn-knock 구성과 소유권이 조정되지 않은 Cloudflare 사용자 지정 호스트 이름 또는 정확한 DNS 레코드가 있습니다. 인증서 발급 대기 상태가 아닙니다. Tunnel 구성을 다시 미리 보고 적용하세요. 이전 fn-knock 구성으로 확인된 리소스는 활성 인증서를 교체하지 않고 복구하며, 관련 없는 리소스만 명시적인 인수 확인을 요구합니다.",
       notReadyTitle: "최적화 검증이 아직 준비되지 않음",
       notReadyDescription:
         "TLS 및 SNI 검증에 사용할 수 있는 활성 호스트 이름이 아직 없습니다. 자동 검사가 완료될 때까지 기다리세요. 장시간 복구되지 않으면 Cloudflare 구성을 다시 미리 보고 적용한 후 속도 테스트를 시작하세요.",
@@ -2426,6 +2490,16 @@ export const koKRAdmin = {
         queued: "다음 동기화 대기",
         probeFailed: "직접 연결 검증 실패",
       },
+      domainMessages: {
+        customHostnameOwnershipConflict:
+          "이 사용자 지정 호스트 이름은 fn-knock 소유가 아닙니다.",
+        customHostnameQuotaExhausted:
+          "사용자 지정 호스트 이름 할당량이 소진되었습니다.",
+        certificateRateLimited:
+          "Cloudflare 인증서 발급 속도 제한을 준수하기 위해 대기 중입니다.",
+        customHostnameQuotaUnavailable:
+          "사용자 지정 호스트 이름 할당량을 사용할 수 없습니다: {detail}",
+      },
       switchReasons: {
         manualSpeedTest: "속도 테스트 완료 후 수동 선택",
         manualFallback: "와일드카드 Tunnel로 수동 폴백",
@@ -2442,6 +2516,7 @@ export const koKRAdmin = {
     },
     manual: {
       title: "고급: 수동 Tunnel Token",
+      tunnelTokenLabel: "Tunnel Token",
       tokenDescription:
         "위에서 Cloudflare API Token을 설정했다면 여기에 입력할 필요가 없습니다. Tunnel을 수동으로 연결할 때만 사용하세요. 비워 두면 기존 Token을 유지하며 전체 cloudflared 명령도 붙여넣을 수 있습니다.",
       replaceTokenPlaceholder: "새 Tunnel Token(비워 두면 유지)",

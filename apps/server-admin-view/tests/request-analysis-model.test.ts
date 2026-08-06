@@ -196,3 +196,24 @@ test("request analytics tabs expose real panels while retaining component state"
   assert.match(logsTableSource, /class="divide-y md:hidden"/u);
   assert.match(logsTableSource, /hidden min-w-\[1060px\] md:table/u);
 });
+
+test("cached request-log pagination stops floating while its tab is inactive", () => {
+  const dockSource = readFileSync(
+    new URL(
+      "../../../packages/admin-shared/src/components/common/FloatingActionDock.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(dockSource, /onActivated/u);
+  assert.match(dockSource, /onDeactivated/u);
+  assert.match(
+    dockSource,
+    /isLifecycleActive\.value\s*&&\s*\(props\.active/u,
+  );
+  assert.match(
+    dockSource,
+    /onDeactivated\(\(\) => \{[\s\S]*isLifecycleActive\.value = false;[\s\S]*disconnectIntersectionObserver\(\);[\s\S]*hasFloatingFocus\.value = false;/u,
+  );
+});

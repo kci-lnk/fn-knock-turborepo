@@ -2,7 +2,9 @@
 import {
   computed,
   nextTick,
+  onActivated,
   onBeforeUnmount,
+  onDeactivated,
   onMounted,
   ref,
   useSlots,
@@ -43,12 +45,15 @@ const floatingRef = ref<HTMLElement | null>(null);
 const isInlineVisible = ref(true);
 const hasFloatingFocus = ref(false);
 const isKeepVisibleReleasing = ref(false);
+const isLifecycleActive = ref(true);
 
 let intersectionObserver: IntersectionObserver | null = null;
 let keepVisibleReleaseTimer: number | null = null;
 
 const isDockActive = computed(
-  () => props.active || props.keepVisible || isKeepVisibleReleasing.value,
+  () =>
+    isLifecycleActive.value &&
+    (props.active || props.keepVisible || isKeepVisibleReleasing.value),
 );
 const shouldShowFloating = computed(
   () =>
@@ -143,7 +148,24 @@ onMounted(() => {
   void reconnectObservers();
 });
 
+onActivated(() => {
+  if (isLifecycleActive.value) return;
+
+  isLifecycleActive.value = true;
+  void reconnectObservers();
+});
+
+onDeactivated(() => {
+  isLifecycleActive.value = false;
+  disconnectIntersectionObserver();
+  clearKeepVisibleReleaseTimer();
+  isKeepVisibleReleasing.value = false;
+  hasFloatingFocus.value = false;
+  isInlineVisible.value = true;
+});
+
 onBeforeUnmount(() => {
+  isLifecycleActive.value = false;
   disconnectIntersectionObserver();
   clearKeepVisibleReleaseTimer();
 });

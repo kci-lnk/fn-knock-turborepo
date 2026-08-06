@@ -2309,6 +2309,7 @@ export const enAdmin = {
         keep: "Keep",
         fallback: "Standard fallback",
         probe: "Capability probe",
+        recover: "Recover fn-knock resource",
       },
       expiresAt: "Expires {time}",
       operationCount: "{count} operations",
@@ -2388,6 +2389,16 @@ export const enAdmin = {
       cloudflareSaasRequiredTitle: "Cloudflare for SaaS must be enabled",
       cloudflareSaasRequiredDescription:
         "Cloudflare for SaaS is not enabled for this zone, so TLS and SNI validation cannot complete. In Cloudflare, go to SSL/TLS → Custom Hostnames, enable Cloudflare for SaaS, and add a payment method such as PayPal or a credit card. Free accounts include 100 custom hostnames; adding a payment method does not create an immediate charge, but exceeding the included quota or using other paid services may incur fees. Then run the speed test again.",
+      cloudflareSaasValidationPendingTitle:
+        "Cloudflare certificate validation in progress",
+      cloudflareSaasValidationPendingDescription:
+        "Cloudflare for SaaS is enabled. fn-knock is preparing the validation records or waiting for Cloudflare to issue and deploy the certificate. This usually takes a few minutes; you can start the speed test when both the hostname and certificate statuses become Active. You do not need to enable the feature or add a payment method again.",
+      resourceConflictTitle: "Cloudflare resources need reconciliation",
+      resourceConflictDescription:
+        "A configured domain already has a Cloudflare Custom Hostname or exact DNS record whose ownership has not been reconciled with this fn-knock configuration. This is not certificate issuance delay. Preview and apply the Tunnel configuration; verified resources from the previous fn-knock configuration are recovered without replacing their active certificates, while unrelated resources still require explicit takeover confirmation.",
+      notReadyTitle: "Optimization validation is not ready",
+      notReadyDescription:
+        "No active hostname is currently available for TLS and SNI validation. Wait for the automatic check to finish. If it remains unavailable, preview and apply the Cloudflare configuration again before starting the speed test.",
       currentIp: "Current optimized IP",
       lastHealth: "Last health check",
       nextScan: "Next full scan",

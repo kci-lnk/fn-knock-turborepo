@@ -244,6 +244,8 @@ export type CloudflareManagedState = {
       reasonCode?: string;
       message?: string;
     } | null;
+    scanReady: boolean;
+    scanReadinessErrorCode: string | null;
     candidateSources: CloudflareOptimizationCandidateSources;
     vantage: CloudflareOptimizationVantage | null;
     sourceWarnings: string[];
@@ -266,7 +268,14 @@ export type CloudflareManagedState = {
 export type CloudflareReconcileOperation = {
   id: string;
   kind: string;
-  action: "create" | "update" | "delete" | "keep" | "fallback" | "probe";
+  action:
+    | "create"
+    | "update"
+    | "delete"
+    | "keep"
+    | "fallback"
+    | "probe"
+    | "recover";
   target: string;
   owned: boolean;
 };

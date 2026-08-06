@@ -33,7 +33,16 @@ const OPTIMIZATION_RUNTIME_KEY: &str = "fn_knock:cloudflared:optimization:runtim
 const OPTIMIZATION_SETTINGS_KEY: &str = "fn_knock:cloudflared:optimization:settings:v1";
 const CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE: &str = "cloudflare-saas-required";
 const CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR: &str =
-    "No active business or capability hostname is available for TLS and SNI validation";
+    "Cloudflare for SaaS is not enabled or available for the selected zone";
+const CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE: &str = "cloudflare-saas-validation-pending";
+const CLOUDFLARE_SAAS_VALIDATION_PENDING_SCAN_ERROR: &str =
+    "Cloudflare for SaaS is enabled, but hostname and certificate validation is still in progress";
+const CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE: &str = "cloudflare-resource-conflict";
+const CLOUDFLARE_RESOURCE_CONFLICT_SCAN_ERROR: &str =
+    "Cloudflare Custom Hostname or DNS ownership conflicts must be reconciled";
+const OPTIMIZATION_NOT_READY_ERROR_CODE: &str = "cloudflare-optimization-not-ready";
+const OPTIMIZATION_NOT_READY_SCAN_ERROR: &str =
+    "Cloudflare optimization is not ready for TLS and SNI validation";
 const SPEEDTEST_HOST: &str = "speed.cloudflare.com";
 const SPEEDTEST_PATH: &str = "/__down";
 const MAX_CANDIDATES: usize = 128;
@@ -69,6 +78,14 @@ enum CapabilityProbeResult {
 enum FallbackOriginResult {
     Ready,
     Pending,
+}
+
+#[derive(Clone, Debug)]
+struct RecoverableCustomHostname {
+    legacy_instance_id: String,
+    origin_hostname: String,
+    origin_dns: Value,
+    exact_dns: Value,
 }
 
 const CLOUDFLARE_IPV4_FALLBACK: &[&str] = &[
@@ -833,6 +850,12 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
             .map(Value::String)
             .unwrap_or(Value::Null),
     );
+    let scan_ready = scan_validation_hostname(ownership).is_some();
+    let scan_readiness_error_code = (!scan_ready)
+        .then(|| scan_validation_hostname_error(ownership))
+        .and_then(|error| optimization_scan_error_code(&error))
+        .map(Value::from)
+        .unwrap_or(Value::Null);
     json!({
         "enabled": managed.get("optimizationEnabled").and_then(Value::as_bool).unwrap_or(false),
         "beta": true,
@@ -844,6 +867,8 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
         "edgeHostname": ownership.pointer("/optimization/edgeDns/name").cloned().unwrap_or(Value::Null),
         "fallbackOrigin": ownership.pointer("/optimization/fallbackOrigin").cloned().unwrap_or(Value::Null),
         "capabilityProbe": ownership.pointer("/optimization/capabilityProbe").cloned().unwrap_or(Value::Null),
+        "scanReady": scan_ready,
+        "scanReadinessErrorCode": scan_readiness_error_code,
         "candidateSources": public_sources,
         "vantage": runtime.get("lastVantage").cloned().unwrap_or(Value::Null),
         "sourceWarnings": runtime.get("lastSourceWarnings").cloned().unwrap_or_else(|| json!([])),
@@ -885,6 +910,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
     zone_id: &str,
     ownership: &Value,
     instance_id: &str,
+    custom_hostnames: &[Value],
     conflicts: &mut Vec<Value>,
     remote_snapshot: &mut Vec<Value>,
 ) -> Result<(), CloudflareApiError> {
@@ -907,12 +933,65 @@ pub(super) async fn append_cleanup_remote_snapshot(
     }
     remote_snapshot.push(json!({ "fallbackOrigin": fallback_origin }));
 
+    let default_custom_origin = ownership
+        .pointer("/optimization/originDns/name")
+        .and_then(Value::as_str);
+    for (hostname, state) in ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|items| items.iter())
+    {
+        let Some(id) = state.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(remote) = custom_hostnames
+            .iter()
+            .find(|item| item.get("id").and_then(Value::as_str) == Some(id))
+        else {
+            continue;
+        };
+        if !managed_custom_hostname_matches(remote, hostname, state, default_custom_origin) {
+            conflicts.push(json!({
+                "id": format!("optimization:cleanup-custom-hostname:{id}"),
+                "kind": "custom-hostname",
+                "target": hostname,
+                "message": "A previously managed Custom Hostname was changed by another configuration",
+                "takeoverAllowed": false,
+            }));
+        }
+    }
+    if let Some(probe) = ownership.pointer("/optimization/capabilityProbe")
+        && let Some(id) = probe.get("id").and_then(Value::as_str)
+        && let Some(remote) = custom_hostnames
+            .iter()
+            .find(|item| item.get("id").and_then(Value::as_str) == Some(id))
+    {
+        let hostname = probe.get("hostname").and_then(Value::as_str).unwrap_or("");
+        if !managed_custom_hostname_matches(remote, hostname, probe, default_custom_origin) {
+            conflicts.push(json!({
+                "id": format!("optimization:cleanup-capability-hostname:{id}"),
+                "kind": "custom-hostname",
+                "target": hostname,
+                "message": "The previously managed capability Custom Hostname was changed by another configuration",
+                "takeoverAllowed": false,
+            }));
+        }
+    }
+
     let mut tracked = Vec::new();
     for path in ["/optimization/originDns", "/optimization/edgeDns"] {
         if let Some(record) = ownership.pointer(path) {
             tracked.push(record.clone());
         }
     }
+    tracked.extend(
+        ownership
+            .pointer("/optimization/recoveredOrigins")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|items| items.values().cloned()),
+    );
     for (hostname, state) in ownership
         .pointer("/optimization/customHostnames")
         .and_then(Value::as_object)
@@ -993,7 +1072,7 @@ pub(super) async fn append_cleanup_remote_snapshot(
                     "kind": "dns",
                     "target": name.clone(),
                     "message": "A previously managed optimization DNS record has been claimed or changed by another configuration",
-                    "takeoverAllowed": true,
+                    "takeoverAllowed": false,
                 }));
             }
         }
@@ -1047,6 +1126,15 @@ pub(super) async fn append_preview(
     let owned_origin = owned_fallback
         .and_then(|value| value.get("origin"))
         .and_then(Value::as_str);
+    let recovery_origin = owned_fallback
+        .and_then(|value| value.get("previousOrigin"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            remote_origin
+                .filter(|remote| !remote.eq_ignore_ascii_case(&origin))
+                .map(str::to_string)
+        });
     match remote_origin {
         None => operations.push(preview_operation(
             "optimization:fallback-origin",
@@ -1158,8 +1246,57 @@ pub(super) async fn append_preview(
             .and_then(|items| items.get(&host))
             .and_then(|value| value.get("id"))
             .and_then(Value::as_str);
+        let exact_records = api.list_dns_records(zone_id, Some(&host)).await?;
+        remote_snapshot.push(json!({
+            "hostname": host,
+            "dnsRecords": exact_records.clone(),
+        }));
+        let (recoverable, recovery_origin_records) = match existing {
+            Some(item) if owned_id != item.get("id").and_then(Value::as_str) => {
+                let recovered_origin = item
+                    .get("custom_origin_server")
+                    .and_then(Value::as_str)
+                    .and_then(|origin| {
+                        ownership.pointer(&format!(
+                            "/optimization/recoveredOrigins/{}",
+                            json_pointer_escape(origin)
+                        ))
+                    });
+                inspect_recoverable_fn_knock_custom_hostname(
+                    api,
+                    zone_id,
+                    root,
+                    item,
+                    &exact_records,
+                    recovery_origin.as_deref(),
+                    instance,
+                    recovered_origin,
+                )
+                .await?
+            }
+            _ => (None, Vec::new()),
+        };
+        if !recovery_origin_records.is_empty() {
+            remote_snapshot.push(json!({
+                "hostname": recoverable
+                    .as_ref()
+                    .map(|value| value.origin_hostname.clone())
+                    .or_else(|| existing
+                        .and_then(|item| item.get("custom_origin_server"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)),
+                "dnsRecords": recovery_origin_records,
+            }));
+        }
+        let owned_state = owned.and_then(|items| items.get(&host));
+        let owned_custom_matches = existing.is_some_and(|item| {
+            owned_state.is_some_and(|state| {
+                owned_id == item.get("id").and_then(Value::as_str)
+                    && managed_custom_hostname_matches(item, &host, state, Some(&origin))
+            })
+        });
         match existing {
-            Some(item) if owned_id == item.get("id").and_then(Value::as_str) => {
+            Some(_) if owned_custom_matches => {
                 operations.push(preview_operation(
                     &format!("custom-hostname:{host}"),
                     "custom-hostname",
@@ -1168,6 +1305,13 @@ pub(super) async fn append_preview(
                     true,
                 ));
             }
+            Some(_) if recoverable.is_some() => operations.push(preview_operation(
+                &format!("custom-hostname:{host}"),
+                "custom-hostname",
+                "recover",
+                &host,
+                true,
+            )),
             Some(_) => conflicts.push(json!({
                 "id": format!("custom-hostname:{host}"),
                 "kind": "custom-hostname",
@@ -1193,12 +1337,15 @@ pub(super) async fn append_preview(
                 false,
             )),
         }
-        if ownership.pointer("/optimization/selected/ip").is_some() {
-            let exact_records = api.list_dns_records(zone_id, Some(&host)).await?;
-            remote_snapshot.push(json!({
-                "hostname": host,
-                "dnsRecords": exact_records.clone(),
-            }));
+        if recoverable.is_some() {
+            operations.push(preview_operation(
+                &format!("optimization:dns:{host}"),
+                "dns",
+                "recover",
+                &host,
+                true,
+            ));
+        } else if ownership.pointer("/optimization/selected/ip").is_some() {
             let exact_owned_id = owned
                 .and_then(|items| items.get(&host))
                 .and_then(|value| value.get("exactDnsId"))
@@ -1393,6 +1540,10 @@ pub(super) async fn reconcile_resources(
         return Ok(());
     }
     let remote_custom = api.list_custom_hostnames(zone_id, None).await?;
+    let recovery_origin = ownership
+        .pointer("/optimization/fallbackOrigin/previousOrigin")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let mut available = MAX_CUSTOM_HOSTNAMES.saturating_sub(remote_custom.len());
     let mut created_this_run = 0usize;
     for host in hosts {
@@ -1409,8 +1560,60 @@ pub(super) async fn reconcile_resources(
                 .and_then(Value::as_str)
                 .is_some_and(|value| value.eq_ignore_ascii_case(&host))
         });
+        let owned_custom_matches = existing.is_some_and(|item| {
+            owned_id == item.get("id").and_then(Value::as_str)
+                && managed_custom_hostname_matches(
+                    item,
+                    &host,
+                    &current_owned,
+                    Some(&origin_hostname),
+                )
+        });
+        let recovery = match existing {
+            Some(item) if owned_id != item.get("id").and_then(Value::as_str) => {
+                let exact_records = api.list_dns_records(zone_id, Some(&host)).await?;
+                let recovered_origin = item
+                    .get("custom_origin_server")
+                    .and_then(Value::as_str)
+                    .and_then(|origin| {
+                        ownership
+                            .pointer(&format!(
+                                "/optimization/recoveredOrigins/{}",
+                                json_pointer_escape(origin)
+                            ))
+                            .cloned()
+                    });
+                inspect_recoverable_fn_knock_custom_hostname(
+                    api,
+                    zone_id,
+                    root,
+                    item,
+                    &exact_records,
+                    recovery_origin.as_deref(),
+                    &suffix,
+                    recovered_origin.as_ref(),
+                )
+                .await?
+                .0
+            }
+            _ => None,
+        };
+        if let Some(recoverable) = recovery.as_ref() {
+            adopt_recoverable_fn_knock_origin(
+                state,
+                api,
+                zone_id,
+                ownership,
+                recoverable,
+                &origin_target,
+                &suffix,
+            )
+            .await?;
+        }
+        let recovered_lineage = recovery.is_some();
         let custom = match existing {
-            Some(item) if owned_id == item.get("id").and_then(Value::as_str) => item.clone(),
+            Some(item) if owned_custom_matches => item.clone(),
+            Some(item) if recovered_lineage => item.clone(),
             Some(item)
                 if takeover
                     .is_some_and(|items| items.contains(&format!("custom-hostname:{host}"))) =>
@@ -1494,6 +1697,28 @@ pub(super) async fn reconcile_resources(
             continue;
         }
         let mut host_state = current_owned;
+        if let Some(recoverable) = recovery.as_ref() {
+            let object = ensure_object(&mut host_state);
+            object.remove("message");
+            object.insert("ownership".to_string(), json!("recovered"));
+            object.insert(
+                "recoveredFromInstance".to_string(),
+                json!(recoverable.legacy_instance_id),
+            );
+            object.insert(
+                "customOriginServer".to_string(),
+                json!(recoverable.origin_hostname),
+            );
+            object.insert(
+                "exactDnsId".to_string(),
+                recoverable
+                    .exact_dns
+                    .get("id")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            );
+            object.insert("exactDnsTarget".to_string(), json!("origin"));
+        }
         let exact_route_was_optimized = exact_route_is_optimized(&host_state);
         let status = custom
             .get("status")
@@ -1508,6 +1733,13 @@ pub(super) async fn reconcile_resources(
         object.insert("status".to_string(), json!(status));
         object.insert("sslStatus".to_string(), json!(ssl_status));
         object.insert("hostname".to_string(), json!(host));
+        object.insert(
+            "customOriginServer".to_string(),
+            custom
+                .get("custom_origin_server")
+                .cloned()
+                .unwrap_or_else(|| json!(origin_hostname)),
+        );
         set_host_state(ownership, &host, host_state.clone());
         save_managed_state(state, ownership).await?;
 
@@ -1534,7 +1766,7 @@ pub(super) async fn reconcile_resources(
                     content: &value,
                     proxied: false,
                     owned_id: existing_id,
-                    takeover: false,
+                    takeover: recovered_lineage,
                     instance_id: &suffix,
                 },
             )
@@ -1578,8 +1810,10 @@ pub(super) async fn reconcile_resources(
                     content: activation_target,
                     proxied: false,
                     owned_id: exact_id,
-                    takeover: takeover
-                        .is_some_and(|items| items.contains(&format!("optimization:dns:{host}"))),
+                    takeover: recovered_lineage
+                        || takeover.is_some_and(|items| {
+                            items.contains(&format!("optimization:dns:{host}"))
+                        }),
                     instance_id: &suffix,
                 },
             )
@@ -1637,9 +1871,10 @@ pub(super) async fn reconcile_resources(
                                 content: &edge_hostname,
                                 proxied: false,
                                 owned_id: exact_id,
-                                takeover: takeover.is_some_and(|items| {
-                                    items.contains(&format!("optimization:dns:{host}"))
-                                }),
+                                takeover: recovered_lineage
+                                    || takeover.is_some_and(|items| {
+                                        items.contains(&format!("optimization:dns:{host}"))
+                                    }),
                                 instance_id: &suffix,
                             },
                         )
@@ -2292,10 +2527,34 @@ pub(super) async fn cleanup_resources(
             }
             Some("adopted") if remote_origin == Some(expected) => {
                 if let Some(previous) = fallback.get("previousOrigin").and_then(Value::as_str) {
-                    api.update_fallback_origin(zone_id, previous).await?;
+                    if ownership
+                        .pointer("/optimization/recoveredOrigins")
+                        .and_then(Value::as_object)
+                        .is_some_and(|items| items.contains_key(previous))
+                    {
+                        ignore_not_found(api.delete_fallback_origin(zone_id).await)?;
+                    } else {
+                        api.update_fallback_origin(zone_id, previous).await?;
+                    }
                 }
             }
             _ => {}
+        }
+    }
+    for recovered_origin in ownership
+        .pointer("/optimization/recoveredOrigins")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|items| items.values())
+    {
+        if recovered_origin.get("id").and_then(Value::as_str).is_some() {
+            delete_dns_if_owned(
+                api,
+                zone_id,
+                recovered_origin,
+                &managed_instance_id(managed),
+            )
+            .await?;
         }
     }
     for path in ["/optimization/originDns/id", "/optimization/edgeDns/id"] {
@@ -2315,6 +2574,10 @@ async fn cleanup_removed_hosts(
     configured: &HashSet<String>,
     instance_id: &str,
 ) -> Result<(), CloudflareApiError> {
+    let default_custom_origin = ownership
+        .pointer("/optimization/originDns/name")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let current = ownership
         .pointer("/optimization/customHostnames")
         .and_then(Value::as_object)
@@ -2350,7 +2613,28 @@ async fn cleanup_removed_hosts(
             }
         }
         if let Some(id) = host.get("id").and_then(Value::as_str) {
-            ignore_not_found(api.delete_custom_hostname(zone_id, id).await)?;
+            match api.get_custom_hostname(zone_id, id).await {
+                Ok(remote)
+                    if managed_custom_hostname_matches(
+                        &remote,
+                        &hostname,
+                        &host,
+                        default_custom_origin.as_deref(),
+                    ) =>
+                {
+                    ignore_not_found(api.delete_custom_hostname(zone_id, id).await)?;
+                }
+                Ok(_) => {
+                    return Err(CloudflareApiError {
+                        status: Some(StatusCode::CONFLICT),
+                        message: format!(
+                            "Custom Hostname {hostname} changed outside fn-knock; refusing automatic deletion"
+                        ),
+                    });
+                }
+                Err(error) if error.status == Some(StatusCode::NOT_FOUND) => {}
+                Err(error) => return Err(error),
+            }
         }
         if let Some(items) = ownership
             .pointer_mut("/optimization/customHostnames")
@@ -2420,6 +2704,14 @@ async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApiError> {
         .and_then(Value::as_i64)
         .unwrap_or(0);
     let scan_due = next_scan == 0 || now >= next_scan;
+    if scan_due && scan_validation_hostname(&ownership).is_none() {
+        // Reconciliation intentionally returns while Cloudflare is still
+        // validating a Custom Hostname or certificate. This is an expected
+        // provisioning state, so keep the scan due and retry on the next
+        // scheduler tick instead of recording a failed scheduled scan.
+        ensure_object(&mut runtime).insert("lastError".to_string(), Value::Null);
+        return save_runtime(state, &runtime).await;
+    }
     let confirmation_due = !scan_due
         && runtime
             .pointer("/pendingCandidate/confirmAtMs")
@@ -2839,7 +3131,7 @@ async fn run_scan(
     }
     let vantage = probe_local_vantage(state).await;
     let business_hostname = scan_validation_hostname(&ownership)
-        .ok_or_else(|| local_error(CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR))?;
+        .ok_or_else(|| scan_validation_hostname_error(&ownership))?;
     if let Some(job_id) = job_id {
         update_job(
             state,
@@ -3250,19 +3542,29 @@ fn parse_trace(value: &str) -> HashMap<String, String> {
 }
 
 fn scan_validation_hostname(ownership: &Value) -> Option<String> {
+    if ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .is_some_and(|items| {
+            items
+                .values()
+                .any(|state| state.get("status").and_then(Value::as_str) == Some("conflict"))
+        })
+    {
+        return None;
+    }
     optimized_health_hostname(ownership).or_else(|| {
         ownership
             .pointer("/optimization/customHostnames")
             .and_then(Value::as_object)
             .and_then(|items| {
                 items.iter().find_map(|(hostname, state)| {
-                    (state.get("sslStatus").and_then(Value::as_str) == Some("active"))
-                        .then(|| hostname.clone())
+                    (scan_business_hostname_is_ready(state)).then(|| hostname.clone())
                 })
             })
             .or_else(|| {
                 let probe = ownership.pointer("/optimization/capabilityProbe")?;
-                (probe.get("sslStatus").and_then(Value::as_str) == Some("active"))
+                (capability_probe_hostname_is_ready(probe))
                     .then(|| {
                         probe
                             .get("hostname")
@@ -3272,6 +3574,73 @@ fn scan_validation_hostname(ownership: &Value) -> Option<String> {
                     .flatten()
             })
     })
+}
+
+fn scan_business_hostname_is_ready(state: &Value) -> bool {
+    state
+        .get("exactDnsId")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+        && matches!(
+            state.get("status").and_then(Value::as_str),
+            Some("ready" | "active" | "optimized")
+        )
+        && state.get("sslStatus").and_then(Value::as_str) == Some("active")
+}
+
+fn capability_probe_hostname_is_ready(probe: &Value) -> bool {
+    let cloudflare_ready = probe.get("hostnameStatus").and_then(Value::as_str) == Some("active")
+        && probe.get("sslStatus").and_then(Value::as_str) == Some("active");
+    let activation_dns_ready = probe
+        .pointer("/activationDns/id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty());
+    activation_dns_ready && cloudflare_ready
+}
+
+fn scan_validation_hostname_error(ownership: &Value) -> CloudflareApiError {
+    let capability_probe = ownership.pointer("/optimization/capabilityProbe");
+    if capability_probe
+        .and_then(|probe| probe.get("reasonCode"))
+        .and_then(Value::as_str)
+        == Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
+    {
+        return local_error(CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR);
+    }
+
+    let business_hostname_conflict = ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .is_some_and(|items| {
+            items
+                .values()
+                .any(|state| state.get("status").and_then(Value::as_str) == Some("conflict"))
+        });
+    if business_hostname_conflict {
+        return local_error(CLOUDFLARE_RESOURCE_CONFLICT_SCAN_ERROR);
+    }
+
+    let capability_pending = capability_probe
+        .and_then(|probe| probe.get("status"))
+        .and_then(Value::as_str)
+        .is_some_and(|status| matches!(status, "pending" | "awaiting-candidate"));
+    let business_hostname_pending = ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .is_some_and(|items| {
+            items.values().any(|state| {
+                matches!(
+                    state.get("status").and_then(Value::as_str),
+                    Some("queued" | "pending" | "active" | "ready")
+                ) && !scan_business_hostname_is_ready(state)
+            })
+        });
+
+    if capability_pending || business_hostname_pending {
+        local_error(CLOUDFLARE_SAAS_VALIDATION_PENDING_SCAN_ERROR)
+    } else {
+        local_error(OPTIMIZATION_NOT_READY_SCAN_ERROR)
+    }
 }
 
 async fn load_cloudflare_prefixes(state: &AppState) -> Vec<Ipv4Net> {
@@ -3655,6 +4024,187 @@ fn is_managed_dns(record: &Value, instance_id: &str) -> bool {
             .any(|value| value.as_str() == Some(expected_tag.as_str()))
 }
 
+fn managed_custom_hostname_matches(
+    remote: &Value,
+    hostname: &str,
+    owned: &Value,
+    default_origin: Option<&str>,
+) -> bool {
+    let expected_origin = owned
+        .get("customOriginServer")
+        .and_then(Value::as_str)
+        .or(default_origin);
+    owned
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| remote.get("id").and_then(Value::as_str) == Some(id))
+        && remote
+            .get("hostname")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.eq_ignore_ascii_case(hostname))
+        && expected_origin.is_some_and(|expected| {
+            remote
+                .get("custom_origin_server")
+                .and_then(Value::as_str)
+                .is_some_and(|value| value.eq_ignore_ascii_case(expected))
+        })
+}
+
+fn fn_knock_origin_instance(origin: &str, root: &str) -> Option<String> {
+    let normalized_origin = origin.trim().trim_end_matches('.').to_ascii_lowercase();
+    let normalized_root = root.trim().trim_end_matches('.').to_ascii_lowercase();
+    let label = normalized_origin.strip_suffix(&format!(".{normalized_root}"))?;
+    let instance_id = label.strip_prefix("fnknock-origin-")?;
+    (instance_id.len() == 12 && instance_id.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then(|| instance_id.to_string())
+}
+
+fn recoverable_fn_knock_custom_hostname_from_snapshot(
+    custom: &Value,
+    exact_records: &[Value],
+    origin_records: &[Value],
+    recovery_origin: Option<&str>,
+    root: &str,
+    current_instance_id: &str,
+    recovered_origin: Option<&Value>,
+) -> Option<RecoverableCustomHostname> {
+    let origin_hostname = custom
+        .get("custom_origin_server")
+        .and_then(Value::as_str)?
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let expected_recovery_origin = recovery_origin?
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if origin_hostname != expected_recovery_origin {
+        return None;
+    }
+    let legacy_instance_id = fn_knock_origin_instance(&origin_hostname, root)?;
+    let hostname = custom.get("hostname").and_then(Value::as_str)?;
+    let expected_edge = format!("fnknock-edge-{legacy_instance_id}.{root}");
+    let exact_dns = exact_records.iter().find(|record| {
+        record
+            .get("name")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.eq_ignore_ascii_case(hostname))
+            && record.get("type").and_then(Value::as_str) == Some("CNAME")
+            && record
+                .get("content")
+                .and_then(Value::as_str)
+                .is_some_and(|value| {
+                    value.eq_ignore_ascii_case(&expected_edge)
+                        || value.eq_ignore_ascii_case(&origin_hostname)
+                })
+            && record.get("proxied").and_then(Value::as_bool) == Some(false)
+            && is_managed_dns(record, &legacy_instance_id)
+    })?;
+    let origin_dns = origin_records.iter().find(|record| {
+        let tunnel_target = record
+            .get("content")
+            .and_then(Value::as_str)
+            .map(|value| value.trim().trim_end_matches('.'));
+        record
+            .get("name")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.eq_ignore_ascii_case(&origin_hostname))
+            && record.get("type").and_then(Value::as_str) == Some("CNAME")
+            && tunnel_target.is_some_and(|value| {
+                value
+                    .strip_suffix(".cfargotunnel.com")
+                    .is_some_and(|id| uuid::Uuid::parse_str(id).is_ok())
+            })
+            && record.get("proxied").and_then(Value::as_bool) == Some(true)
+            && (is_managed_dns(record, &legacy_instance_id)
+                || recovered_origin.is_some_and(|saved| {
+                    saved.get("recoveredFromInstance").and_then(Value::as_str)
+                        == Some(legacy_instance_id.as_str())
+                        && saved.get("id").and_then(Value::as_str)
+                            == record.get("id").and_then(Value::as_str)
+                        && saved.get("name").and_then(Value::as_str)
+                            == record.get("name").and_then(Value::as_str)
+                        && saved.get("type").and_then(Value::as_str)
+                            == record.get("type").and_then(Value::as_str)
+                        && saved.get("content").and_then(Value::as_str)
+                            == record.get("content").and_then(Value::as_str)
+                        && saved.get("proxied").and_then(Value::as_bool)
+                            == record.get("proxied").and_then(Value::as_bool)
+                        && is_managed_dns(record, current_instance_id)
+                }))
+    })?;
+    Some(RecoverableCustomHostname {
+        legacy_instance_id,
+        origin_hostname,
+        origin_dns: origin_dns.clone(),
+        exact_dns: exact_dns.clone(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn inspect_recoverable_fn_knock_custom_hostname(
+    api: &CloudflareApi,
+    zone_id: &str,
+    root: &str,
+    custom: &Value,
+    exact_records: &[Value],
+    recovery_origin: Option<&str>,
+    current_instance_id: &str,
+    recovered_origin: Option<&Value>,
+) -> Result<(Option<RecoverableCustomHostname>, Vec<Value>), CloudflareApiError> {
+    let Some(origin_hostname) = custom
+        .get("custom_origin_server")
+        .and_then(Value::as_str)
+        .filter(|value| fn_knock_origin_instance(value, root).is_some())
+    else {
+        return Ok((None, Vec::new()));
+    };
+    let origin_records = api.list_dns_records(zone_id, Some(origin_hostname)).await?;
+    let recoverable = recoverable_fn_knock_custom_hostname_from_snapshot(
+        custom,
+        exact_records,
+        &origin_records,
+        recovery_origin,
+        root,
+        current_instance_id,
+        recovered_origin,
+    );
+    Ok((recoverable, origin_records))
+}
+
+async fn adopt_recoverable_fn_knock_origin(
+    state: &AppState,
+    api: &CloudflareApi,
+    zone_id: &str,
+    ownership: &mut Value,
+    recoverable: &RecoverableCustomHostname,
+    origin_target: &str,
+    instance_id: &str,
+) -> Result<(), CloudflareApiError> {
+    let origin_dns = upsert_managed_dns(
+        api,
+        ManagedDnsRequest {
+            zone_id,
+            name: &recoverable.origin_hostname,
+            record_type: "CNAME",
+            content: origin_target,
+            proxied: true,
+            owned_id: recoverable.origin_dns.get("id").and_then(Value::as_str),
+            takeover: true,
+            instance_id,
+        },
+    )
+    .await?;
+    let mut recovered_origin = origin_dns;
+    ensure_object(&mut recovered_origin).insert(
+        "recoveredFromInstance".to_string(),
+        json!(recoverable.legacy_instance_id),
+    );
+    ensure_nested_object(ownership, &["optimization", "recoveredOrigins"])
+        .insert(recoverable.origin_hostname.clone(), recovered_origin);
+    save_managed_state(state, ownership).await
+}
+
 fn should_publish_exact_routes(ownership: &Value, force_publish: bool) -> bool {
     force_publish
         || ownership
@@ -3720,8 +4270,15 @@ fn scan_job_active(job: &Value) -> bool {
 }
 
 fn optimization_scan_error_code(error: &CloudflareApiError) -> Option<&'static str> {
-    (error.message == CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR)
-        .then_some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
+    match error.message.as_str() {
+        CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR => Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE),
+        CLOUDFLARE_SAAS_VALIDATION_PENDING_SCAN_ERROR => {
+            Some(CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE)
+        }
+        CLOUDFLARE_RESOURCE_CONFLICT_SCAN_ERROR => Some(CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE),
+        OPTIMIZATION_NOT_READY_SCAN_ERROR => Some(OPTIMIZATION_NOT_READY_ERROR_CODE),
+        _ => None,
+    }
 }
 
 fn json_pointer_escape(value: &str) -> String {
@@ -4138,15 +4695,346 @@ mod tests {
     }
 
     #[test]
-    fn scan_errors_expose_a_stable_cloudflare_saas_code() {
-        let missing_hostname = local_error(CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR);
+    fn scan_errors_distinguish_saas_setup_validation_and_readiness() {
+        let saas_required = scan_validation_hostname_error(&json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "status": "unsupported",
+                    "reasonCode": CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE,
+                }
+            }
+        }));
         assert_eq!(
-            optimization_scan_error_code(&missing_hostname),
+            optimization_scan_error_code(&saas_required),
             Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
+        );
+
+        let validation_pending = scan_validation_hostname_error(&json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "status": "pending",
+                    "hostnameStatus": "active",
+                    "sslStatus": "pending_validation",
+                }
+            }
+        }));
+        assert_eq!(
+            optimization_scan_error_code(&validation_pending),
+            Some(CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE)
+        );
+
+        let ownership_conflict = scan_validation_hostname_error(&json!({
+            "optimization": {
+                "capabilityProbe": { "status": "compatible" },
+                "customHostnames": {
+                    "auth.example.com": { "status": "conflict" }
+                }
+            }
+        }));
+        assert_eq!(
+            optimization_scan_error_code(&ownership_conflict),
+            Some(CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE)
+        );
+
+        let compatible_probe_without_live_hostname = scan_validation_hostname_error(&json!({
+            "optimization": {
+                "capabilityProbe": { "status": "compatible" }
+            }
+        }));
+        assert_eq!(
+            optimization_scan_error_code(&compatible_probe_without_live_hostname),
+            Some(OPTIMIZATION_NOT_READY_ERROR_CODE)
+        );
+
+        let not_ready = scan_validation_hostname_error(&json!({}));
+        assert_eq!(
+            optimization_scan_error_code(&not_ready),
+            Some(OPTIMIZATION_NOT_READY_ERROR_CODE)
         );
 
         let unrelated = local_error("latency probe failed");
         assert_eq!(optimization_scan_error_code(&unrelated), None);
+    }
+
+    #[test]
+    fn recovers_only_a_fully_verified_previous_fn_knock_lineage() {
+        let custom = json!({
+            "id": "custom-id",
+            "hostname": "auth.tu.example.com",
+            "custom_origin_server": "fnknock-origin-7f531e6dd1e4.tu.example.com",
+            "status": "active",
+            "ssl": { "status": "active" },
+        });
+        let exact = json!([{
+            "id": "exact-id",
+            "name": "auth.tu.example.com",
+            "type": "CNAME",
+            "content": "fnknock-edge-7f531e6dd1e4.tu.example.com",
+            "proxied": false,
+            "comment": "Managed by fn-knock (7f531e6dd1e4)",
+            "tags": [],
+        }]);
+        let origin = json!([{
+            "id": "origin-id",
+            "name": "fnknock-origin-7f531e6dd1e4.tu.example.com",
+            "type": "CNAME",
+            "content": "b8e3c226-e512-4232-a5a1-3fbdc590e880.cfargotunnel.com",
+            "proxied": true,
+            "comment": "Managed by fn-knock (7f531e6dd1e4)",
+            "tags": [],
+        }]);
+        let recovered = recoverable_fn_knock_custom_hostname_from_snapshot(
+            &custom,
+            exact.as_array().unwrap(),
+            origin.as_array().unwrap(),
+            Some("fnknock-origin-7f531e6dd1e4.tu.example.com"),
+            "tu.example.com",
+            "f63f7fcb2f0f",
+            None,
+        )
+        .expect("verified previous fn-knock lineage should be recoverable");
+        assert_eq!(recovered.legacy_instance_id, "7f531e6dd1e4");
+        assert_eq!(recovered.exact_dns["id"], json!("exact-id"));
+        assert_eq!(recovered.origin_dns["id"], json!("origin-id"));
+
+        assert!(
+            recoverable_fn_knock_custom_hostname_from_snapshot(
+                &custom,
+                exact.as_array().unwrap(),
+                origin.as_array().unwrap(),
+                Some("fnknock-origin-another000000.tu.example.com"),
+                "tu.example.com",
+                "f63f7fcb2f0f",
+                None,
+            )
+            .is_none()
+        );
+        let unrelated_exact = json!([{
+            "id": "exact-id",
+            "name": "auth.tu.example.com",
+            "type": "CNAME",
+            "content": "fnknock-edge-7f531e6dd1e4.tu.example.com",
+            "proxied": false,
+            "comment": "managed manually",
+            "tags": [],
+        }]);
+        assert!(
+            recoverable_fn_knock_custom_hostname_from_snapshot(
+                &custom,
+                unrelated_exact.as_array().unwrap(),
+                origin.as_array().unwrap(),
+                Some("fnknock-origin-7f531e6dd1e4.tu.example.com"),
+                "tu.example.com",
+                "f63f7fcb2f0f",
+                None,
+            )
+            .is_none()
+        );
+
+        let recovered_origin = json!({
+            "id": "origin-id",
+            "name": "fnknock-origin-7f531e6dd1e4.tu.example.com",
+            "type": "CNAME",
+            "content": "eda45cde-5a2b-4a6e-9f0f-52ca0c75254f.cfargotunnel.com",
+            "proxied": true,
+            "comment": "Managed by fn-knock (f63f7fcb2f0f)",
+            "tags": [],
+            "recoveredFromInstance": "7f531e6dd1e4",
+        });
+        let current_origin = json!([{
+            "id": "origin-id",
+            "name": "fnknock-origin-7f531e6dd1e4.tu.example.com",
+            "type": "CNAME",
+            "content": "eda45cde-5a2b-4a6e-9f0f-52ca0c75254f.cfargotunnel.com",
+            "proxied": true,
+            "comment": "Managed by fn-knock (f63f7fcb2f0f)",
+            "tags": [],
+        }]);
+        assert!(
+            recoverable_fn_knock_custom_hostname_from_snapshot(
+                &custom,
+                exact.as_array().unwrap(),
+                current_origin.as_array().unwrap(),
+                Some("fnknock-origin-7f531e6dd1e4.tu.example.com"),
+                "tu.example.com",
+                "f63f7fcb2f0f",
+                Some(&recovered_origin),
+            )
+            .is_some()
+        );
+        let mut changed_origin = current_origin.clone();
+        changed_origin[0]["content"] =
+            json!("b8e3c226-e512-4232-a5a1-3fbdc590e880.cfargotunnel.com");
+        assert!(
+            recoverable_fn_knock_custom_hostname_from_snapshot(
+                &custom,
+                exact.as_array().unwrap(),
+                changed_origin.as_array().unwrap(),
+                Some("fnknock-origin-7f531e6dd1e4.tu.example.com"),
+                "tu.example.com",
+                "f63f7fcb2f0f",
+                Some(&recovered_origin),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn managed_custom_hostname_rejects_id_hostname_and_origin_drift() {
+        let owned = json!({
+            "id": "custom-id",
+            "customOriginServer": "fnknock-origin-old.tu.example.com",
+        });
+        let remote = json!({
+            "id": "custom-id",
+            "hostname": "auth.tu.example.com",
+            "custom_origin_server": "fnknock-origin-old.tu.example.com",
+        });
+        assert!(managed_custom_hostname_matches(
+            &remote,
+            "auth.tu.example.com",
+            &owned,
+            Some("fnknock-origin-current.tu.example.com"),
+        ));
+
+        for (field, value) in [
+            ("id", "different-id"),
+            ("hostname", "other.tu.example.com"),
+            (
+                "custom_origin_server",
+                "fnknock-origin-other.tu.example.com",
+            ),
+        ] {
+            let mut drifted = remote.clone();
+            drifted[field] = json!(value);
+            assert!(!managed_custom_hostname_matches(
+                &drifted,
+                "auth.tu.example.com",
+                &owned,
+                Some("fnknock-origin-current.tu.example.com"),
+            ));
+        }
+
+        let legacy_owned = json!({ "id": "custom-id" });
+        assert!(managed_custom_hostname_matches(
+            &json!({
+                "id": "custom-id",
+                "hostname": "auth.tu.example.com",
+                "custom_origin_server": "fnknock-origin-current.tu.example.com",
+            }),
+            "auth.tu.example.com",
+            &legacy_owned,
+            Some("fnknock-origin-current.tu.example.com"),
+        ));
+        assert!(!managed_custom_hostname_matches(
+            &remote,
+            "auth.tu.example.com",
+            &legacy_owned,
+            None,
+        ));
+    }
+
+    #[test]
+    fn scan_validation_requires_both_hostname_and_certificate_readiness() {
+        let pending_business_hostname = json!({
+            "optimization": {
+                "customHostnames": {
+                    "pending.example.com": {
+                        "status": "pending",
+                        "sslStatus": "active",
+                    }
+                }
+            }
+        });
+        assert_eq!(scan_validation_hostname(&pending_business_hostname), None);
+
+        let ready_business_hostname = json!({
+            "optimization": {
+                "customHostnames": {
+                    "ready.example.com": {
+                        "status": "ready",
+                        "sslStatus": "active",
+                        "exactDnsId": "dns-ready",
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&ready_business_hostname).as_deref(),
+            Some("ready.example.com")
+        );
+
+        let pending_capability_hostname = json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "hostname": "probe.example.com",
+                    "status": "pending",
+                    "hostnameStatus": "pending",
+                    "sslStatus": "active",
+                    "activationDns": { "id": "dns-probe" },
+                }
+            }
+        });
+        assert_eq!(scan_validation_hostname(&pending_capability_hostname), None);
+
+        let ready_capability_hostname = json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "hostname": "probe.example.com",
+                    "status": "pending",
+                    "hostnameStatus": "active",
+                    "sslStatus": "active",
+                    "activationDns": { "id": "dns-probe" },
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&ready_capability_hostname).as_deref(),
+            Some("probe.example.com")
+        );
+
+        let capability_without_activation_dns = json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "hostname": "probe.example.com",
+                    "status": "awaiting-candidate",
+                    "hostnameStatus": "active",
+                    "sslStatus": "active",
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&capability_without_activation_dns),
+            None
+        );
+
+        let cleaned_capability_hostname = json!({
+            "optimization": {
+                "capabilityProbe": {
+                    "hostname": "deleted-probe.example.com",
+                    "status": "compatible",
+                }
+            }
+        });
+        assert_eq!(scan_validation_hostname(&cleaned_capability_hostname), None);
+
+        let partially_reconciled = json!({
+            "optimization": {
+                "customHostnames": {
+                    "ready.example.com": {
+                        "status": "optimized",
+                        "sslStatus": "active",
+                        "exactDnsId": "dns-ready",
+                    },
+                    "conflict.example.com": { "status": "conflict" },
+                }
+            }
+        });
+        assert_eq!(scan_validation_hostname(&partially_reconciled), None);
+        assert_eq!(
+            optimization_scan_error_code(&scan_validation_hostname_error(&partially_reconciled)),
+            Some(CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE)
+        );
     }
 
     #[test]

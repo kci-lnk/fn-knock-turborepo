@@ -173,6 +173,14 @@ where
         );
     }
 
+    if let Err(error) = cloudflared::cleanup_before_data_clear(&state).await {
+        tracing::error!(%error, "failed to clean Cloudflare resources before clearing local data");
+        return response::error(
+            StatusCode::BAD_GATEWAY,
+            format!("Failed to clean Cloudflare resources before clearing local data: {error}"),
+        );
+    }
+
     if let Err(error) = reset_gateway().await {
         tracing::error!(%error, "failed to clear Go gateway data");
         return response::error(

@@ -69,6 +69,7 @@ const operationActionKeys: Record<string, string> = {
   keep: "keep",
   fallback: "fallback",
   probe: "probe",
+  recover: "recover",
 };
 const capabilityKeys: Record<string, string> = {
   zoneRead: "zoneRead",

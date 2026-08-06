@@ -2145,6 +2145,7 @@ export const zhCNAdmin = {
         keep: "保留",
         fallback: "标准回退",
         probe: "能力探测",
+        recover: "恢复 fn-knock 资源",
       },
       expiresAt: "有效至 {time}",
       operationCount: "{count} 项操作",
@@ -2217,6 +2218,15 @@ export const zhCNAdmin = {
       cloudflareSaasRequiredTitle: "需要启用 Cloudflare for SaaS",
       cloudflareSaasRequiredDescription:
         "当前域名尚未启用 Cloudflare for SaaS，无法完成 TLS 与 SNI 验证。请登录 Cloudflare，进入“SSL/TLS → 自定义主机名”，启用 Cloudflare for SaaS，并按提示绑定 PayPal 或信用卡等付款方式。免费账号包含 100 个自定义主机名；绑定付款方式不会立即扣费，只有超出免费额度或使用其他付费服务时才可能产生费用。完成后请重新测速。",
+      cloudflareSaasValidationPendingTitle: "Cloudflare 证书验证中",
+      cloudflareSaasValidationPendingDescription:
+        "Cloudflare for SaaS 已启用。fn-knock 正在准备验证记录，或等待 Cloudflare 完成证书签发与部署。通常需要几分钟；主机名和证书状态均变为“有效”后即可开始测速，无需重复开通功能或绑定付款方式。",
+      resourceConflictTitle: "需要对账 Cloudflare 资源",
+      resourceConflictDescription:
+        "检测到已配置域名存在尚未与当前 fn-knock 配置对账的 Cloudflare Custom Hostname 或精确 DNS 记录；这不是证书签发等待。请在 Tunnel 卡片重新生成预检并应用。能够验证为上一套 fn-knock 配置创建的资源会保留现有有效证书并无损恢复；真正的第三方资源仍会要求你明确确认接管。",
+      notReadyTitle: "优选验证尚未就绪",
+      notReadyDescription:
+        "暂时没有可用于 TLS 与 SNI 验证的已激活主机名。请等待自动检查完成；如果长时间没有恢复，请重新预检并应用 Cloudflare 配置后再测速。",
       currentIp: "当前优选 IP",
       lastHealth: "最近健康检查",
       nextScan: "下次完整扫描",

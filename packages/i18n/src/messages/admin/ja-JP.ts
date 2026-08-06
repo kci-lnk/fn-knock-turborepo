@@ -2310,6 +2310,7 @@ export const jaJPAdmin = {
         keep: "維持",
         fallback: "標準フォールバック",
         probe: "機能プローブ",
+        recover: "fn-knock リソースを復旧",
       },
       expiresAt: "有効期限 {time}",
       operationCount: "{count} 件の操作",
@@ -2385,6 +2386,15 @@ export const jaJPAdmin = {
       cloudflareSaasRequiredTitle: "Cloudflare for SaaS を有効にしてください",
       cloudflareSaasRequiredDescription:
         "このゾーンでは Cloudflare for SaaS が有効になっていないため、TLS と SNI の検証を完了できません。Cloudflare の「SSL/TLS → カスタムホスト名」で Cloudflare for SaaS を有効にし、PayPal やクレジットカードなどの支払い方法を登録してください。無料アカウントには 100 個のカスタムホスト名が含まれます。支払い方法を登録しても直ちに請求されることはありませんが、無料枠の超過や他の有料サービスの利用時には料金が発生する場合があります。完了後、もう一度速度テストを実行してください。",
+      cloudflareSaasValidationPendingTitle: "Cloudflare 証明書を検証しています",
+      cloudflareSaasValidationPendingDescription:
+        "Cloudflare for SaaS は有効です。fn-knock が検証レコードを準備しているか、Cloudflare による証明書の発行・配備を待っています。通常は数分で完了し、ホスト名と証明書の両方が「有効」になると速度テストを開始できます。機能の再有効化や支払い方法の再登録は不要です。",
+      resourceConflictTitle: "Cloudflare リソースの再同期が必要です",
+      resourceConflictDescription:
+        "設定済みドメインに、この fn-knock 設定と所有権を再同期していない Cloudflare Custom Hostname または完全一致 DNS レコードがあります。証明書発行の待機状態ではありません。Tunnel 設定を再度プレビューして適用してください。以前の fn-knock 設定だと検証できたリソースは有効な証明書を置き換えずに復旧し、無関係なリソースだけ明示的な引き継ぎ確認を求めます。",
+      notReadyTitle: "最適化の検証準備が完了していません",
+      notReadyDescription:
+        "TLS と SNI の検証に使用できる有効なホスト名がまだありません。自動チェックの完了を待ってください。長時間復旧しない場合は、Cloudflare 設定を再度プレビューして適用してから速度テストを開始してください。",
       currentIp: "現在の最適 IP",
       lastHealth: "最終ヘルスチェック",
       nextScan: "次回の完全スキャン",

@@ -249,6 +249,12 @@ export const useCloudflareTunnelController = () => {
   const optimizationApplied = computed(
     () => optimization.value?.enabled === true,
   );
+  const optimizationScanReady = computed(
+    () => optimization.value?.scanReady === true,
+  );
+  const optimizationReadinessErrorCode = computed(
+    () => optimization.value?.scanReadinessErrorCode ?? null,
+  );
   const reconcileHasUnconfirmedConflicts = computed(() => {
     const plan = reconcilePlan.value;
     if (!plan) return false;
@@ -483,6 +489,33 @@ export const useCloudflareTunnelController = () => {
         {
           description: t(
             "admin.cloudflareTunnel.optimization.reconcileRequiredDescription",
+          ),
+        },
+      );
+      return;
+    }
+    if (!optimizationScanReady.value) {
+      const resourceConflict =
+        optimizationReadinessErrorCode.value ===
+        "cloudflare-resource-conflict";
+      const validationPending =
+        optimizationReadinessErrorCode.value ===
+        "cloudflare-saas-validation-pending";
+      toast.warning(
+        t(
+          resourceConflict
+            ? "admin.cloudflareTunnel.optimization.resourceConflictTitle"
+            : validationPending
+            ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle"
+            : "admin.cloudflareTunnel.optimization.notReadyTitle",
+        ),
+        {
+          description: t(
+            resourceConflict
+              ? "admin.cloudflareTunnel.optimization.resourceConflictDescription"
+              : validationPending
+              ? "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription"
+              : "admin.cloudflareTunnel.optimization.notReadyDescription",
           ),
         },
       );
@@ -797,7 +830,9 @@ export const useCloudflareTunnelController = () => {
     optimizationBuiltinIds,
     optimizationCustomHostnames,
     optimizationOfficialRanges,
+    optimizationReadinessErrorCode,
     optimizationScan,
+    optimizationScanReady,
     protocol,
     publicWildcardHostname,
     reconcileHasUnconfirmedConflicts,

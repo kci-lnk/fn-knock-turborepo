@@ -116,6 +116,8 @@ describe("managed Cloudflare Tunnel", () => {
     );
     assert.match(controller, /optimization\.value\?\.enabled === true/u);
     assert.match(controller, /if \(!optimizationApplied\.value\)/u);
+    assert.match(controller, /optimization\.value\?\.scanReady === true/u);
+    assert.match(controller, /if \(!optimizationScanReady\.value\)/u);
 
     const optimization = readSource(
       "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
@@ -124,7 +126,7 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /reconcileRequiredDescription/u);
   });
 
-  it("guides users through the Cloudflare for SaaS prerequisite", () => {
+  it("distinguishes Cloudflare for SaaS setup from validation readiness", () => {
     const optimization = readSource(
       "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
     );
@@ -133,6 +135,11 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /cloudflareSaasRequiredDescription/u);
     assert.match(optimization, /optimizationScan\.value\?\.errorCode/u);
     assert.match(optimization, /probe\?\.reasonCode/u);
+    assert.match(optimization, /cloudflare-saas-validation-pending/u);
+    assert.match(optimization, /cloudflare-resource-conflict/u);
+    assert.match(optimization, /cloudflare-optimization-not-ready/u);
+    assert.match(optimization, /!optimizationScanReady/u);
+    assert.match(optimization, /probe\.status === "pending"/u);
     assert.ok(
       optimization.match(/\{\{ capabilityProbeMessage \}\}/gu)?.length === 2,
       "the capability alert and technical status should use the same localized message",
@@ -141,21 +148,51 @@ describe("managed Cloudflare Tunnel", () => {
     const api = readSource("../src/lib/api/tunnel.ts");
     assert.match(api, /errorCode\?: string \| null/u);
     assert.match(api, /reasonCode\?: string/u);
+    assert.match(api, /scanReady: boolean/u);
+    assert.match(api, /scanReadinessErrorCode: string \| null/u);
 
     const backend = readSource(
       "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
     );
     assert.match(backend, /CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE/u);
+    assert.match(backend, /CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE/u);
+    assert.match(backend, /CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE/u);
+    assert.match(backend, /OPTIMIZATION_NOT_READY_ERROR_CODE/u);
     assert.match(backend, /"errorCode": error_code/u);
     assert.match(backend, /"reasonCode"\.to_string\(\)/u);
+    assert.match(
+      backend,
+      /"scanReady": scan_ready/u,
+    );
+    assert.match(backend, /"scanReadinessErrorCode": scan_readiness_error_code/u);
+    assert.match(backend, /recoverable_fn_knock_custom_hostname_from_snapshot/u);
+    assert.match(backend, /"recover"/u);
+    assert.match(
+      backend,
+      /scan_due && scan_validation_hostname\(&ownership\)\.is_none\(\)/u,
+    );
 
     const messages = readSource(
       "../../../packages/i18n/src/messages/admin/zh-CN.ts",
     );
     assert.match(messages, /账号与域名相关资源授予完整编辑权限/u);
-    assert.match(messages, /如果已在上方配置 Cloudflare API Token，此处无需填写/u);
+    assert.match(
+      messages,
+      /如果已在上方配置 Cloudflare API Token，此处无需填写/u,
+    );
     assert.match(messages, /SSL\/TLS → 自定义主机名/u);
     assert.match(messages, /100 个自定义主机名/u);
     assert.match(messages, /绑定付款方式不会立即扣费/u);
+    assert.match(messages, /Cloudflare for SaaS 已启用/u);
+    assert.match(messages, /主机名和证书状态均变为“有效”/u);
+    assert.match(messages, /无需重复开通功能或绑定付款方式/u);
+    assert.match(messages, /这不是证书签发等待/u);
+    assert.match(messages, /保留现有有效证书并无损恢复/u);
+    assert.match(messages, /优选验证尚未就绪/u);
+
+    const maintenance = readSource(
+      "../../server-admin-rs/src/system/maintenance/routes.rs",
+    );
+    assert.match(maintenance, /cloudflared::cleanup_before_data_clear/u);
   });
 });

@@ -121,6 +121,12 @@ pub fn cloudflared_routes() -> Router<AppState> {
         .merge(managed::routes())
 }
 
+pub(crate) async fn cleanup_before_data_clear(state: &AppState) -> Result<(), String> {
+    managed::cleanup_before_data_clear(state)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 pub fn start_cloudflared_tasks(state: AppState) {
     manager(&state).ensure_dir();
     optimization::start_tasks(state.clone());

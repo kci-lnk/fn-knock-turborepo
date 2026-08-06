@@ -2295,6 +2295,7 @@ export const koKRAdmin = {
         keep: "유지",
         fallback: "표준 폴백",
         probe: "기능 검사",
+        recover: "fn-knock 리소스 복구",
       },
       expiresAt: "만료 {time}",
       operationCount: "작업 {count}개",
@@ -2371,6 +2372,15 @@ export const koKRAdmin = {
       cloudflareSaasRequiredTitle: "Cloudflare for SaaS를 활성화해야 합니다",
       cloudflareSaasRequiredDescription:
         "이 영역에서 Cloudflare for SaaS가 활성화되지 않아 TLS 및 SNI 검증을 완료할 수 없습니다. Cloudflare의 SSL/TLS → 사용자 지정 호스트 이름에서 Cloudflare for SaaS를 활성화하고 PayPal 또는 신용카드 등의 결제 수단을 등록하세요. 무료 계정에는 사용자 지정 호스트 이름 100개가 포함됩니다. 결제 수단을 등록해도 즉시 요금이 청구되지는 않지만 무료 한도를 초과하거나 다른 유료 서비스를 사용하면 요금이 발생할 수 있습니다. 완료한 뒤 속도 테스트를 다시 실행하세요.",
+      cloudflareSaasValidationPendingTitle: "Cloudflare 인증서 검증 진행 중",
+      cloudflareSaasValidationPendingDescription:
+        "Cloudflare for SaaS가 활성화되어 있습니다. fn-knock이 검증 레코드를 준비 중이거나 Cloudflare의 인증서 발급 및 배포를 기다리고 있습니다. 일반적으로 몇 분 정도 걸리며 호스트 이름과 인증서 상태가 모두 활성으로 바뀌면 속도 테스트를 시작할 수 있습니다. 기능을 다시 활성화하거나 결제 수단을 다시 등록할 필요가 없습니다.",
+      resourceConflictTitle: "Cloudflare 리소스 재조정 필요",
+      resourceConflictDescription:
+        "설정된 도메인에 현재 fn-knock 구성과 소유권이 조정되지 않은 Cloudflare Custom Hostname 또는 정확한 DNS 레코드가 있습니다. 인증서 발급 대기 상태가 아닙니다. Tunnel 구성을 다시 미리 보고 적용하세요. 이전 fn-knock 구성으로 확인된 리소스는 활성 인증서를 교체하지 않고 복구하며, 관련 없는 리소스만 명시적인 인수 확인을 요구합니다.",
+      notReadyTitle: "최적화 검증이 아직 준비되지 않음",
+      notReadyDescription:
+        "TLS 및 SNI 검증에 사용할 수 있는 활성 호스트 이름이 아직 없습니다. 자동 검사가 완료될 때까지 기다리세요. 장시간 복구되지 않으면 Cloudflare 구성을 다시 미리 보고 적용한 후 속도 테스트를 시작하세요.",
       currentIp: "현재 최적 IP",
       lastHealth: "최근 상태 확인",
       nextScan: "다음 전체 스캔",

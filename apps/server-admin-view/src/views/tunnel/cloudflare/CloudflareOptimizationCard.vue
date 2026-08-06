@@ -45,7 +45,9 @@ const {
   optimizationCustomHostnames,
   optimizationEnabled,
   optimizationOfficialRanges,
+  optimizationReadinessErrorCode,
   optimizationScan,
+  optimizationScanReady,
   saveOptimizationSources,
   selectedCandidateIp,
   startOptimizationScan,
@@ -88,8 +90,14 @@ const switchReasonKeys: Record<string, string> = {
   "health-fallback": "healthFallback",
 };
 const cloudflareSaasRequiredErrorCode = "cloudflare-saas-required";
-const legacyCloudflareSaasErrorMarkers = [
+const cloudflareSaasValidationPendingErrorCode =
+  "cloudflare-saas-validation-pending";
+const cloudflareResourceConflictErrorCode = "cloudflare-resource-conflict";
+const optimizationNotReadyErrorCode = "cloudflare-optimization-not-ready";
+const legacyOptimizationNotReadyErrorMarkers = [
   "no active business or capability hostname",
+];
+const legacyCloudflareSaasErrorMarkers = [
   "not entitled",
   "not enabled for this zone",
   "not available on your plan",
@@ -103,8 +111,16 @@ const requiresCloudflareSaasSetup = (
   errorCode?: string | null,
   message?: string | null,
 ) => {
-  if (errorCode === cloudflareSaasRequiredErrorCode) return true;
   const normalized = message?.toLowerCase();
+  if (
+    normalized !== undefined &&
+    legacyOptimizationNotReadyErrorMarkers.some((marker) =>
+      normalized.includes(marker),
+    )
+  ) {
+    return false;
+  }
+  if (errorCode === cloudflareSaasRequiredErrorCode) return true;
   return (
     normalized !== undefined &&
     legacyCloudflareSaasErrorMarkers.some((marker) =>
@@ -157,12 +173,26 @@ const capabilityRequiresCloudflareSaas = computed(() => {
   const probe = optimization.value?.capabilityProbe;
   return requiresCloudflareSaasSetup(probe?.reasonCode, probe?.message);
 });
+const capabilityValidationPending = computed(
+  () =>
+    optimizationReadinessErrorCode.value ===
+    cloudflareSaasValidationPendingErrorCode,
+);
+const optimizationResourceConflict = computed(
+  () =>
+    optimizationReadinessErrorCode.value === cloudflareResourceConflictErrorCode,
+);
 const capabilityProbeMessage = computed(() => {
   const probe = optimization.value?.capabilityProbe;
   if (!probe) return "";
   if (capabilityRequiresCloudflareSaas.value) {
     return t(
       "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
+    );
+  }
+  if (probe.status === "pending") {
+    return t(
+      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
     );
   }
   return (
@@ -176,13 +206,63 @@ const scanRequiresCloudflareSaas = computed(() =>
     optimizationScan.value?.error,
   ),
 );
-const scanErrorMessage = computed(() =>
-  scanRequiresCloudflareSaas.value
-    ? t(
-        "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
-      )
-    : optimizationScan.value?.error || "",
+const scanValidationPending = computed(
+  () =>
+    optimizationScan.value?.errorCode ===
+    cloudflareSaasValidationPendingErrorCode,
 );
+const scanResourceConflict = computed(
+  () =>
+    optimizationScan.value?.errorCode === cloudflareResourceConflictErrorCode,
+);
+const scanOptimizationNotReady = computed(() => {
+  if (optimizationScan.value?.errorCode === optimizationNotReadyErrorCode) {
+    return true;
+  }
+  const normalized = optimizationScan.value?.error?.toLowerCase();
+  return (
+    normalized !== undefined &&
+    legacyOptimizationNotReadyErrorMarkers.some((marker) =>
+      normalized.includes(marker),
+    )
+  );
+});
+const scanErrorTitle = computed(() => {
+  if (scanRequiresCloudflareSaas.value) {
+    return t("admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle");
+  }
+  if (scanValidationPending.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
+    );
+  }
+  if (scanResourceConflict.value) {
+    return t("admin.cloudflareTunnel.optimization.resourceConflictTitle");
+  }
+  if (scanOptimizationNotReady.value) {
+    return t("admin.cloudflareTunnel.optimization.notReadyTitle");
+  }
+  return "";
+});
+const scanErrorMessage = computed(() => {
+  if (scanRequiresCloudflareSaas.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
+    );
+  }
+  if (scanValidationPending.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
+    );
+  }
+  if (scanResourceConflict.value) {
+    return t("admin.cloudflareTunnel.optimization.resourceConflictDescription");
+  }
+  if (scanOptimizationNotReady.value) {
+    return t("admin.cloudflareTunnel.optimization.notReadyDescription");
+  }
+  return optimizationScan.value?.error || "";
+});
 </script>
 
 <template>
@@ -448,7 +528,11 @@ const scanErrorMessage = computed(() =>
 
         <div class="flex flex-wrap gap-2">
           <Button
-            :disabled="!optimizationApplied || isScanningOptimization"
+            :disabled="
+              !optimizationApplied ||
+              !optimizationScanReady ||
+              isScanningOptimization
+            "
             @click="startOptimizationScan"
           >
             <RefreshCw
@@ -476,6 +560,47 @@ const scanErrorMessage = computed(() =>
             {{ t("admin.cloudflareTunnel.optimization.fallback") }}
           </Button>
         </div>
+
+        <Alert
+          v-if="
+            optimizationApplied &&
+            !optimizationScanReady &&
+            !capabilityRequiresCloudflareSaas
+          "
+          class="items-start"
+        >
+          <LoaderCircle
+            v-if="capabilityValidationPending"
+            class="size-4 animate-spin"
+          />
+          <TriangleAlert v-else class="size-4" />
+          <AlertTitle>
+            {{
+              optimizationResourceConflict
+                ? t(
+                    "admin.cloudflareTunnel.optimization.resourceConflictTitle",
+                  )
+                : capabilityValidationPending
+                ? t(
+                    "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
+                  )
+                : t("admin.cloudflareTunnel.optimization.notReadyTitle")
+            }}
+          </AlertTitle>
+          <AlertDescription>
+            {{
+              optimizationResourceConflict
+                ? t(
+                    "admin.cloudflareTunnel.optimization.resourceConflictDescription",
+                  )
+                : capabilityValidationPending
+                ? t(
+                    "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
+                  )
+                : t("admin.cloudflareTunnel.optimization.notReadyDescription")
+            }}
+          </AlertDescription>
+        </Alert>
 
         <div v-if="optimizationScan" class="space-y-3 rounded-lg border p-4">
           <div class="flex items-center justify-between text-sm">
@@ -522,17 +647,15 @@ const scanErrorMessage = computed(() =>
           </Alert>
           <Alert
             v-if="optimizationScan.error"
-            variant="destructive"
+            :variant="
+              scanValidationPending || scanOptimizationNotReady
+                ? 'default'
+                : 'destructive'
+            "
             class="items-start"
           >
             <TriangleAlert class="size-4" />
-            <AlertTitle v-if="scanRequiresCloudflareSaas">
-              {{
-                t(
-                  "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle",
-                )
-              }}
-            </AlertTitle>
+            <AlertTitle v-if="scanErrorTitle">{{ scanErrorTitle }}</AlertTitle>
             <AlertDescription>{{ scanErrorMessage }}</AlertDescription>
           </Alert>
 

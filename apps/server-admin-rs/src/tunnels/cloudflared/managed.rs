@@ -572,20 +572,27 @@ async fn build_plan(
         if !deleting_dedicated_tunnel {
             inspect_cleanup_ingress(&tunnel_config, &ownership, &mut operations, &mut conflicts);
         }
-        if ssl_permission_required {
+        let cleanup_custom_hostnames = if ssl_permission_required {
             match api.list_custom_hostnames(&zone_id, None).await {
                 Ok(items) => {
                     ssl_read_access = true;
-                    optimization_remote.push(json!({ "customHostnames": items }));
+                    optimization_remote.push(json!({ "customHostnames": items.clone() }));
+                    items
                 }
-                Err(error) => conflicts.push(custom_hostname_access_conflict(error)),
+                Err(error) => {
+                    conflicts.push(custom_hostname_access_conflict(error));
+                    Vec::new()
+                }
             }
-        }
+        } else {
+            Vec::new()
+        };
         optimization::append_cleanup_remote_snapshot(
             api,
             &zone_id,
             &ownership,
             &managed_instance_id(&managed),
+            &cleanup_custom_hostnames,
             &mut conflicts,
             &mut optimization_remote,
         )
@@ -971,6 +978,65 @@ async fn apply_cleanup(
         .await
         .map_err(local_error)?;
     Ok(())
+}
+
+pub(super) async fn cleanup_before_data_clear(state: &AppState) -> Result<(), CloudflareApiError> {
+    let _guard = state.cloudflared_manage_lock.lock().await;
+    let managed = load_managed_config(state).await;
+    let ownership = load_managed_state(state).await;
+    let secrets = secret_store(state);
+
+    if has_managed_resources(&ownership) {
+        let api = cloudflare_api(state)
+            .await
+            .map_err(|error| CloudflareApiError {
+                status: error.status,
+                message: format!(
+                    "Cloudflare managed resources must be cleaned before local data is cleared: {}",
+                    error.message
+                ),
+            })?;
+        let request = ReconcileRequest {
+            action: "cleanup".to_string(),
+            tunnel_mode: "dedicated".to_string(),
+            tunnel_id: None,
+            optimization_enabled: managed
+                .get("optimizationEnabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            delete_dedicated_tunnel: true,
+        };
+        let plan = build_plan(state, &api, &request).await?;
+        let conflicts = plan
+            .get("conflicts")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|conflict| conflict.get("id").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        if !conflicts.is_empty() {
+            return Err(CloudflareApiError {
+                status: Some(StatusCode::CONFLICT),
+                message: format!(
+                    "Cloudflare resources changed outside fn-knock; reconcile them before clearing local data: {}",
+                    conflicts.join(", ")
+                ),
+            });
+        }
+        apply_cleanup(state, &api, &request, &HashSet::new()).await?;
+    } else if secrets.configured(SecretKind::TunnelToken) {
+        let handle = super::ensure_cloudflared_supervisor(state)
+            .await
+            .map_err(local_message_error)?;
+        handle.stop().await.map_err(local_message_error)?;
+    }
+
+    secrets
+        .delete(SecretKind::TunnelToken)
+        .map_err(local_message_error)?;
+    secrets
+        .delete(SecretKind::ApiToken)
+        .map_err(local_message_error)
 }
 
 fn append_cleanup_plan(ownership: &Value, request: &ReconcileRequest, output: &mut Vec<Value>) {

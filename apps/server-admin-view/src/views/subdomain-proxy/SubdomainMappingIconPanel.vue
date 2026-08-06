@@ -4,7 +4,10 @@ import { useI18n } from "vue-i18n";
 import { ImageIcon, RefreshCw, Upload } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MAPPING_ICON_FILE_ACCEPT } from "./mapping-icon";
+import {
+  mappingIconNeedsDarkPreviewBackground,
+  MAPPING_ICON_FILE_ACCEPT,
+} from "./mapping-icon";
 import type { useMappingIcon } from "./useMappingIcon";
 
 const props = defineProps<{
@@ -15,6 +18,7 @@ const props = defineProps<{
 const { t } = useI18n();
 const fileInput = ref<HTMLInputElement | null>(null);
 const previewBroken = ref(false);
+const previewNeedsDarkBackground = ref(false);
 
 const chooseFile = () => fileInput.value?.click();
 const handleFileChange = async (event: Event) => {
@@ -23,11 +27,21 @@ const handleFileChange = async (event: Event) => {
   input.value = "";
   if (file) await props.iconEditor.uploadCustomFavicon(file);
 };
+const handlePreviewLoad = (event: Event) => {
+  previewNeedsDarkBackground.value = mappingIconNeedsDarkPreviewBackground(
+    event.currentTarget as HTMLImageElement,
+  );
+};
+const handlePreviewError = () => {
+  previewBroken.value = true;
+  previewNeedsDarkBackground.value = false;
+};
 
 watch(
   () => props.iconEditor.effectiveFaviconSrc,
   () => {
     previewBroken.value = false;
+    previewNeedsDarkBackground.value = false;
   },
 );
 </script>
@@ -36,14 +50,16 @@ watch(
   <div class="grid gap-6 pb-6 pt-6">
     <div class="flex flex-col items-center gap-3 text-center">
       <div
-        class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border bg-muted/40 shadow-sm"
+        class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border shadow-sm transition-colors"
+        :class="previewNeedsDarkBackground ? 'bg-slate-700' : 'bg-muted/40'"
       >
         <img
           v-if="iconEditor.effectiveFaviconSrc && !previewBroken"
           :src="iconEditor.effectiveFaviconSrc"
           :alt="t('admin.subdomainProxy.iconPreviewAlt')"
           class="h-full w-full object-contain"
-          @error="previewBroken = true"
+          @load="handlePreviewLoad"
+          @error="handlePreviewError"
         />
         <ImageIcon v-else class="h-8 w-8 text-muted-foreground/60" />
       </div>

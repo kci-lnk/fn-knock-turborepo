@@ -27,10 +27,74 @@ const ACCEPTED_MAPPING_ICON_EXTENSIONS = new Set([
 export const MAPPING_ICON_FILE_ACCEPT =
   ".png,.jpg,.jpeg,.webp,.avif,.svg,.ico,image/png,image/jpeg,image/webp,image/avif,image/svg+xml,image/x-icon,image/vnd.microsoft.icon";
 
+const ICON_COLOR_ANALYSIS_SIZE = 32;
+const MIN_VISIBLE_PIXEL_ALPHA = 16 / 255;
+const MIN_WHITE_PIXEL_CHANNEL = 224;
+const MIN_WHITE_PIXEL_RATIO = 0.6;
+
+export const isMappingIconPredominantlyWhite = (
+  pixelData: ArrayLike<number>,
+): boolean => {
+  let visibleWeight = 0;
+  let whiteWeight = 0;
+
+  for (let index = 0; index + 3 < pixelData.length; index += 4) {
+    const red = pixelData[index] ?? 0;
+    const green = pixelData[index + 1] ?? 0;
+    const blue = pixelData[index + 2] ?? 0;
+    const alpha = (pixelData[index + 3] ?? 0) / 255;
+    if (alpha < MIN_VISIBLE_PIXEL_ALPHA) continue;
+
+    visibleWeight += alpha;
+    if (
+      red >= MIN_WHITE_PIXEL_CHANNEL &&
+      green >= MIN_WHITE_PIXEL_CHANNEL &&
+      blue >= MIN_WHITE_PIXEL_CHANNEL
+    ) {
+      whiteWeight += alpha;
+    }
+  }
+
+  return (
+    visibleWeight > 0 && whiteWeight / visibleWeight >= MIN_WHITE_PIXEL_RATIO
+  );
+};
+
+export const mappingIconNeedsDarkPreviewBackground = (
+  image: HTMLImageElement,
+): boolean => {
+  if (!image.naturalWidth || !image.naturalHeight) return false;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = ICON_COLOR_ANALYSIS_SIZE;
+  canvas.height = ICON_COLOR_ANALYSIS_SIZE;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return false;
+
+  try {
+    context.clearRect(0, 0, ICON_COLOR_ANALYSIS_SIZE, ICON_COLOR_ANALYSIS_SIZE);
+    context.drawImage(
+      image,
+      0,
+      0,
+      ICON_COLOR_ANALYSIS_SIZE,
+      ICON_COLOR_ANALYSIS_SIZE,
+    );
+    return isMappingIconPredominantlyWhite(
+      context.getImageData(
+        0,
+        0,
+        ICON_COLOR_ANALYSIS_SIZE,
+        ICON_COLOR_ANALYSIS_SIZE,
+      ).data,
+    );
+  } catch {
+    return false;
+  }
+};
+
 export type MappingIconFileValidationIssue =
-  | "unsupported_format"
-  | "source_too_large"
-  | null;
+  "unsupported_format" | "source_too_large" | null;
 
 export class MappingIconProcessingError extends Error {
   readonly kind:
@@ -78,8 +142,7 @@ const FORBIDDEN_SVG_ELEMENTS = new Set([
 const SAFE_EMBEDDED_SVG_IMAGE = /^data:image\/(?:png|jpe?g|webp|gif);base64,/i;
 const ALLOWED_SVG_DOCTYPE =
   /<!doctype\s+svg(?:\s+(?:system\s+(?:"[^"]*"|'[^']*')|public\s+(?:"[^"]*"|'[^']*')\s+(?:"[^"]*"|'[^']*')))?\s*>/i;
-const SVG_PROLOG_PREFIX =
-  /^\uFEFF?(?:\s|<\?[\s\S]*?\?>|<!--[\s\S]*?-->)*$/;
+const SVG_PROLOG_PREFIX = /^\uFEFF?(?:\s|<\?[\s\S]*?\?>|<!--[\s\S]*?-->)*$/;
 
 const hasExternalSvgUrl = (value: string): boolean => {
   const urlPattern = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi;

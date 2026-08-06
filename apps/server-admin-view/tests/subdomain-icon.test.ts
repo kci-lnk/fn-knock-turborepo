@@ -15,6 +15,7 @@ import {
   MappingIconProcessingError,
   MAPPING_ICON_FILE_ACCEPT,
   MAX_MAPPING_ICON_SOURCE_BYTES,
+  isMappingIconPredominantlyWhite,
   prepareMappingIconSvgSource,
 } from "../src/views/subdomain-proxy/mapping-icon";
 
@@ -101,6 +102,30 @@ describe("subdomain custom icon", () => {
         type: "image/webp",
       }),
       "source_too_large",
+    );
+  });
+
+  it("detects predominantly white icon pixels while ignoring transparency", () => {
+    assert.equal(
+      isMappingIconPredominantlyWhite(
+        new Uint8ClampedArray([
+          255, 255, 255, 255, 244, 244, 244, 255, 0, 0, 0, 0,
+        ]),
+      ),
+      true,
+    );
+
+    assert.equal(
+      isMappingIconPredominantlyWhite(
+        new Uint8ClampedArray([255, 255, 255, 255, 31, 41, 55, 255]),
+      ),
+      false,
+    );
+    assert.equal(
+      isMappingIconPredominantlyWhite(
+        new Uint8ClampedArray([255, 235, 80, 255]),
+      ),
+      false,
     );
   });
 

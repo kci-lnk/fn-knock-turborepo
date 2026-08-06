@@ -30,10 +30,11 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { CaptchaAPI } from "../../lib/api";
 import {
+  ensureUncommonDifficultyAtLeastBase,
+  isPowDifficultyPreset,
   isPowDifficultyValid,
-  POW_DIFFICULTY_MAX,
-  POW_DIFFICULTY_MIN,
-  POW_DIFFICULTY_STEP,
+  POW_DIFFICULTY_STANDARD,
+  POW_DIFFICULTY_VERY_HARD,
 } from "../../lib/captcha-settings";
 import type { CaptchaSettings as CaptchaSettingsModel } from "@frontend-core/captcha/types";
 
@@ -99,6 +100,34 @@ const isDirty = computed(() => {
     settings.value.turnstile.site_key !== form.turnstile.site_key ||
     settings.value.turnstile.secret_key !== form.turnstile.secret_key
   );
+});
+
+const baseDifficultySelection = computed({
+  get: () => String(form.pow.base_max_number),
+  set: (value: string) => {
+    const difficulty = Number(value);
+    if (!isPowDifficultyPreset(difficulty)) return;
+    form.pow.base_max_number = difficulty;
+    form.pow.uncommon_location.max_number =
+      ensureUncommonDifficultyAtLeastBase(
+        difficulty,
+        form.pow.uncommon_location.max_number,
+      );
+  },
+});
+
+const uncommonDifficultySelection = computed({
+  get: () => String(form.pow.uncommon_location.max_number),
+  set: (value: string) => {
+    const difficulty = Number(value);
+    if (
+      !isPowDifficultyPreset(difficulty) ||
+      difficulty < form.pow.base_max_number
+    ) {
+      return;
+    }
+    form.pow.uncommon_location.max_number = difficulty;
+  },
 });
 
 const applyFromSettings = (data: CaptchaSettingsModel) => {
@@ -233,17 +262,28 @@ onMounted(fetchSettings);
               {{ t("admin.captchaSettings.powBaseDifficultyDescription") }}
             </div>
           </div>
-          <div class="captcha-key-input-wrap w-full">
-            <Input
-              :id="powBaseFieldId"
-              v-model.number="form.pow.base_max_number"
-              type="number"
-              :min="POW_DIFFICULTY_MIN"
-              :max="POW_DIFFICULTY_MAX"
-              :step="POW_DIFFICULTY_STEP"
-              inputmode="numeric"
-              :disabled="isSaving"
-            />
+          <div
+            class="captcha-key-input-wrap captcha-difficulty-select-wrap"
+          >
+            <Select v-model="baseDifficultySelection" :disabled="isSaving">
+              <SelectTrigger :id="powBaseFieldId" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="String(POW_DIFFICULTY_STANDARD)">
+                  {{ t("admin.captchaSettings.powDifficultyStandard") }}
+                </SelectItem>
+                <SelectItem :value="String(POW_DIFFICULTY_VERY_HARD)">
+                  {{ t("admin.captchaSettings.powDifficultyVeryHard") }}
+                </SelectItem>
+                <SelectItem
+                  v-if="!isPowDifficultyPreset(form.pow.base_max_number)"
+                  :value="String(form.pow.base_max_number)"
+                >
+                  {{ t("admin.captchaSettings.powDifficultyCustom") }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -266,7 +306,10 @@ onMounted(fetchSettings);
           />
         </div>
 
-        <div class="captcha-key-row">
+        <div
+          v-if="form.pow.uncommon_location.enabled"
+          class="captcha-key-row animate-in fade-in slide-in-from-top-2 duration-300"
+        >
           <div class="captcha-key-copy min-w-0 space-y-1">
             <Label class="text-base" :for="powUncommonFieldId">
               {{ t("admin.captchaSettings.powUncommonDifficulty") }}
@@ -275,17 +318,45 @@ onMounted(fetchSettings);
               {{ t("admin.captchaSettings.powUncommonDifficultyDescription") }}
             </div>
           </div>
-          <div class="captcha-key-input-wrap w-full">
-            <Input
-              :id="powUncommonFieldId"
-              v-model.number="form.pow.uncommon_location.max_number"
-              type="number"
-              :min="Math.max(POW_DIFFICULTY_MIN, form.pow.base_max_number)"
-              :max="POW_DIFFICULTY_MAX"
-              :step="POW_DIFFICULTY_STEP"
-              inputmode="numeric"
+          <div
+            class="captcha-key-input-wrap captcha-difficulty-select-wrap"
+          >
+            <Select
+              v-model="uncommonDifficultySelection"
               :disabled="isSaving"
-            />
+            >
+              <SelectTrigger :id="powUncommonFieldId" class="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  :value="String(POW_DIFFICULTY_STANDARD)"
+                  :disabled="
+                    POW_DIFFICULTY_STANDARD < form.pow.base_max_number
+                  "
+                >
+                  {{ t("admin.captchaSettings.powDifficultyStandard") }}
+                </SelectItem>
+                <SelectItem
+                  :value="String(POW_DIFFICULTY_VERY_HARD)"
+                  :disabled="
+                    POW_DIFFICULTY_VERY_HARD < form.pow.base_max_number
+                  "
+                >
+                  {{ t("admin.captchaSettings.powDifficultyVeryHard") }}
+                </SelectItem>
+                <SelectItem
+                  v-if="
+                    !isPowDifficultyPreset(
+                      form.pow.uncommon_location.max_number,
+                    )
+                  "
+                  :value="String(form.pow.uncommon_location.max_number)"
+                >
+                  {{ t("admin.captchaSettings.powDifficultyCustom") }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
@@ -479,6 +550,11 @@ onMounted(fetchSettings);
   padding: 1.5rem;
 }
 
+.captcha-key-input-wrap.captcha-difficulty-select-wrap {
+  width: min(100%, 300px);
+  margin-left: auto;
+}
+
 @media (min-width: 768px) {
   .captcha-key-row {
     display: grid;
@@ -495,6 +571,10 @@ onMounted(fetchSettings);
     width: 88%;
     justify-self: end;
     margin-top: 0.875rem;
+  }
+
+  .captcha-key-input-wrap.captcha-difficulty-select-wrap {
+    width: 300px;
   }
 }
 </style>

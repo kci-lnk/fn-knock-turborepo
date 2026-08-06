@@ -138,3 +138,22 @@ test("edge network controls are not rendered when the mode is unavailable", () =
     /v-if="isEdgeClientIpModeEditable"\s+class="rounded-lg border px-4 py-4"/u,
   );
 });
+
+test("public auth port description displays a concise destructive warning", () => {
+  const component = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/SubdomainModeConfigCard.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    component,
+    /authServicePortHint[\s\S]*id="auth-service-public-port-warning"\s+class="text-xs font-medium leading-5 text-destructive"[\s\S]*<\/div>\s+<Input/u,
+  );
+  assert.match(
+    component,
+    /t\("admin\.subdomainProxy\.authServicePortWarning"\)/u,
+  );
+});

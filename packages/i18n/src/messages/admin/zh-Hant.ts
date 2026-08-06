@@ -1831,9 +1831,12 @@ export const zhHantAdmin = {
       "你可以在系統內建 PoW 驗證碼和 Cloudflare Turnstile 之間切換。",
     typePlaceholder: "選擇驗證碼類型",
     powOption: "PoW 驗證碼",
+    powDifficultyStandard: "標準",
+    powDifficultyVeryHard: "很難",
+    powDifficultyCustom: "自訂",
     powBaseDifficulty: "基礎挑戰難度",
     powBaseDifficultyDescription:
-      "設定所有 PoW 挑戰的搜尋上限，可填寫 10000 到 1000000，需以 10000 為單位調整。",
+      "選擇所有 PoW 挑戰使用的搜尋上限。",
     powUncommonLocation: "非常用地提高難度",
     powUncommonLocationDescription:
       "根據已驗證存取自動學習常用地。定位未知或模型尚未形成時仍使用基礎難度。",
@@ -2745,6 +2748,7 @@ export const zhHantAdmin = {
     authServicePort: "鑒權服務公開 HTTPS 端口",
     authServicePortHint:
       "僅用於產生瀏覽器存取鑒權服務的公開 HTTPS 位址，不會修改本機監聽端口或路由器映射。路由器將公開 10012 轉發到本機 7999 時填寫 10012；未設定時使用目前入口端口。",
+    authServicePortWarning: "注意：此處不是修改本機監聽端口。",
     edgeClientIpTitle: "邊緣網路真實 IP 識別",
     edgeClientIpDescription:
       "僅對子域模式生效。開啟後，公開鑒權地址不再自動補訪問端口。",

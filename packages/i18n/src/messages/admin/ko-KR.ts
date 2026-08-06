@@ -1950,9 +1950,12 @@ export const koKRAdmin = {
       "내장된 PoW 보안 문자와 Cloudflare Turnstile 사이를 전환하세요.",
     typePlaceholder: "보안 문자 유형 선택",
     powOption: "PoW 보안문자",
+    powDifficultyStandard: "표준",
+    powDifficultyVeryHard: "매우 어려움",
+    powDifficultyCustom: "사용자 지정",
     powBaseDifficulty: "기본 챌린지 난이도",
     powBaseDifficultyDescription:
-      "모든 PoW 챌린지의 검색 상한을 설정합니다. 10000에서 1000000 사이의 정수를 10000 단위로 입력하세요.",
+      "모든 PoW 챌린지에 사용할 검색 상한을 선택합니다.",
     powUncommonLocation: "평소와 다른 위치에서 난이도 높이기",
     powUncommonLocationDescription:
       "인증된 접근을 바탕으로 자주 사용하는 위치를 자동 학습합니다. 위치를 알 수 없거나 모델이 준비되지 않은 경우 기본 난이도를 사용합니다.",
@@ -2917,6 +2920,7 @@ export const koKRAdmin = {
     authServicePort: "인증 서비스의 외부 HTTPS 포트",
     authServicePortHint:
       "브라우저에서 사용할 외부 HTTPS URL을 만드는 데만 쓰이며, 로컬 수신 포트나 라우터의 포트 포워딩 설정은 바뀌지 않습니다. 라우터에서 외부 포트 10012를 로컬 포트 7999로 전달한다면 10012를 입력하세요. 설정하지 않으면 현재 접근 포트를 사용합니다.",
+    authServicePortWarning: "주의: 로컬 수신 포트를 변경하는 항목이 아닙니다.",
     edgeClientIpTitle: "Edge 실제 IP 감지",
     edgeClientIpDescription:
       "서브도메인 모드에만 적용됩니다. 활성화되면 공개 인증 주소가 더 이상 접근 포트를 자동으로 추가하지 않습니다.",

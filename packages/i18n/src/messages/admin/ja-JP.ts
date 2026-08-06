@@ -1963,9 +1963,12 @@ export const jaJPAdmin = {
       "組み込みの PoW CAPTCHA と Cloudflare Turnstile を切り替えます。",
     typePlaceholder: "CAPTCHA の種類を選択",
     powOption: "PoW CAPTCHA",
+    powDifficultyStandard: "標準",
+    powDifficultyVeryHard: "非常に難しい",
+    powDifficultyCustom: "カスタム",
     powBaseDifficulty: "基本チャレンジ難易度",
     powBaseDifficultyDescription:
-      "すべての PoW チャレンジの探索上限を設定します。10000〜1000000 の整数を 10000 単位で指定してください。",
+      "すべての PoW チャレンジで使用する探索上限を選択します。",
     powUncommonLocation: "通常と異なる場所で難易度を上げる",
     powUncommonLocationDescription:
       "認証済みアクセスからよく使う場所を自動学習します。場所が不明、またはモデルの準備前は基本難易度を使用します。",
@@ -2932,6 +2935,8 @@ export const jaJPAdmin = {
     authServicePort: "認証サービスの公開 HTTPS ポート",
     authServicePortHint:
       "ブラウザ向けの公開 HTTPS URL の生成にのみ使用され、ローカルの待受ポートやルーターのポート転送設定は変更しません。ルーターが公開ポート 10012 をローカルポート 7999 へ転送する場合は 10012 を入力します。未設定の場合は現在のエントリーポイントのポートを使用します。",
+    authServicePortWarning:
+      "注意：ローカルの待受ポートを変更する項目ではありません。",
     edgeClientIpTitle: "エッジ経由の実クライアント IP 検出",
     edgeClientIpDescription:
       "サブドメインモードでのみ有効です。有効にすると、公開認証 URL にアクセスポートを自動付加しなくなります。",

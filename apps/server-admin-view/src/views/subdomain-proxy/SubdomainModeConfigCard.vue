@@ -226,8 +226,17 @@ const confirmRemoveAuthService = async () => {
                 <Label for="auth-service-public-port">
                   {{ t("admin.subdomainProxy.authServicePort") }}
                 </Label>
-                <p class="text-xs leading-5 text-muted-foreground">
+                <p
+                  id="auth-service-public-port-hint"
+                  class="text-xs leading-5 text-muted-foreground"
+                >
                   {{ t("admin.subdomainProxy.authServicePortHint") }}
+                </p>
+                <p
+                  id="auth-service-public-port-warning"
+                  class="text-xs font-medium leading-5 text-destructive"
+                >
+                  {{ t("admin.subdomainProxy.authServicePortWarning") }}
                 </p>
               </div>
               <Input
@@ -237,6 +246,7 @@ const confirmRemoveAuthService = async () => {
                 min="1"
                 max="65535"
                 inputmode="numeric"
+                aria-describedby="auth-service-public-port-hint auth-service-public-port-warning"
                 class="sm:max-w-48"
               />
             </div>

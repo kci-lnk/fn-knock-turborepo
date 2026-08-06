@@ -1964,9 +1964,12 @@ export const enAdmin = {
       "Switch between the built-in PoW captcha and Cloudflare Turnstile.",
     typePlaceholder: "Choose captcha type",
     powOption: "PoW captcha",
+    powDifficultyStandard: "Standard",
+    powDifficultyVeryHard: "Very hard",
+    powDifficultyCustom: "Custom",
     powBaseDifficulty: "Base challenge difficulty",
     powBaseDifficultyDescription:
-      "Sets the search limit for every PoW challenge. Enter an integer from 10,000 to 1,000,000 in steps of 10,000.",
+      "Choose the search limit used for every PoW challenge.",
     powUncommonLocation: "Increase difficulty in uncommon locations",
     powUncommonLocationDescription:
       "Learns common locations from authenticated traffic. Unknown locations and an unready model continue to use the base difficulty.",
@@ -2937,6 +2940,7 @@ export const enAdmin = {
     authServicePort: "Public HTTPS port for the auth service",
     authServicePortHint:
       "Used only to generate public HTTPS URLs for browsers; it does not change the local listener or router mapping. If the router forwards public port 10012 to local port 7999, enter 10012. If not explicitly set, the current entry port is used.",
+    authServicePortWarning: "Note: this does not change the local listening port.",
     edgeClientIpTitle: "Edge real IP detection",
     edgeClientIpDescription:
       "Only applies to subdomain mode. When enabled, the public auth address will no longer append the access port automatically.",

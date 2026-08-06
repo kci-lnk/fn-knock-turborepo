@@ -2353,8 +2353,24 @@ export const enAdmin = {
           "A Cloudflare for SaaS Custom Hostname not owned by fn-knock already exists.",
         exactDnsConflict:
           "An exact DNS record not owned by fn-knock prevents optimization.",
+        multipleExactDnsConflict:
+          "Multiple DNS records exist for this hostname, so they cannot be safely replaced with a CNAME. Keep the external DNS, or consolidate or remove the records in Cloudflare and try again.",
         optimizationDnsConflict:
           "A DNS record not owned by fn-knock already uses the optimization hostname.",
+        multipleOptimizationDnsConflict:
+          "Multiple DNS records exist for this optimization hostname, so they cannot be safely taken over. Consolidate or remove them in Cloudflare and try again.",
+      },
+      dnsConflict: {
+        current: "Current Cloudflare records",
+        desired: "Planned fn-knock record",
+        proxied: "Proxied",
+        dnsOnly: "DNS only",
+        unknownProxy: "Proxy status unknown",
+        ownerKinds: {
+          "current-instance": "Current fn-knock",
+          "other-fn-knock-instance": "Another fn-knock instance",
+          external: "External configuration",
+        },
       },
       planWarnings: {
         betaVantage:
@@ -2507,10 +2523,15 @@ export const enAdmin = {
         quota: "Quota exhausted",
         queued: "Queued for reconciliation",
         probeFailed: "Direct probe failed",
+        external: "Keep external DNS",
       },
       domainMessages: {
         customHostnameOwnershipConflict:
           "The Custom Hostname is not owned by fn-knock.",
+        exactDnsOwnershipConflict:
+          "An existing DNS record is not owned by this fn-knock instance. Keep it, or explicitly confirm takeover.",
+        validationDnsOwnershipConflict:
+          "Validation record {detail} already exists and is not owned by this fn-knock instance.",
         customHostnameQuotaExhausted: "The Custom Hostname quota is exhausted.",
         certificateRateLimited:
           "Queued to respect Cloudflare certificate issuance rate limits.",
@@ -2527,10 +2548,28 @@ export const enAdmin = {
       scanFailed: "Failed to start optimization scan",
       cancelFailed: "Failed to cancel optimization scan",
       applied: "Optimized route applied",
+      appliedWithConflictsTitle:
+        "Optimization saved; DNS conflicts still need attention",
+      appliedWithConflictsDescription:
+        "{count} domains require either explicit takeover or keeping their existing DNS. The resolution section has been opened.",
       applyFailed: "Failed to apply optimized route",
       fallbackApplied:
         "Exact routes removed; domains now use the wildcard Tunnel",
       fallbackFailed: "Failed to fall back to the standard Tunnel",
+      domainActions: {
+        keepExternal: "Keep existing DNS",
+        resolveConflict: "Resolve conflict",
+        enableOptimization: "Enable optimization again",
+        keepExternalTitle: "Keep this domain's existing DNS?",
+        keepExternalDescription:
+          "fn-knock will stop managing optimization resources for {hostname} and remove related resources it owns. Existing external DNS records will not be changed.",
+        keepExternalConfirm: "Keep existing DNS",
+        externalSaved:
+          "Existing DNS kept; optimization can continue for other domains",
+        externalCleanupPending:
+          "Management has stopped for this domain. Cloudflare resource cleanup is still pending and will be retried automatically.",
+        updateFailed: "Failed to update the domain handling mode",
+      },
     },
     manual: {
       title: "Advanced: manual Tunnel Token",

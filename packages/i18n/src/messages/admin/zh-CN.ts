@@ -2184,8 +2184,24 @@ export const zhCNAdmin = {
         unownedCustomHostname:
           "已存在不属于 fn-knock 的 Cloudflare for SaaS 自定义主机名。",
         exactDnsConflict: "不属于 fn-knock 的精确 DNS 记录阻止了优选。",
+        multipleExactDnsConflict:
+          "该主机名下存在多条 DNS 记录，无法安全地自动替换为 CNAME。请保留外部 DNS，或先在 Cloudflare 合并或清理记录后重试。",
         optimizationDnsConflict:
           "已有不属于 fn-knock 的 DNS 记录使用优选主机名。",
+        multipleOptimizationDnsConflict:
+          "该优选主机名下存在多条 DNS 记录，无法安全地自动接管。请先在 Cloudflare 合并或清理记录后重试。",
+      },
+      dnsConflict: {
+        current: "Cloudflare 当前记录",
+        desired: "fn-knock 计划写入",
+        proxied: "已代理",
+        dnsOnly: "仅 DNS",
+        unknownProxy: "代理状态未知",
+        ownerKinds: {
+          "current-instance": "当前 fn-knock",
+          "other-fn-knock-instance": "其他 fn-knock 实例",
+          external: "外部配置",
+        },
       },
       planWarnings: {
         betaVantage: "优选是测试功能，测速结果基于当前服务器的网络位置。",
@@ -2329,9 +2345,14 @@ export const zhCNAdmin = {
         quota: "配额已满",
         queued: "等待下轮对账",
         probeFailed: "直连验证失败",
+        external: "保留外部 DNS",
       },
       domainMessages: {
         customHostnameOwnershipConflict: "此自定义主机名不属于 fn-knock。",
+        exactDnsOwnershipConflict:
+          "已有 DNS 记录不属于当前 fn-knock；请选择保留现有记录或确认接管。",
+        validationDnsOwnershipConflict:
+          "验证记录 {detail} 已存在且不属于当前 fn-knock。",
         customHostnameQuotaExhausted: "自定义主机名配额已用尽。",
         certificateRateLimited:
           "为遵守 Cloudflare 证书签发速率限制，已进入队列。",
@@ -2346,9 +2367,25 @@ export const zhCNAdmin = {
       scanFailed: "启动优选扫描失败",
       cancelFailed: "取消优选扫描失败",
       applied: "优选入口已应用",
+      appliedWithConflictsTitle: "优选已保存，仍需处理 DNS 冲突",
+      appliedWithConflictsDescription:
+        "有 {count} 个域名需要确认接管或保留现有 DNS。已为你打开处理区域。",
       applyFailed: "应用优选入口失败",
       fallbackApplied: "已移除精确入口，域名恢复通配 Tunnel",
       fallbackFailed: "回退到标准 Tunnel 失败",
+      domainActions: {
+        keepExternal: "保留现有 DNS",
+        resolveConflict: "处理冲突",
+        enableOptimization: "重新启用优选",
+        keepExternalTitle: "保留此域名的现有 DNS？",
+        keepExternalDescription:
+          "fn-knock 将停止管理 {hostname} 的优选资源，并清理它拥有的关联资源；现有外部 DNS 记录不会被修改。",
+        keepExternalConfirm: "确认保留",
+        externalSaved: "已保留现有 DNS，其他域名可继续优选",
+        externalCleanupPending:
+          "已停止管理此域名；Cloudflare 远端资源暂未清理完成，系统将自动重试。",
+        updateFailed: "更新域名处理方式失败",
+      },
     },
     manual: {
       title: "高级：手动 Tunnel Token",

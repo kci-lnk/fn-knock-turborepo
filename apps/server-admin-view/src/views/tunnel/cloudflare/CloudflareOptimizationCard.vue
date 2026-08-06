@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import ConfirmationDialog from "@admin-shared/components/common/ConfirmationDialog.vue";
+import { useConfirmationDialog } from "@admin-shared/composables/useConfirmationDialog";
 import {
   Table,
   TableBody,
@@ -54,11 +56,22 @@ const {
   optimizationScan,
   optimizationScanReady,
   saveOptimizationSources,
+  setOptimizationDomainMode,
   selectedCandidateIp,
   startOptimizationScan,
   t,
   toggleOptimizationBuiltin,
+  updatingOptimizationDomainHostname,
+  prepareOptimizationConflictResolution,
 } = controller;
+
+const {
+  confirmationDialogOpen,
+  confirmationDialogOptions,
+  confirmPendingAction,
+  handleConfirmationDialogOpenChange,
+  requestConfirmation,
+} = useConfirmationDialog();
 
 const formatNumber = (value: number, digits = 1) =>
   Number.isFinite(value) ? value.toFixed(digits) : "-";
@@ -89,6 +102,7 @@ const domainStatusKeys: Record<string, string> = {
   quota: "quota",
   queued: "queued",
   "probe-failed": "probeFailed",
+  external: "external",
 };
 const switchReasonKeys: Record<string, string> = {
   "manual-speed-test": "manualSpeedTest",
@@ -117,6 +131,10 @@ const domainMessageKeys: Record<string, string> = {
     "admin.cloudflareTunnel.optimization.domainMessages.certificateRateLimited",
   customHostnameQuotaUnavailable:
     "admin.cloudflareTunnel.optimization.domainMessages.customHostnameQuotaUnavailable",
+  exactDnsOwnershipConflict:
+    "admin.cloudflareTunnel.optimization.domainMessages.exactDnsOwnershipConflict",
+  validationDnsOwnershipConflict:
+    "admin.cloudflareTunnel.optimization.domainMessages.validationDnsOwnershipConflict",
 };
 const cloudflareSaasRequiredErrorCode = "cloudflare-saas-required";
 const cloudflareSaasValidationPendingErrorCode =
@@ -209,6 +227,29 @@ const sourceSettingsErrorLabel = (message: string) => {
       })
     : message;
 };
+const preserveExistingDns = async (domain: CloudflareOptimizationDomain) => {
+  const confirmed = await requestConfirmation({
+    title: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalTitle",
+    ),
+    description: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalDescription",
+      { hostname: domain.hostname },
+    ),
+    confirmText: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalConfirm",
+    ),
+  });
+  if (confirmed) {
+    await setOptimizationDomainMode(domain.hostname, "external");
+  }
+};
+
+const retryDomainOptimization = async (
+  domain: CloudflareOptimizationDomain,
+) => {
+  await setOptimizationDomainMode(domain.hostname, "optimize");
+};
 const sourceWarningLabel = (warning: string) => {
   const unverified = warning.match(
     /^(.+) \(([^()]*)\) did not resolve to a verified Cloudflare IPv4 address$/u,
@@ -235,6 +276,12 @@ const vantageLabel = (vantage: CloudflareOptimizationVantage) =>
 const optimizedDomainCount = computed(
   () =>
     optimization.value?.domains.filter((item) => item.optimized).length || 0,
+);
+const optimizationManagedDomainCount = computed(
+  () =>
+    optimization.value?.domains.filter(
+      (item) => item.managementMode !== "external",
+    ).length || 0,
 );
 const selectedCandidate = computed(() =>
   optimizationScan.value?.candidates.find(
@@ -361,7 +408,7 @@ const scanErrorMessage = computed(() => {
             ? t("admin.cloudflareTunnel.optimization.summaryFallback")
             : t("admin.cloudflareTunnel.optimization.summaryActive", {
                 count: optimizedDomainCount,
-                total: optimization?.domains.length || 0,
+                total: optimizationManagedDomainCount,
                 ip: optimization?.selected?.ip || "-",
               })
           : t("admin.cloudflareTunnel.optimization.summaryNotApplied")
@@ -598,7 +645,7 @@ const scanErrorMessage = computed(() => {
             </div>
             <div class="mt-1 text-sm font-medium">
               {{ optimizedDomainCount }}
-              / {{ optimization?.domains.length || 0 }}
+              / {{ optimizationManagedDomainCount }}
             </div>
           </div>
         </div>
@@ -895,15 +942,68 @@ const scanErrorMessage = computed(() => {
                   {{ domain.hostname }}
                 </div>
                 <div
-                  v-if="domain.message"
+                  v-if="domain.cleanupPending"
+                  class="mt-1 text-xs text-amber-700 dark:text-amber-300"
+                >
+                  {{
+                    t(
+                      "admin.cloudflareTunnel.optimization.domainActions.externalCleanupPending",
+                    )
+                  }}
+                </div>
+                <div
+                  v-else-if="domain.message"
                   class="mt-1 text-xs text-destructive"
                 >
                   {{ domainMessageLabel(domain) }}
                 </div>
               </div>
-              <Badge :variant="domain.optimized ? 'default' : 'secondary'">
-                {{ domainStatusLabel(domain.status) }}
-              </Badge>
+              <div class="flex shrink-0 flex-col items-end gap-2">
+                <Badge :variant="domain.optimized ? 'default' : 'secondary'">
+                  {{ domainStatusLabel(domain.status) }}
+                </Badge>
+                <div
+                  v-if="domain.actionRequired"
+                  class="flex flex-wrap justify-end gap-1.5"
+                >
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    :disabled="Boolean(updatingOptimizationDomainHostname)"
+                    @click="preserveExistingDns(domain)"
+                  >
+                    {{
+                      t(
+                        "admin.cloudflareTunnel.optimization.domainActions.keepExternal",
+                      )
+                    }}
+                  </Button>
+                  <Button
+                    size="sm"
+                    :disabled="Boolean(updatingOptimizationDomainHostname)"
+                    @click="prepareOptimizationConflictResolution"
+                  >
+                    {{
+                      t(
+                        "admin.cloudflareTunnel.optimization.domainActions.resolveConflict",
+                      )
+                    }}
+                  </Button>
+                </div>
+                <Button
+                  v-else-if="domain.managementMode === 'external'"
+                  size="sm"
+                  variant="outline"
+                  :disabled="Boolean(updatingOptimizationDomainHostname)"
+                  @click="retryDomainOptimization(domain)"
+                >
+                  {{
+                    t(
+                      "admin.cloudflareTunnel.optimization.domainActions.enableOptimization",
+                    )
+                  }}
+                </Button>
+              </div>
             </div>
           </div>
         </details>
@@ -954,4 +1054,11 @@ const scanErrorMessage = computed(() => {
       </div>
     </template>
   </ConfigCollapsibleCard>
+
+  <ConfirmationDialog
+    :open="confirmationDialogOpen"
+    v-bind="confirmationDialogOptions"
+    @update:open="handleConfirmationDialogOpenChange"
+    @confirm="confirmPendingAction"
+  />
 </template>

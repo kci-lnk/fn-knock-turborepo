@@ -129,6 +129,8 @@ watch(
   },
   { immediate: true },
 );
+
+defineExpose({ collapse, expand, toggle });
 </script>
 
 <template>

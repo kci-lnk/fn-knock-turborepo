@@ -15,6 +15,7 @@ describe("managed Cloudflare Tunnel", () => {
       "/cloudflared/reconcile/apply",
       "/cloudflared/optimization/scans",
       "/cloudflared/optimization/settings",
+      "/cloudflared/optimization/domains/",
       "/cloudflared/optimization/apply",
       "/cloudflared/optimization/fallback",
     ]) {
@@ -63,6 +64,9 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(managed, /planWarningLabel/u);
     assert.match(managed, /warningCodes/u);
     assert.match(managed, /conflictMessageLabel/u);
+    assert.match(managed, /conflict\.details\.records/u);
+    assert.match(managed, /dnsOwnerLabel/u);
+    assert.match(managed, /reconcileAttentionToken/u);
     assert.match(managed, /operationTargetLabel/u);
     assert.match(managed, /keepDeleted/u);
     assert.match(managed, /toLocaleString\(locale\.value\)/u);
@@ -81,6 +85,10 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /optimizationCustomHostnames/u);
     assert.match(optimization, /sourceWarningLabel/u);
     assert.match(optimization, /domainMessageLabel/u);
+    assert.match(optimization, /preserveExistingDns/u);
+    assert.match(optimization, /prepareOptimizationConflictResolution/u);
+    assert.match(optimization, /domain\.managementMode === ['"]external['"]/u);
+    assert.match(optimization, /domain\.cleanupPending/u);
     assert.match(optimization, /toLocaleString\(locale\.value\)/u);
     assert.doesNotMatch(optimization, />Beta</u);
     assert.doesNotMatch(optimization, /<TableHead>IPv4/u);
@@ -134,6 +142,12 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(backend, /plan_warning_codes/u);
     assert.match(backend, /"messageCode": "unownedCustomHostname"/u);
     assert.match(backend, /"messageCode": "customHostnameQuotaExhausted"/u);
+    assert.match(backend, /OPTIMIZATION_DOMAIN_SETTINGS_KEY/u);
+    assert.match(backend, /configured_optimization_hosts/u);
+    assert.match(backend, /relinquish_optimization_host/u);
+    assert.match(backend, /reconcile_optimization_host_membership/u);
+    assert.match(backend, /multipleExactDnsConflict/u);
+    assert.match(backend, /multipleOptimizationDnsConflict/u);
 
     for (const locale of ["zh-CN", "zh-Hant", "en", "ja-JP", "ko-KR"]) {
       const messages = readSource(
@@ -144,6 +158,11 @@ describe("managed Cloudflare Tunnel", () => {
       assert.match(messages, /candidateDiscoveryOnly/u);
       assert.match(messages, /conflictMessages/u);
       assert.match(messages, /domainMessages/u);
+      assert.match(messages, /domainActions/u);
+      assert.match(messages, /keepExternal/u);
+      assert.match(messages, /externalCleanupPending/u);
+      assert.match(messages, /multipleExactDnsConflict/u);
+      assert.match(messages, /ownerKinds/u);
       assert.match(messages, /resolveFailed/u);
     }
   });

@@ -31,6 +31,8 @@ use super::{
 
 const OPTIMIZATION_RUNTIME_KEY: &str = "fn_knock:cloudflared:optimization:runtime:v1";
 const OPTIMIZATION_SETTINGS_KEY: &str = "fn_knock:cloudflared:optimization:settings:v1";
+const OPTIMIZATION_DOMAIN_SETTINGS_KEY: &str =
+    "fn_knock:cloudflared:optimization:domain-settings:v1";
 const CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE: &str = "cloudflare-saas-required";
 const CLOUDFLARE_SAAS_REQUIRED_SCAN_ERROR: &str =
     "Cloudflare for SaaS is not enabled or available for the selected zone";
@@ -150,6 +152,19 @@ struct OptimizationSourceSettings {
     custom_hostnames: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OptimizationDomainSettings {
+    #[serde(default)]
+    external_hostnames: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateOptimizationDomainRequest {
+    mode: String,
+}
+
 impl Default for OptimizationSourceSettings {
     fn default() -> Self {
         Self {
@@ -260,6 +275,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/admin/cloudflared/optimization/settings",
             put(update_source_settings),
         )
+        .route(
+            "/api/admin/cloudflared/optimization/domains/{hostname}",
+            put(update_domain_mode),
+        )
 }
 
 fn default_true() -> bool {
@@ -287,6 +306,60 @@ async fn load_source_settings(
     let settings = serde_json::from_value(value)
         .map_err(|error| local_error(format!("Invalid optimization source settings: {error}")))?;
     normalize_source_settings(settings).map_err(local_error)
+}
+
+async fn load_domain_settings(
+    state: &AppState,
+) -> Result<OptimizationDomainSettings, CloudflareApiError> {
+    let stored = state
+        .store
+        .get_json_value(OPTIMIZATION_DOMAIN_SETTINGS_KEY)
+        .await
+        .map_err(local_error_display)?;
+    let Some(value) = stored else {
+        return Ok(OptimizationDomainSettings::default());
+    };
+    let settings = serde_json::from_value(value)
+        .map_err(|error| local_error(format!("Invalid optimization domain settings: {error}")))?;
+    normalize_domain_settings(settings).map_err(local_error)
+}
+
+fn normalize_domain_settings(
+    mut settings: OptimizationDomainSettings,
+) -> Result<OptimizationDomainSettings, String> {
+    let mut external = Vec::new();
+    let mut seen = HashSet::new();
+    for value in settings.external_hostnames {
+        let hostname = normalize_candidate_hostname(&value)?;
+        if seen.insert(hostname.clone()) {
+            external.push(hostname);
+        }
+    }
+    external.sort();
+    settings.external_hostnames = external;
+    Ok(settings)
+}
+
+pub(super) async fn configured_optimization_hosts(
+    state: &AppState,
+    config: &Value,
+) -> Result<Vec<String>, CloudflareApiError> {
+    let settings = load_domain_settings(state).await?;
+    Ok(partition_optimization_hosts(configured_hosts(config), &settings).0)
+}
+
+fn partition_optimization_hosts(
+    hosts: Vec<String>,
+    settings: &OptimizationDomainSettings,
+) -> (Vec<String>, Vec<String>) {
+    let external = settings
+        .external_hostnames
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    hosts
+        .into_iter()
+        .partition(|hostname| !external.contains(hostname.as_str()))
 }
 
 fn source_settings_fingerprint(settings: &OptimizationSourceSettings) -> String {
@@ -397,6 +470,120 @@ async fn update_source_settings(
     }
     state.cloudflared_schedule_notify.notify_one();
     response::ok(public_source_settings(&settings)).into_response()
+}
+
+async fn update_domain_mode(
+    State(state): State<AppState>,
+    Path(hostname): Path<String>,
+    Json(body): Json<UpdateOptimizationDomainRequest>,
+) -> Response {
+    let hostname = match normalize_candidate_hostname(&hostname) {
+        Ok(value) => value,
+        Err(error) => return response::error(StatusCode::BAD_REQUEST, error),
+    };
+    if !matches!(body.mode.as_str(), "optimize" | "external") {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            "Optimization domain mode must be optimize or external",
+        );
+    }
+
+    let _guard = state.cloudflared_manage_lock.lock().await;
+    let local = match state.store.get_config().await {
+        Ok(value) => value,
+        Err(error) => {
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to load configured hostnames: {error}"),
+            );
+        }
+    };
+    let configured = configured_hosts(&local).into_iter().collect::<HashSet<_>>();
+    if !configured.contains(&hostname) {
+        return response::error(
+            StatusCode::NOT_FOUND,
+            "The optimization hostname is no longer configured",
+        );
+    }
+
+    let mut settings = match load_domain_settings(&state).await {
+        Ok(value) => value,
+        Err(error) => return api_error_response(error),
+    };
+    if body.mode == "external" {
+        if !settings.external_hostnames.contains(&hostname) {
+            settings.external_hostnames.push(hostname.clone());
+        }
+        settings.external_hostnames.sort();
+        settings.external_hostnames.dedup();
+    } else {
+        settings
+            .external_hostnames
+            .retain(|value| value != &hostname);
+    }
+
+    if let Err(error) = state
+        .store
+        .set_json_value(OPTIMIZATION_DOMAIN_SETTINGS_KEY, &json!(settings.clone()))
+        .await
+    {
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to save optimization domain mode: {error}"),
+        );
+    }
+
+    let mut cleanup_pending = false;
+    if body.mode == "external" {
+        let managed = load_managed_config(&state).await;
+        let mut ownership = load_managed_state(&state).await;
+        let tracked_host = ownership
+            .pointer(&format!(
+                "/optimization/customHostnames/{}",
+                json_pointer_escape(&hostname)
+            ))
+            .cloned();
+        if let Some(host) = tracked_host {
+            if !host_has_tracked_remote_resources(&host) {
+                if let Err(error) =
+                    forget_optimization_host_state(&state, &mut ownership, &hostname).await
+                {
+                    cleanup_pending = true;
+                    tracing::warn!(%error, %hostname, "optimization hostname was marked external; local cleanup will be retried");
+                }
+            } else {
+                let zone_id = managed.get("zoneId").and_then(Value::as_str).unwrap_or("");
+                let cleanup = match api_for_background(&state).await {
+                    Ok(Some(api)) if !zone_id.is_empty() => {
+                        relinquish_optimization_host(
+                            &state,
+                            &api,
+                            zone_id,
+                            &mut ownership,
+                            &hostname,
+                            &managed_instance_id(&managed),
+                        )
+                        .await
+                    }
+                    Ok(_) => Err(local_error(
+                        "Cloudflare API Token and Zone are required to clean up this hostname",
+                    )),
+                    Err(error) => Err(error),
+                };
+                if let Err(error) = cleanup {
+                    cleanup_pending = true;
+                    tracing::warn!(%error, %hostname, "optimization hostname was marked external; remote cleanup will be retried");
+                }
+            }
+        }
+    }
+    state.cloudflared_schedule_notify.notify_one();
+    response::ok(json!({
+        "hostname": hostname,
+        "mode": body.mode,
+        "cleanupPending": cleanup_pending,
+    }))
+    .into_response()
 }
 
 fn public_source_settings(settings: &OptimizationSourceSettings) -> Value {
@@ -803,6 +990,12 @@ async fn fallback_optimization(State(state): State<AppState>) -> Response {
 
 pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &Value) -> Value {
     let runtime = load_runtime(state).await;
+    let domain_settings = load_domain_settings(state).await.unwrap_or_default();
+    let external_hostnames = domain_settings
+        .external_hostnames
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     let (sources, source_settings_error) = match load_source_settings(state).await {
         Ok(value) => (value, None),
         Err(error) => (
@@ -822,15 +1015,28 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
         .into_iter()
         .map(|host| {
             let current = host_states.and_then(|items| items.get(&host));
+            let external = external_hostnames.contains(host.as_str());
             json!({
                 "hostname": host,
-                "status": current.and_then(|value| value.get("status")).cloned().unwrap_or_else(|| json!("fallback")),
+                "managementMode": if external { "external" } else { "optimize" },
+                "status": if external {
+                    json!("external")
+                } else {
+                    current.and_then(|value| value.get("status")).cloned().unwrap_or_else(|| json!("fallback"))
+                },
                 "sslStatus": current.and_then(|value| value.get("sslStatus")).cloned().unwrap_or(Value::Null),
                 "customHostnameId": current.and_then(|value| value.get("id")).cloned().unwrap_or(Value::Null),
-                "optimized": current.is_some_and(exact_route_is_optimized),
+                "optimized": !external && current.is_some_and(exact_route_is_optimized),
+                "actionRequired": !external && current.and_then(|value| value.get("status")).and_then(Value::as_str) == Some("conflict"),
+                "cleanupPending": external && current.is_some(),
+                "conflictResourceId": current.and_then(|value| value.get("conflictResourceId")).cloned().unwrap_or(Value::Null),
                 "messageCode": current.and_then(|value| value.get("messageCode")).cloned().unwrap_or(Value::Null),
                 "messageDetail": current.and_then(|value| value.get("messageDetail")).cloned().unwrap_or(Value::Null),
-                "message": current.and_then(|value| value.get("message")).cloned().unwrap_or(Value::Null),
+                "message": if external {
+                    Value::Null
+                } else {
+                    current.and_then(|value| value.get("message")).cloned().unwrap_or(Value::Null)
+                },
             })
         })
         .collect::<Vec<_>>();
@@ -1111,7 +1317,7 @@ pub(super) async fn append_preview(
     zone_id: &str,
     root: &str,
     instance: &str,
-    local: &Value,
+    hosts: &[String],
     ownership: &Value,
     custom_hostnames: &[Value],
     operations: &mut Vec<Value>,
@@ -1261,17 +1467,17 @@ pub(super) async fn append_preview(
         .and_then(Value::as_object);
     let total = custom_hostnames.len();
     let mut remaining = MAX_CUSTOM_HOSTNAMES.saturating_sub(total);
-    for host in configured_hosts(local) {
+    for host in hosts {
         let existing = custom_hostnames.iter().find(|item| {
             item.get("hostname")
                 .and_then(Value::as_str)
-                .is_some_and(|value| value.eq_ignore_ascii_case(&host))
+                .is_some_and(|value| value.eq_ignore_ascii_case(host))
         });
         let owned_id = owned
-            .and_then(|items| items.get(&host))
+            .and_then(|items| items.get(host))
             .and_then(|value| value.get("id"))
             .and_then(Value::as_str);
-        let exact_records = api.list_dns_records(zone_id, Some(&host)).await?;
+        let exact_records = api.list_dns_records(zone_id, Some(host)).await?;
         remote_snapshot.push(json!({
             "hostname": host,
             "dnsRecords": exact_records.clone(),
@@ -1313,11 +1519,11 @@ pub(super) async fn append_preview(
                 "dnsRecords": recovery_origin_records,
             }));
         }
-        let owned_state = owned.and_then(|items| items.get(&host));
+        let owned_state = owned.and_then(|items| items.get(host));
         let owned_custom_matches = existing.is_some_and(|item| {
             owned_state.is_some_and(|state| {
                 owned_id == item.get("id").and_then(Value::as_str)
-                    && managed_custom_hostname_matches(item, &host, state, Some(&origin))
+                    && managed_custom_hostname_matches(item, host, state, Some(&origin))
             })
         });
         match existing {
@@ -1326,7 +1532,7 @@ pub(super) async fn append_preview(
                     &format!("custom-hostname:{host}"),
                     "custom-hostname",
                     "keep",
-                    &host,
+                    host,
                     true,
                 ));
             }
@@ -1334,7 +1540,7 @@ pub(super) async fn append_preview(
                 &format!("custom-hostname:{host}"),
                 "custom-hostname",
                 "recover",
-                &host,
+                host,
                 true,
             )),
             Some(_) => conflicts.push(json!({
@@ -1350,7 +1556,7 @@ pub(super) async fn append_preview(
                     &format!("custom-hostname:{host}"),
                     "custom-hostname",
                     "create",
-                    &host,
+                    host,
                     false,
                 ));
                 remaining -= 1;
@@ -1359,7 +1565,7 @@ pub(super) async fn append_preview(
                 &format!("custom-hostname:{host}"),
                 "custom-hostname",
                 "fallback",
-                &host,
+                host,
                 false,
             )),
         }
@@ -1368,12 +1574,12 @@ pub(super) async fn append_preview(
                 &format!("optimization:dns:{host}"),
                 "dns",
                 "recover",
-                &host,
+                host,
                 true,
             ));
         } else if ownership.pointer("/optimization/selected/ip").is_some() {
             let exact_owned_id = owned
-                .and_then(|items| items.get(&host))
+                .and_then(|items| items.get(host))
                 .and_then(|value| value.get("exactDnsId"))
                 .and_then(Value::as_str);
             let exact_record = exact_owned_id
@@ -1406,22 +1612,28 @@ pub(super) async fn append_preview(
                     Some(&edge),
                     false,
                 );
-                if exact_owned {
+                if exact_owned && exact_records.len() == 1 {
                     operations.push(preview_operation(
                         &format!("optimization:dns:{host}"),
                         "dns",
                         "update",
-                        &host,
+                        host,
                         true,
                     ));
                 } else {
+                    let single_record = exact_records.len() == 1;
                     conflicts.push(json!({
                         "id": format!("optimization:dns:{host}"),
                         "kind": "dns",
                         "target": host,
-                        "messageCode": "exactDnsConflict",
-                        "message": "An unowned exact DNS record prevents optimization",
-                        "takeoverAllowed": true,
+                        "messageCode": if single_record { "exactDnsConflict" } else { "multipleExactDnsConflict" },
+                        "message": if single_record {
+                            "An unowned exact DNS record prevents optimization"
+                        } else {
+                            "Multiple exact DNS records must be resolved before optimization"
+                        },
+                        "takeoverAllowed": single_record,
+                        "details": dns_conflict_details(&exact_records, instance, "CNAME", &edge, false),
                     }));
                 }
             } else {
@@ -1429,7 +1641,7 @@ pub(super) async fn append_preview(
                     &format!("optimization:dns:{host}"),
                     "dns",
                     "create",
-                    &host,
+                    host,
                     false,
                 ));
             }
@@ -1560,9 +1772,9 @@ pub(super) async fn reconcile_resources(
         .get_config()
         .await
         .map_err(local_error_display)?;
-    let hosts = configured_hosts(&local);
-    let configured_set = hosts.iter().cloned().collect::<HashSet<_>>();
-    cleanup_removed_hosts(state, api, zone_id, ownership, &configured_set, &suffix).await?;
+    let hosts =
+        reconcile_optimization_host_membership(state, api, zone_id, ownership, &local, &suffix)
+            .await?;
     if !should_publish_exact_routes(ownership, force_publish) {
         return Ok(());
     }
@@ -1737,6 +1949,7 @@ pub(super) async fn reconcile_resources(
             object.remove("message");
             object.remove("messageCode");
             object.remove("messageDetail");
+            object.remove("conflictResourceId");
         }
         if let Some(recoverable) = recovery.as_ref() {
             let object = ensure_object(&mut host_state);
@@ -1822,8 +2035,13 @@ pub(super) async fn reconcile_resources(
                 Err(error) if error.status == Some(StatusCode::CONFLICT) => {
                     activation_conflict = true;
                     ensure_object(&mut host_state).insert("status".to_string(), json!("conflict"));
-                    ensure_object(&mut host_state)
-                        .insert("message".to_string(), json!(error.to_string()));
+                    let object = ensure_object(&mut host_state);
+                    object.insert(
+                        "messageCode".to_string(),
+                        json!("validationDnsOwnershipConflict"),
+                    );
+                    object.insert("messageDetail".to_string(), json!(name));
+                    object.insert("message".to_string(), json!(error.to_string()));
                 }
                 Err(error) => return Err(error),
             }
@@ -1878,8 +2096,16 @@ pub(super) async fn reconcile_resources(
                 Err(error) if error.status == Some(StatusCode::CONFLICT) => {
                     activation_conflict = true;
                     ensure_object(&mut host_state).insert("status".to_string(), json!("conflict"));
-                    ensure_object(&mut host_state)
-                        .insert("message".to_string(), json!(error.to_string()));
+                    let object = ensure_object(&mut host_state);
+                    object.insert(
+                        "messageCode".to_string(),
+                        json!("exactDnsOwnershipConflict"),
+                    );
+                    object.insert(
+                        "conflictResourceId".to_string(),
+                        json!(format!("optimization:dns:{host}")),
+                    );
+                    object.insert("message".to_string(), json!(error.to_string()));
                 }
                 Err(error) => return Err(error),
             }
@@ -1937,12 +2163,20 @@ pub(super) async fn reconcile_resources(
                                 object.remove("message");
                                 object.remove("messageCode");
                                 object.remove("messageDetail");
+                                object.remove("conflictResourceId");
                             }
                             Err(error) if error.status == Some(StatusCode::CONFLICT) => {
-                                ensure_object(&mut host_state)
-                                    .insert("status".to_string(), json!("conflict"));
-                                ensure_object(&mut host_state)
-                                    .insert("message".to_string(), json!(error.to_string()));
+                                let object = ensure_object(&mut host_state);
+                                object.insert("status".to_string(), json!("conflict"));
+                                object.insert(
+                                    "messageCode".to_string(),
+                                    json!("exactDnsOwnershipConflict"),
+                                );
+                                object.insert(
+                                    "conflictResourceId".to_string(),
+                                    json!(format!("optimization:dns:{host}")),
+                                );
+                                object.insert("message".to_string(), json!(error.to_string()));
                             }
                             Err(error) => return Err(error),
                         }
@@ -2489,13 +2723,13 @@ pub(super) async fn fallback_to_wildcard(
             delete_dns_if_owned(
                 api,
                 zone_id,
-                &json!({
-                    "id": record_id,
-                    "name": hostname,
-                    "type": "CNAME",
-                    "content": edge_hostname,
-                    "proxied": false,
-                }),
+                &tracked_exact_dns_snapshot(
+                    &hostname,
+                    record_id,
+                    &value,
+                    ownership,
+                    Some(&edge_hostname),
+                ),
                 &instance_id,
             )
             .await?;
@@ -2634,13 +2868,7 @@ async fn cleanup_removed_hosts(
             delete_dns_if_owned(
                 api,
                 zone_id,
-                &json!({
-                    "id": id,
-                    "name": hostname,
-                    "type": "CNAME",
-                    "content": ownership.pointer("/optimization/edgeDns/name").cloned().unwrap_or(Value::Null),
-                    "proxied": false,
-                }),
+                &tracked_exact_dns_snapshot(&hostname, id, &host, ownership, None),
                 instance_id,
             )
             .await?;
@@ -2690,6 +2918,168 @@ async fn cleanup_removed_hosts(
     Ok(())
 }
 
+async fn reconcile_optimization_host_membership(
+    state: &AppState,
+    api: &CloudflareApi,
+    zone_id: &str,
+    ownership: &mut Value,
+    config: &Value,
+    instance_id: &str,
+) -> Result<Vec<String>, CloudflareApiError> {
+    let configured = configured_hosts(config);
+    let settings = load_domain_settings(state).await?;
+    let (managed_hosts, _) = partition_optimization_hosts(configured.clone(), &settings);
+
+    // An explicit external-hostname choice is a request to relinquish, not to
+    // delete unconditionally. Retry that safe path before applying the stricter
+    // cleanup policy used for hostnames removed from the application config.
+    for hostname in &settings.external_hostnames {
+        let cleanup_error = if ownership
+            .pointer(&format!(
+                "/optimization/customHostnames/{}",
+                json_pointer_escape(hostname)
+            ))
+            .is_some()
+        {
+            relinquish_optimization_host(state, api, zone_id, ownership, hostname, instance_id)
+                .await
+                .err()
+        } else {
+            None
+        };
+        if let Some(error) = cleanup_error {
+            tracing::warn!(%error, %hostname, "external optimization hostname cleanup remains pending");
+        }
+    }
+
+    let mut configured_set = configured.into_iter().collect::<HashSet<_>>();
+    configured_set.extend(settings.external_hostnames.iter().cloned());
+    cleanup_removed_hosts(state, api, zone_id, ownership, &configured_set, instance_id).await?;
+    Ok(managed_hosts)
+}
+
+fn tracked_exact_dns_snapshot(
+    hostname: &str,
+    id: &str,
+    host: &Value,
+    ownership: &Value,
+    legacy_edge_hostname: Option<&str>,
+) -> Value {
+    let target_path = if host.get("exactDnsTarget").and_then(Value::as_str) == Some("origin") {
+        "/optimization/originDns/name"
+    } else {
+        "/optimization/edgeDns/name"
+    };
+    let content = ownership
+        .pointer(target_path)
+        .cloned()
+        .or_else(|| legacy_edge_hostname.map(|value| json!(value)))
+        .unwrap_or(Value::Null);
+    json!({
+        "id": id,
+        "name": hostname,
+        "type": "CNAME",
+        "content": content,
+        "proxied": false,
+    })
+}
+
+fn host_has_tracked_remote_resources(host: &Value) -> bool {
+    host.get("id").and_then(Value::as_str).is_some()
+        || host.get("exactDnsId").and_then(Value::as_str).is_some()
+        || host
+            .get("validationDns")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|record| record.get("id").and_then(Value::as_str).is_some())
+}
+
+async fn forget_optimization_host_state(
+    state: &AppState,
+    ownership: &mut Value,
+    hostname: &str,
+) -> Result<(), CloudflareApiError> {
+    if let Some(items) = ownership
+        .pointer_mut("/optimization/customHostnames")
+        .and_then(Value::as_object_mut)
+    {
+        items.remove(hostname);
+    }
+    save_managed_state(state, ownership).await
+}
+
+async fn relinquish_optimization_host(
+    state: &AppState,
+    api: &CloudflareApi,
+    zone_id: &str,
+    ownership: &mut Value,
+    hostname: &str,
+    instance_id: &str,
+) -> Result<(), CloudflareApiError> {
+    let Some(host) = ownership
+        .pointer(&format!(
+            "/optimization/customHostnames/{}",
+            json_pointer_escape(hostname)
+        ))
+        .cloned()
+    else {
+        return Ok(());
+    };
+    let default_custom_origin = ownership
+        .pointer("/optimization/originDns/name")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    if let Some(id) = host.get("exactDnsId").and_then(Value::as_str) {
+        let owned = tracked_exact_dns_snapshot(hostname, id, &host, ownership, None);
+        if let Err(error) = delete_dns_if_owned(api, zone_id, &owned, instance_id).await {
+            if error.status == Some(StatusCode::CONFLICT) {
+                tracing::warn!(%error, %hostname, "retaining externally changed exact DNS while relinquishing optimization hostname");
+            } else {
+                return Err(error);
+            }
+        }
+    }
+    for record in host
+        .get("validationDns")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if record.get("id").and_then(Value::as_str).is_none() {
+            continue;
+        }
+        if let Err(error) = delete_dns_if_owned(api, zone_id, record, instance_id).await {
+            if error.status == Some(StatusCode::CONFLICT) {
+                tracing::warn!(%error, %hostname, "retaining externally changed validation DNS while relinquishing optimization hostname");
+            } else {
+                return Err(error);
+            }
+        }
+    }
+    if let Some(id) = host.get("id").and_then(Value::as_str) {
+        match api.get_custom_hostname(zone_id, id).await {
+            Ok(remote)
+                if managed_custom_hostname_matches(
+                    &remote,
+                    hostname,
+                    &host,
+                    default_custom_origin.as_deref(),
+                ) =>
+            {
+                ignore_not_found(api.delete_custom_hostname(zone_id, id).await)?;
+            }
+            Ok(_) => {
+                tracing::warn!(%hostname, "retaining externally changed Custom Hostname while relinquishing ownership");
+            }
+            Err(error) if error.status == Some(StatusCode::NOT_FOUND) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    forget_optimization_host_state(state, ownership, hostname).await
+}
+
 async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApiError> {
     let guard = state.cloudflared_manage_lock.lock().await;
     let managed = load_managed_config(state).await;
@@ -2709,13 +3099,12 @@ async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApiError> {
                 .get_config()
                 .await
                 .map_err(local_error_display)?;
-            let configured = configured_hosts(&local).into_iter().collect::<HashSet<_>>();
-            cleanup_removed_hosts(
+            reconcile_optimization_host_membership(
                 state,
                 &api,
                 zone_id,
                 &mut ownership,
-                &configured,
+                &local,
                 &managed_instance_id(&managed),
             )
             .await?;
@@ -3969,16 +4358,30 @@ async fn inspect_auxiliary_dns(
                 .find(|record| is_managed_dns(record, instance_id))
         })
         .unwrap_or(&records[0]);
-    if dns_record_owned_for_update(record, owned_id, instance_id, record_type, content, proxied) {
+    if records.len() == 1
+        && dns_record_owned_for_update(record, owned_id, instance_id, record_type, content, proxied)
+    {
         operations.push(preview_operation(logical_id, "dns", "update", name, true));
     } else {
+        let single_record = records.len() == 1;
         conflicts.push(json!({
             "id": logical_id,
             "kind": "dns",
             "target": name,
-            "messageCode": "optimizationDnsConflict",
-            "message": "An unowned DNS record already uses the optimization hostname",
-            "takeoverAllowed": true,
+            "messageCode": if single_record { "optimizationDnsConflict" } else { "multipleOptimizationDnsConflict" },
+            "message": if single_record {
+                "An unowned DNS record already uses the optimization hostname"
+            } else {
+                "Multiple DNS records already use the optimization hostname"
+            },
+            "takeoverAllowed": single_record,
+            "details": dns_conflict_details(
+                &records,
+                instance_id,
+                record_type,
+                content.unwrap_or(""),
+                proxied,
+            ),
         }));
     }
     Ok(())
@@ -4066,6 +4469,50 @@ fn is_managed_dns(record: &Value, instance_id: &str) -> bool {
             .into_iter()
             .flatten()
             .any(|value| value.as_str() == Some(expected_tag.as_str()))
+}
+
+fn dns_record_owner_kind(record: &Value, instance_id: &str) -> &'static str {
+    if is_managed_dns(record, instance_id) {
+        return "current-instance";
+    }
+    let fn_knock_comment = record
+        .get("comment")
+        .and_then(Value::as_str)
+        .is_some_and(|value| value.starts_with("Managed by fn-knock ("));
+    let fn_knock_tag = record
+        .get("tags")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .any(|value| value.starts_with("fn-knock-instance:"));
+    if fn_knock_comment || fn_knock_tag {
+        "other-fn-knock-instance"
+    } else {
+        "external"
+    }
+}
+
+fn dns_conflict_details(
+    records: &[Value],
+    instance_id: &str,
+    desired_type: &str,
+    desired_content: &str,
+    desired_proxied: bool,
+) -> Value {
+    json!({
+        "records": records.iter().map(|record| json!({
+            "type": record.get("type").cloned().unwrap_or(Value::Null),
+            "content": record.get("content").cloned().unwrap_or(Value::Null),
+            "proxied": record.get("proxied").cloned().unwrap_or(Value::Null),
+            "ownerKind": dns_record_owner_kind(record, instance_id),
+        })).collect::<Vec<_>>(),
+        "desired": {
+            "type": desired_type,
+            "content": desired_content,
+            "proxied": desired_proxied,
+        },
+    })
 }
 
 fn managed_custom_hostname_matches(
@@ -4520,6 +4967,111 @@ mod tests {
         .expect("settings should normalize");
         assert_eq!(normalized.builtin_ids, vec!["sweden-government"]);
         assert_eq!(normalized.custom_hostnames, vec!["www.example.org"]);
+    }
+
+    #[test]
+    fn domain_settings_normalize_and_deduplicate_external_hostnames() {
+        let normalized = normalize_domain_settings(OptimizationDomainSettings {
+            external_hostnames: vec![
+                " App.Example.com. ".to_string(),
+                "app.example.com".to_string(),
+                "other.example.com".to_string(),
+            ],
+        })
+        .expect("domain settings should normalize");
+        assert_eq!(
+            normalized.external_hostnames,
+            vec!["app.example.com", "other.example.com"]
+        );
+        assert!(
+            normalize_domain_settings(OptimizationDomainSettings {
+                external_hostnames: vec!["https://app.example.com".to_string()],
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn external_hostname_partition_preserves_configured_order() {
+        let settings = OptimizationDomainSettings {
+            external_hostnames: vec![
+                "external.example.com".to_string(),
+                "stale.example.com".to_string(),
+            ],
+        };
+        let (managed, external) = partition_optimization_hosts(
+            vec![
+                "auth.example.com".to_string(),
+                "external.example.com".to_string(),
+                "app.example.com".to_string(),
+            ],
+            &settings,
+        );
+        assert_eq!(managed, vec!["auth.example.com", "app.example.com"]);
+        assert_eq!(external, vec!["external.example.com"]);
+    }
+
+    #[test]
+    fn dns_conflict_details_distinguish_instance_ownership() {
+        let records = vec![
+            json!({
+                "type": "CNAME",
+                "content": "current.example.com",
+                "proxied": false,
+                "comment": "Managed by fn-knock (instance-a)",
+            }),
+            json!({
+                "type": "A",
+                "content": "192.0.2.1",
+                "proxied": true,
+                "tags": ["fn-knock-instance:instance-b"],
+            }),
+            json!({
+                "type": "TXT",
+                "content": "external",
+                "proxied": null,
+            }),
+        ];
+        let details = dns_conflict_details(
+            &records,
+            "instance-a",
+            "CNAME",
+            "desired.example.com",
+            false,
+        );
+        assert_eq!(details["records"][0]["ownerKind"], "current-instance");
+        assert_eq!(
+            details["records"][1]["ownerKind"],
+            "other-fn-knock-instance"
+        );
+        assert_eq!(details["records"][2]["ownerKind"], "external");
+        assert_eq!(details["desired"]["content"], "desired.example.com");
+    }
+
+    #[test]
+    fn exact_dns_cleanup_uses_the_tracked_origin_or_edge_target() {
+        let ownership = json!({
+            "optimization": {
+                "originDns": { "name": "origin.example.com" },
+                "edgeDns": { "name": "edge.example.com" },
+            }
+        });
+        let origin = tracked_exact_dns_snapshot(
+            "app.example.com",
+            "dns-1",
+            &json!({ "exactDnsTarget": "origin" }),
+            &ownership,
+            None,
+        );
+        let edge = tracked_exact_dns_snapshot(
+            "app.example.com",
+            "dns-2",
+            &json!({ "exactDnsTarget": "edge" }),
+            &ownership,
+            None,
+        );
+        assert_eq!(origin["content"], "origin.example.com");
+        assert_eq!(edge["content"], "edge.example.com");
     }
 
     #[test]

@@ -2354,8 +2354,24 @@ export const jaJPAdmin = {
           "fn-knock が所有していない Cloudflare for SaaS カスタムホスト名が既に存在します。",
         exactDnsConflict:
           "fn-knock が所有していない完全一致 DNS レコードが最適化を妨げています。",
+        multipleExactDnsConflict:
+          "このホスト名には複数の DNS レコードがあるため、安全に CNAME へ置き換えられません。外部 DNS を保持するか、Cloudflare でレコードを整理してから再試行してください。",
         optimizationDnsConflict:
           "fn-knock が所有していない DNS レコードが最適化ホスト名を既に使用しています。",
+        multipleOptimizationDnsConflict:
+          "この最適化ホスト名には複数の DNS レコードがあるため、安全に引き継げません。Cloudflare でレコードを整理してから再試行してください。",
+      },
+      dnsConflict: {
+        current: "Cloudflare の現在のレコード",
+        desired: "fn-knock が書き込むレコード",
+        proxied: "プロキシ済み",
+        dnsOnly: "DNS のみ",
+        unknownProxy: "プロキシ状態不明",
+        ownerKinds: {
+          "current-instance": "現在の fn-knock",
+          "other-fn-knock-instance": "別の fn-knock インスタンス",
+          external: "外部設定",
+        },
       },
       planWarnings: {
         betaVantage:
@@ -2503,10 +2519,15 @@ export const jaJPAdmin = {
         quota: "上限到達",
         queued: "次回の同期待ち",
         probeFailed: "直接接続検証失敗",
+        external: "外部 DNS を保持",
       },
       domainMessages: {
         customHostnameOwnershipConflict:
           "このカスタムホスト名は fn-knock の所有ではありません。",
+        exactDnsOwnershipConflict:
+          "既存の DNS レコードは現在の fn-knock の所有ではありません。保持するか、明示的に引き継ぎを確認してください。",
+        validationDnsOwnershipConflict:
+          "検証レコード {detail} は既に存在し、現在の fn-knock の所有ではありません。",
         customHostnameQuotaExhausted:
           "カスタムホスト名の割り当て上限に達しました。",
         certificateRateLimited:
@@ -2523,9 +2544,27 @@ export const jaJPAdmin = {
       scanFailed: "最適化スキャンを開始できませんでした",
       cancelFailed: "最適化スキャンをキャンセルできませんでした",
       applied: "最適化経路を適用しました",
+      appliedWithConflictsTitle:
+        "最適化を保存しましたが、DNS の競合対応が必要です",
+      appliedWithConflictsDescription:
+        "{count} 件のドメインで、明示的な引き継ぎまたは既存 DNS の保持が必要です。対応セクションを開きました。",
       applyFailed: "最適化経路の適用に失敗しました",
       fallbackApplied: "正確な経路を削除し、ワイルドカード Tunnel に戻しました",
       fallbackFailed: "標準 Tunnel へのフォールバックに失敗しました",
+      domainActions: {
+        keepExternal: "既存 DNS を保持",
+        resolveConflict: "競合を解決",
+        enableOptimization: "最適化を再度有効化",
+        keepExternalTitle: "このドメインの既存 DNS を保持しますか？",
+        keepExternalDescription:
+          "fn-knock は {hostname} の最適化リソースの管理を停止し、所有する関連リソースを削除します。既存の外部 DNS レコードは変更されません。",
+        keepExternalConfirm: "既存 DNS を保持",
+        externalSaved:
+          "既存 DNS を保持しました。他のドメインの最適化は続行できます",
+        externalCleanupPending:
+          "このドメインの管理を停止しました。Cloudflare リソースのクリーンアップは保留中で、自動的に再試行されます。",
+        updateFailed: "ドメインの処理方法を更新できませんでした",
+      },
     },
     manual: {
       title: "詳細設定：手動 Tunnel Token",

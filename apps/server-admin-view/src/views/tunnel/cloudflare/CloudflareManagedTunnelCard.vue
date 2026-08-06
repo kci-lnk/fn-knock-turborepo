@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from "vue";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import ConfirmationDialog from "@admin-shared/components/common/ConfirmationDialog.vue";
+import { useConfirmationDialog } from "@admin-shared/composables/useConfirmationDialog";
 import {
   Select,
   SelectContent,
@@ -39,12 +42,32 @@ const {
   previewCleanup,
   publicWildcardHostname,
   reconcileHasUnconfirmedConflicts,
+  reconcileAttentionToken,
   reconcilePlan,
   selectedTunnelId,
+  setOptimizationDomainMode,
   t,
   takeoverResourceIds,
   tunnelMode,
+  updatingOptimizationDomainHostname,
 } = controller;
+
+const managedCard = ref<{ expand: () => void } | null>(null);
+const {
+  confirmationDialogOpen,
+  confirmationDialogOptions,
+  confirmPendingAction,
+  handleConfirmationDialogOpenChange,
+  requestConfirmation,
+} = useConfirmationDialog();
+
+watch(reconcileAttentionToken, async () => {
+  managedCard.value?.expand();
+  await nextTick();
+  document
+    .getElementById("cloudflare-managed-tunnel-card")
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 const toggleTakeover = (id: string, checked: boolean | "indeterminate") => {
   const next = new Set(takeoverResourceIds.value);
@@ -126,6 +149,10 @@ const legacyConflictMessageCodes: Record<string, string> = {
   "An unowned exact DNS record prevents optimization": "exactDnsConflict",
   "An unowned DNS record already uses the optimization hostname":
     "optimizationDnsConflict",
+  "Multiple exact DNS records must be resolved before optimization":
+    "multipleExactDnsConflict",
+  "Multiple DNS records already use the optimization hostname":
+    "multipleOptimizationDnsConflict",
 };
 const conflictMessageKeys: Record<string, string> = {
   managedIngressChanged:
@@ -155,6 +182,10 @@ const conflictMessageKeys: Record<string, string> = {
     "admin.cloudflareTunnel.managed.conflictMessages.exactDnsConflict",
   optimizationDnsConflict:
     "admin.cloudflareTunnel.managed.conflictMessages.optimizationDnsConflict",
+  multipleExactDnsConflict:
+    "admin.cloudflareTunnel.managed.conflictMessages.multipleExactDnsConflict",
+  multipleOptimizationDnsConflict:
+    "admin.cloudflareTunnel.managed.conflictMessages.multipleOptimizationDnsConflict",
 };
 const capabilityKeys: Record<string, string> = {
   zoneRead: "zoneRead",
@@ -202,6 +233,38 @@ const conflictMessageLabel = (conflict: CloudflareReconcileConflict) => {
   const key = code ? conflictMessageKeys[code] : undefined;
   return key ? t(key, { detail: conflict.detail || "" }) : conflict.message;
 };
+const optimizationConflictHostname = (conflict: CloudflareReconcileConflict) =>
+  conflict.id === `optimization:dns:${conflict.target}`
+    ? conflict.target
+    : null;
+const preserveExistingDns = async (conflict: CloudflareReconcileConflict) => {
+  const hostname = optimizationConflictHostname(conflict);
+  if (!hostname) return;
+  const confirmed = await requestConfirmation({
+    title: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalTitle",
+    ),
+    description: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalDescription",
+      { hostname },
+    ),
+    confirmText: t(
+      "admin.cloudflareTunnel.optimization.domainActions.keepExternalConfirm",
+    ),
+  });
+  if (confirmed) await setOptimizationDomainMode(hostname, "external");
+};
+const dnsOwnerLabel = (
+  owner: NonNullable<
+    CloudflareReconcileConflict["details"]
+  >["records"][number]["ownerKind"],
+) => t(`admin.cloudflareTunnel.managed.dnsConflict.ownerKinds.${owner}`);
+const dnsProxyLabel = (proxied: boolean | null) =>
+  proxied === true
+    ? t("admin.cloudflareTunnel.managed.dnsConflict.proxied")
+    : proxied === false
+      ? t("admin.cloudflareTunnel.managed.dnsConflict.dnsOnly")
+      : t("admin.cloudflareTunnel.managed.dnsConflict.unknownProxy");
 const capabilityLabel = (value: string) => {
   const key = capabilityKeys[value];
   return key ? t(`admin.cloudflareTunnel.managed.capabilities.${key}`) : value;
@@ -235,6 +298,8 @@ const planWarningLabel = (warning: string, index: number) => {
 <template>
   <ConfigCollapsibleCard
     v-if="apiTokenConfigured"
+    id="cloudflare-managed-tunnel-card"
+    ref="managedCard"
     :title="t('admin.cloudflareTunnel.managed.tunnelTitle')"
     :configured="Boolean(managedState?.managed.tunnel)"
     :ready="configLoaded && !isLoadingManagedState"
@@ -436,6 +501,42 @@ const planWarningLabel = (warning: string, index: number) => {
             <AlertTitle>{{ conflictTargetLabel(conflict) }}</AlertTitle>
             <AlertDescription class="space-y-3">
               <p>{{ conflictMessageLabel(conflict) }}</p>
+              <div
+                v-if="conflict.details"
+                class="space-y-2 rounded-md border border-destructive/25 bg-background/70 p-3 text-xs"
+              >
+                <div class="font-medium">
+                  {{ t("admin.cloudflareTunnel.managed.dnsConflict.current") }}
+                </div>
+                <div
+                  v-for="(record, recordIndex) in conflict.details.records"
+                  :key="`${conflict.id}:${recordIndex}`"
+                  class="grid gap-1 rounded border px-2 py-1.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <Badge variant="outline">{{ record.type || "-" }}</Badge>
+                  <code class="break-all">{{ record.content || "-" }}</code>
+                  <span class="text-muted-foreground">
+                    {{ dnsOwnerLabel(record.ownerKind) }} ·
+                    {{ dnsProxyLabel(record.proxied) }}
+                  </span>
+                </div>
+                <div class="font-medium">
+                  {{ t("admin.cloudflareTunnel.managed.dnsConflict.desired") }}
+                </div>
+                <div
+                  class="grid gap-1 rounded border border-primary/25 bg-primary/5 px-2 py-1.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                >
+                  <Badge variant="outline">{{
+                    conflict.details.desired.type
+                  }}</Badge>
+                  <code class="break-all">{{
+                    conflict.details.desired.content
+                  }}</code>
+                  <span class="text-muted-foreground">
+                    {{ dnsProxyLabel(conflict.details.desired.proxied) }}
+                  </span>
+                </div>
+              </div>
               <label
                 v-if="conflict.takeoverAllowed"
                 class="flex cursor-pointer items-center gap-2 text-sm"
@@ -448,6 +549,19 @@ const planWarningLabel = (warning: string, index: number) => {
                 />
                 {{ t("admin.cloudflareTunnel.managed.confirmTakeover") }}
               </label>
+              <Button
+                v-if="optimizationConflictHostname(conflict)"
+                size="sm"
+                variant="outline"
+                :disabled="Boolean(updatingOptimizationDomainHostname)"
+                @click="preserveExistingDns(conflict)"
+              >
+                {{
+                  t(
+                    "admin.cloudflareTunnel.optimization.domainActions.keepExternal",
+                  )
+                }}
+              </Button>
             </AlertDescription>
           </Alert>
 
@@ -555,4 +669,11 @@ const planWarningLabel = (warning: string, index: number) => {
       </div>
     </template>
   </ConfigCollapsibleCard>
+
+  <ConfirmationDialog
+    :open="confirmationDialogOpen"
+    v-bind="confirmationDialogOptions"
+    @update:open="handleConfirmationDialogOpenChange"
+    @confirm="confirmPendingAction"
+  />
 </template>

@@ -545,6 +545,11 @@ async fn build_plan(
     let wildcard = format!("*.{root}");
     let dns_records = api.list_dns_records(&zone_id, Some(&wildcard)).await?;
     let service = local_gateway_service();
+    let desired_hosts = if request.optimization_enabled {
+        optimization::configured_optimization_hosts(state, &local).await?
+    } else {
+        configured_hosts(&local)
+    };
     let mut operations = Vec::new();
     let mut conflicts = Vec::new();
     let mut optimization_remote = Vec::new();
@@ -643,7 +648,7 @@ async fn build_plan(
                         &zone_id,
                         &root,
                         &managed_instance_id(&managed),
-                        &local,
+                        &desired_hosts,
                         &ownership,
                         &custom_hostnames,
                         &mut operations,
@@ -662,7 +667,7 @@ async fn build_plan(
         "zoneName": zone_name,
         "root": root,
         "selectedTunnelId": selected_tunnel_id,
-        "desiredHosts": configured_hosts(&local),
+        "desiredHosts": desired_hosts,
         "desiredService": service,
         "tunnelConfig": tunnel_config,
         "wildcardDns": dns_records,

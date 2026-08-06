@@ -74,6 +74,7 @@ export const useCloudflareTunnelController = () => {
   const optimizationEnabled = ref(false);
   const reconcilePlan = ref<CloudflareReconcilePlan | null>(null);
   const takeoverResourceIds = ref<string[]>([]);
+  const reconcileAttentionToken = ref(0);
   const optimizationScan = ref<CloudflareOptimizationScan | null>(null);
   const selectedCandidateIp = ref("");
   const optimizationOfficialRanges = ref(true);
@@ -88,6 +89,7 @@ export const useCloudflareTunnelController = () => {
   const isApplyingOptimization = ref(false);
   const isFallingBackOptimization = ref(false);
   const isSavingOptimizationSources = ref(false);
+  const updatingOptimizationDomainHostname = ref("");
   let optimizationSourcesLoaded = false;
   let scanPollTimer: number | undefined;
   let managedStatePollTimer: number | undefined;
@@ -255,6 +257,11 @@ export const useCloudflareTunnelController = () => {
   const optimizationReadinessErrorCode = computed(
     () => optimization.value?.scanReadinessErrorCode ?? null,
   );
+  const optimizationActionRequiredDomains = computed(
+    () =>
+      optimization.value?.domains.filter((domain) => domain.actionRequired) ??
+      [],
+  );
   const reconcileHasUnconfirmedConflicts = computed(() => {
     const plan = reconcilePlan.value;
     if (!plan) return false;
@@ -401,6 +408,57 @@ export const useCloudflareTunnelController = () => {
       });
     } finally {
       isPreviewingReconcile.value = false;
+    }
+  };
+
+  const prepareOptimizationConflictResolution = async () => {
+    optimizationEnabled.value = true;
+    reconcileAttentionToken.value += 1;
+    await previewReconcile();
+  };
+
+  const setOptimizationDomainMode = async (
+    hostname: string,
+    mode: "optimize" | "external",
+  ) => {
+    if (updatingOptimizationDomainHostname.value) return;
+    updatingOptimizationDomainHostname.value = hostname;
+    try {
+      const result = await CloudflaredAPI.setOptimizationDomainMode(
+        hostname,
+        mode,
+      );
+      await loadManagedState({ silent: true });
+      if (mode === "external") {
+        if (reconcilePlan.value) await previewReconcile();
+        if (result.cleanupPending) {
+          toast.warning(
+            t(
+              "admin.cloudflareTunnel.optimization.domainActions.externalCleanupPending",
+            ),
+          );
+        } else {
+          toast.success(
+            t(
+              "admin.cloudflareTunnel.optimization.domainActions.externalSaved",
+            ),
+          );
+        }
+      } else {
+        await prepareOptimizationConflictResolution();
+      }
+    } catch (error) {
+      toast.error(
+        t("admin.cloudflareTunnel.optimization.domainActions.updateFailed"),
+        {
+          description: extractErrorMessage(
+            error,
+            t("admin.cloudflareTunnel.optimization.domainActions.updateFailed"),
+          ),
+        },
+      );
+    } finally {
+      updatingOptimizationDomainHostname.value = "";
     }
   };
 
@@ -619,7 +677,21 @@ export const useCloudflareTunnelController = () => {
         candidateIp: selectedCandidateIp.value || undefined,
       });
       await loadManagedState({ silent: true });
-      toast.success(t("admin.cloudflareTunnel.optimization.applied"));
+      const conflictCount = optimizationActionRequiredDomains.value.length;
+      if (conflictCount > 0) {
+        await prepareOptimizationConflictResolution();
+        toast.warning(
+          t("admin.cloudflareTunnel.optimization.appliedWithConflictsTitle"),
+          {
+            description: t(
+              "admin.cloudflareTunnel.optimization.appliedWithConflictsDescription",
+              { count: conflictCount },
+            ),
+          },
+        );
+      } else {
+        toast.success(t("admin.cloudflareTunnel.optimization.applied"));
+      }
     } catch (error) {
       toast.error(t("admin.cloudflareTunnel.optimization.applyFailed"), {
         description: extractErrorMessage(
@@ -823,6 +895,7 @@ export const useCloudflareTunnelController = () => {
     onClearLogsClick,
     pid,
     optimization,
+    optimizationActionRequiredDomains,
     optimizationApplied,
     optimizationEnabled,
     optimizationBuiltinIds,
@@ -834,10 +907,12 @@ export const useCloudflareTunnelController = () => {
     protocol,
     publicWildcardHostname,
     reconcileHasUnconfirmedConflicts,
+    reconcileAttentionToken,
     reconcilePlan,
     running,
     saveConfig,
     saveOptimizationSources,
+    setOptimizationDomainMode,
     showInitDialog,
     showApiToken,
     showToken,
@@ -853,6 +928,8 @@ export const useCloudflareTunnelController = () => {
     token,
     tunnelMode,
     tunnelTokenConfigured,
+    updatingOptimizationDomainHostname,
+    prepareOptimizationConflictResolution,
     previewReconcile,
     previewCleanup,
   };

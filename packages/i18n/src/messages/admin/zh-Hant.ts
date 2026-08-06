@@ -2195,8 +2195,24 @@ export const zhHantAdmin = {
         unownedCustomHostname:
           "已存在不屬於 fn-knock 的 Cloudflare for SaaS 自訂主機名稱。",
         exactDnsConflict: "不屬於 fn-knock 的精確 DNS 記錄阻止了優選。",
+        multipleExactDnsConflict:
+          "此主機名稱下存在多筆 DNS 記錄，無法安全地自動替換為 CNAME。請保留外部 DNS，或先在 Cloudflare 合併或清理記錄後再試。",
         optimizationDnsConflict:
           "已有不屬於 fn-knock 的 DNS 記錄使用優選主機名稱。",
+        multipleOptimizationDnsConflict:
+          "此優選主機名稱下存在多筆 DNS 記錄，無法安全地自動接管。請先在 Cloudflare 合併或清理記錄後再試。",
+      },
+      dnsConflict: {
+        current: "Cloudflare 目前記錄",
+        desired: "fn-knock 預計寫入",
+        proxied: "已代理",
+        dnsOnly: "僅 DNS",
+        unknownProxy: "代理狀態未知",
+        ownerKinds: {
+          "current-instance": "目前 fn-knock",
+          "other-fn-knock-instance": "其他 fn-knock 執行個體",
+          external: "外部設定",
+        },
       },
       planWarnings: {
         betaVantage: "優選是測試功能，測速結果以目前伺服器的網路位置為準。",
@@ -2339,9 +2355,14 @@ export const zhHantAdmin = {
         quota: "配額已滿",
         queued: "等待下輪對帳",
         probeFailed: "直連驗證失敗",
+        external: "保留外部 DNS",
       },
       domainMessages: {
         customHostnameOwnershipConflict: "此自訂主機名稱不屬於 fn-knock。",
+        exactDnsOwnershipConflict:
+          "現有 DNS 記錄不屬於目前 fn-knock；請選擇保留現有記錄或確認接管。",
+        validationDnsOwnershipConflict:
+          "驗證記錄 {detail} 已存在且不屬於目前 fn-knock。",
         customHostnameQuotaExhausted: "自訂主機名稱配額已用盡。",
         certificateRateLimited:
           "為遵守 Cloudflare 憑證簽發速率限制，已進入佇列。",
@@ -2356,9 +2377,25 @@ export const zhHantAdmin = {
       scanFailed: "啟動優選掃描失敗",
       cancelFailed: "取消優選掃描失敗",
       applied: "優選入口已套用",
+      appliedWithConflictsTitle: "優選已儲存，仍需處理 DNS 衝突",
+      appliedWithConflictsDescription:
+        "有 {count} 個網域需要確認接管或保留現有 DNS。已為你開啟處理區域。",
       applyFailed: "套用優選入口失敗",
       fallbackApplied: "已移除精確入口，網域恢復萬用字元 Tunnel",
       fallbackFailed: "回退至標準 Tunnel 失敗",
+      domainActions: {
+        keepExternal: "保留現有 DNS",
+        resolveConflict: "處理衝突",
+        enableOptimization: "重新啟用優選",
+        keepExternalTitle: "保留此網域的現有 DNS？",
+        keepExternalDescription:
+          "fn-knock 將停止管理 {hostname} 的優選資源，並清理其擁有的關聯資源；現有外部 DNS 記錄不會被修改。",
+        keepExternalConfirm: "確認保留",
+        externalSaved: "已保留現有 DNS，其他網域可繼續優選",
+        externalCleanupPending:
+          "已停止管理此網域；Cloudflare 遠端資源暫未清理完成，系統將自動重試。",
+        updateFailed: "更新網域處理方式失敗",
+      },
     },
     manual: {
       title: "進階：手動 Tunnel Token",

@@ -188,9 +188,13 @@ export type CloudflareOptimizationScan = {
 export type CloudflareOptimizationDomain = {
   hostname: string;
   status: string;
+  managementMode?: "optimize" | "external";
   sslStatus: string | null;
   customHostnameId: string | null;
   optimized: boolean;
+  actionRequired?: boolean;
+  cleanupPending?: boolean;
+  conflictResourceId?: string | null;
   messageCode?: string | null;
   messageDetail?: string | null;
   message: string | null;
@@ -291,6 +295,19 @@ export type CloudflareReconcileConflict = {
   detail?: string;
   message: string;
   takeoverAllowed: boolean;
+  details?: {
+    records: Array<{
+      type: string | null;
+      content: string | null;
+      proxied: boolean | null;
+      ownerKind: "current-instance" | "other-fn-knock-instance" | "external";
+    }>;
+    desired: {
+      type: string;
+      content: string;
+      proxied: boolean;
+    };
+  };
 };
 
 export type CloudflareReconcilePlan = {
@@ -521,6 +538,20 @@ export const CloudflaredAPI = {
     const res = await apiClient.put(
       "/cloudflared/optimization/settings",
       payload,
+    );
+    return res.data.data;
+  },
+  async setOptimizationDomainMode(
+    hostname: string,
+    mode: "optimize" | "external",
+  ): Promise<{
+    hostname: string;
+    mode: "optimize" | "external";
+    cleanupPending: boolean;
+  }> {
+    const res = await apiClient.put(
+      `/cloudflared/optimization/domains/${encodeURIComponent(hostname)}`,
+      { mode },
     );
     return res.data.data;
   },

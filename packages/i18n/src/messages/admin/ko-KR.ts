@@ -2339,8 +2339,24 @@ export const koKRAdmin = {
           "fn-knock 소유가 아닌 Cloudflare for SaaS 사용자 지정 호스트 이름이 이미 존재합니다.",
         exactDnsConflict:
           "fn-knock 소유가 아닌 정확한 DNS 레코드가 최적화를 막고 있습니다.",
+        multipleExactDnsConflict:
+          "이 호스트 이름에 여러 DNS 레코드가 있어 CNAME으로 안전하게 교체할 수 없습니다. 외부 DNS를 유지하거나 Cloudflare에서 레코드를 정리한 후 다시 시도하세요.",
         optimizationDnsConflict:
           "fn-knock 소유가 아닌 DNS 레코드가 이미 최적화 호스트 이름을 사용합니다.",
+        multipleOptimizationDnsConflict:
+          "이 최적화 호스트 이름에 여러 DNS 레코드가 있어 안전하게 인수할 수 없습니다. Cloudflare에서 레코드를 정리한 후 다시 시도하세요.",
+      },
+      dnsConflict: {
+        current: "현재 Cloudflare 레코드",
+        desired: "fn-knock이 기록할 레코드",
+        proxied: "프록시됨",
+        dnsOnly: "DNS 전용",
+        unknownProxy: "프록시 상태 알 수 없음",
+        ownerKinds: {
+          "current-instance": "현재 fn-knock",
+          "other-fn-knock-instance": "다른 fn-knock 인스턴스",
+          external: "외부 설정",
+        },
       },
       planWarnings: {
         betaVantage:
@@ -2489,10 +2505,15 @@ export const koKRAdmin = {
         quota: "할당량 소진",
         queued: "다음 동기화 대기",
         probeFailed: "직접 연결 검증 실패",
+        external: "외부 DNS 유지",
       },
       domainMessages: {
         customHostnameOwnershipConflict:
           "이 사용자 지정 호스트 이름은 fn-knock 소유가 아닙니다.",
+        exactDnsOwnershipConflict:
+          "기존 DNS 레코드는 현재 fn-knock 소유가 아닙니다. 유지하거나 인수를 명시적으로 확인하세요.",
+        validationDnsOwnershipConflict:
+          "검증 레코드 {detail}이(가) 이미 존재하며 현재 fn-knock 소유가 아닙니다.",
         customHostnameQuotaExhausted:
           "사용자 지정 호스트 이름 할당량이 소진되었습니다.",
         certificateRateLimited:
@@ -2509,10 +2530,28 @@ export const koKRAdmin = {
       scanFailed: "최적화 스캔 시작 실패",
       cancelFailed: "최적화 스캔 취소 실패",
       applied: "최적화 경로가 적용되었습니다.",
+      appliedWithConflictsTitle:
+        "최적화가 저장되었지만 DNS 충돌 처리가 필요합니다",
+      appliedWithConflictsDescription:
+        "{count}개 도메인에서 명시적 인수 또는 기존 DNS 유지가 필요합니다. 처리 영역을 열었습니다.",
       applyFailed: "최적화 경로 적용 실패",
       fallbackApplied:
         "정확한 경로를 제거하고 와일드카드 Tunnel로 전환했습니다.",
       fallbackFailed: "표준 Tunnel 폴백 실패",
+      domainActions: {
+        keepExternal: "기존 DNS 유지",
+        resolveConflict: "충돌 해결",
+        enableOptimization: "최적화 다시 활성화",
+        keepExternalTitle: "이 도메인의 기존 DNS를 유지하시겠습니까?",
+        keepExternalDescription:
+          "fn-knock은 {hostname}의 최적화 리소스 관리를 중단하고 소유한 관련 리소스를 정리합니다. 기존 외부 DNS 레코드는 변경하지 않습니다.",
+        keepExternalConfirm: "기존 DNS 유지",
+        externalSaved:
+          "기존 DNS를 유지했습니다. 다른 도메인은 계속 최적화할 수 있습니다",
+        externalCleanupPending:
+          "이 도메인의 관리를 중지했습니다. Cloudflare 리소스 정리가 보류 중이며 자동으로 다시 시도됩니다.",
+        updateFailed: "도메인 처리 방식을 업데이트하지 못했습니다",
+      },
     },
     manual: {
       title: "고급: 수동 Tunnel Token",

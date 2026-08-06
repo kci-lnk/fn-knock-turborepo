@@ -482,6 +482,8 @@ export const zhCNAdmin = {
     fnosBackup: "飞牛 backup",
     invalidBackupFile: "备份文件无效",
     invalidBackupFileDescription: "请选择 {extension} 备份文件",
+    backupFileTooLarge: "备份文件过大",
+    backupFileTooLargeDescription: "备份文件不能超过 {max}",
     fnosBackupSelected: "已选择飞牛备份：{name}",
     backupDownloadStarted: "备份文件已开始下载",
     backupExportedToFnos: "备份已导出到飞牛",

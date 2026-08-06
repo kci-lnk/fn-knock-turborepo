@@ -61,6 +61,10 @@ pub struct AppStateInner {
     /// Serializes automatic-backup configuration, archive creation, restores,
     /// and destructive maintenance so none of them can overwrite one another.
     pub automatic_backup_lock: Mutex<()>,
+    /// Bounds memory-heavy backup archive encoding and decoding to one job per
+    /// process. Import mutation locks are intentionally acquired only after
+    /// this short-lived archive work lock has been released.
+    pub backup_archive_work_lock: Mutex<()>,
     /// Wakes the automatic-backup scheduler after settings or stored data
     /// change, avoiding a polling delay after the feature is enabled.
     pub automatic_backup_notify: Notify,
@@ -244,6 +248,7 @@ impl AppState {
                     "failed_target_ids": []
                 })),
                 automatic_backup_lock: Mutex::new(()),
+                backup_archive_work_lock: Mutex::new(()),
                 automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
                 gateway_config_synced: AtomicBool::new(false),

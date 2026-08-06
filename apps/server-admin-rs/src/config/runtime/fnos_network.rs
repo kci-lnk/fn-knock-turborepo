@@ -6,6 +6,116 @@ pub(super) async fn load_fnos_network_tuning_status(state: &AppState) -> anyhow:
     Ok(build_fnos_network_tuning_status(state, tuning))
 }
 
+pub(super) async fn sync_fnos_network_tuning_after_import(
+    state: &AppState,
+    previous_config: &Value,
+    next_config: &Value,
+    translator: &Translator,
+) -> Result<(), String> {
+    if fnos_network_tuning_blocked_reason_code(state).is_some() {
+        return Ok(());
+    }
+    let previous = normalize_fnos_network_tuning(previous_config.get("fnos_network_tuning"));
+    let desired = normalize_fnos_network_tuning(next_config.get("fnos_network_tuning"));
+    let patch = fnos_network_tuning_import_patch(&previous, &desired);
+    let before = read_fnos_kernel_state();
+    let applied = if patch.as_object().is_some_and(serde_json::Map::is_empty) {
+        previous.clone()
+    } else {
+        build_next_fnos_network_tuning_config(&previous, &patch, &before)
+    };
+    let apply_result = if patch.as_object().is_some_and(serde_json::Map::is_empty) {
+        Ok(())
+    } else {
+        let targets =
+            apply_fnos_network_tuning_transition(&previous, &applied, &patch, &before, translator);
+        targets.and_then(|targets| {
+            let verified = read_fnos_kernel_state();
+            verify_fnos_network_tuning_state(&applied, &patch, &verified, &targets, translator)
+        })
+    };
+    if let Err(error) = apply_result {
+        return Err(rollback_fnos_network_tuning_import(
+            state, &previous, &before, translator, error,
+        )
+        .await);
+    }
+    if let Err(error) = write_fnos_network_tuning_sysctl_config(&applied) {
+        return Err(rollback_fnos_network_tuning_import(
+            state, &previous, &before, translator, error,
+        )
+        .await);
+    }
+    if let Err(error) = state
+        .store
+        .set_config_top_level_value("fnos_network_tuning", applied)
+        .await
+    {
+        return Err(rollback_fnos_network_tuning_import(
+            state,
+            &previous,
+            &before,
+            translator,
+            error.to_string(),
+        )
+        .await);
+    }
+    Ok(())
+}
+
+async fn rollback_fnos_network_tuning_import(
+    state: &AppState,
+    previous: &Value,
+    before: &Value,
+    translator: &Translator,
+    error: String,
+) -> String {
+    let runtime_rollback = restore_fnos_network_tuning_runtime(previous, before, translator)
+        .err()
+        .map(|rollback| format!("; runtime rollback failed: {rollback}"))
+        .unwrap_or_default();
+    let file_rollback = write_fnos_network_tuning_sysctl_config(previous)
+        .err()
+        .map(|rollback| format!("; config rollback failed: {rollback}"))
+        .unwrap_or_default();
+    let mut detail = format!("{error}{runtime_rollback}{file_rollback}");
+    let failed = build_fnos_network_tuning_import_failure(previous, &detail);
+    if let Err(persist_error) = state
+        .store
+        .set_config_top_level_value("fnos_network_tuning", failed)
+        .await
+    {
+        detail.push_str(&format!(
+            "; failure state persistence failed: {persist_error}"
+        ));
+    }
+    detail
+}
+
+pub(super) fn build_fnos_network_tuning_import_failure(previous: &Value, message: &str) -> Value {
+    let mut failed = previous.clone();
+    if let Some(object) = failed.as_object_mut() {
+        object.insert("last_error".to_string(), Value::String(message.to_string()));
+        object.insert(
+            "updated_at".to_string(),
+            Value::String(time_utils::now_iso()),
+        );
+    }
+    normalize_fnos_network_tuning(Some(&failed))
+}
+
+pub(super) fn fnos_network_tuning_import_patch(previous: &Value, next: &Value) -> Value {
+    let mut patch = serde_json::Map::new();
+    for key in ["bbr_enabled", "mtu_probing_enabled"] {
+        let previous_enabled = previous.get(key).and_then(Value::as_bool).unwrap_or(false);
+        let next_enabled = next.get(key).and_then(Value::as_bool).unwrap_or(false);
+        if previous_enabled != next_enabled {
+            patch.insert(key.to_string(), Value::Bool(next_enabled));
+        }
+    }
+    Value::Object(patch)
+}
+
 pub(super) async fn update_fnos_network_tuning_config(
     state: &AppState,
     patch: &Value,

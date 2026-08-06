@@ -1324,7 +1324,13 @@
         "sslDeployment": "SSL 证书部署",
         "legacyAuthLogCleanup": "废弃登录日志清理",
         "systemResourceMonitorReset": "系统资源监控状态重置",
-        "wafRuntime": "WAF 配置与运行状态"
+        "wafRuntime": "WAF 配置与运行状态",
+        "autoHttps": "自动 HTTPS 跳转",
+        "smartConnect": "智能连接",
+        "fnosPortIconHijack": "飞牛端口图标接管",
+        "locale": "语言配置",
+        "fnosNetworkTuning": "飞牛网络调优",
+        "transactionFinalize": "备份导入事务收尾"
       },
       "archiveEmpty": "备份归档内容为空",
       "archiveTooLarge": "备份归档过大，无法导入",
@@ -1340,7 +1346,8 @@
       "automaticDirectoryReadFailed": "读取自动备份目录失败",
       "automaticSettingsReadFailed": "读取自动备份设置失败",
       "automaticSettingsSaveFailed": "保存自动备份设置失败",
-      "automaticSettingsInvalidRequest": "自动备份设置请求格式无效"
+      "automaticSettingsInvalidRequest": "自动备份设置请求格式无效",
+      "exportTooLarge": "备份数据过大，无法导出"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 验证码尚未完成服务端配置",
@@ -4515,7 +4522,13 @@
         "sslDeployment": "SSL 證書部署",
         "legacyAuthLogCleanup": "廢棄登入日誌清理",
         "systemResourceMonitorReset": "系統資源監控狀態重置",
-        "wafRuntime": "WAF 配置與運行狀態"
+        "wafRuntime": "WAF 配置與運行狀態",
+        "autoHttps": "自動 HTTPS 跳轉",
+        "smartConnect": "智能連接",
+        "fnosPortIconHijack": "飛牛端口圖標接管",
+        "locale": "語言配置",
+        "fnosNetworkTuning": "飛牛網路調優",
+        "transactionFinalize": "備份匯入交易收尾"
       },
       "archiveEmpty": "備份歸檔內容為空",
       "archiveTooLarge": "備份歸檔過大，無法導入",
@@ -4531,7 +4544,8 @@
       "automaticDirectoryReadFailed": "讀取自動備份目錄失敗",
       "automaticSettingsReadFailed": "讀取自動備份設定失敗",
       "automaticSettingsSaveFailed": "儲存自動備份設定失敗",
-      "automaticSettingsInvalidRequest": "自動備份設定請求格式無效"
+      "automaticSettingsInvalidRequest": "自動備份設定請求格式無效",
+      "exportTooLarge": "備份資料過大，無法匯出"
     },
     "captcha": {
       "powServerNotConfigured": "PoW 驗證碼尚未完成服務端配置",
@@ -7706,7 +7720,13 @@
         "sslDeployment": "SSL certificate deployment",
         "legacyAuthLogCleanup": "Legacy auth log cleanup",
         "systemResourceMonitorReset": "System resource monitor state reset",
-        "wafRuntime": "WAF configuration and runtime"
+        "wafRuntime": "WAF configuration and runtime",
+        "autoHttps": "Automatic HTTPS redirect",
+        "smartConnect": "Smart Connect",
+        "fnosPortIconHijack": "FNOS port icon takeover",
+        "locale": "Language configuration",
+        "fnosNetworkTuning": "FNOS network tuning",
+        "transactionFinalize": "Backup import transaction finalization"
       },
       "archiveEmpty": "Backup archive content is empty",
       "archiveTooLarge": "Backup archive is too large to import",
@@ -7722,7 +7742,8 @@
       "automaticDirectoryReadFailed": "Failed to read the automatic backup directory",
       "automaticSettingsReadFailed": "Failed to read automatic backup settings",
       "automaticSettingsSaveFailed": "Failed to save automatic backup settings",
-      "automaticSettingsInvalidRequest": "The automatic backup settings request is invalid"
+      "automaticSettingsInvalidRequest": "The automatic backup settings request is invalid",
+      "exportTooLarge": "Backup data is too large to export"
     },
     "captcha": {
       "powServerNotConfigured": "PoW captcha is not configured on the server",
@@ -10897,7 +10918,13 @@
         "sslDeployment": "SSL 인증서 배포",
         "legacyAuthLogCleanup": "기존 인증 로그 정리",
         "systemResourceMonitorReset": "시스템 리소스 모니터 상태 재설정",
-        "wafRuntime": "WAF 설정 및 실행 상태"
+        "wafRuntime": "WAF 설정 및 실행 상태",
+        "autoHttps": "자동 HTTPS 리디렉션",
+        "smartConnect": "스마트 연결",
+        "fnosPortIconHijack": "FNOS 포트 아이콘 인계",
+        "locale": "언어 설정",
+        "fnosNetworkTuning": "FNOS 네트워크 튜닝",
+        "transactionFinalize": "백업 가져오기 트랜잭션 마무리"
       },
       "archiveEmpty": "백업 아카이브 콘텐츠가 비어 있습니다.",
       "archiveTooLarge": "백업 아카이브가 너무 커서 가져올 수 없습니다.",
@@ -10913,7 +10940,8 @@
       "automaticDirectoryReadFailed": "자동 백업 디렉터리를 읽지 못했습니다",
       "automaticSettingsReadFailed": "자동 백업 설정을 읽지 못했습니다",
       "automaticSettingsSaveFailed": "자동 백업 설정을 저장하지 못했습니다",
-      "automaticSettingsInvalidRequest": "자동 백업 설정 요청 형식이 올바르지 않습니다"
+      "automaticSettingsInvalidRequest": "자동 백업 설정 요청 형식이 올바르지 않습니다",
+      "exportTooLarge": "백업 데이터가 너무 커서 내보낼 수 없습니다."
     },
     "captcha": {
       "powServerNotConfigured": "PoW 보안 문자가 서버에 설정되어 있지 않습니다.",
@@ -14088,7 +14116,13 @@
         "sslDeployment": "SSL 証明書の展開",
         "legacyAuthLogCleanup": "従来の認証ログをクリーンアップ",
         "systemResourceMonitorReset": "システムリソース監視状態をリセット",
-        "wafRuntime": "WAF 設定と実行状態"
+        "wafRuntime": "WAF 設定と実行状態",
+        "autoHttps": "HTTPS 自動リダイレクト",
+        "smartConnect": "スマート接続",
+        "fnosPortIconHijack": "FNOS ポートアイコンの引き継ぎ",
+        "locale": "言語設定",
+        "fnosNetworkTuning": "FNOS ネットワークチューニング",
+        "transactionFinalize": "バックアップインポート処理の確定"
       },
       "archiveEmpty": "バックアップ アーカイブのコンテンツが空です",
       "archiveTooLarge": "バックアップ アーカイブが大きすぎるためインポートできません",
@@ -14104,7 +14138,8 @@
       "automaticDirectoryReadFailed": "自動バックアップディレクトリを読み込めませんでした",
       "automaticSettingsReadFailed": "自動バックアップ設定を読み込めませんでした",
       "automaticSettingsSaveFailed": "自動バックアップ設定を保存できませんでした",
-      "automaticSettingsInvalidRequest": "自動バックアップ設定のリクエスト形式が無効です"
+      "automaticSettingsInvalidRequest": "自動バックアップ設定のリクエスト形式が無効です",
+      "exportTooLarge": "バックアップデータが大きすぎるためエクスポートできません"
     },
     "captcha": {
       "powServerNotConfigured": "サーバー側で PoW CAPTCHA が設定されていません",

@@ -529,6 +529,8 @@ export const jaJPAdmin = {
     invalidBackupFile: "バックアップファイルが無効です",
     invalidBackupFileDescription:
       "{extension}形式のバックアップファイルを選択してください",
+    backupFileTooLarge: "バックアップファイルが大きすぎます",
+    backupFileTooLargeDescription: "バックアップファイルは {max} 以下にしてください",
     fnosBackupSelected: "FNOS バックアップを選択しました: {name}",
     backupDownloadStarted: "バックアップのダウンロードを開始しました",
     backupExportedToFnos: "バックアップを FNOS にエクスポートしました",

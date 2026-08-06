@@ -154,20 +154,88 @@ pub(crate) fn schedule_managed_reconcile_after_host_mappings_change(state: AppSt
 
 pub(crate) async fn clear_credentials_after_backup_restore(state: &AppState) -> Result<(), String> {
     let _guard = state.cloudflared_manage_lock.lock().await;
-    if let Ok(handle) = ensure_cloudflared_supervisor(state).await {
-        handle.stop().await?;
-    }
     let manager = manager(state);
     // Reading first performs the legacy plaintext migration and rewrites the
     // non-secret config before both encrypted credentials are removed.
-    let _ = manager.read_config()?;
-    manager.secret_store().delete(SecretKind::ApiToken)?;
-    manager.secret_store().delete(SecretKind::TunnelToken)?;
-    match tokio_fs::remove_file(&manager.runtime_token_path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.to_string()),
+    let previous_config = manager.read_config()?;
+    let secrets = manager.secret_store();
+    let previous_api_token = secrets.read(SecretKind::ApiToken)?;
+    let previous_runtime_token = match tokio_fs::read(&manager.runtime_token_path).await {
+        Ok(value) => Some(value),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.to_string()),
+    };
+    let handle = ensure_cloudflared_supervisor(state).await?;
+    let previous_snapshot = handle.snapshot();
+    let should_resume = previous_snapshot.desired_running || previous_snapshot.running;
+    if let Err(error) = handle.stop().await {
+        if should_resume && let Err(rollback_error) = handle.start().await {
+            return Err(format!("{error}; tunnel rollback failed: {rollback_error}"));
+        }
+        return Err(error);
     }
+
+    let cleanup_result = async {
+        secrets.delete(SecretKind::ApiToken)?;
+        secrets.delete(SecretKind::TunnelToken)?;
+        match tokio_fs::remove_file(&manager.runtime_token_path).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+    .await;
+    if let Err(error) = cleanup_result {
+        let rollback = restore_credentials_after_failed_backup_restore(
+            &manager,
+            previous_api_token.as_deref(),
+            &previous_config,
+            previous_runtime_token.as_deref(),
+            &handle,
+            should_resume,
+        )
+        .await;
+        return match rollback {
+            Ok(()) => Err(error),
+            Err(rollback_error) => Err(format!(
+                "{error}; credential rollback failed: {rollback_error}"
+            )),
+        };
+    }
+    Ok(())
+}
+
+async fn restore_credentials_after_failed_backup_restore(
+    manager: &CloudflaredManager,
+    api_token: Option<&str>,
+    config: &CloudflaredConfig,
+    runtime_token: Option<&[u8]>,
+    handle: &SupervisorHandle,
+    should_resume: bool,
+) -> Result<(), String> {
+    let secrets = manager.secret_store();
+    match api_token {
+        Some(token) => secrets.write(SecretKind::ApiToken, token)?,
+        None => secrets.delete(SecretKind::ApiToken)?,
+    }
+    if config.token.is_empty() {
+        secrets.delete(SecretKind::TunnelToken)?;
+    } else {
+        secrets.write(SecretKind::TunnelToken, &config.token)?;
+    }
+    manager.write_config(config)?;
+    match runtime_token {
+        Some(token) => atomic_private_write(&manager.runtime_token_path, token)?,
+        None => match fs::remove_file(&manager.runtime_token_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        },
+    }
+    if should_resume {
+        handle.start().await?;
+    }
+    Ok(())
 }
 
 async fn status(State(state): State<AppState>) -> Response {

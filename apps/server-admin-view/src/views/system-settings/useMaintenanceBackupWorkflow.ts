@@ -5,6 +5,7 @@ import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import {
   buildKnockBackupFilename,
   KNOCK_BACKUP_EXTENSION,
+  MAX_KNOCK_BACKUP_ARCHIVE_SIZE,
 } from "@admin-shared/utils/maintenanceBackup";
 import {
   extractErrorMessage,
@@ -211,6 +212,16 @@ export const useMaintenanceBackupWorkflow = () => {
         description: t(
           "admin.maintenanceSettings.invalidBackupFileDescription",
           { extension: KNOCK_BACKUP_EXTENSION },
+        ),
+      });
+      return;
+    }
+    if (file.size > MAX_KNOCK_BACKUP_ARCHIVE_SIZE) {
+      resetSelectedBackup();
+      toast.error(t("admin.maintenanceSettings.backupFileTooLarge"), {
+        description: t(
+          "admin.maintenanceSettings.backupFileTooLargeDescription",
+          { max: formatFileSize(MAX_KNOCK_BACKUP_ARCHIVE_SIZE) },
         ),
       });
       return;

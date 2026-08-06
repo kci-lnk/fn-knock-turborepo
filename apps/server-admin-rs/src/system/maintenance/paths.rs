@@ -185,6 +185,7 @@ pub(super) fn backup_app_version_supported(version: &str) -> bool {
         && crate::version_utils::compare_version(version, APP_LOCAL_VERSION) <= 0
 }
 
+#[cfg(test)]
 pub(super) fn summarize_command_failure(stdout: &[u8], stderr: &[u8]) -> Option<String> {
     let stderr = String::from_utf8_lossy(stderr);
     let stdout = String::from_utf8_lossy(stdout);

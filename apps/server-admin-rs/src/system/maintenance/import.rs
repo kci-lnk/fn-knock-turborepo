@@ -112,15 +112,27 @@ pub(super) async fn import_backup_archive_buffer(
         ));
     }
 
-    #[cfg(not(windows))]
-    ensure_archive_commands_ready().await?;
-    let payload = extract_backup_payload_from_archive(&buffer).await?;
+    let mut payload = {
+        let _archive_work_guard = state.backup_archive_work_lock.lock().await;
+        extract_backup_payload_from_archive(buffer).await?
+    };
+    let elapsed_ms = payload
+        .get("exported_at")
+        .and_then(Value::as_str)
+        .and_then(time_utils::parse_iso_ms)
+        .map(|exported_at| time_utils::now_ms().saturating_sub(exported_at).max(0))
+        // Legacy parsers accepted any non-empty exported_at string. Keep such
+        // archives importable, but fail closed by discarding expiring state.
+        .unwrap_or(i64::MAX);
     let entries = payload
-        .get("entries")
-        .and_then(Value::as_array)
-        .cloned()
+        .as_object_mut()
+        .and_then(|object| object.remove("entries"))
+        .and_then(|entries| match entries {
+            Value::Array(entries) => Some(entries),
+            _ => None,
+        })
         .unwrap_or_default();
-    let mut importable_entries = entries
+    let mut importable_entries = age_backup_entries(entries, elapsed_ms)
         .into_iter()
         .filter(|entry| {
             entry
@@ -153,34 +165,18 @@ pub(super) async fn import_backup_archive_buffer(
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
-    // Credentials belong to this installation and must be cleared before any
-    // restored runtime state can be synchronized or allowed to start.
-    if let Err(error) = cloudflared::clear_credentials_after_backup_restore(state).await {
-        let ownership_result = host_mappings_lease.ensure_owned().await;
-        let release_result = host_mappings_lease.release().await;
-        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
-        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
-        return Err(BackupImportError::internal(format!(
-            "Cloudflared credentials could not be cleared before backup restore: {error}"
-        )));
-    }
-
-    let previous_keys = state
+    let previous_snapshot_at_ms = time_utils::now_ms();
+    let previous_entries = state
         .store
-        .scan_keys(KNOCK_BACKUP_PREFIX, SCAN_COUNT)
+        .export_backup_entries_by_prefix_limited(
+            KNOCK_BACKUP_PREFIX,
+            MAX_BACKUP_ARCHIVE_SIZE,
+            should_snapshot_backup_import_key,
+        )
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    let mut previous_entries = Vec::with_capacity(previous_keys.len());
-    for key in previous_keys {
-        if let Some(entry) = state
-            .store
-            .export_backup_entry(&key)
-            .await
-            .map_err(|error| BackupImportError::internal(error.to_string()))?
-        {
-            previous_entries.push(entry);
-        }
-    }
+    let previous_config =
+        backup_config_from_entries(&previous_entries).unwrap_or_else(|| json!({}));
 
     let cleared_keys = state
         .store
@@ -189,43 +185,117 @@ pub(super) async fn import_backup_archive_buffer(
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
     if let Err(migration_error) = migrate_compiled_ipsets_after_import(state).await {
-        let rollback_result = state
-            .store
-            .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &previous_entries, SCAN_COUNT)
-            .await;
-        let runtime_restore_result = if rollback_result.is_ok() {
-            migrate_compiled_ipsets_after_import(state).await
-        } else {
-            Ok(())
-        };
+        let rollback_detail =
+            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
         let ownership_result = host_mappings_lease.ensure_owned().await;
         let release_result = host_mappings_lease.release().await;
         ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
         release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
-        let rollback_detail = rollback_result
-            .err()
-            .map(|error| format!("; storage rollback failed: {error}"))
-            .unwrap_or_default();
-        let runtime_detail = runtime_restore_result
-            .err()
-            .map(|error| format!("; runtime rollback failed: {error}"))
-            .unwrap_or_default();
         return Err(BackupImportError::internal(format!(
-            "compiled IP set migration failed: {migration_error}{rollback_detail}{runtime_detail}"
+            "compiled IP set migration failed: {migration_error}{rollback_detail}"
         )));
     }
 
-    let (warnings, synced_steps) = sync_runtime_after_import(state, translator).await;
+    if let Err(migration_error) =
+        runtime_config::migrate_and_constrain_config_after_import(state).await
+    {
+        let rollback_detail =
+            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
+        let ownership_result = host_mappings_lease.ensure_owned().await;
+        let release_result = host_mappings_lease.release().await;
+        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        return Err(BackupImportError::internal(format!(
+            "backup config migration failed: {migration_error}{rollback_detail}"
+        )));
+    }
+
+    // Credentials belong to this installation. Clear them only after every
+    // fatal storage step has succeeded, and restore storage if credential
+    // cleanup itself cannot be completed atomically.
+    if let Err(error) = cloudflared::clear_credentials_after_backup_restore(state).await {
+        let rollback_detail =
+            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
+        let ownership_result = host_mappings_lease.ensure_owned().await;
+        let release_result = host_mappings_lease.release().await;
+        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        return Err(BackupImportError::internal(format!(
+            "Cloudflared credentials could not be cleared after backup restore: {error}{rollback_detail}"
+        )));
+    }
+
+    let (mut warnings, synced_steps) =
+        sync_runtime_after_import(state, translator, &previous_config).await;
     let ownership_result = host_mappings_lease.ensure_owned().await;
     let release_result = host_mappings_lease.release().await;
-    ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
-    release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+    let transaction_label = maintenance_backup_text(translator, "syncSteps.transactionFinalize");
+    if let Err(error) = ownership_result {
+        warnings.push(format!("{transaction_label}: {error}"));
+    }
+    if let Err(error) = release_result {
+        warnings.push(format!("{transaction_label}: {error}"));
+    }
     Ok(json!({
         "cleared_keys": cleared_keys,
         "imported_keys": imported_keys,
         "warnings": warnings,
         "synced_steps": synced_steps
     }))
+}
+
+pub(super) fn backup_config_from_entries(entries: &[Value]) -> Option<Value> {
+    entries
+        .iter()
+        .find(|entry| entry.get("key").and_then(Value::as_str) == Some("fn_knock:config"))
+        .and_then(|entry| entry.get("value").and_then(Value::as_str))
+        .and_then(|value| serde_json::from_str(value).ok())
+}
+
+async fn rollback_backup_import_storage(
+    state: &AppState,
+    previous_entries: &[Value],
+    snapshot_at_ms: i64,
+) -> String {
+    let elapsed_ms = time_utils::now_ms().saturating_sub(snapshot_at_ms).max(0);
+    let previous_entries = age_backup_entries(previous_entries.to_vec(), elapsed_ms);
+    let rollback_result = state
+        .store
+        .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &previous_entries, SCAN_COUNT)
+        .await;
+    let runtime_restore_result = if rollback_result.is_ok() {
+        migrate_compiled_ipsets_after_import(state).await
+    } else {
+        Ok(())
+    };
+    let rollback_detail = rollback_result
+        .err()
+        .map(|error| format!("; storage rollback failed: {error}"))
+        .unwrap_or_default();
+    let runtime_detail = runtime_restore_result
+        .err()
+        .map(|error| format!("; runtime rollback failed: {error}"))
+        .unwrap_or_default();
+    format!("{rollback_detail}{runtime_detail}")
+}
+
+pub(super) fn age_backup_entries(entries: Vec<Value>, elapsed_ms: i64) -> Vec<Value> {
+    entries
+        .into_iter()
+        .filter_map(|entry| age_backup_entry_ttl(entry, elapsed_ms))
+        .collect()
+}
+
+pub(super) fn age_backup_entry_ttl(mut entry: Value, elapsed_ms: i64) -> Option<Value> {
+    let Some(ttl_ms) = entry.get("ttl_ms").and_then(Value::as_i64) else {
+        return Some(entry);
+    };
+    let remaining_ms = ttl_ms.saturating_sub(elapsed_ms);
+    if remaining_ms <= 0 {
+        return None;
+    }
+    entry["ttl_ms"] = json!(remaining_ms);
+    Some(entry)
 }
 
 async fn migrate_compiled_ipsets_after_import(state: &AppState) -> Result<(), String> {
@@ -248,90 +318,17 @@ async fn migrate_compiled_ipsets_after_import(state: &AppState) -> Result<(), St
     Ok(())
 }
 
-#[cfg(not(windows))]
 pub(super) async fn extract_backup_payload_from_archive(
-    buffer: &[u8],
+    buffer: Vec<u8>,
 ) -> Result<Value, BackupImportError> {
-    let temp_dir = std::env::temp_dir().join(format!("fn-knock-backup-{}", Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir)
+    tokio::task::spawn_blocking(move || parse_backup_payload_from_archive_native(&buffer))
         .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    let archive_path = temp_dir.join(format!("import{KNOCK_BACKUP_EXTENSION}"));
-    let result = async {
-        fs::write(&archive_path, buffer)
-            .await
-            .map_err(|error| BackupImportError::internal(error.to_string()))?;
-        let output = Command::new("unzip")
-            .arg("-qq")
-            .arg("-P")
-            .arg(KNOCK_BACKUP_PASSWORD)
-            .arg("-p")
-            .arg(&archive_path)
-            .arg(KNOCK_BACKUP_JSON_FILENAME)
-            .output()
-            .await
-            .map_err(|error| {
-                if error.kind() == io::ErrorKind::NotFound {
-                    BackupImportError::internal(backup_error_key_message(
-                        "commandMissing",
-                        &[("command", "unzip".to_string())],
-                    ))
-                } else {
-                    BackupImportError::internal(backup_error_key_message(
-                        "commandFailed",
-                        &[("command", "unzip".to_string())],
-                    ))
-                }
-            })?;
-        if !output.status.success() {
-            let detail = format!(
-                "{}\n{}",
-                String::from_utf8_lossy(&output.stderr),
-                String::from_utf8_lossy(&output.stdout)
-            )
-            .to_ascii_lowercase();
-            if detail.contains("filename not matched") {
-                return Err(BackupImportError::bad_request(format!(
-                    "Backup archive is missing {KNOCK_BACKUP_JSON_FILENAME}"
-                )));
-            }
-            if detail.contains("incorrect password") || detail.contains("wrong password") {
-                return Err(BackupImportError::bad_request(
-                    "Backup archive password is invalid",
-                ));
-            }
-            return Err(command_result_error(
-                StatusCode::BAD_REQUEST,
-                backup_error_key_message("readArchiveFailed", &[]),
-                &output,
-            ));
-        }
-        let raw = String::from_utf8(output.stdout)
-            .map_err(|_| BackupImportError::bad_request("Backup payload is not valid UTF-8"))?;
-        parse_backup_payload(&raw)
-    }
-    .await;
-    let _ = fs::remove_dir_all(temp_dir).await;
-    result
+        .map_err(|error| BackupImportError::internal(error.to_string()))?
 }
 
-#[cfg(windows)]
-pub(super) async fn extract_backup_payload_from_archive(
+pub(super) fn parse_backup_payload_from_archive_native(
     buffer: &[u8],
 ) -> Result<Value, BackupImportError> {
-    let buffer = buffer.to_vec();
-    tokio::task::spawn_blocking(move || {
-        let raw = read_backup_json_from_archive_native(&buffer)?;
-        parse_backup_payload(&raw)
-    })
-    .await
-    .map_err(|error| BackupImportError::internal(error.to_string()))?
-}
-
-#[cfg(any(windows, test))]
-pub(super) fn read_backup_json_from_archive_native(
-    buffer: &[u8],
-) -> Result<String, BackupImportError> {
     let mut archive = ::zip::ZipArchive::new(Cursor::new(buffer)).map_err(|_| {
         BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[]))
     })?;
@@ -351,13 +348,51 @@ pub(super) fn read_backup_json_from_archive_native(
             "Backup JSON payload is too large",
         ));
     }
+    let payload: Value =
+        serde_json::from_reader(file.take((MAX_BACKUP_ARCHIVE_SIZE + 1) as u64))
+            .map_err(|_| BackupImportError::bad_request("Backup JSON payload is invalid"))?;
+    normalize_backup_payload(payload)
+}
+
+#[cfg(test)]
+pub(super) fn read_backup_json_from_archive_native(
+    buffer: &[u8],
+) -> Result<String, BackupImportError> {
+    read_backup_json_from_archive_native_with_limit(buffer, MAX_BACKUP_ARCHIVE_SIZE)
+}
+
+#[cfg(test)]
+pub(super) fn read_backup_json_from_archive_native_with_limit(
+    buffer: &[u8],
+    limit: usize,
+) -> Result<String, BackupImportError> {
+    let mut archive = ::zip::ZipArchive::new(Cursor::new(buffer)).map_err(|_| {
+        BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[]))
+    })?;
+    let file = archive
+        .by_name_decrypt(KNOCK_BACKUP_JSON_FILENAME, KNOCK_BACKUP_PASSWORD.as_bytes())
+        .map_err(|error| match error {
+            ::zip::result::ZipError::FileNotFound => BackupImportError::bad_request(format!(
+                "Backup archive is missing {KNOCK_BACKUP_JSON_FILENAME}"
+            )),
+            ::zip::result::ZipError::InvalidPassword => {
+                BackupImportError::bad_request("Backup archive password is invalid")
+            }
+            _ => BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[])),
+        })?;
+    if file.size() > limit as u64 {
+        return Err(BackupImportError::bad_request(
+            "Backup JSON payload is too large",
+        ));
+    }
+
     let mut raw = Vec::new();
-    file.take((MAX_BACKUP_ARCHIVE_SIZE + 1) as u64)
+    file.take((limit + 1) as u64)
         .read_to_end(&mut raw)
         .map_err(|_| {
             BackupImportError::bad_request(backup_error_key_message("readArchiveFailed", &[]))
         })?;
-    if raw.len() > MAX_BACKUP_ARCHIVE_SIZE {
+    if raw.len() > limit {
         return Err(BackupImportError::bad_request(
             "Backup JSON payload is too large",
         ));
@@ -366,9 +401,14 @@ pub(super) fn read_backup_json_from_archive_native(
         .map_err(|_| BackupImportError::bad_request("Backup payload is not valid UTF-8"))
 }
 
+#[cfg(test)]
 pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError> {
     let payload: Value = serde_json::from_str(raw)
         .map_err(|_| BackupImportError::bad_request("Backup JSON payload is invalid"))?;
+    normalize_backup_payload(payload)
+}
+
+pub(super) fn normalize_backup_payload(mut payload: Value) -> Result<Value, BackupImportError> {
     let Some(object) = payload.as_object() else {
         return Err(BackupImportError::bad_request(
             "Backup payload must be an object",
@@ -395,8 +435,9 @@ pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
+        .map(str::to_string)
         .ok_or_else(|| BackupImportError::bad_request("Backup app version is missing"))?;
-    if !backup_app_version_supported(app_version) {
+    if !backup_app_version_supported(&app_version) {
         return Err(BackupImportError::bad_request(format!(
             "Backup app version {app_version} is unsupported. Supported range is {APP_BACKUP_IMPORT_MIN_VERSION} ~ {APP_LOCAL_VERSION}"
         )));
@@ -405,15 +446,20 @@ pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError
         .get("exported_at")
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
+        .map(str::to_string)
         .ok_or_else(|| BackupImportError::bad_request("Backup exported_at is missing"))?;
-    let raw_entries = object
-        .get("entries")
-        .and_then(Value::as_array)
+    let mut entries = payload
+        .as_object_mut()
+        .and_then(|object| object.remove("entries"))
+        .and_then(|entries| match entries {
+            Value::Array(entries) => Some(entries),
+            _ => None,
+        })
         .ok_or_else(|| BackupImportError::bad_request("Backup entries are missing"))?;
-    let mut entries = Vec::with_capacity(raw_entries.len());
     let mut keys = std::collections::BTreeSet::new();
-    for (index, entry) in raw_entries.iter().enumerate() {
-        let normalized = parse_backup_entry(entry, index)?;
+    for (index, entry) in entries.iter_mut().enumerate() {
+        let raw = std::mem::take(entry);
+        let normalized = parse_backup_entry(&raw, index)?;
         let key = normalized
             .get("key")
             .and_then(Value::as_str)
@@ -424,7 +470,7 @@ pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError
                 "Backup contains duplicated Redis keys",
             ));
         }
-        entries.push(normalized);
+        *entry = normalized;
     }
     Ok(json!({
         "version": APP_BACKUP_SCHEMA_VERSION,

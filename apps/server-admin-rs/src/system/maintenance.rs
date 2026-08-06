@@ -1,23 +1,14 @@
 use std::{
     future::Future,
-    io::{self, Write},
+    io::{self, Cursor, Read, Write},
     path::{Component, Path, PathBuf},
     time::SystemTime,
-};
-
-#[cfg(any(windows, test))]
-use std::io::{Cursor, Read};
-
-#[cfg(not(windows))]
-use std::{
-    process::Stdio,
-    sync::atomic::{AtomicBool, Ordering},
 };
 
 use axum::{
     Router,
     body::Body,
-    extract::{Json, State, rejection::JsonRejection},
+    extract::{DefaultBodyLimit, Json, State, rejection::JsonRejection},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -25,14 +16,13 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::DeflateEncoder};
 use serde_json::{Value, json};
-#[cfg(not(windows))]
-use tokio::process::Command;
 use tokio::{fs, io::AsyncWriteExt};
 use uuid::Uuid;
 
 use crate::{
+    admin_panel::normalize_locale_config,
     app_version::{APP_BACKUP_IMPORT_MIN_VERSION, APP_BACKUP_SCHEMA_VERSION, APP_LOCAL_VERSION},
-    cloudflared, common_auth_locations, fs_utils, gateway_settings,
+    auto_https, cloudflared, common_auth_locations, fs_utils, gateway_settings,
     i18n::Translator,
     proxy_config, response, runtime_config, scanner, ssh_security, ssl,
     state::AppState,
@@ -44,9 +34,6 @@ const KNOCK_BACKUP_PREFIX: &str = "fn_knock:";
 const KNOCK_BACKUP_EXTENSION: &str = ".knock";
 const KNOCK_BACKUP_JSON_FILENAME: &str = "fn-knock-backup.json";
 const KNOCK_BACKUP_PASSWORD: &str = "890eced0-4561-4044-8d6b-def83b5c6016";
-const OPENWRT_APK_COMMAND: &str = "apk";
-const OPENWRT_OPKG_COMMAND: &str = "opkg";
-const DEBIAN_APT_GET_PATH: &str = "/usr/bin/apt-get";
 const BACKUP_DIRECTORY_NAME: &str = "backup";
 const AUTOMATIC_BACKUP_CONFIG_KEY: &str = "fn_knock:config:backup:automatic";
 const AUTOMATIC_BACKUP_RUNTIME_KEY: &str = "fn_knock:config:backup:automatic:runtime";
@@ -61,11 +48,9 @@ const AUTOMATIC_BACKUP_RECHECK_SECONDS: u64 = 60;
 const MAX_BACKUP_DIRECTORY_SCAN_DEPTH: usize = 5;
 const MAX_BACKUP_DIRECTORY_FILES: usize = 500;
 const MAX_BACKUP_ARCHIVE_SIZE: usize = 128 * 1024 * 1024;
+const MAX_BACKUP_IMPORT_BODY_SIZE: usize = MAX_BACKUP_ARCHIVE_SIZE / 3 * 4 + 1024 * 1024;
 const SCAN_COUNT: usize = 200;
 const MAINTENANCE_BACKUP_ERROR_MARKER: &str = "__maintenance_backup_error";
-
-#[cfg(not(windows))]
-static ARCHIVE_COMMANDS_READY: AtomicBool = AtomicBool::new(false);
 
 const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:acme:job:",
@@ -73,6 +58,7 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:auth_log_data:",
     "fn_knock:auth_logs:",
     "fn_knock:auth_mobility:",
+    "fn_knock:cleanup:",
     // Per-host temporary grants are revocable runtime credentials, never
     // backup material.  Keeping this prefix excluded also prevents an
     // imported archive from resurrecting a grant issued before restore.
@@ -85,13 +71,16 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:auth:subdomain_rule_issue_slot:",
     // Sliding-window issuance counters are runtime state as well.
     "fn_knock:auth:subdomain_rule_rate:",
+    "fn_knock:auth:expired_session_cleanup:",
     "fn_knock:backoff:",
     "fn_knock:cidr:",
     "fn_knock:cloudflared:logs",
+    "fn_knock:cloudflared:managed:state:",
     "fn_knock:cloudflared:optimization:runtime",
     "fn_knock:cloudflared:runtime:v2",
     "fn_knock:common_auth_locations:runtime",
     "fn_knock:config:backup:",
+    "fn_knock:ddns:edgeone:overseas_access:",
     "fn_knock:docker_admin:login_backoff:",
     "fn_knock:docker_admin:session:",
     "fn_knock:errors:",
@@ -99,8 +88,10 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:fnos-share:session:",
     "fn_knock:fnos-share:validation:",
     "fn_knock:gateway:",
+    "fn_knock:gateway_logs:analytics:",
     "fn_knock:ip_location:",
     "fn_knock:lock:",
+    "fn_knock:ldap:invite:",
     "fn_knock:login_backoff:",
     "fn_knock:nonce:",
     "fn_knock:notifications:deliveries:",
@@ -111,8 +102,10 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:oidc:state:",
     "fn_knock:passkey:bind:",
     "fn_knock:passkey:challenge:",
+    "fn_knock:passkey:state:",
     "fn_knock:recent_auth_ips:",
     "fn_knock:reverse-proxy:",
+    "fn_knock:runtime:",
     "fn_knock:scanner:blacklist:",
     "fn_knock:scanner:suspicious:",
     "fn_knock:session:",
@@ -148,7 +141,10 @@ pub fn maintenance_routes() -> Router<AppState> {
             "/api/admin/maintenance/backup/export/fnos",
             post(export_backup_to_directory),
         )
-        .route("/api/admin/maintenance/backup/import", post(import_backup))
+        .route(
+            "/api/admin/maintenance/backup/import",
+            post(import_backup).layer(DefaultBodyLimit::max(MAX_BACKUP_IMPORT_BODY_SIZE)),
+        )
         .route(
             "/api/admin/maintenance/backup/import/automatic",
             post(import_backup_from_automatic_directory),
@@ -217,8 +213,6 @@ impl BackupImportError {
 }
 
 mod automatic;
-#[cfg(not(windows))]
-mod commands;
 mod directory;
 mod export;
 mod i18n;
@@ -229,8 +223,6 @@ mod sync;
 mod zip;
 
 use automatic::*;
-#[cfg(not(windows))]
-use commands::*;
 use directory::*;
 use export::*;
 use i18n::*;

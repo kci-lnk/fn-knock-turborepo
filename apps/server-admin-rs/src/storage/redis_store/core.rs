@@ -980,6 +980,17 @@ return 1
         }
     }
 
+    pub async fn export_backup_entries_by_prefix_limited(
+        &self,
+        prefix: &str,
+        max_serialized_bytes: usize,
+        include_key: fn(&str) -> bool,
+    ) -> crate::storage::StorageResult<Vec<Value>> {
+        self.manager
+            .export_backup_entries_by_prefix(prefix, max_serialized_bytes, include_key)
+            .await
+    }
+
     #[allow(dead_code)]
     pub async fn restore_backup_entries(
         &self,
@@ -1062,6 +1073,22 @@ return 1
             serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string()),
         )
         .await
+    }
+
+    pub async fn set_json_values_atomically(
+        &self,
+        values: &[(&str, &Value)],
+    ) -> crate::storage::StorageResult<()> {
+        let mut conn = self.conn();
+        let mut pipe = redis::pipe();
+        for (key, value) in values {
+            pipe.set(
+                *key,
+                serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string()),
+            )
+            .ignore();
+        }
+        pipe.query_async::<()>(&mut conn).await
     }
 
     pub async fn set_json_value_ex(

@@ -529,6 +529,8 @@ export const enAdmin = {
     fnosBackup: "FNOS backup",
     invalidBackupFile: "Invalid backup file",
     invalidBackupFileDescription: "Choose a {extension} backup file",
+    backupFileTooLarge: "Backup file is too large",
+    backupFileTooLargeDescription: "Backup files cannot exceed {max}",
     fnosBackupSelected: "FNOS backup selected: {name}",
     backupDownloadStarted: "Backup download started",
     backupExportedToFnos: "Backup exported to FNOS",

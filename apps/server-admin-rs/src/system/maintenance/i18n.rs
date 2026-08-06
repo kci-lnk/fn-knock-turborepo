@@ -61,6 +61,7 @@ pub(super) fn backup_error_key_message(key: &str, params: &[(&str, String)]) -> 
     .to_string()
 }
 
+#[cfg(test)]
 pub(super) fn backup_command_error_message(
     message: String,
     code: i32,
@@ -74,21 +75,6 @@ pub(super) fn backup_command_error_message(
         "detail": detail.unwrap_or_default(),
     })
     .to_string()
-}
-
-pub(super) fn command_result_error(
-    status: StatusCode,
-    message: String,
-    output: &std::process::Output,
-) -> BackupImportError {
-    BackupImportError::new(
-        status,
-        backup_command_error_message(
-            message,
-            output.status.code().unwrap_or(-1),
-            summarize_command_failure(&output.stdout, &output.stderr),
-        ),
-    )
 }
 
 pub(super) fn localize_backup_error_message(translator: &Translator, message: &str) -> String {
@@ -127,6 +113,7 @@ pub(super) fn localize_backup_error_message(translator: &Translator, message: &s
         }
         "Backup archive is empty" => maintenance_backup_text(translator, "archiveEmpty"),
         "Backup archive is too large" => maintenance_backup_text(translator, "archiveTooLarge"),
+        "Backup export is too large" => maintenance_backup_text(translator, "exportTooLarge"),
         "Backup directory import archive is too large" => {
             maintenance_backup_text(translator, "directoryImportTooLarge")
         }

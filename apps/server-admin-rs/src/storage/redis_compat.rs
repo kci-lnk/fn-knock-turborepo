@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_rusqlite::{
     Connection, OptionalExtension,
@@ -1456,6 +1457,114 @@ impl ConnectionManager {
             }
             tx.commit()?;
             Ok(outputs)
+        })
+        .await
+    }
+
+    pub(crate) async fn export_backup_entries_by_prefix(
+        &self,
+        prefix: &str,
+        max_serialized_bytes: usize,
+        include_key: fn(&str) -> bool,
+    ) -> RedisResult<Vec<Value>> {
+        let prefix = prefix.to_string();
+        self.call(move |conn| {
+            let tx = immediate_transaction(conn)?;
+            let snapshot_ms = now_ms();
+            purge_expired_all_tx(&tx)?;
+            let keys = scan_keys_tx(&tx, &prefix)?;
+            let mut entries = Vec::with_capacity(keys.len());
+            let mut serialized_bytes = 0usize;
+
+            for key in keys.into_iter().filter(|key| include_key(key)) {
+                let Some(value_type) = key_kind_tx(&tx, &key)? else {
+                    continue;
+                };
+                let expires_at_ms = tx
+                    .query_row(
+                        "SELECT expires_at_ms FROM kv_keys WHERE key = ?1",
+                        params![key],
+                        |row| row.get::<_, Option<i64>>(0),
+                    )
+                    .optional()?
+                    .flatten();
+                let ttl_ms = expires_at_ms
+                    .and_then(|expires| expires.checked_sub(snapshot_ms))
+                    .filter(|ttl| *ttl > 0)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null);
+
+                let value = match value_type.as_str() {
+                    "string" => string_get_tx(&tx, &key)?.map(Value::String),
+                    "hash" => {
+                        let mut stmt = tx.prepare(
+                            "SELECT field, value FROM kv_hash WHERE key = ?1 ORDER BY field ASC",
+                        )?;
+                        let rows = stmt.query_map(params![key], |row| {
+                            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                        })?;
+                        let mut object = serde_json::Map::new();
+                        for row in rows {
+                            let (field, value) = row?;
+                            object.insert(field, Value::String(value));
+                        }
+                        Some(Value::Object(object))
+                    }
+                    "list" => Some(json!(list_range_tx(&tx, &key, 0, -1)?)),
+                    "set" => {
+                        let mut stmt = tx.prepare("SELECT member FROM kv_set WHERE key = ?1")?;
+                        let rows = stmt.query_map(params![key], |row| row.get::<_, String>(0))?;
+                        let mut members = rows.collect::<Result<Vec<_>, _>>()?;
+                        members.sort_by(|left, right| node_locale_compare_ordering(left, right));
+                        Some(json!(members))
+                    }
+                    "zset" => {
+                        let mut stmt = tx.prepare(
+                            "SELECT member, score FROM kv_zset WHERE key = ?1 ORDER BY score ASC, member ASC",
+                        )?;
+                        let rows = stmt.query_map(params![key], |row| {
+                            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+                        })?;
+                        Some(Value::Array(
+                            rows.map(|row| {
+                                row.map(|(member, score)| json!({
+                                    "member": member,
+                                    "score": score,
+                                }))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                        ))
+                    }
+                    "stream" => Some(Value::Array(
+                        query_stream_rows(&tx, &key, None, false, None, false, usize::MAX)?
+                            .into_iter()
+                            .map(|(id, fields_json)| {
+                                stream_fields_vec(&fields_json)
+                                    .map(|fields| json!({ "id": id, "fields": fields }))
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )),
+                    _ => Some(Value::Null),
+                };
+                let Some(value) = value else {
+                    continue;
+                };
+                let entry = json!({
+                    "key": key,
+                    "type": value_type,
+                    "ttl_ms": ttl_ms,
+                    "value": value,
+                });
+                serialized_bytes =
+                    serialized_bytes.saturating_add(serde_json::to_vec(&entry)?.len());
+                if serialized_bytes > max_serialized_bytes {
+                    return Err(storage_error("Backup export is too large"));
+                }
+                entries.push(entry);
+            }
+
+            tx.commit()?;
+            Ok(entries)
         })
         .await
     }

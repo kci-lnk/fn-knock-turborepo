@@ -12,7 +12,11 @@ pub(super) fn spawn_automatic_backup_task(state: AppState) {
 pub(super) async fn automatic_backup_details(state: &AppState) -> anyhow::Result<Value> {
     let config = load_automatic_backup_config(state).await?;
     let runtime = load_automatic_backup_runtime(state).await?;
-    Ok(json!({
+    Ok(automatic_backup_details_value(state, config, runtime))
+}
+
+fn automatic_backup_details_value(state: &AppState, config: Value, runtime: Value) -> Value {
+    json!({
         "config": config,
         "status": {
             "directory_path": automatic_backup_directory(state).to_string_lossy(),
@@ -22,7 +26,7 @@ pub(super) async fn automatic_backup_details(state: &AppState) -> anyhow::Result
             "last_filename": runtime.get("last_filename").cloned().unwrap_or(Value::Null),
             "next_backup_at": runtime.get("next_backup_at").cloned().unwrap_or(Value::Null),
         }
-    }))
+    })
 }
 
 pub(super) async fn save_automatic_backup_config(
@@ -49,12 +53,6 @@ pub(super) async fn save_automatic_backup_config(
         "retention_days": body.retention_days,
         "updated_at": now,
     });
-    state
-        .store
-        .set_json_value(AUTOMATIC_BACKUP_CONFIG_KEY, &config)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-
     let mut runtime = load_automatic_backup_runtime(state)
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
@@ -88,15 +86,18 @@ pub(super) async fn save_automatic_backup_config(
             .unwrap_or_else(|| Value::String(time_utils::now_iso()))
     };
     runtime["next_backup_at"] = next_backup_at;
-    save_automatic_backup_runtime(state, &runtime)
+    state
+        .store
+        .set_json_values_atomically(&[
+            (AUTOMATIC_BACKUP_CONFIG_KEY, &config),
+            (AUTOMATIC_BACKUP_RUNTIME_KEY, &runtime),
+        ])
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
     drop(guard);
     state.automatic_backup_notify.notify_one();
 
-    automatic_backup_details(state)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))
+    Ok(automatic_backup_details_value(state, config, runtime))
 }
 
 pub(super) async fn automatic_backup_files_payload(state: &AppState) -> anyhow::Result<Value> {
@@ -389,21 +390,39 @@ pub(super) async fn run_automatic_backup_once(state: &AppState) -> anyhow::Resul
     let result = write_automatic_backup_archive(state).await;
     match result {
         Ok(data) => {
+            let mut failure_runtime = runtime.clone();
             let completed_at = time_utils::now_iso();
             let filename = data
                 .get("filename")
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string();
+            runtime["last_success_at"] = Value::String(completed_at);
+            runtime["last_error"] = Value::Null;
+            runtime["last_filename"] = Value::String(filename.clone());
+            runtime["next_backup_at"] =
+                Value::String(time_utils::iso_after_seconds(interval_hours * 3600));
+            if let Err(error) = save_automatic_backup_runtime(state, &runtime).await {
+                let uncommitted_path = automatic_backup_directory(state).join(&filename);
+                if let Err(remove_error) = fs::remove_file(&uncommitted_path).await
+                    && remove_error.kind() != io::ErrorKind::NotFound
+                {
+                    tracing::warn!(%remove_error, path = %uncommitted_path.display(), "failed to remove uncommitted automatic backup");
+                }
+                let retry_seconds = (interval_hours * 3600).min(3600);
+                failure_runtime["last_error"] = Value::String(error.to_string());
+                failure_runtime["next_backup_at"] =
+                    Value::String(time_utils::iso_after_seconds(retry_seconds));
+                if let Err(save_error) =
+                    save_automatic_backup_runtime(state, &failure_runtime).await
+                {
+                    tracing::warn!(%save_error, "failed to persist automatic backup bookkeeping failure");
+                }
+                return Err(error);
+            }
             if let Err(error) = prune_automatic_backup_directory(state, retention_days).await {
                 tracing::warn!(%error, "failed to prune expired automatic backups");
             }
-            runtime["last_success_at"] = Value::String(completed_at);
-            runtime["last_error"] = Value::Null;
-            runtime["last_filename"] = Value::String(filename);
-            runtime["next_backup_at"] =
-                Value::String(time_utils::iso_after_seconds(interval_hours * 3600));
-            save_automatic_backup_runtime(state, &runtime).await?;
             Ok(data)
         }
         Err(error) => {
@@ -422,7 +441,7 @@ async fn write_automatic_backup_archive(state: &AppState) -> anyhow::Result<Valu
     let directory = ensure_automatic_backup_directory(state).await?;
     cleanup_automatic_backup_temp_files(&directory).await?;
     let archive = export_backup_archive(state).await?;
-    let final_path = directory.join(&archive.filename);
+    let (filename, final_path) = unique_backup_destination(&directory, &archive.filename).await;
     let temp_path = directory.join(format!(
         "{AUTOMATIC_BACKUP_TEMP_PREFIX}{}.tmp",
         Uuid::new_v4()
@@ -433,10 +452,15 @@ async fn write_automatic_backup_archive(state: &AppState) -> anyhow::Result<Valu
         file.sync_all().await?;
         drop(file);
         fs::rename(&temp_path, &final_path).await?;
+        if let Err(error) = sync_backup_directory(&directory).await {
+            let _ = fs::remove_file(&final_path).await;
+            let _ = sync_backup_directory(&directory).await;
+            return Err(error.into());
+        }
         let metadata = fs::metadata(&final_path).await?;
         Ok::<Value, anyhow::Error>(json!({
-            "filename": archive.filename,
-            "relativePath": archive.filename,
+            "filename": filename,
+            "relativePath": filename,
             "filePath": final_path.to_string_lossy(),
             "size": metadata.len(),
             "exportedAt": archive.exported_at,

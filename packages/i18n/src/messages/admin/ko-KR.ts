@@ -523,6 +523,8 @@ export const koKRAdmin = {
     fnosBackup: "FNOS 백업",
     invalidBackupFile: "잘못된 백업 파일",
     invalidBackupFileDescription: "{extension} 백업 파일을 선택하세요",
+    backupFileTooLarge: "백업 파일이 너무 큽니다",
+    backupFileTooLargeDescription: "백업 파일은 {max} 이하여야 합니다",
     fnosBackupSelected: "선택한 FNOS 백업: {name}",
     backupDownloadStarted: "백업 다운로드가 시작되었습니다.",
     backupExportedToFnos: "FNOS로 백업을 내보냈습니다.",

@@ -3,6 +3,7 @@ use super::*;
 pub(super) async fn sync_runtime_after_import(
     state: &AppState,
     translator: &Translator,
+    previous_config: &Value,
 ) -> (Vec<String>, Vec<String>) {
     let mut warnings = Vec::new();
     let mut synced_steps = Vec::new();
@@ -91,6 +92,78 @@ pub(super) async fn sync_runtime_after_import(
         Ok(()) => synced_steps.push(ssl_label),
         Err(error) => warnings.push(format!("{ssl_label}: {error}")),
     }
+
+    let auto_https_label = maintenance_backup_text(translator, "syncSteps.autoHttps");
+    let auto_https_config = auto_https::normalize_auto_https_config(config.get("auto_https"));
+    let auto_https_runtime = state
+        .auto_https
+        .apply_config(
+            auto_https_config
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        )
+        .await;
+    if auto_https_runtime.get("status").and_then(Value::as_str) == Some("error") {
+        warnings.push(format!(
+            "{}: {}",
+            auto_https_label,
+            auto_https_runtime
+                .get("last_error")
+                .and_then(Value::as_str)
+                .unwrap_or("runtime apply failed")
+        ));
+    } else {
+        synced_steps.push(auto_https_label);
+    }
+
+    let smart_connect_label = maintenance_backup_text(translator, "syncSteps.smartConnect");
+    match runtime_config::sync_smart_connect_after_import(state, &config).await {
+        Ok(()) => synced_steps.push(smart_connect_label),
+        Err(error) => warnings.push(format!("{smart_connect_label}: {error}")),
+    }
+
+    let fnos_icon_label = maintenance_backup_text(translator, "syncSteps.fnosPortIconHijack");
+    match runtime_config::sync_fnos_port_icon_hijack_after_import(state, &config).await {
+        Ok(()) => synced_steps.push(fnos_icon_label),
+        Err(error) => warnings.push(format!("{fnos_icon_label}: {error}")),
+    }
+
+    let fnos_network_label = maintenance_backup_text(translator, "syncSteps.fnosNetworkTuning");
+    match runtime_config::sync_fnos_network_tuning_after_import(
+        state,
+        previous_config,
+        &config,
+        translator,
+    )
+    .await
+    {
+        Ok(()) => synced_steps.push(fnos_network_label),
+        Err(error) => warnings.push(format!("{fnos_network_label}: {error}")),
+    }
+
+    let locale_label = maintenance_backup_text(translator, "syncSteps.locale");
+    let locale = normalize_locale_config(config.get("locale").unwrap_or(&Value::Null));
+    match state.go_backend.set_locale_config(&locale).await {
+        Ok((status, value))
+            if status == reqwest::StatusCode::NOT_FOUND
+                || (status.is_success()
+                    && value.get("success").and_then(Value::as_bool) != Some(false)) =>
+        {
+            synced_steps.push(locale_label);
+        }
+        Ok((status, value)) => warnings.push(format!(
+            "{}: {}",
+            locale_label,
+            value
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or(status.as_str())
+        )),
+        Err(error) => warnings.push(format!("{locale_label}: {error}")),
+    }
+
+    state.fnos_connect_waf_notify.notify_one();
 
     let cleanup_label = maintenance_backup_text(translator, "syncSteps.legacyAuthLogCleanup");
     match crate::cleanup_legacy_auth_log_storage(state).await {

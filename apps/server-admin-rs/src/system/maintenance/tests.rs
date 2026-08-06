@@ -128,6 +128,14 @@ fn filters_backup_keys_like_node() {
         "fn_knock:frpc:v2:instance:main:runtime",
         "fn_knock:frpc:v2:instance:main:logs",
         "fn_knock:frpc:v2:instance:main:logs:seq",
+        "fn_knock:ldap:invite:temporary",
+        "fn_knock:passkey:state:challenge",
+        "fn_knock:runtime:session:management",
+        "fn_knock:cleanup:legacy-auth-logs:v1:lock",
+        "fn_knock:auth:expired_session_cleanup:abc",
+        "fn_knock:cloudflared:managed:state:v1",
+        "fn_knock:ddns:edgeone:overseas_access:edgeone",
+        "fn_knock:future:operation:lease",
     ] {
         assert!(
             !should_export_backup_key(key),
@@ -140,6 +148,40 @@ fn filters_backup_keys_like_node() {
     assert!(should_export_backup_key(
         "fn_knock:frpc:v2:instance:main:config"
     ));
+}
+
+#[test]
+fn rejects_exports_that_cannot_be_imported_again() {
+    assert!(ensure_backup_export_size(MAX_BACKUP_ARCHIVE_SIZE).is_ok());
+    assert!(ensure_backup_export_size(MAX_BACKUP_ARCHIVE_SIZE + 1).is_err());
+}
+
+#[tokio::test]
+async fn excluded_runtime_data_does_not_consume_the_export_budget() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_string_value("fn_knock:events:large", &"x".repeat(4096))
+        .await
+        .unwrap();
+    state
+        .store
+        .set_string_value("fn_knock:config:test", "small")
+        .await
+        .unwrap();
+
+    let entries = state
+        .store
+        .export_backup_entries_by_prefix_limited(
+            KNOCK_BACKUP_PREFIX,
+            1024,
+            should_export_backup_key,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["key"], json!("fn_knock:config:test"));
 }
 
 #[test]
@@ -158,6 +200,24 @@ fn builds_node_compatible_backup_filename() {
     assert_eq!(
         build_backup_filename("2026-07-05T01:02:03.456Z"),
         "fn-knock-backup-2026-07-05T01-02-03-456Z.knock"
+    );
+}
+
+#[tokio::test]
+async fn backup_destination_never_overwrites_an_existing_archive() {
+    let directory = tempfile::tempdir().unwrap();
+    let requested = "fn-knock-backup-2026-07-05T01-02-03-456Z.knock";
+    std::fs::write(directory.path().join(requested), b"existing").unwrap();
+
+    let (filename, destination) = unique_backup_destination(directory.path(), requested).await;
+
+    assert_ne!(filename, requested);
+    assert_eq!(destination.parent(), Some(directory.path()));
+    assert!(filename.ends_with(KNOCK_BACKUP_EXTENSION));
+    assert!(!destination.exists());
+    assert_eq!(
+        std::fs::read(directory.path().join(requested)).unwrap(),
+        b"existing"
     );
 }
 
@@ -185,6 +245,89 @@ fn writes_encrypted_zip_headers() {
             .unwrap()
             .as_bytes(),
         payload
+    );
+}
+
+#[test]
+fn parses_backup_json_directly_from_the_encrypted_archive_stream() {
+    let payload = json!({
+        "version": APP_BACKUP_SCHEMA_VERSION,
+        "app_version": APP_LOCAL_VERSION,
+        "prefix": KNOCK_BACKUP_PREFIX,
+        "exported_at": "2026-07-05T01:02:03.456Z",
+        "entries": [{
+            "key": "fn_knock:config:test",
+            "type": "string",
+            "ttl_ms": null,
+            "value": "ok"
+        }]
+    });
+    let zip = create_password_protected_zip(
+        KNOCK_BACKUP_JSON_FILENAME,
+        payload.to_string().as_bytes(),
+        KNOCK_BACKUP_PASSWORD,
+        1_704_067_200_000,
+    )
+    .unwrap();
+
+    let parsed = parse_backup_payload_from_archive_native(&zip).unwrap();
+
+    assert_eq!(parsed["entry_count"], json!(1));
+    assert_eq!(parsed["entries"][0]["value"], json!("ok"));
+}
+
+#[test]
+fn rejects_zip_payloads_larger_than_the_decompressed_limit() {
+    let payload = vec![b'a'; 2048];
+    let zip = create_password_protected_zip(
+        KNOCK_BACKUP_JSON_FILENAME,
+        &payload,
+        KNOCK_BACKUP_PASSWORD,
+        1_704_067_200_000,
+    )
+    .unwrap();
+    let error = read_backup_json_from_archive_native_with_limit(&zip, 1024).unwrap_err();
+    assert_eq!(error.status, StatusCode::BAD_REQUEST);
+    assert_eq!(error.message, "Backup JSON payload is too large");
+}
+
+#[test]
+fn ages_ttls_and_drops_entries_that_expired_after_export() {
+    let persistent = json!({"key":"fn_knock:persistent","ttl_ms":null});
+    assert_eq!(
+        age_backup_entry_ttl(persistent.clone(), 10_000),
+        Some(persistent)
+    );
+    assert_eq!(
+        age_backup_entry_ttl(json!({"key":"fn_knock:live","ttl_ms":15_000}), 10_000).unwrap()["ttl_ms"],
+        json!(5_000)
+    );
+    assert!(
+        age_backup_entry_ttl(json!({"key":"fn_knock:expired","ttl_ms":10_000}), 10_000).is_none()
+    );
+    assert!(
+        age_backup_entry_ttl(json!({"key":"fn_knock:legacy","ttl_ms":10_000}), i64::MAX).is_none()
+    );
+}
+
+#[test]
+fn reads_the_pre_import_config_from_the_atomic_snapshot() {
+    let entries = vec![json!({
+        "key": "fn_knock:config",
+        "type": "string",
+        "ttl_ms": null,
+        "value": "{\"fnos_network_tuning\":{\"bbr_enabled\":true}}"
+    })];
+    assert_eq!(
+        backup_config_from_entries(&entries).unwrap()["fnos_network_tuning"]["bbr_enabled"],
+        json!(true)
+    );
+    assert!(
+        backup_config_from_entries(&[json!({
+            "key": "fn_knock:config",
+            "value": "not-json"
+        })])
+        .is_none()
     );
 }
 
@@ -391,6 +534,10 @@ fn localizes_backup_error_messages() {
     assert_eq!(
         localize_backup_error_message(&translator, "Backup directory import archive is too large"),
         "备份文件过大，无法从飞牛目录导入"
+    );
+    assert_eq!(
+        localize_backup_error_message(&translator, "Backup export is too large"),
+        "备份数据过大，无法导出"
     );
     assert_eq!(
         localize_backup_error_message(
@@ -681,6 +828,30 @@ async fn automatic_backup_config_rejects_non_integer_json_with_bad_request() {
 }
 
 #[tokio::test]
+async fn local_backup_import_accepts_json_bodies_above_axums_default_limit() {
+    let (_directory, state) = maintenance_test_state().await;
+    let response = maintenance_routes()
+        .with_state(state)
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/admin/maintenance/backup/import")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "filename": "large.knock",
+                        "archive_base64": "A".repeat(3 * 1024 * 1024),
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn automatic_backup_pruning_only_removes_expired_knock_files() {
     let (_directory, state) = maintenance_test_state().await;
     let directory = automatic_backup_directory(&state);
@@ -900,5 +1071,9 @@ fn localizes_runtime_sync_step_labels() {
     assert_eq!(
         maintenance_backup_text(&en, "syncSteps.runModeGatewayRoutes"),
         "Run mode and gateway routes"
+    );
+    assert_eq!(
+        maintenance_backup_text(&zh, "syncSteps.fnosNetworkTuning"),
+        "飞牛网络调优"
     );
 }

@@ -1730,12 +1730,19 @@ export const jaJPServer = {
       gatewayLogging: "ログ設定のリクエスト",
       wafRuntime: "WAF 設定と実行状態",
       sslDeployment: "SSL 証明書の展開",
+      autoHttps: "HTTPS 自動リダイレクト",
+      smartConnect: "スマート接続",
+      fnosPortIconHijack: "FNOS ポートアイコンの引き継ぎ",
+      fnosNetworkTuning: "FNOS ネットワークチューニング",
+      transactionFinalize: "バックアップインポート処理の確定",
+      locale: "言語設定",
       legacyAuthLogCleanup: "従来の認証ログをクリーンアップ",
       systemResourceMonitorReset: "システムリソース監視状態をリセット",
     },
     archiveEmpty: "バックアップ アーカイブのコンテンツが空です",
     archiveTooLarge:
       "バックアップ アーカイブが大きすぎるためインポートできません",
+    exportTooLarge: "バックアップデータが大きすぎるためエクスポートできません",
     directoryImportFileNotFound:
       "インポートするバックアップ ファイルが見つかりません",
     directoryImportFileUnreadable:

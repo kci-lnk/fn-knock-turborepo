@@ -261,3 +261,55 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
 
     start_fnos_connect_waf_reconciler(state);
 }
+
+pub(crate) async fn migrate_and_constrain_config_after_import(
+    state: &AppState,
+) -> Result<Value, String> {
+    let mut config = state
+        .store
+        .get_config()
+        .await
+        .map_err(|error| error.to_string())?;
+    apply_boot_config_migrations(state, &mut config)
+        .await
+        .map_err(|error| error.to_string())?;
+    apply_runtime_constraints_on_boot(state, &mut config)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(config)
+}
+
+pub(crate) async fn sync_smart_connect_after_import(
+    state: &AppState,
+    config: &Value,
+) -> Result<(), String> {
+    sync_smart_connect_on_boot(state, config).await
+}
+
+pub(crate) async fn sync_fnos_port_icon_hijack_after_import(
+    state: &AppState,
+    config: &Value,
+) -> Result<(), String> {
+    let value = normalize_fnos_port_icon_hijack(config.get("fnos_port_icon_hijack"));
+    state
+        .go_backend
+        .set_fnos_port_icon_hijack_config(&value)
+        .await
+        .map_err(|error| error.to_string())
+        .and_then(|value| ensure_go_success(value).map_err(|error| error.to_string()))
+}
+
+pub(crate) async fn sync_fnos_network_tuning_after_import(
+    state: &AppState,
+    previous_config: &Value,
+    next_config: &Value,
+    translator: &Translator,
+) -> Result<(), String> {
+    fnos_network::sync_fnos_network_tuning_after_import(
+        state,
+        previous_config,
+        next_config,
+        translator,
+    )
+    .await
+}

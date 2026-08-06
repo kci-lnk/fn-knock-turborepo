@@ -1129,6 +1129,21 @@ fn fnos_network_tuning_success_clears_previous_last_error_like_node() {
 }
 
 #[test]
+fn fnos_network_tuning_import_failure_restores_local_desired_state() {
+    let previous = normalize_fnos_network_tuning(Some(&json!({
+        "bbr_enabled": false,
+        "mtu_probing_enabled": true,
+        "last_error": null
+    })));
+    let failed = build_fnos_network_tuning_import_failure(&previous, "apply failed");
+
+    assert_eq!(failed["bbr_enabled"], json!(false));
+    assert_eq!(failed["mtu_probing_enabled"], json!(true));
+    assert_eq!(failed["last_error"], json!("apply failed"));
+    assert!(failed["updated_at"].as_str().is_some());
+}
+
+#[test]
 fn fnos_network_tuning_mtu_active_semantics_match_node() {
     assert!(fnos_mtu_probing_active(Some("1")));
     assert!(!fnos_mtu_probing_active(Some("0")));
@@ -1181,6 +1196,23 @@ fn fnos_network_tuning_patch_rejects_empty_payload() {
             .expect_err("empty patch should fail"),
         "请至少修改一个飞牛 FPK 网络优化选项"
     );
+}
+
+#[test]
+fn fnos_network_tuning_import_only_applies_changed_switches() {
+    let previous = json!({
+        "bbr_enabled": true,
+        "mtu_probing_enabled": false,
+    });
+    let next = json!({
+        "bbr_enabled": true,
+        "mtu_probing_enabled": true,
+    });
+    assert_eq!(
+        fnos_network_tuning_import_patch(&previous, &next),
+        json!({ "mtu_probing_enabled": true })
+    );
+    assert_eq!(fnos_network_tuning_import_patch(&next, &next), json!({}));
 }
 
 #[test]

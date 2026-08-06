@@ -2382,6 +2382,7 @@ export const zhHantAdmin = {
         certificateRateLimited:
           "為遵守 Cloudflare 憑證簽發速率限制，已進入佇列。",
         customHostnameQuotaUnavailable: "自訂主機名稱配額不可用：{detail}",
+        preferredEdgeProbeFailed: "優選入口驗證失敗：{detail}",
       },
       switchReasons: {
         manualSpeedTest: "測速完成後手動選擇",

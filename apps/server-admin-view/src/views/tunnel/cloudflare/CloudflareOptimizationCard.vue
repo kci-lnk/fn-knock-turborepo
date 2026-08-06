@@ -135,6 +135,8 @@ const domainMessageKeys: Record<string, string> = {
     "admin.cloudflareTunnel.optimization.domainMessages.exactDnsOwnershipConflict",
   validationDnsOwnershipConflict:
     "admin.cloudflareTunnel.optimization.domainMessages.validationDnsOwnershipConflict",
+  preferredEdgeProbeFailed:
+    "admin.cloudflareTunnel.optimization.domainMessages.preferredEdgeProbeFailed",
 };
 const cloudflareSaasRequiredErrorCode = "cloudflare-saas-required";
 const cloudflareSaasValidationPendingErrorCode =
@@ -186,16 +188,18 @@ const domainStatusLabel = (status: string) => {
     : status;
 };
 const domainMessageLabel = (domain: CloudflareOptimizationDomain) => {
-  if (!domain.message) return "";
-  let code = domain.messageCode || legacyDomainMessageCodes[domain.message];
+  if (!domain.message && !domain.messageCode) return "";
+  let code =
+    domain.messageCode ||
+    (domain.message ? legacyDomainMessageCodes[domain.message] : undefined);
   let detail = domain.messageDetail || "";
   const quotaUnavailablePrefix = "Custom Hostname quota is unavailable: ";
-  if (!code && domain.message.startsWith(quotaUnavailablePrefix)) {
+  if (!code && domain.message?.startsWith(quotaUnavailablePrefix)) {
     code = "customHostnameQuotaUnavailable";
     detail = domain.message.slice(quotaUnavailablePrefix.length);
   }
   const key = code ? domainMessageKeys[code] : undefined;
-  return key ? t(key, { detail }) : domain.message;
+  return key ? t(key, { detail }) : domain.message || detail;
 };
 const switchReasonLabel = (reason: string) => {
   const key = switchReasonKeys[reason];

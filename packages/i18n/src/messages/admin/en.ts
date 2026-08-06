@@ -2552,6 +2552,8 @@ export const enAdmin = {
           "Queued to respect Cloudflare certificate issuance rate limits.",
         customHostnameQuotaUnavailable:
           "The Custom Hostname quota is unavailable: {detail}",
+        preferredEdgeProbeFailed:
+          "Preferred edge validation failed: {detail}",
       },
       switchReasons: {
         manualSpeedTest: "Selected manually after a completed speed test",

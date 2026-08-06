@@ -207,6 +207,8 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(api, /reasonCode\?: string/u);
     assert.match(api, /scanReady: boolean/u);
     assert.match(api, /scanReadinessErrorCode: string \| null/u);
+    assert.match(api, /hostnameStatus: string \| null/u);
+    assert.match(api, /\| "probe-failed"/u);
 
     const backend = readSource(
       "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
@@ -231,6 +233,11 @@ describe("managed Cloudflare Tunnel", () => {
       backend,
       /scan_due && scan_validation_hostname\(&ownership\)\.is_none\(\)/u,
     );
+    assert.match(backend, /custom_hostname_can_validate_candidates/u);
+    assert.match(backend, /refresh_tracked_custom_hostname_statuses/u);
+    assert.match(backend, /capability_probe_failure_state/u);
+    assert.match(backend, /"hostnameStatus"/u);
+    assert.match(backend, /preferredEdgeProbeFailed/u);
 
     const messages = readSource(
       "../../../packages/i18n/src/messages/admin/zh-CN.ts",
@@ -249,6 +256,7 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(messages, /这不是证书签发等待/u);
     assert.match(messages, /保留现有有效证书并无损恢复/u);
     assert.match(messages, /优选验证尚未就绪/u);
+    assert.match(messages, /优选入口验证失败/u);
 
     const maintenance = readSource(
       "../../server-admin-rs/src/system/maintenance/routes.rs",

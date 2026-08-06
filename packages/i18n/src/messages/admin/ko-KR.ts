@@ -2535,6 +2535,7 @@ export const koKRAdmin = {
           "Cloudflare 인증서 발급 속도 제한을 준수하기 위해 대기 중입니다.",
         customHostnameQuotaUnavailable:
           "사용자 지정 호스트 이름 할당량을 사용할 수 없습니다: {detail}",
+        preferredEdgeProbeFailed: "선호 엣지 검증에 실패했습니다: {detail}",
       },
       switchReasons: {
         manualSpeedTest: "속도 테스트 완료 후 수동 선택",

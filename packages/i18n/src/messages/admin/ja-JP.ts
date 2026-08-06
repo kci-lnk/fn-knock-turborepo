@@ -2549,6 +2549,8 @@ export const jaJPAdmin = {
           "Cloudflare の証明書発行レート制限に従って待機しています。",
         customHostnameQuotaUnavailable:
           "カスタムホスト名の割り当てを利用できません：{detail}",
+        preferredEdgeProbeFailed:
+          "優先エッジの検証に失敗しました：{detail}",
       },
       switchReasons: {
         manualSpeedTest: "速度テスト完了後に手動選択",

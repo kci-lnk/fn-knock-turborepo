@@ -1024,6 +1024,10 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
                 } else {
                     current.and_then(|value| value.get("status")).cloned().unwrap_or_else(|| json!("fallback"))
                 },
+                "hostnameStatus": current
+                    .and_then(custom_hostname_activation_status)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
                 "sslStatus": current.and_then(|value| value.get("sslStatus")).cloned().unwrap_or(Value::Null),
                 "customHostnameId": current.and_then(|value| value.get("id")).cloned().unwrap_or(Value::Null),
                 "optimized": !external && current.is_some_and(exact_route_is_optimized),
@@ -1776,6 +1780,12 @@ pub(super) async fn reconcile_resources(
         reconcile_optimization_host_membership(state, api, zone_id, ownership, &local, &suffix)
             .await?;
     if !should_publish_exact_routes(ownership, force_publish) {
+        // A manual or health fallback suppresses exact business-hostname DNS
+        // publication, not reconciliation of the Cloudflare Custom Hostname
+        // control plane. Keep activation and certificate state fresh so a
+        // completed validation can make the next recovery scan available.
+        refresh_tracked_custom_hostname_statuses(state, api, zone_id, ownership, &origin_hostname)
+            .await?;
         return Ok(());
     }
     let remote_custom = api.list_custom_hostnames(zone_id, None).await?;
@@ -1984,6 +1994,7 @@ pub(super) async fn reconcile_resources(
         let object = ensure_object(&mut host_state);
         object.insert("id".to_string(), json!(custom_id));
         object.insert("status".to_string(), json!(status));
+        object.insert("hostnameStatus".to_string(), json!(status));
         object.insert("sslStatus".to_string(), json!(ssl_status));
         object.insert("hostname".to_string(), json!(host));
         object.insert(
@@ -2078,17 +2089,14 @@ pub(super) async fn reconcile_resources(
             .await
             {
                 Ok(record) => {
-                    ensure_object(&mut host_state).insert(
-                        "exactDnsId".to_string(),
-                        record.get("id").cloned().unwrap_or(Value::Null),
-                    );
-                    ensure_object(&mut host_state).insert(
-                        "exactDnsTarget".to_string(),
-                        json!(if exact_route_was_optimized {
+                    set_exact_dns_route(
+                        &mut host_state,
+                        &record,
+                        if exact_route_was_optimized {
                             "edge"
                         } else {
                             "origin"
-                        }),
+                        },
                     );
                     set_host_state(ownership, &host, host_state.clone());
                     save_managed_state(state, ownership).await?;
@@ -2122,6 +2130,7 @@ pub(super) async fn reconcile_resources(
         if !activation_conflict {
             ensure_object(&mut host_state).insert("status".to_string(), json!(status));
         }
+        ensure_object(&mut host_state).insert("hostnameStatus".to_string(), json!(status));
         ensure_object(&mut host_state).insert("sslStatus".to_string(), json!(ssl_status));
         if !activation_conflict && status == "active" && ssl_status == "active" {
             if let Some(ip) = selected_ip {
@@ -2147,12 +2156,7 @@ pub(super) async fn reconcile_resources(
                         .await
                         {
                             Ok(record) => {
-                                ensure_object(&mut host_state).insert(
-                                    "exactDnsId".to_string(),
-                                    record.get("id").cloned().unwrap_or(Value::Null),
-                                );
-                                ensure_object(&mut host_state)
-                                    .insert("exactDnsTarget".to_string(), json!("edge"));
+                                set_exact_dns_route(&mut host_state, &record, "edge");
                                 ensure_object(&mut host_state)
                                     .insert("status".to_string(), json!("optimized"));
                                 ensure_object(&mut host_state).insert(
@@ -2182,12 +2186,54 @@ pub(super) async fn reconcile_resources(
                         }
                     }
                     Err(error) => {
-                        ensure_object(&mut host_state)
-                            .insert("status".to_string(), json!("probe-failed"));
-                        ensure_object(&mut host_state).insert("message".to_string(), json!(error));
-                        if force_publish {
-                            ensure_nested_object(ownership, &["optimization"])
-                                .insert("fallbackActive".to_string(), json!(true));
+                        let mut fallback_conflict = false;
+                        if exact_route_is_optimized(&host_state) {
+                            let exact_id = host_state.get("exactDnsId").and_then(Value::as_str);
+                            match upsert_managed_dns(
+                                api,
+                                ManagedDnsRequest {
+                                    zone_id,
+                                    name: &host,
+                                    record_type: "CNAME",
+                                    content: &origin_hostname,
+                                    proxied: false,
+                                    owned_id: exact_id,
+                                    takeover: recovered_lineage
+                                        || takeover.is_some_and(|items| {
+                                            items.contains(&format!("optimization:dns:{host}"))
+                                        }),
+                                    instance_id: &suffix,
+                                },
+                            )
+                            .await
+                            {
+                                Ok(record) => {
+                                    set_exact_dns_route(&mut host_state, &record, "origin");
+                                }
+                                Err(fallback_error)
+                                    if fallback_error.status == Some(StatusCode::CONFLICT) =>
+                                {
+                                    fallback_conflict = true;
+                                    let object = ensure_object(&mut host_state);
+                                    object.insert("status".to_string(), json!("conflict"));
+                                    object.insert(
+                                        "messageCode".to_string(),
+                                        json!("exactDnsOwnershipConflict"),
+                                    );
+                                    object.insert(
+                                        "conflictResourceId".to_string(),
+                                        json!(format!("optimization:dns:{host}")),
+                                    );
+                                    object.insert(
+                                        "message".to_string(),
+                                        json!(fallback_error.to_string()),
+                                    );
+                                }
+                                Err(fallback_error) => return Err(fallback_error),
+                            }
+                        }
+                        if !fallback_conflict {
+                            record_preferred_edge_probe_failure(&mut host_state, &error);
                         }
                     }
                 }
@@ -2209,6 +2255,122 @@ pub(super) async fn reconcile_resources(
     save_managed_state(state, ownership).await
 }
 
+fn set_exact_dns_route(host_state: &mut Value, record: &Value, target: &str) {
+    let object = ensure_object(host_state);
+    object.insert(
+        "exactDnsId".to_string(),
+        record.get("id").cloned().unwrap_or(Value::Null),
+    );
+    object.insert("exactDnsTarget".to_string(), json!(target));
+}
+
+fn record_preferred_edge_probe_failure(state: &mut Value, error: &str) {
+    let object = ensure_object(state);
+    object.insert("status".to_string(), json!("probe-failed"));
+    object.insert("messageCode".to_string(), json!("preferredEdgeProbeFailed"));
+    object.insert("messageDetail".to_string(), json!(error));
+    object.insert("message".to_string(), json!(error));
+    object.insert(
+        "lastProbeFailedAt".to_string(),
+        json!(time_utils::now_iso()),
+    );
+}
+
+async fn refresh_tracked_custom_hostname_statuses(
+    state: &AppState,
+    api: &CloudflareApi,
+    zone_id: &str,
+    ownership: &mut Value,
+    default_origin: &str,
+) -> Result<(), CloudflareApiError> {
+    let tracked = ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|items| items.iter())
+        .filter_map(|(hostname, host_state)| {
+            host_state
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())
+                .map(|id| (hostname.clone(), id.to_string(), host_state.clone()))
+        })
+        .collect::<Vec<_>>();
+    if tracked.is_empty() {
+        return Ok(());
+    }
+    let remote_custom = api.list_custom_hostnames(zone_id, None).await?;
+    let mut changed = false;
+    for (hostname, custom_id, mut host_state) in tracked {
+        match remote_custom
+            .iter()
+            .find(|remote| remote.get("id").and_then(Value::as_str) == Some(custom_id.as_str()))
+        {
+            Some(remote)
+                if managed_custom_hostname_matches(
+                    remote,
+                    &hostname,
+                    &host_state,
+                    Some(default_origin),
+                ) =>
+            {
+                changed |= update_custom_hostname_activation(&mut host_state, remote);
+            }
+            Some(remote) => {
+                changed |= update_custom_hostname_activation(&mut host_state, remote);
+                let conflict_changed = host_state.get("status").and_then(Value::as_str)
+                    != Some("conflict")
+                    || host_state.get("messageCode").and_then(Value::as_str)
+                        != Some("customHostnameOwnershipConflict")
+                    || host_state.get("message").and_then(Value::as_str)
+                        != Some("Custom Hostname is not owned by fn-knock");
+                let object = ensure_object(&mut host_state);
+                object.insert("status".to_string(), json!("conflict"));
+                object.insert(
+                    "messageCode".to_string(),
+                    json!("customHostnameOwnershipConflict"),
+                );
+                object.insert(
+                    "message".to_string(),
+                    json!("Custom Hostname is not owned by fn-knock"),
+                );
+                changed |= conflict_changed;
+            }
+            None => {
+                let object = ensure_object(&mut host_state);
+                changed |= object.get("hostnameStatus").and_then(Value::as_str) != Some("deleted")
+                    || object
+                        .get("sslStatus")
+                        .is_some_and(|value| !value.is_null());
+                object.insert("hostnameStatus".to_string(), json!("deleted"));
+                object.insert("sslStatus".to_string(), Value::Null);
+            }
+        }
+        set_host_state(ownership, &hostname, host_state);
+    }
+    if changed {
+        save_managed_state(state, ownership).await?;
+    }
+    Ok(())
+}
+
+fn update_custom_hostname_activation(host_state: &mut Value, remote: &Value) -> bool {
+    let hostname_status = remote
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("pending");
+    let ssl_status = remote
+        .pointer("/ssl/status")
+        .and_then(Value::as_str)
+        .unwrap_or("pending");
+    let changed = host_state.get("hostnameStatus").and_then(Value::as_str) != Some(hostname_status)
+        || host_state.get("sslStatus").and_then(Value::as_str) != Some(ssl_status);
+    let object = ensure_object(host_state);
+    object.insert("hostnameStatus".to_string(), json!(hostname_status));
+    object.insert("sslStatus".to_string(), json!(ssl_status));
+    changed
+}
+
 fn active_probe_hostname(ownership: &Value) -> Option<String> {
     active_probe_hostnames(ownership).into_iter().next()
 }
@@ -2219,12 +2381,8 @@ fn active_probe_hostnames(ownership: &Value) -> Vec<String> {
         .and_then(Value::as_object)
         .into_iter()
         .flat_map(|items| items.iter())
-        .filter_map(|(hostname, state)| {
-            let status = state.get("status").and_then(Value::as_str);
-            let ssl_status = state.get("sslStatus").and_then(Value::as_str);
-            (matches!(status, Some("active" | "optimized")) && ssl_status == Some("active"))
-                .then(|| hostname.clone())
-        })
+        .filter(|(_, state)| custom_hostname_can_validate_candidates(state))
+        .map(|(hostname, _)| hostname.clone())
         .collect()
 }
 
@@ -2413,7 +2571,23 @@ async fn ensure_capability_probe(
         save_managed_state(state, ownership).await?;
     }
     if existing_status.as_deref() == Some("unsupported") {
-        return Ok(CapabilityProbeResult::Unsupported);
+        let definitive = ownership
+            .pointer("/optimization/capabilityProbe")
+            .is_some_and(capability_probe_is_definitively_unsupported);
+        if definitive {
+            return Ok(CapabilityProbeResult::Unsupported);
+        }
+        // Older releases classified any candidate route failure as a product
+        // capability failure and persisted `unsupported` without a reason
+        // code. That state is safe to retry; definitive entitlement failures
+        // always carry a reasonCode and remain disabled.
+        if let Some(optimization) = ownership
+            .pointer_mut("/optimization")
+            .and_then(Value::as_object_mut)
+        {
+            optimization.remove("capabilityProbe");
+        }
+        save_managed_state(state, ownership).await?;
     }
     let zone_id = managed.get("zoneId").and_then(Value::as_str).unwrap_or("");
     let root = managed_root_domain(managed);
@@ -2614,11 +2788,32 @@ async fn ensure_capability_probe(
             Ok(CapabilityProbeResult::Ready)
         }
         Err(error) => {
-            cleanup_capability_probe(api, zone_id, &probe_state).await?;
-            disable_unsupported_optimization(state, managed, ownership, &error, None).await?;
-            Ok(CapabilityProbeResult::Unsupported)
+            // The Custom Hostname and certificate are already active here.
+            // A failed request to one candidate IP is a route-level result,
+            // not evidence that Cloudflare for SaaS is unsupported. Retain the
+            // isolated hostname so the user can retry this scan or apply a
+            // different candidate without reprovisioning the capability probe.
+            let failed_probe = capability_probe_failure_state(&probe_state, &error);
+            ensure_nested_object(ownership, &["optimization"])
+                .insert("capabilityProbe".to_string(), failed_probe);
+            save_managed_state(state, ownership).await?;
+            Err(local_error(format!(
+                "Preferred edge candidate failed capability validation: {error}"
+            )))
         }
     }
+}
+
+fn capability_probe_failure_state(probe_state: &Value, error: &str) -> Value {
+    let mut failed = probe_state.clone();
+    record_preferred_edge_probe_failure(&mut failed, error);
+    failed
+}
+
+fn capability_probe_is_definitively_unsupported(probe: &Value) -> bool {
+    probe.get("status").and_then(Value::as_str) == Some("unsupported")
+        && probe.get("reasonCode").and_then(Value::as_str)
+            == Some(CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE)
 }
 
 async fn create_capability_hostname(
@@ -2735,6 +2930,11 @@ pub(super) async fn fallback_to_wildcard(
             .await?;
         }
         let mut next = value;
+        if next.get("hostnameStatus").is_none()
+            && let Some(status) = custom_hostname_activation_status(&next).map(str::to_string)
+        {
+            ensure_object(&mut next).insert("hostnameStatus".to_string(), json!(status));
+        }
         ensure_object(&mut next).remove("exactDnsId");
         ensure_object(&mut next).remove("exactDnsTarget");
         ensure_object(&mut next).insert("status".to_string(), json!("fallback"));
@@ -4009,14 +4209,44 @@ fn scan_validation_hostname(ownership: &Value) -> Option<String> {
 }
 
 fn scan_business_hostname_is_ready(state: &Value) -> bool {
+    custom_hostname_can_validate_candidates(state)
+}
+
+fn custom_hostname_activation_status(state: &Value) -> Option<&str> {
     state
-        .get("exactDnsId")
+        .get("hostnameStatus")
         .and_then(Value::as_str)
-        .is_some_and(|id| !id.is_empty())
-        && matches!(
-            state.get("status").and_then(Value::as_str),
-            Some("ready" | "active" | "optimized")
-        )
+        .or_else(|| {
+            let legacy_status = state.get("status").and_then(Value::as_str)?;
+            // Older persisted states overloaded `status` with local routing
+            // outcomes and therefore lost the last remote hostname status.
+            // Recover it for those route states without a data migration;
+            // readiness still requires a tracked hostname ID and active SSL.
+            Some(
+                if matches!(
+                    legacy_status,
+                    "ready" | "optimized" | "probe-failed" | "fallback"
+                ) {
+                    "active"
+                } else {
+                    legacy_status
+                },
+            )
+        })
+}
+
+fn custom_hostname_can_validate_candidates(state: &Value) -> bool {
+    // Candidate probes override DNS resolution and connect straight to the
+    // supplied edge IP. Exact DNS is deliberately not a prerequisite here:
+    // fallback removes that record, but the active hostname and certificate
+    // remain valid for TLS/SNI validation and must allow a recovery scan.
+    let management_status = state.get("status").and_then(Value::as_str);
+    management_status != Some("conflict")
+        && state
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+        && custom_hostname_activation_status(state) == Some("active")
         && state.get("sslStatus").and_then(Value::as_str) == Some("active")
 }
 
@@ -4268,13 +4498,8 @@ async fn probe_custom_hostname_details(
         body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
     }
     let body = String::from_utf8_lossy(&body).to_ascii_lowercase();
-    if body.contains("error 1000")
-        || body.contains("dns points to prohibited ip")
-        || body.contains("error 1016")
-        || matches!(status.as_u16(), 520..=527 | 530)
-        || (body.contains("cloudflare") && body.contains("error code"))
-    {
-        return Err("Cloudflare rejected the preferred edge route".to_string());
+    if let Some(error) = cloudflare_route_rejection_message(status.as_u16(), &body) {
+        return Err(error);
     }
     if cf_ray.is_none() {
         return Err(format!(
@@ -4286,6 +4511,31 @@ async fn probe_custom_hostname_details(
         colo: cf_ray.as_deref().and_then(cf_ray_colo),
         cf_ray,
     })
+}
+
+fn cloudflare_route_rejection_message(status: u16, body: &str) -> Option<String> {
+    if body.contains("error 1000")
+        || body.contains("error code: 1000")
+        || body.contains("error code 1000")
+        || body.contains("dns points to prohibited ip")
+    {
+        return Some("Cloudflare Error 1000: DNS points to a prohibited Cloudflare IP".to_string());
+    }
+    if body.contains("error 1016")
+        || body.contains("error code: 1016")
+        || body.contains("error code 1016")
+    {
+        return Some("Cloudflare Error 1016: origin DNS resolution failed".to_string());
+    }
+    if matches!(status, 520..=527 | 530) {
+        return Some(format!("Cloudflare edge returned HTTP {status}"));
+    }
+    if body.contains("cloudflare") && body.contains("error code") {
+        return Some(format!(
+            "Cloudflare returned an edge error page (HTTP {status})"
+        ));
+    }
+    None
 }
 
 fn cf_ray_colo(value: &str) -> Option<String> {
@@ -5548,6 +5798,7 @@ mod tests {
             "optimization": {
                 "customHostnames": {
                     "ready.example.com": {
+                        "id": "custom-ready",
                         "status": "ready",
                         "sslStatus": "active",
                         "exactDnsId": "dns-ready",
@@ -5631,6 +5882,177 @@ mod tests {
             optimization_scan_error_code(&scan_validation_hostname_error(&partially_reconciled)),
             Some(CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE)
         );
+
+        let failed_route_with_active_hostname = json!({
+            "optimization": {
+                "customHostnames": {
+                    "retry.example.com": {
+                        "id": "custom-retry",
+                        "status": "probe-failed",
+                        "hostnameStatus": "active",
+                        "sslStatus": "active",
+                        "message": "Cloudflare edge returned HTTP 530",
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&failed_route_with_active_hostname).as_deref(),
+            Some("retry.example.com")
+        );
+        assert_eq!(
+            active_probe_hostnames(&failed_route_with_active_hostname),
+            vec!["retry.example.com"]
+        );
+
+        let legacy_fallback_without_exact_dns = json!({
+            "optimization": {
+                "customHostnames": {
+                    "fallback.example.com": {
+                        "id": "custom-fallback",
+                        "status": "fallback",
+                        "sslStatus": "active",
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&legacy_fallback_without_exact_dns).as_deref(),
+            Some("fallback.example.com")
+        );
+
+        let conflict_with_active_hostname = json!({
+            "optimization": {
+                "customHostnames": {
+                    "conflict.example.com": {
+                        "id": "custom-conflict",
+                        "status": "conflict",
+                        "hostnameStatus": "active",
+                        "sslStatus": "active",
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            scan_validation_hostname(&conflict_with_active_hostname),
+            None
+        );
+        assert!(active_probe_hostnames(&conflict_with_active_hostname).is_empty());
+    }
+
+    #[test]
+    fn cloudflare_route_rejections_preserve_the_actionable_cause() {
+        assert_eq!(
+            cloudflare_route_rejection_message(
+                403,
+                "cloudflare error 1000: dns points to prohibited ip"
+            )
+            .as_deref(),
+            Some("Cloudflare Error 1000: DNS points to a prohibited Cloudflare IP")
+        );
+        assert_eq!(
+            cloudflare_route_rejection_message(530, "error 1016").as_deref(),
+            Some("Cloudflare Error 1016: origin DNS resolution failed")
+        );
+        assert_eq!(
+            cloudflare_route_rejection_message(522, "gateway unavailable").as_deref(),
+            Some("Cloudflare edge returned HTTP 522")
+        );
+        assert_eq!(cloudflare_route_rejection_message(200, "ok"), None);
+    }
+
+    #[test]
+    fn control_plane_refresh_does_not_republish_a_suppressed_route() {
+        let mut host_state = json!({
+            "id": "custom-fallback",
+            "status": "fallback",
+            "hostnameStatus": "pending",
+            "sslStatus": "pending_validation",
+        });
+        let changed = update_custom_hostname_activation(
+            &mut host_state,
+            &json!({
+                "status": "active",
+                "ssl": { "status": "active" },
+            }),
+        );
+
+        assert!(changed);
+        assert_eq!(
+            host_state.get("status").and_then(Value::as_str),
+            Some("fallback")
+        );
+        assert_eq!(
+            host_state.get("hostnameStatus").and_then(Value::as_str),
+            Some("active")
+        );
+        assert_eq!(
+            host_state.get("sslStatus").and_then(Value::as_str),
+            Some("active")
+        );
+        assert!(host_state.get("exactDnsId").is_none());
+        assert!(custom_hostname_can_validate_candidates(&host_state));
+    }
+
+    #[test]
+    fn capability_route_failure_remains_retryable() {
+        let failed = capability_probe_failure_state(
+            &json!({
+                "id": "capability-id",
+                "hostname": "probe.example.com",
+                "status": "pending",
+                "hostnameStatus": "active",
+                "sslStatus": "active",
+                "activationDns": { "id": "activation-id" },
+            }),
+            "Cloudflare edge returned HTTP 530",
+        );
+
+        assert_eq!(
+            failed.get("status").and_then(Value::as_str),
+            Some("probe-failed")
+        );
+        assert_eq!(
+            failed.get("messageCode").and_then(Value::as_str),
+            Some("preferredEdgeProbeFailed")
+        );
+        assert!(failed.get("reasonCode").is_none());
+        assert!(capability_probe_hostname_is_ready(&failed));
+        assert!(!capability_probe_is_definitively_unsupported(&json!({
+            "status": "unsupported",
+            "message": "Cloudflare edge returned HTTP 530",
+        })));
+        assert!(capability_probe_is_definitively_unsupported(&json!({
+            "status": "unsupported",
+            "reasonCode": CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE,
+        })));
+    }
+
+    #[test]
+    fn failed_edge_route_state_is_safe_for_origin_fallback_and_rescan() {
+        let mut host_state = json!({
+            "id": "custom-id",
+            "status": "optimized",
+            "hostnameStatus": "active",
+            "sslStatus": "active",
+            "exactDnsId": "edge-record",
+            "exactDnsTarget": "edge",
+        });
+        assert!(exact_route_is_optimized(&host_state));
+
+        set_exact_dns_route(&mut host_state, &json!({ "id": "origin-record" }), "origin");
+        record_preferred_edge_probe_failure(&mut host_state, "Cloudflare edge returned HTTP 522");
+
+        assert!(!exact_route_is_optimized(&host_state));
+        assert_eq!(
+            host_state.get("exactDnsTarget").and_then(Value::as_str),
+            Some("origin")
+        );
+        assert_eq!(
+            host_state.get("status").and_then(Value::as_str),
+            Some("probe-failed")
+        );
+        assert!(custom_hostname_can_validate_candidates(&host_state));
     }
 
     #[test]

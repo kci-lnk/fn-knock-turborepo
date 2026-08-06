@@ -188,6 +188,7 @@ export type CloudflareOptimizationScan = {
 export type CloudflareOptimizationDomain = {
   hostname: string;
   status: string;
+  hostnameStatus: string | null;
   managementMode?: "optimize" | "external";
   sslStatus: string | null;
   customHostnameId: string | null;
@@ -241,13 +242,20 @@ export type CloudflareManagedState = {
       updatedAt?: string;
     } | null;
     capabilityProbe: {
-      status: "pending" | "awaiting-candidate" | "compatible" | "unsupported";
+      status:
+        | "pending"
+        | "awaiting-candidate"
+        | "probe-failed"
+        | "compatible"
+        | "unsupported";
       hostname?: string;
       hostnameStatus?: string;
       sslStatus?: string;
       testedIp?: string;
       testedAt?: string;
       reasonCode?: string;
+      messageCode?: string;
+      messageDetail?: string;
       message?: string;
     } | null;
     scanReady: boolean;

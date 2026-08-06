@@ -2372,6 +2372,7 @@ export const zhCNAdmin = {
         certificateRateLimited:
           "为遵守 Cloudflare 证书签发速率限制，已进入队列。",
         customHostnameQuotaUnavailable: "自定义主机名配额不可用：{detail}",
+        preferredEdgeProbeFailed: "优选入口验证失败：{detail}",
       },
       switchReasons: {
         manualSpeedTest: "测速完成后手动选择",

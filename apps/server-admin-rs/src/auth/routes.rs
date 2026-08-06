@@ -60,7 +60,7 @@ use verify::*;
 mod tests;
 
 const TURNSTILE_VERIFY_URL: &str = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const POW_MAX_NUMBER: u32 = 100_000;
+const POW_MAX_NUMBER: u32 = runtime_config::POW_DEFAULT_BASE_MAX_NUMBER as u32;
 const REAUTH_ACCESS_DENIED_HEADER: &str = "X-Reauth-Access-Denied";
 const REAUTH_SCOPE_DENIED: &str = "scope";
 const REAUTH_SUBDOMAIN_ACCESS_HEADER: &str = "X-Reauth-Subdomain-Access";

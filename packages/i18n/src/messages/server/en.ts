@@ -380,6 +380,12 @@ export const enServer = {
     captcha: {
       turnstileKeysRequired:
         "When Cloudflare Turnstile is enabled, both site_key and secret_key are required",
+      powDifficultyInvalid:
+        "PoW difficulty must be from 10,000 to 1,000,000 in steps of 10,000",
+      powEnabledBooleanRequired:
+        "The uncommon-location difficulty switch must be a boolean",
+      powUncommonDifficultyTooLow:
+        "Uncommon-location difficulty cannot be lower than base difficulty",
     },
     ipLocation: {
       ipLookupUrlLabel: "IP lookup database URL",

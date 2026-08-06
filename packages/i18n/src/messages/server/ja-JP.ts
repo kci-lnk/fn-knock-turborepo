@@ -394,6 +394,12 @@ export const jaJPServer = {
     captcha: {
       turnstileKeysRequired:
         "Cloudflare Turnstile を有効にするには site_key と secret_key の両方が必要です",
+      powDifficultyInvalid:
+        "PoW 難易度は 10000〜1000000 の範囲で 10000 単位である必要があります",
+      powEnabledBooleanRequired:
+        "通常と異なる場所の難易度スイッチは真偽値である必要があります",
+      powUncommonDifficultyTooLow:
+        "通常と異なる場所の難易度は基本難易度未満にできません",
     },
     ipLocation: {
       ipLookupUrlLabel: "IP 位置情報データベースの URL",

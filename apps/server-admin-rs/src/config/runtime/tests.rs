@@ -542,10 +542,180 @@ fn normalizes_captcha_settings() {
         json!({
             "provider": "turnstile",
             "widget_mode": "normal",
-            "pow": {},
+            "pow": {
+                "base_max_number": 100000,
+                "uncommon_location": { "enabled": false, "max_number": 300000 }
+            },
             "turnstile": { "site_key": "site", "secret_key": "secret" }
         })
     );
+}
+
+#[test]
+fn normalizes_pow_difficulty_and_repairs_legacy_values() {
+    assert_eq!(
+        normalize_captcha_settings(Some(&json!({
+            "provider": "pow",
+            "pow": {
+                "base_max_number": 250000,
+                "uncommon_location": { "enabled": true, "max_number": 200000 }
+            }
+        }))),
+        json!({
+            "provider": "pow",
+            "widget_mode": "normal",
+            "pow": {
+                "base_max_number": 250000,
+                "uncommon_location": { "enabled": true, "max_number": 300000 }
+            },
+            "turnstile": { "site_key": "", "secret_key": "" }
+        })
+    );
+
+    let normalized = normalize_captcha_settings(Some(&json!({
+        "pow": {
+            "base_max_number": 9999,
+            "uncommon_location": { "enabled": "yes", "max_number": 1000001 }
+        }
+    })));
+    assert_eq!(normalized["pow"]["base_max_number"], 100000);
+    assert_eq!(normalized["pow"]["uncommon_location"]["enabled"], false);
+    assert_eq!(normalized["pow"]["uncommon_location"]["max_number"], 300000);
+
+    let valid_custom = normalize_captcha_settings(Some(&json!({
+        "pow": {
+            "base_max_number": 100000,
+            "uncommon_location": { "max_number": 200000 }
+        }
+    })));
+    assert_eq!(
+        valid_custom["pow"]["uncommon_location"]["max_number"],
+        200000
+    );
+
+    let invalid_steps = normalize_captcha_settings(Some(&json!({
+        "pow": {
+            "base_max_number": 15000,
+            "uncommon_location": { "max_number": 305000 }
+        }
+    })));
+    assert_eq!(invalid_steps["pow"]["base_max_number"], 100000);
+    assert_eq!(
+        invalid_steps["pow"]["uncommon_location"]["max_number"],
+        300000
+    );
+}
+
+#[test]
+fn validates_pow_difficulty_patch() {
+    let current = normalize_captcha_settings(None);
+    assert!(validate_pow_captcha_patch(&current, &json!({})).is_ok());
+    assert!(
+        validate_pow_captcha_patch(
+            &current,
+            &json!({"pow": {"base_max_number": 10000, "uncommon_location": {"max_number": 1000000}}})
+        )
+        .is_ok()
+    );
+    assert!(
+        validate_pow_captcha_patch(
+            &current,
+            &json!({"pow": {"base_max_number": 200000, "uncommon_location": {"enabled": true, "max_number": 400000}}})
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        validate_pow_captcha_patch(&current, &json!({"pow": {"base_max_number": 400000}})),
+        Err("captcha.powUncommonDifficultyTooLow")
+    );
+    assert_eq!(
+        validate_pow_captcha_patch(&current, &json!({"pow": {"base_max_number": 10000.5}})),
+        Err("captcha.powDifficultyInvalid")
+    );
+    assert_eq!(
+        validate_pow_captcha_patch(&current, &json!({"pow": {"base_max_number": 15000}})),
+        Err("captcha.powDifficultyInvalid")
+    );
+    assert_eq!(
+        validate_pow_captcha_patch(&current, &json!({"pow": {"uncommon_location": []}})),
+        Err("captcha.powDifficultyInvalid")
+    );
+}
+
+#[tokio::test]
+async fn captcha_updates_deep_merge_provider_subconfigs() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    state
+        .store
+        .set_json_value(
+            CAPTCHA_SETTINGS_KEY,
+            &json!({
+                "provider": "turnstile",
+                "pow": {
+                    "base_max_number": 100000,
+                    "uncommon_location": { "enabled": false, "max_number": 300000 }
+                },
+                "turnstile": { "site_key": "site", "secret_key": "secret" }
+            }),
+        )
+        .await
+        .expect("seed captcha settings");
+
+    let updated = update_captcha_settings(
+        &state,
+        &json!({
+            "provider": "pow",
+            "pow": { "uncommon_location": { "enabled": true } }
+        }),
+    )
+    .await
+    .expect("update nested PoW config");
+    assert_eq!(updated["pow"]["base_max_number"], 100000);
+    assert_eq!(updated["pow"]["uncommon_location"]["enabled"], true);
+    assert_eq!(updated["pow"]["uncommon_location"]["max_number"], 300000);
+    assert_eq!(updated["turnstile"]["site_key"], "site");
+    assert_eq!(updated["turnstile"]["secret_key"], "secret");
+
+    let updated =
+        update_captcha_settings(&state, &json!({ "turnstile": { "site_key": "new-site" } }))
+            .await
+            .expect("update nested Turnstile config");
+    assert_eq!(updated["turnstile"]["site_key"], "new-site");
+    assert_eq!(updated["turnstile"]["secret_key"], "secret");
+    assert_eq!(updated["pow"]["uncommon_location"]["enabled"], true);
+}
+
+#[tokio::test]
+async fn captcha_update_waits_for_the_shared_transaction_lock() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let guard = state.captcha_settings_update_lock.lock().await;
+    let task_state = state.clone();
+    let mut task = tokio::spawn(async move {
+        update_captcha(
+            State(task_state),
+            Json(json!({
+                "provider": "pow",
+                "pow": {
+                    "base_max_number": 100000,
+                    "uncommon_location": { "enabled": false, "max_number": 300000 }
+                }
+            })),
+        )
+        .await
+    });
+
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), &mut task)
+            .await
+            .is_err(),
+        "captcha update must wait while the shared transaction lock is held"
+    );
+    drop(guard);
+    let response = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+        .await
+        .expect("captcha update should finish after releasing the lock")
+        .expect("captcha update task");
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[test]

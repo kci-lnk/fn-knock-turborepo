@@ -63,6 +63,13 @@ struct LocationGroup {
     samples: Vec<ResolvedSample>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommonAuthLocationClassification {
+    Common,
+    Uncommon,
+    Unknown,
+}
+
 pub fn start_common_auth_location_tasks(state: AppState) {
     tokio::spawn(async move {
         tokio::select! {
@@ -197,10 +204,91 @@ pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> an
         .is_some_and(|policy| policy.contains(ip)))
 }
 
+pub async fn classify_auth_location(
+    state: &AppState,
+    ip: &str,
+) -> CommonAuthLocationClassification {
+    let normalized = normalize_ip(ip);
+    if normalized.is_empty() || is_private_or_local_ip(&normalized) {
+        return CommonAuthLocationClassification::Unknown;
+    }
+
+    let cached = match state.store.get_ip_location_cache(&normalized).await {
+        Ok(Some(cached)) => cached,
+        Ok(None) => {
+            if let Err(error) = ensure_ip_locations_enqueued(state, vec![normalized.clone()]).await
+            {
+                tracing::debug!(%error, %normalized, "failed to enqueue auth location classification lookup");
+            }
+            return CommonAuthLocationClassification::Unknown;
+        }
+        Err(error) => {
+            tracing::debug!(%error, %normalized, "failed to load IP location for classification");
+            return CommonAuthLocationClassification::Unknown;
+        }
+    };
+
+    let runtime = match state.store.get_string_value(RUNTIME_KEY).await {
+        Ok(Some(raw)) => match serde_json::from_str::<Value>(&raw) {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                tracing::debug!(%error, %normalized, "failed to parse common auth locations for classification");
+                return CommonAuthLocationClassification::Unknown;
+            }
+        },
+        Ok(None) => Value::Null,
+        Err(error) => {
+            tracing::debug!(%error, %normalized, "failed to load common auth locations for classification");
+            return CommonAuthLocationClassification::Unknown;
+        }
+    };
+    classify_resolved_auth_location(&runtime, &cached)
+}
+
+fn classify_resolved_auth_location(
+    runtime: &Value,
+    location: &Value,
+) -> CommonAuthLocationClassification {
+    let keys = common_location_keys(runtime);
+    if keys.is_empty() {
+        return CommonAuthLocationClassification::Unknown;
+    }
+    let Some(key) = location_key(location) else {
+        return CommonAuthLocationClassification::Unknown;
+    };
+    if keys.contains(&key) {
+        CommonAuthLocationClassification::Common
+    } else {
+        CommonAuthLocationClassification::Uncommon
+    }
+}
+
+fn common_location_keys(runtime: &Value) -> BTreeSet<String> {
+    if runtime.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return BTreeSet::new();
+    }
+    runtime
+        .get("locations")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|location| location.get("confidence").and_then(Value::as_str) != Some("low"))
+        .filter_map(|location| {
+            location
+                .get("key")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|key| !key.is_empty())
+                .map(ToString::to_string)
+                .or_else(|| location_key(location))
+        })
+        .collect()
+}
+
 pub async fn rebuild_common_auth_locations_runtime_state(
     state: &AppState,
 ) -> anyhow::Result<Value> {
-    if !common_auth_location_exemptions_enabled(state).await? {
+    if !common_auth_location_consumers_enabled(state).await? {
         return sync_disabled_common_auth_locations_runtime(state).await;
     }
 
@@ -325,26 +413,46 @@ pub async fn rebuild_common_auth_locations_runtime_state(
     Ok(runtime)
 }
 
-async fn common_auth_location_exemptions_enabled(state: &AppState) -> anyhow::Result<bool> {
+async fn common_auth_location_consumers_enabled(state: &AppState) -> anyhow::Result<bool> {
     let config = state.store.get_config().await?;
+    if existing_common_location_consumer_enabled(&config, None) {
+        return Ok(true);
+    }
+    let scanner_settings = state.store.scanner_settings_raw().await?;
+    if existing_common_location_consumer_enabled(&Value::Null, scanner_settings.as_ref()) {
+        return Ok(true);
+    }
+    let captcha = crate::runtime_config::load_captcha_settings(state).await?;
+    Ok(pow_common_location_consumer_enabled(&captcha))
+}
+
+fn existing_common_location_consumer_enabled(
+    config: &Value,
+    scanner_settings: Option<&Value>,
+) -> bool {
     let waf = config.get("waf").unwrap_or(&Value::Null);
     let waf_enabled = waf.get("enabled").and_then(Value::as_bool) == Some(true)
         && waf
             .get("common_location_exempt_enabled")
             .and_then(Value::as_bool)
             == Some(true);
-    let scanner_settings = state.store.scanner_settings_raw().await?;
     let scanner_enabled = scanner_settings
-        .as_ref()
         .and_then(|value| value.get("enabled"))
         .and_then(Value::as_bool)
         == Some(true)
         && scanner_settings
-            .as_ref()
             .and_then(|value| value.get("commonLocationExemptEnabled"))
             .and_then(Value::as_bool)
             == Some(true);
-    Ok(waf_enabled || scanner_enabled)
+    waf_enabled || scanner_enabled
+}
+
+fn pow_common_location_consumer_enabled(captcha: &Value) -> bool {
+    captcha.get("provider").and_then(Value::as_str) == Some("pow")
+        && captcha
+            .pointer("/pow/uncommon_location/enabled")
+            .and_then(Value::as_bool)
+            == Some(true)
 }
 
 async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow::Result<Value> {
@@ -382,7 +490,7 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
     Ok(runtime)
 }
 
-fn schedule_common_auth_locations_rebuild(state: AppState, reason: &'static str) {
+pub fn schedule_common_auth_locations_rebuild(state: AppState, reason: &'static str) {
     schedule_common_auth_locations_rebuild_after(
         state,
         reason,
@@ -868,6 +976,95 @@ mod tests {
         assert_eq!(samples.len(), 1);
         assert!(pending_ips.is_empty());
         assert!(scored_location_groups(samples, 2_000, 5).is_empty());
+    }
+
+    #[test]
+    fn classifies_resolved_locations_with_an_explicit_unknown_state() {
+        let runtime = json!({
+            "enabled": true,
+            "locations": [
+                { "key": "中国|广东|深圳" },
+                { "country": "United States", "province": "California", "city": "San Francisco" }
+            ]
+        });
+        assert_eq!(
+            classify_resolved_auth_location(
+                &runtime,
+                &json!({ "country": "中国", "province": "广东", "city": "深圳" })
+            ),
+            CommonAuthLocationClassification::Common
+        );
+        assert_eq!(
+            classify_resolved_auth_location(
+                &runtime,
+                &json!({ "country": "日本", "province": "东京", "city": "东京" })
+            ),
+            CommonAuthLocationClassification::Uncommon
+        );
+        assert_eq!(
+            classify_resolved_auth_location(&runtime, &json!({ "isp": "unknown" })),
+            CommonAuthLocationClassification::Unknown
+        );
+        assert_eq!(
+            classify_resolved_auth_location(
+                &json!({ "enabled": true, "locations": [] }),
+                &json!({ "country": "中国", "province": "广东", "city": "深圳" })
+            ),
+            CommonAuthLocationClassification::Unknown
+        );
+        assert_eq!(
+            classify_resolved_auth_location(
+                &json!({
+                    "enabled": false,
+                    "locations": [{ "key": "中国|广东|深圳" }]
+                }),
+                &json!({ "country": "中国", "province": "广东", "city": "深圳" })
+            ),
+            CommonAuthLocationClassification::Unknown
+        );
+        assert_eq!(
+            classify_resolved_auth_location(
+                &json!({
+                    "enabled": true,
+                    "locations": [
+                        { "key": "中国|广东|深圳", "confidence": "low" },
+                        { "key": "日本|东京|东京", "confidence": "medium" }
+                    ]
+                }),
+                &json!({ "country": "中国", "province": "广东", "city": "深圳" })
+            ),
+            CommonAuthLocationClassification::Uncommon
+        );
+    }
+
+    #[test]
+    fn pow_dynamic_difficulty_is_an_independent_common_location_consumer() {
+        assert!(pow_common_location_consumer_enabled(&json!({
+            "provider": "pow",
+            "pow": { "uncommon_location": { "enabled": true } }
+        })));
+        assert!(!pow_common_location_consumer_enabled(&json!({
+            "provider": "pow",
+            "pow": { "uncommon_location": { "enabled": false } }
+        })));
+        assert!(!pow_common_location_consumer_enabled(&json!({
+            "provider": "turnstile",
+            "pow": { "uncommon_location": { "enabled": true } }
+        })));
+        assert!(existing_common_location_consumer_enabled(
+            &json!({
+                "waf": { "enabled": true, "common_location_exempt_enabled": true }
+            }),
+            None,
+        ));
+        assert!(existing_common_location_consumer_enabled(
+            &json!({}),
+            Some(&json!({
+                "enabled": true,
+                "commonLocationExemptEnabled": true
+            })),
+        ));
+        assert!(!existing_common_location_consumer_enabled(&json!({}), None));
     }
 
     #[test]

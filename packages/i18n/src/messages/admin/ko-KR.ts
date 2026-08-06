@@ -1950,6 +1950,18 @@ export const koKRAdmin = {
       "내장된 PoW 보안 문자와 Cloudflare Turnstile 사이를 전환하세요.",
     typePlaceholder: "보안 문자 유형 선택",
     powOption: "PoW 보안문자",
+    powBaseDifficulty: "기본 챌린지 난이도",
+    powBaseDifficultyDescription:
+      "모든 PoW 챌린지의 검색 상한을 설정합니다. 10000에서 1000000 사이의 정수를 10000 단위로 입력하세요.",
+    powUncommonLocation: "평소와 다른 위치에서 난이도 높이기",
+    powUncommonLocationDescription:
+      "인증된 접근을 바탕으로 자주 사용하는 위치를 자동 학습합니다. 위치를 알 수 없거나 모델이 준비되지 않은 경우 기본 난이도를 사용합니다.",
+    powUncommonDifficulty: "평소와 다른 위치의 난이도",
+    powUncommonDifficultyDescription:
+      "현재 위치가 확인되었지만 학습된 자주 사용하는 위치에 없을 때 사용합니다. 기본 난이도보다 낮게 설정할 수 없습니다.",
+    powDifficultyInvalidTitle: "PoW 난이도가 올바르지 않습니다",
+    powDifficultyInvalidDescription:
+      "난이도는 10000에서 1000000 사이에서 10000 단위여야 하며, 평소와 다른 위치의 난이도는 기본 난이도보다 낮을 수 없습니다.",
     turnstileSetupTitle: "Cloudflare Turnstile 활성화",
     turnstileSetupDescription:
       "아직 Turnstile 위젯을 만들지 않았다면 공식 가이드를 열고 Cloudflare에서 설정을 완료한 후 여기에 키를 붙여넣으세요.",

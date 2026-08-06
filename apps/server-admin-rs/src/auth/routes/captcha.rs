@@ -176,8 +176,54 @@ pub(super) async fn verify_turnstile_captcha(
     }
 }
 
-pub(super) fn pow_secret_number_from_random(value: u32) -> u32 {
-    value % POW_MAX_NUMBER
+pub(super) fn pow_secret_number_from_random(value: u32, max_number: u32) -> u32 {
+    value % max_number.max(1)
+}
+
+pub(super) fn pow_max_number_for_classification(
+    settings: &Value,
+    classification: common_auth_locations::CommonAuthLocationClassification,
+) -> u32 {
+    let base = settings
+        .pointer("/pow/base_max_number")
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .unwrap_or(POW_MAX_NUMBER);
+    let uncommon_enabled = settings
+        .pointer("/pow/uncommon_location/enabled")
+        .and_then(Value::as_bool)
+        == Some(true);
+    if uncommon_enabled
+        && classification == common_auth_locations::CommonAuthLocationClassification::Uncommon
+    {
+        return settings
+            .pointer("/pow/uncommon_location/max_number")
+            .and_then(Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok())
+            .unwrap_or(runtime_config::POW_DEFAULT_UNCOMMON_MAX_NUMBER as u32)
+            .max(base);
+    }
+    base
+}
+
+pub(super) async fn pow_max_number_for_request(
+    state: &AppState,
+    settings: &Value,
+    headers: &HeaderMap,
+) -> u32 {
+    if settings
+        .pointer("/pow/uncommon_location/enabled")
+        .and_then(Value::as_bool)
+        != Some(true)
+    {
+        return pow_max_number_for_classification(
+            settings,
+            common_auth_locations::CommonAuthLocationClassification::Unknown,
+        );
+    }
+    let client_ip = client_ip_for_auth(headers);
+    let classification = common_auth_locations::classify_auth_location(state, &client_ip).await;
+    pow_max_number_for_classification(settings, classification)
 }
 
 pub(super) fn pow_number_text(value: Option<&Value>) -> String {

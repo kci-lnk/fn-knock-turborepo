@@ -7,10 +7,18 @@ export type TurnstileCaptchaConfig = {
     secret_key: string;
 };
 
+export type PowCaptchaConfig = {
+    base_max_number: number;
+    uncommon_location: {
+        enabled: boolean;
+        max_number: number;
+    };
+};
+
 export type CaptchaSettings = {
     provider: CaptchaProvider;
     widget_mode: CaptchaWidgetMode;
-    pow: Record<string, never>;
+    pow: PowCaptchaConfig;
     turnstile: TurnstileCaptchaConfig;
 };
 

@@ -1821,6 +1821,18 @@ export const zhCNAdmin = {
       "你可以在系统内置 PoW 验证码和 Cloudflare Turnstile 之间切换。",
     typePlaceholder: "选择验证码类型",
     powOption: "PoW 验证码",
+    powBaseDifficulty: "基础挑战难度",
+    powBaseDifficultyDescription:
+      "设置所有 PoW 挑战的搜索上限，可填写 10000 到 1000000，需按 10000 调整。",
+    powUncommonLocation: "不常用地提高难度",
+    powUncommonLocationDescription:
+      "根据已认证访问自动学习常用地。定位未知或模型尚未形成时仍使用基础难度。",
+    powUncommonDifficulty: "不常用地挑战难度",
+    powUncommonDifficultyDescription:
+      "当前地区已成功定位、但不在已学习的常用地中时使用，不能低于基础难度。",
+    powDifficultyInvalidTitle: "PoW 难度不正确",
+    powDifficultyInvalidDescription:
+      "难度必须是 10000 到 1000000 之间、步长为 10000 的整数，且不常用地难度不能低于基础难度。",
     turnstileSetupTitle: "开通 Cloudflare Turnstile",
     turnstileSetupDescription:
       "如果你还没有创建 Turnstile 小组件，可以先打开官方指引，在 Cloudflare 后台完成开通后再把密钥填回这里。",

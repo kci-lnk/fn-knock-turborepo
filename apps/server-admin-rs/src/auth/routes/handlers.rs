@@ -112,7 +112,7 @@ pub(super) async fn captcha_config(State(state): State<AppState>) -> Response {
     }
 }
 
-pub(super) async fn challenge(State(state): State<AppState>) -> Response {
+pub(super) async fn challenge(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
     let settings = match runtime_config::load_captcha_settings(&state).await {
         Ok(settings) => settings,
@@ -151,7 +151,8 @@ pub(super) async fn challenge(State(state): State<AppState>) -> Response {
     let salt = hex::encode(random_bytes::<12>());
     let expires = time_utils::now_ms() / 1000 + 300;
     let salt_with_params = format!("{salt}?expires={expires}");
-    let secret_number = pow_secret_number_from_random(rand::random::<u32>());
+    let max_number = pow_max_number_for_request(&state, &settings, &headers).await;
+    let secret_number = pow_secret_number_from_random(rand::random::<u32>(), max_number);
     let challenge = sha256_hex(format!("{salt_with_params}{secret_number}").as_bytes());
     let signature = hmac_sha256_hex(key.as_bytes(), challenge.as_bytes());
 
@@ -159,7 +160,7 @@ pub(super) async fn challenge(State(state): State<AppState>) -> Response {
         Json(json!({
             "algorithm": "SHA-256",
             "challenge": challenge,
-            "maxnumber": POW_MAX_NUMBER,
+            "maxnumber": max_number,
             "salt": salt_with_params,
             "signature": signature
         }))

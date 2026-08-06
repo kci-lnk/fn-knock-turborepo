@@ -46,6 +46,9 @@ pub struct AppStateInner {
     pub auto_https: AutoHttpsRedirectManager,
     pub acme_install_state: RwLock<Option<Value>>,
     pub ddns_schedule_reload: Notify,
+    /// Serializes CAPTCHA validation with its read-modify-write persistence so
+    /// concurrent provider or nested difficulty patches cannot be lost.
+    pub captcha_settings_update_lock: Mutex<()>,
     pub fnos_network_tuning_update_lock: Mutex<()>,
     /// Serializes the Go loopback listener, dual-stack firewall rules and
     /// persisted FN Connect WAF preference as one fail-open transaction.
@@ -208,6 +211,7 @@ impl AppState {
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
                 ddns_schedule_reload: Notify::new(),
+                captcha_settings_update_lock: Mutex::new(()),
                 fnos_network_tuning_update_lock: Mutex::new(()),
                 fnos_connect_waf_update_lock: Mutex::new(()),
                 fnos_connect_waf_notify: Notify::new(),

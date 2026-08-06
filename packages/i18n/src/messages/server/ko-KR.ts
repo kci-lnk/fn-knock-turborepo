@@ -378,6 +378,12 @@ export const koKRServer = {
     captcha: {
       turnstileKeysRequired:
         "Cloudflare Turnstile이 활성화되면 site_key와 secret_key가 모두 필요합니다.",
+      powDifficultyInvalid:
+        "PoW 난이도는 10000에서 1000000 사이에서 10000 단위여야 합니다.",
+      powEnabledBooleanRequired:
+        "평소와 다른 위치의 난이도 스위치는 불리언이어야 합니다.",
+      powUncommonDifficultyTooLow:
+        "평소와 다른 위치의 난이도는 기본 난이도보다 낮을 수 없습니다.",
     },
     ipLocation: {
       ipLookupUrlLabel: "IP 조회 데이터베이스 URL",

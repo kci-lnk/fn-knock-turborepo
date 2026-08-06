@@ -317,6 +317,10 @@ export const zhCNServer = {
     captcha: {
       turnstileKeysRequired:
         "启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写",
+      powDifficultyInvalid:
+        "PoW 难度必须是 10000 到 1000000 之间、步长为 10000 的整数",
+      powEnabledBooleanRequired: "不常用地难度开关必须是布尔值",
+      powUncommonDifficultyTooLow: "不常用地难度不能低于基础难度",
     },
     ipLocation: {
       ipLookupUrlLabel: "IP 识别库地址",

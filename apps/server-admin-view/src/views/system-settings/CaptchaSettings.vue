@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,12 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { CaptchaAPI } from "../../lib/api";
+import {
+  isPowDifficultyValid,
+  POW_DIFFICULTY_MAX,
+  POW_DIFFICULTY_MIN,
+  POW_DIFFICULTY_STEP,
+} from "../../lib/captcha-settings";
 import type { CaptchaSettings as CaptchaSettingsModel } from "@frontend-core/captcha/types";
 
 const a11yId = useId();
@@ -36,6 +43,8 @@ const { t } = useI18n();
 const settings = ref<CaptchaSettingsModel | null>(null);
 const turnstileSiteFieldId = "captcha-turnstile-public-token";
 const turnstileSecretFieldId = "captcha-turnstile-private-token";
+const powBaseFieldId = "captcha-pow-base-max-number";
+const powUncommonFieldId = "captcha-pow-uncommon-max-number";
 const turnstileGettingStartedUrl =
   "https://www.cloudflare-cn.com/application-services/products/turnstile/";
 const isTurnstileSiteVisible = ref(false);
@@ -43,7 +52,13 @@ const isTurnstileSecretVisible = ref(false);
 const form = reactive<CaptchaSettingsModel>({
   provider: "pow",
   widget_mode: "normal",
-  pow: {},
+  pow: {
+    base_max_number: 100_000,
+    uncommon_location: {
+      enabled: false,
+      max_number: 300_000,
+    },
+  },
   turnstile: {
     site_key: "",
     secret_key: "",
@@ -76,6 +91,11 @@ const isDirty = computed(() => {
   if (!settings.value) return false;
   return (
     settings.value.provider !== form.provider ||
+    settings.value.pow.base_max_number !== form.pow.base_max_number ||
+    settings.value.pow.uncommon_location.enabled !==
+      form.pow.uncommon_location.enabled ||
+    settings.value.pow.uncommon_location.max_number !==
+      form.pow.uncommon_location.max_number ||
     settings.value.turnstile.site_key !== form.turnstile.site_key ||
     settings.value.turnstile.secret_key !== form.turnstile.secret_key
   );
@@ -85,7 +105,9 @@ const applyFromSettings = (data: CaptchaSettingsModel) => {
   settings.value = data;
   form.provider = data.provider;
   form.widget_mode = "normal";
-  form.pow = {};
+  form.pow.base_max_number = data.pow.base_max_number;
+  form.pow.uncommon_location.enabled = data.pow.uncommon_location.enabled;
+  form.pow.uncommon_location.max_number = data.pow.uncommon_location.max_number;
   form.turnstile.site_key = data.turnstile.site_key;
   form.turnstile.secret_key = data.turnstile.secret_key;
 };
@@ -102,6 +124,15 @@ const resetForm = () => {
 };
 
 const saveSettings = async () => {
+  const baseMaxNumber = Number(form.pow.base_max_number);
+  const uncommonMaxNumber = Number(form.pow.uncommon_location.max_number);
+  if (!isPowDifficultyValid(baseMaxNumber, uncommonMaxNumber)) {
+    toast.error(t("admin.captchaSettings.powDifficultyInvalidTitle"), {
+      description: t("admin.captchaSettings.powDifficultyInvalidDescription"),
+    });
+    return;
+  }
+
   if (form.provider === "turnstile") {
     if (!form.turnstile.site_key.trim() || !form.turnstile.secret_key.trim()) {
       toast.error(t("admin.captchaSettings.incompleteTitle"), {
@@ -116,7 +147,13 @@ const saveSettings = async () => {
       CaptchaAPI.updateSettings({
         provider: form.provider,
         widget_mode: "normal",
-        pow: {},
+        pow: {
+          base_max_number: baseMaxNumber,
+          uncommon_location: {
+            enabled: form.pow.uncommon_location.enabled,
+            max_number: uncommonMaxNumber,
+          },
+        },
         turnstile: {
           site_key: form.turnstile.site_key.trim(),
           secret_key: form.turnstile.secret_key.trim(),
@@ -181,6 +218,76 @@ onMounted(fetchSettings);
             <SelectItem value="turnstile">Cloudflare Turnstile</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div
+        v-if="form.provider === 'pow'"
+        class="divide-y animate-in fade-in slide-in-from-top-2 duration-300"
+      >
+        <div class="captcha-key-row">
+          <div class="captcha-key-copy min-w-0 space-y-1">
+            <Label class="text-base" :for="powBaseFieldId">
+              {{ t("admin.captchaSettings.powBaseDifficulty") }}
+            </Label>
+            <div class="text-sm leading-relaxed text-muted-foreground">
+              {{ t("admin.captchaSettings.powBaseDifficultyDescription") }}
+            </div>
+          </div>
+          <div class="captcha-key-input-wrap w-full">
+            <Input
+              :id="powBaseFieldId"
+              v-model.number="form.pow.base_max_number"
+              type="number"
+              :min="POW_DIFFICULTY_MIN"
+              :max="POW_DIFFICULTY_MAX"
+              :step="POW_DIFFICULTY_STEP"
+              inputmode="numeric"
+              :disabled="isSaving"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 p-6">
+          <div class="space-y-1 pr-6">
+            <Label
+              :for="`${a11yId}-captcha-pow-uncommon-location`"
+              class="cursor-pointer text-base font-medium"
+            >
+              {{ t("admin.captchaSettings.powUncommonLocation") }}
+            </Label>
+            <div class="text-sm leading-relaxed text-muted-foreground">
+              {{ t("admin.captchaSettings.powUncommonLocationDescription") }}
+            </div>
+          </div>
+          <Switch
+            :id="`${a11yId}-captcha-pow-uncommon-location`"
+            v-model="form.pow.uncommon_location.enabled"
+            :disabled="isSaving"
+          />
+        </div>
+
+        <div class="captcha-key-row">
+          <div class="captcha-key-copy min-w-0 space-y-1">
+            <Label class="text-base" :for="powUncommonFieldId">
+              {{ t("admin.captchaSettings.powUncommonDifficulty") }}
+            </Label>
+            <div class="text-sm leading-relaxed text-muted-foreground">
+              {{ t("admin.captchaSettings.powUncommonDifficultyDescription") }}
+            </div>
+          </div>
+          <div class="captcha-key-input-wrap w-full">
+            <Input
+              :id="powUncommonFieldId"
+              v-model.number="form.pow.uncommon_location.max_number"
+              type="number"
+              :min="Math.max(POW_DIFFICULTY_MIN, form.pow.base_max_number)"
+              :max="POW_DIFFICULTY_MAX"
+              :step="POW_DIFFICULTY_STEP"
+              inputmode="numeric"
+              :disabled="isSaving"
+            />
+          </div>
+        </div>
       </div>
 
       <div

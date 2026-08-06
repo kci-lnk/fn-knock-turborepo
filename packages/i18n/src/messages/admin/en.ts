@@ -1964,6 +1964,18 @@ export const enAdmin = {
       "Switch between the built-in PoW captcha and Cloudflare Turnstile.",
     typePlaceholder: "Choose captcha type",
     powOption: "PoW captcha",
+    powBaseDifficulty: "Base challenge difficulty",
+    powBaseDifficultyDescription:
+      "Sets the search limit for every PoW challenge. Enter an integer from 10,000 to 1,000,000 in steps of 10,000.",
+    powUncommonLocation: "Increase difficulty in uncommon locations",
+    powUncommonLocationDescription:
+      "Learns common locations from authenticated traffic. Unknown locations and an unready model continue to use the base difficulty.",
+    powUncommonDifficulty: "Uncommon-location difficulty",
+    powUncommonDifficultyDescription:
+      "Used when the current location is resolved but is not among the learned common locations. It cannot be lower than the base difficulty.",
+    powDifficultyInvalidTitle: "Invalid PoW difficulty",
+    powDifficultyInvalidDescription:
+      "Difficulty must be from 10,000 to 1,000,000 in steps of 10,000, and uncommon-location difficulty cannot be lower than base difficulty.",
     turnstileSetupTitle: "Enable Cloudflare Turnstile",
     turnstileSetupDescription:
       "If you have not created a Turnstile widget yet, open the official guide, finish setup in Cloudflare, then paste the keys here.",

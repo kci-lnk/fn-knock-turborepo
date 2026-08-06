@@ -38,8 +38,34 @@ pub(super) async fn update_captcha(
         }
     }
 
+    // Validation and the read-modify-write update must observe the same
+    // snapshot so concurrent partial updates cannot lose each other's fields.
+    let _update_guard = state.captcha_settings_update_lock.lock().await;
+    let current = match load_captcha_settings(&state).await {
+        Ok(current) => current,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load captcha config before validation");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                runtime_config_route_text(&translator, "loadCaptchaFailed"),
+            );
+        }
+    };
+    if let Err(message_key) = validate_pow_captcha_patch(&current, &body) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            admin_text(&translator, message_key),
+        );
+    }
+
     match update_captcha_settings(&state, &body).await {
-        Ok(data) => response::ok(data).into_response(),
+        Ok(data) => {
+            common_auth_locations::schedule_common_auth_locations_rebuild(
+                state.clone(),
+                "captcha-settings",
+            );
+            response::ok(data).into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to save captcha config");
             response::error(
@@ -48,6 +74,56 @@ pub(super) async fn update_captcha(
             )
         }
     }
+}
+
+pub(super) fn validate_pow_captcha_patch(
+    current: &Value,
+    patch: &Value,
+) -> Result<(), &'static str> {
+    if patch.get("pow").is_some_and(|value| !value.is_object())
+        || patch
+            .pointer("/pow/uncommon_location")
+            .is_some_and(|value| !value.is_object())
+    {
+        return Err("captcha.powDifficultyInvalid");
+    }
+    let current_base = current
+        .pointer("/pow/base_max_number")
+        .and_then(Value::as_i64)
+        .unwrap_or(POW_DEFAULT_BASE_MAX_NUMBER);
+    let current_uncommon = current
+        .pointer("/pow/uncommon_location/max_number")
+        .and_then(Value::as_i64)
+        .unwrap_or(POW_DEFAULT_UNCOMMON_MAX_NUMBER);
+    let base = validate_optional_pow_number(patch.pointer("/pow/base_max_number"), current_base)?;
+    let uncommon = validate_optional_pow_number(
+        patch.pointer("/pow/uncommon_location/max_number"),
+        current_uncommon,
+    )?;
+    if let Some(enabled) = patch.pointer("/pow/uncommon_location/enabled")
+        && !enabled.is_boolean()
+    {
+        return Err("captcha.powEnabledBooleanRequired");
+    }
+    if uncommon < base {
+        return Err("captcha.powUncommonDifficultyTooLow");
+    }
+    Ok(())
+}
+
+fn validate_optional_pow_number(value: Option<&Value>, fallback: i64) -> Result<i64, &'static str> {
+    let Some(value) = value else {
+        return Ok(fallback);
+    };
+    let Some(value) = value.as_i64() else {
+        return Err("captcha.powDifficultyInvalid");
+    };
+    if !(POW_MIN_MAX_NUMBER..=POW_MAX_MAX_NUMBER).contains(&value)
+        || value % POW_MAX_NUMBER_STEP != 0
+    {
+        return Err("captcha.powDifficultyInvalid");
+    }
+    Ok(value)
 }
 
 pub(super) async fn get_terminal_feature(State(state): State<AppState>) -> Response {

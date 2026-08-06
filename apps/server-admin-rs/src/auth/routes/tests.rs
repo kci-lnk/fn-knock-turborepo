@@ -899,9 +899,43 @@ fn parses_pow_expiry_from_salt() {
 
 #[test]
 fn pow_challenge_generation_uses_node_exclusive_max_number() {
-    assert_eq!(pow_secret_number_from_random(0), 0);
-    assert_eq!(pow_secret_number_from_random(POW_MAX_NUMBER), 0);
-    assert!(pow_secret_number_from_random(u32::MAX) < POW_MAX_NUMBER);
+    assert_eq!(pow_secret_number_from_random(0, POW_MAX_NUMBER), 0);
+    assert_eq!(
+        pow_secret_number_from_random(POW_MAX_NUMBER, POW_MAX_NUMBER),
+        0
+    );
+    assert!(pow_secret_number_from_random(u32::MAX, 300_000) < 300_000);
+}
+
+#[test]
+fn pow_difficulty_uses_uncommon_tier_only_for_uncommon_locations() {
+    let settings = json!({
+        "pow": {
+            "base_max_number": 120000,
+            "uncommon_location": { "enabled": true, "max_number": 360000 }
+        }
+    });
+    assert_eq!(
+        pow_max_number_for_classification(
+            &settings,
+            common_auth_locations::CommonAuthLocationClassification::Common
+        ),
+        120000
+    );
+    assert_eq!(
+        pow_max_number_for_classification(
+            &settings,
+            common_auth_locations::CommonAuthLocationClassification::Unknown
+        ),
+        120000
+    );
+    assert_eq!(
+        pow_max_number_for_classification(
+            &settings,
+            common_auth_locations::CommonAuthLocationClassification::Uncommon
+        ),
+        360000
+    );
 }
 
 #[test]
@@ -1126,7 +1160,10 @@ async fn turnstile_admin_setting_drives_all_auth_captcha_routes() {
     let turnstile_settings = json!({
         "provider": "turnstile",
         "widget_mode": "normal",
-        "pow": {},
+        "pow": {
+            "base_max_number": 100000,
+            "uncommon_location": { "enabled": false, "max_number": 300000 }
+        },
         "turnstile": {
             "site_key": "turnstile-site-key",
             "secret_key": "turnstile-secret-key"
@@ -1274,6 +1311,201 @@ async fn default_pow_setting_still_drives_bootstrap_and_challenge() {
             .as_str()
             .is_some_and(|value| !value.is_empty())
     );
+}
+
+#[tokio::test]
+async fn pow_challenge_selects_difficulty_from_common_location_classification() {
+    let (_directory, state) = auth_route_test_state("pow-location-difficulty").await;
+    state
+        .store
+        .set_json_value(
+            "fn_knock:captcha:settings",
+            &json!({
+                "provider": "pow",
+                "pow": {
+                    "base_max_number": 100000,
+                    "uncommon_location": { "enabled": true, "max_number": 300000 }
+                },
+                "turnstile": { "site_key": "", "secret_key": "" }
+            }),
+        )
+        .await
+        .unwrap();
+    state
+        .store
+        .set_string_value(
+            "fn_knock:common_auth_locations:runtime",
+            &json!({
+                "enabled": true,
+                "locations": [{ "key": "中国|广东|深圳" }]
+            })
+            .to_string(),
+        )
+        .await
+        .unwrap();
+    for (ip, location) in [
+        (
+            "8.8.8.8",
+            json!({ "country": "中国", "province": "广东", "city": "深圳" }),
+        ),
+        (
+            "1.1.1.1",
+            json!({ "country": "日本", "province": "东京", "city": "东京" }),
+        ),
+        (
+            "2.2.2.2",
+            json!({ "country": "日本", "province": "大阪", "city": "大阪" }),
+        ),
+    ] {
+        state
+            .store
+            .complete_ip_location_lookup(ip, &location, &json!({ "status": "success" }), 60)
+            .await
+            .unwrap();
+    }
+    let inspection_state = state.clone();
+    let app = captcha_route_test_app(state);
+
+    for (ip, expected) in [
+        ("8.8.8.8", 100000),
+        ("1.1.1.1", 300000),
+        ("9.9.9.9", 100000),
+        ("127.0.0.1", 100000),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/api/auth/challenge")
+                    .header("x-forwarded-for", ip)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response_json(response).await["maxnumber"], expected);
+    }
+    assert_eq!(
+        inspection_state
+            .store
+            .get_ip_location_state("9.9.9.9")
+            .await
+            .unwrap()
+            .and_then(|state| state.get("status").cloned()),
+        Some(json!("queued"))
+    );
+    assert!(
+        inspection_state
+            .store
+            .get_ip_location_state("127.0.0.1")
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    inspection_state
+        .store
+        .set_string_value(
+            "fn_knock:common_auth_locations:runtime",
+            &json!({
+                "enabled": false,
+                "locations": [{ "key": "中国|广东|深圳" }]
+            })
+            .to_string(),
+        )
+        .await
+        .unwrap();
+    for ip in ["2.2.2.2", "4.4.4.4"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/api/auth/challenge")
+                    .header("x-forwarded-for", ip)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response_json(response).await["maxnumber"], 100000);
+    }
+    assert_eq!(
+        inspection_state
+            .store
+            .get_ip_location_state("4.4.4.4")
+            .await
+            .unwrap()
+            .and_then(|state| state.get("status").cloned()),
+        Some(json!("queued"))
+    );
+    inspection_state
+        .store
+        .set_string_value(
+            "fn_knock:common_auth_locations:runtime",
+            &json!({
+                "enabled": true,
+                "locations": [{ "key": "中国|广东|深圳" }]
+            })
+            .to_string(),
+        )
+        .await
+        .unwrap();
+
+    let update_response = app
+        .clone()
+        .oneshot(
+            Request::post("/api/admin/config/captcha")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "provider": "pow",
+                        "pow": {
+                            "base_max_number": 150000,
+                            "uncommon_location": { "enabled": true, "max_number": 450000 }
+                        },
+                        "turnstile": { "site_key": "", "secret_key": "" }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(update_response.status(), StatusCode::OK);
+    let challenge_response = app
+        .oneshot(
+            Request::get("/api/auth/challenge")
+                .header("x-forwarded-for", "1.1.1.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response_json(challenge_response).await["maxnumber"], 450000);
+}
+
+#[tokio::test]
+async fn captcha_admin_rejects_invalid_pow_difficulty() {
+    let (_directory, state) = auth_route_test_state("invalid-pow-difficulty").await;
+    let app = captcha_route_test_app(state);
+
+    for payload in [
+        json!({ "pow": { "base_max_number": 9999 } }),
+        json!({ "pow": { "base_max_number": 400000 } }),
+        json!({ "pow": { "uncommon_location": { "enabled": "yes" } } }),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/config/captcha")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
 }
 
 fn auth_route_test_session(ip: &str, expires_at: &str) -> LoginSession {

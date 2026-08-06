@@ -1963,6 +1963,18 @@ export const jaJPAdmin = {
       "組み込みの PoW CAPTCHA と Cloudflare Turnstile を切り替えます。",
     typePlaceholder: "CAPTCHA の種類を選択",
     powOption: "PoW CAPTCHA",
+    powBaseDifficulty: "基本チャレンジ難易度",
+    powBaseDifficultyDescription:
+      "すべての PoW チャレンジの探索上限を設定します。10000〜1000000 の整数を 10000 単位で指定してください。",
+    powUncommonLocation: "通常と異なる場所で難易度を上げる",
+    powUncommonLocationDescription:
+      "認証済みアクセスからよく使う場所を自動学習します。場所が不明、またはモデルの準備前は基本難易度を使用します。",
+    powUncommonDifficulty: "通常と異なる場所の難易度",
+    powUncommonDifficultyDescription:
+      "現在地を特定でき、学習済みのよく使う場所に含まれない場合に使用します。基本難易度未満には設定できません。",
+    powDifficultyInvalidTitle: "PoW 難易度が正しくありません",
+    powDifficultyInvalidDescription:
+      "難易度は 10000〜1000000 の範囲で 10000 単位とし、通常と異なる場所の難易度は基本難易度以上にしてください。",
     turnstileSetupTitle: "Cloudflare Turnstile を有効化",
     turnstileSetupDescription:
       "Turnstile ウィジェットをまだ作成していない場合は、公式ガイドを開き、Cloudflare で設定を完了してから、ここにキーを貼り付けてください。",

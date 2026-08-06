@@ -97,17 +97,34 @@ pub(super) async fn update_captcha_settings(
     let current = load_captcha_settings(state).await?;
     let mut next = current.clone();
     merge_object(&mut next, patch);
-    if let Some(patch_turnstile) = patch.get("turnstile").and_then(Value::as_object) {
-        let mut turnstile = current
-            .get("turnstile")
+    for section in ["pow", "turnstile"] {
+        let Some(patch_section) = patch.get(section).and_then(Value::as_object) else {
+            continue;
+        };
+        let mut nested = current
+            .get(section)
             .and_then(Value::as_object)
             .cloned()
             .unwrap_or_default();
-        for (key, value) in patch_turnstile {
-            turnstile.insert(key.clone(), value.clone());
+        for (key, value) in patch_section {
+            if section == "pow" && key == "uncommon_location" {
+                let mut uncommon_location = nested
+                    .get(key)
+                    .and_then(Value::as_object)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(patch_uncommon_location) = value.as_object() {
+                    for (nested_key, nested_value) in patch_uncommon_location {
+                        uncommon_location.insert(nested_key.clone(), nested_value.clone());
+                    }
+                    nested.insert(key.clone(), Value::Object(uncommon_location));
+                    continue;
+                }
+            }
+            nested.insert(key.clone(), value.clone());
         }
         if let Some(object) = next.as_object_mut() {
-            object.insert("turnstile".to_string(), Value::Object(turnstile));
+            object.insert(section.to_string(), Value::Object(nested));
         }
     }
     next = normalize_captcha_settings(Some(&next));
@@ -186,10 +203,33 @@ pub(super) fn normalize_captcha_settings(value: Option<&Value>) -> Value {
     } else {
         "pow"
     };
+    let pow = value.and_then(|value| value.get("pow"));
+    let base_max_number = normalize_pow_max_number(
+        pow.and_then(|value| value.get("base_max_number")),
+        POW_DEFAULT_BASE_MAX_NUMBER,
+    );
+    let uncommon_max_number = normalize_pow_max_number(
+        pow.and_then(|value| value.pointer("/uncommon_location/max_number")),
+        POW_DEFAULT_UNCOMMON_MAX_NUMBER,
+    );
+    let uncommon_max_number = if uncommon_max_number < base_max_number {
+        POW_DEFAULT_UNCOMMON_MAX_NUMBER.max(base_max_number)
+    } else {
+        uncommon_max_number
+    };
     json!({
         "provider": provider,
         "widget_mode": "normal",
-        "pow": {},
+        "pow": {
+            "base_max_number": base_max_number,
+            "uncommon_location": {
+                "enabled": pow
+                    .and_then(|value| value.pointer("/uncommon_location/enabled"))
+                    .and_then(Value::as_bool)
+                    == Some(true),
+                "max_number": uncommon_max_number,
+            },
+        },
         "turnstile": {
             "site_key": value
                 .and_then(|value| value.pointer("/turnstile/site_key"))
@@ -203,6 +243,16 @@ pub(super) fn normalize_captcha_settings(value: Option<&Value>) -> Value {
                 .unwrap_or(""),
         },
     })
+}
+
+fn normalize_pow_max_number(value: Option<&Value>, fallback: i64) -> i64 {
+    value
+        .and_then(Value::as_i64)
+        .filter(|value| {
+            (POW_MIN_MAX_NUMBER..=POW_MAX_MAX_NUMBER).contains(value)
+                && value % POW_MAX_NUMBER_STEP == 0
+        })
+        .unwrap_or(fallback)
 }
 
 pub(crate) fn normalize_terminal_feature(value: Option<&Value>) -> Value {

@@ -10,7 +10,7 @@ use axum::{
 use serde_json::{Map, Value, json};
 
 use crate::{
-    auto_https, gateway_settings,
+    auto_https, common_auth_locations, gateway_settings,
     i18n::Translator,
     proxy_config::{self, build_gateway_auth_config},
     response, runtime_profile,
@@ -46,6 +46,11 @@ mod tests;
 
 const CAPTCHA_SETTINGS_KEY: &str = "fn_knock:captcha:settings";
 const LEGACY_CAPTCHA_SETTINGS_KEY: &str = "fn_knock:config:captcha";
+pub(crate) const POW_MIN_MAX_NUMBER: i64 = 10_000;
+pub(crate) const POW_MAX_MAX_NUMBER: i64 = 1_000_000;
+pub(crate) const POW_MAX_NUMBER_STEP: i64 = 10_000;
+pub(crate) const POW_DEFAULT_BASE_MAX_NUMBER: i64 = 100_000;
+pub(crate) const POW_DEFAULT_UNCOMMON_MAX_NUMBER: i64 = 300_000;
 const PROTOCOL_MAPPING_FEATURE_KEY: &str = "fn_knock:protocol-mapping:feature";
 const RUN_MODE_PROMPT_PREFERENCES_KEY: &str = "fn_knock:run-mode:prompt-preferences";
 const WELCOME_GUIDE_STATUS_KEY: &str = "fn_knock:welcome-guide:status";

@@ -1831,6 +1831,18 @@ export const zhHantAdmin = {
       "你可以在系統內建 PoW 驗證碼和 Cloudflare Turnstile 之間切換。",
     typePlaceholder: "選擇驗證碼類型",
     powOption: "PoW 驗證碼",
+    powBaseDifficulty: "基礎挑戰難度",
+    powBaseDifficultyDescription:
+      "設定所有 PoW 挑戰的搜尋上限，可填寫 10000 到 1000000，需以 10000 為單位調整。",
+    powUncommonLocation: "非常用地提高難度",
+    powUncommonLocationDescription:
+      "根據已驗證存取自動學習常用地。定位未知或模型尚未形成時仍使用基礎難度。",
+    powUncommonDifficulty: "非常用地挑戰難度",
+    powUncommonDifficultyDescription:
+      "目前地區已成功定位、但不在已學習的常用地中時使用，不可低於基礎難度。",
+    powDifficultyInvalidTitle: "PoW 難度不正確",
+    powDifficultyInvalidDescription:
+      "難度必須是 10000 到 1000000 之間、步長為 10000 的整數，且非常用地難度不可低於基礎難度。",
     turnstileSetupTitle: "開通 Cloudflare Turnstile",
     turnstileSetupDescription:
       "如果你還沒有創建 Turnstile 小組件，可以先打開官方指引，在 Cloudflare 後台完成開通後再把密鑰填回這裡。",

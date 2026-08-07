@@ -706,7 +706,10 @@ impl RuntimeHealth {
         let mut log_transition = None;
         {
             let mut trackers = self.inner.trackers.lock().await;
-            let tracker = trackers.get_mut(id).expect("known runtime component");
+            let Some(tracker) = trackers.get_mut(id) else {
+                tracing::debug!(id, "runtime health tracker not registered; skipping probe");
+                return;
+            };
             let previous_status = tracker.health.status.clone();
             apply_metadata(&mut tracker.health, probe.metadata);
             tracker.health.last_checked_at = Some(checked_at.to_string());
@@ -760,14 +763,17 @@ impl RuntimeHealth {
         }
 
         if let Some((event_type, level, incident_id, duration_ms)) = event {
-            let health = self
+            let Some(health) = self
                 .inner
                 .trackers
                 .lock()
                 .await
                 .get(id)
                 .map(|tracker| tracker.health.clone())
-                .expect("known runtime component");
+            else {
+                tracing::warn!(id, "runtime health tracker disappeared before event publish");
+                return;
+            };
             self.publish_or_buffer(
                 state,
                 RuntimeEventInput {
@@ -793,7 +799,10 @@ impl RuntimeHealth {
 
     async fn apply_blocked(&self, id: &str, checked_at: &str) {
         let mut trackers = self.inner.trackers.lock().await;
-        let tracker = trackers.get_mut(id).expect("known runtime component");
+        let Some(tracker) = trackers.get_mut(id) else {
+            tracing::debug!(id, "runtime health tracker not registered; skipping blocked state");
+            return;
+        };
         let changed = tracker.health.status != HealthStatus::Blocked;
         tracker.health.status = HealthStatus::Blocked;
         tracker.health.process_state = ProcessState::NotApplicable;

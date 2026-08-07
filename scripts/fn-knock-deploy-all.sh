@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUNNER="${FN_KNOCK_SCRIPT_RUNNER:-bun}"
+RUNNER="${FN_KNOCK_SCRIPT_RUNNER:-npm}"
 START_TS="$(date +%s)"
 
 cd "${ROOT_DIR}"

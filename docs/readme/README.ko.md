@@ -200,9 +200,9 @@ npm run build
 | `npm run fn-knock:windows:build`               | Windows x86_64용 서명되지 않은 NSIS 설치 프로그램 빌드 |
 | `npm run fn-knock:release:test`                | 전체 릴리스 파이프라인 검증                            |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | 버전과 릴리스 전제 조건 검증                           |
-| `bun run release status`                       | 현재 릴리스 버전 상태 확인                             |
+| `npm run release status`                       | 현재 릴리스 버전 상태 확인                             |
 
-새 릴리스를 준비하려면 이 저장소와 인접한 `../Go-Reauth-Proxy`의 워크트리를 모두 깨끗하게 한 다음 `bun run release prepare patch`를 실행합니다(`minor`, `major` 또는 명시적인 `X.Y.Z`도 사용할 수 있습니다). 이 도구는 두 저장소의 제품 버전을 동기화하고 이전 버전 태그 이후의 커밋에서 release notes를 생성합니다. Go 저장소가 다른 위치에 있으면 `FN_KNOCK_GO_REAUTH_PROXY_DIR`을 설정하십시오. `--dry-run`으로 변경 사항을 미리 보거나 `--notes-file <path>`로 릴리스 노트를 지정할 수 있습니다. 그런 다음 `bun run release check`와 `bun run fn-knock:release:test`를 실행하고 Go 저장소를 먼저 commit 및 push하십시오. 이 도구는 commit, tag, push 또는 publish를 자동으로 실행하지 않습니다.
+새 릴리스를 준비하려면 이 저장소와 인접한 `../Go-Reauth-Proxy`의 워크트리를 모두 깨끗하게 한 다음 `npm run release prepare patch`를 실행합니다(`minor`, `major` 또는 명시적인 `X.Y.Z`도 사용할 수 있습니다). 이 도구는 두 저장소의 제품 버전을 동기화하고 이전 버전 태그 이후의 커밋에서 release notes를 생성합니다. Go 저장소가 다른 위치에 있으면 `FN_KNOCK_GO_REAUTH_PROXY_DIR`을 설정하십시오. `--dry-run`으로 변경 사항을 미리 보거나 `--notes-file <path>`로 릴리스 노트를 지정할 수 있습니다. 그런 다음 `npm run release check`와 `npm run fn-knock:release:test`를 실행하고 Go 저장소를 먼저 commit 및 push하십시오. 이 도구는 commit, tag, push 또는 publish를 자동으로 실행하지 않습니다.
 
 `version.json`과 일치하는 `vX.Y.Z` 태그를 푸시하면 릴리스 워크플로가 현재 소스와 Go 게이트웨이 커밋을 고정하고, 품질 게이트를 실행하며, 모든 지원 플랫폼을 빌드합니다. 이어서 대상 아키텍처 검증, 체크섬, SBOM, 출처 증명을 생성하고 GitHub Release를 게시합니다.
 

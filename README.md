@@ -213,13 +213,13 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `npm run fn-knock:windows:build`               | 构建 Windows x86_64 unsigned NSIS 安装包 |
 | `npm run fn-knock:release:test`                | 检查完整发布链路                         |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | 校验版本与发布前置条件                   |
-| `bun run release status`                       | 查看当前发布版本状态                     |
+| `npm run release status`                       | 查看当前发布版本状态                     |
 | `npm run fn-knock:grpc:sync-go`                | 从共享 proto 重新生成 Go gRPC stub       |
 | `npm run fn-knock:grpc:check-go`               | 校验 Go stub 与共享 proto 的协议版本     |
 
 控制 API 版本只在 [`packages/grpc-contracts/proto/fnknock/v1/gateway.proto`](packages/grpc-contracts/proto/fnknock/v1/gateway.proto) 的 `CONTROL_API_VERSION_CURRENT` 定义。升级协议时只修改该枚举值，再运行 `npm run fn-knock:grpc:sync-go`；Rust 服务直接使用生成的 protobuf 枚举，Windows 桌面端、打包脚本和 smoke test 会读取同一 proto，Go 网关使用生成的 `gateway.pb.go`。不要手工维护第二份版本常量。
 
-发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `bun run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。完成后运行 `bun run release check` 和 `bun run fn-knock:release:test`，并先提交、推送 Go 仓库。工具不会自动提交、打 Tag 或推送。
+发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `npm run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。完成后运行 `npm run release check` 和 `npm run fn-knock:release:test`，并先提交、推送 Go 仓库。工具不会自动提交、打 Tag 或推送。
 
 `version.json` 的 `releaseChannel` 控制发布渠道，可取 `stable` 或 `beta`。Beta 仍使用纯数字 `X.Y.Z` 版本号和 `vX.Y.Z` Tag，但 GitHub Release 会标记为 Pre-release；CI 只发布固定版本的安装包与 Docker 镜像，不更新 Docker `latest`、腾讯 COS/CDN、自动更新清单或 GitHub Latest Release。发布说明必须明确提醒用户这是测试版本。
 

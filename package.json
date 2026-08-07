@@ -4,10 +4,12 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "clean": "bash ./scripts/fn-knock-clean.sh",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "a11y:audit": "node ./scripts/a11y-runtime-audit.mjs",
     "security:audit": "node ./scripts/security-audit.mjs",
+    "rust:panic-guard": "bash ./scripts/check-rust-prod-panics.sh",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "fn-knock:assemble-runtime": "bash ./scripts/assemble-runtime.sh",

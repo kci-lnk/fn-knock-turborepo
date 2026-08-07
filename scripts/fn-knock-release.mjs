@@ -598,7 +598,7 @@ async function checkRelease(versionArgument) {
   console.log(
     `[release] v${version} with control API ${controlApiVersion} is ready for the full release test suite`,
   );
-  console.log(`[release] next: bun run fn-knock:release:test`);
+  console.log(`[release] next: npm run fn-knock:release:test`);
 }
 
 async function checkGateway(versionArgument) {
@@ -699,7 +699,7 @@ async function prepareRelease(targetArgument, options) {
     `[release] commit and push Go-Reauth-Proxy before creating the fn-knock tag`,
   );
   console.log(
-    `[release] next: bun run release check && bun run fn-knock:release:test`,
+    `[release] next: npm run release check && npm run fn-knock:release:test`,
   );
 }
 
@@ -707,10 +707,10 @@ function printHelp() {
   console.log(`fn-knock release helper
 
 Usage:
-  bun run release status
-  bun run release prepare <X.Y.Z|patch|minor|major> [options]
-  bun run release check [X.Y.Z]
-  bun run release gateway-check [X.Y.Z]
+  npm run release status
+  npm run release prepare <X.Y.Z|patch|minor|major> [options]
+  npm run release check [X.Y.Z]
+  npm run release gateway-check [X.Y.Z]
 
 Prepare options:
   --dry-run             Preview changes without writing files

@@ -83,7 +83,7 @@ export default defineConfig({
     createGhosttyExternalWasmPlugin(),
     vue(),
     tailwindcss({
-      optimize: false,
+      optimize: process.env.NODE_ENV !== "development",
     }),
   ],
   optimizeDeps: {

@@ -1,40 +1,37 @@
 #!/bin/bash
 set -euo pipefail
 
-# Guard: no panic!/todo!/unimplemented! in production Rust code.
-# Test code (files named tests.rs or code under #[cfg(test)] / mod tests / #[test])
-# is skipped; only request-path and runtime code is checked.
+# Compile the production library/binary targets with Clippy's macro-specific
+# lints. Rust evaluates #[cfg(test)] itself, so test-only panic sites are
+# excluded without trying to approximate Rust scopes in shell.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC_DIR="${ROOT_DIR}/apps/server-admin-rs/src"
+MANIFEST_PATH="${FN_KNOCK_RUST_PANIC_GUARD_MANIFEST:-${ROOT_DIR}/apps/server-admin-rs/Cargo.toml}"
+CARGO_BIN="${CARGO:-cargo}"
 
-failures=0
-
-while IFS= read -r file; do
-  if [[ "$(basename "$file")" == "tests.rs" ]]; then
-    continue
-  fi
-  in_test=0
-  line_no=0
-  while IFS= read -r line; do
-    line_no=$((line_no + 1))
-    if [[ "$line" =~ '#[cfg(test)]' || "$line" =~ '#[test]' || "$line" =~ ^[[:space:]]*mod[[:space:]]+tests ]]; then
-      in_test=1
-    fi
-    if [[ "$in_test" == "0" && "$line" =~ panic!|todo!|unimplemented! ]]; then
-      trimmed="${line#"${line%%[![:space:]]*}"}"
-      case "$trimmed" in
-        //* | \** | '/*'*) continue ;;
-      esac
-      echo "production panic candidate: ${file}:${line_no}: ${line}"
-      failures=$((failures + 1))
-    fi
-  done < "$file"
-done < <(rg --files "$SRC_DIR" -g '*.rs')
-
-if [[ "$failures" -gt 0 ]]; then
-  echo "rust:panic-guard failed: ${failures} production panic candidate(s) found"
+fail() {
+  printf '[rust:panic-guard] ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+[ -f "${MANIFEST_PATH}" ] || fail "Cargo manifest not found: ${MANIFEST_PATH}"
+command -v "${CARGO_BIN}" >/dev/null 2>&1 || fail "cargo not found: ${CARGO_BIN}"
+"${CARGO_BIN}" clippy --version >/dev/null 2>&1 || fail "Clippy is required; install it with: rustup component add clippy"
+
+manifest_dir="$(cd "$(dirname "${MANIFEST_PATH}")" && pwd)"
+cargo_args=(
+  clippy
+  --manifest-path "${MANIFEST_PATH}"
+  --lib
+  --bins
+)
+if [ -f "${manifest_dir}/Cargo.lock" ]; then
+  cargo_args+=(--locked)
 fi
 
-echo "rust:panic-guard ok: no panic!/todo!/unimplemented! in production code"
+printf '[rust:panic-guard] checking production Rust targets with Clippy\n'
+"${CARGO_BIN}" "${cargo_args[@]}" -- \
+  -D clippy::panic \
+  -D clippy::todo \
+  -D clippy::unimplemented
+printf '[rust:panic-guard] ok: production targets contain no panic!/todo!/unimplemented!\n'

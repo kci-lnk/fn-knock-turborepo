@@ -1,3 +1,8 @@
+// Build-time validation intentionally aborts when repository metadata is
+// invalid. This script is not linked into the production runtime guarded by
+// scripts/check-rust-prod-panics.sh.
+#![allow(clippy::panic, clippy::todo, clippy::unimplemented)]
+
 use std::{
     collections::BTreeSet,
     env, fs,

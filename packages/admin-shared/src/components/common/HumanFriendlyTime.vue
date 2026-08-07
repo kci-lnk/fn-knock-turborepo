@@ -13,6 +13,7 @@ import {
   resolveDateValue,
 } from "@admin-shared/utils/formatHumanFriendlyTime";
 import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
+import { useDateTimeDisplayState } from "@admin-shared/composables/useDateTimeDisplayState";
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +33,7 @@ const props = withDefaults(
 );
 
 const { locale: globalLocale } = useI18n({ useScope: "global" });
+const { dateTimeDisplayMode } = useDateTimeDisplayState();
 const now = ref(Date.now());
 const open = ref(false);
 const isTouchInteraction = useMediaQueryMatch(
@@ -65,7 +67,7 @@ const fullText = computed(() =>
     formatOptions: props.absoluteFormatOptions,
   }),
 );
-const displayText = computed(() =>
+const humanFriendlyText = computed(() =>
   formatHumanFriendlyTime(props.value, {
     locale: effectiveLocale.value,
     emptyText: props.emptyText,
@@ -73,18 +75,28 @@ const displayText = computed(() =>
     now: now.value,
   }),
 );
+const displayText = computed(() =>
+  dateTimeDisplayMode.value === "full"
+    ? fullText.value
+    : humanFriendlyText.value,
+);
 const customTooltipLines = computed(() =>
   (props.tooltipLines || []).map((line) => line?.trim()).filter(Boolean),
 );
 const tooltipContentLines = computed(() =>
   customTooltipLines.value.length > 0
     ? customTooltipLines.value
-    : [fullText.value],
+    : [
+        dateTimeDisplayMode.value === "full"
+          ? humanFriendlyText.value
+          : fullText.value,
+      ],
 );
 const showTooltip = computed(
   () =>
     customTooltipLines.value.length > 0 ||
-    (Boolean(resolvedDate.value) && fullText.value !== displayText.value),
+    (Boolean(resolvedDate.value) &&
+      fullText.value !== humanFriendlyText.value),
 );
 
 const handleOpenChange = (nextOpen: boolean) => {
@@ -100,10 +112,15 @@ const handleTriggerClick = () => {
 };
 
 watch(
-  [resolvedDate, () => props.refreshIntervalMs],
-  ([date]) => {
+  [
+    resolvedDate,
+    () => props.refreshIntervalMs,
+    dateTimeDisplayMode,
+    () => customTooltipLines.value.length,
+  ],
+  ([date, , displayMode, customTooltipLineCount]) => {
     now.value = Date.now();
-    if (!date) {
+    if (!date || (displayMode === "full" && customTooltipLineCount > 0)) {
       stopTimer();
       return;
     }

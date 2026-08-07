@@ -619,12 +619,22 @@ pub fn normalize_traffic_host(value: &str) -> String {
     host.trim().to_string()
 }
 
+fn normalize_date_time_display_mode(value: Option<&Value>) -> &'static str {
+    match value.and_then(Value::as_str) {
+        Some("full") => "full",
+        _ => "human_friendly",
+    }
+}
+
 fn normalize_dashboard_display(value: Option<&Value>) -> Value {
     json!({
         "show_entry_status_module": value
             .and_then(|value| value.get("show_entry_status_module"))
             .and_then(Value::as_bool)
             .unwrap_or(true),
+        "date_time_display_mode": normalize_date_time_display_mode(
+            value.and_then(|value| value.get("date_time_display_mode"))
+        ),
         "sidebar_menu_order": normalize_sidebar_menu_order(
             value.and_then(|value| value.get("sidebar_menu_order"))
         )
@@ -643,6 +653,14 @@ fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
         fields.insert(
             "sidebar_menu_order".to_string(),
             normalize_sidebar_menu_order(body.get("sidebar_menu_order")),
+        );
+    }
+    if body.get("date_time_display_mode").is_some() {
+        fields.insert(
+            "date_time_display_mode".to_string(),
+            json!(normalize_date_time_display_mode(
+                body.get("date_time_display_mode")
+            )),
         );
     }
     fields
@@ -850,8 +868,24 @@ mod tests {
             }))),
             json!({
                 "show_entry_status_module": false,
+                "date_time_display_mode": "human_friendly",
                 "sidebar_menu_order": DEFAULT_SIDEBAR_MENU_ORDER
             })
+        );
+
+        assert_eq!(
+            normalize_dashboard_display(Some(&json!({
+                "date_time_display_mode": "full"
+            })))
+            .get("date_time_display_mode"),
+            Some(&json!("full"))
+        );
+        assert_eq!(
+            normalize_dashboard_display(Some(&json!({
+                "date_time_display_mode": "invalid"
+            })))
+            .get("date_time_display_mode"),
+            Some(&json!("human_friendly"))
         );
 
         let normalized = normalize_sidebar_menu_order(Some(&json!([
@@ -890,6 +924,19 @@ mod tests {
         assert_eq!(
             order_update["sidebar_menu_order"].as_array().map(Vec::len),
             Some(DEFAULT_SIDEBAR_MENU_ORDER.len())
+        );
+
+        let mode_update =
+            dashboard_display_update_fields(&json!({ "date_time_display_mode": "full" }));
+        assert_eq!(mode_update.len(), 1);
+        assert_eq!(mode_update["date_time_display_mode"], json!("full"));
+
+        let invalid_mode_update =
+            dashboard_display_update_fields(&json!({ "date_time_display_mode": "not-supported" }));
+        assert_eq!(invalid_mode_update.len(), 1);
+        assert_eq!(
+            invalid_mode_update["date_time_display_mode"],
+            json!("human_friendly")
         );
     }
 

@@ -620,6 +620,10 @@ export const zhHantAdmin = {
   },
   featuresSettings: {
     ...zhCNAdmin.featuresSettings,
+    dateTimeDisplayMode: "日期時間展示方式",
+    dateTimeDisplayModeHint: "選擇系統中日期時間的統一展示方式。",
+    dateTimeDisplayHumanFriendly: "人類友好",
+    dateTimeDisplayFull: "完整時間",
     runTypes: {
       direct: "直連模式",
       reverse: "内网穿透",

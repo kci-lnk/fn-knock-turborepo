@@ -8,12 +8,14 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight } from "lucide-vue-next";
+import DateTimeDisplaySettingRow from "./DateTimeDisplaySettingRow.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import { useFeaturesSettings } from "./useFeaturesSettings";
 
 const {
   autoHttpsEnabled,
   autoHttpsRuntimeError,
+  dateTimeDisplayMode,
   isDashboardDisplaySwitchDisabled,
   isLoading,
   isProtocolMappingAvailable,
@@ -26,6 +28,7 @@ const {
   protocolMappingDisabledReason,
   protocolMappingEnabled,
   saveAutoHttpsEnabled,
+  saveDateTimeDisplayMode,
   savePasskeyBindPromptEnabled,
   saveProtocolMappingEnabled,
   saveShowEntryStatusModule,
@@ -46,12 +49,8 @@ const {
   <Card>
     <CardHeader>
       <div class="space-y-1.5">
-        <CardTitle class="text-md">{{
-          t("admin.featuresSettings.title")
-        }}</CardTitle>
-        <CardDescription>{{
-          t("admin.featuresSettings.description")
-        }}</CardDescription>
+        <CardTitle class="text-md">{{ t("admin.featuresSettings.title") }}</CardTitle>
+        <CardDescription>{{ t("admin.featuresSettings.description") }}</CardDescription>
       </div>
     </CardHeader>
 
@@ -71,6 +70,11 @@ const {
         @change="saveShowEntryStatusModule"
       />
 
+      <DateTimeDisplaySettingRow
+        :model-value="dateTimeDisplayMode"
+        :disabled="isDashboardDisplaySwitchDisabled"
+        @change="saveDateTimeDisplayMode"
+      />
       <FeatureSwitchRow
         :title="t('admin.featuresSettings.passkeyBindPrompt')"
         :description="t('admin.featuresSettings.passkeyBindPromptHint')"

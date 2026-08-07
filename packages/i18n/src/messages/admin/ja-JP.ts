@@ -707,6 +707,10 @@ export const jaJPAdmin = {
       "ポート80をリッスンできません。権限または使用状況を確認してください。",
     title: "機能設定",
     description: "オプション機能の有効・無効を設定します。",
+    dateTimeDisplayMode: "日時の表示形式",
+    dateTimeDisplayModeHint: "システム全体での日時の表示形式を選択します。",
+    dateTimeDisplayHumanFriendly: "わかりやすい表示",
+    dateTimeDisplayFull: "完全な日時",
     showEntryStatusModule: "ダッシュボードにアクセス経路の状態を表示",
     showEntryStatusModuleHint:
       "無効にすると、ダッシュボードの「アクセス経路の状態」カードが非表示になります",

@@ -7,11 +7,16 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import {
+  applyDateTimeDisplayMode,
+  normalizeDateTimeDisplayMode,
+} from "@admin-shared/composables/useDateTimeDisplayState";
 import { ConfigAPI, SSHSecurityAPI, SystemAPI } from "../../lib/api";
 import type {
   AuthCredentialSettings,
   AutoHttpsDetails,
   DashboardDisplayConfig,
+  DateTimeDisplayMode,
   ProtocolMappingFeatureConfig,
 } from "../../types";
 import { useConfigStore } from "../../store/config";
@@ -30,6 +35,7 @@ export function useFeaturesSettings() {
   const protocolMappingEnabled = ref(false);
   const passkeyBindPromptEnabled = ref(true);
   const showEntryStatusModule = ref(true);
+  const dateTimeDisplayMode = ref<DateTimeDisplayMode>("human_friendly");
   const autoHttpsDetails = ref<AutoHttpsDetails | null>(null);
   const sshSecurityEnabled = ref(false);
   const sshSecurityUnavailableReason = ref("");
@@ -150,9 +156,16 @@ export function useFeaturesSettings() {
     passkeyBindPromptEnabled.value = data.passkey_bind_prompt_enabled !== false;
   };
   const applyDashboardDisplaySettings = (
-    data: Pick<DashboardDisplayConfig, "show_entry_status_module">,
+    data: Pick<
+      DashboardDisplayConfig,
+      "show_entry_status_module" | "date_time_display_mode"
+    >,
   ) => {
     showEntryStatusModule.value = data.show_entry_status_module;
+    dateTimeDisplayMode.value = normalizeDateTimeDisplayMode(
+      data.date_time_display_mode,
+    );
+    applyDateTimeDisplayMode(dateTimeDisplayMode.value);
   };
   const syncDashboardDisplayFromConfig = () => {
     if (!configStore.config) return;
@@ -160,6 +173,9 @@ export function useFeaturesSettings() {
       show_entry_status_module:
         configStore.config.dashboard_display?.show_entry_status_module !==
         false,
+      date_time_display_mode: normalizeDateTimeDisplayMode(
+        configStore.config.dashboard_display?.date_time_display_mode,
+      ),
     });
   };
 
@@ -224,6 +240,30 @@ export function useFeaturesSettings() {
       },
     );
     if (!result) showEntryStatusModule.value = previousValue;
+  };
+
+  const saveDateTimeDisplayMode = async (nextValue: DateTimeDisplayMode) => {
+    if (isDashboardDisplaySwitchDisabled.value || !configStore.config) return;
+    const previousValue = dateTimeDisplayMode.value;
+    dateTimeDisplayMode.value = nextValue;
+    applyDateTimeDisplayMode(nextValue);
+    const result = await runSaveSettings(
+      () =>
+        ConfigAPI.updateDashboardDisplayConfig({
+          date_time_display_mode: nextValue,
+        }),
+      {
+        onSuccess: async (data) => {
+          applyDashboardDisplaySettings(data);
+          toast.success(t("admin.featuresSettings.updated"));
+          await configStore.loadConfig();
+        },
+      },
+    );
+    if (!result) {
+      dateTimeDisplayMode.value = previousValue;
+      applyDateTimeDisplayMode(previousValue);
+    }
   };
 
   const savePasskeyBindPromptEnabled = async (nextValue: boolean) => {
@@ -316,7 +356,7 @@ export function useFeaturesSettings() {
   });
 
   watch(
-    () => configStore.config?.dashboard_display?.show_entry_status_module,
+    () => configStore.config?.dashboard_display,
     syncDashboardDisplayFromConfig,
     { immediate: true },
   );
@@ -335,6 +375,7 @@ export function useFeaturesSettings() {
   return {
     autoHttpsEnabled,
     autoHttpsRuntimeError,
+    dateTimeDisplayMode,
     isDashboardDisplaySwitchDisabled,
     isLoading,
     isProtocolMappingAvailable,
@@ -347,6 +388,7 @@ export function useFeaturesSettings() {
     protocolMappingDisabledReason,
     protocolMappingEnabled,
     saveAutoHttpsEnabled,
+    saveDateTimeDisplayMode,
     savePasskeyBindPromptEnabled,
     saveProtocolMappingEnabled,
     saveShowEntryStatusModule,

@@ -704,6 +704,11 @@ export const enAdmin = {
       "Port 80 cannot be listened on. Check permissions or port usage.",
     title: "Feature switches",
     description: "Control optional feature availability.",
+    dateTimeDisplayMode: "Date and time display",
+    dateTimeDisplayModeHint:
+      "Choose how dates and times are displayed throughout the system.",
+    dateTimeDisplayHumanFriendly: "Human-friendly",
+    dateTimeDisplayFull: "Full time",
     showEntryStatusModule: "Show entry status module on Dashboard",
     showEntryStatusModuleHint:
       "When disabled, the Dashboard entry status card is hidden",

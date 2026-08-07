@@ -1,7 +1,9 @@
 import type { WAFConfig } from "./types/waf";
 import type { AppearanceConfig } from "@frontend-core/appearance";
+import type { DateTimeDisplayMode } from "@admin-shared/composables/useDateTimeDisplayState";
 
 export type { AppearanceConfig } from "@frontend-core/appearance";
+export type { DateTimeDisplayMode } from "@admin-shared/composables/useDateTimeDisplayState";
 
 export interface ProxyMapping {
   path: string;
@@ -672,6 +674,7 @@ export interface DeepMonitorEvent {
 export interface DashboardDisplayConfig {
   show_entry_status_module: boolean;
   sidebar_menu_order: SidebarNavItemId[];
+  date_time_display_mode: DateTimeDisplayMode;
 }
 
 export interface SmartConnectConfig {

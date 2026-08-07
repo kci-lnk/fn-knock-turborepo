@@ -26,6 +26,7 @@ import {
 import { canUseFnosConnectWafForRuntime } from "../lib/fnos-connect-waf";
 import { isProtectedAdminPanelDeploymentTarget } from "../lib/admin-panel-runtime";
 import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
+import { applyDateTimeDisplayConfig } from "@admin-shared/composables/useDateTimeDisplayState";
 
 const isLegacyStreamMappingRepairConflict = (error: unknown): boolean =>
   (error as { response?: { status?: number; data?: { code?: number } } })
@@ -234,6 +235,7 @@ export const useConfigStore = defineStore("config", () => {
           }
           config.value = next;
           applyAppearanceConfig(next.appearance);
+          applyDateTimeDisplayConfig(next.dashboard_display);
         }
         return next;
       })
@@ -490,6 +492,7 @@ export const useConfigStore = defineStore("config", () => {
     next: Partial<DashboardDisplayConfig>,
   ) {
     const result = await ConfigAPI.updateDashboardDisplayConfig(next);
+    applyDateTimeDisplayConfig(result);
     if (config.value) {
       config.value.dashboard_display = result;
     } else {

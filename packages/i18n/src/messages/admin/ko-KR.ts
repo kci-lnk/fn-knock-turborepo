@@ -696,6 +696,11 @@ export const koKRAdmin = {
       "포트 80은 청취할 수 없습니다. 권한이나 포트 사용량을 확인하세요.",
     title: "기능 설정",
     description: "선택 기능의 사용 여부를 설정합니다.",
+    dateTimeDisplayMode: "날짜 및 시간 표시 방식",
+    dateTimeDisplayModeHint:
+      "시스템 전체에서 날짜와 시간을 표시할 방식을 선택합니다.",
+    dateTimeDisplayHumanFriendly: "읽기 쉬운 형식",
+    dateTimeDisplayFull: "전체 시간",
     showEntryStatusModule: "대시보드에 접속 상태 표시",
     showEntryStatusModuleHint:
       "비활성화되면 대시보드 항목 상태 카드가 숨겨집니다.",

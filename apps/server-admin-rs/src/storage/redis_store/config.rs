@@ -110,6 +110,7 @@ pub fn default_config() -> Value {
     let appearance = json!({ "theme_color_preset": "default" });
     let dashboard_display = json!({
         "show_entry_status_module": true,
+        "date_time_display_mode": "human_friendly",
         "sidebar_menu_order": [
             "dashboard",
             "route_mapping",

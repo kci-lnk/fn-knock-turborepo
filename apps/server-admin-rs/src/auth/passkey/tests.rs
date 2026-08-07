@@ -2,6 +2,10 @@ use super::*;
 use crate::store::LoginSession;
 use axum::body::to_bytes;
 use axum::http::HeaderMap;
+use ring::{
+    rand::SystemRandom,
+    signature::{ECDSA_P256_SHA256_ASN1_SIGNING, EcdsaKeyPair, KeyPair},
+};
 
 #[test]
 fn extracts_challenge_from_client_data_json() {
@@ -28,35 +32,51 @@ fn extracts_backup_flags_from_authenticator_data() {
 
 #[test]
 fn patches_serialized_auth_state_backup_flags() {
-    let mut state = json!({
-        "state": {
-            "ast": {
-                "credentials": [
-                    {
+    for (mut state, credential_path) in [
+        (
+            json!({
+                "state": {
+                    "ast": {
+                        "credentials": [{
+                            "cred_id": "abc123",
+                            "backup_eligible": false,
+                            "backup_state": false
+                        }]
+                    }
+                }
+            }),
+            "/state/ast/credentials/0",
+        ),
+        (
+            json!({
+                "state": {
+                    "credentials": [{
                         "cred_id": "abc123",
                         "backup_eligible": false,
                         "backup_state": false
-                    }
-                ]
-            }
-        }
-    });
-    patch_authentication_state_backup_flags(
-        &mut state,
-        "abc123",
-        AuthenticatorBackupFlags {
-            backup_eligible: true,
-            backup_state: true,
-        },
-    );
-    assert_eq!(
-        state.pointer("/state/ast/credentials/0/backup_eligible"),
-        Some(&Value::Bool(true))
-    );
-    assert_eq!(
-        state.pointer("/state/ast/credentials/0/backup_state"),
-        Some(&Value::Bool(true))
-    );
+                    }]
+                }
+            }),
+            "/state/credentials/0",
+        ),
+    ] {
+        patch_authentication_state_backup_flags(
+            &mut state,
+            "abc123",
+            AuthenticatorBackupFlags {
+                backup_eligible: true,
+                backup_state: true,
+            },
+        );
+        assert_eq!(
+            state.pointer(&format!("{credential_path}/backup_eligible")),
+            Some(&Value::Bool(true))
+        );
+        assert_eq!(
+            state.pointer(&format!("{credential_path}/backup_state")),
+            Some(&Value::Bool(true))
+        );
+    }
 }
 
 #[test]
@@ -471,7 +491,7 @@ fn malformed_stored_webauthn_credential_does_not_fallback_to_legacy_fields() {
 }
 
 #[test]
-fn legacy_stored_credentials_authenticate_with_required_user_verification() {
+fn authentication_requests_preferred_and_clears_historical_uv_requirement() {
     let rp_info = RpInfo {
         rp_id: "auth.example.com".to_string(),
         origin: "https://auth.example.com".to_string(),
@@ -484,18 +504,146 @@ fn legacy_stored_credentials_authenticate_with_required_user_verification() {
         "counter": 0
     });
     let passkey = stored_passkey(&legacy).expect("legacy credential converts to passkey");
-    let (options, auth_state) = webauthn
-        .start_passkey_authentication(&[passkey])
-        .expect("authentication options");
+    let mut credential = Credential::from(passkey);
+    credential.registration_policy = UserVerificationPolicy::Required;
+    credential.user_verified = true;
+    let (options, auth_state) =
+        start_uv_optional_passkey_authentication(&webauthn, vec![credential.clone()])
+            .expect("authentication options");
     let options = serde_json::to_value(options.public_key).expect("options serialize");
-    let state = serde_json::to_value(auth_state).expect("authentication state serializes");
+    let state = serde_json::to_value(&auth_state).expect("authentication state serializes");
 
     assert_eq!(
         options.pointer("/userVerification"),
-        Some(&json!("required"))
+        Some(&json!("preferred"))
     );
     assert_eq!(options.pointer("/hints"), None);
-    assert_eq!(state.pointer("/ast/policy"), Some(&json!("required")));
+    assert_eq!(state.pointer("/ast/policy"), Some(&json!("preferred")));
+    assert_eq!(
+        state.pointer("/ast/credentials/0/registration_policy"),
+        Some(&json!("preferred"))
+    );
+    assert_eq!(
+        state.pointer("/ast/credentials/0/user_verified"),
+        Some(&json!(false))
+    );
+
+    let decoded = decode_passkey_authentication_state(&json!({
+        "authentication_profile": PASSKEY_AUTH_PROFILE_UV_OPTIONAL,
+        "state": auth_state
+    }))
+    .expect("decode optional UV state");
+    assert!(matches!(
+        decoded,
+        StoredPasskeyAuthentication::UvOptional(_)
+    ));
+
+    let legacy_webauthn = build_webauthn(&rp_info).expect("valid legacy rp config");
+    let (_, legacy_state) = legacy_webauthn
+        .start_passkey_authentication(&[Passkey::from(credential)])
+        .expect("legacy authentication options");
+    let decoded = decode_passkey_authentication_state(&json!({ "state": legacy_state }))
+        .expect("decode legacy authentication state");
+    assert!(matches!(
+        decoded,
+        StoredPasskeyAuthentication::LegacyRequired(_)
+    ));
+}
+
+#[test]
+fn authentication_accepts_signed_assertions_with_or_without_uv() {
+    let rp_info = RpInfo {
+        rp_id: "auth.example.com".to_string(),
+        origin: "https://auth.example.com".to_string(),
+        mode: "auth_host".to_string(),
+    };
+    let random = SystemRandom::new();
+    let private_key = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &random)
+        .expect("generate test passkey private key");
+    let key_pair = EcdsaKeyPair::from_pkcs8(
+        &ECDSA_P256_SHA256_ASN1_SIGNING,
+        private_key.as_ref(),
+        &random,
+    )
+    .expect("parse test passkey private key");
+    let public_key = key_pair.public_key().as_ref();
+    assert_eq!(public_key.len(), 65);
+    assert_eq!(public_key[0], 0x04);
+    let credential_id = vec![7, 10, 14, 21, 28, 35, 42, 49];
+    let credential = Credential {
+        cred_id: credential_id.clone(),
+        cred: COSEKey {
+            type_: COSEAlgorithm::ES256,
+            key: COSEKeyType::EC_EC2(COSEEC2Key {
+                curve: ECDSACurve::SECP256R1,
+                x: public_key[1..33].to_vec(),
+                y: public_key[33..65].to_vec(),
+            }),
+        },
+        counter: 0,
+        transports: None,
+        user_verified: true,
+        backup_eligible: false,
+        backup_state: false,
+        registration_policy: UserVerificationPolicy::Required,
+        extensions: RegisteredExtensions::none(),
+        attestation: ParsedAttestation {
+            data: ParsedAttestationData::None,
+            metadata: AttestationMetadata::None,
+        },
+        attestation_format: AttestationFormat::None,
+    };
+
+    for (flags, backup_eligible, backup_state) in [
+        (0x01_u8, false, false),
+        (0x05_u8, false, false),
+        // The reported Windows assertion was a synced credential with
+        // UP+BE+BS set and UV clear.
+        (0x19_u8, true, true),
+    ] {
+        let webauthn = build_webauthn(&rp_info).expect("valid rp config");
+        let mut credential = credential.clone();
+        credential.backup_eligible = backup_eligible;
+        credential.backup_state = backup_state;
+        let (options, auth_state) =
+            start_uv_optional_passkey_authentication(&webauthn, vec![credential])
+                .expect("authentication options");
+        let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
+        let client_data = serde_json::to_vec(&json!({
+            "type": "webauthn.get",
+            "challenge": challenge,
+            "origin": rp_info.origin,
+            "crossOrigin": false
+        }))
+        .expect("serialize client data");
+        let mut authenticator_data = Sha256::digest(rp_info.rp_id.as_bytes()).to_vec();
+        authenticator_data.push(flags);
+        authenticator_data.extend_from_slice(&0_u32.to_be_bytes());
+        let mut signed_data = authenticator_data.clone();
+        signed_data.extend_from_slice(&Sha256::digest(&client_data));
+        let signature = key_pair
+            .sign(&random, &signed_data)
+            .expect("sign assertion");
+        let credential_id = URL_SAFE_NO_PAD.encode(&credential_id);
+        let assertion: PublicKeyCredential = serde_json::from_value(json!({
+            "id": credential_id,
+            "rawId": credential_id,
+            "type": "public-key",
+            "clientExtensionResults": {},
+            "response": {
+                "authenticatorData": URL_SAFE_NO_PAD.encode(&authenticator_data),
+                "clientDataJSON": URL_SAFE_NO_PAD.encode(&client_data),
+                "signature": URL_SAFE_NO_PAD.encode(signature.as_ref()),
+                "userHandle": null
+            }
+        }))
+        .expect("deserialize signed assertion");
+
+        let result = webauthn
+            .finish_securitykey_authentication(&assertion, &auth_state)
+            .expect("accept signed assertion");
+        assert_eq!(result.user_verified(), flags & 0x04 != 0);
+    }
 }
 
 #[test]

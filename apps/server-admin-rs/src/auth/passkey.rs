@@ -41,7 +41,13 @@ use crate::{
 const RP_NAME: &str = "fn-knock";
 const PASSKEY_CHALLENGE_TTL_SECONDS: usize = 300;
 const PASSKEY_BIND_TTL_SECONDS: usize = 600;
+const PASSKEY_AUTH_PROFILE_UV_OPTIONAL: &str = "uv_optional";
 const CA_HOSTS_KEY: &str = "fn_knock:ca:hosts";
+
+enum StoredPasskeyAuthentication {
+    UvOptional(SecurityKeyAuthentication),
+    LegacyRequired(PasskeyAuthentication),
+}
 
 #[derive(Deserialize)]
 struct AuthVerifyBody {
@@ -195,6 +201,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
                 .is_some_and(|id| linked_totp_ids.contains(id))
         })
         .filter_map(stored_passkey)
+        .map(Credential::from)
         .collect::<Vec<_>>();
     if credentials.is_empty() {
         return with_auth_headers(response::error(
@@ -214,16 +221,17 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
         }
     };
 
-    let (options, auth_state) = match webauthn.start_passkey_authentication(&credentials) {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(%error, "failed to start passkey authentication");
-            return with_auth_headers(response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                passkey_text(&translator, "createOptionsFailed"),
-            ));
-        }
-    };
+    let (options, auth_state) =
+        match start_uv_optional_passkey_authentication(&webauthn, credentials) {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(%error, "failed to start passkey authentication");
+                return with_auth_headers(response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    passkey_text(&translator, "createOptionsFailed"),
+                ));
+            }
+        };
     let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
     if let Err(error) = state
         .store
@@ -238,6 +246,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
     }
     let state_json = json!({
         "type": "auth",
+        "authentication_profile": PASSKEY_AUTH_PROFILE_UV_OPTIONAL,
         "state": auth_state,
         "rp_id": rp_info.rp_id,
         "origin": rp_info.origin,
@@ -346,17 +355,16 @@ async fn auth_verify(
     if let Some(flags) = backup_flags {
         patch_authentication_state_backup_flags(&mut state_json, credential.id.as_str(), flags);
     }
-    let auth_state: PasskeyAuthentication =
-        match serde_json::from_value(state_json.get("state").cloned().unwrap_or(Value::Null)) {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(%error, "failed to decode passkey auth state");
-                return with_auth_headers(response::error(
-                    StatusCode::BAD_REQUEST,
-                    passkey_text(&translator, "challengeExpired"),
-                ));
-            }
-        };
+    let auth_state = match decode_passkey_authentication_state(&state_json) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, "failed to decode passkey auth state");
+            return with_auth_headers(response::error(
+                StatusCode::BAD_REQUEST,
+                passkey_text(&translator, "challengeExpired"),
+            ));
+        }
+    };
 
     let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
@@ -402,16 +410,6 @@ async fn auth_verify(
             .unwrap_or("auth_host")
             .to_string(),
     };
-    let webauthn = match build_webauthn(&rp_info) {
-        Ok(webauthn) => webauthn,
-        Err(error) => {
-            tracing::warn!(%error, "failed to rebuild passkey RP config");
-            return with_auth_headers(response::error(
-                StatusCode::BAD_REQUEST,
-                passkey_text(&translator, "invalidRpConfig"),
-            ));
-        }
-    };
     let unknown_device = passkey_text(&translator, "unknownDevice");
     let credential_name = string_field(matched, "deviceName")
         .unwrap_or(&unknown_device)
@@ -443,7 +441,25 @@ async fn auth_verify(
     };
     let linked_totp_name = (!totp_credential.comment.trim().is_empty())
         .then(|| totp_credential.comment.trim().to_string());
-    let auth_result = match webauthn.finish_passkey_authentication(&credential, &auth_state) {
+    let webauthn = match build_webauthn(&rp_info) {
+        Ok(webauthn) => webauthn,
+        Err(error) => {
+            tracing::warn!(%error, "failed to rebuild passkey RP config");
+            return with_auth_headers(response::error(
+                StatusCode::BAD_REQUEST,
+                passkey_text(&translator, "invalidRpConfig"),
+            ));
+        }
+    };
+    let auth_result = match &auth_state {
+        StoredPasskeyAuthentication::UvOptional(auth_state) => {
+            webauthn.finish_securitykey_authentication(&credential, auth_state)
+        }
+        StoredPasskeyAuthentication::LegacyRequired(auth_state) => {
+            webauthn.finish_passkey_authentication(&credential, auth_state)
+        }
+    };
+    let auth_result = match auth_result {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "passkey verification failed");
@@ -1536,8 +1552,13 @@ fn patch_authentication_state_backup_flags(
     credential_id: &str,
     flags: AuthenticatorBackupFlags,
 ) {
+    let credentials_path = if state_json.pointer("/state/credentials").is_some() {
+        "/state/credentials"
+    } else {
+        "/state/ast/credentials"
+    };
     let Some(credentials) = state_json
-        .pointer_mut("/state/ast/credentials")
+        .pointer_mut(credentials_path)
         .and_then(Value::as_array_mut)
     else {
         return;
@@ -1554,6 +1575,44 @@ fn patch_authentication_state_backup_flags(
             );
             object.insert("backup_state".to_string(), Value::Bool(flags.backup_state));
         }
+    }
+}
+
+fn start_uv_optional_passkey_authentication(
+    webauthn: &Webauthn,
+    credentials: Vec<Credential>,
+) -> WebauthnResult<(RequestChallengeResponse, SecurityKeyAuthentication)> {
+    let security_keys = credentials
+        .into_iter()
+        .map(|mut credential| {
+            // The caller explicitly accepts assertions without PIN/biometric
+            // user verification. Clear the historical registration requirement
+            // too, or webauthn-rs will still reject UV=0 for credentials that
+            // were originally registered with the stricter Passkey profile.
+            credential.registration_policy = UserVerificationPolicy::Preferred;
+            credential.user_verified = false;
+            SecurityKey::from(credential)
+        })
+        .collect::<Vec<_>>();
+    let (mut options, state) = webauthn.start_securitykey_authentication(&security_keys)?;
+    // These are still ordinary passkeys; do not bias the browser picker toward
+    // removable security keys just because this wrapper uses Preferred UV.
+    options.public_key.hints = None;
+    Ok((options, state))
+}
+
+fn decode_passkey_authentication_state(
+    state_json: &Value,
+) -> Result<StoredPasskeyAuthentication, serde_json::Error> {
+    let state = state_json.get("state").cloned().unwrap_or(Value::Null);
+    if state_json
+        .get("authentication_profile")
+        .and_then(Value::as_str)
+        == Some(PASSKEY_AUTH_PROFILE_UV_OPTIONAL)
+    {
+        serde_json::from_value(state).map(StoredPasskeyAuthentication::UvOptional)
+    } else {
+        serde_json::from_value(state).map(StoredPasskeyAuthentication::LegacyRequired)
     }
 }
 

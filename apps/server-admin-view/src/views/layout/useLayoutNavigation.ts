@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Network,
   RadioTower,
+  MonitorUp,
   Route as RouteIcon,
   ServerCog,
   Settings2,
@@ -80,6 +81,14 @@ export const useLayoutNavigation = () => {
       path: "/ddns",
       icon: Network,
     });
+    if (configStore.config?.wol_feature?.enabled === true) {
+      items.push({
+        id: "wol",
+        name: t("admin.nav.wol"),
+        path: "/wol",
+        icon: MonitorUp,
+      });
+    }
     if (configStore.config?.run_type === 1) {
       const isSubdomainMode = isReverseProxySubdomainMode(configStore.config);
       items.splice(1, 0, {

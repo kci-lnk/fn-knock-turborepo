@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight } from "lucide-vue-next";
 import DateTimeDisplaySettingRow from "./DateTimeDisplaySettingRow.vue";
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
+import SmartConnectSettingRow from "./SmartConnectSettingRow.vue";
 import { useFeaturesSettings } from "./useFeaturesSettings";
 
 const {
@@ -33,6 +34,7 @@ const {
   saveProtocolMappingEnabled,
   saveShowEntryStatusModule,
   saveSSHSecurityEnabled,
+  saveWOLEnabled,
   showAutoHttpsEntry,
   showEntryStatusModule,
   showLoadingSkeleton,
@@ -42,6 +44,7 @@ const {
   sshSecurityDisabledReason,
   sshSecurityEnabled,
   t,
+  wolEnabled,
 } = useFeaturesSettings();
 </script>
 
@@ -49,8 +52,12 @@ const {
   <Card>
     <CardHeader>
       <div class="space-y-1.5">
-        <CardTitle class="text-md">{{ t("admin.featuresSettings.title") }}</CardTitle>
-        <CardDescription>{{ t("admin.featuresSettings.description") }}</CardDescription>
+        <CardTitle class="text-md">{{
+          t("admin.featuresSettings.title")
+        }}</CardTitle>
+        <CardDescription>{{
+          t("admin.featuresSettings.description")
+        }}</CardDescription>
       </div>
     </CardHeader>
 
@@ -105,6 +112,14 @@ const {
       />
 
       <FeatureSwitchRow
+        :title="t('admin.featuresSettings.wol')"
+        :description="t('admin.featuresSettings.wolHint')"
+        :model-value="wolEnabled"
+        :disabled="isSaving"
+        @change="saveWOLEnabled"
+      />
+
+      <FeatureSwitchRow
         :title="t('admin.featuresSettings.protocolMapping')"
         :description="t('admin.featuresSettings.protocolMappingHint')"
         :model-value="protocolMappingEnabled"
@@ -130,51 +145,14 @@ const {
         <ChevronRight class="h-5 w-5 shrink-0 text-muted-foreground" />
       </button>
 
-      <button
+      <SmartConnectSettingRow
         v-if="showSmartConnectEntry"
-        type="button"
-        class="flex w-full items-center justify-between p-6 text-left transition-colors"
-        :class="
-          isSmartConnectAvailable
-            ? 'bg-muted/5 hover:bg-muted/15'
-            : 'cursor-not-allowed bg-muted/5'
-        "
-        :disabled="!isSmartConnectAvailable"
-        @click="openSmartConnect"
-      >
-        <div class="space-y-1 pr-6">
-          <div
-            class="text-base font-medium"
-            :class="
-              isSmartConnectAvailable ? 'text-foreground' : 'text-zinc-500'
-            "
-          >
-            {{ t("admin.featuresSettings.smartConnect") }}
-          </div>
-          <div
-            class="text-sm"
-            :class="
-              isSmartConnectAvailable
-                ? 'text-muted-foreground'
-                : 'text-zinc-500'
-            "
-          >
-            {{ t("admin.featuresSettings.smartConnectHint") }}
-          </div>
-          <div
-            v-if="!isSmartConnectAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ smartConnectDisabledReason }}
-          </div>
-        </div>
-        <ChevronRight
-          class="h-5 w-5 shrink-0"
-          :class="
-            isSmartConnectAvailable ? 'text-muted-foreground' : 'text-zinc-400'
-          "
-        />
-      </button>
+        :title="t('admin.featuresSettings.smartConnect')"
+        :description="t('admin.featuresSettings.smartConnectHint')"
+        :available="isSmartConnectAvailable"
+        :disabled-reason="smartConnectDisabledReason"
+        @open="openSmartConnect"
+      />
     </CardContent>
   </Card>
 </template>

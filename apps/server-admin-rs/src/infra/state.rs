@@ -6,7 +6,7 @@ use std::sync::{
 
 use anyhow::Context;
 use serde_json::Value;
-use tokio::sync::{Mutex, Notify, RwLock};
+use tokio::sync::{Mutex, Notify, RwLock, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -72,6 +72,17 @@ pub struct AppStateInner {
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
     pub host_mappings_update_lock: Mutex<()>,
+    /// Serializes WoL Relay/Target metadata with installation-bound PSK files.
+    pub wol_config_lock: Mutex<()>,
+    /// Serializes the persisted WoL feature switch with Go portal runtime sync.
+    pub wol_feature_update_lock: Mutex<()>,
+    /// Reloads the built-in WoL Relay listener after its local configuration changes.
+    pub wol_relay_reload: Notify,
+    /// Versioned wakeup for all WoL supervisors after the feature switch changes.
+    /// A watch channel prevents changes from being lost between a config read and wait.
+    pub wol_runtime_reload: watch::Sender<u64>,
+    /// Non-secret status for the built-in WoL Relay listener.
+    pub wol_relay_status: RwLock<Value>,
     /// Tracks whether the latest complete HostRules snapshot was accepted by
     /// the matching Go gateway. Readiness must not hide a failed config sync.
     pub gateway_config_synced: AtomicBool,
@@ -251,6 +262,17 @@ impl AppState {
                 backup_archive_work_lock: Mutex::new(()),
                 automatic_backup_notify: Notify::new(),
                 host_mappings_update_lock: Mutex::new(()),
+                wol_config_lock: Mutex::new(()),
+                wol_feature_update_lock: Mutex::new(()),
+                wol_relay_reload: Notify::new(),
+                wol_runtime_reload: watch::channel(0).0,
+                wol_relay_status: RwLock::new(serde_json::json!({
+                    "enabled": false,
+                    "active": false,
+                    "listenAddress": null,
+                    "lastError": null,
+                    "updatedAt": null
+                })),
                 gateway_config_synced: AtomicBool::new(false),
                 protocol_mapping_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),

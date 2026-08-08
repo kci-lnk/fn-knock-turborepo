@@ -347,6 +347,11 @@ export const koKRServer = {
       saveCaptchaFailed: "캡차 설정을 저장하지 못했습니다.",
       loadTerminalFeatureFailed: "터미널 기능 설정을 불러오지 못했습니다.",
       saveTerminalFeatureFailed: "터미널 기능 설정을 저장하지 못했습니다.",
+      loadWolFeatureFailed: "Wake-on-LAN 기능 설정을 불러오지 못했습니다.",
+      saveWolFeatureFailed: "Wake-on-LAN 기능 설정을 저장하지 못했습니다.",
+      syncWolFeatureFailed:
+        "Wake-on-LAN 기능을 게이트웨이에 동기화하지 못했습니다.",
+      invalidWolFeature: "Wake-on-LAN 기능 설정이 올바르지 않습니다.",
       invalidRunType: "run_type이 올바르지 않습니다.",
       loadProtocolMappingFeatureFailed:
         "프로토콜 매핑 기능 설정을 불러오지 못했습니다.",
@@ -2569,6 +2574,7 @@ export const koKRServer = {
         authSessionIpDrift: "세션 IP 변경",
         securityScannerBlocked: "스캐너 차단",
         ddnsUpdateCompleted: "DDNS 업데이트",
+        wolWakeCompleted: "Wake-on-LAN 완료",
         gatewayThrottleBlocked: "게이트웨이 요청 제한",
         gatewayVisibilityBlocked: "게이트웨이 공개 범위 차단",
         wafBlocked: "WAF 차단",

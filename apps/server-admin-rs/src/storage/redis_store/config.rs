@@ -100,9 +100,11 @@ pub fn default_config() -> Value {
         "enabled": true,
         "display_style": "title",
         "show_app_icon": true,
+        "show_wol": false,
         "icon_drag_mode": "corners",
         "version": "v1"
     });
+    let wol_feature = json!({ "enabled": false });
     let gateway_unmatched_route = json!({
         "behavior": "error_page",
         "upstream_error_detail": "less"
@@ -120,6 +122,7 @@ pub fn default_config() -> Value {
             "ip_whitelist",
             "ssl_certificate",
             "ddns",
+            "wol",
             "auth",
             "ssh_security",
             "events",
@@ -159,6 +162,7 @@ pub fn default_config() -> Value {
             "ip_drift": { "enabled": true },
             "scanner_blocked": { "enabled": true },
             "ddns_update": { "enabled": true },
+            "wol_wake": { "enabled": true },
             "gateway_throttle_block": { "enabled": true },
             "gateway_visibility_block": { "enabled": true },
             "waf_blocked": { "enabled": true },
@@ -245,6 +249,7 @@ pub fn default_config() -> Value {
         "auth_credential_settings": auth_credential_settings,
         "event_system": event_system,
         "terminal_feature": terminal_feature,
+        "wol_feature": wol_feature,
         "ssh_security": ssh_security
     })
 }

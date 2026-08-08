@@ -49,6 +49,7 @@ use crate::{
     update::update_routes,
     waf::waf_routes,
     whitelist::whitelist_routes,
+    wol_routes,
 };
 
 pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Router {
@@ -85,6 +86,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(notification_routes())
         .merge(oidc_admin_routes())
         .merge(ldap_admin_routes())
+        .merge(wol_routes(state.clone()))
         .merge(waf_routes());
     if capabilities.acme_available {
         api = api.merge(acme_routes());

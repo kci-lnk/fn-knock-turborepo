@@ -172,6 +172,95 @@ pub(super) async fn update_terminal_feature(
     }
 }
 
+pub(super) async fn get_wol_feature(State(state): State<AppState>) -> Response {
+    match load_config_section(&state, "wol_feature", normalize_wol_feature).await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(error) => {
+            let translator = Translator::from_state(&state).await;
+            tracing::warn!(%error, "failed to load WoL feature config");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                runtime_config_route_text(&translator, "loadWolFeatureFailed"),
+            )
+        }
+    }
+}
+
+pub(super) async fn update_wol_feature(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    if !body.is_object() || body.get("enabled").is_some_and(|value| !value.is_boolean()) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            runtime_config_route_text(&translator, "invalidWolFeature"),
+        );
+    }
+
+    let _guard = state.wol_feature_update_lock.lock().await;
+    let previous_config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load config before WoL feature update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                runtime_config_route_text(&translator, "loadWolFeatureFailed"),
+            );
+        }
+    };
+    let previously_enabled = crate::wol::feature_enabled(&previous_config);
+    let mut updated_config = previous_config.clone();
+    if !updated_config.is_object() {
+        updated_config = app_store::default_config();
+    }
+    let mut next = normalize_wol_feature(updated_config.get("wol_feature"));
+    merge_object(&mut next, &body);
+    next = normalize_wol_feature(Some(&next));
+    let next_enabled = next
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    ensure_object(&mut updated_config).insert("wol_feature".to_string(), next.clone());
+
+    if let Err(error) = state.store.save_config(&updated_config).await {
+        tracing::warn!(%error, "failed to save WoL feature config");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            runtime_config_route_text(&translator, "saveWolFeatureFailed"),
+        );
+    }
+    let stopped_before_gateway_sync = previously_enabled && !next_enabled;
+    if stopped_before_gateway_sync {
+        notify_wol_runtime_reload(&state);
+    }
+    if let Err(message) = gateway_settings::sync_gateway_runtime(&state, &updated_config).await {
+        let rollback_saved = state.store.save_config(&previous_config).await.is_ok();
+        if rollback_saved {
+            let _ = gateway_settings::sync_gateway_runtime(&state, &previous_config).await;
+            if stopped_before_gateway_sync {
+                notify_wol_runtime_reload(&state);
+            }
+        }
+        tracing::warn!(%message, "failed to sync WoL feature to Go gateway");
+        return response::error(
+            StatusCode::BAD_GATEWAY,
+            runtime_config_route_text(&translator, "syncWolFeatureFailed"),
+        );
+    }
+
+    if previously_enabled != next_enabled && !stopped_before_gateway_sync {
+        notify_wol_runtime_reload(&state);
+    }
+    response::ok(next).into_response()
+}
+
+fn notify_wol_runtime_reload(state: &AppState) {
+    state
+        .wol_runtime_reload
+        .send_modify(|generation| *generation = generation.wrapping_add(1));
+}
+
 pub(super) async fn update_run_type(
     State(state): State<AppState>,
     Json(body): Json<Value>,

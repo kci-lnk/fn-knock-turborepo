@@ -447,6 +447,16 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
                 notification_detail_text(translator, "short.failure", &[])
             },
         ]),
+        "FN_EVENT_WOL_WAKE_COMPLETED" => join_compact_parts(&[
+            read_payload_value(event, "target_name")
+                .if_empty(read_payload_value(event, "target_id")),
+            read_payload_value(event, "relay_name").if_empty(read_payload_value(event, "relay_id")),
+            if read_payload_value(event, "success") == "true" {
+                notification_detail_text(translator, "short.success", &[])
+            } else {
+                notification_detail_text(translator, "short.failure", &[])
+            },
+        ]),
         "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" => {
             let seconds = read_payload_value(event, "block_seconds");
             join_compact_parts(&[

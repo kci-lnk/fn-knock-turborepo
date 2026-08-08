@@ -263,6 +263,8 @@ mod tests {
         assert!(requires_hmac("/api/auth/oidc/providers"));
         assert!(requires_hmac("/api/auth/oidc/providers/"));
         assert!(requires_hmac("/api/auth/session"));
+        assert!(requires_hmac("/api/auth/wol/targets"));
+        assert!(requires_hmac("/api/auth/wol/targets/device-1/wake"));
         assert!(requires_hmac("/api/admin/config"));
     }
 
@@ -278,6 +280,7 @@ mod tests {
         assert!(requires_hmac("/auth/api/auth/verify/"));
         assert!(requires_hmac("/auth/api/auth/oidc/providers"));
         assert!(requires_hmac("/__auth__/api/auth/session"));
+        assert!(requires_hmac("/__auth__/api/auth/wol/targets"));
         assert!(!requires_hmac("/auth"));
         assert!(!requires_hmac("/__auth__/index.html"));
     }

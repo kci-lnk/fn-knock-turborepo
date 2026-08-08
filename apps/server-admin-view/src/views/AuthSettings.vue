@@ -285,6 +285,7 @@ import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch
 import { docsUrls } from "../lib/docs";
 import { isProtectedAdminPanelDeploymentTarget } from "../lib/admin-panel-runtime";
 import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
+import { useConfigStore } from "../store/config";
 import type {
   AuthAccount,
   AuthLoginMode,
@@ -299,6 +300,10 @@ import { useAuthSettingsResource } from "./auth-settings/useAuthSettingsResource
 const { t } = useI18n();
 const router = useRouter();
 const dockerAdminAuthStore = useDockerAdminAuthStore();
+const configStore = useConfigStore();
+const wolFeatureEnabled = computed(
+  () => configStore.config?.wol_feature?.enabled === true,
+);
 
 const credentials = ref<TOTPCredential[]>([]);
 const authAccounts = ref<AuthAccount[]>([]);
@@ -383,6 +388,7 @@ const {
   credentials,
   hostMappings,
   streamMappings,
+  wolFeatureEnabled,
   replaceAuthAccount,
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });

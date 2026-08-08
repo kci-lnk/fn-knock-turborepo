@@ -12,6 +12,7 @@ use serde_json::{Map, Value, json};
 use crate::{
     auto_https, common_auth_locations, gateway_settings,
     i18n::Translator,
+    json_utils::ensure_object,
     proxy_config::{self, build_gateway_auth_config},
     response, runtime_profile,
     state::AppState,
@@ -77,6 +78,10 @@ pub fn runtime_config_routes() -> Router<AppState> {
         .route(
             "/api/admin/config/protocol_mapping_feature",
             get(get_protocol_mapping_feature).post(update_protocol_mapping_feature),
+        )
+        .route(
+            "/api/admin/config/wol_feature",
+            get(get_wol_feature).post(update_wol_feature),
         )
         .route(
             "/api/admin/config/fnos_network_tuning",

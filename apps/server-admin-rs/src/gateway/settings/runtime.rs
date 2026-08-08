@@ -233,7 +233,7 @@ pub(super) fn omit_targets_sync_payload(runtime: &Value) -> Value {
     Value::Object(payload)
 }
 
-pub(super) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> Result<(), String> {
+pub(crate) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> Result<(), String> {
     proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
         let current_config = state
             .store
@@ -277,11 +277,7 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
             .await
             .map_err(|error| error.to_string())?,
     )?;
-    let portal = normalize_gateway_portal(
-        config
-            .get("gateway_portal")
-            .unwrap_or(&default_gateway_portal()),
-    );
+    let portal = effective_gateway_portal(config);
     let portal_response = state
         .go_backend
         .set_gateway_portal_config(&portal)
@@ -299,6 +295,20 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
         .await
         .map_err(|error| error.to_string())?;
     ensure_gateway_unmatched_route_applied(&unmatched_route, unmatched_route_response)
+}
+
+pub(super) fn effective_gateway_portal(config: &Value) -> Value {
+    let mut portal = normalize_gateway_portal(
+        config
+            .get("gateway_portal")
+            .unwrap_or(&default_gateway_portal()),
+    );
+    if !crate::wol::feature_enabled(config)
+        && let Some(portal) = portal.as_object_mut()
+    {
+        portal.insert("show_wol".to_string(), Value::Bool(false));
+    }
+    portal
 }
 
 pub(super) async fn apply_gateway_portal_host_rules_patches_if_needed(

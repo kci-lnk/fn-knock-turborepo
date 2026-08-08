@@ -271,6 +271,12 @@ pub(crate) fn normalize_terminal_feature(value: Option<&Value>) -> Value {
     })
 }
 
+pub(crate) fn normalize_wol_feature(value: Option<&Value>) -> Value {
+    json!({
+        "enabled": bool_field(value, "enabled", false),
+    })
+}
+
 pub(crate) fn normalize_fnos_share_bypass(value: Option<&Value>) -> Value {
     json!({
         "enabled": bool_field(value, "enabled", false),

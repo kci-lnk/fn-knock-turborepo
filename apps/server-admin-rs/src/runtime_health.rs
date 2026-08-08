@@ -771,7 +771,10 @@ impl RuntimeHealth {
                 .get(id)
                 .map(|tracker| tracker.health.clone())
             else {
-                tracing::warn!(id, "runtime health tracker disappeared before event publish");
+                tracing::warn!(
+                    id,
+                    "runtime health tracker disappeared before event publish"
+                );
                 return;
             };
             self.publish_or_buffer(
@@ -800,7 +803,10 @@ impl RuntimeHealth {
     async fn apply_blocked(&self, id: &str, checked_at: &str) {
         let mut trackers = self.inner.trackers.lock().await;
         let Some(tracker) = trackers.get_mut(id) else {
-            tracing::debug!(id, "runtime health tracker not registered; skipping blocked state");
+            tracing::debug!(
+                id,
+                "runtime health tracker not registered; skipping blocked state"
+            );
             return;
         };
         let changed = tracker.health.status != HealthStatus::Blocked;

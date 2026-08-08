@@ -10,6 +10,7 @@ export const DEFAULT_SIDEBAR_MENU_ORDER: readonly SidebarNavItemId[] = [
   "ip_whitelist",
   "ssl_certificate",
   "ddns",
+  "wol",
   "auth",
   "ssh_security",
   "events",

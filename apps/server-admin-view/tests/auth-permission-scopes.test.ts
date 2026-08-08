@@ -76,22 +76,49 @@ describe("authentication permission scopes", () => {
       },
     ]);
 
+    const wolFeatureEnabled = ref(true);
     const access = useAuthSubdomainAccess({
       credentials,
       hostMappings,
       streamMappings,
+      wolFeatureEnabled,
       replaceAuthAccount: (_account: AuthAccount) => undefined,
       translate: (key) => key,
     });
-    const keys = access.subdomainAccessOptions.value.map((option) => option.key);
+    const keys = access.subdomainAccessOptions.value.map(
+      (option) => option.key,
+    );
 
     assert(keys.includes("host:__builtin_select__"));
+    assert(keys.includes("host:__builtin_wol__"));
     assert(keys.includes("host:protected.example.com"));
-    assert(keys.includes(createAuthStreamAccessKey({
-      protocol: "tcp",
-      listen_port: 2222,
-    })));
+    assert(
+      keys.includes(
+        createAuthStreamAccessKey({
+          protocol: "tcp",
+          listen_port: 2222,
+        }),
+      ),
+    );
     assert(!keys.includes("host:public.example.com"));
     assert(!keys.includes("stream:udp:5353"));
+
+    wolFeatureEnabled.value = false;
+    access.openSubdomainAccessDialog({
+      id: "wol-user",
+      comment: "",
+      created_at: "",
+      access_scopes: [],
+      subdomain_access: {
+        mode: "custom",
+        hosts: ["__builtin_wol__"],
+        streams: [],
+      },
+    });
+    const retainedWol = access.subdomainAccessOptions.value.find(
+      (option) => option.key === "host:__builtin_wol__",
+    );
+    assert.equal(retainedWol?.stale, true);
+    assert.equal(retainedWol?.builtin, undefined);
   });
 });

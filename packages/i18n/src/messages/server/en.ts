@@ -350,6 +350,10 @@ export const enServer = {
       saveCaptchaFailed: "Failed to save captcha config",
       loadTerminalFeatureFailed: "Failed to load terminal feature config",
       saveTerminalFeatureFailed: "Failed to save terminal feature config",
+      loadWolFeatureFailed: "Failed to load Wake-on-LAN feature config",
+      saveWolFeatureFailed: "Failed to save Wake-on-LAN feature config",
+      syncWolFeatureFailed: "Failed to sync Wake-on-LAN feature to the gateway",
+      invalidWolFeature: "Wake-on-LAN feature config is invalid",
       invalidRunType: "run_type is invalid",
       loadProtocolMappingFeatureFailed:
         "Failed to load protocol mapping feature config",
@@ -2554,6 +2558,7 @@ export const enServer = {
         authSessionIpDrift: "Session IP drift",
         securityScannerBlocked: "Scanner blocked",
         ddnsUpdateCompleted: "DDNS updated",
+        wolWakeCompleted: "Wake-on-LAN completed",
         gatewayThrottleBlocked: "Gateway throttling blocked",
         gatewayVisibilityBlocked: "Gateway visibility blocked",
         wafBlocked: "WAF blocked",

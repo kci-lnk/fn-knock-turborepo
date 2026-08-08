@@ -1804,6 +1804,7 @@ fn default_config_top_level_keys_match_node_default_config() {
         "auth_credential_settings",
         "event_system",
         "terminal_feature",
+        "wol_feature",
         "ssh_security",
         "locale",
     ]
@@ -1845,6 +1846,11 @@ fn default_config_includes_node_runtime_feature_defaults() {
         config.pointer("/gateway_portal/version"),
         Some(&json!("v1"))
     );
+    assert_eq!(
+        config.pointer("/gateway_portal/show_wol"),
+        Some(&json!(false))
+    );
+    assert_eq!(config.pointer("/wol_feature/enabled"), Some(&json!(false)));
     assert_eq!(
         config.pointer("/gateway_unmatched_route/behavior"),
         Some(&json!("error_page"))

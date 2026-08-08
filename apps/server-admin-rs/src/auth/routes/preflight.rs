@@ -1016,6 +1016,9 @@ pub(super) fn resolve_request_subdomain_access_key(headers: &HeaderMap, uri: &Ur
     if pathname == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH {
         return TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE.to_string();
     }
+    if pathname == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE_PATH {
+        return TOTP_SUBDOMAIN_ACCESS_WOL_PAGE.to_string();
+    }
     if is_auth_service_request_pathname(&pathname) {
         return String::new();
     }
@@ -1081,6 +1084,9 @@ pub(super) fn normalize_subdomain_access_host(value: &str) -> String {
     if host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE || host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH {
         return TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE.to_string();
     }
+    if host == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE || host == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE_PATH {
+        return TOTP_SUBDOMAIN_ACCESS_WOL_PAGE.to_string();
+    }
 
     if let Ok(url) = if host.contains("://") {
         url::Url::parse(&host)
@@ -1128,7 +1134,7 @@ pub(super) fn is_protected_subdomain_auth_host(host: &str, config: &Value) -> bo
     if host.is_empty() {
         return false;
     }
-    if host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE {
+    if host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE || host == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE {
         return true;
     }
     config

@@ -25,6 +25,7 @@ pub(crate) mod storage;
 pub(crate) mod system;
 pub(crate) mod tunnels;
 pub(crate) mod waf;
+pub(crate) mod wol;
 
 pub(crate) use admin::{control as admin_control, panel as admin_panel};
 pub(crate) use app::cleanup_legacy_auth_log_storage;
@@ -59,6 +60,7 @@ pub(crate) use system::{
     update,
 };
 pub(crate) use tunnels::{cloudflared, frpc};
+pub(crate) use wol::wol_routes;
 
 #[cfg(test)]
 pub(crate) mod test_support {

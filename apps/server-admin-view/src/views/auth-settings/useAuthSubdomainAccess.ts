@@ -17,6 +17,8 @@ import type {
 
 const BUILTIN_SELECT_PAGE_ACCESS_HOST = "__builtin_select__";
 const BUILTIN_SELECT_PAGE_PATH = "/__select__";
+const BUILTIN_WOL_PAGE_ACCESS_HOST = "__builtin_wol__";
+const BUILTIN_WOL_PAGE_PATH = "/__wol__";
 const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
   mode: "all",
   hosts: [],
@@ -52,6 +54,9 @@ export const normalizeAuthSubdomainHost = (value: unknown) => {
   ) {
     return BUILTIN_SELECT_PAGE_ACCESS_HOST;
   }
+  if (raw === BUILTIN_WOL_PAGE_ACCESS_HOST || raw === BUILTIN_WOL_PAGE_PATH) {
+    return BUILTIN_WOL_PAGE_ACCESS_HOST;
+  }
 
   let host: string;
   try {
@@ -74,6 +79,8 @@ export const normalizeAuthSubdomainHost = (value: unknown) => {
 const compareSubdomainAccessHosts = (left: string, right: string) => {
   if (left === BUILTIN_SELECT_PAGE_ACCESS_HOST) return -1;
   if (right === BUILTIN_SELECT_PAGE_ACCESS_HOST) return 1;
+  if (left === BUILTIN_WOL_PAGE_ACCESS_HOST) return -1;
+  if (right === BUILTIN_WOL_PAGE_ACCESS_HOST) return 1;
   return left.localeCompare(right);
 };
 
@@ -112,20 +119,12 @@ export const normalizeAuthStreamAccess = (
   value: unknown,
 ): TOTPStreamAccess | null => {
   if (typeof value !== "object" || value === null) return null;
-  const rawProtocol = String(
-    (value as { protocol?: unknown }).protocol ?? "",
-  )
+  const rawProtocol = String((value as { protocol?: unknown }).protocol ?? "")
     .trim()
     .toLowerCase();
   const protocol =
-    rawProtocol === "udp"
-      ? "udp"
-      : rawProtocol === "tcp"
-        ? "tcp"
-        : null;
-  const listenPort = Number(
-    (value as { listen_port?: unknown }).listen_port,
-  );
+    rawProtocol === "udp" ? "udp" : rawProtocol === "tcp" ? "tcp" : null;
+  const listenPort = Number((value as { listen_port?: unknown }).listen_port);
   if (
     protocol === null ||
     !Number.isInteger(listenPort) ||
@@ -167,6 +166,7 @@ interface UseAuthSubdomainAccessOptions {
   credentials: Ref<TOTPCredential[]>;
   hostMappings: Ref<HostMapping[]>;
   streamMappings: Ref<StreamMapping[]>;
+  wolFeatureEnabled: Ref<boolean>;
   replaceAuthAccount: (account: AuthAccount) => void;
   translate: Translate;
 }
@@ -175,6 +175,7 @@ export function useAuthSubdomainAccess({
   credentials,
   hostMappings,
   streamMappings,
+  wolFeatureEnabled,
   replaceAuthAccount,
   translate,
 }: UseAuthSubdomainAccessOptions) {
@@ -195,7 +196,9 @@ export function useAuthSubdomainAccess({
   const formatSubdomainAccessHostLabel = (host: string) =>
     host === BUILTIN_SELECT_PAGE_ACCESS_HOST
       ? translate("admin.authSettings.permissionBuiltinSelectLabel")
-      : host;
+      : host === BUILTIN_WOL_PAGE_ACCESS_HOST
+        ? translate("admin.authSettings.permissionBuiltinWolLabel")
+        : host;
 
   const selectedAccessCount = computed(() => selectedAccessKeys.value.size);
 
@@ -208,6 +211,15 @@ export function useAuthSubdomainAccess({
       description: BUILTIN_SELECT_PAGE_PATH,
       builtin: true,
     });
+    if (wolFeatureEnabled.value) {
+      byHost.set(createAuthHostAccessKey(BUILTIN_WOL_PAGE_ACCESS_HOST), {
+        key: createAuthHostAccessKey(BUILTIN_WOL_PAGE_ACCESS_HOST),
+        kind: "host",
+        label: translate("admin.authSettings.permissionBuiltinWolLabel"),
+        description: BUILTIN_WOL_PAGE_PATH,
+        builtin: true,
+      });
+    }
 
     for (const mapping of hostMappings.value) {
       if (mapping.service_role === "auth" || mapping.use_auth !== true) {

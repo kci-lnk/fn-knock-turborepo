@@ -571,6 +571,7 @@ export type SidebarNavItemId =
   | "ip_whitelist"
   | "ssl_certificate"
   | "ddns"
+  | "wol"
   | "auth"
   | "ssh_security"
   | "events"
@@ -956,6 +957,10 @@ export interface TerminalFeatureConfig {
   dangerously_run_as_current_user: boolean;
 }
 
+export interface WOLFeatureConfig {
+  enabled: boolean;
+}
+
 export type TerminalTmuxDetectionSource = "env-path" | "absolute-path";
 export type TerminalTmuxInstallStatus =
   "uninstalled" | "installing" | "installed" | "error";
@@ -1060,6 +1065,7 @@ export interface AppConfig {
   scan_discovery?: ScanDiscoveryConfig;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
+  wol_feature?: WOLFeatureConfig;
   ssh_security?: SSHSecurityConfig;
   locale?: LocaleConfig;
   ssl: {
@@ -1548,6 +1554,7 @@ export type GatewayPortalConfig = {
   enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon: boolean;
+  show_wol: boolean;
   icon_drag_mode: GatewayPortalIconDragMode;
   version: GatewayPortalVersion;
 };

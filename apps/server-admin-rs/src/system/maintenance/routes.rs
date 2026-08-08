@@ -191,6 +191,13 @@ where
 
     match state.store.clear_all_keys().await {
         Ok(cleared_keys) => {
+            if let Err(error) = wol::clear_secrets_after_backup_restore(&state).await {
+                tracing::error!(%error, "failed to clear WoL relay credentials after clearing data");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    maintenance_clear_text(&translator, "clearFailed"),
+                );
+            }
             state.automatic_backup_notify.notify_one();
             response::ok(json!({
                 "cleared_keys": cleared_keys,

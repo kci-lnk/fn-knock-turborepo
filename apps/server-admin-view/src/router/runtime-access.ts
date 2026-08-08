@@ -4,6 +4,7 @@ export interface RuntimeRouteAccess {
   sshSecurityEnabled: boolean;
   canUseSmartConnect: boolean;
   canUseFnosCertificateSync: boolean;
+  wolEnabled: boolean;
 }
 
 export type RuntimeRouteRedirect = {
@@ -17,6 +18,9 @@ export const resolveRuntimeCapabilityRedirect = (
 ): RuntimeRouteRedirect | null => {
   if (path === "/terminal" && !access.canUseTerminal) {
     return { path: "/system" };
+  }
+  if (path === "/wol" && !access.wolEnabled) {
+    return { path: "/system", query: { tab: "features" } };
   }
   if (
     path === "/ssh-security" &&

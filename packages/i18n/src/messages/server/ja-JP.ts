@@ -362,6 +362,11 @@ export const jaJPServer = {
       saveCaptchaFailed: "CAPTCHA 設定の保存に失敗しました",
       loadTerminalFeatureFailed: "ターミナル機能設定の読み込みに失敗しました",
       saveTerminalFeatureFailed: "ターミナル機能設定の保存に失敗しました",
+      loadWolFeatureFailed: "Wake-on-LAN 機能設定の読み込みに失敗しました",
+      saveWolFeatureFailed: "Wake-on-LAN 機能設定の保存に失敗しました",
+      syncWolFeatureFailed:
+        "Wake-on-LAN 機能をゲートウェイへ同期できませんでした",
+      invalidWolFeature: "Wake-on-LAN 機能設定が無効です",
       invalidRunType: "run_type が不正です",
       loadProtocolMappingFeatureFailed:
         "プロトコルマッピング機能設定の読み込みに失敗しました",
@@ -2658,6 +2663,7 @@ export const jaJPServer = {
         authSessionIpDrift: "セッション IP の変化",
         securityScannerBlocked: "スキャナーをブロック",
         ddnsUpdateCompleted: "DDNS 更新",
+        wolWakeCompleted: "Wake-on-LAN 完了",
         gatewayThrottleBlocked: "ゲートウェイのレート制限",
         gatewayVisibilityBlocked: "ゲートウェイ公開範囲によるブロック",
         wafBlocked: "WAF がブロック",

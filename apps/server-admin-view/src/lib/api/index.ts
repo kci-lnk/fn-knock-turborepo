@@ -15,3 +15,4 @@ export * from "./sessions";
 export * from "./terminal";
 export * from "./tunnel";
 export * from "./whitelist";
+export * from "./wol";

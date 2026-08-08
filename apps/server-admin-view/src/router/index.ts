@@ -231,6 +231,11 @@ const router = createRouter({
           component: () => import("../views/DDNSManagement.vue"),
         },
         {
+          path: "wol",
+          name: "WOLManagement",
+          component: () => import("../views/WOLManagement.vue"),
+        },
+        {
           path: "about",
           name: "About",
           component: () => import("../views/AboutUpdate.vue"),
@@ -270,6 +275,7 @@ router.beforeEach(async (to, from) => {
     to.path !== "/subdomains" &&
     !to.path.startsWith("/subdomains/") &&
     to.path !== "/terminal" &&
+    to.path !== "/wol" &&
     to.path !== "/ssh-security" &&
     to.path !== "/tunnel" &&
     !to.path.startsWith("/tunnel/") &&
@@ -288,7 +294,9 @@ router.beforeEach(async (to, from) => {
     if (to.path === "/terminal") {
       return true;
     }
-    return "/whitelist";
+    if (to.path !== "/wol") {
+      return "/whitelist";
+    }
   }
 
   const isSubdomainRoutingMode = isAnySubdomainRoutingMode(configStore.config);
@@ -325,6 +333,7 @@ router.beforeEach(async (to, from) => {
     sshSecurityEnabled: configStore.config?.ssh_security?.enabled === true,
     canUseSmartConnect: configStore.canUseSmartConnect,
     canUseFnosCertificateSync: configStore.canUseFnosCertificateSync,
+    wolEnabled: configStore.config?.wol_feature?.enabled === true,
   });
   if (runtimeCapabilityRedirect) {
     return runtimeCapabilityRedirect;

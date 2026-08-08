@@ -13,6 +13,7 @@ export const enAdmin = {
     sslCert: "SSL",
     dashboard: "Dashboard",
     ddns: "DDNS",
+    wol: "Wake-on-LAN",
     subdomainMapping: "Domains",
     pathMapping: "Paths",
     tunnel: "Tunnels",
@@ -33,6 +34,235 @@ export const enAdmin = {
     navigationMenu: "Navigation",
     skipToContent: "Skip to main content",
     openGithub: "Open GitHub project",
+  },
+  wol: {
+    title: "Wake-on-LAN",
+    description:
+      "Wake devices on this server's LAN directly, or use a trusted Relay for another network.",
+    refresh: "Refresh",
+    loading: "Loading Wake-on-LAN configuration…",
+    loadFailed: "Failed to load Wake-on-LAN configuration",
+    retry: "Retry",
+    saving: "Saving…",
+    copy: "Copy",
+    tabs: {
+      targets: "Devices",
+      relays: "Across networks",
+      localRelay: "Relay receiver",
+    },
+    targetsDescription:
+      "This fnKnock server broadcasts locally by default; select a Relay only for another network.",
+    relaysDescription:
+      "Connect another fnKnock network, or let another fnKnock use devices on this LAN.",
+    discoverDevices: "Discover devices",
+    addTarget: "Add device",
+    addRelay: "Add remote network",
+    noTargets: "No target devices yet.",
+    noRelays: "No other networks are connected yet.",
+    name: "Name",
+    address: "IP address",
+    port: "UDP port",
+    mac: "MAC address",
+    note: "Note",
+    ipAddress: "Device IP address",
+    relay: "Relay",
+    advancedSettings: "Advanced settings (usually unnecessary)",
+    relayPaired: "Pairing code created",
+    relayWaitingForPairing: "Waiting for pairing",
+    repair: "Pair again",
+    deliveryPath: "Wake path",
+    localDelivery: "Broadcast from this server",
+    broadcastAddress: "Broadcast address",
+    status: {
+      label: "Online status",
+      online: "Online",
+      offline: "Offline",
+      unknown: "Pending check",
+      notChecked: "Not checked yet",
+      checkedAt: "Last checked: {time}",
+    },
+    portal: {
+      settings: "Wake-on-LAN settings",
+      title: "Gateway portal wake shortcut",
+      description:
+        "Control whether signed-in users can open the device wake page from the Go gateway portal.",
+      showShortcut: 'Show "Wake-on-LAN" in the gateway portal',
+      loadFailed: "Failed to load portal settings",
+      saveFailed: "Failed to save portal settings",
+      saved: "Wake-on-LAN portal settings updated",
+    },
+    enabled: "Enabled",
+    active: "Enabled",
+    disabled: "Disabled",
+    relayMissing: "Relay missing",
+    edit: "Edit",
+    wake: "Wake",
+    probe: "Test connection",
+    rotate: "Rotate PSK",
+    pskReady: "PSK configured",
+    pskMissing: "Pairing required",
+    keyVersion: "Key version {version}",
+    wakeAccepted: "Relay broadcast sent",
+    wakeAcceptedDescription:
+      "Authenticated ACK in {latency} ms; the device may still need time to boot.",
+    localWakeSent: "Local broadcast sent",
+    localWakeSentDescription:
+      "Submitted to the local network in {latency} ms; the device may still need time to boot.",
+    wakeUnknown: "Broadcast status is unknown",
+    wakeFailed: "Wake failed",
+    probeSuccess: "Relay is reachable",
+    probeSuccessDescription: "Authenticated ACK in {latency} ms.",
+    probeFailed: "Relay connection test failed",
+    relayCreated: "Relay created",
+    relayUpdated: "Relay updated",
+    targetCreated: "Device created",
+    targetUpdated: "Device updated",
+    relayDeleted: "Relay deleted",
+    targetDeleted: "Device deleted",
+    pskRotated: "A new pairing code was created",
+    saveFailed: "Save failed",
+    deleteFailed: "Delete failed",
+    rotateFailed: "PSK rotation failed",
+    pskCopied: "PSK copied",
+    configCopied: "Relay configuration copied",
+    copyFailed: "Copy failed",
+    deleteTargetTitle: "Delete this device?",
+    deleteTargetDescription:
+      "You will need to recreate it before it can be woken again.",
+    deleteRelayTitle: "Delete this Relay?",
+    deleteRelayDescription: "A Relay referenced by a device cannot be deleted.",
+    rotateTitle: "Create a new pairing code?",
+    rotateDescription:
+      "The old code stops working immediately. Paste the new code into the remote fnKnock again.",
+    relayDialog: {
+      createTitle: "Add remote network",
+      editTitle: "Edit remote network",
+      description:
+        "Enter a friendly name and a reachable IP for the fnKnock in the target network. A pairing code is created after saving.",
+      namePlaceholder: "For example: Parents' home",
+      remoteAddress: "Remote fnKnock IP",
+      addressPlaceholder: "For example: 192.168.31.98",
+      addressHint:
+        "Use the IP reachable through your VPN, port forwarding, or routed network.",
+      enabledHint: "Pausing stops wake requests to this network.",
+    },
+    targetDialog: {
+      createTitle: "Add target device",
+      editTitle: "Edit target device",
+      description: "MAC addresses are stored in uppercase colon notation.",
+      ipAddressHint:
+        "Used for online checks. LAN discovery fills this value automatically.",
+      namePlaceholder: "For example: Study workstation",
+      notePlaceholder: "For example: Study or Alice's PC (optional)",
+      selectRelay: "Select a Relay",
+      broadcastHint:
+        "Leave blank to broadcast through every local interface. Discovery fills this automatically.",
+      enabledHint: "Disabled devices remain listed but cannot be woken.",
+    },
+    discovery: {
+      title: "Discover online LAN devices",
+      description:
+        "Scan networks directly connected to this fnKnock server and show only responsive devices with a resolved MAC address.",
+      scanning: "Probing online devices; this may take a few seconds…",
+      customCidr: "Scan network (optional)",
+      customCidrPlaceholder: "For example: 192.168.31.0/24",
+      customCidrHint:
+        "Leave blank to scan the networks detected by this fnKnock. Separate multiple networks with spaces or commas.",
+      settings: "Scan settings",
+      selectAll: "Select all available ({count})",
+      selectedCount: "{count} selected",
+      progress: "Scanned {scanned}/{total}; {found} found live",
+      waitingForDevices:
+        "Scanning now. Online devices will appear here as soon as they are found.",
+      namePlaceholder: "Device name (defaults to IP)",
+      notePlaceholder: "Add a note for this device (optional)",
+      selectDevice: "Select device {ip}",
+      resultSummary: "Found {count} · {duration} ms",
+      empty: "No online devices responded to the scan.",
+      added: "Added",
+      ready: "Start a scan to discover devices on the local network.",
+      rescan: "Scan again",
+      addSelected: "Add selected ({count})",
+      failed: "LAN discovery failed",
+      addedCount: "Added {count} LAN devices",
+      addFailed: "Some devices could not be added",
+    },
+    localRelay: {
+      title: "Let another fnKnock wake devices on this network",
+      description:
+        "Paste the pairing code from the other fnKnock. The listener, credential, and broadcast addresses are configured automatically.",
+      ready: "Ready",
+      starting: "Starting",
+      paused: "Paused",
+      notPaired: "Not paired",
+      pairTitle: "Paste a pairing code",
+      pairDescription:
+        "Copy the code created by Add remote network on the other fnKnock, then paste it here.",
+      pairingCodePlaceholder: "Paste the code beginning with FNW1.",
+      pairAndEnable: "Pair and enable",
+      readyTitle: "This network is ready for remote wake",
+      readyDescription:
+        "Nothing else is required here. Return to the controlling fnKnock, test the connection, and add devices.",
+      startingTitle: "Starting cross-network receiving",
+      startingDescription:
+        "This normally takes only a few seconds. Refresh to see the final status.",
+      pausedTitle: "Cross-network receiving is paused",
+      pausedDescription:
+        "Pairing is retained and can be enabled again at any time.",
+      repair: "Replace pairing code",
+      stop: "Pause receiving",
+      start: "Enable again",
+      advancedHint:
+        "Change these only when automatic ports or broadcast addresses do not work with a special VLAN or container network.",
+      paired: "Paired successfully; cross-network receiving is enabled",
+      pairFailed:
+        "Pairing failed; make sure the complete pairing code was copied",
+      pairingData: "One-time pairing data",
+      pairingDataPlaceholder:
+        "Paste the JSON pairing data from the control server",
+      importPairingData: "Import",
+      pairingDataInvalid: "The pairing data is invalid",
+      relayId: "Relay ID",
+      keyVersion: "Key version",
+      psk: "Pre-shared key (PSK)",
+      pskPlaceholder: "Paste the one-time PSK generated by the control server",
+      pskKeepPlaceholder: "Leave blank to keep the current PSK",
+      pskHint:
+        "The PSK is submitted only when saving and is never returned by the API.",
+      listenAddress: "Listen address",
+      broadcastDestinations: "Broadcast destinations",
+      broadcastHint:
+        "One IPv4 address and port per line, for example 192.168.1.255:9.",
+      allowedSources: "Allowed source CIDRs",
+      allowedSourcesHint:
+        "One per line; leave empty to rely on HMAC authentication only.",
+      enabled: "Enable built-in Relay",
+      enabledHint:
+        "Saving immediately reloads the UDP listener inside server-admin-rs.",
+      listening: "Listening",
+      stopped: "Stopped",
+      runtimeError: "Relay runtime error",
+      runtimeAddress: "Listening on {address}",
+      saved: "Local Relay configuration saved",
+      saveFailed: "Failed to save local Relay configuration",
+    },
+    bootstrap: {
+      title: "Connect the remote network",
+      description:
+        "Paste this pairing code into the fnKnock on the target network to configure everything automatically.",
+      stepCopy: "Copy the pairing code below.",
+      stepOpenRemote:
+        "Open fnKnock on the target network and go to Wake-on-LAN → Across networks.",
+      stepPair:
+        "Paste it under Let another fnKnock wake devices on this network and confirm.",
+      code: "Pairing code",
+      copyCode: "Copy pairing code",
+      codeCopied: "Pairing code copied",
+      onceTitle: "Keep this code private",
+      onceDescription:
+        "The code contains the connection credential and cannot be viewed again after closing this window.",
+      saved: "Done",
+    },
   },
   banner: {
     clockImmediate: "System time and timezone need to be synced",
@@ -418,6 +648,9 @@ export const enAdmin = {
     showAppIcon: "Show app icons",
     showAppIconDescription:
       "When enabled, the portal and toolbar show collected app icons. In v2, entries without one receive a generated placeholder icon.",
+    showWol: "Show Wake-on-LAN shortcut",
+    showWolDescription:
+      "Allow signed-in accounts with permission to open the built-in Wake-on-LAN page from the portal.",
   },
   gatewayVisibilitySettings: {
     loading: "Loading...",
@@ -721,6 +954,9 @@ export const enAdmin = {
     sshSecurity: "SSH security",
     sshSecurityHint:
       "Shows the SSH security entry and automatically blocks abnormal sources from SSH login logs",
+    wol: "Wake-on-LAN",
+    wolHint:
+      "Show the Wake-on-LAN entry and run the Relay and device online-check services",
     protocolMapping: "Protocol mapping",
     protocolMappingHint:
       "Enables TCP/UDP forwarding. Turning it off disables mappings while keeping them available for configuration.",
@@ -2559,8 +2795,7 @@ export const enAdmin = {
           "Queued to respect Cloudflare certificate issuance rate limits.",
         customHostnameQuotaUnavailable:
           "The Custom Hostname quota is unavailable: {detail}",
-        preferredEdgeProbeFailed:
-          "Preferred edge validation failed: {detail}",
+        preferredEdgeProbeFailed: "Preferred edge validation failed: {detail}",
       },
       switchReasons: {
         manualSpeedTest: "Selected manually after a completed speed test",
@@ -2949,7 +3184,8 @@ export const enAdmin = {
     authServicePort: "Public HTTPS port for the auth service",
     authServicePortHint:
       "Used only to generate public HTTPS URLs for browsers; it does not change the local listener or router mapping. If the router forwards public port 10012 to local port 7999, enter 10012. If not explicitly set, the current entry port is used.",
-    authServicePortWarning: "Note: this does not change the local listening port.",
+    authServicePortWarning:
+      "Note: this does not change the local listening port.",
     edgeClientIpTitle: "Edge real IP detection",
     edgeClientIpDescription:
       "Only applies to subdomain mode. When enabled, the public auth address will no longer append the access port automatically.",
@@ -3877,6 +4113,7 @@ export const enAdmin = {
       fnConnect: "FN Connect",
       authProxy: "Auth proxy",
       select: "Select page",
+      wol: "Wake-on-LAN",
       preflight: "Preflight",
       slashRedirect: "Slash redirect",
       favicon: "Icon",
@@ -4845,6 +5082,7 @@ export const enAdmin = {
     permissionClear: "Clear",
     permissionBuiltin: "Built-in",
     permissionBuiltinSelectLabel: "Built-in select page",
+    permissionBuiltinWolLabel: "Built-in Wake-on-LAN page",
     permissionHostGroup: "Subdomains and built-in entries",
     permissionStreamGroup: "Protocol mappings",
     permissionStreamIpNotice:
@@ -5273,6 +5511,7 @@ export const enAdmin = {
       FN_EVENT_AUTH_SESSION_IP_DRIFT: "Session IP drift",
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "Scanner blocked",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS updated",
+      FN_EVENT_WOL_WAKE_COMPLETED: "Wake-on-LAN completed",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "Gateway throttle blocked",
       FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "Gateway visibility blocked",
       FN_EVENT_WAF_BLOCKED: "WAF blocked",
@@ -5446,6 +5685,7 @@ export const enAdmin = {
       sessionComment: ', comment "{comment}"',
       scannerBlocked: "{ip} hit uncommon paths {count} times and was blocked",
       ddnsUpdated: "{provider} {result}: {message}",
+      wolWakeCompleted: "Device {target} via {relay}: {result} ({latency} ms)",
       gatewayThrottleBlocked: "{ip} triggered throttling for {seconds}s",
       gatewayVisibilityBlocked:
         "{ip} was blocked by visibility rules while accessing {host}{path}",

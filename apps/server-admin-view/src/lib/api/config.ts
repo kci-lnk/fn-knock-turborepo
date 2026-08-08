@@ -53,6 +53,7 @@ import type {
   ProxyProtocolForce,
   ReverseProxySubmode,
   RunType,
+  WOLFeatureConfig,
   SharedDataFileEntry,
   SmartConnectConfig,
   SmartConnectDetails,
@@ -264,6 +265,10 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/terminal_feature");
     return res.data.data;
   },
+  async getWOLFeature(): Promise<WOLFeatureConfig> {
+    const res = await apiClient.get("/config/wol_feature");
+    return res.data.data;
+  },
   async getDashboardDisplayConfig(): Promise<DashboardDisplayConfig> {
     const res = await apiClient.get("/config/dashboard_display");
     return res.data.data;
@@ -291,6 +296,12 @@ export const ConfigAPI = {
     payload: Partial<TerminalFeatureConfig>,
   ): Promise<TerminalFeatureConfig> {
     const res = await apiClient.post("/config/terminal_feature", payload);
+    return res.data.data;
+  },
+  async updateWOLFeature(
+    payload: Partial<WOLFeatureConfig>,
+  ): Promise<WOLFeatureConfig> {
+    const res = await apiClient.post("/config/wol_feature", payload);
     return res.data.data;
   },
   async updateDefaultTunnel(tunnel: "frp" | "cloudflared"): Promise<void> {

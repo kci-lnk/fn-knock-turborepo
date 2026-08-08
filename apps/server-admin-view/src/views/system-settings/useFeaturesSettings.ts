@@ -33,6 +33,7 @@ export function useFeaturesSettings() {
   const configStore = useConfigStore();
   const { t } = useI18n();
   const protocolMappingEnabled = ref(false);
+  const wolEnabled = ref(false);
   const passkeyBindPromptEnabled = ref(true);
   const showEntryStatusModule = ref(true);
   const dateTimeDisplayMode = ref<DateTimeDisplayMode>("human_friendly");
@@ -68,14 +69,13 @@ export function useFeaturesSettings() {
   const isSmartConnectAvailable = computed(
     () => configStore.canUseSmartConnect && configStore.config?.run_type === 3,
   );
-  const showSmartConnectEntry = computed(
-    () =>
-      smartConnectFeatureEntryVisible({
-        isFpkLiteDeployment: configStore.isFpkLiteDeployment,
-        isDockerDeployment: configStore.isDockerDeployment,
-        isOpenWrtDeployment: configStore.isOpenWrtDeployment,
-        isSynologyDeployment: configStore.isSynologyDeployment,
-      }),
+  const showSmartConnectEntry = computed(() =>
+    smartConnectFeatureEntryVisible({
+      isFpkLiteDeployment: configStore.isFpkLiteDeployment,
+      isDockerDeployment: configStore.isDockerDeployment,
+      isOpenWrtDeployment: configStore.isOpenWrtDeployment,
+      isSynologyDeployment: configStore.isSynologyDeployment,
+    }),
   );
   const isDashboardDisplaySwitchDisabled = computed(
     () => isSaving.value || configStore.isLoading || configStore.isError,
@@ -141,6 +141,9 @@ export function useFeaturesSettings() {
   const applyProtocolMappingSettings = (data: ProtocolMappingFeatureConfig) => {
     protocolMappingEnabled.value = data.enabled;
   };
+  const applyWOLSettings = (data: { enabled: boolean }) => {
+    wolEnabled.value = data.enabled;
+  };
   const applyAutoHttpsDetails = (data: AutoHttpsDetails) => {
     autoHttpsDetails.value = data;
   };
@@ -181,13 +184,15 @@ export function useFeaturesSettings() {
 
   const fetchSettings = async () => {
     await runLoadSettings(async () => {
-      const [protocolMappingSettings, authCredentialSettings] =
+      const [protocolMappingSettings, authCredentialSettings, wolSettings] =
         await Promise.all([
           SystemAPI.getProtocolMappingFeatureConfig(),
           ConfigAPI.getAuthCredentialSettings(),
+          ConfigAPI.getWOLFeature(),
         ]);
       applyProtocolMappingSettings(protocolMappingSettings);
       applyAuthCredentialSettings(authCredentialSettings);
+      applyWOLSettings(wolSettings);
 
       if (showAutoHttpsEntry.value) {
         applyAutoHttpsDetails(await SystemAPI.getAutoHttpsDetails());
@@ -220,6 +225,23 @@ export function useFeaturesSettings() {
       },
     );
     if (!result) protocolMappingEnabled.value = previousValue;
+  };
+
+  const saveWOLEnabled = async (nextValue: boolean) => {
+    if (isSaving.value) return;
+    const previousValue = wolEnabled.value;
+    wolEnabled.value = nextValue;
+    const result = await runSaveSettings(
+      () => ConfigAPI.updateWOLFeature({ enabled: nextValue }),
+      {
+        onSuccess: async (data) => {
+          applyWOLSettings(data);
+          toast.success(t("admin.featuresSettings.updated"));
+          await configStore.loadConfig();
+        },
+      },
+    );
+    if (!result) wolEnabled.value = previousValue;
   };
 
   const saveShowEntryStatusModule = async (nextValue: boolean) => {
@@ -393,6 +415,7 @@ export function useFeaturesSettings() {
     saveProtocolMappingEnabled,
     saveShowEntryStatusModule,
     saveSSHSecurityEnabled,
+    saveWOLEnabled,
     showAutoHttpsEntry,
     showEntryStatusModule,
     showLoadingSkeleton,
@@ -402,5 +425,6 @@ export function useFeaturesSettings() {
     sshSecurityDisabledReason,
     sshSecurityEnabled,
     t,
+    wolEnabled,
   };
 }

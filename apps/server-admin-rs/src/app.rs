@@ -44,6 +44,7 @@ use crate::{
     update::start_update_tasks,
     waf::start_waf_tasks,
     whitelist::{migrate_whitelist_ipsets_on_boot, start_whitelist_tasks},
+    wol::start_wol_tasks,
 };
 
 pub async fn run() -> anyhow::Result<()> {
@@ -148,6 +149,7 @@ pub(crate) async fn run_with_settings(
     start_ip_location_worker(state.clone());
     start_notification_tasks(state.clone());
     start_automatic_backup_tasks(state.clone());
+    start_wol_tasks(state.clone());
     let profile = runtime_profile::get_runtime_profile(&state);
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
     start_update_tasks(state.clone());

@@ -49,6 +49,7 @@ const form = reactive<GatewayPortalConfig>({
   enabled: true,
   display_style: "title",
   show_app_icon: true,
+  show_wol: false,
   icon_drag_mode: "corners",
   version: "v1",
 });
@@ -58,6 +59,7 @@ const applyPortal = (portal?: Partial<GatewayPortalConfig> | null) => {
   settings.value = normalized;
   form.display_style = normalized.display_style;
   form.show_app_icon = normalized.show_app_icon;
+  form.show_wol = normalized.show_wol;
   form.icon_drag_mode = normalized.icon_drag_mode;
   form.version = normalized.version;
   form.enabled = normalized.enabled;
@@ -177,6 +179,17 @@ const saveShowAppIcon = async (value: boolean) => {
   if (!(await applySavedSettings(data))) {
     applyPortal(previous);
   }
+};
+
+const saveShowWOL = async (value: boolean) => {
+  if (isSaving.value || form.show_wol === value) return;
+
+  const previous = { ...form };
+  form.show_wol = value;
+  const data = await runSave(() =>
+    ConfigAPI.updateGatewaySettings({ portal: { show_wol: value } }),
+  );
+  if (!(await applySavedSettings(data))) applyPortal(previous);
 };
 
 const saveIconDragMode = async (mode: GatewayPortalIconDragMode) => {
@@ -453,6 +466,29 @@ onMounted(() => {
                 :model-value="form.show_app_icon"
                 :disabled="isSaving"
                 @update:model-value="saveShowAppIcon($event === true)"
+              />
+            </section>
+
+            <section
+              v-if="configStore.config?.wol_feature?.enabled === true"
+              class="flex items-center justify-between gap-4 p-6"
+            >
+              <div class="space-y-1 pr-6">
+                <Label
+                  :for="`${a11yId}-gatewayportalsettings-wol`"
+                  class="text-base"
+                >
+                  {{ t("admin.gatewayPortalSettings.showWol") }}
+                </Label>
+                <div class="text-sm text-muted-foreground">
+                  {{ t("admin.gatewayPortalSettings.showWolDescription") }}
+                </div>
+              </div>
+              <Switch
+                :id="`${a11yId}-gatewayportalsettings-wol`"
+                :model-value="form.show_wol"
+                :disabled="isSaving"
+                @update:model-value="saveShowWOL($event === true)"
               />
             </section>
           </template>

@@ -113,6 +113,7 @@ fn gateway_response_uses_node_defaults() {
             "enabled": true,
             "display_style": "title",
             "show_app_icon": true,
+            "show_wol": false,
             "icon_drag_mode": "corners",
             "version": "v1"
         })
@@ -131,6 +132,28 @@ fn gateway_response_uses_node_defaults() {
             .get("send_proxy_headers")
             .and_then(Value::as_bool),
         Some(false)
+    );
+}
+
+#[test]
+fn effective_gateway_portal_masks_wol_without_overwriting_preference() {
+    let disabled = json!({
+        "wol_feature": { "enabled": false },
+        "gateway_portal": { "show_wol": true }
+    });
+    assert_eq!(
+        super::runtime::effective_gateway_portal(&disabled)["show_wol"],
+        json!(false)
+    );
+    assert_eq!(disabled["gateway_portal"]["show_wol"], json!(true));
+
+    let enabled = json!({
+        "wol_feature": { "enabled": true },
+        "gateway_portal": { "show_wol": true }
+    });
+    assert_eq!(
+        super::runtime::effective_gateway_portal(&enabled)["show_wol"],
+        json!(true)
     );
 }
 

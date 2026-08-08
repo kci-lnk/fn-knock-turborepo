@@ -176,10 +176,11 @@ use patch::*;
 use rollback::*;
 use runtime::{
     apply_gateway_portal_host_rules_patches_if_needed, sync_gateway_host_response_runtime,
-    sync_gateway_proxy_headers_runtime, sync_gateway_runtime, sync_gateway_visibility_runtime,
+    sync_gateway_proxy_headers_runtime, sync_gateway_visibility_runtime,
 };
 pub(crate) use runtime::{
-    sync_gateway_target_runtime_for_config, sync_gateway_visibility_runtime_from_store,
+    sync_gateway_runtime, sync_gateway_target_runtime_for_config,
+    sync_gateway_visibility_runtime_from_store,
 };
 
 #[cfg(test)]

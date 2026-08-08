@@ -291,7 +291,11 @@
         "loadRunModePromptPreferencesFailed": "加载运行模式提示偏好失败",
         "saveRunModePromptPreferencesFailed": "保存运行模式提示偏好失败",
         "loadWelcomeGuideFailed": "加载欢迎引导状态失败",
-        "saveWelcomeGuideFailed": "保存欢迎引导状态失败"
+        "saveWelcomeGuideFailed": "保存欢迎引导状态失败",
+        "loadWolFeatureFailed": "加载远程唤醒功能配置失败",
+        "saveWolFeatureFailed": "保存远程唤醒功能配置失败",
+        "syncWolFeatureFailed": "同步远程唤醒功能到网关失败",
+        "invalidWolFeature": "远程唤醒功能配置无效"
       },
       "captcha": {
         "turnstileKeysRequired": "启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写",
@@ -2126,7 +2130,8 @@
           "runtimeRestarted": "组件已重启",
           "runtimeHealthFailed": "组件健康检查失败",
           "runtimeRecovered": "组件已恢复",
-          "runtimeAbnormalExit": "组件异常退出"
+          "runtimeAbnormalExit": "组件异常退出",
+          "wolWakeCompleted": "远程唤醒完成"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -3489,7 +3494,11 @@
         "loadRunModePromptPreferencesFailed": "載入運行模式提示偏好失敗",
         "saveRunModePromptPreferencesFailed": "保存運行模式提示偏好失敗",
         "loadWelcomeGuideFailed": "載入歡迎引導狀態失敗",
-        "saveWelcomeGuideFailed": "保存歡迎引導狀態失敗"
+        "saveWelcomeGuideFailed": "保存歡迎引導狀態失敗",
+        "loadWolFeatureFailed": "載入遠端喚醒功能配置失敗",
+        "saveWolFeatureFailed": "保存遠端喚醒功能配置失敗",
+        "syncWolFeatureFailed": "同步遠端喚醒功能到網關失敗",
+        "invalidWolFeature": "遠端喚醒功能配置無效"
       },
       "captcha": {
         "turnstileKeysRequired": "啟用 Cloudflare Turnstile 時，site_key 和 secret_key 都必須填寫",
@@ -5324,7 +5333,8 @@
           "runtimeRestarted": "元件已重新啟動",
           "runtimeHealthFailed": "元件健康檢查失敗",
           "runtimeRecovered": "元件已恢復",
-          "runtimeAbnormalExit": "元件異常結束"
+          "runtimeAbnormalExit": "元件異常結束",
+          "wolWakeCompleted": "遠端喚醒完成"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -6687,7 +6697,11 @@
         "loadRunModePromptPreferencesFailed": "Failed to load run mode prompt preferences",
         "saveRunModePromptPreferencesFailed": "Failed to save run mode prompt preferences",
         "loadWelcomeGuideFailed": "Failed to load welcome guide status",
-        "saveWelcomeGuideFailed": "Failed to save welcome guide status"
+        "saveWelcomeGuideFailed": "Failed to save welcome guide status",
+        "loadWolFeatureFailed": "Failed to load Wake-on-LAN feature config",
+        "saveWolFeatureFailed": "Failed to save Wake-on-LAN feature config",
+        "syncWolFeatureFailed": "Failed to sync Wake-on-LAN feature to the gateway",
+        "invalidWolFeature": "Wake-on-LAN feature config is invalid"
       },
       "captcha": {
         "turnstileKeysRequired": "When Cloudflare Turnstile is enabled, both site_key and secret_key are required",
@@ -8522,7 +8536,8 @@
           "runtimeRestarted": "Component restarted",
           "runtimeHealthFailed": "Component health failed",
           "runtimeRecovered": "Component recovered",
-          "runtimeAbnormalExit": "Component exited abnormally"
+          "runtimeAbnormalExit": "Component exited abnormally",
+          "wolWakeCompleted": "Wake-on-LAN completed"
         },
         "ruleName": "{event} notification",
         "levels": {
@@ -9885,7 +9900,11 @@
         "loadRunModePromptPreferencesFailed": "실행 모드 안내 기본 설정을 불러오지 못했습니다.",
         "saveRunModePromptPreferencesFailed": "실행 모드 안내 기본 설정을 저장하지 못했습니다.",
         "loadWelcomeGuideFailed": "환영 가이드 상태를 불러오지 못했습니다.",
-        "saveWelcomeGuideFailed": "환영 가이드 상태를 저장하지 못했습니다."
+        "saveWelcomeGuideFailed": "환영 가이드 상태를 저장하지 못했습니다.",
+        "loadWolFeatureFailed": "Wake-on-LAN 기능 설정을 불러오지 못했습니다.",
+        "saveWolFeatureFailed": "Wake-on-LAN 기능 설정을 저장하지 못했습니다.",
+        "syncWolFeatureFailed": "Wake-on-LAN 기능을 게이트웨이에 동기화하지 못했습니다.",
+        "invalidWolFeature": "Wake-on-LAN 기능 설정이 올바르지 않습니다."
       },
       "captcha": {
         "turnstileKeysRequired": "Cloudflare Turnstile이 활성화되면 site_key와 secret_key가 모두 필요합니다.",
@@ -11720,7 +11739,8 @@
           "runtimeRestarted": "컴포넌트 재시작",
           "runtimeHealthFailed": "상태 검사 실패",
           "runtimeRecovered": "컴포넌트 복구",
-          "runtimeAbnormalExit": "컴포넌트 비정상 종료"
+          "runtimeAbnormalExit": "컴포넌트 비정상 종료",
+          "wolWakeCompleted": "Wake-on-LAN 완료"
         },
         "ruleName": "{event} 알림",
         "levels": {
@@ -13083,7 +13103,11 @@
         "loadRunModePromptPreferencesFailed": "動作モード案内設定の読み込みに失敗しました",
         "saveRunModePromptPreferencesFailed": "動作モード案内設定の保存に失敗しました",
         "loadWelcomeGuideFailed": "ウェルカムガイド状態の読み込みに失敗しました",
-        "saveWelcomeGuideFailed": "ウェルカムガイド状態の保存に失敗しました"
+        "saveWelcomeGuideFailed": "ウェルカムガイド状態の保存に失敗しました",
+        "loadWolFeatureFailed": "Wake-on-LAN 機能設定の読み込みに失敗しました",
+        "saveWolFeatureFailed": "Wake-on-LAN 機能設定の保存に失敗しました",
+        "syncWolFeatureFailed": "Wake-on-LAN 機能をゲートウェイへ同期できませんでした",
+        "invalidWolFeature": "Wake-on-LAN 機能設定が無効です"
       },
       "captcha": {
         "turnstileKeysRequired": "Cloudflare Turnstile を有効にするには site_key と secret_key の両方が必要です",
@@ -14918,7 +14942,8 @@
           "runtimeRestarted": "コンポーネント再起動",
           "runtimeHealthFailed": "ヘルスチェック失敗",
           "runtimeRecovered": "コンポーネント復旧",
-          "runtimeAbnormalExit": "コンポーネント異常終了"
+          "runtimeAbnormalExit": "コンポーネント異常終了",
+          "wolWakeCompleted": "Wake-on-LAN 完了"
         },
         "ruleName": "{event}通知",
         "levels": {

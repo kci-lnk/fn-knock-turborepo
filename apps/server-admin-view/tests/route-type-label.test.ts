@@ -26,6 +26,7 @@ const gatewayRouteTypes = [
   "toolbar_asset",
   "unmatched_route_blocked",
   "visibility",
+  "wol",
 ] as const;
 
 test("every gateway route type resolves through i18n", () => {

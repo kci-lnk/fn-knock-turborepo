@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header},
     response::{IntoResponse, Response},
     routing::{get, head, post},
@@ -44,6 +44,7 @@ mod redirect;
 mod subdomain_grant;
 mod utils;
 mod verify;
+mod wol;
 
 pub(crate) use bridge::start_auth_bridge;
 pub(crate) use captcha::verify_captcha;
@@ -73,6 +74,8 @@ const REAUTH_LINKED_TOTP_NAME_HEADER: &str = "X-Reauth-Linked-Totp-Name";
 const REAUTH_SUBDOMAIN_ACCESS_CUSTOM: &str = "custom";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE: &str = "__builtin_select__";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH: &str = "/__select__";
+const TOTP_SUBDOMAIN_ACCESS_WOL_PAGE: &str = "__builtin_wol__";
+const TOTP_SUBDOMAIN_ACCESS_WOL_PAGE_PATH: &str = "/__wol__";
 const AUTH_IDENTITY_HEADER_MAX_LENGTH: usize = 256;
 const AUTH_IDENTITY_HEADER_ENCODING_PREFIX: &str = "b64:";
 
@@ -172,6 +175,8 @@ pub fn auth_api_routes() -> Router<AppState> {
         .route("/logout", get(logout))
         .route("/preflight", head(preflight))
         .route("/verify", get(verify))
+        .route("/wol/targets", get(wol::targets))
+        .route("/wol/targets/{id}/wake", post(wol::wake))
         .route("/oidc/providers", get(oidc_providers))
         .route("/oidc/client-metadata", get(oidc_client_metadata))
         .route("/oidc/invite", get(oidc_invite))

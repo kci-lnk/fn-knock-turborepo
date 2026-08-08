@@ -6,6 +6,7 @@ export const ROUTE_TYPE_TRANSLATION_KEYS = {
   fn_connect: "admin.wafLogs.routeTypes.fnConnect",
   auth_proxy: "admin.wafLogs.routeTypes.authProxy",
   select: "admin.wafLogs.routeTypes.select",
+  wol: "admin.wafLogs.routeTypes.wol",
   preflight: "admin.wafLogs.routeTypes.preflight",
   slash_redirect: "admin.wafLogs.routeTypes.slashRedirect",
   favicon: "admin.wafLogs.routeTypes.favicon",

@@ -1139,6 +1139,138 @@ async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     (directory, state)
 }
 
+#[tokio::test]
+async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
+    let (_directory, state) = auth_route_test_state("wol-auth-api").await;
+    let app = Router::new()
+        .merge(crate::wol::wol_routes(state.clone()))
+        .nest("/api/auth", auth_api_routes())
+        .with_state(state.clone());
+    let disabled_admin = app
+        .clone()
+        .oneshot(
+            Request::get("/api/admin/wol/targets")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(disabled_admin.status(), StatusCode::FORBIDDEN);
+
+    let mut config = state.store.get_config().await.unwrap();
+    config["wol_feature"] = json!({ "enabled": true });
+    config["gateway_portal"] = json!({ "show_wol": true });
+    state.store.save_config(&config).await.unwrap();
+
+    for (name, mac, enabled) in [
+        ("Visible workstation", "02:11:22:33:44:55", true),
+        ("Disabled workstation", "02:11:22:33:44:66", false),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/wol/targets")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({
+                            "name": name,
+                            "mac": mac,
+                            "note": "Desk",
+                            "relayId": null,
+                            "broadcastAddress": "127.0.0.1",
+                            "ipAddress": "127.0.0.1",
+                            "enabled": enabled,
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    let anonymous = app
+        .clone()
+        .oneshot(
+            Request::get("/api/auth/wol/targets")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+
+    state
+        .store
+        .add_totp(TotpCredential {
+            id: "wol-user".to_string(),
+            secret: "secret".to_string(),
+            comment: "WoL user".to_string(),
+            created_at: time_utils::now_iso(),
+            access_scopes: Value::Null,
+            subdomain_access: json!({ "mode": "custom", "hosts": [] }),
+        })
+        .await
+        .unwrap();
+    let mut session = auth_route_test_session("203.0.113.40", &time_utils::iso_after_seconds(3600));
+    session.totp_id = "wol-user".to_string();
+    session.credential_id = "wol-user".to_string();
+    state
+        .store
+        .add_session("wol-session", &session, 3600)
+        .await
+        .unwrap();
+    let request = || {
+        Request::get("/api/auth/wol/targets")
+            .header(header::COOKIE, "x-go-reauth-proxy-session-id=wol-session")
+            .body(Body::empty())
+            .unwrap()
+    };
+
+    let denied = app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    state
+        .store
+        .update_totp_subdomain_access(
+            "wol-user",
+            json!({ "mode": "custom", "hosts": ["__builtin_wol__"] }),
+        )
+        .await
+        .unwrap();
+    let allowed = app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(allowed.status(), StatusCode::OK);
+    assert!(
+        allowed
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("no-store"))
+    );
+    let payload = response_json(allowed).await;
+    assert_eq!(payload.pointer("/data/total"), Some(&json!(1)));
+    assert_eq!(
+        payload.pointer("/data/items/0/name"),
+        Some(&json!("Visible workstation"))
+    );
+    assert!(payload.pointer("/data/items/0/mac").is_none());
+    assert!(payload.pointer("/data/items/0/broadcastAddress").is_none());
+    assert!(payload.pointer("/data/items/0/ipAddress").is_none());
+    assert!(payload.pointer("/data/items/0/status/observedIp").is_none());
+    assert!(payload.pointer("/data/items/0/status/lastError").is_none());
+
+    state.store.delete_totp("wol-user").await.unwrap();
+    let deleted_account = app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(deleted_account.status(), StatusCode::UNAUTHORIZED);
+
+    let mut config = state.store.get_config().await.unwrap();
+    config["gateway_portal"]["show_wol"] = json!(false);
+    state.store.save_config(&config).await.unwrap();
+    let portal_disabled = app.oneshot(request()).await.unwrap();
+    assert_eq!(portal_disabled.status(), StatusCode::FORBIDDEN);
+}
+
 fn captcha_route_test_app(state: AppState) -> Router {
     Router::new()
         .merge(runtime_config::runtime_config_routes())

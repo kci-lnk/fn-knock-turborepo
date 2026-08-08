@@ -1055,6 +1055,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fn-knock-wol-protocol"
+version = "0.1.0"
+dependencies = [
+ "hmac 0.12.1",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3416,6 +3425,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "flate2",
+ "fn-knock-wol-protocol",
  "hex",
  "hickory-resolver",
  "hmac 0.12.1",

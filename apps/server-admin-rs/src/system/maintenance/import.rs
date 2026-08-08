@@ -225,6 +225,18 @@ pub(super) async fn import_backup_archive_buffer(
         )));
     }
 
+    if let Err(error) = wol::clear_secrets_after_backup_restore(state).await {
+        let rollback_detail =
+            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
+        let ownership_result = host_mappings_lease.ensure_owned().await;
+        let release_result = host_mappings_lease.release().await;
+        ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+        return Err(BackupImportError::internal(format!(
+            "WoL relay credentials could not be cleared after backup restore: {error}{rollback_detail}"
+        )));
+    }
+
     let (mut warnings, synced_steps) =
         sync_runtime_after_import(state, translator, &previous_config).await;
     let ownership_result = host_mappings_lease.ensure_owned().await;

@@ -47,6 +47,7 @@ pub(super) fn normalize_gateway_portal(value: &Value) -> Value {
         "enabled": value.get("enabled").and_then(Value::as_bool).unwrap_or(true),
         "display_style": if value.get("display_style").and_then(Value::as_str) == Some("domain") { "domain" } else { "title" },
         "show_app_icon": value.get("show_app_icon").and_then(Value::as_bool).unwrap_or(true),
+        "show_wol": value.get("show_wol").and_then(Value::as_bool).unwrap_or(false),
         "icon_drag_mode": if value.get("icon_drag_mode").and_then(Value::as_str) == Some("free") { "free" } else { "corners" },
         "version": if value.get("version").and_then(Value::as_str) == Some("v2") { "v2" } else { "v1" },
     })
@@ -200,6 +201,7 @@ pub(super) fn default_gateway_portal() -> Value {
         "enabled": true,
         "display_style": "title",
         "show_app_icon": true,
+        "show_wol": false,
         "icon_drag_mode": "corners",
         "version": "v1",
     })

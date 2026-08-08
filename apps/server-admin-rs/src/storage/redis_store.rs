@@ -468,6 +468,8 @@ const DOCKER_ADMIN_SESSION_PREFIX: &str = "fn_knock:docker_admin:session:v1:";
 const DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX: &str = "fn_knock:docker_admin:login_backoff:v1:";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE: &str = "__builtin_select__";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH: &str = "/__select__";
+const TOTP_SUBDOMAIN_ACCESS_WOL_PAGE: &str = "__builtin_wol__";
+const TOTP_SUBDOMAIN_ACCESS_WOL_PAGE_PATH: &str = "/__wol__";
 const EVENT_LIST_SCAN_CHUNK_SIZE: isize = 200;
 const EVENT_CLEAR_CHUNK_SIZE: usize = 500;
 const MAX_EVENT_RETENTION_DAYS: i64 = 90;
@@ -1249,6 +1251,9 @@ fn normalize_totp_subdomain_access_host(value: &str) -> String {
     }
     if host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE || host == TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH {
         return TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE.to_string();
+    }
+    if host == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE || host == TOTP_SUBDOMAIN_ACCESS_WOL_PAGE_PATH {
+        return TOTP_SUBDOMAIN_ACCESS_WOL_PAGE.to_string();
     }
 
     if let Ok(url) = if host.contains("://") {

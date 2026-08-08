@@ -27,7 +27,7 @@ use crate::{
     proxy_config, response, runtime_config, scanner, ssh_security, ssl,
     state::AppState,
     store::node_locale_compare_ordering,
-    system_monitor, time_utils, waf, whitelist,
+    system_monitor, time_utils, waf, whitelist, wol,
 };
 
 const KNOCK_BACKUP_PREFIX: &str = "fn_knock:";
@@ -116,6 +116,8 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     crate::tunnels::TUNNEL_RUNTIME_KEY,
     "fn_knock:ui:",
     "fn_knock:update:",
+    // Per-target wake cooldowns are runtime-only anti-abuse state.
+    "fn_knock:wol:runtime:",
     "fn_knock:waf:log:",
     "fn_knock:waf:logs:",
     "fn_knock:waf:stats:",

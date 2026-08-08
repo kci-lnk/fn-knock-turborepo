@@ -496,6 +496,19 @@ fn normalizes_terminal_feature_like_node() {
 }
 
 #[test]
+fn wol_feature_defaults_disabled_and_accepts_only_boolean_enablement() {
+    assert_eq!(normalize_wol_feature(None), json!({ "enabled": false }));
+    assert_eq!(
+        normalize_wol_feature(Some(&json!({ "enabled": true }))),
+        json!({ "enabled": true })
+    );
+    assert_eq!(
+        normalize_wol_feature(Some(&json!({ "enabled": "true" }))),
+        json!({ "enabled": false })
+    );
+}
+
+#[test]
 fn normalizes_gateway_logging_like_node_parse_int_without_upper_cap() {
     assert_eq!(
         normalize_gateway_logging(Some(&json!({

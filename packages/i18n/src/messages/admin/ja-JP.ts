@@ -13,6 +13,7 @@ export const jaJPAdmin = {
     sslCert: "SSL",
     dashboard: "ダッシュボード",
     ddns: "DDNS",
+    wol: "リモート起動",
     subdomainMapping: "ドメイン",
     pathMapping: "パス",
     tunnel: "トンネル",
@@ -33,6 +34,232 @@ export const jaJPAdmin = {
     navigationMenu: "ナビゲーション",
     skipToContent: "メインコンテンツへ移動",
     openGithub: "GitHub プロジェクトを開く",
+  },
+  wol: {
+    title: "Wake-on-LAN",
+    description:
+      "このサーバーの LAN には直接送信し、別ネットワークには信頼された Relay を使用します。",
+    refresh: "更新",
+    loading: "Wake-on-LAN 設定を読み込み中…",
+    loadFailed: "Wake-on-LAN 設定の読み込みに失敗しました",
+    retry: "再試行",
+    saving: "保存中…",
+    copy: "コピー",
+    tabs: {
+      targets: "デバイス",
+      relays: "ネットワーク間",
+      localRelay: "Relay 受信",
+    },
+    targetsDescription:
+      "ローカル端末にはこの fnKnock から直接送信し、別ネットワークの場合のみ Relay を選択します。",
+    relaysDescription:
+      "別ネットワークの fnKnock に接続するか、他の fnKnock からこの LAN を利用できるようにします。",
+    discoverDevices: "ワンクリック検出",
+    addTarget: "デバイスを追加",
+    addRelay: "リモートネットワークを追加",
+    noTargets: "対象デバイスはまだありません。",
+    noRelays: "接続済みの別ネットワークはありません。",
+    name: "名前",
+    address: "IP アドレス",
+    port: "UDP ポート",
+    mac: "MAC アドレス",
+    note: "メモ",
+    ipAddress: "デバイス IP アドレス",
+    relay: "Relay",
+    advancedSettings: "詳細設定（通常は変更不要）",
+    relayPaired: "ペアリングコード作成済み",
+    relayWaitingForPairing: "ペアリング待ち",
+    repair: "再ペアリング",
+    deliveryPath: "起動経路",
+    localDelivery: "このサーバーから直接送信",
+    broadcastAddress: "ブロードキャストアドレス",
+    status: {
+      label: "オンライン状態",
+      online: "オンライン",
+      offline: "オフライン",
+      unknown: "確認待ち",
+      notChecked: "未確認",
+      checkedAt: "最終確認：{time}",
+    },
+    portal: {
+      settings: "Wake-on-LAN 設定",
+      title: "ゲートウェイポータルの起動ショートカット",
+      description:
+        "ログイン済みユーザーが Go ゲートウェイからデバイス起動ページを開けるかを設定します。",
+      showShortcut: "ゲートウェイポータルに Wake-on-LAN を表示",
+      loadFailed: "ポータル設定の読み込みに失敗しました",
+      saveFailed: "ポータル設定の保存に失敗しました",
+      saved: "Wake-on-LAN ポータル設定を更新しました",
+    },
+    enabled: "有効",
+    active: "有効",
+    disabled: "無効",
+    relayMissing: "Relay がありません",
+    edit: "編集",
+    wake: "起動",
+    probe: "接続テスト",
+    rotate: "PSK をローテーション",
+    pskReady: "PSK 設定済み",
+    pskMissing: "再ペアリングが必要",
+    keyVersion: "キーバージョン {version}",
+    wakeAccepted: "Relay がブロードキャストを送信しました",
+    wakeAcceptedDescription:
+      "認証済み ACK は {latency} ms。デバイスの起動には時間がかかる場合があります。",
+    localWakeSent: "ローカルブロードキャストを送信しました",
+    localWakeSentDescription:
+      "ローカルネットワークへの送信は {latency} ms。起動には時間がかかる場合があります。",
+    wakeUnknown: "ブロードキャスト結果を確認できません",
+    wakeFailed: "起動に失敗しました",
+    probeSuccess: "Relay に接続できました",
+    probeSuccessDescription: "認証済み ACK は {latency} ms。",
+    probeFailed: "Relay 接続テストに失敗しました",
+    relayCreated: "Relay を作成しました",
+    relayUpdated: "Relay を更新しました",
+    targetCreated: "デバイスを作成しました",
+    targetUpdated: "デバイスを更新しました",
+    relayDeleted: "Relay を削除しました",
+    targetDeleted: "デバイスを削除しました",
+    pskRotated: "新しいペアリングコードを作成しました",
+    saveFailed: "保存に失敗しました",
+    deleteFailed: "削除に失敗しました",
+    rotateFailed: "PSK のローテーションに失敗しました",
+    pskCopied: "PSK をコピーしました",
+    configCopied: "Relay 設定をコピーしました",
+    copyFailed: "コピーに失敗しました",
+    deleteTargetTitle: "このデバイスを削除しますか？",
+    deleteTargetDescription:
+      "再度起動するにはデバイスを作り直す必要があります。",
+    deleteRelayTitle: "この Relay を削除しますか？",
+    deleteRelayDescription:
+      "デバイスから参照されている Relay は削除できません。",
+    rotateTitle: "新しいペアリングコードを作成しますか？",
+    rotateDescription:
+      "古いコードは直ちに無効になります。リモート fnKnock に新しいコードを再度貼り付けてください。",
+    relayDialog: {
+      createTitle: "リモートネットワークを追加",
+      editTitle: "リモートネットワークを編集",
+      description:
+        "対象ネットワークの fnKnock に名前と到達可能な IP を入力します。保存後にペアリングコードが作成されます。",
+      namePlaceholder: "例：実家",
+      remoteAddress: "リモート fnKnock の IP",
+      addressPlaceholder: "例：192.168.31.98",
+      addressHint:
+        "VPN、ポート転送、またはルーティングされたネットワークから到達できる IP を使います。",
+      enabledHint: "一時停止すると、このネットワークへの起動要求を停止します。",
+    },
+    targetDialog: {
+      createTitle: "対象デバイスを追加",
+      editTitle: "対象デバイスを編集",
+      description: "MAC アドレスは大文字のコロン区切りで保存されます。",
+      ipAddressHint:
+        "オンライン確認に使用します。LAN 検出時は自動入力されます。",
+      namePlaceholder: "例：書斎ワークステーション",
+      notePlaceholder: "例：書斎、田中さんの PC（任意）",
+      selectRelay: "Relay を選択",
+      broadcastHint:
+        "空欄の場合はすべてのローカルインターフェースへ送信します。検出時は自動設定されます。",
+      enabledHint: "無効なデバイスは一覧に残りますが、起動できません。",
+    },
+    discovery: {
+      title: "オンライン LAN デバイスを検出",
+      description:
+        "この fnKnock に直結したネットワークを走査し、応答して MAC を解決できたデバイスのみ表示します。",
+      scanning: "オンラインデバイスを確認中です。数秒かかる場合があります…",
+      customCidr: "スキャンするネットワーク（任意）",
+      customCidrPlaceholder: "例：192.168.31.0/24",
+      customCidrHint:
+        "空欄の場合、この fnKnock が検出した既定のネットワークを走査します。複数指定は空白またはカンマで区切ります。",
+      settings: "スキャン設定",
+      selectAll: "追加可能なデバイスをすべて選択（{count}）",
+      selectedCount: "{count} 台選択",
+      progress: "{scanned}/{total} を走査済み、{found} 台をリアルタイム検出",
+      waitingForDevices:
+        "走査中です。オンラインデバイスは検出され次第ここに表示されます。",
+      namePlaceholder: "デバイス名（初期値は IP）",
+      notePlaceholder: "このデバイスのメモ（任意）",
+      selectDevice: "デバイス {ip} を選択",
+      resultSummary: "{count} 台検出 · {duration} ms",
+      empty: "走査に応答したオンラインデバイスはありません。",
+      added: "追加済み",
+      ready: "走査を開始してローカルネットワークのデバイスを検出します。",
+      rescan: "再走査",
+      addSelected: "選択したデバイスを追加（{count}）",
+      failed: "LAN デバイスの検出に失敗しました",
+      addedCount: "LAN デバイスを {count} 台追加しました",
+      addFailed: "一部のデバイスを追加できませんでした",
+    },
+    localRelay: {
+      title: "他の fnKnock からこのネットワークの端末を起動",
+      description:
+        "他の fnKnock のペアリングコードを貼り付けるだけで、必要な設定を自動構成します。",
+      ready: "準備完了",
+      starting: "起動中",
+      paused: "一時停止中",
+      notPaired: "未ペアリング",
+      pairTitle: "ペアリングコードを貼り付け",
+      pairDescription:
+        "他の fnKnock の「リモートネットワークを追加」で作成したコードを貼り付けます。",
+      pairingCodePlaceholder: "FNW1. で始まるコードを貼り付け",
+      pairAndEnable: "ペアリングして有効化",
+      readyTitle: "このネットワークはリモート起動の準備ができました",
+      readyDescription: "操作側に戻り、接続テスト後に端末を追加してください。",
+      startingTitle: "ネットワーク間受信を起動中",
+      startingDescription:
+        "通常は数秒で完了します。更新して最終状態を確認してください。",
+      pausedTitle: "ネットワーク間受信は一時停止中です",
+      pausedDescription: "ペアリング情報は保持され、いつでも再開できます。",
+      repair: "ペアリングコードを変更",
+      stop: "受信を一時停止",
+      start: "再度有効化",
+      advancedHint:
+        "特殊な VLAN やコンテナで自動設定が動作しない場合のみ変更してください。",
+      paired: "ペアリングが完了し、ネットワーク間受信を有効にしました",
+      pairFailed:
+        "ペアリングに失敗しました。コード全体をコピーしたか確認してください",
+      pairingData: "一度限りのペアリングデータ",
+      pairingDataPlaceholder:
+        "コントロールサーバーの JSON ペアリングデータを貼り付け",
+      importPairingData: "取り込む",
+      pairingDataInvalid: "ペアリングデータが無効です",
+      relayId: "Relay ID",
+      keyVersion: "キーバージョン",
+      psk: "事前共有鍵（PSK）",
+      pskPlaceholder: "コントロールサーバーが生成した一度限りの PSK を貼り付け",
+      pskKeepPlaceholder: "空欄のままにすると現在の PSK を保持します",
+      pskHint: "PSK は保存時のみ送信され、API から返されません。",
+      listenAddress: "リッスンアドレス",
+      broadcastDestinations: "ブロードキャスト先",
+      broadcastHint:
+        "1 行に 1 つの IPv4 アドレスとポート（例: 192.168.1.255:9）。",
+      allowedSources: "許可する送信元 CIDR",
+      allowedSourcesHint:
+        "1 行に 1 つ。空欄の場合は HMAC 認証のみを使用します。",
+      enabled: "内蔵 Relay を有効化",
+      enabledHint:
+        "保存すると server-admin-rs 内の UDP リスナーが直ちに再読み込みされます。",
+      listening: "リッスン中",
+      stopped: "停止中",
+      runtimeError: "Relay 実行エラー",
+      runtimeAddress: "リッスン中: {address}",
+      saved: "ローカル Relay 設定を保存しました",
+      saveFailed: "ローカル Relay 設定の保存に失敗しました",
+    },
+    bootstrap: {
+      title: "リモートネットワークを接続",
+      description:
+        "このコードを対象ネットワークの fnKnock に貼り付けると自動設定されます。",
+      stepCopy: "下のペアリングコードをコピーします。",
+      stepOpenRemote:
+        "対象ネットワークの fnKnock で「Wake-on-LAN → ネットワーク間」を開きます。",
+      stepPair: "このネットワークの端末を起動する欄に貼り付けて確定します。",
+      code: "ペアリングコード",
+      copyCode: "コードをコピー",
+      codeCopied: "ペアリングコードをコピーしました",
+      onceTitle: "コードは非公開で保管してください",
+      onceDescription:
+        "接続認証情報を含み、この画面を閉じると再表示できません。",
+      saved: "完了",
+    },
   },
   banner: {
     clockImmediate: "システム時刻とタイムゾーンの同期が必要です",
@@ -418,6 +645,9 @@ export const jaJPAdmin = {
     showAppIcon: "アプリアイコンを表示",
     showAppIconDescription:
       "有効にすると、ポータルとツールバーに取得済みのアプリアイコンを表示します。v2 では、アイコンのない項目にプレースホルダーアイコンを生成します。",
+    showWol: "Wake-on-LAN ショートカットを表示",
+    showWolDescription:
+      "権限を持つログイン済みアカウントが内蔵 Wake-on-LAN ページを開けるようにします。",
   },
   gatewayVisibilitySettings: {
     loading: "読み込み中...",
@@ -530,7 +760,8 @@ export const jaJPAdmin = {
     invalidBackupFileDescription:
       "{extension}形式のバックアップファイルを選択してください",
     backupFileTooLarge: "バックアップファイルが大きすぎます",
-    backupFileTooLargeDescription: "バックアップファイルは {max} 以下にしてください",
+    backupFileTooLargeDescription:
+      "バックアップファイルは {max} 以下にしてください",
     fnosBackupSelected: "FNOS バックアップを選択しました: {name}",
     backupDownloadStarted: "バックアップのダウンロードを開始しました",
     backupExportedToFnos: "バックアップを FNOS にエクスポートしました",
@@ -723,6 +954,9 @@ export const jaJPAdmin = {
     sshSecurity: "SSH セキュリティ",
     sshSecurityHint:
       "「SSH セキュリティ」を表示し、SSH のログイン記録に基づいて不審なアクセス元を自動的にブロックします",
+    wol: "Wake-on-LAN",
+    wolHint:
+      "Wake-on-LAN メニュー、Relay、デバイスのオンライン確認サービスを有効にします",
     protocolMapping: "プロトコルマッピング",
     protocolMappingHint:
       "TCP/UDP 転送を有効にします。無効にしてもマッピング設定は保持され、引き続き管理できます",
@@ -2555,8 +2789,7 @@ export const jaJPAdmin = {
           "Cloudflare の証明書発行レート制限に従って待機しています。",
         customHostnameQuotaUnavailable:
           "カスタムホスト名の割り当てを利用できません：{detail}",
-        preferredEdgeProbeFailed:
-          "優先エッジの検証に失敗しました：{detail}",
+        preferredEdgeProbeFailed: "優先エッジの検証に失敗しました：{detail}",
       },
       switchReasons: {
         manualSpeedTest: "速度テスト完了後に手動選択",
@@ -3874,6 +4107,7 @@ export const jaJPAdmin = {
       fnConnect: "FN Connect",
       authProxy: "認証プロキシ",
       select: "選択ページ",
+      wol: "Wake-on-LAN",
       preflight: "プリフライト",
       slashRedirect: "末尾スラッシュのリダイレクト",
       favicon: "アイコン",
@@ -4844,6 +5078,7 @@ export const jaJPAdmin = {
     permissionClear: "クリア",
     permissionBuiltin: "組み込み",
     permissionBuiltinSelectLabel: "組み込みの選択ページ",
+    permissionBuiltinWolLabel: "組み込み Wake-on-LAN ページ",
     permissionHostGroup: "サブドメインと組み込みエントリ",
     permissionStreamGroup: "プロトコルマッピング",
     permissionStreamIpNotice:
@@ -5273,6 +5508,7 @@ export const jaJPAdmin = {
       FN_EVENT_AUTH_SESSION_IP_DRIFT: "セッション IP 変更",
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "スキャナーをブロック",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新完了",
+      FN_EVENT_WOL_WAKE_COMPLETED: "Wake-on-LAN 完了",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "ゲートウェイのレート制限",
       FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "ゲートウェイ公開範囲によるブロック",
       FN_EVENT_WAF_BLOCKED: "WAF によるブロック",
@@ -5450,6 +5686,7 @@ export const jaJPAdmin = {
       scannerBlocked:
         "{ip} が通常とは異なるパスへ {count} 回アクセスしたためブロックしました",
       ddnsUpdated: "{provider} {result}: {message}",
+      wolWakeCompleted: "デバイス {target} / {relay}: {result}（{latency} ms）",
       gatewayThrottleBlocked: "{ip} に {seconds}秒間のレート制限を適用しました",
       gatewayVisibilityBlocked:
         "{ip} から {host}{path} へのアクセスを公開範囲ルールがブロックしました",

@@ -1175,7 +1175,6 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
                         json!({
                             "name": name,
                             "mac": mac,
-                            "note": "Desk",
                             "relayId": null,
                             "broadcastAddress": "127.0.0.1",
                             "ipAddress": "127.0.0.1",

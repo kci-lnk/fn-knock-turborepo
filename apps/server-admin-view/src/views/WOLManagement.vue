@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Cable,
@@ -55,6 +55,7 @@ import {
   type WOLTargetInput,
 } from "@/lib/api";
 import { normalizeGatewayPortalConfig } from "@/lib/gatewayPortal";
+import { createRandomTargetName } from "@/lib/wolTargetName";
 import { useConfigStore } from "@/store/config";
 import WOLBootstrapDialog from "./wol-management/WOLBootstrapDialog.vue";
 import WOLDiscoveryDialog from "./wol-management/WOLDiscoveryDialog.vue";
@@ -72,6 +73,7 @@ const loadError = ref("");
 const saving = ref(false);
 const relayDialogOpen = ref(false);
 const targetDialogOpen = ref(false);
+const targetDialogError = ref("");
 const bootstrapOpen = ref(false);
 const bootstrapCredential = ref<WOLRelayCredentialResult | null>(null);
 const relayMode = ref<"create" | "edit">("create");
@@ -93,6 +95,9 @@ const settingsOpen = ref(false);
 const showWolInPortal = ref(true);
 const savingPortalSetting = ref(false);
 let discoveryAbortController: AbortController | null = null;
+let targetRuntimePollTimer: ReturnType<typeof globalThis.setInterval> | null =
+  null;
+let targetRuntimeAbortController: AbortController | null = null;
 
 const relayForm = reactive<WOLRelayInput>({
   name: "",
@@ -103,11 +108,11 @@ const relayForm = reactive<WOLRelayInput>({
 const targetForm = reactive<WOLTargetInput>({
   name: "",
   mac: "",
-  note: "",
   relayId: null,
   broadcastAddress: null,
   ipAddress: null,
   enabled: true,
+  integrations: undefined,
 });
 const localRelayForm = reactive<WOLLocalRelayInput>({
   enabled: false,
@@ -315,40 +320,108 @@ const saveRelay = async () => {
 };
 
 const openCreateTarget = () => {
+  targetDialogError.value = "";
   targetMode.value = "create";
   editingTargetId.value = "";
   Object.assign(targetForm, {
-    name: "",
+    name: createRandomTargetName(
+      t("admin.wol.targetDialog.generatedNamePrefix"),
+    ),
     mac: "",
-    note: "",
     relayId: null,
     broadcastAddress: null,
     ipAddress: null,
     enabled: true,
+    integrations: undefined,
   });
   targetDialogOpen.value = true;
 };
 
 const openEditTarget = (target: WOLTarget) => {
+  targetDialogError.value = "";
   targetMode.value = "edit";
   editingTargetId.value = target.id;
   Object.assign(targetForm, {
     name: target.name,
     mac: target.mac,
-    note: target.note,
     relayId: target.relayId,
     broadcastAddress: target.broadcastAddress,
     ipAddress: target.ipAddress,
     enabled: target.enabled,
+    integrations: {
+      blinker: {
+        enabled: target.integrations.blinker.enabled,
+        deviceKey: "",
+        bindComponent: target.integrations.blinker.bindComponent,
+        skipTlsVerify: true,
+      },
+      bemfa: {
+        // Old development builds briefly allowed both providers. Prefer the
+        // first configured provider when opening those records so the next
+        // save converges to the new one-provider invariant.
+        enabled:
+          !target.integrations.blinker.enabled &&
+          target.integrations.bemfa.enabled,
+        privateKey: "",
+        topic: target.integrations.bemfa.topic,
+        skipTlsVerify: true,
+      },
+    },
   });
   targetDialogOpen.value = true;
 };
 
+const stopTargetRuntimePolling = () => {
+  targetRuntimeAbortController?.abort();
+  targetRuntimeAbortController = null;
+  if (targetRuntimePollTimer !== null) {
+    globalThis.clearInterval(targetRuntimePollTimer);
+    targetRuntimePollTimer = null;
+  }
+};
+
+const refreshEditingTargetRuntime = async () => {
+  const id = editingTargetId.value;
+  if (
+    !targetDialogOpen.value ||
+    targetMode.value !== "edit" ||
+    !id ||
+    targetRuntimeAbortController
+  )
+    return;
+  const controller = new AbortController();
+  targetRuntimeAbortController = controller;
+  try {
+    const refreshed = await WOLAPI.getTarget(id, controller.signal);
+    if (!targetDialogOpen.value || editingTargetId.value !== id) return;
+    const index = targets.value.findIndex((target) => target.id === id);
+    if (index >= 0) targets.value.splice(index, 1, refreshed);
+  } catch {
+    // Runtime polling must not replace a save error or close the editor.
+  } finally {
+    if (targetRuntimeAbortController === controller) {
+      targetRuntimeAbortController = null;
+    }
+  }
+};
+
+watch(targetDialogOpen, (open) => {
+  stopTargetRuntimePolling();
+  if (!open || targetMode.value !== "edit") return;
+  void refreshEditingTargetRuntime();
+  targetRuntimePollTimer = globalThis.setInterval(
+    () => void refreshEditingTargetRuntime(),
+    2_000,
+  );
+});
+
 const saveTarget = async () => {
   saving.value = true;
+  targetDialogError.value = "";
   try {
     if (targetMode.value === "create") {
-      await WOLAPI.createTarget({ ...targetForm });
+      const { integrations: _integrations, ...createPayload } = targetForm;
+      await WOLAPI.createTarget({ ...createPayload });
       toast.success(t("admin.wol.targetCreated"));
     } else {
       await WOLAPI.updateTarget(editingTargetId.value, { ...targetForm });
@@ -357,8 +430,12 @@ const saveTarget = async () => {
     targetDialogOpen.value = false;
     await load();
   } catch (error) {
+    targetDialogError.value = extractErrorMessage(
+      error,
+      t("admin.wol.saveFailed"),
+    );
     toast.error(t("admin.wol.saveFailed"), {
-      description: extractErrorMessage(error, t("admin.wol.saveFailed")),
+      description: targetDialogError.value,
     });
   } finally {
     saving.value = false;
@@ -437,7 +514,7 @@ const setDiscoveryOpen = (open: boolean) => {
 };
 
 const addDiscoveredDevices = async (
-  devices: Array<WOLDiscoveredDevice & { name: string; note: string }>,
+  devices: Array<WOLDiscoveredDevice & { name: string }>,
 ) => {
   addingDiscovered.value = true;
   let added = 0;
@@ -446,7 +523,6 @@ const addDiscoveredDevices = async (
       await WOLAPI.createTarget({
         name: device.name,
         mac: device.mac,
-        note: device.note,
         relayId: null,
         broadcastAddress: device.broadcastAddress,
         ipAddress: device.ip,
@@ -580,7 +656,10 @@ const copyBootstrap = async (value: string) => {
 };
 
 onMounted(load);
-onBeforeUnmount(() => discoveryAbortController?.abort());
+onBeforeUnmount(() => {
+  discoveryAbortController?.abort();
+  stopTargetRuntimePolling();
+});
 </script>
 
 <template>
@@ -703,12 +782,6 @@ onBeforeUnmount(() => discoveryAbortController?.abort());
                     </CardTitle>
                     <span class="sr-only">{{ statusLabel(target) }}</span>
                   </div>
-                  <p
-                    v-if="target.note"
-                    class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80"
-                  >
-                    {{ target.note }}
-                  </p>
                 </div>
                 <Badge
                   class="shrink-0"
@@ -754,7 +827,10 @@ onBeforeUnmount(() => discoveryAbortController?.abort());
                     </span>
                   </div>
                 </div>
-                <div class="rounded-lg bg-muted/40 px-3 py-2.5">
+                <div
+                  v-if="relays.length"
+                  class="rounded-lg bg-muted/40 px-3 py-2.5"
+                >
                   <p class="text-xs text-muted-foreground">
                     {{ t("admin.wol.deliveryPath") }}
                   </p>
@@ -974,6 +1050,12 @@ onBeforeUnmount(() => discoveryAbortController?.abort());
       :model="targetForm"
       :relays="relays"
       :saving="saving"
+      :error="targetDialogError"
+      :target="
+        targetMode === 'edit'
+          ? (targets.find((target) => target.id === editingTargetId) ?? null)
+          : null
+      "
       @confirm="saveTarget"
     />
     <WOLBootstrapDialog

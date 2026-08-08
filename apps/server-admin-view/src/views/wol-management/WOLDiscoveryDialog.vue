@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createRandomTargetName } from "@/lib/wolTargetName";
 import type {
   WOLDiscoveredDevice,
   WOLDiscoveryProgress,
@@ -23,7 +24,6 @@ import type {
 
 type DiscoveredSelection = WOLDiscoveredDevice & {
   name: string;
-  note: string;
 };
 
 const props = defineProps<{
@@ -46,7 +46,6 @@ const customCidrs = ref("");
 const showSettings = ref(false);
 const selected = ref(new Set<string>());
 const names = reactive<Record<string, string>>({});
-const notes = reactive<Record<string, string>>({});
 const existing = computed(() => new Set(props.existingMacs));
 const selectableDevices = computed(
   () =>
@@ -58,8 +57,7 @@ const selectedDevices = computed(() =>
     .filter((device) => selected.value.has(device.mac))
     .map((device) => ({
       ...device,
-      name: names[device.mac]?.trim() || device.ip,
-      note: notes[device.mac]?.trim() ?? "",
+      name: names[device.mac]?.trim() ?? "",
     })),
 );
 const selectAllState = computed<boolean | "indeterminate">(() => {
@@ -80,7 +78,6 @@ watch(
     if (!props.result) {
       selected.value = new Set();
       for (const key of Object.keys(names)) delete names[key];
-      for (const key of Object.keys(notes)) delete notes[key];
       return;
     }
     const macs = devices.map((device) => device.mac);
@@ -91,8 +88,9 @@ watch(
       ),
     );
     for (const device of devices) {
-      names[device.mac] ??= device.ip;
-      notes[device.mac] ??= "";
+      names[device.mac] ??= createRandomTargetName(
+        t("admin.wol.targetDialog.generatedNamePrefix"),
+      );
     }
   },
 );
@@ -278,7 +276,8 @@ const scan = () => {
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="font-medium">{{
-                      names[device.mac]?.trim() || device.ip
+                      names[device.mac]?.trim() ||
+                      t("admin.wol.discovery.autoNamePending")
                     }}</span>
                     <Badge v-if="existing.has(device.mac)" variant="secondary">
                       {{ t("admin.wol.discovery.added") }}
@@ -290,10 +289,7 @@ const scan = () => {
                     {{ device.broadcastAddress }}
                   </p>
                 </div>
-                <div
-                  v-if="!existing.has(device.mac)"
-                  class="grid gap-2 sm:grid-cols-2"
-                >
+                <div v-if="!existing.has(device.mac)" class="max-w-sm">
                   <div class="space-y-1">
                     <Label
                       :for="`wol-discovery-name-${device.mac}`"
@@ -308,22 +304,6 @@ const scan = () => {
                       maxlength="64"
                       :aria-label="t('admin.wol.discovery.namePlaceholder')"
                       :placeholder="t('admin.wol.discovery.namePlaceholder')"
-                    />
-                  </div>
-                  <div class="space-y-1">
-                    <Label
-                      :for="`wol-discovery-note-${device.mac}`"
-                      class="text-xs"
-                    >
-                      {{ t("admin.wol.note") }}
-                    </Label>
-                    <Input
-                      :id="`wol-discovery-note-${device.mac}`"
-                      v-model="notes[device.mac]"
-                      class="h-8"
-                      maxlength="256"
-                      :aria-label="t('admin.wol.discovery.notePlaceholder')"
-                      :placeholder="t('admin.wol.discovery.notePlaceholder')"
                     />
                   </div>
                 </div>
@@ -347,11 +327,7 @@ const scan = () => {
       </div>
 
       <DialogFooter class="gap-2 sm:justify-between">
-        <Button
-          variant="outline"
-          :disabled="scanning || adding"
-          @click="scan"
-        >
+        <Button variant="outline" :disabled="scanning || adding" @click="scan">
           <Loader2 v-if="scanning" class="mr-1.5 h-4 w-4 animate-spin" />
           <Radar v-else class="mr-1.5 h-4 w-4" />
           {{ t("admin.wol.discovery.rescan") }}

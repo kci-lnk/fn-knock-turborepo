@@ -59,7 +59,6 @@ export const koKRAdmin = {
     address: "IP 주소",
     port: "UDP 포트",
     mac: "MAC 주소",
-    note: "메모",
     ipAddress: "장치 IP 주소",
     relay: "Relay",
     advancedSettings: "고급 설정(보통 변경할 필요 없음)",
@@ -147,12 +146,43 @@ export const koKRAdmin = {
       description: "MAC 주소는 대문자 콜론 형식으로 저장됩니다.",
       ipAddressHint:
         "온라인 확인에 사용합니다. LAN 검색으로 추가하면 자동 입력됩니다.",
-      namePlaceholder: "예: 서재 워크스테이션",
-      notePlaceholder: "예: 서재, 홍길동 PC(선택 사항)",
+      namePlaceholder: "비워 두면 자동 생성됩니다(예: 장치rS7e5)",
+      generatedNamePrefix: "장치",
       selectRelay: "Relay 선택",
       broadcastHint:
         "비워 두면 모든 로컬 인터페이스로 전송합니다. 검색으로 추가하면 자동 입력됩니다.",
       enabledHint: "비활성 장치는 목록에 남지만 깨울 수 없습니다.",
+      integrations: {
+        title: "타사 플랫폼 연동",
+        selectHint: "장치마다 하나의 플랫폼만 연결할 수 있습니다.",
+        provider: "제공자",
+        none: "사용하지 않음",
+        credentialConfigured: "설정됨 — 비워 두면 유지",
+        runtime: {
+          disabled: "비활성",
+          credential_missing: "자격 증명 없음",
+          connecting: "연결 중",
+          connected: "연결됨",
+          reconnecting: "재연결 중",
+          error: "연결 오류",
+        },
+        blinker: {
+          title: "Blinker(点灯科技)",
+          deviceKey: "장치 키",
+          deviceKeyPlaceholder: "Blinker App의 독립 네트워크 장치에서 확인",
+          bindComponent: "switch 컴포넌트 연결",
+          bindComponentHint:
+            "on은 장치를 깨우고 off는 현재 온라인 상태만 응답하며 종료하지 않습니다.",
+        },
+        bemfa: {
+          title: "Bemfa(巴法云)",
+          privateKey: "개인 키",
+          privateKeyPlaceholder: "Bemfa 콘솔 개인 키",
+          topic: "구독 토픽",
+          topicHint:
+            "영문, 숫자, 밑줄만 허용됩니다. 음성 플랫폼 검색을 위해 001 또는 006으로 끝내세요.",
+        },
+      },
     },
     discovery: {
       title: "온라인 LAN 장치 검색",
@@ -169,8 +199,8 @@ export const koKRAdmin = {
       progress: "{scanned}/{total} 스캔, 실시간 {found}대 검색",
       waitingForDevices:
         "스캔 중입니다. 온라인 장치는 검색되는 즉시 여기에 표시됩니다.",
-      namePlaceholder: "장치 이름(기본값: IP)",
-      notePlaceholder: "이 장치의 메모(선택 사항)",
+      namePlaceholder: "장치 이름(비워 두면 자동 생성)",
+      autoNamePending: "저장할 때 이름이 자동 생성됩니다",
       selectDevice: "장치 {ip} 선택",
       resultSummary: "{count}대 검색 · {duration}ms",
       empty: "스캔에 응답한 온라인 장치가 없습니다.",

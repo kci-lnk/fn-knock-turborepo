@@ -21,7 +21,6 @@ export type WOLTarget = {
   id: string;
   name: string;
   mac: string;
-  note: string;
   relayId: string | null;
   broadcastAddress: string | null;
   ipAddress: string | null;
@@ -31,6 +30,54 @@ export type WOLTarget = {
   updatedAt: string;
   relay: WOLRelaySummary | null;
   status: WOLTargetStatus;
+  integrations: WOLTargetIntegrations;
+};
+
+export type WOLIntegrationRuntimeState =
+  | "disabled"
+  | "credential_missing"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "error";
+
+export type WOLIntegrationRuntime = {
+  state: WOLIntegrationRuntimeState;
+  lastConnectedAt: string | null;
+  lastMessageAt: string | null;
+  lastError: string | null;
+};
+
+export type WOLTargetIntegrations = {
+  blinker: {
+    enabled: boolean;
+    bindComponent: boolean;
+    skipTlsVerify: boolean;
+    credentialConfigured: boolean;
+    runtime: WOLIntegrationRuntime;
+  };
+  bemfa: {
+    enabled: boolean;
+    topic: string;
+    skipTlsVerify: boolean;
+    credentialConfigured: boolean;
+    runtime: WOLIntegrationRuntime;
+  };
+};
+
+export type WOLTargetIntegrationInput = {
+  blinker: {
+    enabled: boolean;
+    deviceKey?: string;
+    bindComponent: boolean;
+    skipTlsVerify: boolean;
+  };
+  bemfa: {
+    enabled: boolean;
+    privateKey?: string;
+    topic: string;
+    skipTlsVerify: boolean;
+  };
 };
 
 export type WOLTargetStatus = {
@@ -48,14 +95,8 @@ export type WOLRelayInput = Pick<
 
 export type WOLTargetInput = Pick<
   WOLTarget,
-  | "name"
-  | "mac"
-  | "note"
-  | "relayId"
-  | "broadcastAddress"
-  | "ipAddress"
-  | "enabled"
->;
+  "name" | "mac" | "relayId" | "broadcastAddress" | "ipAddress" | "enabled"
+> & { integrations?: WOLTargetIntegrationInput };
 
 export type WOLBootstrap = {
   pairingCode: string;
@@ -242,6 +283,13 @@ export const WOLAPI = {
   },
   async listTargets(): Promise<WOLList<WOLTarget>> {
     const response = await apiClient.get("/wol/targets");
+    return response.data.data;
+  },
+  async getTarget(id: string, signal?: AbortSignal): Promise<WOLTarget> {
+    const response = await apiClient.get(
+      `/wol/targets/${encodeURIComponent(id)}`,
+      { signal },
+    );
     return response.data.data;
   },
   async startDiscoveryJob(

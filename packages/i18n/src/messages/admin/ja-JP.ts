@@ -63,7 +63,6 @@ export const jaJPAdmin = {
     address: "IP アドレス",
     port: "UDP ポート",
     mac: "MAC アドレス",
-    note: "メモ",
     ipAddress: "デバイス IP アドレス",
     relay: "Relay",
     advancedSettings: "詳細設定（通常は変更不要）",
@@ -153,12 +152,45 @@ export const jaJPAdmin = {
       description: "MAC アドレスは大文字のコロン区切りで保存されます。",
       ipAddressHint:
         "オンライン確認に使用します。LAN 検出時は自動入力されます。",
-      namePlaceholder: "例：書斎ワークステーション",
-      notePlaceholder: "例：書斎、田中さんの PC（任意）",
+      namePlaceholder: "空欄なら自動生成（例：デバイスrS7e5）",
+      generatedNamePrefix: "デバイス",
       selectRelay: "Relay を選択",
       broadcastHint:
         "空欄の場合はすべてのローカルインターフェースへ送信します。検出時は自動設定されます。",
       enabledHint: "無効なデバイスは一覧に残りますが、起動できません。",
+      integrations: {
+        title: "サードパーティ連携",
+        selectHint:
+          "1 台のデバイスには 1 つのプラットフォームのみ連携できます。",
+        provider: "プロバイダー",
+        none: "使用しない",
+        credentialConfigured: "設定済み（空欄なら変更しません）",
+        runtime: {
+          disabled: "無効",
+          credential_missing: "認証情報なし",
+          connecting: "接続中",
+          connected: "接続済み",
+          reconnecting: "再接続中",
+          error: "接続エラー",
+        },
+        blinker: {
+          title: "Blinker（点灯科技）",
+          deviceKey: "デバイスキー",
+          deviceKeyPlaceholder:
+            "Blinker App の独立ネットワークデバイスから取得",
+          bindComponent: "switch コンポーネントを連携",
+          bindComponentHint:
+            "on は起動、off は現在のオンライン状態を返すだけでシャットダウンしません。",
+        },
+        bemfa: {
+          title: "Bemfa（巴法云）",
+          privateKey: "秘密鍵",
+          privateKeyPlaceholder: "Bemfa コンソールの秘密鍵",
+          topic: "購読トピック",
+          topicHint:
+            "英数字とアンダースコアのみ。音声プラットフォーム検出には末尾 001 / 006 を推奨します。",
+        },
+      },
     },
     discovery: {
       title: "オンライン LAN デバイスを検出",
@@ -175,8 +207,8 @@ export const jaJPAdmin = {
       progress: "{scanned}/{total} を走査済み、{found} 台をリアルタイム検出",
       waitingForDevices:
         "走査中です。オンラインデバイスは検出され次第ここに表示されます。",
-      namePlaceholder: "デバイス名（初期値は IP）",
-      notePlaceholder: "このデバイスのメモ（任意）",
+      namePlaceholder: "デバイス名（空欄なら自動生成）",
+      autoNamePending: "保存時に名前を自動生成します",
       selectDevice: "デバイス {ip} を選択",
       resultSummary: "{count} 台検出 · {duration} ms",
       empty: "走査に応答したオンラインデバイスはありません。",

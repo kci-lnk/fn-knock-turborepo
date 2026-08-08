@@ -31,6 +31,7 @@ pub(super) struct TargetStatusView {
 
 pub(crate) fn start_wol_tasks(state: AppState) {
     super::relay::start_wol_relay_tasks(state.clone());
+    super::integrations::start_integration_tasks(state.clone());
     tokio::spawn(async move {
         status_supervisor(state).await;
     });
@@ -229,11 +230,13 @@ async fn persist_result(
 ) -> anyhow::Result<()> {
     let now = time_utils::now_iso();
     let online = result.state == DeviceProbeState::Online;
+    let state_name = state_name(result.state).to_string();
+    let state_changed = previous.state != state_name;
     save_target_status(
         state,
         id,
         &TargetStatusRecord {
-            state: state_name(result.state).to_string(),
+            state: state_name.clone(),
             checked_at: Some(now.clone()),
             last_online_at: if online {
                 Some(now)
@@ -247,7 +250,14 @@ async fn persist_result(
             last_error: result.error,
         },
     )
-    .await
+    .await?;
+    if state_changed {
+        let _ = state.wol_status_updates.send(serde_json::json!({
+            "targetId": id,
+            "state": state_name,
+        }));
+    }
+    Ok(())
 }
 
 async fn persist_result_if_current(
@@ -357,10 +367,10 @@ mod tests {
             id: "target".to_string(),
             name: "Target".to_string(),
             mac: "02:11:22:33:44:55".to_string(),
-            note: String::new(),
             relay_id: None,
             broadcast_address: None,
             ip_address: Some("192.0.2.10".to_string()),
+            integrations: super::super::store::TargetIntegrations::default(),
             enabled: true,
             created_at: String::new(),
             updated_at: String::new(),

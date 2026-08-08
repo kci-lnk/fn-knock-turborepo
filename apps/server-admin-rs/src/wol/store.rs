@@ -53,9 +53,6 @@ pub(super) struct TargetRecord {
     pub id: String,
     pub name: String,
     pub mac: String,
-    /// Optional user-facing context such as the device owner or room.
-    #[serde(default)]
-    pub note: String,
     /// `None` means that this server-admin-rs instance broadcasts the Magic
     /// Packet directly. A Relay is only selected for a different network.
     #[serde(default)]
@@ -67,9 +64,68 @@ pub(super) struct TargetRecord {
     /// Last configured IPv4 address. Runtime checks may observe a newer DHCP address.
     #[serde(default)]
     pub ip_address: Option<String>,
+    /// Non-sensitive third-party integration settings. Credentials are kept
+    /// in the installation-bound encrypted WoL secret store.
+    #[serde(default)]
+    pub integrations: TargetIntegrations,
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct TargetIntegrations {
+    #[serde(default)]
+    pub blinker: BlinkerIntegrationConfig,
+    #[serde(default)]
+    pub bemfa: BemfaIntegrationConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct BlinkerIntegrationConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub bind_component: bool,
+    #[serde(default = "default_skip_tls_verify")]
+    pub skip_tls_verify: bool,
+}
+
+impl Default for BlinkerIntegrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bind_component: false,
+            skip_tls_verify: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct BemfaIntegrationConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub topic: String,
+    #[serde(default = "default_skip_tls_verify")]
+    pub skip_tls_verify: bool,
+}
+
+impl Default for BemfaIntegrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            topic: String::new(),
+            skip_tls_verify: true,
+        }
+    }
+}
+
+fn default_skip_tls_verify() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -290,5 +346,23 @@ mod tests {
         assert!(value.get("observedIp").is_some());
         assert!(value.get("lastError").is_some());
         assert!(value.get("checked_at").is_none());
+    }
+
+    #[test]
+    fn legacy_target_records_default_integrations_to_disabled() {
+        let target: TargetRecord = serde_json::from_value(serde_json::json!({
+            "id": "target",
+            "name": "Desktop",
+            "mac": "02:11:22:33:44:55",
+            "enabled": true,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+        }))
+        .unwrap();
+        assert_eq!(target.integrations, TargetIntegrations::default());
+        assert!(!target.integrations.blinker.enabled);
+        assert!(!target.integrations.bemfa.enabled);
+        assert!(target.integrations.blinker.skip_tls_verify);
+        assert!(target.integrations.bemfa.skip_tls_verify);
     }
 }

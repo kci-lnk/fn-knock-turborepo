@@ -10,13 +10,16 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use fn_knock_wol_protocol::{AckStatus, Command, MacAddress};
 use ipnet::IpNet;
+use rand::random_range;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use uuid::Uuid;
 
 use crate::{crypto_utils, response, state::AppState, time_utils};
 
+use super::secrets::IntegrationCredentialKind;
 use super::{
     discovery::{
         DiscoveryJobError, cancel_discovery_job, get_discovery_job, local_broadcast_addresses,
@@ -25,7 +28,8 @@ use super::{
     dispatch::{DispatchError, dispatch},
     secrets::{local_relay_secret_id, secret_store},
     store::{
-        LocalRelayConfig, RelayRecord, TargetRecord, delete_relay as delete_relay_record,
+        BemfaIntegrationConfig, BlinkerIntegrationConfig, LocalRelayConfig, RelayRecord,
+        TargetIntegrations, TargetRecord, delete_relay as delete_relay_record,
         delete_target as delete_target_record, list_relays, list_targets, load_local_relay_config,
         load_relay, load_target, save_local_relay_config, save_relay, save_target,
     },
@@ -33,11 +37,12 @@ use super::{
 
 const DEFAULT_RELAY_PORT: u16 = 40009;
 const MAX_NAME_LENGTH: usize = 64;
-const MAX_NOTE_LENGTH: usize = 256;
 const MAX_BROADCAST_DESTINATIONS: usize = 16;
 const MAX_ALLOWED_SOURCES: usize = 32;
 const PAIRING_CODE_PREFIX: &str = "FNW1.";
 const MAX_PAIRING_CODE_LENGTH: usize = 1024;
+const MAX_INTEGRATION_CREDENTIAL_LENGTH: usize = 512;
+const MAX_BEMFA_TOPIC_LENGTH: usize = 64;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,8 +61,6 @@ struct TargetBody {
     name: String,
     mac: String,
     #[serde(default)]
-    note: String,
-    #[serde(default)]
     relay_id: Option<String>,
     #[serde(default)]
     broadcast_address: Option<String>,
@@ -65,15 +68,55 @@ struct TargetBody {
     ip_address: Option<String>,
     #[serde(default = "default_enabled")]
     enabled: bool,
+    #[serde(default)]
+    integrations: Option<TargetIntegrationsBody>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetIntegrationsBody {
+    #[serde(default)]
+    blinker: Option<BlinkerIntegrationBody>,
+    #[serde(default)]
+    bemfa: Option<BemfaIntegrationBody>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BlinkerIntegrationBody {
+    enabled: bool,
+    #[serde(default)]
+    device_key: Option<String>,
+    #[serde(default)]
+    bind_component: bool,
+    #[serde(default = "default_skip_tls_verify")]
+    skip_tls_verify: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BemfaIntegrationBody {
+    enabled: bool,
+    #[serde(default)]
+    private_key: Option<String>,
+    #[serde(default)]
+    topic: String,
+    #[serde(default = "default_skip_tls_verify")]
+    skip_tls_verify: bool,
 }
 
 struct ValidatedTargetBody {
     name: String,
     mac: String,
-    note: String,
     relay_id: Option<String>,
     broadcast_address: Option<String>,
     ip_address: Option<String>,
+}
+
+struct ValidatedTargetIntegrations {
+    config: TargetIntegrations,
+    blinker_credential: Option<Vec<u8>>,
+    bemfa_credential: Option<Vec<u8>>,
 }
 
 #[derive(Deserialize)]
@@ -163,7 +206,6 @@ struct TargetView {
     id: String,
     name: String,
     mac: String,
-    note: String,
     relay_id: Option<String>,
     broadcast_address: Option<String>,
     ip_address: Option<String>,
@@ -173,6 +215,34 @@ struct TargetView {
     updated_at: String,
     relay: Option<RelaySummary>,
     status: super::status::TargetStatusView,
+    integrations: TargetIntegrationsView,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetIntegrationsView {
+    blinker: BlinkerIntegrationView,
+    bemfa: BemfaIntegrationView,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BlinkerIntegrationView {
+    enabled: bool,
+    bind_component: bool,
+    skip_tls_verify: bool,
+    credential_configured: bool,
+    runtime: super::integrations::IntegrationRuntimeView,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BemfaIntegrationView {
+    enabled: bool,
+    topic: String,
+    skip_tls_verify: bool,
+    credential_configured: bool,
+    runtime: super::integrations::IntegrationRuntimeView,
 }
 
 #[derive(Debug)]
@@ -343,8 +413,7 @@ async fn update_local_relay_inner(
                 &local_relay_secret_id(&previous_config.relay_id),
                 previous_config.key_version,
             )
-            .ok()
-            .flatten()
+            .map_err(WolHttpError::internal)?
     };
     if let Some(psk) = &psk {
         secrets
@@ -392,8 +461,7 @@ async fn local_relay_response(state: &AppState) -> Result<Value, WolHttpError> {
     } else {
         secret_store(state)
             .read(&local_relay_secret_id(&config.relay_id), config.key_version)
-            .ok()
-            .flatten()
+            .map_err(WolHttpError::internal)?
             .is_some()
     };
     let view = LocalRelayView {
@@ -657,7 +725,6 @@ async fn create_target_inner(
     let ValidatedTargetBody {
         name,
         mac,
-        note,
         relay_id,
         broadcast_address,
         ip_address,
@@ -672,10 +739,10 @@ async fn create_target_inner(
         id: Uuid::new_v4().to_string(),
         name,
         mac,
-        note,
         relay_id,
         broadcast_address,
         ip_address,
+        integrations: TargetIntegrations::default(),
         enabled: body.enabled,
         created_at: now.clone(),
         updated_at: now,
@@ -709,7 +776,6 @@ async fn update_target_inner(
     let ValidatedTargetBody {
         name,
         mac,
-        note,
         relay_id,
         broadcast_address,
         ip_address,
@@ -723,16 +789,43 @@ async fn update_target_inner(
         .await
         .map_err(|error| internal_error("load Target", error))?
         .ok_or_else(|| WolHttpError::not_found("Target"))?;
+    let secrets = secret_store(state);
+    let previous_blinker = secrets
+        .read_integration(id, IntegrationCredentialKind::Blinker)
+        .map_err(WolHttpError::internal)?;
+    let previous_bemfa = secrets
+        .read_integration(id, IntegrationCredentialKind::Bemfa)
+        .map_err(WolHttpError::internal)?;
+    let ValidatedTargetIntegrations {
+        config: integrations,
+        blinker_credential,
+        bemfa_credential,
+    } = validate_target_integrations(
+        target.integrations.clone(),
+        body.integrations.as_ref(),
+        previous_blinker.as_deref(),
+        previous_bemfa.as_deref(),
+    )?;
+    ensure_unique_integrations(
+        state,
+        id,
+        &integrations,
+        blinker_credential
+            .as_deref()
+            .or(previous_blinker.as_deref()),
+        bemfa_credential.as_deref().or(previous_bemfa.as_deref()),
+    )
+    .await?;
     let reset_status = target.mac != mac
         || target.ip_address != ip_address
         || target.relay_id != relay_id
         || target.enabled != body.enabled;
     target.name = name;
     target.mac = mac;
-    target.note = note;
     target.relay_id = relay_id;
     target.broadcast_address = broadcast_address;
     target.ip_address = ip_address;
+    target.integrations = integrations;
     target.enabled = body.enabled;
     target.updated_at = time_utils::now_iso();
     if reset_status {
@@ -744,9 +837,55 @@ async fn update_target_inner(
             .await
             .map_err(|error| internal_error("reset Target status", error))?;
     }
-    save_target(state, &target)
-        .await
-        .map_err(|error| internal_error("save Target", error))?;
+    if let Some(value) = blinker_credential.as_deref()
+        && let Err(error) = secrets.write_integration(id, IntegrationCredentialKind::Blinker, value)
+    {
+        // `atomic_private_write` can fail while syncing the containing
+        // directory after the replacement already happened. Restore the
+        // previous value even when the write reports an error so a failed
+        // API response never leaves a newly submitted credential active.
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Blinker,
+            previous_blinker.as_deref(),
+        );
+        return Err(WolHttpError::internal(error));
+    }
+    if let Some(value) = bemfa_credential.as_deref()
+        && let Err(error) = secrets.write_integration(id, IntegrationCredentialKind::Bemfa, value)
+    {
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Blinker,
+            previous_blinker.as_deref(),
+        );
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Bemfa,
+            previous_bemfa.as_deref(),
+        );
+        return Err(WolHttpError::internal(error));
+    }
+    if let Err(error) = save_target(state, &target).await {
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Blinker,
+            previous_blinker.as_deref(),
+        );
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Bemfa,
+            previous_bemfa.as_deref(),
+        );
+        return Err(internal_error("save Target", error));
+    }
+    super::integrations::remove_runtime(state, id).await;
+    super::notify_runtime_reload(state);
     target_view(state, target).await
 }
 
@@ -757,9 +896,51 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
             if let Err(error) = super::store::delete_target_status(&state, &id).await {
                 return internal_error("delete Target status", error).into_response();
             }
+            let secrets = secret_store(&state);
+            let previous_blinker =
+                match secrets.read_integration(&id, IntegrationCredentialKind::Blinker) {
+                    Ok(value) => value,
+                    Err(error) => return WolHttpError::internal(error).into_response(),
+                };
+            let previous_bemfa =
+                match secrets.read_integration(&id, IntegrationCredentialKind::Bemfa) {
+                    Ok(value) => value,
+                    Err(error) => return WolHttpError::internal(error).into_response(),
+                };
+            if let Err(error) = secrets.delete_integration(&id, IntegrationCredentialKind::Blinker)
+            {
+                return WolHttpError::internal(error).into_response();
+            }
+            if let Err(error) = secrets.delete_integration(&id, IntegrationCredentialKind::Bemfa) {
+                restore_integration_secret(
+                    &secrets,
+                    &id,
+                    IntegrationCredentialKind::Blinker,
+                    previous_blinker.as_deref(),
+                );
+                return WolHttpError::internal(error).into_response();
+            }
             match delete_target_record(&state, &id).await {
-                Ok(()) => response::success_empty().into_response(),
-                Err(error) => internal_error("delete Target", error).into_response(),
+                Ok(()) => {
+                    super::integrations::remove_runtime(&state, &id).await;
+                    super::notify_runtime_reload(&state);
+                    response::success_empty().into_response()
+                }
+                Err(error) => {
+                    restore_integration_secret(
+                        &secrets,
+                        &id,
+                        IntegrationCredentialKind::Blinker,
+                        previous_blinker.as_deref(),
+                    );
+                    restore_integration_secret(
+                        &secrets,
+                        &id,
+                        IntegrationCredentialKind::Bemfa,
+                        previous_bemfa.as_deref(),
+                    );
+                    internal_error("delete Target", error).into_response()
+                }
             }
         }
         Ok(None) => WolHttpError::not_found("Target").into_response(),
@@ -775,7 +956,7 @@ async fn wake_target(State(state): State<AppState>, Path(id): Path<String>) -> R
 }
 
 async fn wake_target_inner(state: &AppState, id: &str) -> Result<Value, WolHttpError> {
-    super::service::wake_target(state, id)
+    super::service::wake_target(state, id, super::service::WakeSource::Admin)
         .await
         .map_err(|error| WolHttpError::new(error.status, error.message))
 }
@@ -828,7 +1009,8 @@ async fn target_views(state: &AppState) -> Result<Vec<TargetView>, WolHttpError>
         let status = super::status::status_view(state, &target.id)
             .await
             .map_err(|error| internal_error("load Target status", error))?;
-        views.push(target_view_with_relay(target, relay, status));
+        let integrations = target_integrations_view(state, &target).await;
+        views.push(target_view_with_relay(target, relay, status, integrations));
     }
     Ok(views)
 }
@@ -847,7 +1029,8 @@ async fn target_view(state: &AppState, target: TargetRecord) -> Result<TargetVie
     let status = super::status::status_view(state, &target.id)
         .await
         .map_err(|error| internal_error("load Target status", error))?;
-    Ok(target_view_with_relay(target, relay, status))
+    let integrations = target_integrations_view(state, &target).await;
+    Ok(target_view_with_relay(target, relay, status, integrations))
 }
 
 fn relay_view(state: &AppState, relay: RelayRecord) -> RelayView {
@@ -879,6 +1062,7 @@ fn target_view_with_relay(
     target: TargetRecord,
     relay: Option<RelaySummary>,
     status: super::status::TargetStatusView,
+    integrations: TargetIntegrationsView,
 ) -> TargetView {
     let delivery_mode = if target.relay_id.is_some() {
         "relay"
@@ -889,7 +1073,6 @@ fn target_view_with_relay(
         id: target.id,
         name: target.name,
         mac: target.mac,
-        note: target.note,
         relay_id: target.relay_id,
         broadcast_address: target.broadcast_address,
         ip_address: target.ip_address,
@@ -899,6 +1082,48 @@ fn target_view_with_relay(
         updated_at: target.updated_at,
         relay,
         status,
+        integrations,
+    }
+}
+
+async fn target_integrations_view(
+    state: &AppState,
+    target: &TargetRecord,
+) -> TargetIntegrationsView {
+    let secrets = secret_store(state);
+    let blinker_configured =
+        secrets.integration_configured(&target.id, IntegrationCredentialKind::Blinker);
+    let bemfa_configured =
+        secrets.integration_configured(&target.id, IntegrationCredentialKind::Bemfa);
+    TargetIntegrationsView {
+        blinker: BlinkerIntegrationView {
+            enabled: target.integrations.blinker.enabled,
+            bind_component: target.integrations.blinker.bind_component,
+            skip_tls_verify: target.integrations.blinker.skip_tls_verify,
+            credential_configured: blinker_configured,
+            runtime: super::integrations::runtime_view(
+                state,
+                &target.id,
+                "blinker",
+                target.enabled && target.integrations.blinker.enabled,
+                blinker_configured,
+            )
+            .await,
+        },
+        bemfa: BemfaIntegrationView {
+            enabled: target.integrations.bemfa.enabled,
+            topic: target.integrations.bemfa.topic.clone(),
+            skip_tls_verify: target.integrations.bemfa.skip_tls_verify,
+            credential_configured: bemfa_configured,
+            runtime: super::integrations::runtime_view(
+                state,
+                &target.id,
+                "bemfa",
+                target.enabled && target.integrations.bemfa.enabled,
+                bemfa_configured,
+            )
+            .await,
+        },
     }
 }
 
@@ -930,6 +1155,173 @@ async fn ensure_unique_mac(
         ))
     } else {
         Ok(())
+    }
+}
+
+fn validate_target_integrations(
+    mut current: TargetIntegrations,
+    body: Option<&TargetIntegrationsBody>,
+    existing_blinker: Option<&[u8]>,
+    existing_bemfa: Option<&[u8]>,
+) -> Result<ValidatedTargetIntegrations, WolHttpError> {
+    let Some(body) = body else {
+        if current.blinker.enabled && current.bemfa.enabled {
+            return Err(WolHttpError::conflict(
+                "Only one of Blinker or Bemfa can be enabled for a Target",
+            ));
+        }
+        return Ok(ValidatedTargetIntegrations {
+            config: current,
+            blinker_credential: None,
+            bemfa_credential: None,
+        });
+    };
+    let mut blinker_credential = None;
+    if let Some(blinker) = body.blinker.as_ref() {
+        blinker_credential =
+            normalize_integration_credential(blinker.device_key.as_deref(), "Blinker device key")?;
+        current.blinker = BlinkerIntegrationConfig {
+            enabled: blinker.enabled,
+            bind_component: blinker.bind_component,
+            skip_tls_verify: blinker.skip_tls_verify,
+        };
+    }
+
+    let mut bemfa_credential = None;
+    if let Some(bemfa) = body.bemfa.as_ref() {
+        bemfa_credential =
+            normalize_integration_credential(bemfa.private_key.as_deref(), "Bemfa private key")?;
+        let topic = bemfa.topic.trim();
+        if !topic.is_empty()
+            && (topic.len() > MAX_BEMFA_TOPIC_LENGTH
+                || !topic
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'))
+        {
+            return Err(WolHttpError::bad_request(
+                "Bemfa topic must contain only letters, numbers, and underscores and be at most 64 characters",
+            ));
+        }
+        if bemfa.enabled && topic.is_empty() {
+            return Err(WolHttpError::bad_request(
+                "Bemfa topic is required when the integration is enabled",
+            ));
+        }
+        current.bemfa = BemfaIntegrationConfig {
+            enabled: bemfa.enabled,
+            topic: topic.to_string(),
+            skip_tls_verify: bemfa.skip_tls_verify,
+        };
+    }
+    if current.blinker.enabled && current.bemfa.enabled {
+        return Err(WolHttpError::conflict(
+            "Only one of Blinker or Bemfa can be enabled for a Target",
+        ));
+    }
+    if current.blinker.enabled && blinker_credential.is_none() && existing_blinker.is_none() {
+        return Err(WolHttpError::conflict(
+            "Blinker device key must be supplied before enabling the integration",
+        ));
+    }
+    if current.bemfa.enabled && bemfa_credential.is_none() && existing_bemfa.is_none() {
+        return Err(WolHttpError::conflict(
+            "Bemfa private key must be supplied before enabling the integration",
+        ));
+    }
+    Ok(ValidatedTargetIntegrations {
+        config: current,
+        blinker_credential,
+        bemfa_credential,
+    })
+}
+
+fn normalize_integration_credential(
+    value: Option<&str>,
+    field: &str,
+) -> Result<Option<Vec<u8>>, WolHttpError> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if value.len() > MAX_INTEGRATION_CREDENTIAL_LENGTH || value.chars().any(char::is_control) {
+        return Err(WolHttpError::bad_request(format!(
+            "{field} is invalid or too long"
+        )));
+    }
+    Ok(Some(value.as_bytes().to_vec()))
+}
+
+fn default_skip_tls_verify() -> bool {
+    true
+}
+
+async fn ensure_unique_integrations(
+    state: &AppState,
+    current_id: &str,
+    integrations: &TargetIntegrations,
+    blinker_credential: Option<&[u8]>,
+    bemfa_credential: Option<&[u8]>,
+) -> Result<(), WolHttpError> {
+    let blinker_fingerprint = blinker_credential.map(credential_fingerprint);
+    let bemfa_fingerprint = bemfa_credential.map(credential_fingerprint);
+    let secrets = secret_store(state);
+    for target in list_targets(state)
+        .await
+        .map_err(|error| internal_error("load Targets", error))?
+        .into_iter()
+        .filter(|target| target.id != current_id)
+    {
+        if let Some(expected) = blinker_fingerprint.as_ref() {
+            let other = secrets
+                .read_integration(&target.id, IntegrationCredentialKind::Blinker)
+                .map_err(WolHttpError::internal)?;
+            if other.as_deref().map(credential_fingerprint).as_ref() == Some(expected) {
+                return Err(WolHttpError::conflict(
+                    "Blinker device key is already bound to another Target",
+                ));
+            }
+        }
+        if let Some(expected) = bemfa_fingerprint.as_ref() {
+            let other = secrets
+                .read_integration(&target.id, IntegrationCredentialKind::Bemfa)
+                .map_err(WolHttpError::internal)?;
+            if other.as_deref().map(credential_fingerprint).as_ref() == Some(expected) {
+                if target.integrations.bemfa.topic == integrations.bemfa.topic {
+                    return Err(WolHttpError::conflict(
+                        "Bemfa private key and topic are already bound to another Target",
+                    ));
+                }
+                if target.integrations.bemfa.skip_tls_verify != integrations.bemfa.skip_tls_verify {
+                    return Err(WolHttpError::conflict(
+                        "Targets sharing a Bemfa private key must use the same TLS verification policy",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn credential_fingerprint(value: &[u8]) -> [u8; 32] {
+    Sha256::digest(value).into()
+}
+
+fn restore_integration_secret(
+    secrets: &super::secrets::WolSecretStore,
+    target_id: &str,
+    kind: IntegrationCredentialKind,
+    previous: Option<&[u8]>,
+) {
+    let result = match previous {
+        Some(value) => secrets.write_integration(target_id, kind, value),
+        None => secrets.delete_integration(target_id, kind),
+    };
+    if let Err(error) = result {
+        tracing::error!(
+            %error,
+            target_id,
+            credential_kind = ?kind,
+            "failed to roll back WoL integration credential"
+        );
     }
 }
 
@@ -1094,18 +1486,16 @@ fn validate_relay_body(body: &RelayBody) -> Result<(String, String, u16), WolHtt
 }
 
 fn validate_target_body(body: &TargetBody) -> Result<ValidatedTargetBody, WolHttpError> {
-    let name = validate_name(&body.name, "Target")?;
+    let name = if body.name.trim().is_empty() {
+        generate_target_name()
+    } else {
+        validate_name(&body.name, "Target")?
+    };
     let mac = body
         .mac
         .parse::<MacAddress>()
         .map_err(|_| WolHttpError::bad_request("Target MAC address is invalid"))?
         .to_string();
-    let note = body.note.trim();
-    if note.chars().count() > MAX_NOTE_LENGTH {
-        return Err(WolHttpError::bad_request(format!(
-            "Target note must not exceed {MAX_NOTE_LENGTH} characters"
-        )));
-    }
     let relay_id = body
         .relay_id
         .as_deref()
@@ -1160,11 +1550,18 @@ fn validate_target_body(body: &TargetBody) -> Result<ValidatedTargetBody, WolHtt
     Ok(ValidatedTargetBody {
         name,
         mac,
-        note: note.to_string(),
         relay_id,
         broadcast_address,
         ip_address,
     })
+}
+
+fn generate_target_name() -> String {
+    const CHARACTERS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    let suffix: String = (0..5)
+        .map(|_| CHARACTERS[random_range(0..CHARACTERS.len())] as char)
+        .collect();
+    format!("设备{suffix}")
 }
 
 fn discovery_job_error(error: DiscoveryJobError) -> WolHttpError {
@@ -1259,20 +1656,40 @@ mod tests {
         let target = TargetBody {
             name: " Workstation ".to_string(),
             mac: "02-11-22-33-44-55".to_string(),
-            note: " Study ".to_string(),
             relay_id: None,
             broadcast_address: Some("192.168.31.255".to_string()),
             ip_address: Some("192.168.31.20".to_string()),
             enabled: true,
+            integrations: None,
         };
         assert_eq!(
             validate_target_body(&target).unwrap().mac,
             "02:11:22:33:44:55"
         );
-        assert_eq!(validate_target_body(&target).unwrap().note, "Study");
-        let mut invalid_note = target;
-        invalid_note.note = "x".repeat(MAX_NOTE_LENGTH + 1);
-        assert!(validate_target_body(&invalid_note).is_err());
+        let mut unnamed_target = target;
+        unnamed_target.name.clear();
+        let generated_name = validate_target_body(&unnamed_target).unwrap().name;
+        assert!(generated_name.starts_with("设备"));
+        assert_eq!(generated_name.chars().count(), 7);
+        assert!(
+            generated_name
+                .chars()
+                .skip(2)
+                .all(|value| value.is_ascii_alphanumeric())
+        );
+
+        let default_tls: TargetBody = serde_json::from_value(json!({
+            "name": "Desktop",
+            "mac": "02:11:22:33:44:55",
+            "integrations": {
+                "blinker": { "enabled": false },
+                "bemfa": { "enabled": false }
+            }
+        }))
+        .unwrap();
+        let integrations = default_tls.integrations.unwrap();
+        assert!(integrations.blinker.unwrap().skip_tls_verify);
+        assert!(integrations.bemfa.unwrap().skip_tls_verify);
     }
 
     #[tokio::test]
@@ -1333,27 +1750,26 @@ mod tests {
             TargetBody {
                 name: " Workstation ".to_string(),
                 mac: "02-11-22-33-44-55".to_string(),
-                note: "Upstairs".to_string(),
                 relay_id: Some(relay_id.clone()),
                 broadcast_address: None,
                 ip_address: Some("192.168.50.20".to_string()),
                 enabled: true,
+                integrations: None,
             },
         )
         .await
         .unwrap();
         assert_eq!(target.mac, "02:11:22:33:44:55");
-        assert_eq!(target.note, "Upstairs");
         let local_target = create_target_inner(
             &state,
             TargetBody {
                 name: "Local workstation".to_string(),
                 mac: "02:11:22:33:44:66".to_string(),
-                note: String::new(),
                 relay_id: None,
                 broadcast_address: Some("192.168.31.255".to_string()),
                 ip_address: Some("192.168.31.20".to_string()),
                 enabled: true,
+                integrations: None,
             },
         )
         .await
@@ -1366,11 +1782,11 @@ mod tests {
                 TargetBody {
                     name: "Duplicate".to_string(),
                     mac: "021122334455".to_string(),
-                    note: String::new(),
                     relay_id: Some(relay_id.clone()),
                     broadcast_address: None,
                     ip_address: None,
                     enabled: true,
+                    integrations: None,
                 },
             )
             .await
@@ -1425,11 +1841,11 @@ mod tests {
             TargetBody {
                 name: target.name.clone(),
                 mac: target.mac.clone(),
-                note: "Changed note only".to_string(),
                 relay_id: target.relay_id.clone(),
                 broadcast_address: None,
                 ip_address: target.ip_address.clone(),
                 enabled: true,
+                integrations: None,
             },
         )
         .await
@@ -1447,11 +1863,11 @@ mod tests {
             TargetBody {
                 name: target.name.clone(),
                 mac: target.mac.clone(),
-                note: "Changed address".to_string(),
                 relay_id: target.relay_id.clone(),
                 broadcast_address: None,
                 ip_address: Some("192.168.50.21".to_string()),
                 enabled: true,
+                integrations: None,
             },
         )
         .await
@@ -1583,5 +1999,295 @@ mod tests {
         .await
         .expect("built-in Relay should stop after credentials are cleared");
         state.shutdown.cancel();
+    }
+
+    #[tokio::test]
+    async fn corrupted_local_relay_credential_is_reported_and_not_overwritten() {
+        let (_directory, state) = test_state().await;
+        let relay_id = Uuid::new_v4().to_string();
+        let local_body = |psk_byte| LocalRelayBody {
+            enabled: true,
+            relay_id: relay_id.clone(),
+            key_version: 1,
+            listen_address: "127.0.0.1".to_string(),
+            port: DEFAULT_RELAY_PORT,
+            broadcast_destinations: vec!["255.255.255.255:9".to_string()],
+            allowed_sources: Vec::new(),
+            psk: Some(URL_SAFE_NO_PAD.encode([psk_byte; 32])),
+        };
+        update_local_relay_inner(&state, local_body(7))
+            .await
+            .unwrap();
+
+        let secret_path = state
+            .settings
+            .data_dir
+            .join("wol/secrets")
+            .join(format!("local-{relay_id}.enc"));
+        std::fs::write(&secret_path, b"corrupted credential").unwrap();
+
+        let read_error = local_relay_response(&state).await.unwrap_err();
+        assert_eq!(read_error.status, StatusCode::INTERNAL_SERVER_ERROR);
+        let update_error = update_local_relay_inner(&state, local_body(8))
+            .await
+            .unwrap_err();
+        assert_eq!(update_error.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(std::fs::read(secret_path).unwrap(), b"corrupted credential");
+    }
+
+    #[tokio::test]
+    async fn target_integrations_keep_credentials_write_only_and_reject_duplicate_bindings() {
+        let (_directory, state) = test_state().await;
+        let first = create_target_inner(
+            &state,
+            TargetBody {
+                name: "Desktop one".to_string(),
+                mac: "02:11:22:33:44:61".to_string(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: Some("192.168.31.61".to_string()),
+                enabled: true,
+                integrations: None,
+            },
+        )
+        .await
+        .unwrap();
+        let blinker_key = "blinker-device-key-secret";
+        let bemfa_key = "0123456789abcdef0123456789abcdef";
+        let update = TargetBody {
+            name: first.name.clone(),
+            mac: first.mac.clone(),
+            relay_id: first.relay_id.clone(),
+            broadcast_address: first.broadcast_address.clone(),
+            ip_address: first.ip_address.clone(),
+            enabled: true,
+            integrations: Some(TargetIntegrationsBody {
+                blinker: Some(BlinkerIntegrationBody {
+                    enabled: true,
+                    device_key: Some(blinker_key.to_string()),
+                    bind_component: true,
+                    skip_tls_verify: false,
+                }),
+                bemfa: Some(BemfaIntegrationBody {
+                    enabled: false,
+                    private_key: Some(bemfa_key.to_string()),
+                    topic: "desktop001".to_string(),
+                    skip_tls_verify: false,
+                }),
+            }),
+        };
+        let updated = update_target_inner(&state, &first.id, update)
+            .await
+            .unwrap();
+        let public_json = serde_json::to_string(&updated).unwrap();
+        assert!(!public_json.contains(blinker_key));
+        assert!(!public_json.contains(bemfa_key));
+        assert!(updated.integrations.blinker.credential_configured);
+        assert!(updated.integrations.bemfa.credential_configured);
+        assert!(updated.integrations.blinker.enabled);
+        assert!(!updated.integrations.bemfa.enabled);
+
+        let mutually_exclusive = update_target_inner(
+            &state,
+            &first.id,
+            TargetBody {
+                name: first.name.clone(),
+                mac: first.mac.clone(),
+                relay_id: first.relay_id.clone(),
+                broadcast_address: first.broadcast_address.clone(),
+                ip_address: first.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: Some(BlinkerIntegrationBody {
+                        enabled: true,
+                        device_key: None,
+                        bind_component: true,
+                        skip_tls_verify: true,
+                    }),
+                    bemfa: Some(BemfaIntegrationBody {
+                        enabled: true,
+                        private_key: None,
+                        topic: "desktop001".to_string(),
+                        skip_tls_verify: true,
+                    }),
+                }),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(mutually_exclusive.status, StatusCode::CONFLICT);
+        assert!(mutually_exclusive.message.contains("Only one"));
+
+        let keep_existing = update_target_inner(
+            &state,
+            &first.id,
+            TargetBody {
+                name: first.name.clone(),
+                mac: first.mac.clone(),
+                relay_id: first.relay_id.clone(),
+                broadcast_address: first.broadcast_address.clone(),
+                ip_address: first.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: Some(BlinkerIntegrationBody {
+                        enabled: true,
+                        device_key: Some("  ".to_string()),
+                        bind_component: true,
+                        skip_tls_verify: false,
+                    }),
+                    bemfa: Some(BemfaIntegrationBody {
+                        enabled: false,
+                        private_key: None,
+                        topic: "desktop001".to_string(),
+                        skip_tls_verify: false,
+                    }),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(keep_existing.integrations.blinker.credential_configured);
+        assert!(keep_existing.integrations.bemfa.credential_configured);
+
+        let second = create_target_inner(
+            &state,
+            TargetBody {
+                name: "Desktop two".to_string(),
+                mac: "02:11:22:33:44:62".to_string(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: Some("192.168.31.62".to_string()),
+                enabled: true,
+                integrations: None,
+            },
+        )
+        .await
+        .unwrap();
+        let duplicate = update_target_inner(
+            &state,
+            &second.id,
+            TargetBody {
+                name: second.name.clone(),
+                mac: second.mac.clone(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: second.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: Some(BlinkerIntegrationBody {
+                        enabled: true,
+                        device_key: Some(blinker_key.to_string()),
+                        bind_component: false,
+                        skip_tls_verify: false,
+                    }),
+                    bemfa: None,
+                }),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(duplicate.status, StatusCode::CONFLICT);
+
+        let bemfa_duplicate = update_target_inner(
+            &state,
+            &second.id,
+            TargetBody {
+                name: second.name.clone(),
+                mac: second.mac.clone(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: second.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: None,
+                    bemfa: Some(BemfaIntegrationBody {
+                        enabled: true,
+                        private_key: Some(bemfa_key.to_string()),
+                        topic: "desktop001".to_string(),
+                        skip_tls_verify: false,
+                    }),
+                }),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(bemfa_duplicate.status, StatusCode::CONFLICT);
+
+        let tls_mismatch = update_target_inner(
+            &state,
+            &second.id,
+            TargetBody {
+                name: second.name.clone(),
+                mac: second.mac.clone(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: second.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: None,
+                    bemfa: Some(BemfaIntegrationBody {
+                        enabled: true,
+                        private_key: Some(bemfa_key.to_string()),
+                        topic: "second006".to_string(),
+                        skip_tls_verify: true,
+                    }),
+                }),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(tls_mismatch.status, StatusCode::CONFLICT);
+
+        let shared_bemfa = update_target_inner(
+            &state,
+            &second.id,
+            TargetBody {
+                name: second.name.clone(),
+                mac: second.mac.clone(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: second.ip_address.clone(),
+                enabled: true,
+                integrations: Some(TargetIntegrationsBody {
+                    blinker: None,
+                    bemfa: Some(BemfaIntegrationBody {
+                        enabled: true,
+                        private_key: Some(bemfa_key.to_string()),
+                        topic: "second006".to_string(),
+                        skip_tls_verify: false,
+                    }),
+                }),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(shared_bemfa.integrations.bemfa.credential_configured);
+
+        let backup = state
+            .store
+            .export_backup_entries_by_prefix_limited("fn_knock:wol:", 1024 * 1024, |_| true)
+            .await
+            .unwrap();
+        let backup_json = serde_json::to_string(&backup).unwrap();
+        assert!(!backup_json.contains(blinker_key));
+        assert!(!backup_json.contains(bemfa_key));
+        assert!(backup_json.contains("desktop001"));
+
+        super::super::clear_secrets_after_backup_restore(&state)
+            .await
+            .unwrap();
+        let restored_view = target_view(
+            &state,
+            load_target(&state, &first.id).await.unwrap().unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(!restored_view.integrations.blinker.credential_configured);
+        assert!(!restored_view.integrations.bemfa.credential_configured);
+        assert_eq!(
+            restored_view.integrations.blinker.runtime.state,
+            "credential_missing"
+        );
+        assert_eq!(restored_view.integrations.bemfa.runtime.state, "disabled");
     }
 }

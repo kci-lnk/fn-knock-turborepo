@@ -1,5 +1,6 @@
 mod discovery;
 mod dispatch;
+mod integrations;
 mod probe;
 mod relay;
 mod routes;
@@ -29,6 +30,14 @@ pub(crate) async fn clear_secrets_after_backup_restore(
 ) -> Result<(), String> {
     let _guard = state.wol_config_lock.lock().await;
     secrets::secret_store(state).clear_all()?;
+    state.wol_integration_status.write().await.clear();
     state.wol_relay_reload.notify_one();
+    notify_runtime_reload(state);
     Ok(())
+}
+
+pub(crate) fn notify_runtime_reload(state: &crate::state::AppState) {
+    state
+        .wol_runtime_reload
+        .send_modify(|generation| *generation = generation.wrapping_add(1));
 }

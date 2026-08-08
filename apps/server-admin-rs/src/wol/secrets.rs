@@ -38,6 +38,21 @@ pub(super) fn local_relay_secret_id(relay_id: &str) -> String {
     format!("local-{relay_id}")
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum IntegrationCredentialKind {
+    Blinker,
+    Bemfa,
+}
+
+impl IntegrationCredentialKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Blinker => "blinker",
+            Self::Bemfa => "bemfa",
+        }
+    }
+}
+
 impl WolSecretStore {
     fn new(dir: impl Into<PathBuf>) -> Self {
         Self { dir: dir.into() }
@@ -48,8 +63,21 @@ impl WolSecretStore {
     }
 
     pub(super) fn read(&self, relay_id: &str, key_version: u32) -> Result<Option<Vec<u8>>, String> {
-        validate_secret_id(relay_id)?;
-        let path = self.secret_path(relay_id);
+        self.read_with_aad(relay_id, &secret_aad(relay_id, key_version))
+    }
+
+    pub(super) fn read_integration(
+        &self,
+        target_id: &str,
+        kind: IntegrationCredentialKind,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let id = integration_secret_id(target_id, kind);
+        self.read_with_aad(&id, &integration_secret_aad(target_id, kind))
+    }
+
+    fn read_with_aad(&self, id: &str, aad: &[u8]) -> Result<Option<Vec<u8>>, String> {
+        validate_secret_id(id)?;
+        let path = self.secret_path(id);
         if path.exists() {
             secure_file(&path)?;
         }
@@ -80,7 +108,7 @@ impl WolSecretStore {
                 Nonce::from_slice(&nonce),
                 Payload {
                     msg: &ciphertext,
-                    aad: &secret_aad(relay_id, key_version),
+                    aad,
                 },
             )
             .map(Some)
@@ -93,20 +121,28 @@ impl WolSecretStore {
         key_version: u32,
         value: &[u8],
     ) -> Result<(), String> {
-        validate_secret_id(relay_id)?;
+        self.write_with_aad(relay_id, value, &secret_aad(relay_id, key_version))
+    }
+
+    pub(super) fn write_integration(
+        &self,
+        target_id: &str,
+        kind: IntegrationCredentialKind,
+        value: &[u8],
+    ) -> Result<(), String> {
+        let id = integration_secret_id(target_id, kind);
+        self.write_with_aad(&id, value, &integration_secret_aad(target_id, kind))
+    }
+
+    fn write_with_aad(&self, id: &str, value: &[u8], aad: &[u8]) -> Result<(), String> {
+        validate_secret_id(id)?;
         self.ensure_layout()?;
         let key = self.load_or_create_key()?;
         let nonce = random_bytes::<12>();
         let cipher = Aes256Gcm::new_from_slice(&key)
             .map_err(|_| "WoL credential key is invalid".to_string())?;
         let ciphertext = cipher
-            .encrypt(
-                Nonce::from_slice(&nonce),
-                Payload {
-                    msg: value,
-                    aad: &secret_aad(relay_id, key_version),
-                },
-            )
+            .encrypt(Nonce::from_slice(&nonce), Payload { msg: value, aad })
             .map_err(|_| "failed to encrypt WoL PSK".to_string())?;
         let bytes = serde_json::to_vec(&SecretEnvelope {
             version: ENVELOPE_VERSION,
@@ -114,7 +150,23 @@ impl WolSecretStore {
             ciphertext: STANDARD.encode(ciphertext),
         })
         .map_err(|error| format!("failed to encode WoL PSK: {error}"))?;
-        atomic_private_write(&self.secret_path(relay_id), &bytes)
+        atomic_private_write(&self.secret_path(id), &bytes)
+    }
+
+    pub(super) fn integration_configured(
+        &self,
+        target_id: &str,
+        kind: IntegrationCredentialKind,
+    ) -> bool {
+        self.configured(&integration_secret_id(target_id, kind))
+    }
+
+    pub(super) fn delete_integration(
+        &self,
+        target_id: &str,
+        kind: IntegrationCredentialKind,
+    ) -> Result<(), String> {
+        self.delete(&integration_secret_id(target_id, kind))
     }
 
     pub(super) fn delete(&self, relay_id: &str) -> Result<(), String> {
@@ -193,6 +245,18 @@ fn validate_secret_id(value: &str) -> Result<(), String> {
 
 fn secret_aad(relay_id: &str, key_version: u32) -> Vec<u8> {
     format!("fn-knock:wol:relay:{relay_id}:key:{key_version}:v1").into_bytes()
+}
+
+fn integration_secret_id(target_id: &str, kind: IntegrationCredentialKind) -> String {
+    format!("{}-{target_id}", kind.name())
+}
+
+fn integration_secret_aad(target_id: &str, kind: IntegrationCredentialKind) -> Vec<u8> {
+    format!(
+        "fn-knock:wol:integration:{}:target:{target_id}:credential:v1",
+        kind.name()
+    )
+    .into_bytes()
 }
 
 fn atomic_private_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -295,6 +359,40 @@ mod tests {
         store.clear_all().unwrap();
         assert!(!store.configured("relay-a"));
         assert!(store.read("relay-a", 1).unwrap().is_none());
+    }
+
+    #[test]
+    fn integration_credentials_use_independent_aad_domains() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = WolSecretStore::new(directory.path());
+        store
+            .write_integration(
+                "target-a",
+                IntegrationCredentialKind::Blinker,
+                b"device-key",
+            )
+            .unwrap();
+        store
+            .write_integration("target-a", IntegrationCredentialKind::Bemfa, b"private-key")
+            .unwrap();
+        assert_eq!(
+            store
+                .read_integration("target-a", IntegrationCredentialKind::Blinker)
+                .unwrap()
+                .unwrap(),
+            b"device-key"
+        );
+        assert_eq!(
+            store
+                .read_integration("target-a", IntegrationCredentialKind::Bemfa)
+                .unwrap()
+                .unwrap(),
+            b"private-key"
+        );
+        assert_ne!(
+            fs::read(store.secret_path("blinker-target-a")).unwrap(),
+            fs::read(store.secret_path("bemfa-target-a")).unwrap()
+        );
     }
 
     #[test]

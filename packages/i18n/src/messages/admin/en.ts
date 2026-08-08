@@ -63,7 +63,6 @@ export const enAdmin = {
     address: "IP address",
     port: "UDP port",
     mac: "MAC address",
-    note: "Note",
     ipAddress: "Device IP address",
     relay: "Relay",
     advancedSettings: "Advanced settings (usually unnecessary)",
@@ -152,12 +151,44 @@ export const enAdmin = {
       description: "MAC addresses are stored in uppercase colon notation.",
       ipAddressHint:
         "Used for online checks. LAN discovery fills this value automatically.",
-      namePlaceholder: "For example: Study workstation",
-      notePlaceholder: "For example: Study or Alice's PC (optional)",
+      namePlaceholder: "Leave blank to generate one, for example Device-rS7e5",
+      generatedNamePrefix: "Device-",
       selectRelay: "Select a Relay",
       broadcastHint:
         "Leave blank to broadcast through every local interface. Discovery fills this automatically.",
       enabledHint: "Disabled devices remain listed but cannot be woken.",
+      integrations: {
+        title: "Third-party integrations",
+        selectHint: "Each device can use only one platform.",
+        provider: "Provider",
+        none: "Do not use",
+        credentialConfigured: "Configured; leave blank to keep it",
+        runtime: {
+          disabled: "Disabled",
+          credential_missing: "Credential missing",
+          connecting: "Connecting",
+          connected: "Connected",
+          reconnecting: "Reconnecting",
+          error: "Connection error",
+        },
+        blinker: {
+          title: "Blinker",
+          deviceKey: "Device key",
+          deviceKeyPlaceholder:
+            "From a standalone network device in the Blinker App",
+          bindComponent: "Bind the switch component",
+          bindComponentHint:
+            "on wakes the device; off only reports its current online state and never shuts it down.",
+        },
+        bemfa: {
+          title: "Bemfa",
+          privateKey: "Private key",
+          privateKeyPlaceholder: "Private key from the Bemfa console",
+          topic: "Subscription topic",
+          topicHint:
+            "Letters, numbers, and underscores only. End with 001 or 006 for voice-platform discovery.",
+        },
+      },
     },
     discovery: {
       title: "Discover online LAN devices",
@@ -174,8 +205,8 @@ export const enAdmin = {
       progress: "Scanned {scanned}/{total}; {found} found live",
       waitingForDevices:
         "Scanning now. Online devices will appear here as soon as they are found.",
-      namePlaceholder: "Device name (defaults to IP)",
-      notePlaceholder: "Add a note for this device (optional)",
+      namePlaceholder: "Device name; leave blank to generate one",
+      autoNamePending: "A name will be generated when saved",
       selectDevice: "Select device {ip}",
       resultSummary: "Found {count} · {duration} ms",
       empty: "No online devices responded to the scan.",

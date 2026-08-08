@@ -24,7 +24,9 @@ pub(super) async fn wake(
     if let Err(response) = authorize(&state, &headers).await {
         return response;
     }
-    match crate::wol::service::wake_target(&state, &id).await {
+    match crate::wol::service::wake_target(&state, &id, crate::wol::service::WakeSource::Portal)
+        .await
+    {
         Ok(value) => no_store(response::ok(value).into_response()),
         Err(error) => no_store(response::error(error.status, error.message)),
     }

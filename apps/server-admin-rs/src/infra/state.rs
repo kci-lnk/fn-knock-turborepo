@@ -6,7 +6,7 @@ use std::sync::{
 
 use anyhow::Context;
 use serde_json::Value;
-use tokio::sync::{Mutex, Notify, RwLock, watch};
+use tokio::sync::{Mutex, Notify, RwLock, broadcast, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -83,6 +83,11 @@ pub struct AppStateInner {
     pub wol_runtime_reload: watch::Sender<u64>,
     /// Non-secret status for the built-in WoL Relay listener.
     pub wol_relay_status: RwLock<Value>,
+    /// Process-local third-party connection state. Credentials and broker
+    /// tokens never enter this map.
+    pub wol_integration_status: RwLock<HashMap<String, Value>>,
+    /// Online-state changes consumed by third-party integrations.
+    pub wol_status_updates: broadcast::Sender<Value>,
     /// Tracks whether the latest complete HostRules snapshot was accepted by
     /// the matching Go gateway. Readiness must not hide a failed config sync.
     pub gateway_config_synced: AtomicBool,
@@ -212,6 +217,7 @@ impl AppState {
             .build()
             .context("build asset download http client")?;
 
+        let (wol_status_updates, _) = broadcast::channel(128);
         Ok(Self {
             inner: Arc::new(AppStateInner {
                 settings,
@@ -273,6 +279,8 @@ impl AppState {
                     "lastError": null,
                     "updatedAt": null
                 })),
+                wol_integration_status: RwLock::new(HashMap::new()),
+                wol_status_updates,
                 gateway_config_synced: AtomicBool::new(false),
                 protocol_mapping_update_lock: Mutex::new(()),
                 waf_rules_update_lock: Mutex::new(()),

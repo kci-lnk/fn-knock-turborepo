@@ -15,6 +15,25 @@ use super::{
 
 pub(super) const WAKE_COOLDOWN_SECONDS: usize = 3;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WakeSource {
+    Admin,
+    Portal,
+    Blinker,
+    Bemfa,
+}
+
+impl WakeSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Admin => "admin",
+            Self::Portal => "portal",
+            Self::Blinker => "blinker",
+            Self::Bemfa => "bemfa",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct WolServiceError {
     pub(crate) status: StatusCode,
@@ -51,7 +70,6 @@ impl WolServiceError {
 pub(crate) struct AuthTargetView {
     id: String,
     name: String,
-    note: String,
     status: AuthTargetStatusView,
 }
 
@@ -76,7 +94,6 @@ pub(crate) async fn list_auth_targets(
         views.push(AuthTargetView {
             id: target.id,
             name: target.name,
-            note: target.note,
             status: AuthTargetStatusView {
                 state: status.state,
                 checked_at: status.checked_at,
@@ -86,7 +103,11 @@ pub(crate) async fn list_auth_targets(
     Ok(views)
 }
 
-pub(crate) async fn wake_target(state: &AppState, id: &str) -> Result<Value, WolServiceError> {
+pub(crate) async fn wake_target(
+    state: &AppState,
+    id: &str,
+    source: WakeSource,
+) -> Result<Value, WolServiceError> {
     let target = load_target(state, id)
         .await
         .map_err(|error| WolServiceError::internal("load Target", error))?
@@ -162,6 +183,7 @@ pub(crate) async fn wake_target(state: &AppState, id: &str) -> Result<Value, Wol
                 result.attempts,
                 result.latency_ms,
                 "broadcasted",
+                source,
             )
             .await;
             result
@@ -176,6 +198,7 @@ pub(crate) async fn wake_target(state: &AppState, id: &str) -> Result<Value, Wol
                 error.attempts(),
                 error.latency_ms(),
                 dispatch_failure_status(&error),
+                source,
             )
             .await;
             return Err(dispatch_error(error));
@@ -199,6 +222,7 @@ async fn publish_wake_event(
     attempts: u8,
     latency_ms: u64,
     status: &str,
+    source: WakeSource,
 ) {
     let payload = json!({
         "success": success,
@@ -211,6 +235,7 @@ async fn publish_wake_event(
         "request_id": request_id,
         "attempts": attempts,
         "latency_ms": latency_ms,
+        "source": source.as_str(),
     });
     if let Err(error) = events::publish_wol_wake_completed_event(state, &target.id, payload).await {
         tracing::warn!(%error, request_id, "failed to publish WoL wake event");
@@ -259,5 +284,18 @@ fn dispatch_failure_status(error: &DispatchError) -> &'static str {
             | AckStatus::TargetOffline
             | AckStatus::TargetUnknown => "invalid_ack",
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wake_sources_have_stable_audit_values() {
+        assert_eq!(WakeSource::Admin.as_str(), "admin");
+        assert_eq!(WakeSource::Portal.as_str(), "portal");
+        assert_eq!(WakeSource::Blinker.as_str(), "blinker");
+        assert_eq!(WakeSource::Bemfa.as_str(), "bemfa");
     }
 }

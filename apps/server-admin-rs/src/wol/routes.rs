@@ -729,7 +729,7 @@ async fn create_target_inner(
         broadcast_address,
         ip_address,
     } = validate_target_body(&body)?;
-    let _guard = state.wol_config_lock.lock().await;
+    let guard = state.wol_config_lock.lock().await;
     if let Some(relay_id) = relay_id.as_deref() {
         require_relay(state, relay_id).await?;
     }
@@ -750,6 +750,14 @@ async fn create_target_inner(
     save_target(state, &target)
         .await
         .map_err(|error| internal_error("save Target", error))?;
+    drop(guard);
+    if let Err(error) = super::status::check_target_by_id(state, &target.id).await {
+        tracing::warn!(
+            %error,
+            target_id = %target.id,
+            "failed to perform initial WoL target online check"
+        );
+    }
     target_view(state, target).await
 }
 
@@ -1690,6 +1698,37 @@ mod tests {
         let integrations = default_tls.integrations.unwrap();
         assert!(integrations.blinker.unwrap().skip_tls_verify);
         assert!(integrations.bemfa.unwrap().skip_tls_verify);
+    }
+
+    #[tokio::test]
+    async fn new_enabled_target_is_checked_before_create_returns() {
+        let (_directory, state) = test_state().await;
+        let mut config = state.store.get_config().await.unwrap();
+        config["wol_feature"]["enabled"] = json!(true);
+        state.store.save_config(&config).await.unwrap();
+        let target = create_target_inner(
+            &state,
+            TargetBody {
+                name: "New workstation".to_string(),
+                mac: "02:11:22:33:44:70".to_string(),
+                relay_id: None,
+                broadcast_address: None,
+                ip_address: None,
+                enabled: true,
+                integrations: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(target.status.checked_at.is_some());
+        assert!(
+            super::super::store::load_target_status(&state, &target.id)
+                .await
+                .unwrap()
+                .checked_at
+                .is_some()
+        );
     }
 
     #[tokio::test]

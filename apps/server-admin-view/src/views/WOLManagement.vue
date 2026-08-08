@@ -90,7 +90,7 @@ const discoveryProgress = ref<WOLDiscoveryProgress | null>(null);
 const discovering = ref(false);
 const addingDiscovered = ref(false);
 const settingsOpen = ref(false);
-const showWolInPortal = ref(false);
+const showWolInPortal = ref(true);
 const savingPortalSetting = ref(false);
 let discoveryAbortController: AbortController | null = null;
 

@@ -10,7 +10,7 @@ export const normalizeGatewayPortalConfig = (
   enabled: portal?.enabled !== false,
   display_style: portal?.display_style === "domain" ? "domain" : "title",
   show_app_icon: portal?.show_app_icon !== false,
-  show_wol: portal?.show_wol === true,
+  show_wol: portal?.show_wol !== false,
   icon_drag_mode: portal?.icon_drag_mode === "free" ? "free" : "corners",
   version: normalizeGatewayPortalVersion(portal?.version),
 });

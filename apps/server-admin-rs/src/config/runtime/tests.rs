@@ -90,6 +90,35 @@ fn redis_json_keys_match_node_feature_section_store() {
 }
 
 #[tokio::test]
+async fn boot_migration_enables_gateway_wol_shortcut_once() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.store.get_config().await.expect("load config");
+    config["gateway_portal"]["show_wol"] = json!(false);
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(applied.contains(&"gateway_portal_show_wol_default"));
+    assert_eq!(config["gateway_portal"]["show_wol"], json!(true));
+    assert_eq!(
+        state
+            .store
+            .get_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY)
+            .await
+            .expect("read patch marker")
+            .as_deref(),
+        Some("1")
+    );
+
+    config["gateway_portal"]["show_wol"] = json!(false);
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("reapply config migrations");
+    assert!(!applied.contains(&"gateway_portal_show_wol_default"));
+    assert_eq!(config["gateway_portal"]["show_wol"], json!(false));
+}
+
+#[tokio::test]
 async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
 

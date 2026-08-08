@@ -38,9 +38,9 @@ describe("sidebar navigation order", () => {
       "ip_whitelist",
       "ssl_certificate",
       "ddns",
-      "wol",
       "auth",
       "events",
+      "wol",
       "system_settings",
     ];
     assert.deepEqual(
@@ -55,9 +55,9 @@ describe("sidebar navigation order", () => {
       "ip_whitelist",
       "ssl_certificate",
       "ddns",
-      "wol",
       "auth",
       "events",
+      "wol",
       "system_settings",
     ];
     assert.deepEqual(
@@ -81,6 +81,14 @@ describe("sidebar navigation order", () => {
       orderSidebarNavItems(visible.map(item), customOrder).map(({ id }) => id),
       ["system_settings", "events", "dashboard"],
     );
+  });
+
+  it("inserts a newly available WOL entry immediately above system settings", () => {
+    const legacyOrder = DEFAULT_SIDEBAR_MENU_ORDER.filter((id) => id !== "wol");
+    const normalized = normalizeSidebarMenuOrder(legacyOrder);
+    const settingsIndex = normalized.indexOf("system_settings");
+
+    assert.equal(normalized[settingsIndex - 1], "wol");
   });
 
   it("keeps hidden menu slots while merging a visible drag order", () => {

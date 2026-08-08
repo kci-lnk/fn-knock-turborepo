@@ -60,6 +60,8 @@ const LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:reverse-proxy-throttle:v1";
 const LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:event-system-resource-alerts:v1";
+const GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY: &str =
+    "fn_knock:patch:gateway-portal-show-wol-default:v1";
 const LEGACY_REDIRECTED_HTTP_PORTS: [i64; 2] = [80, 443];
 const SMART_CONNECT_DNS_PORT: i64 = 53;
 const SMART_CONNECT_LOCAL_TTL_SECONDS: u16 = 30;

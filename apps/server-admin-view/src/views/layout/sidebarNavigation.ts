@@ -10,13 +10,13 @@ export const DEFAULT_SIDEBAR_MENU_ORDER: readonly SidebarNavItemId[] = [
   "ip_whitelist",
   "ssl_certificate",
   "ddns",
-  "wol",
   "auth",
   "ssh_security",
   "events",
   "gateway_request_logs",
   "waf_logs",
   "web_terminal",
+  "wol",
   "system_settings",
 ];
 
@@ -46,6 +46,12 @@ export const normalizeSidebarMenuOrder = (
   }
   for (const item of DEFAULT_SIDEBAR_MENU_ORDER) {
     if (!seen.has(item)) normalized.push(item);
+  }
+  if (!seen.has("wol")) {
+    const wolIndex = normalized.indexOf("wol");
+    if (wolIndex >= 0) normalized.splice(wolIndex, 1);
+    const settingsIndex = normalized.indexOf("system_settings");
+    normalized.splice(settingsIndex >= 0 ? settingsIndex : normalized.length, 0, "wol");
   }
   return normalized;
 };

@@ -8,6 +8,7 @@ pub(super) async fn apply_boot_config_migrations(
     let mut config_changed = false;
     let mut mark_throttle_patch_done = false;
     let mut mark_resource_alerts_patch_done = false;
+    let mut mark_gateway_wol_default_patch_done = false;
 
     if ensure_runtime_event_config(config) {
         config_changed = true;
@@ -56,6 +57,32 @@ pub(super) async fn apply_boot_config_migrations(
         mark_resource_alerts_patch_done = true;
     }
 
+    if state
+        .store
+        .get_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY)
+        .await?
+        .as_deref()
+        != Some("1")
+    {
+        let portal = ensure_config_object(config)
+            .entry("gateway_portal".to_string())
+            .or_insert_with(|| Value::Object(Map::new()));
+        if !portal.is_object() {
+            *portal = Value::Object(Map::new());
+        }
+        if portal.get("show_wol").and_then(Value::as_bool) != Some(true) {
+            portal
+                .as_object_mut()
+                .expect("gateway portal is object")
+                .insert("show_wol".to_string(), Value::Bool(true));
+            config_changed = true;
+            applied.push("gateway_portal_show_wol_default");
+        }
+        // This one-time patch converts the short-lived false default. Once
+        // marked, an explicit user choice to turn the shortcut off is kept.
+        mark_gateway_wol_default_patch_done = true;
+    }
+
     if config_changed {
         state.store.save_config(config).await?;
     }
@@ -69,6 +96,12 @@ pub(super) async fn apply_boot_config_migrations(
         state
             .store
             .set_string_value(LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY, "1")
+            .await?;
+    }
+    if mark_gateway_wol_default_patch_done {
+        state
+            .store
+            .set_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY, "1")
             .await?;
     }
     Ok(applied)

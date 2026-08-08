@@ -49,7 +49,7 @@ const form = reactive<GatewayPortalConfig>({
   enabled: true,
   display_style: "title",
   show_app_icon: true,
-  show_wol: false,
+  show_wol: true,
   icon_drag_mode: "corners",
   version: "v1",
 });

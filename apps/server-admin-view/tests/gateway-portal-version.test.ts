@@ -18,6 +18,8 @@ test("gateway portal version defaults invalid and legacy values to v1", () => {
   assert.equal(normalizeGatewayPortalVersion("v2"), "v2");
   assert.equal(normalizeGatewayPortalConfig().version, "v1");
   assert.equal(normalizeGatewayPortalConfig({ version: "v2" }).version, "v2");
+  assert.equal(normalizeGatewayPortalConfig().show_wol, true);
+  assert.equal(normalizeGatewayPortalConfig({ show_wol: false }).show_wol, false);
 });
 
 test("gateway portal version builds a partial immediate-save patch", () => {

@@ -1848,7 +1848,7 @@ fn default_config_includes_node_runtime_feature_defaults() {
     );
     assert_eq!(
         config.pointer("/gateway_portal/show_wol"),
-        Some(&json!(false))
+        Some(&json!(true))
     );
     assert_eq!(config.pointer("/wol_feature/enabled"), Some(&json!(false)));
     assert_eq!(

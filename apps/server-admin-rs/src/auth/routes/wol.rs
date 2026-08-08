@@ -37,7 +37,7 @@ async fn authorize(state: &AppState, headers: &HeaderMap) -> Result<(), Response
             .get("gateway_portal")
             .and_then(|value| value.get("show_wol"))
             .and_then(Value::as_bool)
-            .unwrap_or(false);
+            .unwrap_or(true);
     if !available {
         return Err(no_store(response::error(
             StatusCode::FORBIDDEN,

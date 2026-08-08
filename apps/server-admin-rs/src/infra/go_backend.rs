@@ -1186,7 +1186,7 @@ fn parse_portal(value: &Value) -> GatewayPortalConfig {
         show_app_icon: bool_field(value, "show_app_icon", false),
         icon_drag_mode: string_field(value, "icon_drag_mode"),
         version: string_field(value, "version"),
-        show_wol: bool_field(value, "show_wol", false),
+        show_wol: bool_field(value, "show_wol", true),
     }
 }
 

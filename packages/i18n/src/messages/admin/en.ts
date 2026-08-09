@@ -3113,6 +3113,28 @@ export const enAdmin = {
   },
   streamMappings: {
     title: "Protocol mappings",
+    scheduleAvailability: "Schedule enable or disable",
+    scheduleOpen: "Scheduled open {window}",
+    scheduleClosed: "Scheduled closed {window}",
+    scheduleClosedTitle: "Protocol mappings are currently schedule-closed",
+    scheduleClosedDescription:
+      "The open window is {window}. Listening ports remain bound, but new TCP connections are rejected and UDP packets are dropped.",
+    availabilityTitle: "Schedule protocol mappings",
+    availabilityDescription:
+      "Set one daily open window that applies to all protocol mappings.",
+    availabilityEnabled: "Enable schedule",
+    availabilityStartTime: "Enable time",
+    availabilityEndTime: "Disable time",
+    availabilityServerTimeHint:
+      "Repeats daily using the server local time; windows crossing midnight continue into the next day.",
+    availabilityInvalidTime: "Enter a valid HH:mm time.",
+    availabilitySameTimeInvalid:
+      "The enable and disable times must be different.",
+    availabilitySaved: "Protocol mapping schedule saved",
+    availabilityCleared: "Protocol mapping schedule disabled",
+    availabilitySaveFailed: "Failed to save protocol mapping schedule",
+    saveSchedule: "Save schedule",
+    cancel: "Cancel",
     addMapping: "Add mapping",
     syncing: "Syncing...",
     syncGateway: "Sync gateway",

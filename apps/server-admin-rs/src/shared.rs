@@ -2,6 +2,7 @@ pub(crate) mod auth_mobility_keys;
 pub(crate) mod auth_session_keys;
 pub(crate) mod cloudflared_utils;
 pub(crate) mod crypto_utils;
+pub(crate) mod daily_availability;
 pub(crate) mod frp_utils;
 pub(crate) mod fs_utils;
 pub(crate) mod http_body;

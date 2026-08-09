@@ -255,6 +255,8 @@ export const enServer = {
     },
     protocolMapping: {
       subdomainOnly: "Protocol mapping can only be enabled in subdomain mode",
+      availabilityInvalid:
+        "The protocol mapping schedule is invalid; use HH:mm and choose different enable and disable times",
       updateFeatureFailed: "Failed to update protocol mapping feature switch",
       updateFeatureFailedRolledBack:
         "Failed to update protocol mapping feature switch; configuration was rolled back",

@@ -199,7 +199,8 @@
       "protocolMapping": {
         "subdomainOnly": "协议映射仅可在子域模式下启用",
         "updateFeatureFailed": "更新协议映射功能开关失败",
-        "updateFeatureFailedRolledBack": "更新协议映射功能开关失败，已回滚配置"
+        "updateFeatureFailedRolledBack": "更新协议映射功能开关失败，已回滚配置",
+        "availabilityInvalid": "协议映射定时规则无效，请使用 HH:mm 格式且启用时间不能与禁用时间相同"
       },
       "smartConnect": {
         "subdomainOnly": "智能连接仅可在子域模式下启用",
@@ -3402,7 +3403,8 @@
       "protocolMapping": {
         "subdomainOnly": "協議映射僅可在子域模式下啟用",
         "updateFeatureFailed": "更新協議映射功能開關失敗",
-        "updateFeatureFailedRolledBack": "更新協議映射功能開關失敗，已回滾配置"
+        "updateFeatureFailedRolledBack": "更新協議映射功能開關失敗，已回滾配置",
+        "availabilityInvalid": "協議映射定時規則無效，請使用 HH:mm 格式且啟用時間不能與禁用時間相同"
       },
       "smartConnect": {
         "subdomainOnly": "智能連接僅可在子域模式下啟用",
@@ -6605,7 +6607,8 @@
       "protocolMapping": {
         "subdomainOnly": "Protocol mapping can only be enabled in subdomain mode",
         "updateFeatureFailed": "Failed to update protocol mapping feature switch",
-        "updateFeatureFailedRolledBack": "Failed to update protocol mapping feature switch; configuration was rolled back"
+        "updateFeatureFailedRolledBack": "Failed to update protocol mapping feature switch; configuration was rolled back",
+        "availabilityInvalid": "The protocol mapping schedule is invalid; use HH:mm and choose different enable and disable times"
       },
       "smartConnect": {
         "subdomainOnly": "Smart Connect can only be enabled in subdomain mode",
@@ -9808,7 +9811,8 @@
       "protocolMapping": {
         "subdomainOnly": "프로토콜 매핑은 서브도메인 모드에서만 활성화할 수 있습니다.",
         "updateFeatureFailed": "프로토콜 매핑 기능의 사용 설정을 업데이트하지 못했습니다.",
-        "updateFeatureFailedRolledBack": "프로토콜 매핑 기능의 사용 설정을 업데이트하지 못해 설정을 되돌렸습니다."
+        "updateFeatureFailedRolledBack": "프로토콜 매핑 기능의 사용 설정을 업데이트하지 못해 설정을 되돌렸습니다.",
+        "availabilityInvalid": "프로토콜 매핑 예약 규칙이 올바르지 않습니다. HH:mm 형식을 사용하고 활성화 및 비활성화 시간을 다르게 설정하세요."
       },
       "smartConnect": {
         "subdomainOnly": "Smart Connect는 서브도메인 모드에서만 활성화할 수 있습니다.",
@@ -13011,7 +13015,8 @@
       "protocolMapping": {
         "subdomainOnly": "プロトコルマッピングはサブドメインモードでのみ有効にできます",
         "updateFeatureFailed": "プロトコルマッピング機能スイッチの更新に失敗しました",
-        "updateFeatureFailedRolledBack": "プロトコルマッピング機能スイッチの更新に失敗し、設定がロールバックされました"
+        "updateFeatureFailedRolledBack": "プロトコルマッピング機能スイッチの更新に失敗し、設定がロールバックされました",
+        "availabilityInvalid": "プロトコルマッピングのスケジュールが無効です。HH:mm 形式を使用し、有効化時刻と無効化時刻を別にしてください"
       },
       "smartConnect": {
         "subdomainOnly": "Smart Connect はサブドメインモードでのみ有効にできます",

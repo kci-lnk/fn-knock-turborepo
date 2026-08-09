@@ -5,7 +5,25 @@
         <CardTitle
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <span>{{ t("admin.streamMappings.title") }}</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span>{{ t("admin.streamMappings.title") }}</span>
+            <Badge
+              v-if="protocolMappingEnabled && scheduleState"
+              :variant="scheduleState === 'open' ? 'default' : 'secondary'"
+              class="gap-1.5"
+            >
+              <Clock3 class="h-3.5 w-3.5" />
+              {{
+                scheduleState === "open"
+                  ? t("admin.streamMappings.scheduleOpen", {
+                      window: scheduleWindow,
+                    })
+                  : t("admin.streamMappings.scheduleClosed", {
+                      window: scheduleWindow,
+                    })
+              }}
+            </Badge>
+          </div>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex">
               <Button class="rounded-r-none" @click="openCreateDialog">
@@ -38,6 +56,10 @@
                         : t("admin.streamMappings.syncGateway")
                     }}
                   </DropdownMenuItem>
+                  <DropdownMenuItem @click="openAvailabilityDialog">
+                    <Clock3 class="mr-2 h-4 w-4" />
+                    {{ t("admin.streamMappings.scheduleAvailability") }}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -51,6 +73,24 @@
       <CardContent class="space-y-4">
         <StreamMappingDisabledAlert v-if="!protocolMappingEnabled" />
         <Alert
+          v-else-if="scheduleState === 'closed'"
+          class="items-start rounded-xl border-amber-300 bg-amber-50/80 text-amber-950 shadow-none"
+        >
+          <Clock3 class="mt-0.5 h-4 w-4 shrink-0" />
+          <div class="space-y-1">
+            <AlertTitle>{{
+              t("admin.streamMappings.scheduleClosedTitle")
+            }}</AlertTitle>
+            <AlertDescription class="text-sm leading-6 text-amber-900">
+              {{
+                t("admin.streamMappings.scheduleClosedDescription", {
+                  window: scheduleWindow,
+                })
+              }}
+            </AlertDescription>
+          </div>
+        </Alert>
+        <Alert
           class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
         >
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
@@ -61,127 +101,13 @@
             </AlertDescription>
           </div>
         </Alert>
-        <div
-          class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <SearchInput
-            v-model="searchQuery"
-            :placeholder="t('admin.streamMappings.searchPlaceholder')"
-            class="max-w-xs"
-          />
-        </div>
-        <div class="overflow-hidden rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{{ t("admin.streamMappings.protocol") }}</TableHead>
-                <TableHead>{{
-                  t("admin.streamMappings.listenPort")
-                }}</TableHead>
-                <TableHead>{{ t("admin.streamMappings.comment") }}</TableHead>
-                <TableHead>{{ t("admin.streamMappings.target") }}</TableHead>
-                <TableHead>{{
-                  t("admin.streamMappings.authStatus")
-                }}</TableHead>
-                <TableHead class="text-right">{{
-                  t("admin.sessions.table.actions")
-                }}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-if="filteredMappings.length === 0">
-                <TableCell
-                  colspan="6"
-                  class="py-8 text-center text-muted-foreground"
-                >
-                  {{ t("admin.streamMappings.empty") }}
-                </TableCell>
-              </TableRow>
-              <TableRow
-                v-for="mapping in filteredMappings"
-                :key="getMappingKey(mapping)"
-                class="group"
-              >
-                <TableCell>
-                  <Badge
-                    variant="outline"
-                    class="font-mono uppercase tracking-[0.16em]"
-                  >
-                    {{ mapping.protocol }}
-                  </Badge>
-                </TableCell>
-                <TableCell class="font-medium">
-                  <div
-                    class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
-                  >
-                    <span>{{ mapping.listen_port }}</span>
-                  </div>
-                </TableCell>
-                <TableCell class="min-w-[180px]">
-                  <InlineCommentEditor
-                    :text="mapping.comment"
-                    :save="(value) => updateComment(mapping, value)"
-                  />
-                </TableCell>
-                <TableCell class="font-mono text-sm">{{
-                  mapping.target
-                }}</TableCell>
-                <TableCell class="min-w-[15rem]">
-                  <div
-                    class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
-                  >
-                    <Badge v-if="mapping.use_auth" variant="default">
-                      {{ t("admin.streamMappings.authRequired") }}
-                    </Badge>
-                    <Badge v-else variant="secondary">{{
-                      t("admin.streamMappings.publicAccess")
-                    }}</Badge>
-                  </div>
-                </TableCell>
-                <TableCell class="text-right">
-                  <div class="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      @click="openEditDialog(mapping)"
-                    >
-                      {{ t("admin.streamMappings.edit") }}
-                    </Button>
-                    <ConfirmDangerPopover
-                      :title="
-                        t('admin.streamMappings.deleteTitle', {
-                          protocol: formatProtocolLabel(mapping.protocol),
-                        })
-                      "
-                      :description="
-                        t('admin.streamMappings.deleteDescription', {
-                          mapping: formatMappingLabel(mapping),
-                          target: mapping.target,
-                        })
-                      "
-                      :loading="removingMappingKey === getMappingKey(mapping)"
-                      :disabled="removingMappingKey === getMappingKey(mapping)"
-                      :on-confirm="() => removeMapping(mapping)"
-                      content-class="w-72 text-left"
-                    >
-                      <template #trigger>
-                        <Button
-                          variant="destructive-outline"
-                          size="sm"
-                          :disabled="
-                            removingMappingKey === getMappingKey(mapping)
-                          "
-                        >
-                          {{ t("admin.streamMappings.delete") }}
-                        </Button>
-                      </template>
-                    </ConfirmDangerPopover>
-                  </div>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+        <StreamMappingTable
+          :mappings="allMappings"
+          :removing-mapping-key="removingMappingKey"
+          :on-remove="removeMapping"
+          :on-save-comment="updateComment"
+          @edit="openEditDialog"
+        />
       </CardContent>
     </Card>
 
@@ -192,13 +118,27 @@
       :saving="isSaving"
       @save="saveMapping"
     />
+    <StreamMappingAvailabilityDialog
+      :open="isAvailabilityDialogOpen"
+      :enabled="availabilityFormEnabled"
+      :start-time="availabilityFormStartTime"
+      :end-time="availabilityFormEndTime"
+      :loading="isSavingAvailability"
+      :validation-message="availabilityValidationMessage"
+      @update:open="handleAvailabilityDialogOpenChange"
+      @update:enabled="availabilityFormEnabled = $event"
+      @update:start-time="availabilityFormStartTime = $event"
+      @update:end-time="availabilityFormEndTime = $event"
+      @cancel="closeAvailabilityDialog"
+      @save="saveAvailability"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Info, Plus, RefreshCw } from "lucide-vue-next";
+import { ChevronDown, Clock3, Info, Plus, RefreshCw } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -215,44 +155,48 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
-import SearchInput from "@admin-shared/components/SearchInput.vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ConfigAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import type { StreamMapping } from "../types";
 import StreamMappingDisabledAlert from "./stream-mappings/StreamMappingDisabledAlert.vue";
+import StreamMappingAvailabilityDialog from "./stream-mappings/StreamMappingAvailabilityDialog.vue";
 import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
+import StreamMappingTable from "./stream-mappings/StreamMappingTable.vue";
 import {
   applyStreamMappingSubmission,
   compareStreamMappings,
   formatMappingLabel,
-  formatProtocolLabel,
   getMappingKey,
   normalizeStreamMapping,
   removeStreamMapping,
   type StreamMappingEditorSubmission,
   updateStreamMappingComment,
 } from "./stream-mappings/streamMappingModel";
+import { useStreamMappingAvailability } from "./stream-mappings/useStreamMappingAvailability";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
-const searchQuery = ref("");
 const isDialogOpen = ref(false);
 const isSaving = ref(false);
 const isSyncing = ref(false);
 const editingMapping = ref<StreamMapping | null>(null);
 const removingMappingKey = ref<string | null>(null);
+const {
+  availabilityFormEnabled,
+  availabilityFormEndTime,
+  availabilityFormStartTime,
+  availabilityValidationMessage,
+  closeAvailabilityDialog,
+  handleAvailabilityDialogOpenChange,
+  isAvailabilityDialogOpen,
+  isSavingAvailability,
+  openAvailabilityDialog,
+  saveAvailability,
+  scheduleState,
+  scheduleWindow,
+} = useStreamMappingAvailability();
 const allMappings = computed(() =>
   [...(configStore.config?.stream_mappings ?? [])]
     .map(normalizeStreamMapping)
@@ -261,24 +205,6 @@ const allMappings = computed(() =>
 const protocolMappingEnabled = computed(
   () => configStore.config?.protocol_mapping_feature?.enabled === true,
 );
-const filteredMappings = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return allMappings.value;
-
-  return allMappings.value.filter((mapping) => {
-    const authStatus = mapping.use_auth
-      ? t("admin.streamMappings.authRequired")
-      : t("admin.streamMappings.publicAccess");
-    return (
-      mapping.protocol.includes(query) ||
-      formatProtocolLabel(mapping.protocol).toLowerCase().includes(query) ||
-      String(mapping.listen_port).includes(query) ||
-      (mapping.comment ?? "").toLowerCase().includes(query) ||
-      mapping.target.toLowerCase().includes(query) ||
-      authStatus.includes(query)
-    );
-  });
-});
 
 function openCreateDialog() {
   editingMapping.value = null;

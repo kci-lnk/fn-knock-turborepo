@@ -199,7 +199,7 @@ async fn apply_run_type_config_inner(
         }
         sync_host_rules(state, config, host_rules_lock_held).await?;
         if protocol_mapping_enabled {
-            sync_stream_rules(state, config).await?;
+            sync_stream_rules(state, config, &protocol_mapping_feature).await?;
         }
         sync_default_route(state, config).await;
         maybe_apply_host_firewall(state, config, run_type, protocol_mapping_enabled).await?;
@@ -243,15 +243,24 @@ pub(super) async fn sync_host_rules(
     }
 }
 
-pub(super) async fn sync_stream_rules(state: &AppState, config: &Value) -> Result<(), String> {
+pub(super) async fn sync_stream_rules(
+    state: &AppState,
+    config: &Value,
+    protocol_mapping_feature: &Value,
+) -> Result<(), String> {
+    let payload = json!({
+        "items": config
+            .get("stream_mappings")
+            .unwrap_or(&Value::Array(Vec::new())),
+        "availability": protocol_mapping_feature
+            .get("availability")
+            .cloned()
+            .unwrap_or(Value::Null),
+    });
     ensure_go_success(
         state
             .go_backend
-            .set_stream_rules(
-                config
-                    .get("stream_mappings")
-                    .unwrap_or(&Value::Array(Vec::new())),
-            )
+            .set_stream_rules(&payload)
             .await
             .map_err(|error| error.to_string())?,
     )

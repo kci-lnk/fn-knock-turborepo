@@ -259,6 +259,8 @@ export const jaJPServer = {
     protocolMapping: {
       subdomainOnly:
         "プロトコルマッピングはサブドメインモードでのみ有効にできます",
+      availabilityInvalid:
+        "プロトコルマッピングのスケジュールが無効です。HH:mm 形式を使用し、有効化時刻と無効化時刻を別にしてください",
       updateFeatureFailed:
         "プロトコルマッピング機能スイッチの更新に失敗しました",
       updateFeatureFailedRolledBack:

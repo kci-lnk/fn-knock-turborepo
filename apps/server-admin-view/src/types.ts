@@ -89,11 +89,13 @@ export interface HostMappingBasicAuth {
   password: string;
 }
 
-export interface HostMappingAvailability {
-  enabled: boolean;
+export interface DailyAvailability {
+  enabled: true;
   start_time: string;
   end_time: string;
 }
+
+export type HostMappingAvailability = DailyAvailability;
 
 export type HostVisibilityMode = "inherit" | "custom" | "disabled";
 
@@ -538,6 +540,7 @@ export interface IpLocationBatchPayload {
 
 export interface ProtocolMappingFeatureConfig {
   enabled: boolean;
+  availability: DailyAvailability | null;
 }
 
 export interface AutoHttpsConfig {

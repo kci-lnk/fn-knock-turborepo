@@ -869,61 +869,30 @@ fn normalize_host_mapping_availability_for_route(
     host: &str,
     value: Option<&Value>,
 ) -> Result<Value, String> {
-    let Some(value) = value else {
-        return Ok(Value::Null);
-    };
-    if value.is_null() {
-        return Ok(Value::Null);
-    }
-    let Some(object) = value.as_object() else {
-        return Err(format!(
+    match crate::daily_availability::normalize_daily_availability(value) {
+        Ok(availability) => Ok(availability),
+        Err(crate::daily_availability::DailyAvailabilityError::ObjectRequired) => Err(format!(
             "Host mapping {host} availability must be an object"
-        ));
-    };
-    if !object
-        .get("enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
-        return Ok(Value::Null);
-    }
-
-    let start_time = object
-        .get("start_time")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .unwrap_or("");
-    let end_time = object
-        .get("end_time")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .unwrap_or("");
-    match validate_host_availability_window(start_time, end_time) {
-        Ok(()) => {}
-        Err(HostAvailabilityWindowError::InvalidStart) => {
+        )),
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidStart) => {
             return Err(format!(
                 "Host mapping {host} availability start_time must use HH:mm"
             ));
         }
-        Err(HostAvailabilityWindowError::InvalidEnd) => {
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidEnd) => {
             return Err(format!(
                 "Host mapping {host} availability end_time must use HH:mm"
             ));
         }
-        Err(HostAvailabilityWindowError::Same) => {
+        Err(crate::daily_availability::DailyAvailabilityError::SameTime) => {
             return Err(format!(
                 "Host mapping {host} availability start_time and end_time must be different"
             ));
         }
     }
-
-    Ok(json!({
-        "enabled": true,
-        "start_time": start_time,
-        "end_time": end_time,
-    }))
 }
 
+#[cfg(test)]
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum HostAvailabilityWindowError {
     InvalidStart,
@@ -931,38 +900,26 @@ pub(super) enum HostAvailabilityWindowError {
     Same,
 }
 
+#[cfg(test)]
 pub(super) fn validate_host_availability_window(
     start_time: &str,
     end_time: &str,
 ) -> Result<(), HostAvailabilityWindowError> {
-    let start_minute = parse_host_availability_minute(start_time)
-        .ok_or(HostAvailabilityWindowError::InvalidStart)?;
-    let end_minute =
-        parse_host_availability_minute(end_time).ok_or(HostAvailabilityWindowError::InvalidEnd)?;
-    if start_minute == end_minute {
-        return Err(HostAvailabilityWindowError::Same);
+    match crate::daily_availability::validate_daily_availability_window(start_time, end_time) {
+        Ok(()) => Ok(()),
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidStart) => {
+            Err(HostAvailabilityWindowError::InvalidStart)
+        }
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidEnd) => {
+            Err(HostAvailabilityWindowError::InvalidEnd)
+        }
+        Err(crate::daily_availability::DailyAvailabilityError::SameTime) => {
+            Err(HostAvailabilityWindowError::Same)
+        }
+        Err(crate::daily_availability::DailyAvailabilityError::ObjectRequired) => {
+            Err(HostAvailabilityWindowError::InvalidStart)
+        }
     }
-    Ok(())
-}
-
-fn parse_host_availability_minute(value: &str) -> Option<u16> {
-    let bytes = value.as_bytes();
-    if bytes.len() != 5 || bytes[2] != b':' {
-        return None;
-    }
-    let hour = parse_two_digit_host_availability_part(bytes[0], bytes[1])?;
-    let minute = parse_two_digit_host_availability_part(bytes[3], bytes[4])?;
-    if hour > 23 || minute > 59 {
-        return None;
-    }
-    Some(hour * 60 + minute)
-}
-
-fn parse_two_digit_host_availability_part(a: u8, b: u8) -> Option<u16> {
-    if !a.is_ascii_digit() || !b.is_ascii_digit() {
-        return None;
-    }
-    Some(u16::from(a - b'0') * 10 + u16::from(b - b'0'))
 }
 
 pub(super) fn normalize_stream_mappings(mappings: Vec<Value>) -> Result<Vec<Value>, String> {

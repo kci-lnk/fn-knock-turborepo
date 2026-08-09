@@ -73,9 +73,13 @@ describe("large Vue architecture", () => {
 
   it("keeps stream mapping form state inside its editor component", () => {
     const source = readSource("../src/views/StreamMappings.vue");
+    const tableSource = readSource(
+      "../src/views/stream-mappings/StreamMappingTable.vue",
+    );
     assert.match(source, /StreamMappingEditorDialog/u);
     assert.match(source, /StreamMappingDisabledAlert/u);
-    assert.match(source, /InlineCommentEditor/u);
+    assert.match(source, /StreamMappingTable/u);
+    assert.match(tableSource, /InlineCommentEditor/u);
     assert.match(source, /streamMappingModel/u);
     assert.doesNotMatch(source, /hasAttemptedSubmit/u);
     assert.doesNotMatch(source, /isValidHostPort/u);

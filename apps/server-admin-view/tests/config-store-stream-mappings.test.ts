@@ -8,7 +8,7 @@ import {
   type RevisionedConfig,
 } from "../src/lib/api";
 import { useConfigStore } from "../src/store/config";
-import type { AppConfig, StreamMapping } from "../src/types";
+import type { AppConfig, DailyAvailability, StreamMapping } from "../src/types";
 
 const legacyUdp: StreamMapping = {
   protocol: "udp",
@@ -35,13 +35,14 @@ const concurrentTcp: StreamMapping = {
 const appConfig = (
   mappings: StreamMapping[],
   enabled: boolean,
+  availability: DailyAvailability | null = null,
 ): AppConfig =>
   ({
     host_mappings: [],
     host_mapping_groups: [],
     host_mapping_grouped_view: false,
     stream_mappings: mappings,
-    protocol_mapping_feature: { enabled },
+    protocol_mapping_feature: { enabled, availability },
   }) as AppConfig;
 
 const revisioned = (config: AppConfig): RevisionedConfig => ({
@@ -69,7 +70,12 @@ describe("config store stream mapping repair", () => {
 
   it("disables, reloads, rebases, and retries only for the dedicated repair code", async (t) => {
     const store = useConfigStore();
-    store.config = appConfig([legacyUdp, retainedTcp], true);
+    const availability: DailyAvailability = {
+      enabled: true,
+      start_time: "22:00",
+      end_time: "06:00",
+    };
+    store.config = appConfig([legacyUdp, retainedTcp], true, availability);
     let updateCalls = 0;
     const updateMock = t.mock.method(
       ConfigAPI,
@@ -83,15 +89,20 @@ describe("config store stream mapping repair", () => {
     const disableMock = t.mock.method(
       SystemAPI,
       "updateProtocolMappingFeatureConfig",
-      async () => ({ enabled: false }),
+      async () => ({ enabled: false, availability }),
     );
     let configReads = 0;
     t.mock.method(ConfigAPI, "getConfig", async () => {
       configReads += 1;
       return revisioned(
         appConfig(
-          [retainedTcp, concurrentTcp, ...(configReads === 1 ? [legacyUdp] : [])],
+          [
+            retainedTcp,
+            concurrentTcp,
+            ...(configReads === 1 ? [legacyUdp] : []),
+          ],
           false,
+          availability,
         ),
       );
     });
@@ -104,8 +115,15 @@ describe("config store stream mapping repair", () => {
     assert.equal(updateMock.mock.callCount(), 2);
     assert.equal(disableMock.mock.callCount(), 1);
     assert.equal(configReads, 2);
-    assert.deepEqual(store.config?.stream_mappings, [retainedTcp, concurrentTcp]);
+    assert.deepEqual(store.config?.stream_mappings, [
+      retainedTcp,
+      concurrentTcp,
+    ]);
     assert.equal(store.config?.protocol_mapping_feature?.enabled, false);
+    assert.deepEqual(
+      store.config?.protocol_mapping_feature?.availability,
+      availability,
+    );
   });
 
   it("does not disable protocol mappings for an unrelated 409 response", async (t) => {
@@ -168,13 +186,9 @@ describe("config store stream mapping repair", () => {
     t.mock.method(ConfigAPI, "updateStreamMappings", async () => {
       throw repairConflict();
     });
-    t.mock.method(
-      SystemAPI,
-      "updateProtocolMappingFeatureConfig",
-      async () => {
-        throw new Error("disable failed");
-      },
-    );
+    t.mock.method(SystemAPI, "updateProtocolMappingFeatureConfig", async () => {
+      throw new Error("disable failed");
+    });
     const reloadMock = t.mock.method(ConfigAPI, "getConfig", async () =>
       revisioned(appConfig([legacyUdp], true)),
     );

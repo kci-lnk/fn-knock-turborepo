@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 9;
+  CONTROL_API_VERSION_CURRENT = 10;
 }
 
 message RpcStatus {
@@ -140,6 +140,12 @@ message StreamRule {
   int32 listen_port = 2;
   string target = 3;
   bool use_auth = 4;
+}
+
+message StreamAvailability {
+  bool enabled = 1;
+  string start_time = 2;
+  string end_time = 3;
 }
 
 message AuthConfig {
@@ -804,6 +810,7 @@ message HostRules {
 
 message StreamRules {
   repeated StreamRule items = 1;
+  StreamAvailability availability = 2;
 }
 
 message StringValue {

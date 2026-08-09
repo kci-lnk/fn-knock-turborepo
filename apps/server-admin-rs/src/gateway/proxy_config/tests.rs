@@ -2800,7 +2800,7 @@ async fn enabled_stream_mapping_can_delete_the_only_legacy_udp_loop() {
         runtime_config::load_protocol_mapping_feature(&state, None)
             .await
             .expect("reload feature"),
-        json!({ "enabled": true })
+        json!({ "enabled": true, "availability": null })
     );
 }
 
@@ -2933,7 +2933,7 @@ async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
         runtime_config::load_protocol_mapping_feature(&state, None)
             .await
             .expect("reload feature"),
-        json!({ "enabled": true })
+        json!({ "enabled": true, "availability": null })
     );
 }
 

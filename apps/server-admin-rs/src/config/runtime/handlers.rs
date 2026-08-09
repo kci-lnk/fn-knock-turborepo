@@ -417,6 +417,22 @@ pub(super) async fn update_protocol_mapping_feature(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let valid_patch_shape = body.as_object().is_some_and(|object| {
+        let enabled_is_valid = object.get("enabled").is_none_or(Value::is_boolean);
+        let availability_is_valid = object.get("availability").is_none_or(|availability| {
+            availability.is_null()
+                || availability.as_object().is_some_and(|availability| {
+                    availability.get("enabled").and_then(Value::as_bool) == Some(true)
+                })
+        });
+        enabled_is_valid && availability_is_valid
+    });
+    if !valid_patch_shape {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            admin_text(&translator, "protocolMapping.availabilityInvalid"),
+        );
+    }
     let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,
@@ -452,7 +468,16 @@ pub(super) async fn update_protocol_mapping_feature(
 
     let mut current = previous_settings.clone();
     merge_object(&mut current, &body);
-    let next = normalize_protocol_mapping_feature(Some(&current));
+    let next = match normalize_protocol_mapping_feature_strict(Some(&current)) {
+        Ok(next) => next,
+        Err(error) => {
+            tracing::warn!(?error, "rejected invalid protocol mapping availability");
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                admin_text(&translator, "protocolMapping.availabilityInvalid"),
+            );
+        }
+    };
 
     if let Err(error) = save_protocol_mapping_feature(&state, &next).await {
         tracing::warn!(%error, "failed to save protocol mapping feature key");

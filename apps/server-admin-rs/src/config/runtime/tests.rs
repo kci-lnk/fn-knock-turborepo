@@ -198,9 +198,19 @@ async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
         .expect("config object")
         .insert("stream_mappings".to_string(), mappings.clone());
     state.store.save_config(&config).await.expect("save config");
-    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
-        .await
-        .expect("enable protocol mapping feature");
+    save_protocol_mapping_feature(
+        &state,
+        &json!({
+            "enabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": "22:00",
+                "end_time": "06:00"
+            }
+        }),
+    )
+    .await
+    .expect("enable protocol mapping feature");
     assert!(disable_stream_rules(&state).await.is_err());
 
     let response =
@@ -221,7 +231,14 @@ async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
         load_protocol_mapping_feature(&state, None)
             .await
             .expect("reload feature"),
-        json!({ "enabled": true })
+        json!({
+            "enabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": "22:00",
+                "end_time": "06:00"
+            }
+        })
     );
 }
 
@@ -273,8 +290,85 @@ async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config(
         load_protocol_mapping_feature(&state, None)
             .await
             .expect("reload feature"),
-        json!({ "enabled": false })
+        json!({ "enabled": false, "availability": null })
     );
+}
+
+#[tokio::test]
+async fn protocol_mapping_feature_rejects_invalid_availability_before_mutation() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    save_protocol_mapping_feature(
+        &state,
+        &json!({
+            "enabled": false,
+            "availability": {
+                "enabled": true,
+                "start_time": "09:00",
+                "end_time": "18:00"
+            }
+        }),
+    )
+    .await
+    .expect("save initial protocol mapping schedule");
+
+    let response = update_protocol_mapping_feature(
+        State(state.clone()),
+        Json(json!({
+            "availability": {
+                "enabled": true,
+                "start_time": "09:00",
+                "end_time": "09:00"
+            }
+        })),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("reload feature"),
+        json!({
+            "enabled": false,
+            "availability": {
+                "enabled": true,
+                "start_time": "09:00",
+                "end_time": "18:00"
+            }
+        })
+    );
+}
+
+#[tokio::test]
+async fn protocol_mapping_feature_rejects_invalid_patch_shapes_before_mutation() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let initial = json!({
+        "enabled": false,
+        "availability": {
+            "enabled": true,
+            "start_time": "09:00",
+            "end_time": "18:00"
+        }
+    });
+    save_protocol_mapping_feature(&state, &initial)
+        .await
+        .expect("save initial protocol mapping schedule");
+
+    for patch in [
+        json!([]),
+        json!({ "enabled": "true" }),
+        json!({ "availability": [] }),
+        json!({ "availability": { "enabled": false } }),
+    ] {
+        let response = update_protocol_mapping_feature(State(state.clone()), Json(patch)).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            load_protocol_mapping_feature(&state, None)
+                .await
+                .expect("reload feature"),
+            initial
+        );
+    }
 }
 
 #[tokio::test]
@@ -845,7 +939,36 @@ fn normalizes_runtime_mode_feature_configs_like_node() {
     assert_eq!(normalize_run_type(Some(&json!(2))), None);
     assert_eq!(
         normalize_protocol_mapping_feature(Some(&json!({ "enabled": true }))),
-        json!({ "enabled": true })
+        json!({ "enabled": true, "availability": null })
+    );
+    assert_eq!(
+        normalize_protocol_mapping_feature(Some(&json!({
+            "enabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": " 22:00 ",
+                "end_time": "06:00"
+            }
+        }))),
+        json!({
+            "enabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": "22:00",
+                "end_time": "06:00"
+            }
+        })
+    );
+    assert_eq!(
+        normalize_protocol_mapping_feature(Some(&json!({
+            "enabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": "invalid",
+                "end_time": "06:00"
+            }
+        }))),
+        json!({ "enabled": true, "availability": null })
     );
     assert_eq!(
         normalize_smart_connect_config(Some(&json!({

@@ -438,7 +438,11 @@ export const useConfigStore = defineStore("config", () => {
         if (config.value) {
           config.value = {
             ...config.value,
-            protocol_mapping_feature: { enabled: false },
+            protocol_mapping_feature: {
+              enabled: false,
+              availability:
+                config.value.protocol_mapping_feature?.availability ?? null,
+            },
           };
         }
         const refreshed = await loadConfig({ force: true });
@@ -452,7 +456,13 @@ export const useConfigStore = defineStore("config", () => {
           ...config.value,
           stream_mappings: next,
           ...(protocolMappingDisabled
-            ? { protocol_mapping_feature: { enabled: false } }
+            ? {
+                protocol_mapping_feature: {
+                  enabled: false,
+                  availability:
+                    config.value.protocol_mapping_feature?.availability ?? null,
+                },
+              }
             : {}),
         };
       }

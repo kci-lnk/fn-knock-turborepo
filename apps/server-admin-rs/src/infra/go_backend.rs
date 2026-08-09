@@ -22,7 +22,7 @@ use crate::grpc_proto::{
     HostLocationResponse, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules,
     LocaleConfig, LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
     ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig, SslDeployedCertificate,
-    StreamRule, StreamRules, StringValue, WafConfig,
+    StreamAvailability, StreamRule, StreamRules, StringValue, WafConfig,
     deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
@@ -367,11 +367,12 @@ impl GoBackendClient {
         let mut client = self.control.clone();
         let result = match client
             .set_stream_rules(self.request(StreamRules {
-                items: parse_stream_rules(rules),
+                items: parse_stream_rules(rules.get("items").unwrap_or(rules)),
+                availability: parse_stream_availability(rules.get("availability")),
             }))
             .await
         {
-            Ok(response) => ok(stream_rules_to_json(response.into_inner().items)),
+            Ok(response) => ok(stream_rules_to_json(response.into_inner())),
             Err(error) => grpc_error(error),
         };
         status_value("set_stream_rules", result)
@@ -1107,6 +1108,18 @@ fn parse_stream_rules(value: &Value) -> Vec<StreamRule> {
         .unwrap_or_default()
 }
 
+fn parse_stream_availability(value: Option<&Value>) -> Option<StreamAvailability> {
+    let value = value?;
+    if value.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    Some(StreamAvailability {
+        enabled: true,
+        start_time: string_field(value, "start_time"),
+        end_time: string_field(value, "end_time"),
+    })
+}
+
 fn parse_auth_config(value: &Value) -> AuthConfig {
     AuthConfig {
         auth_port: i32_field(value, "auth_port", 0),
@@ -1408,9 +1421,10 @@ fn host_rules_to_json(bundle: HostRules) -> Value {
     })
 }
 
-fn stream_rules_to_json(items: Vec<StreamRule>) -> Value {
-    Value::Array(
-        items
+fn stream_rules_to_json(rules: StreamRules) -> Value {
+    let items = Value::Array(
+        rules
+            .items
             .into_iter()
             .map(|item| {
                 json!({
@@ -1421,7 +1435,21 @@ fn stream_rules_to_json(items: Vec<StreamRule>) -> Value {
                 })
             })
             .collect(),
-    )
+    );
+    let availability = rules
+        .availability
+        .map(|value| {
+            json!({
+                "enabled": value.enabled,
+                "start_time": value.start_time,
+                "end_time": value.end_time,
+            })
+        })
+        .unwrap_or(Value::Null);
+    json!({
+        "items": items,
+        "availability": availability,
+    })
 }
 
 fn locale_to_json(config: LocaleConfig) -> Value {
@@ -2078,5 +2106,28 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].group_id.as_deref(), Some(""));
         assert_eq!(rules[0].group_name.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn stream_rules_grpc_conversion_preserves_global_availability() {
+        let payload = json!({
+            "items": [{
+                "protocol": "tcp",
+                "listen_port": 3306,
+                "target": "127.0.0.1:33060",
+                "use_auth": true
+            }],
+            "availability": {
+                "enabled": true,
+                "start_time": "22:00",
+                "end_time": "06:00"
+            }
+        });
+        let rules = StreamRules {
+            items: parse_stream_rules(&payload["items"]),
+            availability: parse_stream_availability(payload.get("availability")),
+        };
+
+        assert_eq!(stream_rules_to_json(rules), payload);
     }
 }

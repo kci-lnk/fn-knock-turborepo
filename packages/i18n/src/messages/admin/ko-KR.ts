@@ -3084,6 +3084,27 @@ export const koKRAdmin = {
   },
   streamMappings: {
     title: "프로토콜 매핑",
+    scheduleAvailability: "활성화 또는 비활성화 예약",
+    scheduleOpen: "예약 개방 중 {window}",
+    scheduleClosed: "예약 닫힘 {window}",
+    scheduleClosedTitle: "프로토콜 매핑이 현재 예약된 닫힘 상태입니다",
+    scheduleClosedDescription:
+      "개방 시간은 {window}입니다. 수신 포트는 유지되지만 새 TCP 연결은 거부되고 UDP 패킷은 삭제됩니다.",
+    availabilityTitle: "프로토콜 매핑 예약",
+    availabilityDescription:
+      "모든 프로토콜 매핑에 적용할 일일 개방 시간을 설정합니다.",
+    availabilityEnabled: "예약 규칙 활성화",
+    availabilityStartTime: "활성화 시간",
+    availabilityEndTime: "비활성화 시간",
+    availabilityServerTimeHint:
+      "서버 현지 시간을 기준으로 매일 반복되며 자정을 지나는 시간대는 다음 날까지 이어집니다.",
+    availabilityInvalidTime: "유효한 HH:mm 시간을 입력하세요.",
+    availabilitySameTimeInvalid: "활성화 시간과 비활성화 시간은 달라야 합니다.",
+    availabilitySaved: "프로토콜 매핑 예약 규칙을 저장했습니다",
+    availabilityCleared: "프로토콜 매핑 예약 규칙을 비활성화했습니다",
+    availabilitySaveFailed: "프로토콜 매핑 예약 규칙을 저장하지 못했습니다",
+    saveSchedule: "예약 저장",
+    cancel: "취소",
     addMapping: "매핑 추가",
     syncing: "동기화 중...",
     syncGateway: "게이트웨이 동기화",

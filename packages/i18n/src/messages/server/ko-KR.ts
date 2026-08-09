@@ -248,6 +248,8 @@ export const koKRServer = {
     protocolMapping: {
       subdomainOnly:
         "프로토콜 매핑은 서브도메인 모드에서만 활성화할 수 있습니다.",
+      availabilityInvalid:
+        "프로토콜 매핑 예약 규칙이 올바르지 않습니다. HH:mm 형식을 사용하고 활성화 및 비활성화 시간을 다르게 설정하세요.",
       updateFeatureFailed:
         "프로토콜 매핑 기능의 사용 설정을 업데이트하지 못했습니다.",
       updateFeatureFailedRolledBack:

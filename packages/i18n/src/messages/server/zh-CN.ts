@@ -216,6 +216,8 @@ export const zhCNServer = {
     },
     protocolMapping: {
       subdomainOnly: "协议映射仅可在子域模式下启用",
+      availabilityInvalid:
+        "协议映射定时规则无效，请使用 HH:mm 格式且启用时间不能与禁用时间相同",
       updateFeatureFailed: "更新协议映射功能开关失败",
       updateFeatureFailedRolledBack: "更新协议映射功能开关失败，已回滚配置",
     },

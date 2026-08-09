@@ -426,7 +426,24 @@ pub(super) fn normalize_run_type(value: Option<&Value>) -> Option<i64> {
 }
 
 pub(crate) fn normalize_protocol_mapping_feature(value: Option<&Value>) -> Value {
-    json!({ "enabled": bool_field(value, "enabled", false) })
+    normalize_protocol_mapping_feature_strict(value).unwrap_or_else(|_| {
+        json!({
+            "enabled": bool_field(value, "enabled", false),
+            "availability": Value::Null,
+        })
+    })
+}
+
+pub(super) fn normalize_protocol_mapping_feature_strict(
+    value: Option<&Value>,
+) -> Result<Value, crate::daily_availability::DailyAvailabilityError> {
+    let availability = crate::daily_availability::normalize_daily_availability(
+        value.and_then(|value| value.get("availability")),
+    )?;
+    Ok(json!({
+        "enabled": bool_field(value, "enabled", false),
+        "availability": availability,
+    }))
 }
 
 pub(super) fn normalize_smart_connect_config(value: Option<&Value>) -> Value {

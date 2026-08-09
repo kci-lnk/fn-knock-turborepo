@@ -3106,6 +3106,29 @@ export const jaJPAdmin = {
   },
   streamMappings: {
     title: "プロトコルマッピング",
+    scheduleAvailability: "有効化または無効化を予約",
+    scheduleOpen: "スケジュール公開中 {window}",
+    scheduleClosed: "スケジュール停止中 {window}",
+    scheduleClosedTitle: "プロトコルマッピングは現在予約停止中です",
+    scheduleClosedDescription:
+      "公開時間は {window} です。待受ポートは維持されますが、新しい TCP 接続は拒否され、UDP パケットは破棄されます。",
+    availabilityTitle: "プロトコルマッピングのスケジュール",
+    availabilityDescription:
+      "すべてのプロトコルマッピングに適用する毎日の公開時間を設定します。",
+    availabilityEnabled: "スケジュールを有効にする",
+    availabilityStartTime: "有効化時刻",
+    availabilityEndTime: "無効化時刻",
+    availabilityServerTimeHint:
+      "サーバーのローカル時刻で毎日繰り返します。日付をまたぐ時間帯は翌日まで継続します。",
+    availabilityInvalidTime: "有効な HH:mm 時刻を入力してください。",
+    availabilitySameTimeInvalid:
+      "有効化時刻と無効化時刻は別の時刻にしてください。",
+    availabilitySaved: "プロトコルマッピングのスケジュールを保存しました",
+    availabilityCleared: "プロトコルマッピングのスケジュールを無効にしました",
+    availabilitySaveFailed:
+      "プロトコルマッピングのスケジュールを保存できませんでした",
+    saveSchedule: "スケジュールを保存",
+    cancel: "キャンセル",
     addMapping: "マッピングを追加",
     syncing: "同期中...",
     syncGateway: "ゲートウェイと同期",

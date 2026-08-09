@@ -216,6 +216,8 @@ export const zhHantServer = {
     },
     protocolMapping: {
       subdomainOnly: "協議映射僅可在子域模式下啟用",
+      availabilityInvalid:
+        "協議映射定時規則無效，請使用 HH:mm 格式且啟用時間不能與禁用時間相同",
       updateFeatureFailed: "更新協議映射功能開關失敗",
       updateFeatureFailedRolledBack: "更新協議映射功能開關失敗，已回滾配置",
     },

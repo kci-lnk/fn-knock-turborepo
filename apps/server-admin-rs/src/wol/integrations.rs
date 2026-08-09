@@ -8,7 +8,6 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 use tokio::{task::JoinSet, time};
@@ -31,7 +30,6 @@ const BLINKER_AUTH_REFRESH_MIN_INTERVAL: Duration = Duration::from_secs(60);
 const MAX_BLINKER_REPLY_BYTES: usize = 1024;
 const BLINKER_REPLY_INTERVAL: Duration = Duration::from_secs(1);
 const INTEGRATION_CONFIG_RETRY_INTERVAL: Duration = Duration::from_secs(5);
-static VERIFIED_MQTT_TLS_CONFIG: OnceLock<Arc<rustls::ClientConfig>> = OnceLock::new();
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -453,11 +451,12 @@ async fn bemfa_session(
     cancel: &CancellationToken,
 ) -> Result<(), SessionFailure> {
     let mut options = MqttOptions::new(&group.private_key, BEMFA_HOST, BEMFA_TLS_PORT);
+    let transport = mqtt_tls_transport(group.skip_tls_verify).map_err(SessionFailure::new)?;
     options
         .set_keep_alive(Duration::from_secs(60))
         .set_clean_session(true)
         .set_max_packet_size(4096, 4096)
-        .set_transport(mqtt_tls_transport(group.skip_tls_verify));
+        .set_transport(transport);
     let (client, mut eventloop) = AsyncClient::new(options, 32);
     let topics = group
         .bindings
@@ -848,14 +847,14 @@ async fn blinker_session(
     cancel: &CancellationToken,
 ) -> Result<(), SessionFailure> {
     let mut options = MqttOptions::new(&auth.device_name, &auth.host, auth.port);
+    let transport = mqtt_tls_transport(target.integrations.blinker.skip_tls_verify)
+        .map_err(SessionFailure::new)?;
     options
         .set_credentials(&auth.iot_id, &auth.iot_token)
         .set_keep_alive(Duration::from_secs(60))
         .set_clean_session(true)
         .set_max_packet_size(4096, 4096)
-        .set_transport(mqtt_tls_transport(
-            target.integrations.blinker.skip_tls_verify,
-        ));
+        .set_transport(transport);
     let (client, mut eventloop) = AsyncClient::new(options, 32);
     let receive_topic = format!("/device/{}/r", auth.device_name);
     let send_topic = format!("/device/{}/s", auth.device_name);
@@ -1136,103 +1135,21 @@ async fn wait_for_retry(cancel: &CancellationToken, attempt: u32) -> bool {
     }
 }
 
-fn mqtt_tls_transport(skip_tls_verify: bool) -> Transport {
-    ensure_rustls_crypto_provider();
-    use rumqttc::tokio_rustls::rustls::{ClientConfig, RootCertStore};
+fn mqtt_tls_transport(skip_tls_verify: bool) -> Result<Transport, String> {
+    use rumqttc::TlsConfiguration;
     if !skip_tls_verify {
-        // rumqttc's default configuration calls `expect` when loading native
-        // roots. Some platforms can return usable certificates together with
-        // non-fatal read errors, so build the store ourselves and retain every
-        // valid certificate without letting a host certificate issue panic the
-        // service. An empty store safely fails the later TLS handshake.
-        let config = VERIFIED_MQTT_TLS_CONFIG
-            .get_or_init(|| {
-                let native_certs = rustls_native_certs::load_native_certs();
-                let error_count = native_certs.errors.len();
-                let mut roots = RootCertStore::empty();
-                let (accepted, ignored) = roots.add_parsable_certificates(native_certs.certs);
-                if error_count > 0 || ignored > 0 {
-                    tracing::warn!(
-                        error_count,
-                        ignored,
-                        accepted,
-                        "some native certificates could not be loaded for WoL integrations"
-                    );
-                }
-                Arc::new(
-                    ClientConfig::builder()
-                        .with_root_certificates(roots)
-                        .with_no_client_auth(),
-                )
-            })
-            .clone();
-        return Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(config));
+        return Ok(Transport::tls_with_config(TlsConfiguration::Native));
     }
-    use rumqttc::tokio_rustls::rustls::client::danger::{
-        HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
-    };
-    use rumqttc::tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-    use rumqttc::tokio_rustls::rustls::{DigitallySignedStruct, SignatureScheme};
-
-    #[derive(Debug)]
-    struct SkipServerVerification;
-
-    impl ServerCertVerifier for SkipServerVerification {
-        fn verify_server_cert(
-            &self,
-            _end_entity: &CertificateDer<'_>,
-            _intermediates: &[CertificateDer<'_>],
-            _server_name: &ServerName<'_>,
-            _ocsp_response: &[u8],
-            _now: UnixTime,
-        ) -> Result<ServerCertVerified, rumqttc::tokio_rustls::rustls::Error> {
-            Ok(ServerCertVerified::assertion())
-        }
-
-        fn verify_tls12_signature(
-            &self,
-            _message: &[u8],
-            _cert: &CertificateDer<'_>,
-            _dss: &DigitallySignedStruct,
-        ) -> Result<HandshakeSignatureValid, rumqttc::tokio_rustls::rustls::Error> {
-            Ok(HandshakeSignatureValid::assertion())
-        }
-
-        fn verify_tls13_signature(
-            &self,
-            _message: &[u8],
-            _cert: &CertificateDer<'_>,
-            _dss: &DigitallySignedStruct,
-        ) -> Result<HandshakeSignatureValid, rumqttc::tokio_rustls::rustls::Error> {
-            Ok(HandshakeSignatureValid::assertion())
-        }
-
-        fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-            vec![
-                SignatureScheme::ECDSA_NISTP256_SHA256,
-                SignatureScheme::ECDSA_NISTP384_SHA384,
-                SignatureScheme::ED25519,
-                SignatureScheme::RSA_PSS_SHA256,
-                SignatureScheme::RSA_PSS_SHA384,
-                SignatureScheme::RSA_PSS_SHA512,
-                SignatureScheme::RSA_PKCS1_SHA256,
-                SignatureScheme::RSA_PKCS1_SHA384,
-                SignatureScheme::RSA_PKCS1_SHA512,
-            ]
-        }
-    }
-
-    let config = ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
-        .with_no_client_auth();
-    Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(Arc::new(config)))
-}
-
-fn ensure_rustls_crypto_provider() {
-    if rustls::crypto::CryptoProvider::get_default().is_none() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    }
+    let mut builder = rumqttc::tokio_native_tls::native_tls::TlsConnector::builder();
+    builder
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true);
+    let connector = builder
+        .build()
+        .map_err(|error| format!("Failed to initialize MQTT TLS: {error}"))?;
+    Ok(Transport::tls_with_config(
+        TlsConfiguration::NativeConnector(connector),
+    ))
 }
 
 #[cfg(test)]
@@ -1431,11 +1348,11 @@ mod tests {
     #[tokio::test]
     async fn self_signed_tls_requires_explicit_skip_verification() {
         use rumqttc::TlsConfiguration;
-        use rumqttc::tokio_rustls::rustls::ServerConfig;
-        use rumqttc::tokio_rustls::rustls::pki_types::{PrivateKeyDer, ServerName};
-        use rumqttc::tokio_rustls::{TlsAcceptor, TlsConnector};
+        use tokio_rustls::TlsAcceptor;
+        use tokio_rustls::rustls::ServerConfig;
+        use tokio_rustls::rustls::pki_types::PrivateKeyDer;
 
-        ensure_rustls_crypto_provider();
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
         let generated = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
         let certificate = generated.cert.der().clone();
         let private_key = PrivateKeyDer::Pkcs8(generated.signing_key.serialize_der().into());
@@ -1443,7 +1360,7 @@ mod tests {
             .with_no_client_auth()
             .with_single_cert(vec![certificate], private_key)
             .unwrap();
-        let acceptor = TlsAcceptor::from(Arc::new(server_config));
+        let acceptor = TlsAcceptor::from(std::sync::Arc::new(server_config));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -1454,13 +1371,16 @@ mod tests {
         });
 
         let connect = |skip_tls_verify| async move {
-            let config = match mqtt_tls_transport(skip_tls_verify) {
-                Transport::Tls(TlsConfiguration::Rustls(config)) => config,
-                _ => unreachable!("WoL integrations always use rustls TLS"),
+            let connector = match mqtt_tls_transport(skip_tls_verify).unwrap() {
+                Transport::Tls(TlsConfiguration::Native) => {
+                    rumqttc::tokio_native_tls::native_tls::TlsConnector::new().unwrap()
+                }
+                Transport::Tls(TlsConfiguration::NativeConnector(connector)) => connector,
+                _ => unreachable!("WoL integrations always use native TLS"),
             };
             let stream = tokio::net::TcpStream::connect(address).await.unwrap();
-            TlsConnector::from(config)
-                .connect(ServerName::try_from("localhost").unwrap(), stream)
+            rumqttc::tokio_native_tls::TlsConnector::from(connector)
+                .connect("localhost", stream)
                 .await
         };
         assert!(connect(false).await.is_err());

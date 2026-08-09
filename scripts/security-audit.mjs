@@ -113,7 +113,12 @@ function assertReviewedRustPackages(policy) {
 }
 
 function auditRustLockfile(lockfile) {
-  const report = runJson("cargo", ["audit", "--json", "--file", lockfile]);
+  const args = ["audit", "--json", "--file", lockfile];
+  const advisoryDb = process.env.FN_KNOCK_RUSTSEC_ADVISORY_DB?.trim();
+  if (advisoryDb) {
+    args.push("--db", advisoryDb, "--no-fetch");
+  }
+  const report = runJson("cargo", args);
   const findings = rustFindings(report);
   const policy = rustAllowlist.get(lockfile) ?? {
     vulnerabilities: new Set(),

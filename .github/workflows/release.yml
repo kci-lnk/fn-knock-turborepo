@@ -97,6 +97,9 @@ jobs:
     env:
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+      FN_KNOCK_RUSTSEC_ADVISORY_DB: ${{ github.workspace }}/rustsec-advisory-db
+      # Update deliberately after reviewing new advisories to keep release audits reproducible.
+      RUSTSEC_ADVISORY_DB_REVISION: 309ad29d8fe448bf986019e05d47b9e0e29a2218
 
     steps:
       - name: Checkout fn-knock
@@ -111,6 +114,14 @@ jobs:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
           ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Checkout frozen RustSec advisory database
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: RustSec/advisory-db
+          path: rustsec-advisory-db
+          ref: ${{ env.RUSTSEC_ADVISORY_DB_REVISION }}
           persist-credentials: false
 
       - name: Set up Node.js

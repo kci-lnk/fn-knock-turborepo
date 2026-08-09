@@ -874,21 +874,15 @@ fn normalize_host_mapping_availability_for_route(
         Err(crate::daily_availability::DailyAvailabilityError::ObjectRequired) => Err(format!(
             "Host mapping {host} availability must be an object"
         )),
-        Err(crate::daily_availability::DailyAvailabilityError::InvalidStart) => {
-            return Err(format!(
-                "Host mapping {host} availability start_time must use HH:mm"
-            ));
-        }
-        Err(crate::daily_availability::DailyAvailabilityError::InvalidEnd) => {
-            return Err(format!(
-                "Host mapping {host} availability end_time must use HH:mm"
-            ));
-        }
-        Err(crate::daily_availability::DailyAvailabilityError::SameTime) => {
-            return Err(format!(
-                "Host mapping {host} availability start_time and end_time must be different"
-            ));
-        }
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidStart) => Err(format!(
+            "Host mapping {host} availability start_time must use HH:mm"
+        )),
+        Err(crate::daily_availability::DailyAvailabilityError::InvalidEnd) => Err(format!(
+            "Host mapping {host} availability end_time must use HH:mm"
+        )),
+        Err(crate::daily_availability::DailyAvailabilityError::SameTime) => Err(format!(
+            "Host mapping {host} availability start_time and end_time must be different"
+        )),
     }
 }
 

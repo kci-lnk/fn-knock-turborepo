@@ -925,6 +925,7 @@ fn spawn_gateway(
         .arg(&paths.waf)
         .current_dir(&paths.gateway)
         .env("FN_KNOCK_INTERNAL_RPC_TOKEN", token)
+        .env("HMAC_SECRET", env::var("HMAC_SECRET").unwrap_or_default())
         .env("FN_KNOCK_DATA_DIR", &paths.data)
         .env(
             "FN_KNOCK_DIAGNOSTIC_LOG_DIR",
@@ -1504,7 +1505,6 @@ fn configure_runtime_environment(
         set_env("ALTCHA_HMAC_KEY", altcha_hmac_key);
     }
     set_env("NODE_ENV", "production");
-    set_env("EXPOSE_RUNTIME_HMAC_SECRET", "0");
     set_env("ADMIN_STATIC_PATH", install_dir.join("ui/www"));
     set_env(
         "AUTH_STATIC_PATH",

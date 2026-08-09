@@ -1,4 +1,4 @@
-import { createSignedApiClient } from "@frontend-core/api/createSignedApiClient";
+import { createApiClient } from "@frontend-core/api/createApiClient";
 import type { InternalAxiosRequestConfig } from "axios";
 import type {
   AuthBootstrapData,
@@ -34,18 +34,6 @@ const appBasePrefix = detectAppBasePrefix();
 export const authApiBasePath = joinWithBasePrefix(appBasePrefix, "/api/auth");
 export const buildAuthApiPath = (path: string) =>
   joinWithBasePrefix(authApiBasePath, path);
-
-const runtimeSecretPath = joinWithBasePrefix(
-  appBasePrefix,
-  "/__fn-knock/runtime-hmac-secret",
-);
-
-const runtimeSecret =
-  typeof window !== "undefined"
-    ? (window as Window & { __FN_KNOCK_HMAC_SECRET__?: string })
-        .__FN_KNOCK_HMAC_SECRET__
-    : undefined;
-let hmacSecret = import.meta.env.VITE_HMAC_SECRET || runtimeSecret;
 
 export const withNoStoreParams = (params?: NoStoreParams) => ({
   ...(params || {}),
@@ -112,32 +100,8 @@ const applyNoStoreRequestDefaults = (config: InternalAxiosRequestConfig) => {
   return config;
 };
 
-const fetchRuntimeHmacSecret = async () => {
-  if (hmacSecret) return hmacSecret;
-  try {
-    const res = await fetchNoStore(runtimeSecretPath);
-    if (res.ok) {
-      const payload = (await res.json().catch(() => null)) as {
-        data?: { hmacSecret?: string };
-      } | null;
-      const next = payload?.data?.hmacSecret?.trim();
-      if (next) {
-        hmacSecret = next;
-        return hmacSecret;
-      }
-    }
-  } catch {
-    // ignore and fallback below
-  }
-  throw new Error(
-    "Missing HMAC secret: provide VITE_HMAC_SECRET or serve via backend runtime injection",
-  );
-};
-
-export const apiClient = createSignedApiClient({
+export const apiClient = createApiClient({
   baseURL: authApiBasePath,
-  hmacSecret,
-  getHmacSecret: fetchRuntimeHmacSecret,
 });
 
 apiClient.interceptors.request.use((config) =>

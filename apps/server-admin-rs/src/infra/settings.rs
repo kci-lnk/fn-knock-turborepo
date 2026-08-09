@@ -38,7 +38,6 @@ pub struct Settings {
     pub altcha_hmac_key: Option<String>,
     #[allow(dead_code)]
     pub admin_proxy_secret: String,
-    pub expose_runtime_hmac_secret: bool,
     pub request_timeout: Duration,
     pub asset_download_connect_timeout: Duration,
     pub asset_download_read_timeout: Duration,
@@ -91,8 +90,6 @@ impl Settings {
         let default_sqlite_path = default_sqlite_path(&gateway_config_dir);
         let sqlite_path = env_optional_path("FN_KNOCK_SQLITE_PATH").unwrap_or(default_sqlite_path);
 
-        let expose_runtime_hmac_secret = should_expose_runtime_hmac_secret();
-
         let hmac_secret = env::var("HMAC_SECRET").unwrap_or_default();
         let internal_rpc_token = internal_rpc_token_from_env();
 
@@ -134,7 +131,6 @@ impl Settings {
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),
             admin_proxy_secret: env::var("ADMIN_PROXY_SECRET").unwrap_or_default(),
-            expose_runtime_hmac_secret,
             request_timeout: Duration::from_millis(env_u64_like_node(
                 "GO_BACKEND_TIMEOUT_MS",
                 DEFAULT_REQUEST_TIMEOUT_MS,
@@ -563,11 +559,6 @@ fn is_fixed_cron_field(value: &str) -> bool {
 fn parse_optional_port(value: &str) -> Option<u16> {
     let parsed = value.trim().parse::<u16>().ok()?;
     (parsed > 0).then_some(parsed)
-}
-
-fn should_expose_runtime_hmac_secret() -> bool {
-    env::var("EXPOSE_RUNTIME_HMAC_SECRET").as_deref() == Ok("1")
-        || env::var("NODE_ENV").as_deref() != Ok("production")
 }
 
 fn internal_rpc_token_from_env() -> String {
@@ -1146,22 +1137,6 @@ mod tests {
                 error.to_string().contains("ALTCHA HMAC key"),
                 "unexpected error: {error:#}"
             );
-        });
-    }
-
-    #[test]
-    fn runtime_secret_exposure_matches_node_env_logic() {
-        with_env_vars(&["EXPOSE_RUNTIME_HMAC_SECRET", "NODE_ENV"], |env| {
-            env.remove("EXPOSE_RUNTIME_HMAC_SECRET");
-            env.set("NODE_ENV", "production");
-            assert!(!should_expose_runtime_hmac_secret());
-
-            env.set("EXPOSE_RUNTIME_HMAC_SECRET", "1");
-            assert!(should_expose_runtime_hmac_secret());
-
-            env.remove("EXPOSE_RUNTIME_HMAC_SECRET");
-            env.set("NODE_ENV", "development");
-            assert!(should_expose_runtime_hmac_secret());
         });
     }
 

@@ -735,6 +735,7 @@ start_gateway() {
         BACKEND_PORT="${BACKEND_PORT}" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
+        HMAC_SECRET="${HMAC_SECRET}" \
         "${GATEWAY_BIN}" \
             -c "${GATEWAY_CONFIG_DIR}" \
             -admin-port "${GO_BACKEND_PORT}" \

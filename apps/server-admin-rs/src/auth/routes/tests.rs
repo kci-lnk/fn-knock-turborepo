@@ -1259,6 +1259,56 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
     assert!(payload.pointer("/data/items/0/status/observedIp").is_none());
     assert!(payload.pointer("/data/items/0/status/lastError").is_none());
 
+    let target_id = payload
+        .pointer("/data/items/0/id")
+        .and_then(Value::as_str)
+        .expect("visible Target id");
+    let anonymous_wake = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/auth/wol/targets/{target_id}/wake"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anonymous_wake.status(), StatusCode::UNAUTHORIZED);
+
+    let allowed_wake = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/auth/wol/targets/{target_id}/wake"))
+                .header(header::COOKIE, "x-go-reauth-proxy-session-id=wol-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(allowed_wake.status(), StatusCode::OK);
+    let wake_payload = response_json(allowed_wake).await;
+    assert_eq!(
+        wake_payload.pointer("/data/targetId"),
+        Some(&json!(target_id))
+    );
+    assert_eq!(
+        wake_payload.pointer("/data/status"),
+        Some(&json!("broadcasted"))
+    );
+    for internal_field in [
+        "relayId",
+        "deliveryMode",
+        "requestId",
+        "attempts",
+        "latencyMs",
+        "acknowledgedAt",
+    ] {
+        assert!(
+            wake_payload
+                .pointer(&format!("/data/{internal_field}"))
+                .is_none()
+        );
+    }
+
     state.store.delete_totp("wol-user").await.unwrap();
     let deleted_account = app.clone().oneshot(request()).await.unwrap();
     assert_eq!(deleted_account.status(), StatusCode::UNAUTHORIZED);

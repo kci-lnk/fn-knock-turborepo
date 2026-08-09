@@ -1,4 +1,11 @@
-use axum::{Router, extract::State, middleware};
+use axum::{
+    Router,
+    body::Body,
+    extract::State,
+    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header},
+    middleware::{self, Next},
+    response::Response as AxumResponse,
+};
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 
 use super::docker_admin_view;
@@ -168,16 +175,140 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             hmac_middleware,
-        ));
+        ))
+        .layer(middleware::from_fn(auth_same_origin_middleware));
 
     Router::new()
         .merge(api)
         .merge(auth_static_routes())
         .fallback(static_files::auth_fallback)
         .layer(CompressionLayer::new())
-        .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(auth_security_headers_middleware))
         .with_state(state)
+}
+
+async fn auth_security_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("frame-ancestors 'none'"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
+}
+
+async fn auth_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+    if auth_request_origin_allowed(req.method(), req.headers()) {
+        return next.run(req).await;
+    }
+
+    response::error(
+        StatusCode::FORBIDDEN,
+        "Cross-origin authentication request denied",
+    )
+}
+
+fn auth_request_origin_allowed(method: &Method, headers: &HeaderMap) -> bool {
+    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+        return true;
+    }
+
+    if headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("cross-site"))
+    {
+        return false;
+    }
+
+    let Some(origin) = headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        // Non-browser clients do not necessarily send Origin. Endpoint-level
+        // credentials, login proofs and session checks remain authoritative.
+        return true;
+    };
+    let Ok(origin) = url::Url::parse(origin) else {
+        return false;
+    };
+    if !matches!(origin.scheme(), "http" | "https")
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+    {
+        return false;
+    }
+
+    let direct_authority = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let Some(direct_authority) = direct_authority else {
+        return false;
+    };
+    let internal_signed_candidate = authority_is_loopback(direct_authority)
+        && ["x-timestamp", "x-nonce", "x-signature"]
+            .iter()
+            .all(|name| headers.contains_key(*name));
+    let authority = if internal_signed_candidate {
+        headers
+            .get("x-forwarded-host")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(',').next())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(direct_authority)
+    } else {
+        direct_authority
+    };
+    let scheme = headers
+        .get("x-forwarded-proto")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| matches!(*value, "http" | "https"))
+        .unwrap_or_else(|| origin.scheme());
+    let Ok(expected) = url::Url::parse(&format!("{scheme}://{authority}")) else {
+        return false;
+    };
+
+    origin.scheme().eq_ignore_ascii_case(expected.scheme())
+        && origin
+            .host_str()
+            .zip(expected.host_str())
+            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right))
+        && origin.port_or_known_default() == expected.port_or_known_default()
+}
+
+fn authority_is_loopback(authority: &str) -> bool {
+    let Ok(authority) = authority.parse::<axum::http::uri::Authority>() else {
+        return false;
+    };
+    let host = authority.host();
+    let ip_host = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    host.eq_ignore_ascii_case("localhost")
+        || ip_host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 #[cfg(test)]
@@ -201,11 +332,222 @@ mod tests {
         settings.legacy_redis_url = String::new();
         settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
         settings.internal_rpc_token = "openwrt-router-test".to_string();
+        settings.hmac_secret = "openwrt-router-hmac-test".to_string();
         settings.altcha_hmac_key = Some("openwrt-router-altcha-test-key".to_string());
         let state = AppState::new(settings)
             .await
             .expect("OpenWrt router test state");
         (directory, state)
+    }
+
+    async fn auth_router_test_state(hmac_secret: &str) -> (tempfile::TempDir, AppState) {
+        let directory = tempfile::tempdir().expect("temporary auth router database");
+        let mut settings = crate::settings::Settings::from_env();
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+        settings.internal_rpc_token = "auth-router-test".to_string();
+        settings.hmac_secret = hmac_secret.to_string();
+        settings.altcha_hmac_key = Some("auth-router-altcha-test-key".to_string());
+        let state = AppState::new(settings)
+            .await
+            .expect("auth router test state");
+        (directory, state)
+    }
+
+    #[tokio::test]
+    async fn auth_router_does_not_expose_hmac_secret_or_permissive_cors() {
+        let (_directory, state) = auth_router_test_state("server-only-secret").await;
+        let response = auth_router(state)
+            .oneshot(
+                Request::get("/__fn-knock/runtime-hmac-secret")
+                    .header("origin", "https://attacker.invalid")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_browser_auth_routes_do_not_require_internal_hmac() {
+        let (_directory, state) = auth_router_test_state("").await;
+        let app = auth_router(state);
+        let bootstrap = app
+            .clone()
+            .oneshot(
+                Request::get("/api/auth/bootstrap?redirect_uri=https%3A%2F%2Ffnos.example.com%2Flogin&_ts=1786274605858")
+                    .header(header::HOST, "auth.example.com")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(bootstrap.status(), StatusCode::OK);
+        assert_eq!(
+            bootstrap
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("frame-ancestors 'none'")
+        );
+        assert_eq!(
+            bootstrap
+                .headers()
+                .get(header::X_FRAME_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("DENY")
+        );
+
+        let session = app
+            .oneshot(
+                Request::get("/api/auth/session")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(session.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn signed_channel_still_fails_closed_without_hmac_secret() {
+        let (_directory, state) = auth_router_test_state("").await;
+        let response = auth_router(state)
+            .oneshot(
+                Request::get("/api/auth/session")
+                    .header(header::HOST, "127.0.0.1:7997")
+                    .header("x-timestamp", crate::time_utils::now_ms().to_string())
+                    .header("x-nonce", "0011223344556677")
+                    .header("x-signature", "invalid")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn unsigned_loopback_channel_cannot_downgrade_hmac() {
+        let (_directory, state) = auth_router_test_state("server-only-secret").await;
+        let response = auth_router(state)
+            .oneshot(
+                Request::get("/api/auth/session")
+                    .header(header::HOST, "127.0.0.1:7997")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn valid_loopback_gateway_signature_reaches_auth_handler() {
+        const SECRET: &str = "server-only-secret";
+        let (_directory, state) = auth_router_test_state(SECRET).await;
+        let timestamp = crate::time_utils::now_ms().to_string();
+        let nonce = "00112233445566778899aabbccddeeff";
+        let request_uri = "/api/auth/bootstrap?_ts=1786274605858";
+        let message = format!(
+            "fn-knock-v1\nGET\n{request_uri}\n{}\n{timestamp}\n{nonce}",
+            crate::crypto_utils::sha256_hex_bytes([])
+        );
+        let signature = crate::crypto_utils::hmac_sha256_hex(SECRET.as_bytes(), message.as_bytes());
+
+        let response = auth_router(state)
+            .oneshot(
+                Request::get(request_uri)
+                    .header(header::HOST, "127.0.0.1:7997")
+                    .header("x-timestamp", timestamp)
+                    .header("x-nonce", nonce)
+                    .header("x-signature", signature)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn auth_router_rejects_cross_origin_mutations_before_wol_authorization() {
+        let (_directory, state) = auth_router_test_state("server-only-secret").await;
+        let app = auth_router(state);
+
+        let cross_origin = app
+            .clone()
+            .oneshot(
+                Request::post("/api/auth/wol/targets/device-1/wake")
+                    .header(header::HOST, "auth.example.com")
+                    .header(header::ORIGIN, "https://attacker.invalid")
+                    .header("x-forwarded-proto", "https")
+                    .header("sec-fetch-site", "cross-site")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cross_origin.status(), StatusCode::FORBIDDEN);
+
+        let cross_site_without_origin = Request::post("/api/auth/wol/targets/device-1/wake")
+            .header(header::HOST, "auth.example.com")
+            .header("sec-fetch-site", "cross-site")
+            .body(Body::empty())
+            .unwrap();
+        assert!(!auth_request_origin_allowed(
+            cross_site_without_origin.method(),
+            cross_site_without_origin.headers()
+        ));
+
+        let same_origin = Request::post("/api/auth/wol/targets/device-1/wake")
+            .header(header::HOST, "auth.example.com")
+            .header(header::ORIGIN, "https://auth.example.com")
+            .header("x-forwarded-proto", "https")
+            .header("sec-fetch-site", "same-origin")
+            .body(Body::empty())
+            .unwrap();
+        assert!(auth_request_origin_allowed(
+            same_origin.method(),
+            same_origin.headers()
+        ));
+
+        let forged_forwarded_host = Request::post("/api/auth/wol/targets/device-1/wake")
+            .header(header::HOST, "auth.example.com")
+            .header(header::ORIGIN, "https://attacker.invalid")
+            .header("x-forwarded-host", "attacker.invalid")
+            .header("x-forwarded-proto", "https")
+            .body(Body::empty())
+            .unwrap();
+        assert!(!auth_request_origin_allowed(
+            forged_forwarded_host.method(),
+            forged_forwarded_host.headers()
+        ));
+
+        let signed_loopback_proxy = Request::post("/api/auth/wol/targets/device-1/wake")
+            .header(header::HOST, "127.0.0.1:7997")
+            .header(header::ORIGIN, "https://auth.example.com")
+            .header("x-forwarded-host", "auth.example.com")
+            .header("x-forwarded-proto", "https")
+            .header("x-timestamp", "1786274605858")
+            .header("x-nonce", "0011223344556677")
+            .header("x-signature", "validated-by-inner-middleware")
+            .body(Body::empty())
+            .unwrap();
+        assert!(auth_request_origin_allowed(
+            signed_loopback_proxy.method(),
+            signed_loopback_proxy.headers()
+        ));
     }
 
     #[tokio::test]

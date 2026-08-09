@@ -1,5 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
+use crate::{i18n::Translator, response, state::AppState};
 use axum::{
     Router,
     body::Body,
@@ -8,9 +9,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use serde_json::json;
-
-use crate::{i18n::Translator, response, state::AppState};
 
 const AUTH_PUBLIC_PREFIX: &str = "/auth";
 const AUTH_LOCAL_PREFIX: &str = "/__auth__";
@@ -34,33 +32,6 @@ pub fn auth_static_routes() -> Router<AppState> {
         .route("/__auth__", get(auth_index))
         .route("/__auth__/", get(auth_index))
         .route("/__auth__/index.html", get(auth_index))
-        .route("/__fn-knock/runtime-hmac-secret", get(runtime_hmac_secret))
-        .route(
-            "/auth/__fn-knock/runtime-hmac-secret",
-            get(runtime_hmac_secret),
-        )
-        .route(
-            "/__auth__/__fn-knock/runtime-hmac-secret",
-            get(runtime_hmac_secret),
-        )
-}
-
-async fn runtime_hmac_secret(State(state): State<AppState>) -> Response {
-    if !state.settings.expose_runtime_hmac_secret {
-        return runtime_hmac_secret_not_found_response();
-    }
-
-    (
-        [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
-        axum::Json(json!({
-            "success": true,
-            "data": {
-                "hmacSecret": state.settings.hmac_secret,
-                "secret": state.settings.hmac_secret
-            }
-        })),
-    )
-        .into_response()
 }
 
 async fn admin_index(State(state): State<AppState>) -> Response {
@@ -68,11 +39,7 @@ async fn admin_index(State(state): State<AppState>) -> Response {
 }
 
 async fn auth_index(State(state): State<AppState>) -> Response {
-    serve_index(
-        &state.settings.auth_static_path,
-        Some(index_injection_script(&state)),
-    )
-    .await
+    serve_index(&state.settings.auth_static_path, None).await
 }
 
 pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) -> Response {
@@ -92,11 +59,7 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
     if asset_path.is_file() {
         serve_file(asset_path, None).await
     } else if is_known_auth_view_path(&path) {
-        serve_index(
-            &state.settings.auth_static_path,
-            Some(index_injection_script(&state)),
-        )
-        .await
+        serve_index(&state.settings.auth_static_path, None).await
     } else {
         auth_not_found_html()
     }
@@ -273,30 +236,6 @@ fn safe_join(root: &Path, relative: &str) -> Option<PathBuf> {
     Some(path)
 }
 
-fn index_injection_script(state: &AppState) -> String {
-    hmac_secret_injection_script(&state.settings.hmac_secret)
-}
-
-fn hmac_secret_injection_script(hmac_secret: &str) -> String {
-    format!(
-        "<script>window.__FN_KNOCK_HMAC_SECRET__={};</script>",
-        serde_json::to_string(hmac_secret).unwrap_or_else(|_| "\"\"".to_string())
-    )
-}
-
-fn runtime_hmac_secret_not_found_response() -> Response {
-    let mut response = axum::Json(json!({
-        "success": false,
-        "message": "Not found"
-    }))
-    .into_response();
-    *response.status_mut() = StatusCode::NOT_FOUND;
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
-}
-
 fn auth_not_found_html() -> Response {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
@@ -316,19 +255,10 @@ fn not_found() -> Response {
 mod tests {
     use super::{
         StaticFileKind, auth_not_found_html, cache_control_for_file, has_fingerprinted_file_name,
-        hmac_secret_injection_script, is_known_auth_view_path, normalize_auth_path,
-        runtime_hmac_secret_not_found_response, serve_file, serve_index,
+        is_known_auth_view_path, normalize_auth_path, serve_file, serve_index,
     };
     use axum::http::{StatusCode, header};
     use std::path::Path;
-
-    #[test]
-    fn hmac_secret_injection_script_serializes_secret_for_html() {
-        assert_eq!(
-            hmac_secret_injection_script("secret-with-\"quote\""),
-            "<script>window.__FN_KNOCK_HMAC_SECRET__=\"secret-with-\\\"quote\\\"\";</script>"
-        );
-    }
 
     #[test]
     fn auth_view_fallback_paths_match_node() {
@@ -453,19 +383,6 @@ mod tests {
                 .get(header::CACHE_CONTROL)
                 .and_then(|value| value.to_str().ok()),
             Some("no-cache")
-        );
-    }
-
-    #[test]
-    fn runtime_hmac_secret_disabled_response_matches_node() {
-        let response = runtime_hmac_secret_not_found_response();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        assert_eq!(
-            response
-                .headers()
-                .get(header::CACHE_CONTROL)
-                .and_then(|value| value.to_str().ok()),
-            Some("no-store")
         );
     }
 }

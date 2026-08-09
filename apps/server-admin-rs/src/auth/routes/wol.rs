@@ -27,8 +27,53 @@ pub(super) async fn wake(
     match crate::wol::service::wake_target(&state, &id, crate::wol::service::WakeSource::Portal)
         .await
     {
-        Ok(value) => no_store(response::ok(value).into_response()),
-        Err(error) => no_store(response::error(error.status, error.message)),
+        Ok(value) => no_store(
+            response::ok(json!({
+                "targetId": id,
+                "status": value.get("status").and_then(Value::as_str).unwrap_or("broadcasted"),
+            }))
+            .into_response(),
+        ),
+        Err(error) => {
+            tracing::warn!(target_id = %id, status = %error.status, detail = %error.message, "WoL portal wake failed");
+            let (status, message) = portal_wake_public_error(error.status);
+            no_store(response::error(status, message))
+        }
+    }
+}
+
+fn portal_wake_public_error(status: StatusCode) -> (StatusCode, &'static str) {
+    match status {
+        StatusCode::NOT_FOUND => (status, "Target was not found"),
+        StatusCode::TOO_MANY_REQUESTS => {
+            (status, "Target was woken recently; wait before retrying")
+        }
+        StatusCode::BAD_REQUEST => (status, "Target configuration is invalid"),
+        StatusCode::CONFLICT => (status, "Target is unavailable"),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::portal_wake_public_error;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn portal_wake_errors_do_not_expose_relay_details() {
+        assert_eq!(
+            portal_wake_public_error(StatusCode::BAD_GATEWAY),
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
+        );
+        assert_eq!(
+            portal_wake_public_error(StatusCode::GATEWAY_TIMEOUT),
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
+        );
+        assert!(
+            !portal_wake_public_error(StatusCode::CONFLICT)
+                .1
+                .contains("Relay")
+        );
     }
 }
 

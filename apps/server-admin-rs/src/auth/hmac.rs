@@ -1,17 +1,18 @@
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     extract::State,
-    http::{HeaderMap, Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode, header, uri::Authority},
     middleware::Next,
     response::Response,
 };
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
 use crate::{i18n::Translator, response, state::AppState, time_utils};
 
 type HmacSha256 = Hmac<Sha256>;
+const MAX_SIGNED_REQUEST_BODY_BYTES: usize = 4 * 1024 * 1024;
 
 fn hmac_text(translator: &Translator, key: &str) -> String {
     let translation_key = format!("server.hmac.{key}");
@@ -44,9 +45,19 @@ pub async fn hmac_middleware(
         return next.run(req).await;
     }
 
+    // Public-host requests are served directly by Rust and are protected by
+    // endpoint credentials plus the auth router's same-origin policy. The Go
+    // gateway rewrites its loopback upstream Host, which selects the internal
+    // signed channel. Selecting by Host prevents stripping all three signing
+    // headers from downgrading an internal request to an unsigned one.
+    if !uses_loopback_authority(req.headers()) {
+        return next.run(req).await;
+    }
+
     let secret = state.settings.hmac_secret.trim();
     if secret.is_empty() {
-        return next.run(req).await;
+        tracing::error!(path = %req.uri().path(), "HMAC secret is unavailable; rejecting protected request");
+        return hmac_error(&state, StatusCode::INTERNAL_SERVER_ERROR, "invalidKey").await;
     }
 
     let headers = match parse_hmac_headers(req.headers()) {
@@ -58,11 +69,32 @@ pub async fn hmac_middleware(
         return hmac_error(&state, StatusCode::UNAUTHORIZED, "timestampExpired").await;
     }
 
+    let (parts, body) = req.into_parts();
+    let body = match to_bytes(body, MAX_SIGNED_REQUEST_BODY_BYTES).await {
+        Ok(body) => body,
+        Err(_) => {
+            return response::error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Signed request body is too large",
+            );
+        }
+    };
+    let message = canonical_request_message(
+        parts.method.as_str(),
+        parts
+            .uri
+            .path_and_query()
+            .map(|value| value.as_str())
+            .unwrap_or_else(|| parts.uri.path()),
+        &body,
+        &headers.timestamp,
+        &headers.nonce,
+    );
     let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
         Ok(mac) => mac,
         Err(_) => return hmac_error(&state, StatusCode::INTERNAL_SERVER_ERROR, "invalidKey").await,
     };
-    mac.update(format!("{}:{}", headers.timestamp, headers.nonce).as_bytes());
+    mac.update(message.as_bytes());
     let expected = hex::encode(mac.finalize().into_bytes());
     if expected
         .as_bytes()
@@ -78,7 +110,7 @@ pub async fn hmac_middleware(
         .set_nonce_if_not_exists(&headers.nonce, 600)
         .await
     {
-        Ok(true) => next.run(req).await,
+        Ok(true) => next.run(Request::from_parts(parts, Body::from(body))).await,
         Ok(false) => hmac_error(&state, StatusCode::UNAUTHORIZED, "nonceReused").await,
         Err(error) => {
             tracing::warn!(%error, "failed to store HMAC nonce");
@@ -90,6 +122,43 @@ pub async fn hmac_middleware(
             .await
         }
     }
+}
+
+fn uses_loopback_authority(headers: &HeaderMap) -> bool {
+    let Some(authority) = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<Authority>().ok())
+    else {
+        return false;
+    };
+    let host = authority.host();
+    let ip_host = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    host.eq_ignore_ascii_case("localhost")
+        || ip_host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
+
+fn canonical_request_message(
+    method: &str,
+    path_and_query: &str,
+    body: &[u8],
+    timestamp: &str,
+    nonce: &str,
+) -> String {
+    let body_digest = hex::encode(Sha256::digest(body));
+    format!(
+        "fn-knock-v1\n{}\n{}\n{}\n{}\n{}",
+        method.to_ascii_uppercase(),
+        path_and_query,
+        body_digest,
+        timestamp,
+        nonce
+    )
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -184,6 +253,58 @@ mod tests {
     use super::*;
 
     #[test]
+    fn canonical_signature_binds_method_uri_and_body() {
+        let message = canonical_request_message(
+            "post",
+            "/api/auth/wol/targets/device-1/wake?audit=1",
+            b"abc",
+            "1700000000000",
+            "0011223344556677",
+        );
+        assert_eq!(
+            message,
+            concat!(
+                "fn-knock-v1\n",
+                "POST\n",
+                "/api/auth/wol/targets/device-1/wake?audit=1\n",
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n",
+                "1700000000000\n",
+                "0011223344556677"
+            )
+        );
+        assert_ne!(
+            message,
+            canonical_request_message(
+                "get",
+                "/api/auth/wol/targets/device-1/wake?audit=1",
+                b"abc",
+                "1700000000000",
+                "0011223344556677",
+            )
+        );
+        assert_ne!(
+            message,
+            canonical_request_message(
+                "post",
+                "/api/auth/wol/targets/device-2/wake?audit=1",
+                b"abc",
+                "1700000000000",
+                "0011223344556677",
+            )
+        );
+        assert_ne!(
+            message,
+            canonical_request_message(
+                "post",
+                "/api/auth/wol/targets/device-1/wake?audit=1",
+                b"changed",
+                "1700000000000",
+                "0011223344556677",
+            )
+        );
+    }
+
+    #[test]
     fn localizes_hmac_errors() {
         let translator = Translator::new("zh-CN");
         assert_eq!(
@@ -238,6 +359,22 @@ mod tests {
             parse_hmac_headers(&headers).expect_err("short nonce"),
             (StatusCode::BAD_REQUEST, "invalidNonceLength")
         );
+    }
+
+    #[test]
+    fn internal_signed_channel_is_selected_only_by_loopback_authority() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, "auth.example.com".parse().unwrap());
+        assert!(!uses_loopback_authority(&headers));
+
+        headers.insert(header::HOST, "127.0.0.1:7997".parse().unwrap());
+        assert!(uses_loopback_authority(&headers));
+
+        headers.insert(header::HOST, "[::1]:7997".parse().unwrap());
+        assert!(uses_loopback_authority(&headers));
+
+        headers.insert(header::HOST, "127.0.0.1.example.com".parse().unwrap());
+        assert!(!uses_loopback_authority(&headers));
     }
 
     #[test]

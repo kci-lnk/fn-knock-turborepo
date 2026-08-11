@@ -373,31 +373,54 @@ pub(super) async fn get_acme_logs(
 pub(super) async fn get_active_acme_runtime_lock(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
-    let Some(raw_lock) = state
-        .storage
-        .store
-        .get_json_value(ACME_RUNTIME_LOCK_KEY)
-        .await?
-    else {
-        return Ok(json!({ "locked": false }));
-    };
-    let lock = normalize_runtime_lock(&raw_lock);
-    if lock.get("locked").and_then(Value::as_bool) != Some(true) {
-        return Ok(json!({ "locked": false }));
+    for _ in 0..2 {
+        let Some(raw_lock) = state
+            .storage
+            .store
+            .get_json_value(ACME_RUNTIME_LOCK_KEY)
+            .await?
+        else {
+            return Ok(json!({ "locked": false }));
+        };
+        let lock = normalize_runtime_lock(&raw_lock);
+        if lock.get("locked").and_then(Value::as_bool) != Some(true) {
+            return Ok(json!({ "locked": false }));
+        }
+        let Some(job_id) = lock.get("jobId").and_then(Value::as_str) else {
+            // A malformed lease still occupies the NX key. Treat it as active
+            // until its bounded TTL expires instead of allowing the UI and the
+            // actual mutual-exclusion state to disagree.
+            return Ok(lock);
+        };
+        let Some(job) = get_acme_job(state, job_id).await? else {
+            // The executor may still be running if job storage was damaged.
+            // Conservatively keep the lease until TTL expiry.
+            return Ok(lock);
+        };
+        if matches!(
+            job.get("status").and_then(Value::as_str),
+            Some("succeeded" | "failed")
+        ) {
+            let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) else {
+                return Ok(lock);
+            };
+            if state
+                .storage
+                .store
+                .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
+                .await?
+            {
+                return Ok(json!({ "locked": false }));
+            }
+            // Ownership changed between the read and cleanup. Re-read once so
+            // a newly acquired lease is never reported as unlocked.
+            continue;
+        }
+        // A stopped job remains locked until its executor has observed the
+        // stop and released the lease after the final commit boundary.
+        return Ok(lock);
     }
-    let Some(job_id) = lock.get("jobId").and_then(Value::as_str) else {
-        return Ok(json!({ "locked": false }));
-    };
-    let Some(job) = get_acme_job(state, job_id).await? else {
-        return Ok(json!({ "locked": false }));
-    };
-    if matches!(
-        job.get("status").and_then(Value::as_str),
-        Some("succeeded" | "failed" | "stopped")
-    ) {
-        return Ok(json!({ "locked": false }));
-    }
-    Ok(lock)
+    Ok(json!({ "locked": true }))
 }
 
 pub(super) fn normalize_runtime_lock(value: &Value) -> Value {

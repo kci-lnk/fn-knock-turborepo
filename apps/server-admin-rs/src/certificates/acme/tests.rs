@@ -219,6 +219,202 @@ fn acme_renew_interval_prefers_node_cron_env() {
 }
 
 #[test]
+fn parses_persisted_and_rfc3339_certificate_expirations() {
+    let expected = parse_certificate_unix_timestamp("2036-07-01T20:51:37Z")
+        .expect("RFC 3339 certificate expiration");
+    assert_eq!(
+        parse_certificate_unix_timestamp("Jul  1 20:51:37 2036 GMT"),
+        Some(expected)
+    );
+    assert_eq!(
+        parse_certificate_unix_timestamp("Jul 1 20:51:37 2036 UTC"),
+        Some(expected)
+    );
+    assert_eq!(
+        parse_certificate_unix_timestamp("Feb 29 00:00:00 2035 GMT"),
+        None
+    );
+    assert_eq!(parse_certificate_unix_timestamp("not-a-date"), None);
+}
+
+#[test]
+fn classifies_persisted_certificate_at_renewal_boundary() {
+    let certificate = json!({
+        "certInfo": test_cert_info(&["example.test"], "serial")
+    });
+    let valid_to = parse_acme_certificate_expiration(&certificate)
+        .expect("persisted OpenSSL expiration should parse");
+    let threshold = 30 * 24 * 60 * 60;
+
+    assert!(!certificate_due_for_renewal(
+        valid_to,
+        valid_to - threshold - 1,
+        threshold
+    ));
+    assert!(certificate_due_for_renewal(
+        valid_to,
+        valid_to - threshold,
+        threshold
+    ));
+    assert!(certificate_due_for_renewal(
+        valid_to,
+        valid_to + 1,
+        threshold
+    ));
+}
+
+#[tokio::test]
+async fn acme_renew_ticker_fires_immediately_then_waits_for_interval() {
+    let mut ticker = acme_renew_ticker(std::time::Duration::from_secs(60));
+    tokio_time::timeout(std::time::Duration::from_secs(1), ticker.tick())
+        .await
+        .expect("the startup renewal scan should not wait for the first interval");
+    assert!(
+        tokio_time::timeout(std::time::Duration::from_millis(20), ticker.tick())
+            .await
+            .is_err(),
+        "the next renewal scan should wait for the configured interval"
+    );
+}
+
+#[tokio::test]
+async fn auto_renew_releases_owned_scan_lease_on_early_return() {
+    let (_directory, state) = acme_test_state().await;
+
+    run_acme_auto_renew_once(state.clone())
+        .await
+        .expect("uninstalled ACME should be a successful no-op");
+
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_json_value(ACME_RENEW_LOCK_KEY)
+            .await
+            .expect("read renewal lease"),
+        None
+    );
+}
+
+#[tokio::test]
+async fn auto_renew_does_not_release_another_scan_owner() {
+    let (_directory, state) = acme_test_state().await;
+    state
+        .storage
+        .store
+        .set_json_value_ex(ACME_RENEW_LOCK_KEY, &json!({ "lockId": "other-scan" }), 60)
+        .await
+        .expect("seed foreign renewal lease");
+
+    run_acme_auto_renew_once(state.clone())
+        .await
+        .expect("a foreign renewal scan should be a successful no-op");
+
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_json_value(ACME_RENEW_LOCK_KEY)
+            .await
+            .expect("read foreign renewal lease")
+            .and_then(|lease| lease.get("lockId").cloned()),
+        Some(json!("other-scan"))
+    );
+}
+
+#[tokio::test]
+async fn completed_runtime_lock_is_cleaned_but_stopped_lock_stays_active() {
+    let (_directory, state) = acme_test_state().await;
+    let t = Translator::new("zh-CN");
+    let application = test_application("app-1", &["example.test"]);
+    let mut job = build_queued_acme_job(&application, "auto_renew", &t).expect("queued job");
+    job["status"] = json!("succeeded");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed completed job");
+    let completed_lock =
+        with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &completed_lock)
+        .await
+        .expect("seed completed runtime lock");
+
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(false)
+    );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_json_value(ACME_RUNTIME_LOCK_KEY)
+            .await
+            .unwrap(),
+        None
+    );
+
+    job["status"] = json!("stopped");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed stopped job");
+    let stopped_lock =
+        with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &stopped_lock)
+        .await
+        .expect("seed stopped runtime lock");
+
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(true)
+    );
+    assert!(
+        state
+            .storage
+            .store
+            .get_json_value(ACME_RUNTIME_LOCK_KEY)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn running_job_message_matches_automatic_renew_trigger() {
+    let t = Translator::new("zh-CN");
+    assert_eq!(
+        acme_job_running_message(&t, Some("auto_renew")),
+        "正在自动续期证书"
+    );
+    assert_eq!(
+        acme_job_running_message(&t, Some("manual_request")),
+        "正在申请证书"
+    );
+}
+
+#[tokio::test]
+async fn runtime_lock_heartbeat_stops_immediately_when_cancelled() {
+    let (_directory, state) = acme_test_state().await;
+    let application = test_application("app-1", &["example.test"]);
+    let t = Translator::new("zh-CN");
+    let job = build_queued_acme_job(&application, "auto_renew", &t).expect("queued job");
+    let lock = with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    let stop = CancellationToken::new();
+    let heartbeat = start_acme_lock_heartbeat(state, lock, stop.clone());
+
+    stop.cancel();
+
+    tokio_time::timeout(std::time::Duration::from_secs(1), heartbeat)
+        .await
+        .expect("cancelled heartbeat should not wait for its sleep interval")
+        .expect("heartbeat task should exit cleanly");
+}
+
+#[test]
 fn detects_issued_certificate_compatibility_by_domain_set() {
     let application = json!({
         "primaryDomain": "example.com",

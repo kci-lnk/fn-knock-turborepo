@@ -479,11 +479,11 @@ pub(super) async fn execute_acme_application_job(
     lock: Value,
     t: Translator,
 ) -> anyhow::Result<()> {
-    let heartbeat_stop = Arc::new(AtomicBool::new(false));
+    let heartbeat_stop = CancellationToken::new();
     let heartbeat_task =
         start_acme_lock_heartbeat(state.clone(), lock.clone(), heartbeat_stop.clone());
     let started_at = now_node_iso();
-    let running_message = t.t("server.acmeJobRunner.lockMessages.manualRequest");
+    let running_message = acme_job_running_message(&t, lock.get("reason").and_then(Value::as_str));
     if let Some(job) = update_running_acme_job(
         &state,
         &job_id,
@@ -718,16 +718,25 @@ pub(super) async fn execute_acme_application_job(
     }
     .await;
 
-    heartbeat_stop.store(true, Ordering::Relaxed);
+    heartbeat_stop.cancel();
     release_acme_runtime_lock(&state, &lock).await.ok();
     heartbeat_task.await.ok();
     finalization_result
 }
 
+pub(super) fn acme_job_running_message(t: &Translator, trigger: Option<&str>) -> String {
+    let key = if trigger == Some("auto_renew") {
+        "server.acmeJobRunner.lockMessages.autoRenew"
+    } else {
+        "server.acmeJobRunner.lockMessages.manualRequest"
+    };
+    t.t(key)
+}
+
 pub(super) fn start_acme_lock_heartbeat(
     state: AppState,
     lock: Value,
-    stop: Arc<AtomicBool>,
+    stop: CancellationToken,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let interval_seconds = (acme_runtime_lock_ttl_seconds() / 3).clamp(30, 60);
@@ -738,10 +747,10 @@ pub(super) fn start_acme_lock_heartbeat(
         else {
             return;
         };
-        while !stop.load(Ordering::Relaxed) {
-            tokio::time::sleep(std::time::Duration::from_secs(interval_seconds as u64)).await;
-            if stop.load(Ordering::Relaxed) {
-                break;
+        loop {
+            tokio::select! {
+                _ = stop.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_secs(interval_seconds as u64)) => {}
             }
             let next = with_runtime_lock_lease(lock.clone());
             match state

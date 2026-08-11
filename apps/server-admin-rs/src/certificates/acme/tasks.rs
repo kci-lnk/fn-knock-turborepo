@@ -2,17 +2,43 @@ use super::*;
 
 const DEFAULT_ACME_RENEW_CRON: &str = "0 */6 * * *";
 const DEFAULT_ACME_RENEW_INTERVAL_SECONDS: u64 = 6 * 60 * 60;
+pub(super) const ACME_RENEW_LOCK_KEY: &str = "fn_knock:lock:acme-renew";
+
+#[derive(Clone, Debug)]
+struct AcmeRenewLease {
+    lock_id: String,
+    started_at: String,
+}
 
 pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<()> {
-    let acquired = state
+    let Some(lease) = try_acquire_acme_renew_lease(&state).await? else {
+        tracing::debug!("skipping ACME auto-renew because another scan owns the lease");
+        return Ok(());
+    };
+
+    let result =
+        with_acme_renew_lease(&state, &lease, run_acme_auto_renew_locked(state.clone())).await;
+    match state
         .storage
         .store
-        .set_lock_if_not_exists("acme-renew", acme_renew_lock_ttl_seconds())
-        .await?;
-    if !acquired {
-        return Ok(());
+        .delete_lock_if_owned(ACME_RENEW_LOCK_KEY, &lease.lock_id)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(
+                lock_id = %lease.lock_id,
+                "ACME auto-renew scan lease was no longer owned during release"
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, lock_id = %lease.lock_id, "failed to release ACME auto-renew scan lease");
+        }
     }
+    result
+}
 
+async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
     let t = Translator::from_state(&state).await;
     let install_state = current_acme_install_state(&state, &t).await;
     if install_state.get("status").and_then(Value::as_str) != Some("installed") {
@@ -24,6 +50,7 @@ pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<
     }
 
     let threshold_seconds = acme_renew_days() * 24 * 60 * 60;
+    let now = time_utils::now_ms() / 1000;
     let mut renewable = Vec::new();
     for application in read_acme_applications(&state).await? {
         if application.get("renewEnabled").and_then(Value::as_bool) == Some(false) {
@@ -34,14 +61,28 @@ pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<
         else {
             continue;
         };
-        let Some(valid_to) = certificate
-            .pointer("/certInfo/validTo")
-            .and_then(Value::as_str)
-            .and_then(parse_rfc3339_unix_timestamp)
-        else {
+        let Some(valid_to) = parse_acme_certificate_expiration(&certificate) else {
+            let application_id = application
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let primary_domain = application
+                .get("primaryDomain")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let valid_to = certificate
+                .pointer("/certInfo/validTo")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            tracing::warn!(
+                %application_id,
+                %primary_domain,
+                %valid_to,
+                "skipping ACME auto-renew because certificate expiration is invalid"
+            );
             continue;
         };
-        if valid_to - time_utils::now_ms() / 1000 > threshold_seconds {
+        if !certificate_due_for_renewal(valid_to, now, threshold_seconds) {
             continue;
         }
         renewable.push((valid_to, application));
@@ -70,6 +111,65 @@ pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<
         tracing::warn!(%error, "failed to reconcile ACME SSL deployment after auto-renew");
     }
     Ok(())
+}
+
+async fn try_acquire_acme_renew_lease(
+    state: &AppState,
+) -> crate::storage::StorageResult<Option<AcmeRenewLease>> {
+    let lease = AcmeRenewLease {
+        lock_id: uuid::Uuid::new_v4().to_string(),
+        started_at: now_node_iso(),
+    };
+    let acquired = state
+        .storage
+        .store
+        .set_json_value_nx_ex(
+            ACME_RENEW_LOCK_KEY,
+            &acme_renew_lease_value(&lease),
+            acme_renew_lock_ttl_seconds(),
+        )
+        .await?;
+    Ok(acquired.then_some(lease))
+}
+
+fn acme_renew_lease_value(lease: &AcmeRenewLease) -> Value {
+    json!({
+        "lockId": lease.lock_id,
+        "startedAt": lease.started_at,
+        "heartbeatAt": now_node_iso(),
+    })
+}
+
+async fn with_acme_renew_lease<T>(
+    state: &AppState,
+    lease: &AcmeRenewLease,
+    work: impl std::future::Future<Output = anyhow::Result<T>>,
+) -> anyhow::Result<T> {
+    tokio::pin!(work);
+    let heartbeat_seconds = (acme_renew_lock_ttl_seconds() / 3).clamp(30, 300) as u64;
+    let mut heartbeat = tokio_time::interval(std::time::Duration::from_secs(heartbeat_seconds));
+    heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    loop {
+        tokio::select! {
+            result = &mut work => return result,
+            _ = heartbeat.tick() => {
+                let refreshed = state
+                    .storage
+                    .store
+                    .set_json_lock_if_owned_ex(
+                        ACME_RENEW_LOCK_KEY,
+                        &lease.lock_id,
+                        &acme_renew_lease_value(lease),
+                        acme_renew_lock_ttl_seconds(),
+                    )
+                    .await?;
+                if !refreshed {
+                    anyhow::bail!("ACME auto-renew scan lease was lost");
+                }
+            }
+        }
+    }
 }
 
 pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::Result<()> {
@@ -279,8 +379,59 @@ pub(super) fn acme_renew_wait_iterations() -> usize {
         / 5
 }
 
-pub(super) fn parse_rfc3339_unix_timestamp(value: &str) -> Option<i64> {
-    OffsetDateTime::parse(value.trim(), &Rfc3339)
+pub(super) fn parse_certificate_unix_timestamp(value: &str) -> Option<i64> {
+    let value = value.trim();
+    OffsetDateTime::parse(value, &Rfc3339)
         .ok()
         .map(|value| value.unix_timestamp())
+        .or_else(|| parse_openssl_utc_timestamp(value))
+}
+
+fn parse_openssl_utc_timestamp(value: &str) -> Option<i64> {
+    let mut parts = value.split_ascii_whitespace();
+    let month = match parts.next()? {
+        "Jan" => Month::January,
+        "Feb" => Month::February,
+        "Mar" => Month::March,
+        "Apr" => Month::April,
+        "May" => Month::May,
+        "Jun" => Month::June,
+        "Jul" => Month::July,
+        "Aug" => Month::August,
+        "Sep" => Month::September,
+        "Oct" => Month::October,
+        "Nov" => Month::November,
+        "Dec" => Month::December,
+        _ => return None,
+    };
+    let day = parts.next()?.parse::<u8>().ok()?;
+    let mut clock = parts.next()?.split(':');
+    let hour = clock.next()?.parse::<u8>().ok()?;
+    let minute = clock.next()?.parse::<u8>().ok()?;
+    let second = clock.next()?.parse::<u8>().ok()?;
+    if clock.next().is_some() {
+        return None;
+    }
+    let year = parts.next()?.parse::<i32>().ok()?;
+    if !matches!(parts.next(), Some("GMT" | "UTC")) || parts.next().is_some() {
+        return None;
+    }
+    let date = Date::from_calendar_date(year, month, day).ok()?;
+    let time = Time::from_hms(hour, minute, second).ok()?;
+    Some(
+        PrimitiveDateTime::new(date, time)
+            .assume_utc()
+            .unix_timestamp(),
+    )
+}
+
+pub(super) fn parse_acme_certificate_expiration(certificate: &Value) -> Option<i64> {
+    certificate
+        .pointer("/certInfo/validTo")
+        .and_then(Value::as_str)
+        .and_then(parse_certificate_unix_timestamp)
+}
+
+pub(super) fn certificate_due_for_renewal(valid_to: i64, now: i64, threshold_seconds: i64) -> bool {
+    valid_to.saturating_sub(now) <= threshold_seconds
 }

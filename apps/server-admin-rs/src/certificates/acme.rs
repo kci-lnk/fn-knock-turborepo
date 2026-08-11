@@ -5,13 +5,12 @@ use std::{
     io::{Cursor, Write},
     path::{Path, PathBuf},
     process::Stdio,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::atomic::Ordering,
 };
 
-use ::time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use ::time::{
+    Date, Month, OffsetDateTime, PrimitiveDateTime, Time, format_description::well_known::Rfc3339,
+};
 use axum::{
     Json, Router,
     body::{Body, to_bytes},
@@ -28,6 +27,7 @@ use tokio::{
     process::Command,
     time::{self as tokio_time, MissedTickBehavior},
 };
+use tokio_util::sync::CancellationToken;
 use utoipa_axum::router::OpenApiRouter;
 use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
@@ -125,9 +125,7 @@ pub(crate) fn acme_openapi_routes() -> OpenApiRouter<AppState> {
 pub fn start_acme_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("acme-auto-renew", async move {
-        let mut ticker = tokio_time::interval(acme_renew_interval());
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
+        let mut ticker = acme_renew_ticker(acme_renew_interval());
         loop {
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
@@ -143,4 +141,10 @@ pub fn start_acme_tasks(state: AppState) {
             }
         }
     });
+}
+
+fn acme_renew_ticker(interval: std::time::Duration) -> tokio_time::Interval {
+    let mut ticker = tokio_time::interval(interval);
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    ticker
 }

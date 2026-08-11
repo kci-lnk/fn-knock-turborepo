@@ -795,10 +795,7 @@ mod tests {
         let fnos_cgi_same_origin = Request::post("/api/admin/config")
             .header(header::HOST, "127.0.0.1:7998")
             .header(header::ORIGIN, "http://192.168.31.98:19122")
-            .header(
-                "x-fn-knock-browser-origin",
-                "http://192.168.31.98:19122",
-            )
+            .header("x-fn-knock-browser-origin", "http://192.168.31.98:19122")
             .body(Body::empty())
             .unwrap();
         assert!(browser_request_origin_allowed(

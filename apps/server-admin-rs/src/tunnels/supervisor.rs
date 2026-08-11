@@ -1365,7 +1365,7 @@ pub fn sample_process_resources(pid: u32) -> Option<ProcessResourceSample> {
             || sample.system_available_kib.is_some()
             || sample.cgroup_oom_kill_count.is_some()
             || sample.cgroup_memory_fail_count.is_some();
-        return has_data.then_some(sample);
+        has_data.then_some(sample)
     }
     #[cfg(not(target_os = "linux"))]
     {

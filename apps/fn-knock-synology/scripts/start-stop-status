@@ -89,7 +89,8 @@ signal_service() {
     signal="$1"
     pid_is_running || return 0
     if pid_owns_isolated_group; then
-        kill "-${signal}" -- "-${PID}" 2>/dev/null || kill "-${signal}" "${PID}" 2>/dev/null || true
+        # dash and BusyBox sh reject `kill ... -- -PGID`; the negative operand is portable.
+        kill "-${signal}" "-${PID}" 2>/dev/null || kill "-${signal}" "${PID}" 2>/dev/null || true
     else
         kill "-${signal}" "${PID}" 2>/dev/null || true
     fi

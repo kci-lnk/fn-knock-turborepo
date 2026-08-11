@@ -42,13 +42,26 @@ run_lifecycle() {
     sh "${LIFECYCLE}" "$@"
 }
 
+process_is_alive() {
+  local pid="$1" proc_stat=""
+
+  if [ -r "/proc/${pid}/stat" ]; then
+    proc_stat="$(cat "/proc/${pid}/stat" 2>/dev/null || true)"
+    case "${proc_stat}" in
+      *") Z "*) return 1 ;;
+    esac
+  fi
+
+  kill -0 "${pid}" 2>/dev/null
+}
+
 wait_until_dead() {
   local pid="$1" attempts=0
-  while kill -0 "${pid}" 2>/dev/null && [ "${attempts}" -lt 30 ]; do
+  while process_is_alive "${pid}" && [ "${attempts}" -lt 30 ]; do
     attempts=$((attempts + 1))
     sleep 0.1
   done
-  ! kill -0 "${pid}" 2>/dev/null
+  ! process_is_alive "${pid}"
 }
 
 mkdir -p "${FAKE_BIN}" "${PKGDEST}/bin" "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"

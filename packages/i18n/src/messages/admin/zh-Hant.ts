@@ -2475,7 +2475,27 @@ export const zhHantAdmin = {
         customPlaceholder: "每行一個網域，例如：www.example.org",
         customDescription: "最多 {max} 個，只接受主機名稱。下次測速時生效。",
         safety:
-          "只接受 Cloudflare 與 Google DoH 的共同解析結果，並確認位址屬於 Cloudflare 官方網段；不會將業務網域 CNAME 到第三方站點，也不使用本機 DNS 的 Fake-IP。",
+          "程式並行使用 Cloudflare、Google、騰訊 DNSPod 與 AliDNS 的加密 DoH；候選必須屬於 Cloudflare 官方網段，並通過業務網域 TLS、SNI 與 Cloudflare Ray ID 驗證。不會將業務網域 CNAME 到第三方站點，也不使用本機 DNS 的 Fake-IP。",
+        resolverDiagnosticsTitle: "最近一次掃描的解析器診斷",
+        resolverCounts: "成功 {success} 次，失敗 {failure} 次",
+        resolverPathAvailable: "本次可用 DoH 路徑：{providers}",
+        resolverPathOfficialRanges:
+          "所有 DoH 均不可用，本次掃描已自動回退至 Cloudflare 官方 IPv4 網段取樣。",
+        resolverPathCurrentCandidate:
+          "所有 DoH 均不可用，本次掃描僅保留並重新驗證目前已發佈的 Cloudflare 候選。",
+        resolverPathUnavailable:
+          "所有 DoH 均不可用，且 Cloudflare 官方 IPv4 網段來源未啟用。",
+        resolvers: {
+          cloudflare: "Cloudflare DoH",
+          google: "Google DoH",
+          dnspod: "騰訊 DNSPod DoH",
+          alidns: "AliDNS DoH",
+        },
+        resolverStatuses: {
+          healthy: "正常",
+          degraded: "部分失敗",
+          unavailable: "無法使用",
+        },
         save: "儲存候選來源",
         saved: "候選來源已儲存",
         saveFailed: "儲存候選來源失敗",
@@ -2513,6 +2533,9 @@ export const zhHantAdmin = {
       notReadyTitle: "優選驗證尚未就緒",
       notReadyDescription:
         "目前沒有可用於 TLS 與 SNI 驗證的已啟用主機名稱。請等待自動檢查完成；若長時間未恢復，請重新預檢並套用 Cloudflare 設定後再測速。",
+      candidateResolutionUnavailableTitle: "無法探索優選候選 IP",
+      candidateResolutionUnavailableDescription:
+        "所有候選網域解析器均未傳回可驗證的 Cloudflare 位址，且 Cloudflare 官方 IPv4 網段來源未啟用。請啟用官方網段後重新測速。",
       currentIp: "目前優選 IP",
       lastHealth: "最近健康檢查",
       nextScan: "下次完整掃描",

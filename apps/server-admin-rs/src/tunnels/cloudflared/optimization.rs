@@ -31,6 +31,7 @@ use super::{
 
 mod api;
 mod probes;
+mod resolvers;
 mod runtime;
 mod scheduler;
 mod settings;
@@ -39,6 +40,7 @@ mod state_helpers;
 pub(super) use api::openapi_routes;
 use api::public_source_settings;
 use probes::*;
+use resolvers::*;
 pub(super) use runtime::is_capability_unsupported_api_error;
 use runtime::{
     api_error_response, delete_dns_if_owned, ignore_not_found, is_job_cancelled, load_runtime,
@@ -74,6 +76,10 @@ const CLOUDFLARE_RESOURCE_CONFLICT_SCAN_ERROR: &str =
 const OPTIMIZATION_NOT_READY_ERROR_CODE: &str = "cloudflare-optimization-not-ready";
 const OPTIMIZATION_NOT_READY_SCAN_ERROR: &str =
     "Cloudflare optimization is not ready for TLS and SNI validation";
+const CANDIDATE_RESOLUTION_UNAVAILABLE_ERROR_CODE: &str =
+    "cloudflare-candidate-resolution-unavailable";
+const CANDIDATE_RESOLUTION_UNAVAILABLE_SCAN_ERROR: &str =
+    "No verified Cloudflare candidate address could be resolved";
 const SPEEDTEST_HOST: &str = "speed.cloudflare.com";
 const SPEEDTEST_PATH: &str = "/__down";
 const MAX_CANDIDATES: usize = 128;
@@ -232,6 +238,8 @@ struct OptimizationScanResult {
     candidates: Vec<OptimizationCandidate>,
     vantage: Value,
     source_warnings: Vec<String>,
+    resolver_diagnostics: Vec<ResolverDiagnostic>,
+    resolution_path: String,
     source_fingerprint: String,
 }
 
@@ -424,6 +432,8 @@ pub(super) async fn public_state(state: &AppState, managed: &Value, ownership: &
         "candidateSources": public_sources,
         "vantage": runtime.get("lastVantage").cloned().unwrap_or(Value::Null),
         "sourceWarnings": runtime.get("lastSourceWarnings").cloned().unwrap_or_else(|| json!([])),
+        "resolverDiagnostics": runtime.get("lastResolverDiagnostics").cloned().unwrap_or_else(|| json!([])),
+        "resolutionPath": runtime.get("lastResolutionPath").cloned().unwrap_or(Value::Null),
         "domains": domains,
         "schedule": {
             "fullScanIntervalDays": 7,
@@ -2634,9 +2644,45 @@ async fn run_scan(
         .and_then(Value::as_str)
         .and_then(|value| value.parse::<Ipv4Addr>().ok())
         .filter(|ip| candidate_ip_is_cloudflare(*ip, &prefixes));
-    let (mut seeds, source_warnings) = load_candidate_seeds(state, &settings, &prefixes).await;
+    let (mut seeds, source_warnings, resolver_diagnostics, mut resolution_path) =
+        load_candidate_seeds(&settings, &prefixes).await;
     if let Some(ip) = current_ip {
+        if seeds.is_empty() {
+            resolution_path = "current-candidate".to_string();
+        }
         merge_current_candidate_seed(&mut seeds, ip);
+    }
+    if seeds.is_empty() {
+        let mut runtime = load_runtime(state).await;
+        let runtime_object = ensure_object(&mut runtime);
+        runtime_object.insert(
+            "lastSourceWarnings".to_string(),
+            json!(source_warnings.clone()),
+        );
+        runtime_object.insert(
+            "lastResolverDiagnostics".to_string(),
+            json!(resolver_diagnostics.clone()),
+        );
+        runtime_object.insert(
+            "lastResolutionPath".to_string(),
+            json!(resolution_path.clone()),
+        );
+        let _ = save_runtime(state, &runtime).await;
+        if let Some(job_id) = job_id {
+            update_job(
+                state,
+                job_id,
+                json!({
+                    "sourceWarnings": source_warnings,
+                    "resolverDiagnostics": resolver_diagnostics,
+                    "resolutionPath": resolution_path,
+                    "candidateSourceCount": 0,
+                    "sourceFingerprint": source_fingerprint,
+                }),
+            )
+            .await;
+        }
+        return Err(local_error(CANDIDATE_RESOLUTION_UNAVAILABLE_SCAN_ERROR));
     }
     let vantage = probe_local_vantage(state).await;
     let business_hostname = scan_validation_hostname(&ownership)
@@ -2648,6 +2694,8 @@ async fn run_scan(
             json!({
                 "vantage": vantage,
                 "sourceWarnings": source_warnings,
+                "resolverDiagnostics": resolver_diagnostics,
+                "resolutionPath": resolution_path,
                 "candidateSourceCount": seeds.len(),
                 "businessValidationHostname": business_hostname,
                 "sourceFingerprint": source_fingerprint,
@@ -2667,6 +2715,8 @@ async fn run_scan(
                 candidates: Vec::new(),
                 vantage,
                 source_warnings,
+                resolver_diagnostics,
+                resolution_path,
                 source_fingerprint,
             });
         }
@@ -2778,6 +2828,8 @@ async fn run_scan(
                 candidates: Vec::new(),
                 vantage,
                 source_warnings,
+                resolver_diagnostics,
+                resolution_path,
                 source_fingerprint,
             });
         }
@@ -2806,15 +2858,21 @@ async fn run_scan(
         candidates: results,
         vantage,
         source_warnings,
+        resolver_diagnostics,
+        resolution_path,
         source_fingerprint,
     })
 }
 
 async fn load_candidate_seeds(
-    state: &AppState,
     settings: &OptimizationSourceSettings,
     prefixes: &[Ipv4Net],
-) -> (Vec<CandidateSeed>, Vec<String>) {
+) -> (
+    Vec<CandidateSeed>,
+    Vec<String>,
+    Vec<ResolverDiagnostic>,
+    String,
+) {
     let selected_builtins = settings
         .builtin_ids
         .iter()
@@ -2840,12 +2898,17 @@ async fn load_candidate_seeds(
     );
 
     let mut resolved = Vec::new();
+    let doh_client = build_doh_client();
     for chunk in hostname_sources.chunks(8) {
         let mut tasks = JoinSet::new();
         for (index, (hostname, source_type, source_id)) in chunk.iter().cloned().enumerate() {
-            let client = state.fallback_client.clone();
+            let client = doh_client.clone();
+            let prefixes = prefixes.to_vec();
             tasks.spawn(async move {
-                let result = resolve_candidate_hostname(&client, &hostname).await;
+                let result = match client {
+                    Ok(client) => resolve_candidate_hostname(&client, &hostname, &prefixes).await,
+                    Err(failure) => CandidateResolution::failed_for_all_providers(failure),
+                };
                 (index, hostname, source_type, source_id, result)
             });
         }
@@ -2862,26 +2925,25 @@ async fn load_candidate_seeds(
     let mut seeds = Vec::new();
     let mut indexes = HashMap::new();
     let mut warnings = Vec::new();
+    let mut resolver_attempts = Vec::new();
+    let mut doh_candidates_available = false;
     for (_, hostname, source_type, source_id, result) in resolved {
-        let ips = match result {
-            Ok(value) => value,
-            Err(error) => {
-                warnings.push(format!("{hostname}: {error}"));
-                continue;
+        let all_failed_summary = result.all_failed_summary();
+        resolver_attempts.extend(result.attempts);
+        let ips = result.ips;
+        if ips.is_empty() {
+            if let Some(summary) = all_failed_summary {
+                warnings.push(format!("{hostname}: {summary}"));
+            } else {
+                warnings.push(format!(
+                    "{hostname} ({source_id}) did not resolve to a verified Cloudflare IPv4 address"
+                ));
             }
-        };
-        let mut accepted = 0usize;
-        for ip in ips {
-            if !candidate_ip_is_cloudflare(ip, prefixes) {
-                continue;
-            }
-            accepted += 1;
-            merge_candidate_seed(&mut seeds, &mut indexes, ip, &source_type, Some(&hostname));
+            continue;
         }
-        if accepted == 0 {
-            warnings.push(format!(
-                "{hostname} ({source_id}) did not resolve to a verified Cloudflare IPv4 address"
-            ));
+        doh_candidates_available = true;
+        for ip in ips {
+            merge_candidate_seed(&mut seeds, &mut indexes, ip, &source_type, Some(&hostname));
         }
     }
     if settings.official_ranges {
@@ -2893,7 +2955,14 @@ async fn load_candidate_seeds(
         }
     }
     seeds.truncate(MAX_CANDIDATES);
-    (seeds, warnings)
+    let resolution_path =
+        initial_resolution_path(doh_candidates_available, settings.official_ranges);
+    (
+        seeds,
+        warnings,
+        aggregate_resolver_diagnostics(&resolver_attempts),
+        resolution_path.to_string(),
+    )
 }
 
 fn candidate_ip_is_cloudflare(ip: Ipv4Addr, prefixes: &[Ipv4Net]) -> bool {
@@ -2947,71 +3016,6 @@ fn merge_current_candidate_seed(seeds: &mut Vec<CandidateSeed>, ip: Ipv4Addr) {
         source_types: vec!["current".to_string()],
         source_hostnames: Vec::new(),
     });
-}
-
-async fn resolve_candidate_hostname(
-    client: &reqwest::Client,
-    hostname: &str,
-) -> Result<Vec<Ipv4Addr>, String> {
-    let (cloudflare, google) = tokio::join!(
-        query_doh_ipv4(client, "https://cloudflare-dns.com/dns-query", hostname),
-        query_doh_ipv4(client, "https://dns.google/resolve", hostname),
-    );
-    let cloudflare = cloudflare.map_err(|error| format!("Cloudflare DoH failed: {error}"))?;
-    let google = google.map_err(|error| format!("Google DoH failed: {error}"))?;
-    let agreed = intersect_doh_answers(&cloudflare, &google);
-    if agreed.is_empty() {
-        return Err("the two trusted DoH resolvers returned no matching IPv4 address".to_string());
-    }
-    Ok(agreed)
-}
-
-fn intersect_doh_answers(
-    cloudflare: &HashSet<Ipv4Addr>,
-    google: &HashSet<Ipv4Addr>,
-) -> Vec<Ipv4Addr> {
-    let mut agreed = cloudflare.intersection(google).copied().collect::<Vec<_>>();
-    agreed.sort();
-    agreed
-}
-
-async fn query_doh_ipv4(
-    client: &reqwest::Client,
-    endpoint: &str,
-    hostname: &str,
-) -> Result<HashSet<Ipv4Addr>, String> {
-    let mut url = url::Url::parse(endpoint).map_err(|error| error.to_string())?;
-    url.query_pairs_mut()
-        .append_pair("name", hostname)
-        .append_pair("type", "A");
-    let response = client
-        .get(url)
-        .header(reqwest::header::ACCEPT, "application/dns-json")
-        .timeout(Duration::from_secs(8))
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?;
-    let value = response
-        .json::<Value>()
-        .await
-        .map_err(|error| error.to_string())?;
-    if value.get("Status").and_then(Value::as_u64).unwrap_or(0) != 0 {
-        return Err(format!(
-            "DNS response status {}",
-            value.get("Status").and_then(Value::as_u64).unwrap_or(0)
-        ));
-    }
-    Ok(value
-        .get("Answer")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter(|answer| answer.get("type").and_then(Value::as_u64) == Some(1))
-        .filter_map(|answer| answer.get("data").and_then(Value::as_str))
-        .filter_map(|value| value.parse::<Ipv4Addr>().ok())
-        .collect())
 }
 
 async fn probe_local_vantage(state: &AppState) -> Value {
@@ -3477,12 +3481,6 @@ mod tests {
             "104.18.26.94".parse().expect("valid Cloudflare IP"),
             &prefixes
         ));
-
-        let real = "104.18.26.94".parse().expect("valid Cloudflare IP");
-        let fake = "28.0.2.55".parse().expect("valid fake IP");
-        let cloudflare = HashSet::from([real, fake]);
-        let google = HashSet::from([real]);
-        assert_eq!(intersect_doh_answers(&cloudflare, &google), vec![real]);
     }
 
     #[test]
@@ -3502,6 +3500,17 @@ mod tests {
         assert_eq!(cf_ray_colo("a261079199891d1c-SIN").as_deref(), Some("SIN"));
         assert_eq!(cf_ray_colo("bad"), None);
         assert_eq!(cf_ray_colo("ray-too-long"), None);
+        assert_eq!(
+            bounded_cf_ray(&reqwest::header::HeaderValue::from_static(
+                "a261079199891d1c-SIN",
+            ))
+            .as_deref(),
+            Some("a261079199891d1c-SIN")
+        );
+        assert_eq!(
+            bounded_cf_ray(&reqwest::header::HeaderValue::from_static("   ")),
+            None
+        );
     }
 
     #[test]
@@ -3718,6 +3727,12 @@ mod tests {
         assert_eq!(
             optimization_scan_error_code(&not_ready),
             Some(OPTIMIZATION_NOT_READY_ERROR_CODE)
+        );
+
+        let resolution_unavailable = local_error(CANDIDATE_RESOLUTION_UNAVAILABLE_SCAN_ERROR);
+        assert_eq!(
+            optimization_scan_error_code(&resolution_unavailable),
+            Some(CANDIDATE_RESOLUTION_UNAVAILABLE_ERROR_CODE)
         );
 
         let unrelated = local_error("latency probe failed");

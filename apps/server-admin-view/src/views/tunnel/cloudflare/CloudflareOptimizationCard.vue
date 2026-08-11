@@ -27,6 +27,7 @@ import {
 } from "lucide-vue-next";
 import type { CloudflareOptimizationDomain } from "@/lib/api";
 import {
+  candidateResolutionUnavailableErrorCode,
   capabilityStatusKeys,
   cloudflareResourceConflictErrorCode,
   cloudflareSaasValidationPendingErrorCode,
@@ -45,6 +46,7 @@ import {
   optimizationVantageLabel,
   requiresCloudflareSaasSetup,
 } from "./cloudflareOptimizationPresentation";
+import CloudflareResolverDiagnostics from "./CloudflareResolverDiagnostics.vue";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
 
 const { controller } = defineProps<{
@@ -132,8 +134,9 @@ const retryDomainOptimization = async (
 };
 const sourceWarningLabel = (warning: string) =>
   optimizationSourceWarningLabel(warning, t);
-const vantageLabel = (vantage: Parameters<typeof optimizationVantageLabel>[0]) =>
-  optimizationVantageLabel(vantage, t);
+const vantageLabel = (
+  vantage: Parameters<typeof optimizationVantageLabel>[0],
+) => optimizationVantageLabel(vantage, t);
 const optimizedDomainCount = computed(
   () =>
     optimization.value?.domains.filter((item) => item.optimized).length || 0,
@@ -148,6 +151,18 @@ const selectedCandidate = computed(() =>
   optimizationScan.value?.candidates.find(
     (candidate) => candidate.ip === selectedCandidateIp.value,
   ),
+);
+const resolverDiagnostics = computed(() => {
+  if (optimizationScan.value) {
+    return optimizationScan.value.resolverDiagnostics;
+  }
+  return optimization.value?.resolverDiagnostics || [];
+});
+const resolverResolutionPath = computed(
+  () =>
+    (optimizationScan.value
+      ? optimizationScan.value.resolutionPath
+      : optimization.value?.resolutionPath) ?? null,
 );
 const capabilityRequiresCloudflareSaas = computed(() => {
   const probe = optimization.value?.capabilityProbe;
@@ -208,6 +223,11 @@ const scanOptimizationNotReady = computed(() => {
     )
   );
 });
+const scanCandidateResolutionUnavailable = computed(
+  () =>
+    optimizationScan.value?.errorCode ===
+    candidateResolutionUnavailableErrorCode,
+);
 const scanErrorTitle = computed(() => {
   if (scanRequiresCloudflareSaas.value) {
     return t("admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle");
@@ -222,6 +242,11 @@ const scanErrorTitle = computed(() => {
   }
   if (scanOptimizationNotReady.value) {
     return t("admin.cloudflareTunnel.optimization.notReadyTitle");
+  }
+  if (scanCandidateResolutionUnavailable.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.candidateResolutionUnavailableTitle",
+    );
   }
   return "";
 });
@@ -241,6 +266,11 @@ const scanErrorMessage = computed(() => {
   }
   if (scanOptimizationNotReady.value) {
     return t("admin.cloudflareTunnel.optimization.notReadyDescription");
+  }
+  if (scanCandidateResolutionUnavailable.value) {
+    return t(
+      "admin.cloudflareTunnel.optimization.candidateResolutionUnavailableDescription",
+    );
   }
   return optimizationScan.value?.error || "";
 });
@@ -439,6 +469,12 @@ const scanErrorMessage = computed(() => {
                 {{ t("admin.cloudflareTunnel.optimization.sources.safety") }}
               </AlertDescription>
             </Alert>
+
+            <CloudflareResolverDiagnostics
+              v-if="resolverDiagnostics.length || resolverResolutionPath"
+              :diagnostics="resolverDiagnostics"
+              :resolution-path="resolverResolutionPath"
+            />
 
             <div class="flex justify-end">
               <Button

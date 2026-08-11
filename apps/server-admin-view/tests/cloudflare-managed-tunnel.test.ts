@@ -148,19 +148,34 @@ describe("managed Cloudflare Tunnel", () => {
 
   it("keeps third-party candidate hostnames DNS-only and provenance visible", () => {
     const backend = [
-      readSource("../../server-admin-rs/src/tunnels/cloudflared/optimization.rs"),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+      ),
       readSource(
         "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
       ),
       readSource(
         "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
       ),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/resolvers.rs",
+      ),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/probes.rs",
+      ),
     ].join("\n");
     assert.match(backend, /cloudflare-dns\.com\/dns-query/u);
-    assert.match(backend, /dns\.google\/resolve/u);
+    assert.match(backend, /dns\.google\/dns-query/u);
+    assert.match(backend, /doh\.pub\/dns-query/u);
+    assert.match(backend, /dns\.alidns\.com\/dns-query/u);
+    assert.match(backend, /application\/dns-message/u);
+    assert.match(backend, /resolve_to_addrs/u);
+    assert.match(backend, /\.no_proxy\(\)/u);
+    assert.match(backend, /verified-multi-doh-fallback-v1/u);
     assert.match(backend, /candidate_ip_is_cloudflare/u);
     assert.match(backend, /source_hostnames/u);
     assert.match(backend, /business_validated/u);
+    assert.match(backend, /bounded_cf_ray/u);
     assert.doesNotMatch(backend, /content:\s*source\.hostname/u);
     assert.doesNotMatch(backend, /www\.fbi\.gov/u);
 
@@ -179,6 +194,17 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(backend, /multipleExactDnsConflict/u);
     assert.match(backend, /multipleOptimizationDnsConflict/u);
 
+    const resolverDiagnostics = readSource(
+      "../src/views/tunnel/cloudflare/CloudflareResolverDiagnostics.vue",
+    );
+    const resolverPresentation = readSource(
+      "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
+    );
+    assert.match(resolverPresentation, /resolverPathAvailable/u);
+    assert.match(resolverPresentation, /resolverPathOfficialRanges/u);
+    assert.match(resolverPresentation, /resolverPathCurrentCandidate/u);
+    assert.match(resolverDiagnostics, /lastErrorCode/u);
+
     for (const locale of ["zh-CN", "zh-Hant", "en", "ja-JP", "ko-KR"]) {
       const messages = readSource(
         `../../../packages/i18n/src/messages/admin/${locale}.ts`,
@@ -194,6 +220,10 @@ describe("managed Cloudflare Tunnel", () => {
       assert.match(messages, /multipleExactDnsConflict/u);
       assert.match(messages, /ownerKinds/u);
       assert.match(messages, /resolveFailed/u);
+      assert.match(messages, /resolverDiagnosticsTitle/u);
+      assert.match(messages, /resolverPathOfficialRanges/u);
+      assert.match(messages, /resolverPathCurrentCandidate/u);
+      assert.match(messages, /candidateResolutionUnavailableTitle/u);
     }
   });
 
@@ -257,7 +287,9 @@ describe("managed Cloudflare Tunnel", () => {
     );
 
     const backend = [
-      readSource("../../server-admin-rs/src/tunnels/cloudflared/optimization.rs"),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+      ),
       readSource(
         "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
       ),

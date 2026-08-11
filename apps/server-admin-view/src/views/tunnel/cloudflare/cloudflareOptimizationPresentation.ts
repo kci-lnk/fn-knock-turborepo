@@ -1,5 +1,7 @@
 import type {
   CloudflareOptimizationDomain,
+  CloudflareOptimizationResolverDiagnostic,
+  CloudflareOptimizationScan,
   CloudflareOptimizationVantage,
 } from "@/lib/api";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
@@ -43,8 +45,7 @@ export const capabilityStatusKeys: Record<string, string> = {
 };
 
 const legacyDomainMessageCodes: Record<string, string> = {
-  "Custom Hostname is not owned by fn-knock":
-    "customHostnameOwnershipConflict",
+  "Custom Hostname is not owned by fn-knock": "customHostnameOwnershipConflict",
   "Custom Hostname quota is exhausted": "customHostnameQuotaExhausted",
   "Queued to respect Cloudflare certificate issuance rate limits":
     "certificateRateLimited",
@@ -74,6 +75,8 @@ export const cloudflareResourceConflictErrorCode =
   "cloudflare-resource-conflict";
 export const optimizationNotReadyErrorCode =
   "cloudflare-optimization-not-ready";
+export const candidateResolutionUnavailableErrorCode =
+  "cloudflare-candidate-resolution-unavailable";
 export const legacyOptimizationNotReadyErrorMarkers = [
   "no active business or capability hostname",
 ];
@@ -98,9 +101,7 @@ export const formatOptimizationDate = (
 ) => {
   if (!value) return "-";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString(locale);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(locale);
 };
 
 export const requiresCloudflareSaasSetup = (
@@ -125,18 +126,12 @@ export const requiresCloudflareSaasSetup = (
   );
 };
 
-export const optimizationScanPhaseLabel = (
-  phase: string,
-  t: Translate,
-) => {
+export const optimizationScanPhaseLabel = (phase: string, t: Translate) => {
   const key = phaseKeys[phase];
   return key ? t(`admin.cloudflareTunnel.optimization.phases.${key}`) : phase;
 };
 
-export const optimizationDomainStatusLabel = (
-  status: string,
-  t: Translate,
-) => {
+export const optimizationDomainStatusLabel = (status: string, t: Translate) => {
   const key = domainStatusKeys[status];
   return key
     ? t(`admin.cloudflareTunnel.optimization.domainStatuses.${key}`)
@@ -161,10 +156,7 @@ export const optimizationDomainMessageLabel = (
   return key ? t(key, { detail }) : domain.message || detail;
 };
 
-export const optimizationSwitchReasonLabel = (
-  reason: string,
-  t: Translate,
-) => {
+export const optimizationSwitchReasonLabel = (reason: string, t: Translate) => {
   const key = switchReasonKeys[reason];
   return key
     ? t(`admin.cloudflareTunnel.optimization.switchReasons.${key}`)
@@ -226,6 +218,49 @@ export const optimizationSourceWarningLabel = (
     });
   }
   return warning;
+};
+
+export const optimizationResolverProviderLabel = (
+  provider: CloudflareOptimizationResolverDiagnostic["provider"],
+  t: Translate,
+) => t(`admin.cloudflareTunnel.optimization.sources.resolvers.${provider}`);
+
+export const optimizationResolverStatusLabel = (
+  status: CloudflareOptimizationResolverDiagnostic["status"],
+  t: Translate,
+) =>
+  t(`admin.cloudflareTunnel.optimization.sources.resolverStatuses.${status}`);
+
+export const optimizationResolverPathLabel = (
+  path: CloudflareOptimizationScan["resolutionPath"],
+  availableProviders: string[],
+  t: Translate,
+) => {
+  if (path === "multi-doh" && availableProviders.length) {
+    return t(
+      "admin.cloudflareTunnel.optimization.sources.resolverPathAvailable",
+      { providers: availableProviders.join(", ") },
+    );
+  }
+  if (path === "official-ranges") {
+    return t(
+      "admin.cloudflareTunnel.optimization.sources.resolverPathOfficialRanges",
+    );
+  }
+  if (path === "current-candidate") {
+    return t(
+      "admin.cloudflareTunnel.optimization.sources.resolverPathCurrentCandidate",
+    );
+  }
+  if (!path && availableProviders.length) {
+    return t(
+      "admin.cloudflareTunnel.optimization.sources.resolverPathAvailable",
+      { providers: availableProviders.join(", ") },
+    );
+  }
+  return t(
+    "admin.cloudflareTunnel.optimization.sources.resolverPathUnavailable",
+  );
 };
 
 export const optimizationVantageLabel = (

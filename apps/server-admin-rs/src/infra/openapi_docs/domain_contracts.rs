@@ -889,6 +889,7 @@ struct BackupImportResultData {
     CloudflareOptimizationCandidateData,
     CloudflareOptimizationVantageData,
     CloudflareOptimizationBuiltinSourceData,
+    CloudflareOptimizationResolverDiagnosticData,
     CloudflareOptimizationCandidateSourcesData,
     CloudflareOptimizationScanData,
     CloudflareOptimizationDomainData,
@@ -2479,8 +2480,36 @@ pub(super) fn components() -> Map<String, Value> {
         "CloudflareOptimizationCandidateSourcesData",
         "resolutionPolicy",
         "const",
-        json!("cloudflare-google-doh-intersection"),
+        json!("verified-multi-doh-fallback-v1"),
     );
+    set_property_enum(
+        &mut schemas,
+        "CloudflareOptimizationResolverDiagnosticData",
+        "provider",
+        &["cloudflare", "google", "dnspod", "alidns"],
+    );
+    set_property_enum(
+        &mut schemas,
+        "CloudflareOptimizationResolverDiagnosticData",
+        "status",
+        &["healthy", "degraded", "unavailable"],
+    );
+    for schema_name in [
+        "CloudflareOptimizationScanData",
+        "CloudflareOptimizationStateData",
+    ] {
+        set_property_enum(
+            &mut schemas,
+            schema_name,
+            "resolutionPath",
+            &[
+                "multi-doh",
+                "official-ranges",
+                "current-candidate",
+                "unavailable",
+            ],
+        );
+    }
     set_property_metadata(
         &mut schemas,
         "CloudflareOptimizationCandidateSourcesData",

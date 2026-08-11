@@ -3526,6 +3526,7 @@ dependencies = [
  "flate2",
  "fn-knock-wol-protocol",
  "hex",
+ "hickory-proto",
  "hickory-resolver",
  "hmac 0.12.1",
  "http",

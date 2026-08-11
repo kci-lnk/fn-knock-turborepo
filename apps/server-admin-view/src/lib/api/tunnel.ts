@@ -8,29 +8,24 @@ type TunnelSchemas = ApiContractComponents["schemas"];
 
 export type FrpcTcpItem = TunnelSchemas["FrpcTcpItemData"];
 
-export type FrpcInstanceSummary =
-  TunnelSchemas["FrpcInstanceSummaryData"];
+export type FrpcInstanceSummary = TunnelSchemas["FrpcInstanceSummaryData"];
 
 export type TunnelSupervisorFailure =
   TunnelSchemas["CloudflaredSupervisorFailureData"];
 
 export type TunnelSupervisorStatus = TunnelSchemas["CloudflaredSupervisorData"];
 
-export type FrpcInstanceStatus =
-  TunnelSchemas["FrpcInstanceStatusData"];
+export type FrpcInstanceStatus = TunnelSchemas["FrpcInstanceStatusData"];
 
-export type FrpcInstancesOverview =
-  TunnelSchemas["FrpcInstancesOverviewData"];
+export type FrpcInstancesOverview = TunnelSchemas["FrpcInstancesOverviewData"];
 
-export type FrpcInstanceDetail =
-  TunnelSchemas["FrpcInstanceDetailData"];
+export type FrpcInstanceDetail = TunnelSchemas["FrpcInstanceDetailData"];
 
 export type FrpcStatusPayload = TunnelSchemas["FrpcPrimaryStatusData"];
 
 export type FrpcPollPayload = TunnelSchemas["FrpcPollData"];
 
-export type FrpcInstancePollPayload =
-  TunnelSchemas["FrpcInstancePollData"];
+export type FrpcInstancePollPayload = TunnelSchemas["FrpcInstancePollData"];
 
 export type CloudflaredProtocol =
   TunnelSchemas["CloudflaredConfigData"]["protocol"];
@@ -43,6 +38,8 @@ export type CloudflareOptimizationVantage =
   TunnelSchemas["CloudflareOptimizationVantageData"];
 export type CloudflareOptimizationCandidateSources =
   TunnelSchemas["CloudflareOptimizationCandidateSourcesData"];
+export type CloudflareOptimizationResolverDiagnostic =
+  TunnelSchemas["CloudflareOptimizationResolverDiagnosticData"];
 export type CloudflareOptimizationScan =
   TunnelSchemas["CloudflareOptimizationScanData"];
 export type CloudflareOptimizationDomain =
@@ -167,9 +164,7 @@ export const FrpcAPI = {
     const data: FrpcConfig = res.data.data;
     return data.content;
   },
-  async createInstance(
-    payload: FrpcInstanceBody,
-  ): Promise<FrpcInstanceStatus> {
+  async createInstance(payload: FrpcInstanceBody): Promise<FrpcInstanceStatus> {
     const res = await apiClient.post("/frpc/instances", payload);
     return res.data.data;
   },

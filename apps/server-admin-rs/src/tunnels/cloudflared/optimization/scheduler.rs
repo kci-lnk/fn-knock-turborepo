@@ -132,6 +132,14 @@ async fn run_scheduled_scan(state: &AppState) -> Result<(), CloudflareApiError> 
         "lastSourceWarnings".to_string(),
         json!(scan.source_warnings),
     );
+    runtime_object.insert(
+        "lastResolverDiagnostics".to_string(),
+        json!(scan.resolver_diagnostics),
+    );
+    runtime_object.insert(
+        "lastResolutionPath".to_string(),
+        json!(scan.resolution_path),
+    );
     apply_automatic_scan_result(&mut ownership, &mut runtime, &scan.candidates);
     let completed_at = time_utils::now_ms();
     let next = completed_at + WEEK_MS + weekly_jitter_ms();

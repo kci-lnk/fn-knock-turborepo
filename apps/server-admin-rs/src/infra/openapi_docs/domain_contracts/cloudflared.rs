@@ -232,6 +232,19 @@ pub(super) struct CloudflareOptimizationBuiltinSourceData {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct CloudflareOptimizationResolverDiagnosticData {
+    provider: String,
+    status: String,
+    success_count: usize,
+    failure_count: usize,
+    #[schema(required = true)]
+    last_error_code: Option<String>,
+    #[schema(required = true)]
+    last_error_detail: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct CloudflareOptimizationCandidateSourcesData {
     official_ranges: bool,
     builtins: Vec<CloudflareOptimizationBuiltinSourceData>,
@@ -263,6 +276,9 @@ pub(super) struct CloudflareOptimizationScanData {
     #[schema(required = true)]
     vantage: Option<CloudflareOptimizationVantageData>,
     source_warnings: Vec<String>,
+    resolver_diagnostics: Vec<CloudflareOptimizationResolverDiagnosticData>,
+    #[schema(required = true)]
+    resolution_path: Option<String>,
     candidate_source_count: Option<usize>,
     business_validation_hostname: Option<String>,
     #[schema(required = true)]
@@ -366,6 +382,9 @@ pub(super) struct CloudflareOptimizationStateData {
     #[schema(required = true)]
     vantage: Option<CloudflareOptimizationVantageData>,
     source_warnings: Vec<String>,
+    resolver_diagnostics: Vec<CloudflareOptimizationResolverDiagnosticData>,
+    #[schema(required = true)]
+    resolution_path: Option<String>,
     domains: Vec<CloudflareOptimizationDomainData>,
     schedule: CloudflareOptimizationScheduleData,
     scans: Vec<CloudflareOptimizationScanData>,

@@ -90,13 +90,10 @@ pub(super) async fn probe_latency_metrics(ip: Ipv4Addr) -> Option<LatencyProbeMe
             .await;
         if let Ok(response) = response
             && response.status().is_success()
+            && let Some(response_cf_ray) = response.headers().get("cf-ray").and_then(bounded_cf_ray)
         {
             if cf_ray.is_none() {
-                cf_ray = response
-                    .headers()
-                    .get("cf-ray")
-                    .and_then(|value| value.to_str().ok())
-                    .map(str::to_string);
+                cf_ray = Some(response_cf_ray);
             }
             samples.push(started.elapsed().as_secs_f64() * 1000.0);
         }
@@ -187,11 +184,7 @@ pub(super) async fn probe_custom_hostname_details(
         .await
         .map_err(|error| format!("Preferred edge TLS probe failed: {error}"))?;
     let status = response.status();
-    let cf_ray = response
-        .headers()
-        .get("cf-ray")
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string);
+    let cf_ray = response.headers().get("cf-ray").and_then(bounded_cf_ray);
     let mut response = response;
     let mut body = Vec::new();
     while body.len() < 32 * 1024 {
@@ -247,6 +240,11 @@ pub(super) fn cloudflare_route_rejection_message(status: u16, body: &str) -> Opt
 pub(super) fn cf_ray_colo(value: &str) -> Option<String> {
     let colo = value.rsplit_once('-')?.1.trim().to_ascii_uppercase();
     (colo.len() == 3 && colo.bytes().all(|byte| byte.is_ascii_alphanumeric())).then_some(colo)
+}
+
+pub(super) fn bounded_cf_ray(value: &reqwest::header::HeaderValue) -> Option<String> {
+    let value = value.to_str().ok()?.trim();
+    (!value.is_empty() && value.len() <= 128).then(|| value.to_string())
 }
 
 pub(super) fn score_candidate(latency: f64, jitter: f64, loss: f64, download_mbps: f64) -> f64 {

@@ -118,6 +118,25 @@ describe("Cloudflared API contract", () => {
     const scan = contract.components.schemas.CloudflareOptimizationScanData;
     assert.equal(scan.properties?.progress?.minimum, 0);
     assert.equal(scan.properties?.progress?.maximum, 100);
+    assert.deepEqual(scan.properties?.resolutionPath?.enum, [
+      "multi-doh",
+      "official-ranges",
+      "current-candidate",
+      "unavailable",
+    ]);
+    const diagnostics =
+      contract.components.schemas.CloudflareOptimizationResolverDiagnosticData;
+    assert.deepEqual(diagnostics.properties?.provider?.enum, [
+      "cloudflare",
+      "google",
+      "dnspod",
+      "alidns",
+    ]);
+    assert.deepEqual(diagnostics.properties?.status?.enum, [
+      "healthy",
+      "degraded",
+      "unavailable",
+    ]);
   });
 
   it("derives frontend Cloudflared models, requests, and queries", () => {

@@ -2722,7 +2722,27 @@ export const jaJPAdmin = {
         customPlaceholder: "1 行に 1 ホスト名（例：www.example.org）",
         customDescription: "最大 {max} 件。次回のスキャンから反映されます。",
         safety:
-          "Cloudflare と Google DoH が一致し、Cloudflare 公式レンジに属する回答だけを採用します。業務 DNS を第三者へ CNAME せず、ローカル DNS の Fake-IP も使用しません。",
+          "Cloudflare、Google、Tencent DNSPod、AliDNS の暗号化 DoH を並行利用します。候補は Cloudflare 公式レンジに属し、業務ホスト名の TLS、SNI、Cloudflare Ray ID 検証に合格する必要があります。業務 DNS を第三者へ CNAME せず、ローカル DNS の Fake-IP も使用しません。",
+        resolverDiagnosticsTitle: "直近スキャンのリゾルバ診断",
+        resolverCounts: "成功 {success} 件、失敗 {failure} 件",
+        resolverPathAvailable: "今回利用可能な DoH 経路：{providers}",
+        resolverPathOfficialRanges:
+          "すべての DoH が利用できなかったため、Cloudflare 公式 IPv4 範囲のサンプリングへ自動的にフォールバックしました。",
+        resolverPathCurrentCandidate:
+          "すべての DoH が利用できなかったため、現在公開中の Cloudflare 候補のみを保持して再検証しました。",
+        resolverPathUnavailable:
+          "すべての DoH が利用できず、Cloudflare 公式 IPv4 範囲のソースも無効です。",
+        resolvers: {
+          cloudflare: "Cloudflare DoH",
+          google: "Google DoH",
+          dnspod: "Tencent DNSPod DoH",
+          alidns: "AliDNS DoH",
+        },
+        resolverStatuses: {
+          healthy: "正常",
+          degraded: "一部失敗",
+          unavailable: "利用不可",
+        },
         save: "候補ソースを保存",
         saved: "候補ソースを保存しました",
         saveFailed: "候補ソースを保存できませんでした",
@@ -2762,6 +2782,9 @@ export const jaJPAdmin = {
       notReadyTitle: "最適化の検証準備が完了していません",
       notReadyDescription:
         "TLS と SNI の検証に使用できる有効なホスト名がまだありません。自動チェックの完了を待ってください。長時間復旧しない場合は、Cloudflare 設定を再度プレビューして適用してから速度テストを開始してください。",
+      candidateResolutionUnavailableTitle: "最適化候補 IP を検出できません",
+      candidateResolutionUnavailableDescription:
+        "候補リゾルバから検証済み Cloudflare アドレスが返らず、Cloudflare 公式 IPv4 レンジも無効です。公式レンジを有効にして速度テストを再実行してください。",
       currentIp: "現在の最適 IP",
       lastHealth: "最終ヘルスチェック",
       nextScan: "次回の完全スキャン",

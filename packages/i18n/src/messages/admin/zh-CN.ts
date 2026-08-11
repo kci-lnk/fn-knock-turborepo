@@ -2522,7 +2522,27 @@ export const zhCNAdmin = {
         customDescription:
           "最多 {max} 个，只接受主机名。保存后在下次测速中生效。",
         safety:
-          "程序只使用 Cloudflare 与 Google DoH 的共同解析结果，并校验地址属于 Cloudflare 官方网段；不会把业务域名 CNAME 到这些第三方站点，也不会使用本机 DNS 的 Fake-IP。",
+          "程序并发使用 Cloudflare、Google、腾讯 DNSPod 与 AliDNS 的加密 DoH；候选必须属于 Cloudflare 官方网段，并通过业务域名 TLS、SNI 与 Cloudflare Ray ID 验证。不会把业务域名 CNAME 到第三方站点，也不会使用本机 DNS 的 Fake-IP。",
+        resolverDiagnosticsTitle: "最近一次扫描的解析器诊断",
+        resolverCounts: "成功 {success} 次，失败 {failure} 次",
+        resolverPathAvailable: "本次可用 DoH 路径：{providers}",
+        resolverPathOfficialRanges:
+          "所有 DoH 均不可用，本次扫描已自动回退到 Cloudflare 官方 IPv4 网段抽样。",
+        resolverPathCurrentCandidate:
+          "所有 DoH 均不可用，本次扫描仅保留并复核当前已发布的 Cloudflare 候选。",
+        resolverPathUnavailable:
+          "所有 DoH 均不可用，且 Cloudflare 官方 IPv4 网段来源未启用。",
+        resolvers: {
+          cloudflare: "Cloudflare DoH",
+          google: "Google DoH",
+          dnspod: "腾讯 DNSPod DoH",
+          alidns: "AliDNS DoH",
+        },
+        resolverStatuses: {
+          healthy: "正常",
+          degraded: "部分失败",
+          unavailable: "不可用",
+        },
         save: "保存候选来源",
         saved: "候选来源已保存",
         saveFailed: "保存候选来源失败",
@@ -2560,6 +2580,9 @@ export const zhCNAdmin = {
       notReadyTitle: "优选验证尚未就绪",
       notReadyDescription:
         "暂时没有可用于 TLS 与 SNI 验证的已激活主机名。请等待自动检查完成；如果长时间没有恢复，请重新预检并应用 Cloudflare 配置后再测速。",
+      candidateResolutionUnavailableTitle: "无法发现优选候选 IP",
+      candidateResolutionUnavailableDescription:
+        "所有候选域名解析器均未返回可验证的 Cloudflare 地址，并且 Cloudflare 官方 IPv4 网段来源未启用。请启用官方网段后重新测速。",
       currentIp: "当前优选 IP",
       lastHealth: "最近健康检查",
       nextScan: "下次完整扫描",

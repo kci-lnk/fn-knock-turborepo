@@ -3816,7 +3816,7 @@
             "type": "string"
           },
           "resolutionPolicy": {
-            "const": "cloudflare-google-doh-intersection",
+            "const": "verified-multi-doh-fallback-v1",
             "type": "string"
           }
         },
@@ -4073,6 +4073,56 @@
         ],
         "type": "object"
       },
+      "CloudflareOptimizationResolverDiagnosticData": {
+        "properties": {
+          "failureCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastErrorDetail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "enum": [
+              "cloudflare",
+              "google",
+              "dnspod",
+              "alidns"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "successCount": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "status",
+          "successCount",
+          "failureCount",
+          "lastErrorCode",
+          "lastErrorDetail"
+        ],
+        "type": "object"
+      },
       "CloudflareOptimizationScanData": {
         "properties": {
           "businessValidationHostname": {
@@ -4145,6 +4195,24 @@
               "null"
             ]
           },
+          "resolutionPath": {
+            "enum": [
+              "multi-doh",
+              "official-ranges",
+              "current-candidate",
+              "unavailable"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolverDiagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/CloudflareOptimizationResolverDiagnosticData"
+            },
+            "type": "array"
+          },
           "sourceFingerprint": {
             "type": [
               "string",
@@ -4199,6 +4267,8 @@
           "recommendedIp",
           "vantage",
           "sourceWarnings",
+          "resolverDiagnostics",
+          "resolutionPath",
           "sourceFingerprint",
           "errorCode",
           "error"
@@ -4359,6 +4429,24 @@
           "publishSuppressed": {
             "type": "boolean"
           },
+          "resolutionPath": {
+            "enum": [
+              "multi-doh",
+              "official-ranges",
+              "current-candidate",
+              "unavailable"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolverDiagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/CloudflareOptimizationResolverDiagnosticData"
+            },
+            "type": "array"
+          },
           "scanReadinessErrorCode": {
             "type": [
               "string",
@@ -4420,6 +4508,8 @@
           "candidateSources",
           "vantage",
           "sourceWarnings",
+          "resolverDiagnostics",
+          "resolutionPath",
           "domains",
           "schedule",
           "scans"

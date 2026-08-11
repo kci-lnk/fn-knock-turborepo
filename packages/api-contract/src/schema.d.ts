@@ -5973,7 +5973,7 @@ export interface components {
             /** @constant */
             publishPolicy: "extract-ip-only";
             /** @constant */
-            resolutionPolicy: "cloudflare-google-doh-intersection";
+            resolutionPolicy: "verified-multi-doh-fallback-v1";
         };
         CloudflareOptimizationCapabilityProbeData: {
             hostname?: string | null;
@@ -6026,6 +6026,16 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string | null;
         };
+        CloudflareOptimizationResolverDiagnosticData: {
+            failureCount: number;
+            lastErrorCode: string | null;
+            lastErrorDetail: string | null;
+            /** @enum {string} */
+            provider: "cloudflare" | "google" | "dnspod" | "alidns";
+            /** @enum {string} */
+            status: "healthy" | "degraded" | "unavailable";
+            successCount: number;
+        };
         CloudflareOptimizationScanData: {
             businessValidationHostname?: string | null;
             cancelRequested: boolean;
@@ -6044,6 +6054,9 @@ export interface components {
             /** Format: int64 */
             progress: number;
             recommendedIp: string | null;
+            /** @enum {string|null} */
+            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "unavailable" | null;
+            resolverDiagnostics: components["schemas"]["CloudflareOptimizationResolverDiagnosticData"][];
             sourceFingerprint: string | null;
             sourceWarnings: string[];
             /** Format: date-time */
@@ -6093,6 +6106,9 @@ export interface components {
             ipv4Only: true;
             originHostname: string | null;
             publishSuppressed: boolean;
+            /** @enum {string|null} */
+            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "unavailable" | null;
+            resolverDiagnostics: components["schemas"]["CloudflareOptimizationResolverDiagnosticData"][];
             scanReadinessErrorCode: string | null;
             scanReady: boolean;
             scans: components["schemas"]["CloudflareOptimizationScanData"][];

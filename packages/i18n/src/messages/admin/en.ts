@@ -2727,7 +2727,27 @@ export const enAdmin = {
         customDescription:
           "Up to {max} hostnames. Changes apply to the next scan.",
         safety:
-          "Only matching Cloudflare and Google DoH answers that belong to an official Cloudflare range are accepted. Business DNS is never CNAMEd to these third parties, and local Fake-IP DNS answers are not used.",
+          "Encrypted DoH queries run concurrently through Cloudflare, Google, Tencent DNSPod, and AliDNS. Candidates must belong to an official Cloudflare range and pass business-hostname TLS, SNI, and Cloudflare Ray ID validation. Business DNS is never CNAMEd to these third parties, and local Fake-IP answers are not used.",
+        resolverDiagnosticsTitle: "Resolver diagnostics from the latest scan",
+        resolverCounts: "{success} succeeded, {failure} failed",
+        resolverPathAvailable: "Available DoH path for this scan: {providers}",
+        resolverPathOfficialRanges:
+          "All DoH resolvers were unavailable, so this scan automatically fell back to sampling Cloudflare's official IPv4 ranges.",
+        resolverPathCurrentCandidate:
+          "All DoH resolvers were unavailable, so this scan only retained and revalidated the currently published Cloudflare candidate.",
+        resolverPathUnavailable:
+          "All DoH resolvers were unavailable and the Cloudflare official IPv4 range source was disabled.",
+        resolvers: {
+          cloudflare: "Cloudflare DoH",
+          google: "Google DoH",
+          dnspod: "Tencent DNSPod DoH",
+          alidns: "AliDNS DoH",
+        },
+        resolverStatuses: {
+          healthy: "Healthy",
+          degraded: "Degraded",
+          unavailable: "Unavailable",
+        },
         save: "Save candidate sources",
         saved: "Candidate sources saved",
         saveFailed: "Failed to save candidate sources",
@@ -2768,6 +2788,10 @@ export const enAdmin = {
       notReadyTitle: "Optimization validation is not ready",
       notReadyDescription:
         "No active hostname is currently available for TLS and SNI validation. Wait for the automatic check to finish. If it remains unavailable, preview and apply the Cloudflare configuration again before starting the speed test.",
+      candidateResolutionUnavailableTitle:
+        "No optimization candidate IPs are available",
+      candidateResolutionUnavailableDescription:
+        "No candidate resolver returned a verified Cloudflare address, and the official Cloudflare IPv4 range source is disabled. Enable official ranges and run the speed test again.",
       currentIp: "Current optimized IP",
       lastHealth: "Last health check",
       nextScan: "Next full scan",

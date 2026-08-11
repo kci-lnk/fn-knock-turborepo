@@ -5,14 +5,19 @@ import {
   formatOptimizationDate,
   formatOptimizationNumber,
   optimizationDomainMessageLabel,
+  optimizationResolverProviderLabel,
+  optimizationResolverPathLabel,
+  optimizationResolverStatusLabel,
   optimizationSourceWarningLabel,
   requiresCloudflareSaasSetup,
 } from "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation";
 
 const translate = ((key: string, values?: Record<string, unknown>) =>
-  values?.detail ? `${key}:${String(values.detail)}` : key) as Parameters<
-  typeof optimizationDomainMessageLabel
->[1];
+  values?.detail
+    ? `${key}:${String(values.detail)}`
+    : values?.providers
+      ? `${key}:${String(values.providers)}`
+      : key) as Parameters<typeof optimizationDomainMessageLabel>[1];
 
 describe("Cloudflare optimization presentation", () => {
   it("keeps numeric and locale-aware date fallbacks deterministic", () => {
@@ -77,8 +82,38 @@ describe("Cloudflare optimization presentation", () => {
       "admin.cloudflareTunnel.optimization.sources.unverifiedAddress",
     );
     assert.equal(
-      optimizationSourceWarningLabel("edge.example.com: DNS timeout", translate),
+      optimizationSourceWarningLabel(
+        "edge.example.com: DNS timeout",
+        translate,
+      ),
       "admin.cloudflareTunnel.optimization.sources.resolveFailed:DNS timeout",
+    );
+  });
+
+  it("localizes resolver provider and health diagnostics", () => {
+    assert.equal(
+      optimizationResolverProviderLabel("dnspod", translate),
+      "admin.cloudflareTunnel.optimization.sources.resolvers.dnspod",
+    );
+    assert.equal(
+      optimizationResolverStatusLabel("degraded", translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverStatuses.degraded",
+    );
+    assert.equal(
+      optimizationResolverPathLabel("multi-doh", ["DNSPod"], translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverPathAvailable:DNSPod",
+    );
+    assert.equal(
+      optimizationResolverPathLabel("official-ranges", [], translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverPathOfficialRanges",
+    );
+    assert.equal(
+      optimizationResolverPathLabel("current-candidate", [], translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverPathCurrentCandidate",
+    );
+    assert.equal(
+      optimizationResolverPathLabel("unavailable", [], translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverPathUnavailable",
     );
   });
 });

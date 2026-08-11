@@ -178,7 +178,7 @@ pub(super) fn public_source_settings(settings: &OptimizationSourceSettings) -> V
         })).collect::<Vec<_>>(),
         "customHostnames": settings.custom_hostnames,
         "maxCustomHostnames": MAX_CUSTOM_SOURCE_HOSTNAMES,
-        "resolutionPolicy": "cloudflare-google-doh-intersection",
+        "resolutionPolicy": "verified-multi-doh-fallback-v1",
         "publishPolicy": "extract-ip-only",
     })
 }
@@ -206,6 +206,8 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         "recommendedIp": Value::Null,
         "vantage": Value::Null,
         "sourceWarnings": [],
+        "resolverDiagnostics": [],
+        "resolutionPath": Value::Null,
         "sourceFingerprint": Value::Null,
         "errorCode": Value::Null,
         "error": Value::Null,
@@ -286,6 +288,14 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                     json!(result.source_warnings.clone()),
                 );
                 runtime_object.insert(
+                    "lastResolverDiagnostics".to_string(),
+                    json!(result.resolver_diagnostics.clone()),
+                );
+                runtime_object.insert(
+                    "lastResolutionPath".to_string(),
+                    json!(result.resolution_path.clone()),
+                );
+                runtime_object.insert(
                     "lastCandidates".to_string(),
                     json!(result.candidates.clone()),
                 );
@@ -303,6 +313,8 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                         "recommendedIp": recommended,
                         "vantage": result.vantage,
                         "sourceWarnings": result.source_warnings,
+                        "resolverDiagnostics": result.resolver_diagnostics,
+                        "resolutionPath": result.resolution_path,
                         "sourceFingerprint": result.source_fingerprint,
                     }),
                 )

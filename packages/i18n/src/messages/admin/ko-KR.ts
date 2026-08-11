@@ -2700,7 +2700,28 @@ export const koKRAdmin = {
         customPlaceholder: "한 줄에 호스트 이름 하나(예: www.example.org)",
         customDescription: "최대 {max}개이며 다음 스캔부터 적용됩니다.",
         safety:
-          "Cloudflare와 Google DoH가 동일하게 반환하고 Cloudflare 공식 대역에 속하는 주소만 사용합니다. 서비스 DNS를 제3자에 CNAME하지 않으며 로컬 DNS의 Fake-IP도 사용하지 않습니다.",
+          "Cloudflare, Google, Tencent DNSPod 및 AliDNS 암호화 DoH를 동시에 사용합니다. 후보는 Cloudflare 공식 대역에 속하고 서비스 호스트 이름 TLS, SNI 및 Cloudflare Ray ID 검증을 통과해야 합니다. 서비스 DNS를 제3자에 CNAME하지 않으며 로컬 DNS의 Fake-IP도 사용하지 않습니다.",
+        resolverDiagnosticsTitle: "최근 스캔의 리졸버 진단",
+        resolverCounts: "성공 {success}회, 실패 {failure}회",
+        resolverPathAvailable:
+          "이번 스캔에서 사용 가능한 DoH 경로: {providers}",
+        resolverPathOfficialRanges:
+          "모든 DoH를 사용할 수 없어 Cloudflare 공식 IPv4 대역 샘플링으로 자동 전환했습니다.",
+        resolverPathCurrentCandidate:
+          "모든 DoH를 사용할 수 없어 현재 게시된 Cloudflare 후보만 유지하고 다시 검증했습니다.",
+        resolverPathUnavailable:
+          "모든 DoH를 사용할 수 없고 Cloudflare 공식 IPv4 대역 소스도 비활성화되어 있습니다.",
+        resolvers: {
+          cloudflare: "Cloudflare DoH",
+          google: "Google DoH",
+          dnspod: "Tencent DNSPod DoH",
+          alidns: "AliDNS DoH",
+        },
+        resolverStatuses: {
+          healthy: "정상",
+          degraded: "일부 실패",
+          unavailable: "사용 불가",
+        },
         save: "후보 소스 저장",
         saved: "후보 소스를 저장했습니다.",
         saveFailed: "후보 소스 저장 실패",
@@ -2740,6 +2761,9 @@ export const koKRAdmin = {
       notReadyTitle: "최적화 검증이 아직 준비되지 않음",
       notReadyDescription:
         "TLS 및 SNI 검증에 사용할 수 있는 활성 호스트 이름이 아직 없습니다. 자동 검사가 완료될 때까지 기다리세요. 장시간 복구되지 않으면 Cloudflare 구성을 다시 미리 보고 적용한 후 속도 테스트를 시작하세요.",
+      candidateResolutionUnavailableTitle: "최적화 후보 IP를 찾을 수 없음",
+      candidateResolutionUnavailableDescription:
+        "후보 리졸버가 검증된 Cloudflare 주소를 반환하지 않았고 Cloudflare 공식 IPv4 대역 소스도 비활성화되어 있습니다. 공식 대역을 활성화한 후 속도 테스트를 다시 실행하세요.",
       currentIp: "현재 최적 IP",
       lastHealth: "최근 상태 확인",
       nextScan: "다음 전체 스캔",

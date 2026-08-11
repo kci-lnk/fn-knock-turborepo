@@ -66,7 +66,9 @@ wait_until_dead() {
 
 mkdir -p "${FAKE_BIN}" "${PKGDEST}/bin" "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"
 
-cat > "${FAKE_BIN}/setsid" <<'PY'
+SYSTEM_SETSID="$(PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" command -v setsid 2>/dev/null || true)"
+if [ -z "${SYSTEM_SETSID}" ]; then
+  cat > "${FAKE_BIN}/setsid" <<'PY'
 #!/usr/bin/env python3
 import os
 import sys
@@ -74,6 +76,8 @@ import sys
 os.setsid()
 os.execvp(sys.argv[1], sys.argv[1:])
 PY
+  chmod 755 "${FAKE_BIN}/setsid"
+fi
 
 cat > "${FAKE_BIN}/curl" <<'SH'
 #!/bin/sh
@@ -121,14 +125,14 @@ printf '%s\n' "${worker_pid}" > "${TEST_WORKER_PID_FILE:?}"
 while :; do sleep 1; done
 SH
 
-chmod 755 "${FAKE_BIN}/setsid" "${FAKE_BIN}/curl" "${PKGDEST}/bin/fn-knock-entrypoint"
+chmod 755 "${FAKE_BIN}/curl" "${PKGDEST}/bin/fn-knock-entrypoint"
 
 rm -f "${READY_FILE}" "${ENTRYPOINT_PID_FILE}"
 TEST_READY_DELAY_SECONDS=2 \
 FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS=6 \
 FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=3 \
 FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
-  run_lifecycle start
+  run_lifecycle start || fail 'ready service failed to start'
 
 [ -s "${PKGVAR}/fn-knock.pid" ] || fail 'successful start did not persist the supervisor PID'
 supervisor_pid="$(cat "${PKGVAR}/fn-knock.pid")"
@@ -137,7 +141,7 @@ run_lifecycle status || fail 'status did not report the ready service as running
 
 FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=3 \
 FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
-  run_lifecycle stop
+  run_lifecycle stop || fail 'normal stop failed'
 [ ! -e "${PKGVAR}/fn-knock.pid" ] || fail 'normal stop retained the supervisor PID file'
 wait_until_dead "${supervisor_pid}" || fail 'normal stop left the supervisor running'
 
@@ -163,14 +167,14 @@ TEST_IGNORE_TERM=1 \
 FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS=4 \
 FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=1 \
 FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=3 \
-  run_lifecycle start
+  run_lifecycle start || fail 'forced-stop fixture failed to start'
 forced_supervisor_pid="$(cat "${ENTRYPOINT_PID_FILE}")"
 forced_worker_pid="$(cat "${WORKER_PID_FILE}")"
 
 TEST_IGNORE_TERM=1 \
 FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=1 \
 FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=3 \
-  run_lifecycle stop
+  run_lifecycle stop || fail 'forced stop failed'
 wait_until_dead "${forced_supervisor_pid}" || fail 'forced stop left the supervisor running'
 wait_until_dead "${forced_worker_pid}" || fail 'forced stop left a process-group child running'
 [ ! -e "${PKGVAR}/fn-knock.pid" ] || fail 'forced stop retained the supervisor PID file'

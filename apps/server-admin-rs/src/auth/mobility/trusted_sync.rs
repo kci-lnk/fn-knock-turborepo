@@ -6,7 +6,7 @@ pub async fn sync_browser_session_ip(
     client_ip: &str,
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
-    let Some(session) = state.store.get_session(session_id).await? else {
+    let Some(session) = state.storage.store.get_session(session_id).await? else {
         return Ok(None);
     };
     sync_browser_session_ip_current(state, session_id, &session, client_ip, source).await
@@ -19,7 +19,7 @@ pub(crate) async fn sync_browser_session_ip_with_session(
     client_ip: &str,
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_client_ip.is_empty() {
@@ -50,7 +50,7 @@ pub(crate) async fn sync_browser_session_ip_with_session(
         return Ok(Some(session.clone()));
     }
 
-    let Some(live_session) = state.store.get_session(session_id).await? else {
+    let Some(live_session) = state.storage.store.get_session(session_id).await? else {
         return Ok(None);
     };
     sync_browser_session_ip_current(
@@ -70,7 +70,7 @@ async fn sync_browser_session_ip_current(
     client_ip: &str,
     source: &str,
 ) -> anyhow::Result<Option<LoginSession>> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_client_ip.is_empty() {
@@ -116,6 +116,7 @@ async fn sync_browser_session_ip_current(
         session.clone()
     } else {
         let Some(updated) = state
+            .storage
             .store
             .update_session_value(session_id, updates)
             .await?
@@ -142,6 +143,7 @@ async fn sync_browser_session_ip_current(
             next_ip_location.as_deref(),
         );
         if !state
+            .storage
             .store
             .append_auth_mobility_timeline_event(
                 session_id,
@@ -230,7 +232,7 @@ pub(super) async fn refresh_proxy_session_binding(
     session_id: &str,
     client_ip: &str,
 ) -> anyhow::Result<()> {
-    let Some(session) = state.store.get_session(session_id).await? else {
+    let Some(session) = state.storage.store.get_session(session_id).await? else {
         return Ok(());
     };
     let normalized_ip = normalized_or_trimmed_ip(client_ip);
@@ -238,6 +240,7 @@ pub(super) async fn refresh_proxy_session_binding(
         return Ok(());
     }
     let binding = state
+        .storage
         .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
@@ -264,6 +267,7 @@ pub(super) async fn refresh_proxy_session_binding(
             whitelist_record_id,
         );
         if !state
+            .storage
             .store
             .save_auth_mobility_binding_keep_ttl(
                 "proxy-session",
@@ -286,7 +290,7 @@ pub(super) async fn refresh_proxy_session_binding(
         return Ok(());
     }
 
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     if settings.session_ip_mobility_enabled {
         sync_browser_session_ip_current(
@@ -314,24 +318,32 @@ pub(super) async fn refresh_app_token_binding(
     }
 
     let mut binding = state
+        .storage
         .store
         .get_auth_mobility_binding(subject_type, subject_key)
         .await?;
 
     if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
-        let Some(session) = state.store.get_session(session_id).await? else {
+        let Some(session) = state.storage.store.get_session(session_id).await? else {
             return Ok(());
         };
         if let Some(existing_owner_id) = binding.as_ref().and_then(binding_owner_session_id)
             && existing_owner_id != session_id
         {
-            if state.store.get_session(&existing_owner_id).await?.is_some() {
+            if state
+                .storage
+                .store
+                .get_session(&existing_owner_id)
+                .await?
+                .is_some()
+            {
                 return Ok(());
             }
             if let Some(mut orphaned) = binding.take() {
                 clear_binding_owner_session(&mut orphaned);
                 set_binding_last_seen(&mut orphaned);
                 if !state
+                    .storage
                     .store
                     .save_auth_mobility_orphaned_binding(
                         subject_type,
@@ -365,6 +377,7 @@ pub(super) async fn refresh_app_token_binding(
             None,
         );
         if !state
+            .storage
             .store
             .save_auth_mobility_owned_binding(
                 subject_type,
@@ -382,7 +395,7 @@ pub(super) async fn refresh_app_token_binding(
     }
 
     if let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id) {
-        if let Some(owner_session) = state.store.get_session(&owner_session_id).await? {
+        if let Some(owner_session) = state.storage.store.get_session(&owner_session_id).await? {
             let expire_at = parse_iso_unix(owner_session.expires_at.as_deref());
             let Some(ttl_seconds) = resolve_proxy_session_ttl(expire_at) else {
                 return Ok(());
@@ -408,6 +421,7 @@ pub(super) async fn refresh_app_token_binding(
                 whitelist_record_id,
             );
             if !state
+                .storage
                 .store
                 .save_auth_mobility_owned_binding(
                     subject_type,
@@ -427,6 +441,7 @@ pub(super) async fn refresh_app_token_binding(
             clear_binding_owner_session(&mut orphaned);
             set_binding_last_seen(&mut orphaned);
             if !state
+                .storage
                 .store
                 .save_auth_mobility_orphaned_binding(
                     subject_type,
@@ -461,6 +476,7 @@ pub(super) async fn refresh_app_token_binding(
         None,
     );
     if !state
+        .storage
         .store
         .save_auth_mobility_owned_binding(
             subject_type,

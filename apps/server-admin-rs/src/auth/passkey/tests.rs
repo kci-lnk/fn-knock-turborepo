@@ -161,6 +161,7 @@ async fn passkey_bind_token_rejects_expired_session_and_clears_all_cookie_scopes
     let (_directory, state) = passkey_test_state("expired-bind-session").await;
     let session_id = "expired-passkey-bind-session";
     state
+        .storage
         .store
         .add_session(
             session_id,
@@ -177,6 +178,7 @@ async fn passkey_bind_token_rejects_expired_session_and_clears_all_cookie_scopes
     assert_passkey_session_clear_cookie_scopes(&response);
     assert!(
         state
+            .storage
             .store
             .get_session(session_id)
             .await
@@ -204,6 +206,7 @@ async fn passkey_bind_status_returns_account_credentials_without_a_bind_token() 
     let (_directory, state) = passkey_test_state("bind-status").await;
     let session_id = "valid-passkey-bind-session";
     state
+        .storage
         .store
         .add_session(
             session_id,
@@ -213,6 +216,7 @@ async fn passkey_bind_status_returns_account_credentials_without_a_bind_token() 
         .await
         .expect("passkey bind session fixture");
     state
+        .storage
         .store
         .add_passkey(&json!({
             "id": "current-account-passkey",
@@ -221,6 +225,7 @@ async fn passkey_bind_status_returns_account_credentials_without_a_bind_token() 
         .await
         .expect("current account passkey fixture");
     state
+        .storage
         .store
         .add_passkey(&json!({
             "id": "other-account-passkey",
@@ -254,6 +259,7 @@ async fn passkey_bind_status_identifies_the_passkey_used_by_the_current_session(
     session.method = AuthMethod::Passkey.as_session_str().to_string();
     session.credential_id = "current-session-passkey".to_string();
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -744,6 +750,7 @@ async fn passkey_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     settings.internal_rpc_token = format!("passkey-{name}-test");
     let state = AppState::new(settings).await.expect("passkey test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "run_type": 3,

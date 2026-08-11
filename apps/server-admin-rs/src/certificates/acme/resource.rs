@@ -1,4 +1,13 @@
 use super::*;
+use utoipa_axum::{router::OpenApiRouter, routes};
+
+pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(resource_status))
+        .routes(routes!(initialize_resource))
+        .routes(routes!(cancel_resource_initialization))
+        .routes(routes!(delete_resource))
+}
 
 const RUST_ACMESH_EXECUTABLE: &str = "rust-acmesh.exe";
 
@@ -40,6 +49,7 @@ pub(super) fn rust_acmesh_executable_path() -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/resource/status", tag = "acme", responses((status = 200, description = "ACME resource status")))]
 pub(super) async fn resource_status(State(state): State<AppState>) -> Response {
     if crate::runtime_profile::deployment_target(&state) != "windows" {
         return response::ok(json!({
@@ -74,6 +84,7 @@ pub(super) async fn resource_status(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/resource/initialize", tag = "acme", responses((status = 200, description = "Initialized ACME resource")))]
 pub(super) async fn initialize_resource(State(state): State<AppState>) -> Response {
     if crate::runtime_profile::deployment_target(&state) != "windows" {
         return response::error(
@@ -91,10 +102,12 @@ pub(super) async fn initialize_resource(State(state): State<AppState>) -> Respon
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/resource/cancel", tag = "acme", responses((status = 200, description = "Cancelled ACME resource initialization")))]
 pub(super) async fn cancel_resource_initialization() -> Response {
     response::ok(json!({ "cancelRequested": false, "bundled": true })).into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/acme/resource", tag = "acme", responses((status = 200, description = "Deleted ACME resource")))]
 pub(super) async fn delete_resource(State(_state): State<AppState>) -> Response {
     response::error(
         StatusCode::BAD_REQUEST,

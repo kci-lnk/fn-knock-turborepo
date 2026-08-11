@@ -14,7 +14,7 @@ pub(super) async fn ensure_frpc_supervisor(
     state: &AppState,
     meta: &FrpcInstanceMeta,
 ) -> FrpcResult<SupervisorHandle> {
-    let runtime = read_runtime(&state.store, &meta.id).await?;
+    let runtime = read_runtime(&state.storage.store, &meta.id).await?;
     let mut initial = runtime.supervisor;
     initial.desired_running = runtime.desired_running;
     initial.pid = runtime.pid.or(initial.pid);
@@ -34,7 +34,8 @@ pub(super) async fn ensure_frpc_supervisor(
         secrets: std::sync::RwLock::new(secrets),
     });
     Ok(state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .ensure(adapter, initial, state.shutdown.clone())
         .await)
 }
@@ -48,7 +49,7 @@ struct FrpcProcessAdapter {
 
 impl FrpcProcessAdapter {
     async fn current_meta(&self) -> FrpcInstanceMeta {
-        read_meta(&self.state.store, &self.state, &self.meta.id)
+        read_meta(&self.state.storage.store, &self.state, &self.meta.id)
             .await
             .ok()
             .flatten()
@@ -88,7 +89,7 @@ impl TunnelProcessAdapter for FrpcProcessAdapter {
     }
 
     async fn find_existing_pid(&self) -> Option<u32> {
-        let runtime = read_runtime(&self.state.store, &self.meta.id)
+        let runtime = read_runtime(&self.state.storage.store, &self.meta.id)
             .await
             .ok()
             .unwrap_or_else(default_runtime);
@@ -100,7 +101,7 @@ impl TunnelProcessAdapter for FrpcProcessAdapter {
     }
 
     async fn persist_snapshot(&self, snapshot: &SupervisorSnapshot) -> Result<(), String> {
-        let mut runtime = read_runtime(&self.state.store, &self.meta.id)
+        let mut runtime = read_runtime(&self.state.storage.store, &self.meta.id)
             .await
             .map_err(|error| error.to_string())?;
         let previous_runtime = runtime.clone();
@@ -118,11 +119,12 @@ impl TunnelProcessAdapter for FrpcProcessAdapter {
         };
         runtime.last_message = snapshot.last_message.clone();
         runtime.supervisor = snapshot.clone();
-        write_runtime(&self.state.store, &self.meta.id, &runtime)
+        write_runtime(&self.state.storage.store, &self.meta.id, &runtime)
             .await
             .map_err(|error| error.to_string())?;
         if let Err(error) = update_aggregate_tunnel_state(&self.state).await {
-            let rollback = write_runtime(&self.state.store, &self.meta.id, &previous_runtime).await;
+            let rollback =
+                write_runtime(&self.state.storage.store, &self.meta.id, &previous_runtime).await;
             return Err(match rollback {
                 Ok(()) => error.to_string(),
                 Err(rollback_error) => {
@@ -328,7 +330,8 @@ async fn handle_frpc_runtime_signal(
     };
     let normalized = message.to_ascii_lowercase();
     let pid = state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .get(&supervisor_key(&meta.id))
         .await
         .and_then(|handle| handle.snapshot().pid);
@@ -393,7 +396,8 @@ async fn emit_frpc_connectivity_with_state(
     let meta = meta.clone();
     let connection = Arc::clone(connection);
     let shutdown = state.shutdown.clone();
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("frpc-disconnect-confirmation", async move {
         tokio::select! {
             _ = tokio::time::sleep_until(timer.deadline) => {}
             _ = timer.cancelled() => return,
@@ -405,7 +409,7 @@ async fn emit_frpc_connectivity_with_state(
             return;
         };
         publish_frpc_connectivity_event(
-            &state,
+            &task_state,
             &meta,
             false,
             disconnected.pid,

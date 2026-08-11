@@ -22,10 +22,10 @@ use crate::{
     http_utils::get_client_ip,
     i18n::{DEFAULT_LOCALE, Translator},
     oidc_admin::{
-        OIDC_HTTP_USER_AGENT, oidc_consume_invite, oidc_consume_login_error_notice,
-        oidc_consume_state, oidc_get_binding_by_subject, oidc_get_provider, oidc_inspect_invite,
-        oidc_provider_ready_with_translator, oidc_save_binding,
-        oidc_save_binding_if_subject_available, oidc_save_login_error_notice, oidc_save_state,
+        OIDC_HTTP_USER_AGENT, oidc_claim_binding_and_consume_invite,
+        oidc_consume_login_error_notice, oidc_consume_state, oidc_get_binding_by_subject,
+        oidc_get_provider, oidc_inspect_invite, oidc_provider_ready_with_translator,
+        oidc_save_login_error_notice, oidc_save_state, oidc_update_binding_if_owned,
         resolve_discovery_with_translator,
     },
     response::{self, ApiEnvelope},
@@ -37,7 +37,7 @@ const OIDC_STATE_TTL_SECONDS: usize = 10 * 60;
 const LOGIN_ERROR_TTL_SECONDS: usize = 5 * 60;
 
 async fn ensure_oidc_login_mode(state: &AppState, translator: &Translator) -> Result<(), String> {
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => Ok(()),
         Ok(_) => Err(oidc_text(translator, "loginMethodUnavailable")),
         Err(error) => {

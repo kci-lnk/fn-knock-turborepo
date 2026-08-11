@@ -1,187 +1,63 @@
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 import { apiClient } from "./client";
-import type { DDNSDomainTargetsCapability } from "../ddns-domain";
 
-export type DDNSLogEntry = {
-  time: string;
-  level: "info" | "error" | "warn";
-  message: string;
-};
+type DdnsSchemas = ApiContractComponents["schemas"];
 
-export type DDNSIpSource = "public" | "interface" | "static" | "domain";
-export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
-export type DDNSHttpTransport = "curl" | "node";
+export type DDNSLogEntry = DdnsSchemas["DdnsLogEntryData"];
+export type DDNSStatusPayload = DdnsSchemas["DdnsStatusData"];
+export type DDNSSettingsPayload = DdnsSchemas["DdnsSettingsData"];
+export type DDNSSettingsUpdatePayload =
+  DdnsSchemas["DdnsSettingsUpdateData"];
+export type DDNSTargetSummaryPayload =
+  DdnsSchemas["DdnsTargetSummaryData"];
+export type DDNSTargetDetailPayload =
+  DdnsSchemas["DdnsTargetDetailData"];
+export type DDNSTargetListPayload = DdnsSchemas["DdnsTargetListData"];
+export type DDNSNetworkInterfaceAddress =
+  DdnsSchemas["DdnsNetworkInterfaceAddressData"];
+export type DDNSNetworkInterfacePayload =
+  DdnsSchemas["DdnsNetworkInterfaceData"];
+export type DDNSInterfaceSelector =
+  DdnsSchemas["DdnsInterfaceSelectorData"];
+export type DDNSInterfaceSelectorPreviewPayload =
+  DdnsSchemas["DdnsInterfaceSelectorPreviewData"];
+export type DDNSPollPayload = DdnsSchemas["DdnsPollData"];
+export type DDNSProviderCapabilities =
+  DdnsSchemas["DdnsProviderCapabilitiesData"];
+export type DDNSPublicCheckSourcesPayload =
+  DdnsSchemas["DdnsPublicCheckSourcesData"];
+export type DDNSPublicCheckTestResultPayload =
+  DdnsSchemas["DdnsPublicCheckTestResultData"];
+export type DDNSIpSource = DDNSStatusPayload["ipSource"];
+export type DDNSUpdateScope = DDNSStatusPayload["updateScope"];
+export type DDNSHttpTransport = DDNSSettingsPayload["httpTransport"];
 export type DDNSPublicDnsProvider =
-  | "none"
-  | "alidns"
-  | "tencent"
-  | "cloudflare"
-  | "google";
+  DDNSSettingsPayload["publicDnsProvider"];
+export type DDNSPublicCheckFamily =
+  DDNSPublicCheckTestResultPayload["family"];
 
-export type DDNSProviderCapabilities = {
-  addressMode?: "dual_stack" | "single_address";
-  ipSources?: DDNSIpSource[];
-  domainTargets?: DDNSDomainTargetsCapability;
-};
-
-export type DDNSPublicCheckFamily = "ipv4" | "ipv6";
-
-export type DDNSPublicCheckSourcesPayload = Record<
-  DDNSPublicCheckFamily,
-  string[]
+type DdnsPublicCheckTestBody =
+  DdnsSchemas["DdnsPublicCheckTestBodyData"];
+type DdnsPublicCheckTestResults =
+  DdnsSchemas["DdnsPublicCheckTestResultsData"];
+type DdnsProvider = DdnsSchemas["DdnsProviderData"];
+type DdnsInterfaceSelectorPreviewBody =
+  DdnsSchemas["DdnsInterfaceSelectorPreviewBodyData"];
+type DdnsProviderBody = DdnsSchemas["DdnsProviderBodyData"];
+type DdnsConfig = DdnsSchemas["DdnsConfigData"];
+type DdnsConfigBody = DdnsSchemas["DdnsConfigBodyData"];
+type DdnsTargetBody = DdnsSchemas["DdnsTargetBodyData"];
+type DdnsTargetEnabledBody = DdnsSchemas["DdnsTargetEnabledBodyData"];
+type DdnsTestResponse = DdnsSchemas["DdnsTestResponseData"];
+type DdnsLogsQuery = NonNullable<
+  ApiContractOperations["get_api_admin_ddns_logs"]["parameters"]["query"]
 >;
-
-export type DDNSPublicCheckTestResultPayload = {
-  family: DDNSPublicCheckFamily;
-  url: string;
-  success: boolean;
-  status: number | null;
-  ip: string | null;
-  responsePreview?: string;
-  error?: string;
-};
-
-export type DDNSStatusPayload = {
-  enabled: boolean;
-  provider: string | null;
-  updateIntervalMinutes: number;
-  publicCheckSources: DDNSPublicCheckSourcesPayload;
-  defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
-  httpTransport: DDNSHttpTransport;
-  publicDnsProvider: DDNSPublicDnsProvider;
-  updateScope: DDNSUpdateScope;
-  ipSource: DDNSIpSource;
-  networkInterface: string;
-  lastIP: {
-    ipv4: string | null;
-    ipv6: string | null;
-    updated_at: string | null;
-  };
-  selectionAnchor: {
-    ipv4: string | null;
-    ipv6: string | null;
-    updated_at: string | null;
-  };
-  lastCheck: {
-    checked_at: string | null;
-    outcome: "updated" | "noop" | "skipped" | "error" | null;
-    message: string | null;
-  };
-  primaryTargetId: string | null;
-  extraTargetCount: number;
-  enabledExtraTargetCount: number;
-  targets: DDNSTargetSummaryPayload[];
-};
-
-export type DDNSSettingsPayload = {
-  updateIntervalMinutes: number;
-  publicCheckSources: DDNSPublicCheckSourcesPayload;
-  defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
-  httpTransport: DDNSHttpTransport;
-  publicDnsProvider: DDNSPublicDnsProvider;
-};
-
-export type DDNSSettingsUpdatePayload = Partial<
-  Pick<
-    DDNSSettingsPayload,
-    | "updateIntervalMinutes"
-    | "publicCheckSources"
-    | "httpTransport"
-    | "publicDnsProvider"
-  >
+type DdnsPollQuery = NonNullable<
+  ApiContractOperations["get_api_admin_ddns_poll"]["parameters"]["query"]
 >;
-
-export type DDNSTargetSummaryPayload = {
-  id: string;
-  name: string;
-  isPrimary: boolean;
-  enabled: boolean;
-  provider: string | null;
-  updateScope: DDNSUpdateScope;
-  providerLabel: string;
-  domainSummary: string;
-  createdAt: string;
-  updatedAt: string;
-  sortOrder: number;
-  lastIP: {
-    ipv4: string | null;
-    ipv6: string | null;
-    updated_at: string | null;
-  };
-  selectionAnchor: {
-    ipv4: string | null;
-    ipv6: string | null;
-    updated_at: string | null;
-  };
-  lastCheck: {
-    checked_at: string | null;
-    outcome: "updated" | "noop" | "skipped" | "error" | null;
-    message: string | null;
-  };
-};
-
-export type DDNSTargetDetailPayload = DDNSTargetSummaryPayload & {
-  rawName?: string;
-  config: Record<string, string>;
-};
-
-export type DDNSTargetListPayload = {
-  primaryTargetId: string | null;
-  total: number;
-  extraCount: number;
-  enabledExtraCount: number;
-  items: DDNSTargetSummaryPayload[];
-};
-
-export type DDNSNetworkInterfaceAddress = {
-  family: "ipv4" | "ipv6";
-  address: string;
-  cidr: string | null;
-  prefixLength?: number | null;
-  internal: boolean;
-  source?: "runtime" | "docker_host";
-  temporary?: boolean | null;
-  deprecated?: boolean | null;
-  tentative?: boolean | null;
-  dadFailed?: boolean | null;
-};
-
-export type DDNSNetworkInterfacePayload = {
-  name: string;
-  label: string;
-  summary: string;
-  hasIpv4: boolean;
-  hasIpv6: boolean;
-  addresses: DDNSNetworkInterfaceAddress[];
-  selectableAddresses: DDNSNetworkInterfaceAddress[];
-  privateAddresses: DDNSNetworkInterfaceAddress[];
-  source?: "runtime" | "docker_host";
-};
-
-export type DDNSInterfaceSelector = {
-  version: 1;
-  mode: "auto" | "rules";
-  preferredAddress?: string;
-  includeCidrs?: string[];
-  excludeCidrs?: string[];
-  ipv6InterfaceId?: string;
-  allowTemporary: boolean;
-};
-
-export type DDNSInterfaceSelectorPreviewPayload = {
-  selectedAddress: string | null;
-  matchedAddresses: DDNSNetworkInterfacePayload["selectableAddresses"];
-  rejectedAddresses: Array<{ address: string | null; reasons: string[] }>;
-  reason: "current" | "preferred" | "ranked" | "no_match";
-  warnings: Array<"multiple_matches" | "status_unknown">;
-  selector: DDNSInterfaceSelector;
-};
-
-export type DDNSPollPayload = {
-  cursor: number;
-  reset: boolean;
-  logs: DDNSLogEntry[];
-  status: DDNSStatusPayload;
-};
 
 export const DDNSAPI = {
   async getStatus(): Promise<DDNSStatusPayload> {
@@ -189,7 +65,8 @@ export const DDNSAPI = {
     return res.data.data;
   },
   async toggle(enabled: boolean): Promise<void> {
-    await apiClient.post("/ddns/toggle", { enabled });
+    const payload = { enabled } satisfies DdnsSchemas["DdnsToggleBodyData"];
+    await apiClient.post("/ddns/toggle", payload);
   },
   async getSettings(): Promise<DDNSSettingsPayload> {
     const res = await apiClient.get("/ddns/settings");
@@ -208,29 +85,15 @@ export const DDNSAPI = {
       publicDnsProvider?: DDNSPublicDnsProvider;
       networkInterface?: string;
     } = {},
-  ): Promise<{ results: DDNSPublicCheckTestResultPayload[] }> {
-    const res = await apiClient.post("/ddns/public-check/test", {
+  ): Promise<DdnsPublicCheckTestResults> {
+    const payload = {
       publicCheckSources,
       ...options,
-    });
+    } satisfies DdnsPublicCheckTestBody;
+    const res = await apiClient.post("/ddns/public-check/test", payload);
     return res.data.data;
   },
-  async getProviders(): Promise<
-    Array<{
-      name: string;
-      label: string;
-      fields: Array<{
-        key: string;
-        label: string;
-        type: string;
-        placeholder?: string;
-        required?: boolean;
-        options?: Array<{ label: string; value: string }>;
-        description?: string;
-      }>;
-      capabilities?: DDNSProviderCapabilities;
-    }>
-  > {
+  async getProviders(): Promise<DdnsProvider[]> {
     const res = await apiClient.get("/ddns/providers");
     return res.data.data;
   },
@@ -239,13 +102,7 @@ export const DDNSAPI = {
     return res.data.data;
   },
   async resolveInterfaceSelector(
-    payload: {
-      networkInterface: string;
-      family: "ipv4" | "ipv6";
-      selector: DDNSInterfaceSelector;
-      currentAddress?: string | null;
-      allowPrivateAddresses?: boolean;
-    },
+    payload: DdnsInterfaceSelectorPreviewBody,
     signal?: AbortSignal,
   ): Promise<DDNSInterfaceSelectorPreviewPayload> {
     const res = await apiClient.post("/ddns/interfaces/resolve", payload, {
@@ -254,32 +111,31 @@ export const DDNSAPI = {
     return res.data.data;
   },
   async setProvider(provider: string): Promise<void> {
-    await apiClient.post("/ddns/provider", { provider });
+    const payload = {
+      provider: provider as DdnsProviderBody["provider"],
+    } satisfies DdnsProviderBody;
+    await apiClient.post("/ddns/provider", payload);
   },
   async getConfig(provider: string): Promise<Record<string, string>> {
     const res = await apiClient.get(
       `/ddns/config/${encodeURIComponent(provider)}`,
     );
-    return res.data.data;
+    const data: DdnsConfig = res.data.data;
+    return data;
   },
   async saveConfig(
     provider: string,
     config: Record<string, string>,
   ): Promise<void> {
-    await apiClient.post(`/ddns/config/${encodeURIComponent(provider)}`, {
+    const payload = {
       config,
-    });
+    } satisfies DdnsConfigBody;
+    await apiClient.post(
+      `/ddns/config/${encodeURIComponent(provider)}`,
+      payload,
+    );
   },
-  async test(): Promise<{
-    success: boolean;
-    message: string;
-    data?: {
-      ipv4: string | null;
-      ipv6: string | null;
-      source?: DDNSIpSource;
-      sourceLabel?: string;
-    };
-  }> {
+  async test(): Promise<DdnsTestResponse> {
     const res = await apiClient.post("/ddns/test");
     return res.data;
   },
@@ -297,7 +153,11 @@ export const DDNSAPI = {
     enabled?: boolean;
     config: Record<string, string>;
   }): Promise<DDNSTargetDetailPayload> {
-    const res = await apiClient.post("/ddns/targets", payload);
+    const body = {
+      ...payload,
+      provider: payload.provider as DdnsTargetBody["provider"],
+    } satisfies DdnsTargetBody;
+    const res = await apiClient.post("/ddns/targets", body);
     return res.data.data;
   },
   async updateTarget(
@@ -309,9 +169,13 @@ export const DDNSAPI = {
       config: Record<string, string>;
     },
   ): Promise<DDNSTargetDetailPayload> {
+    const body = {
+      ...payload,
+      provider: payload.provider as DdnsTargetBody["provider"],
+    } satisfies DdnsTargetBody;
     const res = await apiClient.put(
       `/ddns/targets/${encodeURIComponent(id)}`,
-      payload,
+      body,
     );
     return res.data.data;
   },
@@ -319,35 +183,34 @@ export const DDNSAPI = {
     await apiClient.delete(`/ddns/targets/${encodeURIComponent(id)}`);
   },
   async setTargetEnabled(id: string, enabled: boolean): Promise<void> {
-    await apiClient.post(`/ddns/targets/${encodeURIComponent(id)}/enabled`, {
+    const payload = {
       enabled,
-    });
+    } satisfies DdnsTargetEnabledBody;
+    await apiClient.post(
+      `/ddns/targets/${encodeURIComponent(id)}/enabled`,
+      payload,
+    );
   },
-  async testTarget(id: string): Promise<{
-    success: boolean;
-    message: string;
-    data?: {
-      ipv4: string | null;
-      ipv6: string | null;
-      source?: DDNSIpSource;
-      sourceLabel?: string;
-    };
-  }> {
+  async testTarget(id: string): Promise<DdnsTestResponse> {
     const res = await apiClient.post(
       `/ddns/targets/${encodeURIComponent(id)}/test`,
     );
     return res.data;
   },
   async getLogs(limit = 200): Promise<DDNSLogEntry[]> {
-    const res = await apiClient.get("/ddns/logs", { params: { limit } });
+    const params = { limit } satisfies DdnsLogsQuery;
+    const res = await apiClient.get("/ddns/logs", { params });
     return res.data.data;
   },
   async clearLogs(): Promise<void> {
     await apiClient.delete("/ddns/logs");
   },
   async poll(cursor?: number): Promise<DDNSPollPayload> {
+    const params = (
+      typeof cursor === "number" ? { cursor } : undefined
+    ) satisfies DdnsPollQuery | undefined;
     const res = await apiClient.get("/ddns/poll", {
-      params: typeof cursor === "number" ? { cursor } : undefined,
+      params,
     });
     return res.data.data;
   },

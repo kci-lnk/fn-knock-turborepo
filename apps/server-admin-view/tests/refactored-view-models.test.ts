@@ -443,7 +443,7 @@ describe("FRP instance model", () => {
   it("replaces one polled instance and recalculates the running count", () => {
     const overview: FrpcInstancesOverview = {
       initialized: true,
-      platform: "linux",
+      platform: "linux-amd64",
       primaryInstanceId: "primary",
       total: 2,
       extraCount: 1,

@@ -135,7 +135,7 @@ pub(crate) async fn run_with_settings(
     // The migration validates CIDR-bearing candidates, but even an empty
     // policy table can contain Host fields that require the matching gateway.
     // Publish the complete generation before listeners and readiness open.
-    let startup_config = state.store.get_config().await?;
+    let startup_config = state.storage.store.get_config().await?;
     crate::proxy_config::sync_go_host_rules_for_config_locked(&state, &startup_config)
         .await
         .map_err(anyhow::Error::msg)?;
@@ -176,7 +176,10 @@ pub(crate) async fn run_with_settings(
     if capabilities.ssh_security_available {
         start_ssh_security_tasks(state.clone());
     }
-    memory::trim_allocated_memory_after(Duration::from_secs(45));
+    state.spawn_background(
+        "startup-allocator-memory-trim",
+        memory::trim_allocated_memory_after(Duration::from_secs(45)),
+    );
 
     let backend_addr = settings.backend_addr()?;
     let auth_addr = settings.auth_addr()?;
@@ -247,17 +250,43 @@ pub(crate) async fn run_with_settings(
     if let Err(error) = readiness {
         runtime_shutdown.cancel();
         state
+            .shutdown_background_tasks(Duration::from_secs(10))
+            .await;
+        state
             .runtime_health
             .wait_stopped(Duration::from_secs(5))
             .await;
         state
-            .tunnel_supervisors
+            .tunnel
+            .supervisors
             .shutdown_all(Duration::from_secs(10))
             .await;
         stop_auth_bridge(auth_bridge).await;
         if let Some(path) = &readiness_marker {
             let _ = tokio::fs::remove_file(path).await;
         }
+        stop_runtime_logging(&state).await;
+        return Err(error);
+    }
+    if let Err(error) = state.runtime_health.mark_session_ready(&state).await {
+        runtime_shutdown.cancel();
+        state
+            .shutdown_background_tasks(Duration::from_secs(10))
+            .await;
+        state
+            .runtime_health
+            .wait_stopped(Duration::from_secs(5))
+            .await;
+        state
+            .tunnel
+            .supervisors
+            .shutdown_all(Duration::from_secs(10))
+            .await;
+        stop_auth_bridge(auth_bridge).await;
+        if let Some(path) = &readiness_marker {
+            let _ = tokio::fs::remove_file(path).await;
+        }
+        stop_runtime_logging(&state).await;
         return Err(error);
     }
     if let Some(path) = &readiness_marker {
@@ -269,18 +298,33 @@ pub(crate) async fn run_with_settings(
     let result = servers.await;
     runtime_shutdown.cancel();
     state
+        .shutdown_background_tasks(Duration::from_secs(10))
+        .await;
+    state
         .runtime_health
         .wait_stopped(Duration::from_secs(5))
         .await;
     state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .shutdown_all(Duration::from_secs(10))
         .await;
     stop_auth_bridge(auth_bridge).await;
     if let Some(path) = &readiness_marker {
         let _ = tokio::fs::remove_file(path).await;
     }
+    stop_runtime_logging(&state).await;
     result
+}
+
+async fn stop_runtime_logging(state: &AppState) {
+    if !state
+        .runtime_health
+        .shutdown_operational_log(Duration::from_secs(5))
+        .await
+    {
+        tracing::warn!("diagnostic log writer did not stop within the shutdown deadline");
+    }
 }
 
 async fn stop_auth_bridge(mut auth_bridge: tokio::task::JoinHandle<()>) {
@@ -320,12 +364,13 @@ async fn wait_for_gateway_control_plane(
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let process_ready = state
-            .go_backend
+            .gateway
+            .client
             .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
             .await
             .unwrap_or(false);
         if process_ready {
-            match state.go_backend.verify_bundle_compatibility().await {
+            match state.gateway.client.verify_bundle_compatibility().await {
                 Ok(_) => return Ok(()),
                 Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
                     tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
@@ -353,22 +398,25 @@ async fn wait_for_gateway(
     let deadline = timeout.map(|timeout| tokio::time::Instant::now() + timeout);
     loop {
         let process_ready = state
-            .go_backend
+            .gateway
+            .client
             .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
             .await
             .unwrap_or(false);
         let dataplane_ready = state
-            .go_backend
+            .gateway
+            .client
             .health_serving(crate::go_backend::GATEWAY_HEALTH_DATAPLANE)
             .await
             .unwrap_or(false);
         let auth_bridge_ready = state
-            .go_backend
+            .gateway
+            .client
             .health_serving(crate::go_backend::GATEWAY_HEALTH_AUTH_BRIDGE)
             .await
             .unwrap_or(false);
         let bundle_ready = if process_ready {
-            match state.go_backend.verify_bundle_compatibility().await {
+            match state.gateway.client.verify_bundle_compatibility().await {
                 Ok(_) => true,
                 Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
                     tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");

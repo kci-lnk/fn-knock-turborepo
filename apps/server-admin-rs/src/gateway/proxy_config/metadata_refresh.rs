@@ -59,7 +59,9 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
     mappings: Vec<Value>,
     previous_mappings: Vec<Value>,
 ) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("host-mapping-metadata-refresh", async move {
+        let state = task_state;
         let (items, summary) =
             enrich_host_mapping_metadata_for_save(mappings, previous_mappings).await;
         tracing::debug!(
@@ -72,7 +74,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             return;
         }
 
-        let _update_guard = state.host_mappings_update_lock.lock().await;
+        let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
         let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
             Ok(Some(lease)) => lease,
             Ok(None) => {
@@ -86,7 +88,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
                 return;
             }
         };
-        let current_config = match state.store.get_config().await {
+        let current_config = match state.storage.store.get_config().await {
             Ok(config) => config,
             Err(error) => {
                 tracing::warn!(
@@ -120,8 +122,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             }
         }
 
-        let next_config = match state
-            .store
+        let next_config = match state.storage.store
             .compare_and_set_host_mappings(&current_mappings, &next_mappings)
             .await
         {
@@ -142,8 +143,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
         };
         if let Err(error) = transaction_lease.ensure_owned().await {
             tracing::warn!(%error, "host mappings transaction lease was lost before metadata runtime sync");
-            let _ = state
-                .store
+            let _ = state.storage.store
                 .compare_and_set_host_mappings(&next_mappings, &current_mappings)
                 .await;
             return;

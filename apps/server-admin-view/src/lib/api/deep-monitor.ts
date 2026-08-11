@@ -1,9 +1,19 @@
+import type { DeepMonitorEvent, DeepMonitorSession } from "../../types";
 import type {
-  DeepMonitorEvent,
-  DeepMonitorEventSummary,
-  DeepMonitorSession,
-} from "../../types";
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 import { adminApiBasePath, apiClient } from "./client";
+
+type DeepMonitorSchemas = ApiContractComponents["schemas"];
+type DeepMonitorStartRequest = DeepMonitorSchemas["DeepMonitorStartBodyData"];
+type DeepMonitorExtendRequest = DeepMonitorSchemas["DeepMonitorExtendBodyData"];
+type DeepMonitorEventList = DeepMonitorSchemas["DeepMonitorEventListData"];
+type DeepMonitorEventsQuery = NonNullable<
+  ApiContractOperations["get_api_admin_deep_monitor_sessions__session_id__events"]["parameters"]["query"]
+>;
+type DeepMonitorPayloadQuery =
+  ApiContractOperations["get_api_admin_deep_monitor_sessions__session_id__events__event_id__payload"]["parameters"]["query"];
 
 const sessionPath = (sessionId: string) =>
   `/deep-monitor/sessions/${encodeURIComponent(sessionId)}`;
@@ -17,10 +27,7 @@ export const DeepMonitorAPI = {
     const res = await apiClient.get(sessionPath(sessionId));
     return res.data.data;
   },
-  async start(payload: {
-    host: string;
-    duration_seconds: number;
-  }): Promise<DeepMonitorSession> {
+  async start(payload: DeepMonitorStartRequest): Promise<DeepMonitorSession> {
     const res = await apiClient.post("/deep-monitor/sessions", payload);
     return res.data.data;
   },
@@ -30,7 +37,7 @@ export const DeepMonitorAPI = {
   ): Promise<DeepMonitorSession> {
     const res = await apiClient.post(`${sessionPath(sessionId)}/extend`, {
       duration_seconds: durationSeconds,
-    });
+    } satisfies DeepMonitorExtendRequest);
     return res.data.data;
   },
   async stop(sessionId: string): Promise<DeepMonitorSession> {
@@ -42,23 +49,8 @@ export const DeepMonitorAPI = {
   },
   async events(
     sessionId: string,
-    params: {
-      cursor?: string;
-      limit?: number;
-      type?: string;
-      search?: string;
-      direction?: string;
-      method?: string;
-      status?: number;
-      client_ip?: string;
-      identity?: string;
-      path?: string;
-    } = {},
-  ): Promise<{
-    items: DeepMonitorEventSummary[];
-    next_cursor: string;
-    has_more: boolean;
-  }> {
+    params: DeepMonitorEventsQuery = {},
+  ): Promise<DeepMonitorEventList> {
     const res = await apiClient.get(`${sessionPath(sessionId)}/events`, {
       params,
     });
@@ -77,7 +69,10 @@ export const DeepMonitorAPI = {
   ): Promise<ArrayBuffer> {
     const res = await apiClient.get(
       `${sessionPath(sessionId)}/events/${encodeURIComponent(eventId)}/payload`,
-      { params: { part, limit: 256 * 1024 }, responseType: "arraybuffer" },
+      {
+        params: { part, limit: 256 * 1024 } satisfies DeepMonitorPayloadQuery,
+        responseType: "arraybuffer",
+      },
     );
     return res.data;
   },

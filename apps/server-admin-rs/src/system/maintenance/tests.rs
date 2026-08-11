@@ -29,6 +29,7 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     let automatic_file = automatic_directory.join("preserved.knock");
     std::fs::write(&automatic_file, b"backup").expect("seed automatic backup file");
     state
+        .storage
         .store
         .set_string_value("fn_knock:test:clear-route", "value")
         .await
@@ -45,6 +46,7 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value("fn_knock:test:clear-route")
             .await
@@ -63,7 +65,15 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     )
     .await;
     assert_eq!(accepted.status(), StatusCode::OK);
-    assert!(state.store.scan_keys("", 100).await.unwrap().is_empty());
+    assert!(
+        state
+            .storage
+            .store
+            .scan_keys("", 100)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert!(automatic_file.exists());
     assert_eq!(
         load_automatic_backup_config(&state).await.unwrap()["enabled"],
@@ -75,6 +85,7 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
 async fn clear_all_data_keeps_storage_when_gateway_reset_fails() {
     let (_directory, state) = maintenance_test_state().await;
     state
+        .storage
         .store
         .set_string_value("fn_knock:test:clear-route", "value")
         .await
@@ -93,6 +104,7 @@ async fn clear_all_data_keeps_storage_when_gateway_reset_fails() {
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value("fn_knock:test:clear-route")
             .await
@@ -169,17 +181,20 @@ fn rejects_exports_that_cannot_be_imported_again() {
 async fn excluded_runtime_data_does_not_consume_the_export_budget() {
     let (_directory, state) = maintenance_test_state().await;
     state
+        .storage
         .store
         .set_string_value("fn_knock:events:large", &"x".repeat(4096))
         .await
         .unwrap();
     state
+        .storage
         .store
         .set_string_value("fn_knock:config:test", "small")
         .await
         .unwrap();
 
     let entries = state
+        .storage
         .store
         .export_backup_entries_by_prefix_limited(
             KNOCK_BACKUP_PREFIX,
@@ -715,6 +730,7 @@ async fn automatic_backup_scheduler_runs_the_first_backup_immediately() {
 async fn automatic_backup_scheduler_honors_a_persisted_future_deadline() {
     let (_directory, state) = maintenance_test_state().await;
     state
+        .storage
         .store
         .set_json_value(
             AUTOMATIC_BACKUP_CONFIG_KEY,
@@ -728,6 +744,7 @@ async fn automatic_backup_scheduler_honors_a_persisted_future_deadline() {
         .await
         .unwrap();
     state
+        .storage
         .store
         .set_json_value(
             AUTOMATIC_BACKUP_RUNTIME_KEY,
@@ -757,6 +774,7 @@ async fn automatic_backup_scheduler_honors_a_persisted_future_deadline() {
 async fn changing_the_interval_keeps_a_failed_backup_within_the_retry_cap() {
     let (_directory, state) = maintenance_test_state().await;
     state
+        .storage
         .store
         .set_json_value(
             AUTOMATIC_BACKUP_CONFIG_KEY,
@@ -770,6 +788,7 @@ async fn changing_the_interval_keeps_a_failed_backup_within_the_retry_cap() {
         .await
         .unwrap();
     state
+        .storage
         .store
         .set_json_value(
             AUTOMATIC_BACKUP_RUNTIME_KEY,
@@ -974,6 +993,7 @@ async fn failed_automatic_backup_records_an_hourly_retry() {
 async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     let (_directory, state) = maintenance_test_state().await;
     state
+        .storage
         .store
         .set_string_value("fn_knock:test:included", "original")
         .await
@@ -990,6 +1010,7 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     .await
     .unwrap();
     state
+        .storage
         .store
         .set_string_value("fn_knock:test:included", "changed")
         .await
@@ -1009,6 +1030,7 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
     assert_eq!(result["imported_keys"], json!(1));
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value("fn_knock:test:included")
             .await
@@ -1044,7 +1066,7 @@ async fn automatic_backup_waits_for_the_maintenance_mutex() {
     )
     .await
     .unwrap();
-    let guard = state.automatic_backup_lock.lock().await;
+    let guard = state.maintenance.automatic_backup_lock.lock().await;
     let worker_state = state.clone();
     let mut worker = tokio::spawn(async move { run_automatic_backup_once(&worker_state).await });
     assert!(

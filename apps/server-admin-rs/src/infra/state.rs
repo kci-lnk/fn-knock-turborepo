@@ -1,14 +1,18 @@
-use std::collections::HashMap;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use std::{collections::HashMap, future::Future, time::Duration};
 
 use anyhow::Context;
 use serde_json::Value;
-use tokio::sync::{Mutex, Notify, RwLock, broadcast, watch};
+use tokio::{
+    sync::{Mutex, Notify, RwLock, broadcast, watch},
+    task::AbortHandle,
+};
 use tokio_util::sync::CancellationToken;
 
+use super::background_tasks::BackgroundTaskRegistry;
 use crate::{
     auto_https::AutoHttpsRedirectManager,
     cidr::IpSetRegistry,
@@ -30,25 +34,22 @@ pub struct AppStateInner {
     /// Process-wide cooperative shutdown signal. Long-running background
     /// workers should observe this token instead of relying on runtime drop.
     pub shutdown: CancellationToken,
-    pub store: Store,
-    /// Atomically published, immutable CIDR sets used by request hot paths.
-    /// Storage retains semantic selections and compact policies; request
-    /// handling never reparses large CIDR arrays.
-    pub ipsets: IpSetRegistry,
-    /// Serializes rebuilding and publishing the complete whitelist policy to
-    /// the proxy snapshot and direct-mode firewall.
-    pub whitelist_runtime_sync_lock: Mutex<()>,
-    #[allow(dead_code)]
-    pub go_backend: GoBackendClient,
+    /// Tracks named application-owned tasks so shutdown can wait, report, and
+    /// abort workers that fail to observe the cancellation token.
+    pub(crate) background_tasks: BackgroundTaskRegistry,
+    /// Persistent data access and the compatibility keyspace used during the
+    /// typed SQLite repository migration.
+    pub storage: StorageState,
+    /// Go control-plane client and config/runtime transaction ownership.
+    pub gateway: GatewayState,
+    /// Security policy snapshots and mutation locks.
+    pub security: SecurityState,
     pub runtime_health: RuntimeHealth,
     pub fallback_client: reqwest::Client,
     pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
     pub acme_install_state: RwLock<Option<Value>>,
     pub ddns_schedule_reload: Notify,
-    /// Serializes CAPTCHA validation with its read-modify-write persistence so
-    /// concurrent provider or nested difficulty patches cannot be lost.
-    pub captcha_settings_update_lock: Mutex<()>,
     pub fnos_network_tuning_update_lock: Mutex<()>,
     /// Serializes the Go loopback listener, dual-stack firewall rules and
     /// persisted FN Connect WAF preference as one fail-open transaction.
@@ -58,6 +59,56 @@ pub struct AppStateInner {
     pub fnos_certificate_sync_lock: Mutex<()>,
     pub fnos_certificate_sync_notify: Notify,
     pub fnos_certificate_sync_status: RwLock<Value>,
+    /// Maintenance-owned synchronization and scheduler signals. Keeping these
+    /// together makes lock ordering and task ownership explicit at the domain
+    /// boundary instead of growing the process-wide state bag.
+    pub maintenance: MaintenanceState,
+    /// Wake-on-LAN locks, reload signals and non-secret runtime status.
+    pub wol: WolState,
+    /// Tunnel process ownership, runtime locks and Cloudflare scheduling state.
+    pub tunnel: TunnelState,
+}
+
+pub struct GatewayState {
+    #[allow(dead_code)]
+    pub client: GoBackendClient,
+    /// Serializes the host-mapping config -> Go runtime transaction, including
+    /// rollback and background metadata merges. Without this guard, two admin
+    /// requests can persist in one order and reach the runtime in another.
+    pub host_mappings_update_lock: Mutex<()>,
+    /// Serializes protocol-mapping config, its standalone feature switch,
+    /// gateway listeners, firewall rules, and rollback as one transaction.
+    pub protocol_mapping_update_lock: Mutex<()>,
+    /// Tracks whether the latest complete HostRules snapshot was accepted by
+    /// the matching Go gateway. Readiness must not hide a failed config sync.
+    config_synced: AtomicBool,
+}
+
+pub struct StorageState {
+    /// Existing Redis-compatible facade. Typed repositories will be added
+    /// beside this facade and can shadow-compare without leaking migration
+    /// details into unrelated runtime domains.
+    pub store: Store,
+}
+
+impl StorageState {
+    fn new(store: Store) -> Self {
+        Self { store }
+    }
+}
+
+impl GatewayState {
+    fn new(client: GoBackendClient) -> Self {
+        Self {
+            client,
+            host_mappings_update_lock: Mutex::new(()),
+            protocol_mapping_update_lock: Mutex::new(()),
+            config_synced: AtomicBool::new(false),
+        }
+    }
+}
+
+pub struct MaintenanceState {
     /// Serializes automatic-backup configuration, archive creation, restores,
     /// and destructive maintenance so none of them can overwrite one another.
     pub automatic_backup_lock: Mutex<()>,
@@ -68,40 +119,90 @@ pub struct AppStateInner {
     /// Wakes the automatic-backup scheduler after settings or stored data
     /// change, avoiding a polling delay after the feature is enabled.
     pub automatic_backup_notify: Notify,
-    /// Serializes the host-mapping config -> Go runtime transaction, including
-    /// rollback and background metadata merges. Without this guard, two admin
-    /// requests can persist in one order and reach the runtime in another.
-    pub host_mappings_update_lock: Mutex<()>,
-    /// Serializes WoL Relay/Target metadata with installation-bound PSK files.
-    pub wol_config_lock: Mutex<()>,
-    /// Serializes the persisted WoL feature switch with Go portal runtime sync.
-    pub wol_feature_update_lock: Mutex<()>,
-    /// Reloads the built-in WoL Relay listener after its local configuration changes.
-    pub wol_relay_reload: Notify,
-    /// Versioned wakeup for all WoL supervisors after the feature switch changes.
-    /// A watch channel prevents changes from being lost between a config read and wait.
-    pub wol_runtime_reload: watch::Sender<u64>,
-    /// Non-secret status for the built-in WoL Relay listener.
-    pub wol_relay_status: RwLock<Value>,
-    /// Process-local third-party connection state. Credentials and broker
-    /// tokens never enter this map.
-    pub wol_integration_status: RwLock<HashMap<String, Value>>,
-    /// Online-state changes consumed by third-party integrations.
-    pub wol_status_updates: broadcast::Sender<Value>,
-    /// Tracks whether the latest complete HostRules snapshot was accepted by
-    /// the matching Go gateway. Readiness must not hide a failed config sync.
-    pub gateway_config_synced: AtomicBool,
-    /// Serializes protocol-mapping config, its standalone feature switch,
-    /// gateway listeners, firewall rules, and rollback as one transaction.
-    pub protocol_mapping_update_lock: Mutex<()>,
+}
+
+pub struct SecurityState {
+    /// Atomically published, immutable CIDR sets used by request hot paths.
+    /// Storage retains semantic selections and compact policies; request
+    /// handling never reparses large CIDR arrays.
+    pub ipsets: IpSetRegistry,
+    /// Serializes rebuilding and publishing the complete whitelist policy to
+    /// the proxy snapshot and direct-mode firewall.
+    pub whitelist_runtime_sync_lock: Mutex<()>,
+    /// Serializes CAPTCHA validation with its read-modify-write persistence so
+    /// concurrent provider or nested difficulty patches cannot be lost.
+    pub captcha_settings_update_lock: Mutex<()>,
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
+}
+
+impl Default for SecurityState {
+    fn default() -> Self {
+        Self {
+            ipsets: IpSetRegistry::default(),
+            whitelist_runtime_sync_lock: Mutex::new(()),
+            captcha_settings_update_lock: Mutex::new(()),
+            waf_rules_update_lock: Mutex::new(()),
+        }
+    }
+}
+
+impl Default for MaintenanceState {
+    fn default() -> Self {
+        Self {
+            automatic_backup_lock: Mutex::new(()),
+            backup_archive_work_lock: Mutex::new(()),
+            automatic_backup_notify: Notify::new(),
+        }
+    }
+}
+
+pub struct WolState {
+    /// Serializes Relay/Target metadata with installation-bound PSK files.
+    pub config_lock: Mutex<()>,
+    /// Serializes the persisted feature switch with Go portal runtime sync.
+    pub feature_update_lock: Mutex<()>,
+    /// Reloads the built-in Relay listener after its local configuration changes.
+    pub relay_reload: Notify,
+    /// Versioned wakeup for all WoL supervisors after the feature switch changes.
+    /// A watch channel prevents changes from being lost between a config read and wait.
+    pub runtime_reload: watch::Sender<u64>,
+    /// Non-secret status for the built-in Relay listener.
+    pub relay_status: RwLock<Value>,
+    /// Process-local third-party connection state. Credentials and broker
+    /// tokens never enter this map.
+    pub integration_status: RwLock<HashMap<String, Value>>,
+    /// Online-state changes consumed by third-party integrations.
+    pub status_updates: broadcast::Sender<Value>,
+}
+
+impl Default for WolState {
+    fn default() -> Self {
+        Self {
+            config_lock: Mutex::new(()),
+            feature_update_lock: Mutex::new(()),
+            relay_reload: Notify::new(),
+            runtime_reload: watch::channel(0).0,
+            relay_status: RwLock::new(serde_json::json!({
+                "enabled": false,
+                "active": false,
+                "listenAddress": null,
+                "lastError": null,
+                "updatedAt": null
+            })),
+            integration_status: RwLock::new(HashMap::new()),
+            status_updates: broadcast::channel(128).0,
+        }
+    }
+}
+
+pub struct TunnelState {
     /// Owns all supervised tunnel process actors for this application state.
-    pub tunnel_supervisors: TunnelSupervisorRegistry,
+    pub supervisors: TunnelSupervisorRegistry,
     /// Serializes read-modify-write updates to the legacy aggregate tunnel
     /// runtime record shared by frpc and cloudflared supervisors.
-    pub tunnel_runtime_update_lock: Mutex<()>,
+    pub runtime_update_lock: Mutex<()>,
     /// Serializes Cloudflare discovery, preview/apply, DNS reconciliation and
     /// optimization cutovers so a scheduled run cannot race an admin action.
     pub cloudflared_manage_lock: Mutex<()>,
@@ -115,6 +216,20 @@ pub struct AppStateInner {
     pub cloudflared_scan_lock: Mutex<()>,
     /// Wakes the Cloudflare reconciler after config, mapping or credential changes.
     pub cloudflared_schedule_notify: Notify,
+}
+
+impl Default for TunnelState {
+    fn default() -> Self {
+        Self {
+            supervisors: TunnelSupervisorRegistry::default(),
+            runtime_update_lock: Mutex::new(()),
+            cloudflared_manage_lock: Mutex::new(()),
+            cloudflared_plans: Mutex::new(HashMap::new()),
+            cloudflared_scan_jobs: RwLock::new(HashMap::new()),
+            cloudflared_scan_lock: Mutex::new(()),
+            cloudflared_schedule_notify: Notify::new(),
+        }
+    }
 }
 
 impl AppState {
@@ -217,22 +332,20 @@ impl AppState {
             .build()
             .context("build asset download http client")?;
 
-        let (wol_status_updates, _) = broadcast::channel(128);
         Ok(Self {
             inner: Arc::new(AppStateInner {
                 settings,
                 shutdown,
-                store,
-                ipsets: IpSetRegistry::default(),
-                whitelist_runtime_sync_lock: Mutex::new(()),
-                go_backend,
+                background_tasks: BackgroundTaskRegistry::default(),
+                storage: StorageState::new(store),
+                gateway: GatewayState::new(go_backend),
+                security: SecurityState::default(),
                 runtime_health,
                 fallback_client,
                 asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
                 ddns_schedule_reload: Notify::new(),
-                captcha_settings_update_lock: Mutex::new(()),
                 fnos_network_tuning_update_lock: Mutex::new(()),
                 fnos_connect_waf_update_lock: Mutex::new(()),
                 fnos_connect_waf_notify: Notify::new(),
@@ -264,33 +377,9 @@ impl AppState {
                     "last_error": null,
                     "failed_target_ids": []
                 })),
-                automatic_backup_lock: Mutex::new(()),
-                backup_archive_work_lock: Mutex::new(()),
-                automatic_backup_notify: Notify::new(),
-                host_mappings_update_lock: Mutex::new(()),
-                wol_config_lock: Mutex::new(()),
-                wol_feature_update_lock: Mutex::new(()),
-                wol_relay_reload: Notify::new(),
-                wol_runtime_reload: watch::channel(0).0,
-                wol_relay_status: RwLock::new(serde_json::json!({
-                    "enabled": false,
-                    "active": false,
-                    "listenAddress": null,
-                    "lastError": null,
-                    "updatedAt": null
-                })),
-                wol_integration_status: RwLock::new(HashMap::new()),
-                wol_status_updates,
-                gateway_config_synced: AtomicBool::new(false),
-                protocol_mapping_update_lock: Mutex::new(()),
-                waf_rules_update_lock: Mutex::new(()),
-                tunnel_supervisors: TunnelSupervisorRegistry::default(),
-                tunnel_runtime_update_lock: Mutex::new(()),
-                cloudflared_manage_lock: Mutex::new(()),
-                cloudflared_plans: Mutex::new(HashMap::new()),
-                cloudflared_scan_jobs: RwLock::new(HashMap::new()),
-                cloudflared_scan_lock: Mutex::new(()),
-                cloudflared_schedule_notify: Notify::new(),
+                maintenance: MaintenanceState::default(),
+                wol: WolState::default(),
+                tunnel: TunnelState::default(),
             }),
         })
     }
@@ -305,11 +394,33 @@ impl std::ops::Deref for AppState {
 }
 
 impl AppState {
+    pub(crate) fn spawn_background<F>(&self, name: &'static str, future: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.background_tasks.spawn(name, future);
+    }
+
+    pub(crate) fn spawn_abortable_background<F>(
+        &self,
+        name: &'static str,
+        future: F,
+    ) -> Option<AbortHandle>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.background_tasks.spawn_abortable(name, future)
+    }
+
+    pub(crate) async fn shutdown_background_tasks(&self, deadline: Duration) -> Vec<&'static str> {
+        self.background_tasks.shutdown(deadline).await
+    }
+
     pub(crate) fn set_gateway_config_synced(&self, synced: bool) {
-        self.gateway_config_synced.store(synced, Ordering::Release);
+        self.gateway.config_synced.store(synced, Ordering::Release);
     }
 
     pub(crate) fn gateway_config_synced(&self) -> bool {
-        self.gateway_config_synced.load(Ordering::Acquire)
+        self.gateway.config_synced.load(Ordering::Acquire)
     }
 }

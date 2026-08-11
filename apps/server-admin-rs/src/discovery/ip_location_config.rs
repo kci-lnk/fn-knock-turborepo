@@ -1,13 +1,13 @@
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use url::Url;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, response, state::AppState};
 
@@ -37,25 +37,24 @@ struct TestUrlBody {
     url: String,
 }
 
-pub fn ip_location_config_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/ip_location_api",
-            get(get_settings).post(update_settings),
-        )
-        .route(
-            "/api/admin/config/ip_location_api/test-ip-lookup",
-            post(test_ip_lookup),
-        )
-        .route(
-            "/api/admin/config/ip_location_api/test-cidr",
-            post(test_cidr),
-        )
+pub fn ip_location_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_settings, update_settings))
+        .routes(routes!(test_ip_lookup))
+        .routes(routes!(test_cidr))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/ip_location_api",
+    tag = "config",
+    operation_id = "get_api_admin_config_ip_location_api",
+    responses((status = 200, description = "IP location API settings"))
+)]
 async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
+        .storage
         .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await
@@ -71,6 +70,13 @@ async fn get_settings(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/ip_location_api",
+    tag = "config",
+    operation_id = "post_api_admin_config_ip_location_api",
+    responses((status = 200, description = "Updated IP location API settings"))
+)]
 async fn update_settings(
     State(state): State<AppState>,
     Json(body): Json<IpLocationApiSettingsBody>,
@@ -81,6 +87,7 @@ async fn update_settings(
         Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
     };
     match state
+        .storage
         .store
         .set_json_value(IP_LOCATION_API_SETTINGS_KEY, &settings)
         .await
@@ -96,6 +103,13 @@ async fn update_settings(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/ip_location_api/test-ip-lookup",
+    tag = "config",
+    operation_id = "post_api_admin_config_ip_location_api_test_ip_lookup",
+    responses((status = 200, description = "IP lookup connection test result"))
+)]
 async fn test_ip_lookup(State(state): State<AppState>, Json(body): Json<TestUrlBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     let base_url = match validate_base_url(&body.url, "URL", &translator) {
@@ -126,6 +140,13 @@ async fn test_ip_lookup(State(state): State<AppState>, Json(body): Json<TestUrlB
     test_result_response(result, &translator)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/ip_location_api/test-cidr",
+    tag = "config",
+    operation_id = "post_api_admin_config_ip_location_api_test_cidr",
+    responses((status = 200, description = "CIDR connection test result"))
+)]
 async fn test_cidr(State(state): State<AppState>, Json(body): Json<TestUrlBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     let base_url = match validate_base_url(&body.url, "URL", &translator) {

@@ -386,6 +386,7 @@ pub(super) fn normalize_public_key_pem(value: &str) -> String {
 
 pub(super) async fn get_ca_hosts(state: &AppState) -> crate::storage::StorageResult<Vec<String>> {
     Ok(state
+        .storage
         .store
         .get_json_value(CA_HOSTS_KEY)
         .await?
@@ -406,6 +407,7 @@ pub(super) async fn save_ca_hosts(
     hosts: &[String],
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .set_json_value(CA_HOSTS_KEY, &json!(hosts))
         .await

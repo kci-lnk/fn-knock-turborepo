@@ -137,8 +137,13 @@ pub(super) async fn delete_ddns_target(state: &AppState, id: &str) -> anyhow::Re
     if target.meta.is_primary {
         return Err(anyhow::anyhow!("Primary DDNS target cannot be deleted"));
     }
-    state.store.srem_string_member(DDNS_TARGET_IDS, id).await?;
     state
+        .storage
+        .store
+        .srem_string_member(DDNS_TARGET_IDS, id)
+        .await?;
+    state
+        .storage
         .store
         .delete_keys(&[
             target_meta_key(id),
@@ -245,18 +250,21 @@ pub(super) async fn primary_target(state: &AppState) -> anyhow::Result<DDNSTarge
 
 pub(super) async fn ensure_primary_initialized(state: &AppState) -> anyhow::Result<()> {
     let primary_id = state
+        .storage
         .store
         .get_string_value(DDNS_PRIMARY_TARGET_ID)
         .await?
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| PRIMARY_TARGET_ID.to_string());
     if !state
+        .storage
         .store
         .hgetall_string_map(&target_meta_key(&primary_id))
         .await?
         .is_empty()
     {
         state
+            .storage
             .store
             .sadd_string_member(DDNS_TARGET_IDS, &primary_id)
             .await?;
@@ -272,6 +280,7 @@ pub(super) async fn ensure_primary_initialized(state: &AppState) -> anyhow::Resu
     }
     if !anchor.is_empty() {
         state
+            .storage
             .store
             .replace_hash_string_map(&target_selection_anchor_key(&legacy.meta.id), &anchor)
             .await?;
@@ -321,15 +330,18 @@ pub(super) async fn save_target_meta(
     payload.insert("updated_at".to_string(), meta.updated_at.clone());
     payload.insert("sort_order".to_string(), meta.sort_order.to_string());
     state
+        .storage
         .store
         .replace_hash_string_map(&target_meta_key(&meta.id), &payload)
         .await?;
     state
+        .storage
         .store
         .sadd_string_member(DDNS_TARGET_IDS, &meta.id)
         .await?;
     if meta.is_primary {
         state
+            .storage
             .store
             .set_string_value(DDNS_PRIMARY_TARGET_ID, &meta.id)
             .await?;
@@ -345,6 +357,7 @@ pub(super) async fn save_target_config(
     let provider = meta.provider.as_deref();
     let prepared = prepare_config_for_storage(provider, normalize_config_map(provider, config));
     state
+        .storage
         .store
         .replace_hash_string_map(&target_config_key(&meta.id), &prepared)
         .await?;
@@ -364,6 +377,7 @@ pub(super) async fn save_legacy_config_draft(
     let prepared =
         prepare_config_for_storage(Some(provider), normalize_config_map(Some(provider), config));
     state
+        .storage
         .store
         .replace_hash_string_map(
             &(DDNS_LEGACY_CONFIG_PREFIX.to_string() + provider),
@@ -378,6 +392,7 @@ pub(super) async fn read_legacy_config_draft(
     provider: &str,
 ) -> anyhow::Result<HashMap<String, String>> {
     let raw = state
+        .storage
         .store
         .hgetall_string_map(&(DDNS_LEGACY_CONFIG_PREFIX.to_string() + provider))
         .await?;
@@ -390,11 +405,12 @@ pub(super) async fn mirror_primary_provider(
 ) -> anyhow::Result<()> {
     if let Some(provider) = provider.filter(|value| !value.trim().is_empty()) {
         state
+            .storage
             .store
             .set_string_value(DDNS_LEGACY_PROVIDER, provider)
             .await?;
     } else {
-        state.store.delete_key(DDNS_LEGACY_PROVIDER).await?;
+        state.storage.store.delete_key(DDNS_LEGACY_PROVIDER).await?;
     }
     Ok(())
 }
@@ -404,23 +420,28 @@ pub(super) async fn reset_target_runtime_state(
     meta: &DDNSTargetMeta,
 ) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .replace_hash_string_map(&target_last_ip_key(&meta.id), &HashMap::new())
         .await?;
     state
+        .storage
         .store
         .replace_hash_string_map(&target_last_check_key(&meta.id), &HashMap::new())
         .await?;
     state
+        .storage
         .store
         .replace_hash_string_map(&target_interface_recovery_key(&meta.id), &HashMap::new())
         .await?;
     if meta.is_primary {
         state
+            .storage
             .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_IP, &HashMap::new())
             .await?;
         state
+            .storage
             .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_CHECK, &HashMap::new())
             .await?;

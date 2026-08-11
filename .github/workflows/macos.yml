@@ -52,11 +52,11 @@ jobs:
         shell: bash
         run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
-      - name: Freeze Go gateway main commit
+      - name: Read pinned Go gateway commit
         id: gateway
         shell: bash
         run: |
-          sha="$(git ls-remote https://github.com/kci-lnk/Go-Reauth-Proxy.git refs/heads/main | awk '{print $1}')"
+          sha="$(jq -er '.gatewayCommit | strings | select(test("^[0-9a-f]{40}$"))' version.json)"
           printf '%s\n' "${sha}" | grep -Eq '^[0-9a-f]{40}$'
           printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
 

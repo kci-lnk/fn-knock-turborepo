@@ -10,12 +10,12 @@ use axum::{
         IntoResponse, Response,
         sse::{Event, KeepAlive, Sse},
     },
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{grpc_proto::DeepMonitorQuery, response, state::AppState};
 
@@ -73,44 +73,23 @@ fn default_duration() -> i32 {
 }
 
 pub fn deep_monitor_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/deep-monitor/sessions",
-            get(list_sessions).post(start_session),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}",
-            get(get_session).delete(delete_session),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/extend",
-            axum::routing::post(extend_session),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/stop",
-            axum::routing::post(stop_session),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/events",
-            get(list_events),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/events/{event_id}",
-            get(get_event),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/events/{event_id}/payload",
-            get(payload),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/live",
-            get(live),
-        )
-        .route(
-            "/api/admin/deep-monitor/sessions/{session_id}/download",
-            get(download_session),
-        )
-        .layer(middleware::from_fn(no_store))
+    let routes: Router<AppState> = deep_monitor_openapi_routes().into();
+    routes.layer(middleware::from_fn(no_store))
+}
+
+pub(crate) fn deep_monitor_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_sessions))
+        .routes(routes!(start_session))
+        .routes(routes!(get_session))
+        .routes(routes!(delete_session))
+        .routes(routes!(extend_session))
+        .routes(routes!(stop_session))
+        .routes(routes!(list_events))
+        .routes(routes!(get_event))
+        .routes(routes!(payload))
+        .routes(routes!(live))
+        .routes(routes!(download_session))
 }
 
 async fn no_store(request: axum::extract::Request, next: Next) -> Response {
@@ -125,27 +104,33 @@ async fn no_store(request: axum::extract::Request, next: Next) -> Response {
     response
 }
 
+#[utoipa::path(post, path = "/api/admin/deep-monitor/sessions", tag = "deep-monitor", operation_id = "post_api_admin_deep_monitor_sessions", responses((status = 200, description = "Started deep-monitor session")))]
 async fn start_session(State(state): State<AppState>, Json(body): Json<StartBody>) -> Response {
     go_json(
         state
-            .go_backend
+            .gateway
+            .client
             .start_deep_monitor(body.host, body.duration_seconds)
             .await,
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions", responses((status = 200, description = "Deep-monitor sessions")))]
 async fn list_sessions(State(state): State<AppState>, Query(query): Query<ListQuery>) -> Response {
     go_json(
         state
-            .go_backend
+            .gateway
+            .client
             .list_deep_monitors(query.include_expired)
             .await,
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions_id", responses((status = 200, description = "Deep-monitor session")))]
 async fn get_session(State(state): State<AppState>, Path(session_id): Path<String>) -> Response {
     match state
-        .go_backend
+        .gateway
+        .client
         .list_deep_monitors(true)
         .await
         .and_then(data)
@@ -169,6 +154,7 @@ async fn get_session(State(state): State<AppState>, Path(session_id): Path<Strin
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/deep-monitor/sessions/{session_id}/extend", tag = "deep-monitor", operation_id = "post_api_admin_deep_monitor_sessions_id_extend", responses((status = 200, description = "Extended deep-monitor session")))]
 async fn extend_session(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
@@ -176,20 +162,24 @@ async fn extend_session(
 ) -> Response {
     go_json(
         state
-            .go_backend
+            .gateway
+            .client
             .extend_deep_monitor(session_id, body.duration_seconds)
             .await,
     )
 }
 
+#[utoipa::path(post, path = "/api/admin/deep-monitor/sessions/{session_id}/stop", tag = "deep-monitor", operation_id = "post_api_admin_deep_monitor_sessions_id_stop", responses((status = 200, description = "Stopped deep-monitor session")))]
 async fn stop_session(State(state): State<AppState>, Path(session_id): Path<String>) -> Response {
-    go_json(state.go_backend.stop_deep_monitor(session_id).await)
+    go_json(state.gateway.client.stop_deep_monitor(session_id).await)
 }
 
+#[utoipa::path(delete, path = "/api/admin/deep-monitor/sessions/{session_id}", tag = "deep-monitor", operation_id = "delete_api_admin_deep_monitor_sessions_id", responses((status = 200, description = "Deleted deep-monitor session")))]
 async fn delete_session(State(state): State<AppState>, Path(session_id): Path<String>) -> Response {
-    go_json(state.go_backend.delete_deep_monitor(session_id).await)
+    go_json(state.gateway.client.delete_deep_monitor(session_id).await)
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}/events", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions__session_id__events", responses((status = 200, description = "Deep-monitor events")))]
 async fn list_events(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
@@ -197,7 +187,8 @@ async fn list_events(
 ) -> Response {
     go_json(
         state
-            .go_backend
+            .gateway
+            .client
             .query_deep_monitor_events(DeepMonitorQuery {
                 session_id,
                 cursor: query.cursor.unwrap_or_default(),
@@ -215,25 +206,29 @@ async fn list_events(
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}/events/{event_id}", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions_id_events_event_id", responses((status = 200, description = "Deep-monitor event")))]
 async fn get_event(
     State(state): State<AppState>,
     Path((session_id, event_id)): Path<(String, String)>,
 ) -> Response {
     go_json(
         state
-            .go_backend
+            .gateway
+            .client
             .get_deep_monitor_event(session_id, event_id)
             .await,
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}/events/{event_id}/payload", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions__session_id__events__event_id__payload", responses((status = 200, description = "Captured event payload")))]
 async fn payload(
     State(state): State<AppState>,
     Path((session_id, event_id)): Path<(String, String)>,
     Query(query): Query<PayloadQuery>,
 ) -> Response {
     let mut stream = match state
-        .go_backend
+        .gateway
+        .client
         .stream_deep_monitor_payload(session_id, event_id, query.part, query.offset)
         .await
     {
@@ -280,6 +275,7 @@ async fn payload(
     response
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}/live", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions_id_live", responses((status = 200, description = "Live deep-monitor events")))]
 async fn live(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
@@ -293,7 +289,8 @@ async fn live(
         .unwrap_or_default();
     let after = query.after_sequence.max(header_sequence);
     let mut grpc = match state
-        .go_backend
+        .gateway
+        .client
         .watch_deep_monitor_events(session_id, after)
         .await
     {
@@ -301,9 +298,14 @@ async fn live(
         Err(error) => return backend_error(error),
     };
     let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(128);
-    tokio::spawn(async move {
+    let shutdown = state.shutdown.clone();
+    state.spawn_background("deep-monitor-sse", async move {
         loop {
-            match grpc.message().await {
+            let message = tokio::select! {
+                _ = shutdown.cancelled() => break,
+                message = grpc.message() => message,
+            };
+            match message {
                 Ok(Some(item)) => {
                     let sequence = item.sequence;
                     let data = crate::go_backend::deep_monitor::summary_json(item).to_string();
@@ -331,12 +333,14 @@ async fn live(
         .into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/deep-monitor/sessions/{session_id}/download", tag = "deep-monitor", operation_id = "get_api_admin_deep_monitor_sessions_id_download", responses((status = 200, description = "Deep-monitor archive")))]
 async fn download_session(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
 ) -> Response {
     let mut stream = match state
-        .go_backend
+        .gateway
+        .client
         .stream_deep_monitor_archive(session_id.clone())
         .await
     {

@@ -1,8 +1,4 @@
-use axum::{
-    Router,
-    http::StatusCode,
-    routing::{delete, get, patch, post},
-};
+use axum::{Router, http::StatusCode};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
@@ -16,18 +12,11 @@ mod settings;
 mod text;
 mod transfer;
 
-use auth_mode::{
-    auth_account_create, auth_account_delete, auth_account_set_password, auth_account_setup,
-    auth_account_totp_bind, auth_account_totp_setup, auth_account_update,
-    auth_account_update_access_scopes, auth_account_update_subdomain_access, auth_accounts_list,
-    auth_login_mode_preview, auth_login_mode_status, auth_login_mode_switch,
-};
-use handlers::{
-    get_auth_credential_settings, passkey_delete, session_delete, session_get,
-    session_mobility_details, session_update_comment, sessions_list, totp_bind, totp_delete,
-    totp_export, totp_import, totp_passkeys, totp_setup, totp_status, totp_update_access_scopes,
-    totp_update_comment, totp_update_subdomain_access, update_auth_credential_settings,
-};
+pub(crate) use auth_mode::{auth_account_routes, auth_mode_routes};
+pub(crate) use handlers::auth_credential_settings_routes;
+pub(crate) use handlers::session_routes;
+pub(crate) use handlers::totp_bootstrap_routes;
+pub(crate) use handlers::totp_management_routes;
 
 #[cfg(test)]
 use crate::{
@@ -80,29 +69,29 @@ struct AuthCredentialSettingsBody {
     value: Map<String, Value>,
 }
 
-#[derive(Deserialize)]
-struct AuthLoginModeBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct AuthLoginModeBody {
     mode: String,
 }
 
-#[derive(Deserialize)]
-struct AuthAccountPatchBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct AuthAccountPatchBody {
     username: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct AuthAccountCreateBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct AuthAccountCreateBody {
     username: String,
     password: String,
 }
 
-#[derive(Deserialize)]
-struct AuthAccountPasswordBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct AuthAccountPasswordBody {
     password: String,
 }
 
-#[derive(Deserialize)]
-struct AuthAccountSetupBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct AuthAccountSetupBody {
     username: String,
     password: String,
 }
@@ -117,15 +106,15 @@ struct AuthAccountSubdomainAccessBody {
     subdomain_access: Value,
 }
 
-#[derive(Deserialize)]
-struct TotpBindBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct TotpBindBody {
     secret: String,
     token: String,
     comment: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct TotpCommentBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct TotpCommentBody {
     comment: String,
 }
 
@@ -144,85 +133,26 @@ struct TotpImportBody {
     payload: Value,
 }
 
-#[derive(Deserialize)]
-struct SessionCommentBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct SessionCommentBody {
     comment: String,
 }
 
 pub fn admin_control_routes() -> Router<AppState> {
+    let auth_mode_routes: Router<AppState> = auth_mode_routes().into();
+    let auth_account_routes: Router<AppState> = auth_account_routes().into();
+    let session_routes: Router<AppState> = session_routes().into();
+    let auth_credential_settings_routes: Router<AppState> =
+        auth_credential_settings_routes().into();
+    let totp_bootstrap_routes: Router<AppState> = totp_bootstrap_routes().into();
+    let totp_management_routes: Router<AppState> = totp_management_routes().into();
     Router::new()
-        .route(
-            "/api/admin/config/auth_credential_settings",
-            get(get_auth_credential_settings).post(update_auth_credential_settings),
-        )
-        .route("/api/admin/totp/status", get(totp_status))
-        .route("/api/admin/auth/mode", get(auth_login_mode_status))
-        .route(
-            "/api/admin/auth/mode/preview",
-            post(auth_login_mode_preview),
-        )
-        .route("/api/admin/auth/mode/switch", post(auth_login_mode_switch))
-        .route(
-            "/api/admin/auth/accounts",
-            get(auth_accounts_list).post(auth_account_create),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}",
-            patch(auth_account_update).delete(auth_account_delete),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/password",
-            post(auth_account_set_password),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/setup",
-            post(auth_account_setup),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/totp/setup",
-            post(auth_account_totp_setup),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/totp/bind",
-            post(auth_account_totp_bind),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/access-scopes",
-            patch(auth_account_update_access_scopes),
-        )
-        .route(
-            "/api/admin/auth/accounts/{id}/subdomain-access",
-            patch(auth_account_update_subdomain_access),
-        )
-        .route("/api/admin/totp/setup", post(totp_setup))
-        .route("/api/admin/totp/bind", post(totp_bind))
-        .route("/api/admin/totp/credentials/export", get(totp_export))
-        .route("/api/admin/totp/credentials/import", post(totp_import))
-        .route("/api/admin/totp/{id}", delete(totp_delete))
-        .route(
-            "/api/admin/totp/{id}/access-scopes",
-            patch(totp_update_access_scopes),
-        )
-        .route(
-            "/api/admin/totp/{id}/subdomain-access",
-            patch(totp_update_subdomain_access),
-        )
-        .route("/api/admin/totp/{id}/comment", patch(totp_update_comment))
-        .route("/api/admin/totp/{totp_id}/passkeys", get(totp_passkeys))
-        .route("/api/admin/passkeys/{id}", delete(passkey_delete))
-        .route("/api/admin/sessions", get(sessions_list))
-        .route(
-            "/api/admin/sessions/{id}",
-            get(session_get).delete(session_delete),
-        )
-        .route(
-            "/api/admin/sessions/{id}/comment",
-            patch(session_update_comment),
-        )
-        .route(
-            "/api/admin/sessions/{id}/mobility",
-            get(session_mobility_details),
-        )
+        .merge(auth_credential_settings_routes)
+        .merge(totp_management_routes)
+        .merge(totp_bootstrap_routes)
+        .merge(auth_account_routes)
+        .merge(session_routes)
+        .merge(auth_mode_routes)
 }
 
 #[cfg(test)]

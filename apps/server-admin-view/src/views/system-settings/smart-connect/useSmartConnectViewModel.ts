@@ -125,6 +125,8 @@ export const useSmartConnectViewModel = (options: {
         }),
         value: options.form.selected_ipv4,
         interface: "manual",
+        netmask: "",
+        prefix: null,
       },
     ];
   });

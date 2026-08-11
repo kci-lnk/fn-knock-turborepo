@@ -20,16 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -60,8 +50,18 @@ import { useConfigStore } from "@/store/config";
 import WOLBootstrapDialog from "./wol-management/WOLBootstrapDialog.vue";
 import WOLDiscoveryDialog from "./wol-management/WOLDiscoveryDialog.vue";
 import WOLLocalRelaySettings from "./wol-management/WOLLocalRelaySettings.vue";
+import WOLPortalSettingsDialog from "./wol-management/WOLPortalSettingsDialog.vue";
 import WOLRelayDialog from "./wol-management/WOLRelayDialog.vue";
 import WOLTargetDialog from "./wol-management/WOLTargetDialog.vue";
+import {
+  createWolLocalRelayInput,
+  createWolRelayInput,
+  createWolTargetInput,
+  reduceWolDiscoveryEvent,
+  updatePendingIds,
+  wolLocalRelayToInput,
+  wolTargetToEditInput,
+} from "./wol-management/wol-management-model";
 
 const { t } = useI18n();
 const configStore = useConfigStore();
@@ -99,44 +99,15 @@ let targetRuntimePollTimer: ReturnType<typeof globalThis.setInterval> | null =
   null;
 let targetRuntimeAbortController: AbortController | null = null;
 
-const relayForm = reactive<WOLRelayInput>({
-  name: "",
-  address: "",
-  port: 40009,
-  enabled: true,
-});
-const targetForm = reactive<WOLTargetInput>({
-  name: "",
-  mac: "",
-  relayId: null,
-  broadcastAddress: null,
-  ipAddress: null,
-  enabled: true,
-  integrations: undefined,
-});
-const localRelayForm = reactive<WOLLocalRelayInput>({
-  enabled: false,
-  relayId: "",
-  keyVersion: 1,
-  listenAddress: "0.0.0.0",
-  port: 40009,
-  broadcastDestinations: ["255.255.255.255:9"],
-  allowedSources: [],
-  psk: "",
-});
+const relayForm = reactive<WOLRelayInput>(createWolRelayInput());
+const targetForm = reactive<WOLTargetInput>(createWolTargetInput());
+const localRelayForm = reactive<WOLLocalRelayInput>(
+  createWolLocalRelayInput(),
+);
 
 const applyLocalRelay = (result: WOLLocalRelay) => {
   localRelay.value = result;
-  Object.assign(localRelayForm, {
-    enabled: result.config.enabled,
-    relayId: result.config.relayId,
-    keyVersion: result.config.keyVersion,
-    listenAddress: result.config.listenAddress,
-    port: result.config.port,
-    broadcastDestinations: [...result.config.broadcastDestinations],
-    allowedSources: [...result.config.allowedSources],
-    psk: "",
-  });
+  Object.assign(localRelayForm, wolLocalRelayToInput(result));
 };
 
 const refreshLocalRelayRuntime = async () => {
@@ -162,10 +133,7 @@ const setPending = (
   id: string,
   value: boolean,
 ) => {
-  const next = new Set(target.value);
-  if (value) next.add(id);
-  else next.delete(id);
-  target.value = next;
+  target.value = updatePendingIds(target.value, id, value);
 };
 
 const statusLabel = (target: WOLTarget) =>
@@ -275,12 +243,7 @@ const pairLocalRelay = async (pairingCode: string) => {
 const openCreateRelay = () => {
   relayMode.value = "create";
   editingRelayId.value = "";
-  Object.assign(relayForm, {
-    name: "",
-    address: "",
-    port: 40009,
-    enabled: true,
-  });
+  Object.assign(relayForm, createWolRelayInput());
   relayDialogOpen.value = true;
 };
 
@@ -323,17 +286,12 @@ const openCreateTarget = () => {
   targetDialogError.value = "";
   targetMode.value = "create";
   editingTargetId.value = "";
-  Object.assign(targetForm, {
-    name: createRandomTargetName(
-      t("admin.wol.targetDialog.generatedNamePrefix"),
+  Object.assign(
+    targetForm,
+    createWolTargetInput(
+      createRandomTargetName(t("admin.wol.targetDialog.generatedNamePrefix")),
     ),
-    mac: "",
-    relayId: null,
-    broadcastAddress: null,
-    ipAddress: null,
-    enabled: true,
-    integrations: undefined,
-  });
+  );
   targetDialogOpen.value = true;
 };
 
@@ -341,33 +299,7 @@ const openEditTarget = (target: WOLTarget) => {
   targetDialogError.value = "";
   targetMode.value = "edit";
   editingTargetId.value = target.id;
-  Object.assign(targetForm, {
-    name: target.name,
-    mac: target.mac,
-    relayId: target.relayId,
-    broadcastAddress: target.broadcastAddress,
-    ipAddress: target.ipAddress,
-    enabled: target.enabled,
-    integrations: {
-      blinker: {
-        enabled: target.integrations.blinker.enabled,
-        deviceKey: "",
-        bindComponent: target.integrations.blinker.bindComponent,
-        skipTlsVerify: true,
-      },
-      bemfa: {
-        // Old development builds briefly allowed both providers. Prefer the
-        // first configured provider when opening those records so the next
-        // save converges to the new one-provider invariant.
-        enabled:
-          !target.integrations.blinker.enabled &&
-          target.integrations.bemfa.enabled,
-        privateKey: "",
-        topic: target.integrations.bemfa.topic,
-        skipTlsVerify: true,
-      },
-    },
-  });
+  Object.assign(targetForm, wolTargetToEditInput(target));
   targetDialogOpen.value = true;
 };
 
@@ -443,35 +375,12 @@ const saveTarget = async () => {
 };
 
 const applyDiscoveryEvent = (event: WOLDiscoveryPollEvent) => {
-  if (event.type === "meta") {
-    discoveryProgress.value = event.data.progress;
-    discoveryResult.value = {
-      devices: [],
-      networks: event.data.networks,
-      durationMs: 0,
-      method: "icmp-neighbor",
-    };
-    return;
-  }
-  if (event.type === "progress") {
-    discoveryProgress.value = event.data;
-    return;
-  }
-  if (event.type === "device") {
-    if (!discoveryResult.value) return;
-    const devices = discoveryResult.value.devices.filter(
-      (device) => device.mac !== event.data.mac,
-    );
-    devices.push(event.data);
-    devices.sort((left, right) =>
-      left.ip.localeCompare(right.ip, undefined, { numeric: true }),
-    );
-    discoveryResult.value = { ...discoveryResult.value, devices };
-    return;
-  }
-  if (event.type === "done") {
-    discoveryResult.value = event.data;
-  }
+  const next = reduceWolDiscoveryEvent(
+    { progress: discoveryProgress.value, result: discoveryResult.value },
+    event,
+  );
+  discoveryProgress.value = next.progress;
+  discoveryResult.value = next.result;
 };
 
 const discoverDevices = async (targetCidrs: string[] = []) => {
@@ -1064,31 +973,11 @@ onBeforeUnmount(() => {
       @update:open="closeBootstrap"
       @copy="copyBootstrap"
     />
-    <Dialog v-model:open="settingsOpen">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{{ t("admin.wol.portal.title") }}</DialogTitle>
-          <DialogDescription>{{
-            t("admin.wol.portal.description")
-          }}</DialogDescription>
-        </DialogHeader>
-        <div
-          class="flex items-center justify-between gap-4 rounded-lg border p-4"
-        >
-          <Label for="wol-portal-shortcut" class="leading-6">
-            {{ t("admin.wol.portal.showShortcut") }}
-          </Label>
-          <Switch id="wol-portal-shortcut" v-model="showWolInPortal" />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="settingsOpen = false">{{
-            t("common.cancel")
-          }}</Button>
-          <Button :disabled="savingPortalSetting" @click="savePortalSetting">
-            {{ savingPortalSetting ? t("admin.wol.saving") : t("common.save") }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <WOLPortalSettingsDialog
+      v-model:open="settingsOpen"
+      v-model:show-wol="showWolInPortal"
+      :saving="savingPortalSetting"
+      @save="savePortalSetting"
+    />
   </div>
 </template>

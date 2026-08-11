@@ -1,10 +1,8 @@
 use std::sync::{Mutex, OnceLock};
 
-use axum::{
-    Router,
-    routing::{get, post},
-};
+use axum::Router;
 use serde_json::Value;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, state::AppState};
 
@@ -18,9 +16,12 @@ mod text;
 
 use clock::refresh_clock_status;
 use handlers::{
-    clock_check, clock_status, clock_sync, cloudflared_cancel, cloudflared_delete,
-    cloudflared_download, cloudflared_status, dnsmasq_install, dnsmasq_status, frp_cancel,
-    frp_delete, frp_download, frp_status,
+    __path_clock_check, __path_clock_status, __path_clock_sync, __path_cloudflared_cancel,
+    __path_cloudflared_delete, __path_cloudflared_download, __path_cloudflared_status,
+    __path_dnsmasq_install, __path_dnsmasq_status, __path_frp_cancel, __path_frp_delete,
+    __path_frp_download, __path_frp_status, clock_check, clock_status, clock_sync,
+    cloudflared_cancel, cloudflared_delete, cloudflared_download, cloudflared_status,
+    dnsmasq_install, dnsmasq_status, frp_cancel, frp_delete, frp_download, frp_status,
 };
 
 pub(crate) use dnsmasq::build_dnsmasq_status_with_translator;
@@ -118,42 +119,49 @@ impl Default for DnsmasqInstallState {
 }
 
 pub fn system_asset_routes() -> Router<AppState> {
+    let system_clock_routes: Router<AppState> = system_clock_routes().into();
+    let system_binary_asset_routes: Router<AppState> = system_binary_asset_routes().into();
     Router::new()
-        .route("/api/admin/system/clock/status", get(clock_status))
-        .route("/api/admin/system/clock/check", post(clock_check))
-        .route("/api/admin/system/clock/sync", post(clock_sync))
-        .route(
-            "/api/admin/system/cloudflared/status",
-            get(cloudflared_status),
-        )
-        .route(
-            "/api/admin/system/cloudflared/download",
-            post(cloudflared_download),
-        )
-        .route(
-            "/api/admin/system/cloudflared/cancel",
-            post(cloudflared_cancel),
-        )
-        .route(
-            "/api/admin/system/cloudflared",
-            axum::routing::delete(cloudflared_delete),
-        )
-        .route("/api/admin/system/frp/status", get(frp_status))
-        .route("/api/admin/system/frp/download", post(frp_download))
-        .route("/api/admin/system/frp/cancel", post(frp_cancel))
-        .route("/api/admin/system/frp", axum::routing::delete(frp_delete))
+        .merge(system_clock_routes)
+        .merge(system_binary_asset_routes)
+}
+
+pub(crate) fn system_binary_asset_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(cloudflared_status))
+        .routes(routes!(cloudflared_download))
+        .routes(routes!(cloudflared_cancel))
+        .routes(routes!(cloudflared_delete))
+        .routes(routes!(frp_status))
+        .routes(routes!(frp_download))
+        .routes(routes!(frp_cancel))
+        .routes(routes!(frp_delete))
+}
+
+pub(crate) fn dnsmasq_asset_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(dnsmasq_status))
+        .routes(routes!(dnsmasq_install))
+}
+
+/// Clock routes are registered once for both Axum and OpenAPI so their
+/// availability and localized error behavior cannot drift from the contract.
+pub(crate) fn system_clock_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(clock_status))
+        .routes(routes!(clock_check))
+        .routes(routes!(clock_sync))
 }
 
 pub fn smart_connect_asset_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/system/dnsmasq/status", get(dnsmasq_status))
-        .route("/api/admin/system/dnsmasq/install", post(dnsmasq_install))
+    dnsmasq_asset_routes().into()
 }
 
 pub fn start_system_clock_tasks(state: AppState) {
-    tokio::spawn(async move {
-        let translator = Translator::from_state(&state).await;
-        let _ = refresh_clock_status(&state, &translator).await;
+    let task_state = state.clone();
+    state.spawn_background("system-clock-sync", async move {
+        let translator = Translator::from_state(&task_state).await;
+        let _ = refresh_clock_status(&task_state, &translator).await;
     });
 }
 

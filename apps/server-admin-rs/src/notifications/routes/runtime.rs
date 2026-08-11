@@ -3,6 +3,7 @@ use super::*;
 pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Result<()> {
     let token = create_runtime_token("dispatch");
     let acquired = state
+        .storage
         .store
         .acquire_notification_runtime_lease("dispatch", &token, DISPATCH_LEASE_TTL_SECONDS)
         .await?;
@@ -12,6 +13,7 @@ pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Resu
 
     let result = notification_dispatch_tick_locked(state).await;
     let release_result = state
+        .storage
         .store
         .release_notification_runtime_lease("dispatch", &token)
         .await;
@@ -22,14 +24,23 @@ pub(super) async fn notification_dispatch_tick(state: &AppState) -> anyhow::Resu
 }
 
 pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyhow::Result<()> {
-    let mut last_stream_id = state.store.get_notification_last_stream_id().await?;
+    let mut last_stream_id = state
+        .storage
+        .store
+        .get_notification_last_stream_id()
+        .await?;
     if last_stream_id.is_none() {
         let latest = state
+            .storage
             .store
             .latest_system_event_stream_id()
             .await?
             .unwrap_or_else(|| "0-0".to_string());
-        state.store.set_notification_last_stream_id(&latest).await?;
+        state
+            .storage
+            .store
+            .set_notification_last_stream_id(&latest)
+            .await?;
         last_stream_id = Some(latest);
     }
     let Some(last_stream_id) = last_stream_id else {
@@ -37,6 +48,7 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
     };
 
     let items = state
+        .storage
         .store
         .read_system_event_stream_after(&last_stream_id, STREAM_BATCH_SIZE)
         .await?;
@@ -45,6 +57,7 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
             tracing::warn!(%error, stream_id, "failed to fan out notification event");
         }
         state
+            .storage
             .store
             .set_notification_last_stream_id(&stream_id)
             .await?;
@@ -102,6 +115,7 @@ pub(super) async fn fanout_notification_rule(
             .unwrap_or(60)
             .max(1);
         let matched_count = state
+            .storage
             .store
             .append_notification_window_hit(
                 rule_id,
@@ -120,6 +134,7 @@ pub(super) async fn fanout_notification_rule(
             return Ok(());
         }
         if let Some(cooldown_until) = state
+            .storage
             .store
             .get_notification_cooldown_until(rule_id, &group_key)
             .await?
@@ -179,6 +194,7 @@ pub(super) async fn fanout_notification_rule(
                 .and_then(Value::as_str)
                 .unwrap_or("global");
             state
+                .storage
                 .store
                 .set_notification_cooldown_until(rule_id, group_key, &until, cooldown_seconds)
                 .await?;
@@ -315,6 +331,7 @@ pub(super) async fn fanout_trigger_targets(
         let delivery_created = save_delivery_if_absent(state, &delivery).await?;
         if delivery_created {
             state
+                .storage
                 .store
                 .enqueue_notification_delivery(&delivery_id, time_utils::now_ms())
                 .await?;
@@ -325,6 +342,7 @@ pub(super) async fn fanout_trigger_targets(
             && !is_terminal_delivery_status(existing.get("status").and_then(Value::as_str))
         {
             state
+                .storage
                 .store
                 .enqueue_notification_delivery(
                     &delivery_id,
@@ -369,6 +387,7 @@ pub(super) async fn process_ready_deliveries(
     limit: usize,
 ) -> anyhow::Result<usize> {
     let ids = state
+        .storage
         .store
         .pull_ready_notification_delivery_ids(limit, time_utils::now_ms())
         .await?;
@@ -376,6 +395,21 @@ pub(super) async fn process_ready_deliveries(
     for id in ids {
         if let Err(error) = process_delivery(state, &id).await {
             tracing::warn!(%error, delivery_id = id, "failed to process notification delivery");
+            if let Err(enqueue_error) = state
+                .storage
+                .store
+                .enqueue_notification_delivery(
+                    &id,
+                    time_utils::now_ms().saturating_add(DELIVERY_RECOVERY_RETRY_DELAY_MS),
+                )
+                .await
+            {
+                tracing::warn!(
+                    %enqueue_error,
+                    delivery_id = id,
+                    "failed to requeue notification delivery after processing error"
+                );
+            }
         }
     }
     Ok(count)
@@ -527,6 +561,7 @@ pub(super) async fn process_delivery(state: &AppState, delivery_id: &str) -> any
         );
         save_delivery_raw(state, &Value::Object(updated)).await?;
         state
+            .storage
             .store
             .enqueue_notification_delivery(
                 delivery_id,

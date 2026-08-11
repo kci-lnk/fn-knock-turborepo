@@ -194,7 +194,7 @@ export function useAuthCredentialTransfer({
     return translate("admin.authSettings.importCredentialsSummary", {
       imported: summary.imported,
       skippedExistingId: summary.skipped_existing_id,
-      skippedExistingSecret: summary.skipped_existing_secret,
+      skippedExistingSecret: summary.skipped_existing_secret ?? 0,
       skippedFileDuplicate: summary.skipped_file_duplicate,
       invalid: summary.invalid,
       total: summary.total,

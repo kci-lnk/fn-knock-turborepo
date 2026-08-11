@@ -1,16 +1,16 @@
 use std::{collections::BTreeSet, env, net::IpAddr};
 
 use axum::{
-    Json, Router,
+    Json,
     body::Bytes,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::get,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use url::Url;
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::{
     cidr::{CidrError, CidrOperator, CidrRegionQuery, CidrSelection},
@@ -244,29 +244,12 @@ struct ScannerEnvDefaults {
     blacklist_ttl_seconds: i64,
 }
 
-pub fn scanner_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/scanner/settings",
-            get(get_settings).post(update_settings),
-        )
-        .route(
-            "/api/admin/scanner/blacklist",
-            get(list_blacklist).delete(delete_blacklist),
-        )
-        .route(
-            "/api/admin/scanner/blacklist/{ip}",
-            get(get_blacklist_record).delete(delete_blacklist_record),
-        )
+pub fn scanner_routes() -> OpenApiRouter<AppState> {
+    handlers::routes()
 }
 
-pub fn cidr_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/cidr/capabilities", get(get_cidr_capabilities))
-        .route("/api/admin/cidr/provinces", get(get_cidr_provinces))
-        .route("/api/admin/cidr/cities", get(get_cidr_cities))
-        .route("/api/admin/cidr/selector", get(get_cidr_selector))
-        .route("/api/admin/cidr/cidrs", get(get_cidr_cidrs))
+pub fn cidr_routes() -> OpenApiRouter<AppState> {
+    cidr_routes::routes()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -281,13 +264,6 @@ mod preflight;
 mod settings;
 mod utils;
 
-use cidr_routes::{
-    get_cidr_capabilities, get_cidr_cidrs, get_cidr_cities, get_cidr_provinces, get_cidr_selector,
-};
-use handlers::{
-    delete_blacklist, delete_blacklist_record, get_blacklist_record, get_settings, list_blacklist,
-    update_settings,
-};
 pub(crate) use preflight::{
     is_blacklisted_for_preflight, is_common_path_for_preflight, is_request_exempt_from_scan,
     record_uncommon_path_for_preflight,

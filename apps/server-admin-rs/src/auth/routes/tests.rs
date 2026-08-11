@@ -255,6 +255,7 @@ async fn authorized_normal_access_bypasses_scanner_blacklist() {
     let client_ip = "203.0.113.77";
     let now = time_utils::now_ms();
     state
+        .storage
         .store
         .save_scanner_settings(&json!({
             "enabled": true,
@@ -265,6 +266,7 @@ async fn authorized_normal_access_bypasses_scanner_blacklist() {
         .await
         .expect("enable scanner");
     state
+        .storage
         .store
         .add_scanner_blacklist_record(
             client_ip,
@@ -275,6 +277,7 @@ async fn authorized_normal_access_bypasses_scanner_blacklist() {
         .await
         .expect("blacklist client IP");
     state
+        .storage
         .store
         .insert_whitelist_record(&crate::store::WhitelistRecord {
             id: "manual-scanner-bypass".to_string(),
@@ -341,6 +344,7 @@ async fn authorized_normal_access_bypasses_scanner_blacklist() {
     assert!(response.headers().get("X-Option").is_none());
     assert!(
         state
+            .storage
             .store
             .scanner_suspicious_hits_since(client_ip, 0)
             .await
@@ -356,6 +360,7 @@ async fn unauthorized_normal_access_still_honors_scanner_blacklist() {
     let client_ip = "203.0.113.78";
     let now = time_utils::now_ms();
     state
+        .storage
         .store
         .save_scanner_settings(&json!({
             "enabled": true,
@@ -366,6 +371,7 @@ async fn unauthorized_normal_access_still_honors_scanner_blacklist() {
         .await
         .expect("enable scanner");
     state
+        .storage
         .store
         .add_scanner_blacklist_record(
             client_ip,
@@ -541,6 +547,7 @@ async fn automatic_ip_grant_respects_owner_subdomain_scope() {
         ]
     });
     state
+        .storage
         .store
         .add_totp(TotpCredential {
             id: "scoped-totp".to_string(),
@@ -562,11 +569,13 @@ async fn automatic_ip_grant_respects_owner_subdomain_scope() {
     session.grant_type = Some("login_ip_grant".to_string());
     session.post_login_ip_grant_mode = Some("follow_session".to_string());
     state
+        .storage
         .store
         .add_session("scoped-session", &session, 3_600)
         .await
         .expect("store scoped session");
     state
+        .storage
         .store
         .insert_whitelist_record(&crate::store::WhitelistRecord {
             id: "scoped-auto-whitelist".to_string(),
@@ -740,6 +749,7 @@ async fn verify_rejects_and_destroys_expired_presented_session() {
     let (_directory, state) = auth_route_test_state("expired-session").await;
     let session_id = "expired-session";
     state
+        .storage
         .store
         .add_session(
             session_id,
@@ -766,6 +776,7 @@ async fn verify_rejects_and_destroys_expired_presented_session() {
     assert_clear_cookie_scopes(&response_set_cookies(&response));
     assert!(
         state
+            .storage
             .store
             .get_session(session_id)
             .await
@@ -779,6 +790,7 @@ async fn expired_session_response_is_not_blocked_by_held_mobility_lease() {
     let (_directory, state) = auth_route_test_state("expired-session-lock-contention").await;
     let session_id = "expired-session-with-held-lock";
     state
+        .storage
         .store
         .add_session(
             session_id,
@@ -790,6 +802,7 @@ async fn expired_session_response_is_not_blocked_by_held_mobility_lease() {
     let lock_key = crate::auth_mobility_keys::session_mutation_lock_key(session_id);
     assert!(
         state
+            .storage
             .store
             .set_json_value_nx_ex(
                 &lock_key,
@@ -821,6 +834,7 @@ async fn expired_session_response_is_not_blocked_by_held_mobility_lease() {
     assert_clear_cookie_scopes(&response_set_cookies(&response));
     assert!(
         state
+            .storage
             .store
             .get_session(session_id)
             .await
@@ -835,6 +849,7 @@ async fn bootstrap_migrates_valid_auth_host_session_to_shared_cookie_domain() {
     let session_id = "valid-auth-host-session";
     let session = auth_route_test_session("203.0.113.11", &time_utils::iso_after_seconds(3600));
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -1132,6 +1147,7 @@ async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
         .await
         .expect("auth route test state");
     state
+        .storage
         .store
         .save_config(&shared_auth_test_config())
         .await
@@ -1157,10 +1173,10 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
         .unwrap();
     assert_eq!(disabled_admin.status(), StatusCode::FORBIDDEN);
 
-    let mut config = state.store.get_config().await.unwrap();
+    let mut config = state.storage.store.get_config().await.unwrap();
     config["wol_feature"] = json!({ "enabled": true });
     config["gateway_portal"] = json!({ "show_wol": true });
-    state.store.save_config(&config).await.unwrap();
+    state.storage.store.save_config(&config).await.unwrap();
 
     for (name, mac, enabled) in [
         ("Visible workstation", "02:11:22:33:44:55", true),
@@ -1201,6 +1217,7 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 
     state
+        .storage
         .store
         .add_totp(TotpCredential {
             id: "wol-user".to_string(),
@@ -1216,6 +1233,7 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
     session.totp_id = "wol-user".to_string();
     session.credential_id = "wol-user".to_string();
     state
+        .storage
         .store
         .add_session("wol-session", &session, 3600)
         .await
@@ -1231,6 +1249,7 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
     assert_eq!(denied.status(), StatusCode::FORBIDDEN);
 
     state
+        .storage
         .store
         .update_totp_subdomain_access(
             "wol-user",
@@ -1309,20 +1328,21 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
         );
     }
 
-    state.store.delete_totp("wol-user").await.unwrap();
+    state.storage.store.delete_totp("wol-user").await.unwrap();
     let deleted_account = app.clone().oneshot(request()).await.unwrap();
     assert_eq!(deleted_account.status(), StatusCode::UNAUTHORIZED);
 
-    let mut config = state.store.get_config().await.unwrap();
+    let mut config = state.storage.store.get_config().await.unwrap();
     config["gateway_portal"]["show_wol"] = json!(false);
-    state.store.save_config(&config).await.unwrap();
+    state.storage.store.save_config(&config).await.unwrap();
     let portal_disabled = app.oneshot(request()).await.unwrap();
     assert_eq!(portal_disabled.status(), StatusCode::FORBIDDEN);
 }
 
 fn captcha_route_test_app(state: AppState) -> Router {
+    let captcha_config_routes: Router<AppState> = runtime_config::captcha_config_routes().into();
     Router::new()
-        .merge(runtime_config::runtime_config_routes())
+        .merge(captcha_config_routes)
         .nest("/api/auth", auth_api_routes())
         .with_state(state)
 }
@@ -1498,6 +1518,7 @@ async fn default_pow_setting_still_drives_bootstrap_and_challenge() {
 async fn pow_challenge_selects_difficulty_from_common_location_classification() {
     let (_directory, state) = auth_route_test_state("pow-location-difficulty").await;
     state
+        .storage
         .store
         .set_json_value(
             "fn_knock:captcha:settings",
@@ -1513,6 +1534,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
         .await
         .unwrap();
     state
+        .storage
         .store
         .set_string_value(
             "fn_knock:common_auth_locations:runtime",
@@ -1539,6 +1561,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
         ),
     ] {
         state
+            .storage
             .store
             .complete_ip_location_lookup(ip, &location, &json!({ "status": "success" }), 60)
             .await
@@ -1568,6 +1591,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
     }
     assert_eq!(
         inspection_state
+            .storage
             .store
             .get_ip_location_state("9.9.9.9")
             .await
@@ -1577,6 +1601,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
     );
     assert!(
         inspection_state
+            .storage
             .store
             .get_ip_location_state("127.0.0.1")
             .await
@@ -1585,6 +1610,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
     );
 
     inspection_state
+        .storage
         .store
         .set_string_value(
             "fn_knock:common_auth_locations:runtime",
@@ -1612,6 +1638,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
     }
     assert_eq!(
         inspection_state
+            .storage
             .store
             .get_ip_location_state("4.4.4.4")
             .await
@@ -1620,6 +1647,7 @@ async fn pow_challenge_selects_difficulty_from_common_location_classification() 
         Some(json!("queued"))
     );
     inspection_state
+        .storage
         .store
         .set_string_value(
             "fn_knock:common_auth_locations:runtime",

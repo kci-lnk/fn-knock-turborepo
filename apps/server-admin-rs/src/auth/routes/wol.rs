@@ -54,31 +54,8 @@ fn portal_wake_public_error(status: StatusCode) -> (StatusCode, &'static str) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::portal_wake_public_error;
-    use axum::http::StatusCode;
-
-    #[test]
-    fn portal_wake_errors_do_not_expose_relay_details() {
-        assert_eq!(
-            portal_wake_public_error(StatusCode::BAD_GATEWAY),
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
-        );
-        assert_eq!(
-            portal_wake_public_error(StatusCode::GATEWAY_TIMEOUT),
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
-        );
-        assert!(
-            !portal_wake_public_error(StatusCode::CONFLICT)
-                .1
-                .contains("Relay")
-        );
-    }
-}
-
 async fn authorize(state: &AppState, headers: &HeaderMap) -> Result<(), Response> {
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let available = crate::wol::feature_enabled(config.as_ref())
         && config
             .get("gateway_portal")
@@ -99,7 +76,7 @@ async fn authorize(state: &AppState, headers: &HeaderMap) -> Result<(), Response
             "A valid login session is required",
         )));
     };
-    let session = match state.store.get_session(session_id).await {
+    let session = match state.storage.store.get_session(session_id).await {
         Ok(Some(session)) if !login_session_has_expired(&session) => session,
         Ok(Some(session)) => {
             revoke_expired_presented_session(state, session_id, &session, config.as_ref()).await;
@@ -153,4 +130,27 @@ async fn authorize(state: &AppState, headers: &HeaderMap) -> Result<(), Response
 fn no_store(mut response: Response) -> Response {
     apply_no_store_headers(response.headers_mut());
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::portal_wake_public_error;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn portal_wake_errors_do_not_expose_relay_details() {
+        assert_eq!(
+            portal_wake_public_error(StatusCode::BAD_GATEWAY),
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
+        );
+        assert_eq!(
+            portal_wake_public_error(StatusCode::GATEWAY_TIMEOUT),
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to wake Target")
+        );
+        assert!(
+            !portal_wake_public_error(StatusCode::CONFLICT)
+                .1
+                .contains("Relay")
+        );
+    }
 }

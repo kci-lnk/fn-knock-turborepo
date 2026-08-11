@@ -36,24 +36,32 @@ import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { useConfirmationDialog } from "@admin-shared/composables/useConfirmationDialog";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI, type AdvancedAuthDetails } from "../../lib/api";
-import {
-  formatAdvancedAuthValueList,
-  getSourceNetworkValidationIssue,
-  parseAdvancedAuthValueList,
-  parseSourceNetworkTextarea,
-  sourceNetworkInputKind,
-} from "./advanced-auth-source-network";
 import { isHttpTargetUrl, normalizeHostLike } from "./model";
 import { useConfigStore } from "../../store/config";
-import { getCidrRegionSelectionLabel } from "../../types/cidr";
 import AdvancedAuthHeaderNameField from "./AdvancedAuthHeaderNameField.vue";
 import type {
-  AdvancedAuthCondition,
   AdvancedAuthConditionTarget,
   AdvancedAuthConfig,
   AdvancedAuthOperator,
-  AdvancedAuthRuleGroup,
 } from "../../types";
+import {
+  advancedAuthHourInputToSeconds,
+  advancedAuthTargetOptions,
+  cloneAdvancedAuthConfig,
+  createAdvancedAuthRuleEditor,
+  getAdvancedAuthValidationIssue,
+  isAdvancedAuthBroadRule,
+  MAX_ADVANCED_AUTH_CONDITIONS,
+  MAX_ADVANCED_AUTH_GROUPS,
+  MAX_ADVANCED_AUTH_IDLE_TTL_HOURS,
+  MAX_ADVANCED_AUTH_IDLE_TTL_SECONDS,
+  MAX_ADVANCED_AUTH_LIFETIME_HOURS,
+  MAX_ADVANCED_AUTH_LIFETIME_SECONDS,
+  MIN_ADVANCED_AUTH_TTL_HOURS,
+  SECONDS_PER_MINUTE,
+  secondsToAdvancedAuthHourInput,
+  snapshotAdvancedAuthConfig,
+} from "./advanced-auth-form";
 
 const a11yId = useId();
 
@@ -69,18 +77,11 @@ const {
   requestConfirmation,
 } = useConfirmationDialog();
 
-const MAX_GROUPS = 16;
-const MAX_CONDITIONS = 16;
-const SECONDS_PER_MINUTE = 60;
-const SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE;
-const MIN_TTL_SECONDS = 5 * SECONDS_PER_MINUTE;
-const MAX_IDLE_TTL_SECONDS = 30 * 24 * SECONDS_PER_HOUR;
-const MAX_LIFETIME_SECONDS = 365 * 24 * SECONDS_PER_HOUR;
-// Keep the shortest supported value representable in the two-decimal hour
-// input. The setter rounds it back to the exact five-minute API boundary.
-const MIN_TTL_HOURS = Number((MIN_TTL_SECONDS / SECONDS_PER_HOUR).toFixed(2));
-const MAX_IDLE_TTL_HOURS = MAX_IDLE_TTL_SECONDS / SECONDS_PER_HOUR;
-const MAX_LIFETIME_HOURS = MAX_LIFETIME_SECONDS / SECONDS_PER_HOUR;
+const MAX_GROUPS = MAX_ADVANCED_AUTH_GROUPS;
+const MAX_CONDITIONS = MAX_ADVANCED_AUTH_CONDITIONS;
+const MIN_TTL_HOURS = MIN_ADVANCED_AUTH_TTL_HOURS;
+const MAX_IDLE_TTL_HOURS = MAX_ADVANCED_AUTH_IDLE_TTL_HOURS;
+const MAX_LIFETIME_HOURS = MAX_ADVANCED_AUTH_LIFETIME_HOURS;
 const host = computed(() => String(route.params.host ?? "").trim());
 const loading = ref(true);
 const saving = ref(false);
@@ -98,260 +99,44 @@ const form = reactive<AdvancedAuthConfig>({
   groups: [],
 });
 
-const targetOptions: Array<{
-  value: AdvancedAuthConditionTarget;
-  labelKey: string;
-}> = [
-  { value: "source_ip", labelKey: "admin.advancedAuth.targetSourceIp" },
-  { value: "source_region", labelKey: "admin.advancedAuth.targetSourceRegion" },
-  { value: "url_path", labelKey: "admin.advancedAuth.targetUrlPath" },
-  {
-    value: "request_header",
-    labelKey: "admin.advancedAuth.targetRequestHeader",
-  },
-  {
-    value: "query_parameter",
-    labelKey: "admin.advancedAuth.targetQueryParameter",
-  },
-  { value: "http_method", labelKey: "admin.advancedAuth.targetHttpMethod" },
-];
+const targetOptions = advancedAuthTargetOptions;
+const cloneConfig = cloneAdvancedAuthConfig;
 
-const operatorsByTarget: Record<
-  AdvancedAuthConditionTarget,
-  Array<{ value: AdvancedAuthOperator; labelKey: string }>
-> = {
-  source_ip: [
-    { value: "equals", labelKey: "admin.advancedAuth.operatorEquals" },
-    { value: "not_equals", labelKey: "admin.advancedAuth.operatorNotEquals" },
-    { value: "in_cidr", labelKey: "admin.advancedAuth.operatorInCidr" },
-    { value: "not_in_cidr", labelKey: "admin.advancedAuth.operatorNotInCidr" },
-  ],
-  source_region: [
-    { value: "in", labelKey: "admin.advancedAuth.operatorInRegion" },
-    { value: "not_in", labelKey: "admin.advancedAuth.operatorNotInRegion" },
-  ],
-  url_path: [
-    { value: "equals", labelKey: "admin.advancedAuth.operatorEquals" },
-    { value: "not_equals", labelKey: "admin.advancedAuth.operatorNotEquals" },
-    { value: "prefix", labelKey: "admin.advancedAuth.operatorPrefix" },
-    { value: "not_prefix", labelKey: "admin.advancedAuth.operatorNotPrefix" },
-    { value: "contains", labelKey: "admin.advancedAuth.operatorContains" },
-    {
-      value: "not_contains",
-      labelKey: "admin.advancedAuth.operatorNotContains",
-    },
-    { value: "regex", labelKey: "admin.advancedAuth.operatorRegex" },
-    { value: "not_regex", labelKey: "admin.advancedAuth.operatorNotRegex" },
-  ],
-  request_header: [
-    { value: "exists", labelKey: "admin.advancedAuth.operatorExists" },
-    { value: "not_exists", labelKey: "admin.advancedAuth.operatorNotExists" },
-    { value: "equals", labelKey: "admin.advancedAuth.operatorEquals" },
-    { value: "not_equals", labelKey: "admin.advancedAuth.operatorNotEquals" },
-    { value: "contains", labelKey: "admin.advancedAuth.operatorContains" },
-    {
-      value: "not_contains",
-      labelKey: "admin.advancedAuth.operatorNotContains",
-    },
-    { value: "starts_with", labelKey: "admin.advancedAuth.operatorStartsWith" },
-    {
-      value: "not_starts_with",
-      labelKey: "admin.advancedAuth.operatorNotStartsWith",
-    },
-    { value: "ends_with", labelKey: "admin.advancedAuth.operatorEndsWith" },
-    {
-      value: "not_ends_with",
-      labelKey: "admin.advancedAuth.operatorNotEndsWith",
-    },
-    { value: "regex", labelKey: "admin.advancedAuth.operatorRegex" },
-    { value: "not_regex", labelKey: "admin.advancedAuth.operatorNotRegex" },
-  ],
-  query_parameter: [
-    { value: "exists", labelKey: "admin.advancedAuth.operatorExists" },
-    { value: "not_exists", labelKey: "admin.advancedAuth.operatorNotExists" },
-    { value: "equals", labelKey: "admin.advancedAuth.operatorEquals" },
-    { value: "not_equals", labelKey: "admin.advancedAuth.operatorNotEquals" },
-    { value: "contains", labelKey: "admin.advancedAuth.operatorContains" },
-    {
-      value: "not_contains",
-      labelKey: "admin.advancedAuth.operatorNotContains",
-    },
-    { value: "starts_with", labelKey: "admin.advancedAuth.operatorStartsWith" },
-    {
-      value: "not_starts_with",
-      labelKey: "admin.advancedAuth.operatorNotStartsWith",
-    },
-    { value: "ends_with", labelKey: "admin.advancedAuth.operatorEndsWith" },
-    {
-      value: "not_ends_with",
-      labelKey: "admin.advancedAuth.operatorNotEndsWith",
-    },
-    { value: "regex", labelKey: "admin.advancedAuth.operatorRegex" },
-    { value: "not_regex", labelKey: "admin.advancedAuth.operatorNotRegex" },
-  ],
-  http_method: [
-    { value: "in", labelKey: "admin.advancedAuth.operatorMethodIn" },
-    { value: "not_in", labelKey: "admin.advancedAuth.operatorMethodNotIn" },
-  ],
-};
+const {
+  addCondition,
+  addGroup,
+  needsValue,
+  normalizeValueDraft,
+  operatorsFor,
+  removeCondition,
+  removeGroup,
+  setSourceIpValue,
+  setValueText,
+  sourceNetworkTranslationKey,
+  updateOperator,
+  updateTarget,
+  valueInputText,
+} = createAdvancedAuthRuleEditor(form, valueDrafts);
 
-const newId = (prefix: string) =>
-  `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
-
-const blankCondition = (): AdvancedAuthCondition => ({
-  id: newId("condition"),
-  target: "source_ip",
-  operator: "equals",
-  values: [""],
-  selections: [],
-});
-
-const blankGroup = (): AdvancedAuthRuleGroup => ({
-  id: newId("group"),
-  conditions: [blankCondition()],
-});
-
-const cloneCondition = (
-  condition: AdvancedAuthCondition,
-): AdvancedAuthCondition => {
-  const compiledValues = condition.cidrs ?? [];
-  const values = condition.values?.length
-    ? [...condition.values]
-    : condition.target === "source_ip"
-      ? compiledValues.map((value) =>
-          condition.operator === "equals" || condition.operator === "not_equals"
-            ? value.replace(/\/(32|128)$/, "")
-            : value,
-        )
-      : [];
-  return {
-    ...condition,
-    values,
-    selections: (condition.selections ?? []).map((selection) => ({
-      ...selection,
-      // Stored/imported metadata may contain a geography-only label even
-      // though the carrier is present as a separate field. Normalize at both
-      // load and save boundaries so the selected tag and persisted draft
-      // always identify the carrier.
-      label: getCidrRegionSelectionLabel(selection),
-    })),
-    cidrs: [...compiledValues],
-  };
-};
-
-const cloneConfig = (config: AdvancedAuthConfig): AdvancedAuthConfig => ({
-  enabled: config.enabled === true,
-  idle_ttl_seconds: Number(config.idle_ttl_seconds) || 24 * 60 * 60,
-  max_lifetime_seconds:
-    Number(config.max_lifetime_seconds) || 30 * 24 * 60 * 60,
-  policy_version: config.policy_version,
-  groups: (config.groups ?? []).map((group) => ({
-    id: group.id,
-    conditions: (group.conditions ?? []).map(cloneCondition),
-  })),
-});
-
-const sourceIpDisplayValue = (condition: AdvancedAuthCondition) => {
-  const values = condition.values?.length
-    ? condition.values
-    : (condition.cidrs ?? []);
-  return formatAdvancedAuthValueList(
-    values.map((value) => {
-      if (
-        condition.operator === "equals" ||
-        condition.operator === "not_equals"
-      ) {
-        return value.replace(/\/(32|128)$/, "");
-      }
-      return value;
-    }),
-  );
-};
-
-const setSourceIpValue = (condition: AdvancedAuthCondition, value: string) => {
-  valueDrafts[condition.id] = value;
-  condition.values = parseSourceNetworkTextarea(value);
-};
-
-const sourceNetworkTranslationKey = (
-  condition: AdvancedAuthCondition,
-  suffix: "Label" | "Placeholder" | "Hint",
-) =>
-  `admin.advancedAuth.source${sourceNetworkInputKind(condition.operator) === "address" ? "Ip" : "Cidr"}${suffix}`;
-
-const valueText = (condition: AdvancedAuthCondition) =>
-  formatAdvancedAuthValueList(condition.values ?? []);
-const setValueText = (condition: AdvancedAuthCondition, value: string) => {
-  valueDrafts[condition.id] = value;
-  condition.values = parseAdvancedAuthValueList(value);
-};
-const valueInputText = (condition: AdvancedAuthCondition) =>
-  valueDrafts[condition.id] ??
-  (condition.target === "source_ip"
-    ? sourceIpDisplayValue(condition)
-    : valueText(condition));
-const normalizeValueDraft = (condition: AdvancedAuthCondition) => {
-  valueDrafts[condition.id] =
-    condition.target === "source_ip"
-      ? sourceIpDisplayValue(condition)
-      : valueText(condition);
-};
-const clearValueDraft = (condition: AdvancedAuthCondition) => {
-  delete valueDrafts[condition.id];
-};
-const needsValue = (condition: AdvancedAuthCondition) =>
-  condition.target !== "source_region" &&
-  condition.operator !== "exists" &&
-  condition.operator !== "not_exists";
-
-const operatorsFor = (target: AdvancedAuthConditionTarget) =>
-  operatorsByTarget[target];
-
-const updateTarget = (
-  condition: AdvancedAuthCondition,
-  target: AdvancedAuthConditionTarget,
-) => {
-  clearValueDraft(condition);
-  condition.target = target;
-  condition.operator = operatorsByTarget[target][0]?.value ?? "equals";
-  condition.values = target === "source_region" ? [] : [""];
-  condition.selections = [];
-  condition.cidrs = undefined;
-};
-
-const updateOperator = (
-  condition: AdvancedAuthCondition,
-  operator: AdvancedAuthOperator,
-) => {
-  clearValueDraft(condition);
-  condition.operator = operator;
-  if (operator === "exists" || operator === "not_exists") condition.values = [];
-};
-
-const secondsToHourInput = (seconds: number) => {
-  const hours = seconds / SECONDS_PER_HOUR;
-  return Number.isInteger(hours) ? hours : Number(hours.toFixed(2));
-};
-
-const hourInputToSeconds = (value: number, maximum: number) => {
-  const hours = Number(value);
-  if (!Number.isFinite(hours)) return MIN_TTL_SECONDS;
-  return Math.min(
-    maximum,
-    Math.max(MIN_TTL_SECONDS, Math.round(hours * 60) * SECONDS_PER_MINUTE),
-  );
-};
+const secondsToHourInput = secondsToAdvancedAuthHourInput;
+const hourInputToSeconds = advancedAuthHourInputToSeconds;
 
 const idleHours = computed({
   get: () => secondsToHourInput(form.idle_ttl_seconds),
   set: (value: number) => {
-    form.idle_ttl_seconds = hourInputToSeconds(value, MAX_IDLE_TTL_SECONDS);
+    form.idle_ttl_seconds = hourInputToSeconds(
+      value,
+      MAX_ADVANCED_AUTH_IDLE_TTL_SECONDS,
+    );
   },
 });
 const maxLifetimeHours = computed({
   get: () => secondsToHourInput(form.max_lifetime_seconds),
   set: (value: number) => {
-    form.max_lifetime_seconds = hourInputToSeconds(value, MAX_LIFETIME_SECONDS);
+    form.max_lifetime_seconds = hourInputToSeconds(
+      value,
+      MAX_ADVANCED_AUTH_LIFETIME_SECONDS,
+    );
   },
 });
 
@@ -387,54 +172,9 @@ const maxLifetimeTooShort = computed(
   () => form.max_lifetime_seconds < form.idle_ttl_seconds,
 );
 
-const snapshotConfig = () =>
-  JSON.stringify({
-    enabled: form.enabled,
-    idle_ttl_seconds: form.idle_ttl_seconds,
-    max_lifetime_seconds: form.max_lifetime_seconds,
-    groups: form.groups,
-  });
+const snapshotConfig = () => snapshotAdvancedAuthConfig(form);
 const isDirty = computed(() => snapshotConfig() !== savedSnapshot.value);
-
-const isBroadRule = computed(() =>
-  form.groups.some((group) => {
-    const conditions = group.conditions;
-    if (!conditions.length) return false;
-    if (conditions.every((condition) => condition.operator.startsWith("not_")))
-      return true;
-    if (conditions.length === 1 && conditions[0]?.target === "http_method")
-      return true;
-    return conditions.some(
-      (condition) =>
-        (condition.target === "url_path" &&
-          (condition.operator === "prefix" ||
-            condition.operator === "not_prefix") &&
-          (condition.values ?? []).includes("/")) ||
-        (condition.target === "source_ip" &&
-          (condition.values ?? []).some((value) =>
-            ["0.0.0.0/0", "::/0"].includes(value.trim()),
-          )),
-    );
-  }),
-);
-
-const addGroup = () => {
-  if (form.groups.length >= MAX_GROUPS) return;
-  form.groups.push(blankGroup());
-};
-const removeGroup = (groupIndex: number) => {
-  form.groups[groupIndex]?.conditions.forEach(clearValueDraft);
-  form.groups.splice(groupIndex, 1);
-};
-const addCondition = (group: AdvancedAuthRuleGroup) => {
-  if (group.conditions.length >= MAX_CONDITIONS) return;
-  group.conditions.push(blankCondition());
-};
-const removeCondition = (group: AdvancedAuthRuleGroup, index: number) => {
-  const condition = group.conditions[index];
-  if (condition) clearValueDraft(condition);
-  group.conditions.splice(index, 1);
-};
+const isBroadRule = computed(() => isAdvancedAuthBroadRule(form));
 
 const regionText = {
   add: t("admin.advancedAuth.addRegion"),
@@ -507,54 +247,29 @@ const cancel = () => {
 
 const save = async () => {
   if (saving.value || !isDirty.value) return;
-  if (form.enabled) {
-    if (form.groups.length === 0) {
-      toast.error(t("admin.advancedAuth.invalidRules"));
-      return;
-    }
-    if (form.groups.some((group) => group.conditions.length === 0)) {
-      toast.error(t("admin.advancedAuth.emptyGroup"));
-      return;
-    }
-    const conditions = form.groups.flatMap((group) => group.conditions);
-    const invalidSourceNetwork = conditions
-      .filter((condition) => condition.target === "source_ip")
-      .map((condition) =>
-        getSourceNetworkValidationIssue(
-          condition.values ?? [],
-          condition.operator,
-        ),
-      )
-      .find((issue) => issue != null);
-    if (invalidSourceNetwork) {
+  const validationIssue = getAdvancedAuthValidationIssue(form);
+  if (validationIssue) {
+    if (
+      validationIssue.kind === "invalid-source-address" ||
+      validationIssue.kind === "invalid-source-cidr"
+    ) {
       toast.error(
         t(
-          invalidSourceNetwork.kind === "address"
+          validationIssue.kind === "invalid-source-address"
             ? "admin.advancedAuth.invalidSourceIpLine"
             : "admin.advancedAuth.invalidSourceCidrLine",
-          { line: invalidSourceNetwork.line },
+          { line: validationIssue.line },
         ),
       );
-      return;
+    } else {
+      const translationKey = {
+        "invalid-rules": "admin.advancedAuth.invalidRules",
+        "empty-group": "admin.advancedAuth.emptyGroup",
+        "invalid-condition": "admin.advancedAuth.invalidCondition",
+        "max-lifetime-too-short": "admin.advancedAuth.maxLifetimeTooShort",
+      }[validationIssue.kind];
+      toast.error(t(translationKey));
     }
-    const invalidCondition = conditions.find(
-      (condition) =>
-        (condition.target === "source_region" &&
-          (condition.selections ?? []).length === 0) ||
-        ((condition.target === "request_header" ||
-          condition.target === "query_parameter") &&
-          !condition.name?.trim()) ||
-        (needsValue(condition) &&
-          ((condition.values ?? []).length === 0 ||
-            (condition.values ?? []).some((value) => !value.trim()))),
-    );
-    if (invalidCondition) {
-      toast.error(t("admin.advancedAuth.invalidCondition"));
-      return;
-    }
-  }
-  if (form.max_lifetime_seconds < form.idle_ttl_seconds) {
-    toast.error(t("admin.advancedAuth.maxLifetimeTooShort"));
     return;
   }
   const pendingSnapshot = snapshotConfig();

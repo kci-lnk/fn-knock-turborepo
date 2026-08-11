@@ -70,16 +70,23 @@ pub(super) async fn restore_app_token_binding(
     }
 
     let mut binding = state
+        .storage
         .store
         .get_auth_mobility_binding(subject_type, subject_key)
         .await?;
     if let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id)
-        && state.store.get_session(&owner_session_id).await?.is_none()
+        && state
+            .storage
+            .store
+            .get_session(&owner_session_id)
+            .await?
+            .is_none()
         && let Some(mut orphaned) = binding.take()
     {
         clear_binding_owner_session(&mut orphaned);
         set_binding_last_seen(&mut orphaned);
         if !state
+            .storage
             .store
             .save_auth_mobility_orphaned_binding(
                 subject_type,
@@ -118,6 +125,7 @@ pub(super) async fn restore_app_token_binding(
             None,
         );
         if !state
+            .storage
             .store
             .save_auth_mobility_owned_binding(
                 subject_type,
@@ -137,7 +145,7 @@ pub(super) async fn restore_app_token_binding(
     let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id) else {
         return Ok(false);
     };
-    let Some(owner_session) = state.store.get_session(&owner_session_id).await? else {
+    let Some(owner_session) = state.storage.store.get_session(&owner_session_id).await? else {
         return Ok(false);
     };
     let expire_at = parse_iso_unix(owner_session.expires_at.as_deref());
@@ -155,6 +163,7 @@ pub(super) async fn restore_app_token_binding(
         whitelist_record_id,
     );
     if !state
+        .storage
         .store
         .save_auth_mobility_owned_binding(
             subject_type,
@@ -229,16 +238,17 @@ pub(super) async fn restore_proxy_session(
     session_id: &str,
     client_ip: &str,
 ) -> anyhow::Result<bool> {
-    let Some(session) = state.store.get_session(session_id).await? else {
+    let Some(session) = state.storage.store.get_session(session_id).await? else {
         return Ok(false);
     };
     let normalized_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_ip.is_empty() {
         return Ok(false);
     }
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let binding = state
+        .storage
         .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
@@ -259,6 +269,7 @@ pub(super) async fn restore_proxy_session(
                 whitelist_record_id,
             );
             if !state
+                .storage
                 .store
                 .save_auth_mobility_binding_keep_ttl(
                     "proxy-session",
@@ -308,6 +319,7 @@ pub(super) async fn restore_proxy_session(
         Some(whitelist_record_id),
     );
     if !state
+        .storage
         .store
         .save_auth_mobility_binding_keep_ttl("proxy-session", session_id, &next_binding, session_id)
         .await?
@@ -340,9 +352,9 @@ pub async fn list_active_sessions_by_ip(
     if normalized_ip.is_empty() {
         return Ok(Vec::new());
     }
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let mut owners = Vec::new();
-    for (session_id, session) in state.store.list_login_sessions().await? {
+    for (session_id, session) in state.storage.store.list_login_sessions().await? {
         let ips = effective_session_ips(state, &session_id, &session, &config).await?;
         if ips.iter().any(|ip| ip == &normalized_ip) {
             owners.push((session_id, session));
@@ -359,9 +371,9 @@ pub(crate) async fn list_stream_access_sessions_by_ip(
     if normalized_ip.is_empty() {
         return Ok(Vec::new());
     }
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let mut owners = Vec::new();
-    for (session_id, session) in state.store.list_login_sessions().await? {
+    for (session_id, session) in state.storage.store.list_login_sessions().await? {
         // Protocol mappings have no browser cookie to refresh mobility state.
         // Keep the session's canonical IP eligible for the lifetime of its
         // stream grant, while additional drift IPs remain window-bound.

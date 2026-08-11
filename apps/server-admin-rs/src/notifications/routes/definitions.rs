@@ -73,18 +73,6 @@ pub(in crate::notifications::routes) struct ProviderDefinition {
     pub(in crate::notifications::routes) supports_provider_dedupe_key: bool,
 }
 
-pub(super) fn provider_key(id: &str) -> String {
-    format!("{PROVIDERS_DATA_PREFIX}{id}")
-}
-
-pub(super) fn rule_key(id: &str) -> String {
-    format!("{RULES_DATA_PREFIX}{id}")
-}
-
-pub(super) fn delivery_key(id: &str) -> String {
-    format!("{DELIVERIES_DATA_PREFIX}{id}")
-}
-
 pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinition> {
     match provider_type {
         "webhook" => Some(webhook_definition()),

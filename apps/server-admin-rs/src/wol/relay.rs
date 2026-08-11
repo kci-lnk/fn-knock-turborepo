@@ -13,6 +13,7 @@ use std::{
 use tokio::{
     net::UdpSocket,
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
+    task::JoinSet,
     time,
 };
 use uuid::Uuid;
@@ -32,13 +33,14 @@ const RESTART_DELAY: Duration = Duration::from_secs(5);
 const STATUS_CONCURRENCY: usize = 8;
 
 pub(crate) fn start_wol_relay_tasks(state: AppState) {
-    tokio::spawn(async move {
-        relay_supervisor(state).await;
+    let task_state = state.clone();
+    state.spawn_background("wol-relay-supervisor", async move {
+        relay_supervisor(task_state).await;
     });
 }
 
 async fn relay_supervisor(state: AppState) {
-    let mut runtime_reload = state.wol_runtime_reload.subscribe();
+    let mut runtime_reload = state.wol.runtime_reload.subscribe();
     loop {
         if state.shutdown.is_cancelled() {
             set_status(&state, false, false, None, None).await;
@@ -76,7 +78,7 @@ async fn relay_supervisor(state: AppState) {
             set_status(&state, false, false, None, None).await;
             tokio::select! {
                 _ = state.shutdown.cancelled() => return,
-                _ = state.wol_relay_reload.notified() => continue,
+                _ = state.wol.relay_reload.notified() => continue,
                 _ = runtime_reload.changed() => continue,
             }
         }
@@ -102,7 +104,7 @@ async fn wait_for_reload_or_retry(
 ) {
     tokio::select! {
         _ = state.shutdown.cancelled() => {}
-        _ = state.wol_relay_reload.notified() => {}
+        _ = state.wol.relay_reload.notified() => {}
         _ = runtime_reload.changed() => {}
         _ = time::sleep(RESTART_DELAY) => {}
     }
@@ -174,13 +176,19 @@ async fn run_listener(
         psk,
     )));
     let status_semaphore = Arc::new(Semaphore::new(STATUS_CONCURRENCY));
+    let mut workers = JoinSet::new();
     // The extra byte ensures an oversized datagram is not accepted after UDP truncation.
     let mut input = [0_u8; PACKET_LEN + 1];
     loop {
         tokio::select! {
             _ = state.shutdown.cancelled() => return ListenerExit::Shutdown,
-            _ = state.wol_relay_reload.notified() => return ListenerExit::Reload,
+            _ = state.wol.relay_reload.notified() => return ListenerExit::Reload,
             _ = runtime_reload.changed() => return ListenerExit::Reload,
+            completed = workers.join_next(), if !workers.is_empty() => {
+                if let Some(Err(error)) = completed {
+                    tracing::warn!(%error, "built-in WoL Relay request worker failed");
+                }
+            }
             received = listener.recv_from(&mut input) => {
                 let (length, source) = match received {
                     Ok(value) => value,
@@ -207,7 +215,7 @@ async fn run_listener(
                         let destinations = broadcast_destinations.clone();
                         let processor = Arc::clone(&processor);
                         let status_semaphore = Arc::clone(&status_semaphore);
-                        tokio::spawn(async move {
+                        workers.spawn(async move {
                             let _status_permit = if forced_status.is_none() && request.command == Command::Status {
                                 try_acquire_status_permit(&status_semaphore)
                             } else {
@@ -339,7 +347,7 @@ async fn set_status(
     listen_address: Option<String>,
     last_error: Option<String>,
 ) {
-    *state.wol_relay_status.write().await = json!({
+    *state.wol.relay_status.write().await = json!({
         "enabled": enabled,
         "active": active,
         "listenAddress": listen_address,

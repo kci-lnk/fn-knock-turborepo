@@ -30,6 +30,12 @@ const FNOS_CONNECT_RULE_COMMENT: &str = "fn-knock:fn-connect-waf";
 const FNOS_CONNECT_RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
 const FNOS_CONNECT_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
+pub(crate) fn fnos_connect_waf_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_fnos_connect_waf))
+        .routes(routes!(update_fnos_connect_waf))
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum FirewallFamily {
     Ipv4,
@@ -119,6 +125,13 @@ struct DetectedFnosHttpPort {
     source: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/fnos_connect_waf",
+    tag = "config",
+    operation_id = "get_api_admin_config_fnos_connect_waf",
+    responses((status = 200, description = "FN Connect WAF configuration and runtime status"))
+)]
 pub(super) async fn get_fnos_connect_waf(State(state): State<AppState>) -> Response {
     match build_fnos_connect_waf_response(&state).await {
         Ok(data) => response::ok(data).into_response(),
@@ -132,6 +145,13 @@ pub(super) async fn get_fnos_connect_waf(State(state): State<AppState>) -> Respo
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/fnos_connect_waf",
+    tag = "config",
+    operation_id = "post_api_admin_config_fnos_connect_waf",
+    responses((status = 200, description = "Updated FN Connect WAF configuration"))
+)]
 pub(super) async fn update_fnos_connect_waf(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -144,7 +164,7 @@ pub(super) async fn update_fnos_connect_waf(
     };
 
     let _guard = state.fnos_connect_waf_update_lock.lock().await;
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before FN Connect WAF update");
@@ -170,7 +190,7 @@ pub(super) async fn update_fnos_connect_waf(
         next_config = app_store::default_config();
     }
     ensure_config_object(&mut next_config).insert("fnos_connect_waf".to_string(), next);
-    if let Err(error) = state.store.save_config(&next_config).await {
+    if let Err(error) = state.storage.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to persist FN Connect WAF config; restoring runtime");
         if let Err(rollback_error) = apply_fnos_connect_waf_runtime(&state, previous_enabled).await
         {
@@ -190,7 +210,9 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
     if !fnos_connect_waf_available(&state) {
         return;
     }
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("fnos-connect-waf-reconcile", async move {
+        let state = task_state;
         let mut interval = time::interval(FNOS_CONNECT_RECONCILE_INTERVAL);
         interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         let mut first = true;
@@ -208,7 +230,7 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
             }
 
             let _guard = state.fnos_connect_waf_update_lock.lock().await;
-            let config = match state.store.get_config().await {
+            let config = match state.storage.store.get_config().await {
                 Ok(config) => config,
                 Err(error) => {
                     tracing::warn!(%error, "failed to load FN Connect WAF config during reconcile");
@@ -253,7 +275,7 @@ pub(crate) fn normalize_fnos_connect_waf(value: Option<&Value>) -> Value {
 }
 
 async fn build_fnos_connect_waf_response(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let runtime = state.fnos_connect_waf_status.read().await.clone();
     let available = fnos_connect_waf_available(state);
     Ok(json!({
@@ -291,7 +313,8 @@ async fn apply_fnos_connect_waf_runtime(state: &AppState, enabled: bool) -> anyh
         }
     };
     let go_response = match state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_connect_ingress_config(true, detected.port)
         .await
     {
@@ -390,7 +413,7 @@ async fn reconcile_enabled_fnos_connect_waf_runtime(state: &AppState) -> anyhow:
             anyhow::bail!(error);
         }
     };
-    let go_response = match state.go_backend.get_fnos_connect_ingress_status().await {
+    let go_response = match state.gateway.client.get_fnos_connect_ingress_status().await {
         Ok(response) => response,
         Err(_) => return apply_fnos_connect_waf_runtime(state, true).await,
     };
@@ -483,7 +506,8 @@ async fn disable_fnos_connect_waf_runtime(state: &AppState) -> anyhow::Result<()
         anyhow::bail!(error);
     }
     let go_result = state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_connect_ingress_config(false, 0)
         .await;
     let error = go_result.err().map(|error| error.to_string());
@@ -532,7 +556,8 @@ async fn fail_open_fnos_connect_waf(state: &AppState, message: &str) {
     if let Some(error) = cleanup_error.as_ref() {
         tracing::warn!(%error, "failed to clean FN Connect WAF rules during fail-open");
     } else if let Err(error) = state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_connect_ingress_config(false, 0)
         .await
     {

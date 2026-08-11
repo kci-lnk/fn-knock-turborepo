@@ -18,6 +18,7 @@ async fn acme_test_state() -> (tempfile::TempDir, AppState) {
         .await
         .expect("create ACME test state");
     state
+        .storage
         .store
         .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
         .await
@@ -76,9 +77,15 @@ fn test_managed_certificate(
 }
 
 async fn save_test_ssl_config(state: &AppState, ssl: Value) {
-    let mut config = state.store.get_config().await.expect("load test config");
+    let mut config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("load test config");
     config["ssl"] = ssl;
     state
+        .storage
         .store
         .save_config(&config)
         .await
@@ -326,6 +333,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
         "libraryLinkedAt": "2026-07-01T00:00:00.000Z"
     });
     state
+        .storage
         .store
         .set_json_value(
             ACME_ISSUED_CERTIFICATES_KEY,
@@ -351,6 +359,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
     });
     save_test_ssl_config(&state, ssl.clone()).await;
     state
+        .storage
         .store
         .set_json_value(
             &format!("{ACME_CERT_PREFIX}example.test"),
@@ -383,7 +392,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
     .expect("save added domain");
 
     assert_eq!(
-        state.store.get_config().await.unwrap()["ssl"],
+        state.storage.store.get_config().await.unwrap()["ssl"],
         ssl,
         "saving a domain change must not alter the deployed SSL configuration"
     );
@@ -401,6 +410,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
     assert!(old_directory.exists());
     assert!(
         state
+            .storage
             .store
             .get_json_value(&format!("{ACME_CERT_PREFIX}example.test"))
             .await
@@ -419,7 +429,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
     update_acme_application_job_state(&state, &added_domain.application, &failed_job)
         .await
         .expect("record failed job");
-    assert_eq!(state.store.get_config().await.unwrap()["ssl"], ssl);
+    assert_eq!(state.storage.store.get_config().await.unwrap()["ssl"], ssl);
     assert_eq!(
         read_issued_certificates(&state).await.unwrap(),
         vec![normalize_issued_certificate(issued.clone()).unwrap()]
@@ -436,7 +446,7 @@ async fn domain_changes_and_failed_or_stopped_jobs_preserve_active_certificate()
     update_acme_application_job_state(&state, &added_domain.application, &stopped_job)
         .await
         .expect("record stopped job");
-    assert_eq!(state.store.get_config().await.unwrap()["ssl"], ssl);
+    assert_eq!(state.storage.store.get_config().await.unwrap()["ssl"], ssl);
     assert_eq!(
         read_issued_certificates(&state).await.unwrap(),
         vec![normalize_issued_certificate(issued).unwrap()]
@@ -577,7 +587,10 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         panic!("unmodified SSL state must restore the previous snapshot");
     };
     assert_eq!(restored["ssl"], original_ssl);
-    assert_eq!(state.store.get_config().await.unwrap()["ssl"], original_ssl);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["ssl"],
+        original_ssl
+    );
 
     let scripted_prepared =
         prepare_acme_library_after_issue(&state, &saved.application, &translator)
@@ -609,7 +622,10 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
             .map(str::trim),
         Some(old_cert.trim())
     );
-    assert_eq!(state.store.get_config().await.unwrap()["ssl"], original_ssl);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["ssl"],
+        original_ssl
+    );
 
     let concurrent_success_prepared =
         prepare_acme_library_after_issue(&state, &saved.application, &translator)
@@ -635,7 +651,7 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         concurrent_success_ssl
     );
     assert_eq!(
-        state.store.get_config().await.unwrap()["ssl"],
+        state.storage.store.get_config().await.unwrap()["ssl"],
         concurrent_success_ssl
     );
     save_test_ssl_config(&state, original_ssl.clone()).await;
@@ -644,9 +660,10 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         prepare_acme_library_after_issue(&state, &saved.application, &translator)
             .await
             .expect("prepare replacement before unrelated config write");
-    let mut config_with_unrelated_write = state.store.get_config().await.unwrap();
+    let mut config_with_unrelated_write = state.storage.store.get_config().await.unwrap();
     config_with_unrelated_write["concurrent_unrelated_section"] = json!({ "preserve": true });
     state
+        .storage
         .store
         .save_config(&config_with_unrelated_write)
         .await
@@ -687,7 +704,7 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
     };
     assert_eq!(latest_config["ssl"], concurrent_ssl);
     assert_eq!(
-        state.store.get_config().await.unwrap()["ssl"],
+        state.storage.store.get_config().await.unwrap()["ssl"],
         concurrent_ssl
     );
 
@@ -822,7 +839,10 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         stopped_error.to_string(),
         translator.t("server.acmeJobRunner.manualStop")
     );
-    assert_eq!(state.store.get_config().await.unwrap()["ssl"], original_ssl);
+    assert_eq!(
+        state.storage.store.get_config().await.unwrap()["ssl"],
+        original_ssl
+    );
 
     save_test_ssl_config(&state, original_ssl.clone()).await;
     let deployment_error =
@@ -836,7 +856,7 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         "the error should report that gateway recovery could not be completed"
     );
     assert_eq!(
-        state.store.get_config().await.unwrap()["ssl"],
+        state.storage.store.get_config().await.unwrap()["ssl"],
         original_ssl,
         "a gateway deployment failure must restore the old active certificate and compatibility fields"
     );
@@ -846,7 +866,7 @@ async fn successful_issue_replaces_in_place_and_preserves_deployment_role() {
         .expect_err("the unavailable gateway must reject reconciliation");
     assert!(!reconcile_error.to_string().is_empty());
     assert_eq!(
-        state.store.get_config().await.unwrap()["ssl"],
+        state.storage.store.get_config().await.unwrap()["ssl"],
         original_ssl,
         "automatic reconciliation must not undo the failed deployment rollback"
     );
@@ -910,6 +930,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     );
     assert!(
         state
+            .storage
             .store
             .get_json_value(&format!("{ACME_CERT_PREFIX}new.example.test"))
             .await
@@ -919,6 +940,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     assert!(!new_directory.exists());
     assert_eq!(
         state
+            .storage
             .store
             .get_json_value(&format!("{ACME_CERT_PREFIX}old.example.test"))
             .await
@@ -969,6 +991,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     .await
     .expect("claim the previous domain from another application");
     state
+        .storage
         .store
         .set_json_value(
             &format!("{ACME_CERT_PREFIX}reused.example.test"),
@@ -1003,6 +1026,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     .expect("restore issued metadata without overwriting a reused domain");
     assert_eq!(
         state
+            .storage
             .store
             .get_json_value(&format!("{ACME_CERT_PREFIX}reused.example.test"))
             .await
@@ -1070,6 +1094,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     .expect("claim the transient current domain from another application");
     let claimed_current_key = format!("{ACME_CERT_PREFIX}claimed-current.example.test");
     state
+        .storage
         .store
         .set_json_value(
             &claimed_current_key,
@@ -1101,6 +1126,7 @@ async fn issued_snapshot_rollback_restores_previous_artifacts_and_removes_new_ar
     .expect("remove issued metadata without deleting a reused current domain");
     assert_eq!(
         state
+            .storage
             .store
             .get_json_value(&claimed_current_key)
             .await
@@ -1129,6 +1155,7 @@ async fn superseded_domain_cleanup_avoids_equal_or_reused_domains() {
     let old_key = format!("{ACME_CERT_PREFIX}old.example.test");
     let old_directory = state.settings.data_dir.join("ssl").join("old.example.test");
     state
+        .storage
         .store
         .set_json_value(&old_key, &json!({ "cert": "OLD", "key": "KEY" }))
         .await
@@ -1149,6 +1176,7 @@ async fn superseded_domain_cleanup_avoids_equal_or_reused_domains() {
     );
     assert!(
         state
+            .storage
             .store
             .get_json_value(&old_key)
             .await
@@ -1158,6 +1186,7 @@ async fn superseded_domain_cleanup_avoids_equal_or_reused_domains() {
     assert!(!old_directory.exists());
 
     state
+        .storage
         .store
         .set_json_value(&old_key, &json!({ "cert": "REUSED", "key": "KEY" }))
         .await
@@ -1182,6 +1211,7 @@ async fn superseded_domain_cleanup_avoids_equal_or_reused_domains() {
     );
     assert!(
         state
+            .storage
             .store
             .get_json_value(&old_key)
             .await
@@ -1202,6 +1232,7 @@ async fn superseded_domain_cleanup_avoids_equal_or_reused_domains() {
     );
     assert!(
         state
+            .storage
             .store
             .get_json_value(&old_key)
             .await

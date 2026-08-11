@@ -236,6 +236,7 @@ async fn recommended_lfi_patch_enables_legacy_rule_once() {
     assert_eq!(patched.custom_enabled, legacy.custom_enabled);
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
             .await
@@ -288,6 +289,7 @@ async fn recommended_lfi_patch_marks_pre_enabled_rule_without_rewriting_choice()
     );
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
             .await
@@ -376,6 +378,7 @@ async fn recommended_preset_rolls_back_state_when_gateway_reload_fails() {
     };
     write_rules_state(&state, &previous).await.unwrap();
     state
+        .storage
         .store
         .save_config(&json!({"waf": {"enabled": true, "mode": "block"}}))
         .await

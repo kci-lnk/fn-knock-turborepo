@@ -8,16 +8,16 @@ use std::{
 };
 
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::time;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     app_version::{APP_GITHUB_URL, APP_LOCAL_VERSION},
@@ -190,17 +190,14 @@ struct UpdateManager {
     inner: Mutex<UpdateInner>,
 }
 
-pub fn update_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/update/status", get(status))
-        .route("/api/admin/update/check", post(check))
-        .route("/api/admin/update/download", post(download))
-        .route("/api/admin/update/install", post(install))
-        .route(
-            "/api/admin/update/check-and-download",
-            post(check_and_download),
-        )
-        .route("/api/admin/update/confirm", get(confirm))
+pub fn update_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(check))
+        .routes(routes!(download))
+        .routes(routes!(install))
+        .routes(routes!(check_and_download))
+        .routes(routes!(confirm))
 }
 
 fn update_route_text(translator: &Translator, key: &str) -> String {
@@ -222,19 +219,20 @@ fn update_manager_text_params(
 pub fn start_update_tasks(state: AppState) {
     let update_manager = manager(&state);
     update_manager.ensure_dirs();
-    tokio::spawn(async move {
-        let update_manager = manager(&state);
+    let task_state = state.clone();
+    state.spawn_background("update-check", async move {
+        let update_manager = manager(&task_state);
         tokio::select! {
-            _ = state.shutdown.cancelled() => return,
-            result = update_manager.ensure_confirm_by_pending(&state) => {
+            _ = task_state.shutdown.cancelled() => return,
+            result = update_manager.ensure_confirm_by_pending(&task_state) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "failed to prepare update confirmation on boot");
                 }
             }
         }
         tokio::select! {
-            _ = state.shutdown.cancelled() => return,
-            result = update_manager.check_now_background(state.clone(), "startup") => {
+            _ = task_state.shutdown.cancelled() => return,
+            result = update_manager.check_now_background(task_state.clone(), "startup") => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "startup update check failed");
                 }
@@ -245,18 +243,18 @@ pub fn start_update_tasks(state: AppState) {
         interval.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = interval.tick() => {}
             }
             let lock_result = tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = state.store.set_lock_if_not_exists("ota-update-check", 600) => result,
+                _ = task_state.shutdown.cancelled() => break,
+                result = task_state.storage.store.set_lock_if_not_exists("ota-update-check", 600) => result,
             };
             match lock_result {
                 Ok(true) => {
                     tokio::select! {
-                        _ = state.shutdown.cancelled() => break,
-                        result = manager(&state).check_now_background(state.clone(), "cron") => {
+                        _ = task_state.shutdown.cancelled() => break,
+                        result = manager(&task_state).check_now_background(task_state.clone(), "cron") => {
                             if let Err(error) = result {
                                 tracing::warn!(%error, "scheduled update check failed");
                             }
@@ -270,6 +268,13 @@ pub fn start_update_tasks(state: AppState) {
     });
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/update/status",
+    tag = "update",
+    operation_id = "get_api_admin_update_status",
+    responses((status = 200, description = "Current self-update status"))
+)]
 async fn status(State(state): State<AppState>) -> Response {
     let manager = manager(&state);
     status_with_manager(state, manager).await
@@ -289,6 +294,13 @@ async fn status_with_manager(state: AppState, manager: &UpdateManager) -> Respon
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/update/check",
+    tag = "update",
+    operation_id = "post_api_admin_update_check",
+    responses((status = 200, description = "Self-update status after a manual check"))
+)]
 async fn check(State(state): State<AppState>) -> Response {
     let manager = manager(&state);
     check_with_manager(state, manager).await
@@ -301,6 +313,13 @@ async fn check_with_manager(state: AppState, manager: &UpdateManager) -> Respons
     status_with_manager(state, manager).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/update/download",
+    tag = "update",
+    operation_id = "post_api_admin_update_download",
+    responses((status = 200, description = "Self-update status after download starts"))
+)]
 async fn download(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !self_update_available(&state) {
@@ -330,6 +349,13 @@ async fn download(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/update/install",
+    tag = "update",
+    operation_id = "post_api_admin_update_install",
+    responses((status = 200, description = "Self-update installation was started"))
+)]
 async fn install(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !self_update_available(&state) {
@@ -346,6 +372,13 @@ async fn install(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/update/check-and-download",
+    tag = "update",
+    operation_id = "post_api_admin_update_check_and_download",
+    responses((status = 200, description = "Self-update status after check and download start"))
+)]
 async fn check_and_download(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !self_update_available(&state) {
@@ -381,6 +414,13 @@ async fn check_and_download(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/update/confirm",
+    tag = "update",
+    operation_id = "get_api_admin_update_confirm",
+    responses((status = 200, description = "Pending self-update confirmation, if any"))
+)]
 async fn confirm(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
@@ -629,7 +669,7 @@ impl UpdateManager {
                 target_version: Some(manifest.version.clone()),
             };
         }
-        tokio::spawn(async move {
+        state.spawn_background("update-download", async move {
             if let Err(error) = self
                 .download_internal(translator, manifest, target_package, target_path)
                 .await
@@ -680,6 +720,7 @@ impl UpdateManager {
             "requestedAt": time_utils::now_iso()
         });
         state
+            .storage
             .store
             .set_json_value_ex(UPDATE_PENDING_KEY, &pending, UPDATE_PENDING_TTL_SECONDS)
             .await
@@ -695,6 +736,7 @@ impl UpdateManager {
     async fn consume_confirm_message(&self, state: &AppState) -> anyhow::Result<Option<Value>> {
         self.ensure_confirm_by_pending(state).await?;
         Ok(state
+            .storage
             .store
             .consume_json_value(UPDATE_CONFIRM_KEY)
             .await?
@@ -708,7 +750,11 @@ impl UpdateManager {
                 return Ok(());
             }
         }
-        let pending = state.store.get_json_value(UPDATE_PENDING_KEY).await?;
+        let pending = state
+            .storage
+            .store
+            .get_json_value(UPDATE_PENDING_KEY)
+            .await?;
         if let Some(pending) = pending
             && let Some(target_version) = pending_confirmed_target_version(&pending)
         {
@@ -717,10 +763,12 @@ impl UpdateManager {
                 "completedAt": time_utils::now_iso()
             });
             state
+                .storage
                 .store
                 .set_json_value_ex(UPDATE_CONFIRM_KEY, &confirm, UPDATE_CONFIRM_TTL_SECONDS)
                 .await?;
             state
+                .storage
                 .store
                 .delete_keys(&[UPDATE_PENDING_KEY.to_string()])
                 .await?;

@@ -1,8 +1,9 @@
 use super::*;
 
+#[utoipa::path(delete, path = "/api/admin/ddns/logs", tag = "ddns", operation_id = "delete_api_admin_ddns_logs", responses((status = 200, description = "Cleared DDNS logs")))]
 pub(super) async fn clear_logs(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.clear_log_buffer(DDNS_LOGS).await {
+    match state.storage.store.clear_log_buffer(DDNS_LOGS).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to clear DDNS logs");
@@ -14,12 +15,14 @@ pub(super) async fn clear_logs(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/poll", tag = "ddns", operation_id = "get_api_admin_ddns_poll", responses((status = 200, description = "DDNS log poll")))]
 pub(super) async fn poll(
     State(state): State<AppState>,
     Query(query): Query<PollQuery>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let logs = match state
+        .storage
         .store
         .poll_log_buffer(DDNS_LOGS, query.cursor.as_deref())
         .await

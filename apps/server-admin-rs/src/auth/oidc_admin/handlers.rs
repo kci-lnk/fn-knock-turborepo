@@ -24,11 +24,13 @@ use super::{
     urls::{callback_base_url, invite_base_url},
 };
 
+#[utoipa::path(get, path = "/api/admin/auth/oidc/catalog", tag = "auth-oidc", operation_id = "get_api_admin_auth_oidc_catalog", responses((status = 200, description = "OIDC provider catalog")))]
 pub(super) async fn catalog(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(json!({ "providers": provider_catalog(&translator) })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/auth/oidc/providers", tag = "auth-oidc", operation_id = "get_api_admin_auth_oidc_providers", responses((status = 200, description = "OIDC providers")))]
 pub(super) async fn list_providers(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -45,7 +47,7 @@ pub(super) async fn list_providers(
             );
         }
     };
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for OIDC provider callback URLs");
@@ -63,6 +65,7 @@ pub(super) async fn list_providers(
     response::ok(json!({ "providers": views })).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/oidc/providers", tag = "auth-oidc", operation_id = "post_api_admin_auth_oidc_providers", request_body = serde_json::Value, responses((status = 200, description = "Created OIDC provider")))]
 pub(super) async fn create_provider(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -89,6 +92,7 @@ pub(super) async fn create_provider(
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/auth/oidc/providers/{id}", tag = "auth-oidc", operation_id = "patch_api_admin_auth_oidc_providers_by_id", request_body = serde_json::Value, params(("id" = String, Path, description = "OIDC provider identifier")), responses((status = 200, description = "Updated OIDC provider")))]
 pub(super) async fn update_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -132,6 +136,7 @@ pub(super) async fn update_provider(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/auth/oidc/providers/{id}", tag = "auth-oidc", operation_id = "delete_api_admin_auth_oidc_providers_by_id", params(("id" = String, Path, description = "OIDC provider identifier")), responses((status = 200, description = "Deleted OIDC provider")))]
 pub(super) async fn delete_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -165,6 +170,7 @@ pub(super) async fn delete_provider(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/oidc/providers/{id}/test", tag = "auth-oidc", operation_id = "post_api_admin_auth_oidc_providers_by_id_test", params(("id" = String, Path, description = "OIDC provider identifier")), responses((status = 200, description = "OIDC provider connection test result")))]
 pub(super) async fn test_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -220,6 +226,7 @@ pub(super) async fn test_provider(
     Json(json!({ "success": success, "message": message })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/auth/oidc/totp/{totp_id}/bindings", tag = "auth-oidc", operation_id = "get_api_admin_auth_oidc_totp_by_totp_id_bindings", params(("totp_id" = String, Path, description = "TOTP credential identifier")), responses((status = 200, description = "OIDC bindings for a TOTP credential")))]
 pub(super) async fn list_bindings_by_totp(
     State(state): State<AppState>,
     Path(totp_id): Path<String>,
@@ -228,7 +235,7 @@ pub(super) async fn list_bindings_by_totp(
     match oidc_list_bindings(&state).await {
         Ok(bindings) => {
             let providers = oidc_list_providers(&state).await.unwrap_or_default();
-            let totps = state.store.get_totps().await.unwrap_or_default();
+            let totps = state.storage.store.get_totps().await.unwrap_or_default();
             let views = bindings
                 .into_iter()
                 .filter(|binding| binding.get("totp_id").and_then(Value::as_str) == Some(&totp_id))
@@ -274,6 +281,7 @@ pub(super) async fn list_bindings_by_totp(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/oidc/invitations", tag = "auth-oidc", operation_id = "post_api_admin_auth_oidc_invitations", request_body = serde_json::Value, responses((status = 200, description = "Created OIDC binding invitation")))]
 pub(super) async fn create_invitation(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -300,7 +308,7 @@ pub(super) async fn create_invitation(
         );
     };
 
-    let totps = match state.store.get_totps().await {
+    let totps = match state.storage.store.get_totps().await {
         Ok(totps) => totps,
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP credentials for OIDC invite");
@@ -342,7 +350,7 @@ pub(super) async fn create_invitation(
         );
     }
 
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for OIDC invite URL");
@@ -373,6 +381,7 @@ pub(super) async fn create_invitation(
     }
     let invite_value = Value::Object(invite);
     if let Err(error) = state
+        .storage
         .store
         .set_json_value_ex(
             &invite_key(&token_hash),
@@ -399,6 +408,7 @@ pub(super) async fn create_invitation(
     .into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/auth/oidc/bindings/{id}", tag = "auth-oidc", operation_id = "delete_api_admin_auth_oidc_bindings_by_id", params(("id" = String, Path, description = "OIDC binding identifier")), responses((status = 200, description = "Deleted OIDC binding")))]
 pub(super) async fn delete_binding(
     State(state): State<AppState>,
     Path(id): Path<String>,

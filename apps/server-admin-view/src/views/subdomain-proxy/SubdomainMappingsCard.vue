@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   CalendarClock,
@@ -30,7 +30,7 @@ import {
   StarOff,
   Trash2,
 } from "lucide-vue-next";
-import { Button, type ButtonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import {
   Card,
@@ -64,116 +64,25 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import HostTrafficActivity from "@/components/HostTrafficActivity.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
-import type { HostTrafficStats, HostMapping, HostMappingGroup } from "@/types";
+import type { HostMapping, HostMappingGroup } from "@/types";
 import {
   getMappingDisplayTitle,
   getMappingFaviconSrc,
   isHttpTargetUrl,
   normalizeHostLike,
-  type HostMappingAvailabilityState,
 } from "./model";
-import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
 import SubdomainMappingStatusIndicators from "./SubdomainMappingStatusIndicators.vue";
 import SubdomainMappingGroupRows from "./SubdomainMappingGroupRows.vue";
+import SubdomainMappingNotices from "./SubdomainMappingNotices.vue";
 import SubdomainGroupManagerDialog from "./SubdomainGroupManagerDialog.vue";
-import {
-  buildHostMappingGroupSections,
-  type HostMappingGroupSection,
-} from "./host-mapping-groups";
+import type {
+  SubdomainMappingsCardEmits,
+  SubdomainMappingsCardProps,
+} from "./subdomain-mappings-card-contract";
+import { useSubdomainMappingTableState } from "./useSubdomainMappingTableState";
 
-const props = defineProps<{
-  activeDeepMonitorHosts: string[];
-  allMappingsCount: number;
-  allRegularMappings: HostMapping[];
-  authServiceMapping: HostMapping | null;
-  canManageNewMappings: boolean;
-  canUseDeepMonitor: boolean;
-  discoverButtonDividerClass: string;
-  discoverButtonVariant: ButtonVariants["variant"];
-  docsHref: string;
-  draggableMappings: HostMapping[];
-  filteredMappings: HostMapping[];
-  formatHost: (host: string) => string;
-  formatAvailabilityWindow: (mapping: HostMapping) => string;
-  getAvailabilityState: (mapping: HostMapping) => HostMappingAvailabilityState;
-  getHostTrafficSample: (host: string) => HostTrafficStats | null;
-  getMappingTitleForDisplay: (mapping: HostMapping) => string;
-  globalVisibilityEnabled: boolean;
-  globalWafEnabled: boolean;
-  groupedView: boolean;
-  groups: HostMappingGroup[];
-  handleMappingStatusTooltipOpenChange: (
-    host: string,
-    tooltip: MappingStatusTooltip,
-    open: boolean,
-  ) => void;
-  handleMappingStatusTooltipTriggerClick: (
-    host: string,
-    tooltip: MappingStatusTooltip,
-  ) => void;
-  handleProtocolHeadersWarningOpenChange: (host: string, open: boolean) => void;
-  hasRegularHostMappings: boolean;
-  isClearingAllSubdomainConfig: boolean;
-  isConfigLoading: boolean;
-  isDiscovering: boolean;
-  isExportingBookmarks: boolean;
-  isFaviconBroken: (mapping: HostMapping) => boolean;
-  isGatewayPortalEnabled: boolean;
-  isDefaultDomainAvailable: boolean;
-  isMappingUnavailable: (mapping: HostMapping) => boolean;
-  isMappingStatusTooltipOpen: (
-    host: string,
-    tooltip: MappingStatusTooltip,
-  ) => boolean;
-  isProtocolHeadersWarningOpen: (host: string) => boolean;
-  isRefreshingTitles: boolean;
-  isRootDomainPendingSave: boolean;
-  isSavingMappings: boolean;
-  isSyncing: boolean;
-  isAuthServiceTarget: (target: string) => boolean;
-  markFaviconBroken: (mapping: HostMapping) => void;
-  openProtocolHeadersWarning: (host: string) => void;
-  rootDomainValidationMessage: string;
-  savedRootDomain: string;
-  scheduleCloseProtocolHeadersWarning: (host: string) => void;
-  searchQuery: string;
-  shouldShowProtocolHeadersWarning: (mapping: HostMapping) => boolean;
-  toggleProtocolHeadersWarning: (host: string) => void;
-  trafficTimestamp: number | null | undefined;
-  visibleMappingsCount: number;
-}>();
-
-const emit = defineEmits<{
-  "add-auth-service": [];
-  "clear-default": [mapping: HostMapping];
-  "copy-host": [mapping: HostMapping];
-  delete: [host: string];
-  edit: [mapping: HostMapping];
-  "export-bookmarks": [];
-  "open-clear-all-config": [];
-  "move-mappings": [hosts: string[], groupId: string | null];
-  "open-create": [groupId?: string | null];
-  "open-discover": [];
-  "open-discover-settings": [];
-  "open-availability": [mapping: HostMapping];
-  "open-gateway-locations": [host: string];
-  "open-advanced-auth": [host: string];
-  "open-deep-monitor": [host: string];
-  "open-stale-cleanup": [];
-  "refresh-all-titles": [];
-  "save-order": [];
-  "save-grouped-order": [sections: HostMappingGroupSection[]];
-  "save-groups": [
-    groups: HostMappingGroup[],
-    onComplete: (saved: boolean) => void,
-  ];
-  "set-default": [mapping: HostMapping];
-  "sync-routes": [];
-  "toggle-enabled": [mapping: HostMapping];
-  "update-grouped-view": [value: boolean];
-  "update:draggableMappings": [mappings: HostMapping[]];
-  "update:searchQuery": [value: string];
-}>();
+const props = defineProps<SubdomainMappingsCardProps>();
+const emit = defineEmits<SubdomainMappingsCardEmits>();
 
 const { t } = useI18n();
 
@@ -184,29 +93,8 @@ const searchModel = computed({
 
 const mappingSelectionCheckboxClass =
   "size-[18px] rounded-[5px] border-muted-foreground/40 bg-background shadow-none transition-[color,background-color,border-color,opacity] hover:border-primary/70 data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground";
-const hiddenMappingSelectionCheckboxClass =
-  "opacity-60 group-hover:opacity-100 group-focus-within:opacity-100";
 const isMappingTableScrolled = ref(false);
 const isGroupManagerOpen = ref(false);
-const groupSections = ref<HostMappingGroupSection[]>([]);
-const selectedHosts = ref(new Set<string>());
-const collapsedGroupKeys = ref(new Set<string>());
-const collapseStorageKey = "fnknock.admin.hostMappingGroups.collapsed";
-
-if (typeof window !== "undefined") {
-  try {
-    const stored = JSON.parse(
-      window.localStorage.getItem(collapseStorageKey) || "[]",
-    );
-    if (Array.isArray(stored)) {
-      collapsedGroupKeys.value = new Set(
-        stored.filter((item): item is string => typeof item === "string"),
-      );
-    }
-  } catch {
-    collapsedGroupKeys.value = new Set();
-  }
-}
 
 const hasGroups = computed(() => props.groups.length > 0);
 const showGroupedView = computed(() => hasGroups.value && props.groupedView);
@@ -216,151 +104,54 @@ const activeDeepMonitorHostSet = computed(
 const isDeepMonitorActive = (host: string) =>
   activeDeepMonitorHostSet.value.has(normalizeHostLike(host));
 const isGroupedViewActive = computed(() => props.groupedView);
-const dragDisabled = computed(
-  () =>
-    props.isSavingMappings ||
-    Boolean(props.searchQuery.trim()) ||
-    props.filteredMappings.length < 2,
-);
-const selectedCount = computed(() => selectedHosts.value.size);
-const mappingSelectionVisibilityClass = computed(() =>
-  selectedCount.value > 0
-    ? "pointer-events-auto opacity-100"
-    : hiddenMappingSelectionCheckboxClass,
-);
-const allVisibleSelected = computed(
-  () =>
-    props.filteredMappings.length > 0 &&
-    props.filteredMappings.every((mapping) =>
-      selectedHosts.value.has(mapping.host),
-    ),
-);
-const someVisibleSelected = computed(
-  () =>
-    !allVisibleSelected.value &&
-    props.filteredMappings.some((mapping) =>
-      selectedHosts.value.has(mapping.host),
-    ),
-);
-
-const syncGroupSections = () => {
-  groupSections.value = buildHostMappingGroupSections(
-    props.filteredMappings,
-    showGroupedView.value ? props.groups : [],
-    t("admin.subdomainProxy.ungrouped"),
-    showGroupedView.value && !props.searchQuery.trim(),
-  );
-  const visibleHosts = new Set(props.filteredMappings.map((item) => item.host));
-  selectedHosts.value = new Set(
-    [...selectedHosts.value].filter((host) => visibleHosts.has(host)),
-  );
-};
-
-watch(
-  () =>
-    [
-      props.filteredMappings,
-      props.groups,
-      props.searchQuery,
-      showGroupedView.value,
-    ] as const,
-  syncGroupSections,
-  { deep: true, immediate: true },
-);
-
-watch(
-  () => props.isSavingMappings,
-  (isSaving, wasSaving) => {
-    if (wasSaving && !isSaving) syncGroupSections();
+const {
+  allVisibleSelected,
+  clearSelection,
+  dragDisabled,
+  groupSections,
+  handleSortEnd,
+  isMappingSelected,
+  isSectionCollapsed,
+  isSectionPartiallySelected,
+  isSectionSelected,
+  mappingSelectionVisibilityClass,
+  selectedCount,
+  setAllVisibleSelected,
+  setMappingSelected,
+  setSectionSelected,
+  someVisibleSelected,
+  takeSelectedHosts,
+  toggleSectionCollapsed,
+  updateSectionMappings,
+} = useSubdomainMappingTableState({
+  filteredMappings: () => props.filteredMappings,
+  groups: () => props.groups,
+  isSavingMappings: () => props.isSavingMappings,
+  searchQuery: () => props.searchQuery,
+  showGroupedView: () => showGroupedView.value,
+  ungroupedLabel: () => t("admin.subdomainProxy.ungrouped"),
+  onSaveFlatOrder: (mappings) => {
+    emit("update:draggableMappings", mappings);
+    emit("save-order");
   },
-);
+  onSaveGroupedOrder: (sections) => emit("save-grouped-order", sections),
+});
 
-const updateSectionMappings = (key: string, mappings: HostMapping[]) => {
-  const section = groupSections.value.find((item) => item.key === key);
-  if (section) section.mappings = mappings;
-};
-
-const handleSortEnd = async () => {
-  await nextTick();
-  if (showGroupedView.value) {
-    emit(
-      "save-grouped-order",
-      groupSections.value.map((section) => ({
-        ...section,
-        mappings: [...section.mappings],
-      })),
-    );
-    return;
-  }
-  emit("update:draggableMappings", groupSections.value[0]?.mappings ?? []);
-  emit("save-order");
-};
-
-const isSectionCollapsed = (section: HostMappingGroupSection) =>
-  props.searchQuery.trim() ? false : collapsedGroupKeys.value.has(section.key);
-
-const toggleSectionCollapsed = (section: HostMappingGroupSection) => {
-  const next = new Set(collapsedGroupKeys.value);
-  if (next.has(section.key)) next.delete(section.key);
-  else next.add(section.key);
-  collapsedGroupKeys.value = next;
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(collapseStorageKey, JSON.stringify([...next]));
-  }
-};
-
-const isMappingSelected = (host: string) => selectedHosts.value.has(host);
-const setMappingSelected = (host: string, selected: boolean) => {
-  const next = new Set(selectedHosts.value);
-  if (selected) next.add(host);
-  else next.delete(host);
-  selectedHosts.value = next;
-};
-const isSectionSelected = (section: HostMappingGroupSection) =>
-  section.mappings.length > 0 &&
-  section.mappings.every((mapping) => selectedHosts.value.has(mapping.host));
-const isSectionPartiallySelected = (section: HostMappingGroupSection) =>
-  !isSectionSelected(section) &&
-  section.mappings.some((mapping) => selectedHosts.value.has(mapping.host));
-const setSectionSelected = (
-  section: HostMappingGroupSection,
-  selected: boolean,
-) => {
-  const next = new Set(selectedHosts.value);
-  for (const mapping of section.mappings) {
-    if (selected) next.add(mapping.host);
-    else next.delete(mapping.host);
-  }
-  selectedHosts.value = next;
-};
-const setAllVisibleSelected = (selected: boolean) => {
-  const next = new Set(selectedHosts.value);
-  for (const mapping of props.filteredMappings) {
-    if (selected) next.add(mapping.host);
-    else next.delete(mapping.host);
-  }
-  selectedHosts.value = next;
-};
 const moveSelected = (groupId: string | null) => {
-  emit("move-mappings", [...selectedHosts.value], groupId);
-  selectedHosts.value = new Set();
+  emit("move-mappings", takeSelectedHosts(), groupId);
 };
 const moveOne = (mapping: HostMapping, groupId: string | null) => {
   emit("move-mappings", [mapping.host], groupId);
 };
 const toggleGroupedView = () => {
   emit("update-grouped-view", !isGroupedViewActive.value);
-  selectedHosts.value = new Set();
+  clearSelection();
 };
 const saveGroupsAndCloseOnSuccess = (nextGroups: HostMappingGroup[]) => {
   emit("save-groups", nextGroups, (saved) => {
     if (saved) isGroupManagerOpen.value = false;
   });
 };
-
-watch(showGroupedView, () => {
-  selectedHosts.value = new Set();
-});
 
 const handleMappingTableScroll = (event: Event) => {
   if (!(event.currentTarget instanceof HTMLElement)) return;
@@ -594,41 +385,16 @@ const handleMappingTableScroll = (event: Event) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button size="sm" variant="outline" @click="selectedHosts = new Set()">
+        <Button size="sm" variant="outline" @click="clearSelection">
           {{ t("admin.subdomainProxy.clearSelection") }}
         </Button>
       </div>
-      <p v-if="visibleMappingsCount > 1" class="text-xs text-muted-foreground">
-        {{ t("admin.subdomainProxy.orderHintPrefix") }}
-        <a
-          href="#/system/gateway-proxy-headers"
-          class="underline underline-offset-2 hover:text-foreground"
-        >
-          {{ t("admin.subdomainProxy.disableProxyHeaders") }} </a
-        >{{ t("admin.subdomainProxy.orderHintMiddle") }}
-
-        <a
-          href="#/system/gateway-host-response"
-          class="underline underline-offset-2 hover:text-foreground"
-        >
-          {{ t("admin.subdomainProxy.disableHostHeader") }}
-        </a>
-      </p>
-      <p
-        v-if="
-          rootDomainValidationMessage ||
-          !savedRootDomain ||
-          isRootDomainPendingSave
-        "
-        class="text-xs text-amber-600"
-      >
-        {{
-          rootDomainValidationMessage ||
-          (!savedRootDomain
-            ? t("admin.subdomainProxy.rootDomainRequired")
-            : t("admin.subdomainProxy.rootDomainDirty"))
-        }}
-      </p>
+      <SubdomainMappingNotices
+        :visible-mappings-count="visibleMappingsCount"
+        :root-domain-validation-message="rootDomainValidationMessage"
+        :saved-root-domain="savedRootDomain"
+        :root-domain-pending-save="isRootDomainPendingSave"
+      />
 
       <div class="overflow-hidden rounded-md border">
         <Table

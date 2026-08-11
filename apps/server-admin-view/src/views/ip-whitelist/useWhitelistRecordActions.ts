@@ -77,7 +77,7 @@ export function useWhitelistRecordActions({
           await fetchRecords();
         } else {
           toast.error(translate("admin.ipWhitelist.regionGroupDeleteFailed"), {
-            description: response.message,
+            description: response.message ?? undefined,
           });
         }
       },
@@ -102,7 +102,7 @@ export function useWhitelistRecordActions({
           }
         } else {
           toast.error(translate("admin.ipWhitelist.deleteFailed"), {
-            description: response.message,
+            description: response.message ?? undefined,
           });
         }
       },

@@ -16,7 +16,8 @@ GO_REAUTH_PROXY_BUILD_DIR="${FN_KNOCK_GO_REAUTH_PROXY_BUILD_DIR:-${GO_REAUTH_PRO
 SKIP_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_SKIP_BUILD:-0}"
 FORCE_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD:-0}"
 BUNDLE_VERSION="$(fn_knock_app_version "${ROOT_DIR}")"
-BUNDLE_COMMIT="unknown"
+BUNDLE_COMMIT=""
+EXPECTED_BUNDLE_COMMIT=""
 
 log() {
   echo "[fn-knock] $*"
@@ -30,6 +31,8 @@ fail() {
 needs_build() {
   local arch
   local binary
+  local binary_commit_file
+  local binary_commit
   local binary_version_file
   local binary_version
 
@@ -39,6 +42,7 @@ needs_build() {
 
   for arch in "${ARCHES[@]}"; do
     binary="${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}"
+    binary_commit_file="${binary}.commit"
     binary_version_file="${binary}.version"
     if [ ! -f "${binary}" ]; then
       return 0
@@ -46,8 +50,15 @@ needs_build() {
     if [ ! -f "${binary_version_file}" ]; then
       return 0
     fi
+    if [ ! -f "${binary_commit_file}" ]; then
+      return 0
+    fi
     binary_version="$(tr -d '\r\n' < "${binary_version_file}")"
     if [ "${binary_version}" != "${BUNDLE_VERSION}" ]; then
+      return 0
+    fi
+    binary_commit="$(tr -d '\r\n' < "${binary_commit_file}")"
+    if [ "${binary_commit}" != "${BUNDLE_COMMIT}" ]; then
       return 0
     fi
     if find "${GO_REAUTH_PROXY_DIR}" \
@@ -65,7 +76,18 @@ needs_build() {
   fail "missing Go-Reauth-Proxy checkout: ${GO_REAUTH_PROXY_DIR}. Set FN_KNOCK_GO_REAUTH_PROXY_DIR to override."
 bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REAUTH_PROXY_DIR}"
 
-BUNDLE_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
+EXPECTED_BUNDLE_COMMIT="$(
+  sed -nE 's/^[[:space:]]*"gatewayCommit"[[:space:]]*:[[:space:]]*"([0-9a-f]+)".*/\1/p' \
+    "${ROOT_DIR}/version.json" | head -n1
+)"
+[[ "${EXPECTED_BUNDLE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
+  fail "version.json gatewayCommit must be a 40-character lowercase Git commit"
+BUNDLE_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse HEAD 2>/dev/null)" || \
+  fail "unable to resolve Go gateway commit from ${GO_REAUTH_PROXY_DIR}"
+[[ "${BUNDLE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
+  fail "Go gateway commit must be a 40-character lowercase Git commit: ${BUNDLE_COMMIT:-<empty>}"
+[ "${BUNDLE_COMMIT}" = "${EXPECTED_BUNDLE_COMMIT}" ] || \
+  fail "Go gateway checkout commit mismatch: expected ${EXPECTED_BUNDLE_COMMIT}, got ${BUNDLE_COMMIT}"
 
 if needs_build; then
   if [ "${SKIP_BUILD}" = "1" ]; then
@@ -86,21 +108,32 @@ if needs_build; then
       FN_KNOCK_COMMIT="${BUNDLE_COMMIT}" \
       task build
   )
+  for arch in "${ARCHES[@]}"; do
+    binary="${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}"
+    [ -f "${binary}" ] || fail "missing gateway binary after build: ${binary}"
+    printf '%s\n' "${BUNDLE_COMMIT}" > "${binary}.commit"
+  done
 fi
 
 mkdir -p "${OUTPUT_DIR}"
 
 for arch in "${ARCHES[@]}"; do
   src="${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}"
+  src_commit_file="${src}.commit"
   src_version_file="${src}.version"
   dst="${OUTPUT_DIR}/go-reauth-proxy-linux-${arch}"
 
   [ -f "${src}" ] || fail "missing gateway binary after build: ${src}"
   [ -f "${src_version_file}" ] || \
     fail "missing gateway bundle version metadata after build: ${src_version_file}"
+  [ -f "${src_commit_file}" ] || \
+    fail "missing gateway source commit metadata after build: ${src_commit_file}"
   src_version="$(tr -d '\r\n' < "${src_version_file}")"
   [ "${src_version}" = "${BUNDLE_VERSION}" ] || \
     fail "gateway bundle version mismatch after build: expected ${BUNDLE_VERSION}, got ${src_version:-<empty>}"
+  src_commit="$(tr -d '\r\n' < "${src_commit_file}")"
+  [ "${src_commit}" = "${BUNDLE_COMMIT}" ] || \
+    fail "gateway source commit mismatch after build: expected ${BUNDLE_COMMIT}, got ${src_commit:-<empty>}"
 
   cp "${src}" "${dst}"
   chmod +x "${dst}"

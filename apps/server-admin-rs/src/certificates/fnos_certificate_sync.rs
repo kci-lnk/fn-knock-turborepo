@@ -12,15 +12,15 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use anyhow::{Context, anyhow, bail};
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 use x509_parser::{extensions::GeneralName, pem::parse_x509_pem};
 
@@ -127,61 +127,53 @@ impl SyncExecutionError {
     }
 }
 
-pub fn fnos_certificate_sync_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/fnos_certificate_sync/details",
-            get(get_details),
-        )
-        .route(
-            "/api/admin/config/fnos_certificate_sync",
-            post(update_config),
-        )
-        .route(
-            "/api/admin/config/fnos_certificate_sync/sync",
-            post(sync_now),
-        )
+pub fn fnos_certificate_sync_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_details))
+        .routes(routes!(update_config))
+        .routes(routes!(sync_now))
 }
 
 pub fn start_fnos_certificate_sync_tasks(state: AppState) {
-    tokio::spawn(async move {
-        if auto_sync_enabled(&state).await {
-            state.fnos_certificate_sync_notify.notify_one();
+    let task_state = state.clone();
+    state.spawn_background("fnos-certificate-sync", async move {
+        if auto_sync_enabled(&task_state).await {
+            task_state.fnos_certificate_sync_notify.notify_one();
         }
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                _ = state.fnos_certificate_sync_notify.notified() => {
+                _ = task_state.shutdown.cancelled() => break,
+                _ = task_state.fnos_certificate_sync_notify.notified() => {
                     loop {
                         tokio::select! {
-                            _ = state.shutdown.cancelled() => return,
-                            _ = state.fnos_certificate_sync_notify.notified() => continue,
+                            _ = task_state.shutdown.cancelled() => return,
+                            _ = task_state.fnos_certificate_sync_notify.notified() => continue,
                             _ = tokio::time::sleep(AUTO_SYNC_DEBOUNCE) => break,
                         }
                     }
-                    if !auto_sync_enabled(&state).await {
+                    if !auto_sync_enabled(&task_state).await {
                         continue;
                     }
-                    let _guard = state.fnos_certificate_sync_lock.lock().await;
-                    let local_config = match state.store.get_config().await {
+                    let _guard = task_state.fnos_certificate_sync_lock.lock().await;
+                    let local_config = match task_state.storage.store.get_config().await {
                         Ok(value) => value,
                         Err(error) => {
-                            record_failure(&state, &error.to_string(), &[]).await;
+                            record_failure(&task_state, &error.to_string(), &[]).await;
                             continue;
                         }
                     };
-                    record_running(&state).await;
-                    let data_dir = state.settings.data_dir.clone();
+                    record_running(&task_state).await;
+                    let data_dir = task_state.settings.data_dir.clone();
                     let result = tokio::task::spawn_blocking(move || {
                         perform_sync(&data_dir, &local_config, &[])
                     }).await;
                     match result {
-                        Ok(Ok(summary)) => record_success(&state, &summary).await,
+                        Ok(Ok(summary)) => record_success(&task_state, &summary).await,
                         Ok(Err(error)) => {
                             tracing::warn!(%error, "automatic fnOS certificate sync failed");
-                            record_failure(&state, &error.to_string(), &error.target_ids).await;
+                            record_failure(&task_state, &error.to_string(), &error.target_ids).await;
                         }
-                        Err(error) => record_failure(&state, &error.to_string(), &[]).await,
+                        Err(error) => record_failure(&task_state, &error.to_string(), &[]).await,
                     }
                 }
             }
@@ -193,6 +185,7 @@ pub fn notify_certificate_library_changed(state: &AppState) {
     state.fnos_certificate_sync_notify.notify_one();
 }
 
+#[utoipa::path(get, path = "/api/admin/config/fnos_certificate_sync/details", tag = "config", operation_id = "get_api_admin_config_fnos_certificate_sync_details", responses((status = 200, description = "fnOS certificate sync details")))]
 async fn get_details(State(state): State<AppState>) -> Response {
     match build_details(&state).await {
         Ok(value) => response::ok(value).into_response(),
@@ -203,11 +196,12 @@ async fn get_details(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/config/fnos_certificate_sync", tag = "config", operation_id = "post_api_admin_config_fnos_certificate_sync", responses((status = 200, description = "Updated fnOS certificate sync configuration")))]
 async fn update_config(
     State(state): State<AppState>,
     Json(body): Json<UpdateConfigBody>,
 ) -> Response {
-    let mut config = match state.store.get_config().await {
+    let mut config = match state.storage.store.get_config().await {
         Ok(value) => value,
         Err(error) => {
             return response::error(
@@ -221,7 +215,7 @@ async fn update_config(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     config[CONFIG_KEY] = json!({ "auto_sync_enabled": body.auto_sync_enabled });
-    if let Err(error) = state.store.save_config(&config).await {
+    if let Err(error) = state.storage.store.save_config(&config).await {
         return response::error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             error.to_string(),
@@ -239,6 +233,7 @@ async fn update_config(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/config/fnos_certificate_sync/sync", tag = "config", operation_id = "post_api_admin_config_fnos_certificate_sync_sync", responses((status = 200, description = "fnOS certificate sync result")))]
 async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> Response {
     let ids = match parse_target_ids(&body.target_ids) {
         Ok(ids) => ids,
@@ -247,7 +242,7 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
         }
     };
     let _guard = state.fnos_certificate_sync_lock.lock().await;
-    let local_config = match state.store.get_config().await {
+    let local_config = match state.storage.store.get_config().await {
         Ok(value) => value,
         Err(error) => {
             return response::error(
@@ -290,7 +285,7 @@ async fn sync_now(State(state): State<AppState>, Json(body): Json<SyncBody>) -> 
 }
 
 async fn build_details(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let local_config = config.clone();
     let comparison = tokio::task::spawn_blocking(move || compare_all(&local_config)).await;
     let (environment_available, availability_reason, compared) = match comparison {
@@ -1270,6 +1265,7 @@ fn prune_backups(data_dir: &Path) -> anyhow::Result<()> {
 
 async fn auto_sync_enabled(state: &AppState) -> bool {
     state
+        .storage
         .store
         .get_config()
         .await

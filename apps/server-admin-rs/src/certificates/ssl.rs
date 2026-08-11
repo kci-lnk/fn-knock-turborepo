@@ -14,11 +14,11 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 use x509_parser::{extensions::GeneralName, pem::parse_x509_pem, time::ASN1Time};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
@@ -42,6 +42,13 @@ mod status;
 use ca::*;
 pub(crate) use deployment::*;
 use handlers::*;
+use handlers::{
+    __path_activate_certificate, __path_active_cert_pem, __path_active_cert_zip,
+    __path_add_ca_host, __path_ca_cert_pem, __path_ca_clear, __path_ca_hosts, __path_ca_init,
+    __path_ca_issue, __path_ca_server_cert_zip, __path_ca_status, __path_clear_library,
+    __path_clear_ssl, __path_delete_ca_host, __path_delete_certificate, __path_save_certificate,
+    __path_set_deployment_mode, __path_shared_file_content, __path_shared_files, __path_status,
+};
 pub(crate) use library::*;
 pub(crate) use normalize::*;
 use recommendation::*;
@@ -253,34 +260,29 @@ struct AddCaHostBody {
 }
 
 pub fn ssl_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/ssl/status", get(status))
-        .route("/api/admin/ssl/shared-files", get(shared_files))
-        .route(
-            "/api/admin/ssl/shared-files/content",
-            get(shared_file_content),
-        )
-        .route("/api/admin/ssl/cert.pem", get(active_cert_pem))
-        .route("/api/admin/ssl/cert.zip", get(active_cert_zip))
-        .route("/api/admin/ssl/ca/status", get(ca_status))
-        .route("/api/admin/ssl/ca/init", post(ca_init))
-        .route("/api/admin/ssl/ca", delete(ca_clear))
-        .route("/api/admin/ssl/ca/cert.pem", get(ca_cert_pem))
-        .route("/api/admin/ssl/ca/server-cert.zip", get(ca_server_cert_zip))
-        .route(
-            "/api/admin/ssl/ca/hosts",
-            get(ca_hosts).post(add_ca_host).delete(delete_ca_host),
-        )
-        .route("/api/admin/ssl/ca/issue", post(ca_issue))
-        .route(
-            "/api/admin/ssl/certificates",
-            post(save_certificate).delete(clear_library),
-        )
-        .route(
-            "/api/admin/ssl/certificates/{id}",
-            delete(delete_certificate),
-        )
-        .route("/api/admin/ssl/activate", post(activate_certificate))
-        .route("/api/admin/ssl/deployment-mode", post(set_deployment_mode))
-        .route("/api/admin/ssl", delete(clear_ssl))
+    ssl_openapi_routes().into()
+}
+
+pub(crate) fn ssl_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(shared_files))
+        .routes(routes!(shared_file_content))
+        .routes(routes!(active_cert_pem))
+        .routes(routes!(active_cert_zip))
+        .routes(routes!(ca_status))
+        .routes(routes!(ca_init))
+        .routes(routes!(ca_clear))
+        .routes(routes!(ca_cert_pem))
+        .routes(routes!(ca_server_cert_zip))
+        .routes(routes!(ca_hosts))
+        .routes(routes!(add_ca_host))
+        .routes(routes!(delete_ca_host))
+        .routes(routes!(ca_issue))
+        .routes(routes!(save_certificate))
+        .routes(routes!(clear_library))
+        .routes(routes!(delete_certificate))
+        .routes(routes!(activate_certificate))
+        .routes(routes!(set_deployment_mode))
+        .routes(routes!(clear_ssl))
 }

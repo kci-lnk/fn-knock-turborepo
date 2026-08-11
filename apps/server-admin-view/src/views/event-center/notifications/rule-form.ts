@@ -106,7 +106,7 @@ export const buildRulePayload = ({
   threshold_count: Number(form.threshold_count || 0),
   group_by: groupBy,
   cooldown_seconds: Number(form.cooldown_seconds || 0),
-  message_template_mode: "default",
+  message_template_mode: "default" as const,
   targets: form.targets.map((target) => {
     const definition = resolveProviderDefinitionById(target.provider_id);
     return {

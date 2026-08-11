@@ -5,7 +5,7 @@ pub(super) async fn load_config_section(
     key: &str,
     normalize: fn(Option<&Value>) -> Value,
 ) -> crate::storage::StorageResult<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     Ok(normalize(config.get(key)))
 }
 
@@ -15,7 +15,7 @@ pub(super) async fn update_config_section(
     patch: &Value,
     normalize: fn(Option<&Value>) -> Value,
 ) -> crate::storage::StorageResult<Value> {
-    let mut config = state.store.get_config().await?;
+    let mut config = state.storage.store.get_config().await?;
     if !config.is_object() {
         config = app_store::default_config();
     }
@@ -25,7 +25,7 @@ pub(super) async fn update_config_section(
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), next.clone());
     }
-    state.store.save_config(&config).await?;
+    state.storage.store.save_config(&config).await?;
     Ok(next)
 }
 
@@ -34,14 +34,14 @@ pub(super) async fn save_top_level_config_value(
     key: &str,
     value: Value,
 ) -> crate::storage::StorageResult<()> {
-    let mut config = state.store.get_config().await?;
+    let mut config = state.storage.store.get_config().await?;
     if !config.is_object() {
         config = app_store::default_config();
     }
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), value);
     }
-    state.store.save_config(&config).await
+    state.storage.store.save_config(&config).await
 }
 
 pub(crate) async fn load_protocol_mapping_feature(
@@ -49,6 +49,7 @@ pub(crate) async fn load_protocol_mapping_feature(
     fallback_config: Option<&Value>,
 ) -> crate::storage::StorageResult<Value> {
     if let Some(value) = state
+        .storage
         .store
         .get_json_value(PROTOCOL_MAPPING_FEATURE_KEY)
         .await?
@@ -66,6 +67,7 @@ pub(super) async fn save_protocol_mapping_feature(
 ) -> crate::storage::StorageResult<()> {
     let next = normalize_protocol_mapping_feature(Some(value));
     state
+        .storage
         .store
         .set_json_value(PROTOCOL_MAPPING_FEATURE_KEY, &next)
         .await
@@ -78,10 +80,16 @@ pub(super) async fn save_protocol_mapping_feature(
 pub(crate) async fn load_captcha_settings(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
-    let value = match state.store.get_json_value(CAPTCHA_SETTINGS_KEY).await? {
+    let value = match state
+        .storage
+        .store
+        .get_json_value(CAPTCHA_SETTINGS_KEY)
+        .await?
+    {
         Some(value) => Some(value),
         None => {
             state
+                .storage
                 .store
                 .get_json_value(LEGACY_CAPTCHA_SETTINGS_KEY)
                 .await?
@@ -129,6 +137,7 @@ pub(super) async fn update_captcha_settings(
     }
     next = normalize_captcha_settings(Some(&next));
     state
+        .storage
         .store
         .set_json_value(CAPTCHA_SETTINGS_KEY, &next)
         .await?;
@@ -140,6 +149,7 @@ pub(super) async fn load_run_mode_prompt_preferences(
 ) -> crate::storage::StorageResult<Value> {
     Ok(normalize_run_mode_prompt_preferences(
         state
+            .storage
             .store
             .get_json_value(RUN_MODE_PROMPT_PREFERENCES_KEY)
             .await?
@@ -151,6 +161,7 @@ pub(super) async fn load_welcome_guide_status(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
     let raw = state
+        .storage
         .store
         .get_string_value(WELCOME_GUIDE_STATUS_KEY)
         .await?;
@@ -298,7 +309,7 @@ pub(super) fn normalize_auto_manage_firewall(value: Option<&Value>) -> bool {
     value.and_then(Value::as_bool) != Some(false)
 }
 
-pub(super) const MAX_FIREWALL_ADDITIONAL_PORTS: usize = 128;
+pub(crate) const MAX_FIREWALL_ADDITIONAL_PORTS: usize = 128;
 
 pub(crate) fn normalize_firewall_additional_ports(value: Option<&Value>) -> Vec<i64> {
     value

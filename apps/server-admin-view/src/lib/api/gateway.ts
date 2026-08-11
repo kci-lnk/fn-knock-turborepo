@@ -1,4 +1,8 @@
 import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
+import type {
   CidrCitiesPayload,
   CidrCapabilitiesPayload,
   CidrLookupPayload,
@@ -12,7 +16,6 @@ import type {
   GatewayLoggingConfig,
   IpLocationBatchPayload,
   IpLocationSnapshot,
-  WAFConfig,
   WAFDetails,
   WAFDrainResult,
   WAFLogDeletePayload,
@@ -21,6 +24,41 @@ import type {
   WAFStatus,
 } from "../../types";
 import { apiClient } from "./client";
+
+type GatewayLoggingConfigUpdate =
+  ApiContractComponents["schemas"]["GatewayLoggingConfigUpdateData"];
+type GatewayLogDirectory =
+  ApiContractComponents["schemas"]["GatewayLogDirectoryData"];
+type GatewayLogEntriesQuery = NonNullable<
+  ApiContractOperations["get_api_admin_gateway_logs_entries"]["parameters"]["query"]
+>;
+type GatewayLogAnalyticsQuery = NonNullable<
+  ApiContractOperations["get_api_admin_gateway_logs_analytics"]["parameters"]["query"]
+>;
+type GatewayLogAnalyticsRefresh =
+  ApiContractComponents["schemas"]["GatewayLogAnalyticsRefreshData"];
+type GatewayLogDeleteRequest =
+  ApiContractComponents["schemas"]["GatewayLogDeleteBodyData"];
+type IpLocationBatchBody =
+  ApiContractComponents["schemas"]["IpLocationBatchBodyData"];
+type CidrCitiesQuery = NonNullable<
+  ApiContractOperations["get_api_admin_cidr_cities"]["parameters"]["query"]
+>;
+type CidrSelectorQuery = NonNullable<
+  ApiContractOperations["get_api_admin_cidr_selector"]["parameters"]["query"]
+>;
+type CidrLookupQuery = NonNullable<
+  ApiContractOperations["get_api_admin_cidr_cidrs"]["parameters"]["query"]
+>;
+type WafConfigUpdate = ApiContractComponents["schemas"]["WafConfigUpdateData"];
+type WafRuleToggleBody =
+  ApiContractComponents["schemas"]["WafRuleToggleBodyData"];
+type WafUploadBody = ApiContractComponents["schemas"]["WafUploadBodyData"];
+type WafLogQuery = NonNullable<
+  ApiContractOperations["get_api_admin_waf_logs"]["parameters"]["query"]
+>;
+type WafLogDeleteBody =
+  ApiContractComponents["schemas"]["WafLogDeleteBodyData"];
 
 export { ConfigAPI } from "./config";
 export { DashboardAPI } from "./dashboard";
@@ -60,15 +98,12 @@ export const GatewayLogsAPI = {
     return res.data.data;
   },
   async updateConfig(
-    payload: Pick<
-      GatewayLoggingConfig,
-      "enabled" | "record_localhost" | "max_days"
-    >,
+    payload: GatewayLoggingConfigUpdate,
   ): Promise<GatewayLoggingConfig> {
     const res = await apiClient.post("/gateway-logs/config", payload);
     return res.data.data;
   },
-  async getDirectory(): Promise<{ logs_dir: string }> {
+  async getDirectory(): Promise<GatewayLogDirectory> {
     const res = await apiClient.get("/gateway-logs/directory");
     return res.data.data;
   },
@@ -76,34 +111,23 @@ export const GatewayLogsAPI = {
     const res = await apiClient.get("/gateway-logs/dates");
     return res.data.data;
   },
-  async getEntries(params: {
-    date: string;
-    pagination: "page" | "cursor";
-    limit: string;
-    cursor?: string;
-    search?: string;
-    status?: string;
-    logged_in?: string;
-    credential?: string;
-    waf_status?: string;
-    page?: number;
-  }): Promise<GatewayLogEntriesPayload> {
+  async getEntries(
+    params: GatewayLogEntriesQuery,
+  ): Promise<GatewayLogEntriesPayload> {
     const res = await apiClient.get("/gateway-logs/entries", {
       params,
     });
     return res.data.data;
   },
-  async getAnalytics(params: {
-    from: string;
-    to: string;
-  }): Promise<GatewayLogAnalyticsPayload> {
+  async getAnalytics(
+    params: GatewayLogAnalyticsQuery,
+  ): Promise<GatewayLogAnalyticsPayload> {
     const res = await apiClient.get("/gateway-logs/analytics", { params });
     return res.data.data;
   },
-  async refreshAnalyticsGeo(params: {
-    from: string;
-    to: string;
-  }): Promise<{ refreshing: boolean }> {
+  async refreshAnalyticsGeo(
+    params: GatewayLogAnalyticsQuery,
+  ): Promise<GatewayLogAnalyticsRefresh> {
     const res = await apiClient.post("/gateway-logs/analytics", undefined, {
       params,
     });
@@ -111,7 +135,7 @@ export const GatewayLogsAPI = {
   },
   async deleteDate(date: string): Promise<GatewayLogDeletePayload> {
     const res = await apiClient.delete("/gateway-logs/entries", {
-      data: { date },
+      data: { date } satisfies GatewayLogDeleteRequest,
     });
     return res.data.data;
   },
@@ -126,18 +150,7 @@ export const WAFAPI = {
     const res = await apiClient.get("/waf/status");
     return res.data.data;
   },
-  async updateConfig(
-    payload: Partial<
-      Pick<
-        WAFConfig,
-        | "enabled"
-        | "system_rules_auto_update_enabled"
-        | "common_location_exempt_enabled"
-        | "paranoia_level"
-        | "executing_paranoia_level"
-      >
-    >,
-  ): Promise<WAFDetails> {
+  async updateConfig(payload: WafConfigUpdate): Promise<WAFDetails> {
     const res = await apiClient.post("/waf/config", payload);
     return res.data.data;
   },
@@ -149,11 +162,7 @@ export const WAFAPI = {
     const res = await apiClient.post("/waf/system/sync");
     return res.data.data;
   },
-  async setRulesEnabled(payload: {
-    source: "system" | "custom";
-    filenames?: string[];
-    enabled: boolean;
-  }): Promise<WAFDetails> {
+  async setRulesEnabled(payload: WafRuleToggleBody): Promise<WAFDetails> {
     const res = await apiClient.post("/waf/rules/enabled", payload);
     return res.data.data;
   },
@@ -170,9 +179,7 @@ export const WAFAPI = {
     );
     return res.data.data;
   },
-  async uploadCustomRules(payload: {
-    files: Array<{ filename: string; content_base64: string }>;
-  }): Promise<WAFDetails> {
+  async uploadCustomRules(payload: WafUploadBody): Promise<WAFDetails> {
     const res = await apiClient.post("/waf/custom/upload", payload);
     return res.data.data;
   },
@@ -186,18 +193,7 @@ export const WAFAPI = {
     const res = await apiClient.post("/waf/events/drain");
     return res.data.data;
   },
-  async getLogs(params: {
-    date?: string;
-    trace_id?: string;
-    search?: string;
-    host?: string;
-    client_ip?: string;
-    rule_id?: string;
-    route_type?: string;
-    mode?: string;
-    cursor?: string;
-    limit?: string;
-  }): Promise<WAFLogEntriesPayload> {
+  async getLogs(params: WafLogQuery): Promise<WAFLogEntriesPayload> {
     const res = await apiClient.get("/waf/logs", { params });
     return res.data.data;
   },
@@ -209,7 +205,7 @@ export const WAFAPI = {
   },
   async deleteLogs(date: string): Promise<WAFLogDeletePayload> {
     const res = await apiClient.delete("/waf/logs", {
-      data: { date },
+      data: { date } satisfies WafLogDeleteBody,
     });
     return res.data.data;
   },
@@ -224,9 +220,10 @@ export const IpLocationAPI = {
     const tasks: Promise<IpLocationSnapshot[]>[] = [];
     for (let index = 0; index < ips.length; index += IP_LOCATION_BATCH_LIMIT) {
       const batch = ips.slice(index, index + IP_LOCATION_BATCH_LIMIT);
+      const body = { ips: batch } satisfies IpLocationBatchBody;
       tasks.push(
         apiClient
-          .post("/ip-location/batch", { ips: batch })
+          .post("/ip-location/batch", body)
           .then(
             (res) =>
               ((res.data.data as IpLocationBatchPayload).items ||
@@ -250,14 +247,18 @@ export const CidrAPI = {
     return res.data.data;
   },
   async getCities(province: string): Promise<CidrCitiesPayload> {
+    const params = { province } satisfies CidrCitiesQuery;
     const res = await apiClient.get("/cidr/cities", {
-      params: { province },
+      params,
     });
     return res.data.data;
   },
   async getSelector(province?: string): Promise<CidrSelectorPayload> {
+    const params = province
+      ? ({ province } satisfies CidrSelectorQuery)
+      : undefined;
     const res = await apiClient.get("/cidr/selector", {
-      params: province ? { province } : undefined,
+      params,
     });
     return res.data.data;
   },
@@ -266,15 +267,11 @@ export const CidrAPI = {
     city?: string | null;
     operator?: CidrOperator | null;
   }): Promise<CidrLookupPayload> {
-    const params: Record<string, string> = {
+    const params = {
       province: payload.province,
-    };
-    if (payload.city) {
-      params.city = payload.city;
-    }
-    if (payload.operator) {
-      params.operator = payload.operator;
-    }
+      ...(payload.city ? { city: payload.city } : {}),
+      ...(payload.operator ? { operator: payload.operator } : {}),
+    } satisfies CidrLookupQuery;
     const res = await apiClient.get("/cidr/cidrs", { params });
     return res.data.data;
   },

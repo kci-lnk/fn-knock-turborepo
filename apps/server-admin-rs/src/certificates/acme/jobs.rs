@@ -64,6 +64,7 @@ pub(super) async fn reserve_acme_application_job(
     let lock = build_acme_runtime_lock(application, &job, trigger);
     let leased_lock = with_runtime_lock_lease(lock);
     let acquired = state
+        .storage
         .store
         .set_json_value_nx_ex(
             ACME_RUNTIME_LOCK_KEY,
@@ -143,7 +144,7 @@ pub(super) async fn run_reserved_acme_application_job(
     let run_lock = lock.clone();
     let run_t = t.clone();
     let run_job_id = job_id.clone();
-    tokio::spawn(async move {
+    state.spawn_background("acme-application-job", async move {
         if let Err(error) =
             execute_acme_application_job(run_state, run_application, run_job_id, run_lock, run_t)
                 .await
@@ -279,6 +280,7 @@ pub(super) async fn create_acme_job(
         .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let id = job.get("id").and_then(Value::as_str).unwrap_or("");
     state
+        .storage
         .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
@@ -306,6 +308,7 @@ pub(super) async fn update_acme_job(
         return Ok(None);
     };
     state
+        .storage
         .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
@@ -339,6 +342,7 @@ async fn update_running_acme_job(
         return Ok(None);
     };
     state
+        .storage
         .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
@@ -382,6 +386,7 @@ pub(super) async fn append_acme_log(
         return Ok(());
     }
     state
+        .storage
         .store
         .append_log_buffer(
             &format!("{ACME_LOGS_PREFIX}{job_id}"),
@@ -397,6 +402,7 @@ pub(super) async fn clear_acme_logs(
     job_id: &str,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .clear_log_buffer(&format!("{ACME_LOGS_PREFIX}{job_id}"))
         .await
@@ -460,6 +466,7 @@ pub(super) async fn release_acme_runtime_lock(
         return Ok(false);
     };
     state
+        .storage
         .store
         .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
         .await
@@ -738,6 +745,7 @@ pub(super) fn start_acme_lock_heartbeat(
             }
             let next = with_runtime_lock_lease(lock.clone());
             match state
+                .storage
                 .store
                 .set_json_lock_if_owned_ex(
                     ACME_RUNTIME_LOCK_KEY,

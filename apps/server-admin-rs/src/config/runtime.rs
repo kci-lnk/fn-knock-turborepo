@@ -1,13 +1,13 @@
 use std::{collections::BTreeSet, fs, net::Ipv4Addr, path::Path, process::Command};
 
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde_json::{Map, Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     auto_https, common_auth_locations, gateway_settings,
@@ -30,10 +30,8 @@ mod smart_connect;
 mod store;
 mod utils;
 
-pub(crate) use fnos_connect_waf::normalize_fnos_connect_waf;
-use fnos_connect_waf::{
-    get_fnos_connect_waf, start_fnos_connect_waf_reconciler, update_fnos_connect_waf,
-};
+use fnos_connect_waf::start_fnos_connect_waf_reconciler;
+pub(crate) use fnos_connect_waf::{fnos_connect_waf_routes, normalize_fnos_connect_waf};
 use fnos_network::*;
 use handlers::*;
 use migrations::*;
@@ -70,99 +68,100 @@ const FNOS_NETWORK_TUNING_SYSCTL_PATH: &str = "/etc/sysctl.d/99-fn-knock-network
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
 const JS_MAX_SAFE_INTEGER_I64: i64 = 9_007_199_254_740_991;
 
-pub fn runtime_config_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/captcha",
-            get(get_captcha).post(update_captcha),
-        )
-        .route("/api/admin/config/run_type", post(update_run_type))
-        .route(
-            "/api/admin/config/protocol_mapping_feature",
-            get(get_protocol_mapping_feature).post(update_protocol_mapping_feature),
-        )
-        .route(
-            "/api/admin/config/wol_feature",
-            get(get_wol_feature).post(update_wol_feature),
-        )
-        .route(
-            "/api/admin/config/fnos_network_tuning",
-            get(get_fnos_network_tuning).post(update_fnos_network_tuning),
-        )
-        .route(
-            "/api/admin/config/proxy_protocol_force",
-            get(get_proxy_protocol_force).post(update_proxy_protocol_force),
-        )
-        .route(
-            "/api/admin/config/fnos_share_bypass",
-            get(get_fnos_share_bypass).post(update_fnos_share_bypass),
-        )
-        .route(
-            "/api/admin/config/fnos_port_icon_hijack",
-            get(get_fnos_port_icon_hijack).post(update_fnos_port_icon_hijack),
-        )
-        .route(
-            "/api/admin/config/auto_https",
-            get(get_auto_https).post(update_auto_https),
-        )
-        .route(
-            "/api/admin/config/default_route",
-            get(get_default_route).post(update_default_route),
-        )
-        .route(
-            "/api/admin/config/default_tunnel",
-            post(update_default_tunnel),
-        )
-        .route(
-            "/api/admin/config/run_mode_prompt_preferences",
-            get(get_run_mode_prompt_preferences).post(update_run_mode_prompt_preferences),
-        )
-        .route("/api/admin/config/welcome_guide", get(get_welcome_guide))
-        .route(
-            "/api/admin/config/welcome_guide/complete",
-            post(complete_welcome_guide),
-        )
-        .route("/api/admin/sync-routes", post(sync_routes))
+pub(crate) fn sync_routes_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(sync_routes))
 }
 
-pub fn terminal_feature_routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/admin/config/terminal_feature",
-        get(get_terminal_feature).post(update_terminal_feature),
-    )
+pub(crate) fn captcha_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_captcha))
+        .routes(routes!(update_captcha))
 }
 
-pub fn smart_connect_config_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/smart_connect/details",
-            get(get_smart_connect_details),
-        )
-        .route(
-            "/api/admin/config/smart_connect",
-            post(update_smart_connect),
-        )
+pub(crate) fn run_type_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(update_run_type))
 }
 
-pub fn firewall_runtime_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/auto_manage_firewall",
-            post(update_auto_manage_firewall),
-        )
-        .route(
-            "/api/admin/config/firewall_additional_ports",
-            get(get_firewall_additional_ports).post(update_firewall_additional_ports),
-        )
-        .route("/api/admin/firewall/reset", post(reset_firewall))
-        .route("/api/admin/firewall/clear", post(clear_firewall))
+pub(crate) fn wol_feature_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_wol_feature))
+        .routes(routes!(update_wol_feature))
 }
 
-pub fn fnos_connect_waf_routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/admin/config/fnos_connect_waf",
-        get(get_fnos_connect_waf).post(update_fnos_connect_waf),
-    )
+pub(crate) fn protocol_mapping_feature_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_protocol_mapping_feature))
+        .routes(routes!(update_protocol_mapping_feature))
+}
+
+pub(crate) fn auto_https_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_auto_https))
+        .routes(routes!(update_auto_https))
+}
+
+pub(crate) fn default_route_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_default_route))
+        .routes(routes!(update_default_route))
+        .routes(routes!(update_default_tunnel))
+}
+
+pub(crate) fn proxy_protocol_force_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_proxy_protocol_force))
+        .routes(routes!(update_proxy_protocol_force))
+}
+
+pub(crate) fn run_mode_prompt_preferences_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_run_mode_prompt_preferences))
+        .routes(routes!(update_run_mode_prompt_preferences))
+}
+
+pub(crate) fn fnos_port_icon_hijack_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_fnos_port_icon_hijack))
+        .routes(routes!(update_fnos_port_icon_hijack))
+}
+
+pub(crate) fn fnos_network_tuning_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_fnos_network_tuning))
+        .routes(routes!(update_fnos_network_tuning))
+}
+
+pub(crate) fn fnos_share_bypass_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_fnos_share_bypass))
+        .routes(routes!(update_fnos_share_bypass))
+}
+
+pub(crate) fn welcome_guide_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_welcome_guide))
+        .routes(routes!(complete_welcome_guide))
+}
+
+pub fn terminal_feature_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_terminal_feature))
+        .routes(routes!(update_terminal_feature))
+}
+
+pub fn smart_connect_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_smart_connect_details))
+        .routes(routes!(update_smart_connect))
+}
+
+pub fn firewall_runtime_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(update_auto_manage_firewall))
+        .routes(routes!(get_firewall_additional_ports))
+        .routes(routes!(update_firewall_additional_ports))
+        .routes(routes!(reset_firewall))
+        .routes(routes!(clear_firewall))
 }
 
 fn admin_text(translator: &Translator, key: &str) -> String {
@@ -211,7 +210,7 @@ fn capability_blocked_text(state: &AppState, capability: &str, translator: &Tran
 }
 
 pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
-    let mut config = match state.store.get_config().await {
+    let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for boot runtime sync");
@@ -239,7 +238,8 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
 
     let gateway_logging = normalize_gateway_logging(config.get("gateway_logging"));
     if let Err(error) = state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_logging_config(&gateway_logging)
         .await
         .and_then(ensure_go_success)
@@ -258,7 +258,8 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
     let fnos_port_icon_hijack =
         normalize_fnos_port_icon_hijack(config.get("fnos_port_icon_hijack"));
     if let Err(error) = state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_port_icon_hijack_config(&fnos_port_icon_hijack)
         .await
         .and_then(ensure_go_success)
@@ -273,6 +274,7 @@ pub(crate) async fn migrate_and_constrain_config_after_import(
     state: &AppState,
 ) -> Result<Value, String> {
     let mut config = state
+        .storage
         .store
         .get_config()
         .await
@@ -299,7 +301,8 @@ pub(crate) async fn sync_fnos_port_icon_hijack_after_import(
 ) -> Result<(), String> {
     let value = normalize_fnos_port_icon_hijack(config.get("fnos_port_icon_hijack"));
     state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_port_icon_hijack_config(&value)
         .await
         .map_err(|error| error.to_string())

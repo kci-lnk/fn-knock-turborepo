@@ -7,18 +7,39 @@ use super::{
     provider::provider_ready, provider_key, subject_binding_key,
 };
 
+async fn verify_identity_shadow(state: &AppState) -> crate::storage::StorageResult<()> {
+    state
+        .storage
+        .store
+        .verify_identity_runtime_shadow("ldap")
+        .await
+}
+
+async fn get_provider_unverified(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.storage.store.get_json_value(&provider_key(id)).await
+}
+
 pub(super) async fn list_providers(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
-    let ids = state.store.zrevrange_strings(PROVIDERS_INDEX_KEY).await?;
+    verify_identity_shadow(state).await?;
+    let ids = state
+        .storage
+        .store
+        .zrevrange_strings(PROVIDERS_INDEX_KEY)
+        .await?;
     let mut providers = Vec::new();
     let mut stale = Vec::new();
     for id in ids {
-        match get_provider(state, &id).await? {
+        match get_provider_unverified(state, &id).await? {
             Some(provider) => providers.push(provider),
             None => stale.push(id),
         }
     }
     for id in stale {
         state
+            .storage
             .store
             .zrem_string_member(PROVIDERS_INDEX_KEY, &id)
             .await?;
@@ -49,7 +70,8 @@ pub(super) async fn get_provider(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.store.get_json_value(&provider_key(id)).await
+    verify_identity_shadow(state).await?;
+    get_provider_unverified(state, id).await
 }
 
 pub(super) async fn save_provider(
@@ -58,10 +80,12 @@ pub(super) async fn save_provider(
 ) -> crate::storage::StorageResult<()> {
     let id = provider.get("id").and_then(Value::as_str).unwrap_or("");
     state
+        .storage
         .store
         .set_json_value(&provider_key(id), provider)
         .await?;
     state
+        .storage
         .store
         .zadd_string_member(
             PROVIDERS_INDEX_KEY,
@@ -80,8 +104,9 @@ pub(super) async fn delete_provider(
     id: &str,
 ) -> crate::storage::StorageResult<()> {
     let bindings = list_bindings(state).await?;
-    state.store.delete_keys(&[provider_key(id)]).await?;
+    state.storage.store.delete_keys(&[provider_key(id)]).await?;
     state
+        .storage
         .store
         .zrem_string_member(PROVIDERS_INDEX_KEY, id)
         .await?;
@@ -97,17 +122,28 @@ pub(super) async fn delete_provider(
 }
 
 pub(super) async fn list_bindings(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
-    let ids = state.store.zrevrange_strings(BINDINGS_INDEX_KEY).await?;
+    verify_identity_shadow(state).await?;
+    let ids = state
+        .storage
+        .store
+        .zrevrange_strings(BINDINGS_INDEX_KEY)
+        .await?;
     let mut bindings = Vec::new();
     let mut stale = Vec::new();
     for id in ids {
-        match state.store.get_json_value(&binding_key(&id)).await? {
+        match state
+            .storage
+            .store
+            .get_json_value(&binding_key(&id))
+            .await?
+        {
             Some(binding) => bindings.push(binding),
             None => stale.push(id),
         }
     }
     for id in stale {
         state
+            .storage
             .store
             .zrem_string_member(BINDINGS_INDEX_KEY, &id)
             .await?;
@@ -119,13 +155,24 @@ pub(super) async fn get_binding_by_subject(
     state: &AppState,
     subject_key: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
+    verify_identity_shadow(state).await?;
     let subject_index_key = subject_binding_key(subject_key);
-    let Some(id) = state.store.get_string_value(&subject_index_key).await? else {
+    let Some(id) = state
+        .storage
+        .store
+        .get_string_value(&subject_index_key)
+        .await?
+    else {
         return Ok(None);
     };
-    let binding = state.store.get_json_value(&binding_key(&id)).await?;
+    let binding = state
+        .storage
+        .store
+        .get_json_value(&binding_key(&id))
+        .await?;
     if binding.is_none() {
         state
+            .storage
             .store
             .delete_key_if_value(&subject_index_key, &id)
             .await?;
@@ -143,8 +190,9 @@ pub(super) async fn update_binding_if_owned(
         .and_then(Value::as_str)
         .unwrap_or("");
     state
+        .storage
         .store
-        .update_ldap_binding_if_owned(crate::storage::redis_store::LdapBindingUpdate {
+        .update_binding_if_owned(crate::storage::redis_store::OwnedBindingUpdate {
             subject_key: &subject_binding_key(subject_key),
             binding_key: &binding_key(id),
             bindings_index_key: BINDINGS_INDEX_KEY,
@@ -175,6 +223,7 @@ pub(super) async fn claim_binding_and_consume_invite(
         .unwrap_or("");
     let totp_id = binding.get("totp_id").and_then(Value::as_str).unwrap_or("");
     let claimed = state
+        .storage
         .store
         .claim_ldap_binding_and_consume_invite(crate::storage::redis_store::LdapBindingClaim {
             invite_key: &invite_key(token_hash),
@@ -199,19 +248,26 @@ pub(super) async fn delete_binding(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<bool> {
-    let Some(binding) = state.store.get_json_value(&binding_key(id)).await? else {
+    let Some(binding) = state.storage.store.get_json_value(&binding_key(id)).await? else {
         return Ok(false);
     };
-    let mut keys = vec![binding_key(id)];
-    if let Some(subject_key) = binding.get("subject_key").and_then(Value::as_str) {
-        keys.push(subject_binding_key(subject_key));
-    }
-    state.store.delete_keys(&keys).await?;
+    let binding_data_key = binding_key(id);
+    let subject_index_key = binding
+        .get("subject_key")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(subject_binding_key)
+        .unwrap_or_else(|| binding_data_key.clone());
     state
+        .storage
         .store
-        .zrem_string_member(BINDINGS_INDEX_KEY, id)
-        .await?;
-    Ok(true)
+        .delete_binding_if_owned(crate::storage::redis_store::OwnedBindingDelete {
+            subject_key: &subject_index_key,
+            binding_key: &binding_data_key,
+            bindings_index_key: BINDINGS_INDEX_KEY,
+            binding_id: id,
+        })
+        .await
 }
 
 pub(crate) async fn ldap_delete_bindings_by_totp(
@@ -236,6 +292,7 @@ pub(super) async fn save_invite(
     invite: &Value,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .set_json_value_ex(&invite_key(token_hash), invite, DEFAULT_INVITE_TTL_SECONDS)
         .await
@@ -245,5 +302,10 @@ pub(super) async fn inspect_invite(
     state: &AppState,
     token_hash: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.store.get_json_value(&invite_key(token_hash)).await
+    verify_identity_shadow(state).await?;
+    state
+        .storage
+        .store
+        .get_json_value(&invite_key(token_hash))
+        .await
 }

@@ -5,7 +5,7 @@ use axum::{
     Router,
     body::Body,
     extract::{OriginalUri, State},
-    http::{HeaderValue, Request, StatusCode, header},
+    http::{HeaderMap, HeaderValue, Request, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -34,12 +34,12 @@ pub fn auth_static_routes() -> Router<AppState> {
         .route("/__auth__/index.html", get(auth_index))
 }
 
-async fn admin_index(State(state): State<AppState>) -> Response {
-    serve_index(&state.settings.admin_static_path, None).await
+async fn admin_index(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    serve_index(&state.settings.admin_static_path, Some(&headers)).await
 }
 
-async fn auth_index(State(state): State<AppState>) -> Response {
-    serve_index(&state.settings.auth_static_path, None).await
+async fn auth_index(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    serve_index(&state.settings.auth_static_path, Some(&headers)).await
 }
 
 pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) -> Response {
@@ -57,9 +57,9 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
         return not_found();
     };
     if asset_path.is_file() {
-        serve_file(asset_path, None).await
+        serve_file(asset_path, Some(req.headers())).await
     } else if is_known_auth_view_path(&path) {
-        serve_index(&state.settings.auth_static_path, None).await
+        serve_index(&state.settings.auth_static_path, Some(req.headers())).await
     } else {
         auth_not_found_html()
     }
@@ -68,7 +68,7 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
 pub async fn admin_fallback(
     State(state): State<AppState>,
     OriginalUri(original_uri): OriginalUri,
-    _req: Request<Body>,
+    req: Request<Body>,
 ) -> Response {
     let path = original_uri.path();
     if path.starts_with("/api/") {
@@ -86,18 +86,23 @@ pub async fn admin_fallback(
         return not_found();
     };
     if asset_path.is_file() {
-        serve_file(asset_path, None).await
+        serve_file(asset_path, Some(req.headers())).await
     } else {
-        serve_index(&state.settings.admin_static_path, None).await
+        serve_index(&state.settings.admin_static_path, Some(req.headers())).await
     }
 }
 
-async fn serve_index(root: &Path, injection: Option<String>) -> Response {
-    serve_file_with_kind(root.join("index.html"), injection, StaticFileKind::Index).await
+async fn serve_index(root: &Path, request_headers: Option<&HeaderMap>) -> Response {
+    serve_file_with_kind(
+        root.join("index.html"),
+        request_headers,
+        StaticFileKind::Index,
+    )
+    .await
 }
 
-async fn serve_file(path: PathBuf, injection: Option<String>) -> Response {
-    serve_file_with_kind(path, injection, StaticFileKind::Asset).await
+async fn serve_file(path: PathBuf, request_headers: Option<&HeaderMap>) -> Response {
+    serve_file_with_kind(path, request_headers, StaticFileKind::Asset).await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,28 +113,17 @@ enum StaticFileKind {
 
 async fn serve_file_with_kind(
     path: PathBuf,
-    injection: Option<String>,
+    request_headers: Option<&HeaderMap>,
     kind: StaticFileKind,
 ) -> Response {
-    let Ok(bytes) = tokio::fs::read(&path).await else {
+    let (served_path, content_encoding) = select_precompressed_path(&path, request_headers).await;
+    let Ok(file) = tokio::fs::File::open(&served_path).await else {
         return not_found();
     };
-
-    let mut response_bytes = bytes;
-    if let Some(script) = injection
-        && path.file_name().and_then(|name| name.to_str()) == Some("index.html")
-    {
-        let mut html = String::from_utf8_lossy(&response_bytes).into_owned();
-        if html.contains("</head>") {
-            html = html.replacen("</head>", &format!("{script}</head>"), 1);
-        } else {
-            html.push_str(&script);
-        }
-        response_bytes = html.into_bytes();
-    }
-
+    let content_length = file.metadata().await.ok().map(|metadata| metadata.len());
     let mime = mime_guess::from_path(&path).first_or_octet_stream();
-    let mut response = Response::new(Body::from(response_bytes));
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let mut response = Response::new(Body::from_stream(stream));
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         HeaderValue::from_str(mime.as_ref())
@@ -139,6 +133,20 @@ async fn serve_file_with_kind(
         header::CACHE_CONTROL,
         HeaderValue::from_static(cache_control_for_file(&path, kind)),
     );
+    if let Some(content_length) = content_length
+        && let Ok(value) = HeaderValue::from_str(&content_length.to_string())
+    {
+        response.headers_mut().insert(header::CONTENT_LENGTH, value);
+    }
+    if let Some(content_encoding) = content_encoding {
+        response.headers_mut().insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_static(content_encoding),
+        );
+        response
+            .headers_mut()
+            .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+    }
     if kind == StaticFileKind::Asset {
         response.headers_mut().insert(
             header::X_CONTENT_TYPE_OPTIONS,
@@ -146,6 +154,55 @@ async fn serve_file_with_kind(
         );
     }
     response
+}
+
+async fn select_precompressed_path(
+    path: &Path,
+    request_headers: Option<&HeaderMap>,
+) -> (PathBuf, Option<&'static str>) {
+    let accepted = request_headers
+        .and_then(|headers| headers.get(header::ACCEPT_ENCODING))
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    for (encoding, suffix) in [("br", ".br"), ("gzip", ".gz")] {
+        if !accepts_encoding(accepted, encoding) {
+            continue;
+        }
+        let candidate = PathBuf::from(format!("{}{suffix}", path.display()));
+        if tokio::fs::try_exists(&candidate).await.unwrap_or(false) {
+            return (candidate, Some(encoding));
+        }
+    }
+    (path.to_path_buf(), None)
+}
+
+fn accepts_encoding(header_value: &str, target: &str) -> bool {
+    let mut exact_quality = None;
+    let mut wildcard_quality = None;
+    for entry in header_value.split(',') {
+        let mut parts = entry.trim().split(';');
+        let encoding = parts.next().unwrap_or_default().trim();
+        let mut quality = 1.0;
+        for parameter in parts {
+            let Some((name, value)) = parameter.trim().split_once('=') else {
+                continue;
+            };
+            if name.trim().eq_ignore_ascii_case("q") {
+                quality = value
+                    .trim()
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|quality| (0.0..=1.0).contains(quality))
+                    .unwrap_or(0.0);
+            }
+        }
+        if encoding.eq_ignore_ascii_case(target) {
+            exact_quality = Some(quality);
+        } else if encoding == "*" {
+            wildcard_quality = Some(quality);
+        }
+    }
+    exact_quality.or(wildcard_quality).unwrap_or(0.0) > 0.0
 }
 
 fn cache_control_for_file(path: &Path, kind: StaticFileKind) -> &'static str {
@@ -254,8 +311,9 @@ fn not_found() -> Response {
 #[cfg(test)]
 mod tests {
     use super::{
-        StaticFileKind, auth_not_found_html, cache_control_for_file, has_fingerprinted_file_name,
-        is_known_auth_view_path, normalize_auth_path, serve_file, serve_index,
+        StaticFileKind, accepts_encoding, auth_not_found_html, cache_control_for_file,
+        has_fingerprinted_file_name, is_known_auth_view_path, normalize_auth_path, serve_file,
+        serve_index,
     };
     use axum::http::{StatusCode, header};
     use std::path::Path;
@@ -316,6 +374,15 @@ mod tests {
         assert!(!has_fingerprinted_file_name("app-short.js"));
     }
 
+    #[test]
+    fn accept_encoding_honors_quality_zero() {
+        assert!(accepts_encoding("gzip, br", "br"));
+        assert!(accepts_encoding("*;q=0.5", "br"));
+        assert!(!accepts_encoding("br;q=0, gzip", "br"));
+        assert!(!accepts_encoding("*;q=1, br;q=0", "br"));
+        assert!(!accepts_encoding("br;q=invalid", "br"));
+    }
+
     #[tokio::test]
     async fn serve_static_asset_sets_node_headers() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -340,6 +407,41 @@ mod tests {
                 .get(header::X_CONTENT_TYPE_OPTIONS)
                 .and_then(|value| value.to_str().ok()),
             Some("nosniff")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok()),
+            Some("18")
+        );
+    }
+
+    #[tokio::test]
+    async fn serve_static_asset_prefers_precompressed_brotli() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let asset_path = temp_dir.path().join("app-ABCDEFG.js");
+        std::fs::write(&asset_path, "uncompressed").unwrap();
+        std::fs::write(format!("{}.br", asset_path.display()), "brotli").unwrap();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(header::ACCEPT_ENCODING, "gzip, br".parse().unwrap());
+
+        let response = serve_file(asset_path, Some(&headers)).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_ENCODING)
+                .and_then(|value| value.to_str().ok()),
+            Some("br")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::VARY)
+                .and_then(|value| value.to_str().ok()),
+            Some("Accept-Encoding")
         );
     }
 

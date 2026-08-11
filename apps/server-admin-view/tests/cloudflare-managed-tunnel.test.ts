@@ -5,6 +5,18 @@ import { describe, it } from "node:test";
 const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
+type ContractSchema = {
+  enum?: string[];
+  properties?: Record<string, ContractSchema>;
+  required?: string[];
+  writeOnly?: boolean;
+};
+
+const readContract = () =>
+  JSON.parse(readSource("../../../packages/api-contract/openapi.json")) as {
+    components: { schemas: Record<string, ContractSchema> };
+  };
+
 describe("managed Cloudflare Tunnel", () => {
   it("exposes the credential, reconcile, scan, apply, and fallback contracts", () => {
     const source = readSource("../src/lib/api/tunnel.ts");
@@ -28,13 +40,22 @@ describe("managed Cloudflare Tunnel", () => {
 
   it("keeps Tunnel and API tokens write-only in the frontend contract", () => {
     const apiSource = readSource("../src/lib/api/tunnel.ts");
-    const configContract = apiSource.slice(
-      apiSource.indexOf("export type CloudflaredConfig"),
-      apiSource.indexOf("export type CloudflareTunnelSummary"),
+    assert.match(apiSource, /\["CloudflaredConfigData"\]/u);
+    assert.match(apiSource, /\["CloudflareCredentialBodyData"\]/u);
+    const configContract =
+      readContract().components.schemas.CloudflaredConfigData;
+    assert.ok(configContract.required?.includes("apiTokenConfigured"));
+    assert.ok(configContract.required?.includes("tunnelTokenConfigured"));
+    assert.equal(configContract.properties?.token, undefined);
+    const schemas = readContract().components.schemas;
+    assert.equal(
+      schemas.CloudflaredConfigUpdateData.properties?.token?.writeOnly,
+      true,
     );
-    assert.match(configContract, /apiTokenConfigured: boolean/u);
-    assert.match(configContract, /tunnelTokenConfigured: boolean/u);
-    assert.doesNotMatch(configContract, /\btoken:\s*string/u);
+    assert.equal(
+      schemas.CloudflareCredentialBodyData.properties?.apiToken?.writeOnly,
+      true,
+    );
 
     const controller = readSource(
       "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
@@ -75,6 +96,9 @@ describe("managed Cloudflare Tunnel", () => {
     const optimization = readSource(
       "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
     );
+    const optimizationPresentation = readSource(
+      "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
+    );
     assert.match(optimization, /ConfigCollapsibleCard/u);
     assert.match(optimization, /allCandidates/u);
     assert.match(optimization, /capabilityProbe/u);
@@ -89,7 +113,7 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /prepareOptimizationConflictResolution/u);
     assert.match(optimization, /domain\.managementMode === ['"]external['"]/u);
     assert.match(optimization, /domain\.cleanupPending/u);
-    assert.match(optimization, /toLocaleString\(locale\.value\)/u);
+    assert.match(optimizationPresentation, /toLocaleString\(locale\)/u);
     assert.doesNotMatch(optimization, />Beta</u);
     assert.doesNotMatch(optimization, /<TableHead>IPv4/u);
 
@@ -123,9 +147,15 @@ describe("managed Cloudflare Tunnel", () => {
   });
 
   it("keeps third-party candidate hostnames DNS-only and provenance visible", () => {
-    const backend = readSource(
-      "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
-    );
+    const backend = [
+      readSource("../../server-admin-rs/src/tunnels/cloudflared/optimization.rs"),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
+      ),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
+      ),
+    ].join("\n");
     assert.match(backend, /cloudflare-dns\.com\/dns-query/u);
     assert.match(backend, /dns\.google\/resolve/u);
     assert.match(backend, /candidate_ip_is_cloudflare/u);
@@ -184,9 +214,14 @@ describe("managed Cloudflare Tunnel", () => {
   });
 
   it("distinguishes Cloudflare for SaaS setup from validation readiness", () => {
-    const optimization = readSource(
-      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
-    );
+    const optimization = [
+      readSource(
+        "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
+      ),
+      readSource(
+        "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
+      ),
+    ].join("\n");
     assert.match(optimization, /no active business or capability hostname/u);
     assert.match(optimization, /cloudflareSaasRequiredTitle/u);
     assert.match(optimization, /cloudflareSaasRequiredDescription/u);
@@ -202,17 +237,34 @@ describe("managed Cloudflare Tunnel", () => {
       "the capability alert and technical status should use the same localized message",
     );
 
-    const api = readSource("../src/lib/api/tunnel.ts");
-    assert.match(api, /errorCode\?: string \| null/u);
-    assert.match(api, /reasonCode\?: string/u);
-    assert.match(api, /scanReady: boolean/u);
-    assert.match(api, /scanReadinessErrorCode: string \| null/u);
-    assert.match(api, /hostnameStatus: string \| null/u);
-    assert.match(api, /\| "probe-failed"/u);
-
-    const backend = readSource(
-      "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+    const schemas = readContract().components.schemas;
+    assert.ok(schemas.CloudflareOptimizationScanData.properties?.errorCode);
+    assert.ok(
+      schemas.CloudflareOptimizationCapabilityProbeData.properties?.reasonCode,
     );
+    assert.ok(schemas.CloudflareOptimizationStateData.properties?.scanReady);
+    assert.ok(
+      schemas.CloudflareOptimizationStateData.properties
+        ?.scanReadinessErrorCode,
+    );
+    assert.ok(
+      schemas.CloudflareOptimizationDomainData.properties?.hostnameStatus,
+    );
+    assert.ok(
+      schemas.CloudflareOptimizationCapabilityProbeData.properties?.status?.enum?.includes(
+        "probe-failed",
+      ),
+    );
+
+    const backend = [
+      readSource("../../server-admin-rs/src/tunnels/cloudflared/optimization.rs"),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
+      ),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
+      ),
+    ].join("\n");
     assert.match(backend, /CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE/u);
     assert.match(backend, /CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE/u);
     assert.match(backend, /CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE/u);

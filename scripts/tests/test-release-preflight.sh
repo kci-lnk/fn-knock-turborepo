@@ -24,18 +24,20 @@ write_fixture() {
     "${FIXTURE}/apps/server-admin-rs" \
     "${FIXTURE}/apps/fn-knock-desktop/native" \
     "${FIXTURE}/apps/fn-knock-desktop" \
+    "${FIXTURE}/packages/api-contract" \
     "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1" \
     "${FIXTURE}/release-notes" \
     "${FIXTURE}/scripts"
   cp "${ROOT_DIR}/scripts/control-api-version.sh" "${FIXTURE}/scripts/control-api-version.sh"
   cp "${ROOT_DIR}/packages/grpc-contracts/proto/fnknock/v1/gateway.proto" \
     "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1/gateway.proto"
-  printf '{"version":"%s"}\n' "${VERSION}" > "${FIXTURE}/version.json"
+  printf '{"version":"%s","gatewayCommit":"%040d"}\n' "${VERSION}" 0 > "${FIXTURE}/version.json"
   printf 'appname=fn-knock\nversion=%s\nplatform=x86\n' "${VERSION}" > "${FIXTURE}/apps/fn-knock/manifest"
   printf '[package]\nname = "server-admin-rs"\nversion = "%s"\n' "${VERSION}" > "${FIXTURE}/apps/server-admin-rs/Cargo.toml"
   printf '[[package]]\nname = "server-admin-rs"\nversion = "%s"\n' "${VERSION}" > "${FIXTURE}/apps/server-admin-rs/Cargo.lock"
   printf '{"name":"fn-knock-desktop","version":"%s"}\n' "${VERSION}" > "${FIXTURE}/apps/fn-knock-desktop/package.json"
-  printf '{"packages":{"apps/fn-knock-desktop":{"version":"%s"}}}\n' "${VERSION}" > "${FIXTURE}/package-lock.json"
+  printf '{"name":"@fn-knock/api-contract","version":"%s"}\n' "${VERSION}" > "${FIXTURE}/packages/api-contract/package.json"
+  printf '{"packages":{"apps/fn-knock-desktop":{"version":"%s"},"packages/api-contract":{"version":"%s"}}}\n' "${VERSION}" "${VERSION}" > "${FIXTURE}/package-lock.json"
   printf '[package]\nname = "fn-knock-desktop"\nversion = "%s"\n' "${VERSION}" > "${FIXTURE}/apps/fn-knock-desktop/native/Cargo.toml"
   printf '[[package]]\nname = "fn-knock-desktop"\nversion = "%s"\n' "${VERSION}" > "${FIXTURE}/apps/fn-knock-desktop/native/Cargo.lock"
   printf '# %s\n\nRelease notes.\n' "${VERSION}" > "${FIXTURE}/release-notes/${VERSION}.md"
@@ -60,6 +62,11 @@ expect_failure() {
 
 write_fixture
 run_preflight "${TAG}" >/dev/null
+
+write_fixture
+jq '.gatewayCommit = "main"' "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
+mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
+expect_failure "gatewayCommit must be a 40-character lowercase Git commit" run_preflight "${TAG}"
 
 write_fixture
 jq '.releaseChannel = "beta"' "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
@@ -95,6 +102,12 @@ jq '.packages["apps/fn-knock-desktop"].version = "0.0.0"' \
   "${FIXTURE}/package-lock.json" > "${FIXTURE}/package-lock.json.tmp"
 mv "${FIXTURE}/package-lock.json.tmp" "${FIXTURE}/package-lock.json"
 expect_failure "desktop package-lock version mismatch" run_preflight "${TAG}"
+
+write_fixture
+jq '.packages["packages/api-contract"].version = "0.0.0"' \
+  "${FIXTURE}/package-lock.json" > "${FIXTURE}/package-lock.json.tmp"
+mv "${FIXTURE}/package-lock.json.tmp" "${FIXTURE}/package-lock.json"
+expect_failure "API contract package-lock version mismatch" run_preflight "${TAG}"
 
 GO_FIXTURE="${WORK_DIR}/go-repository"
 mkdir -p "${GO_FIXTURE}"

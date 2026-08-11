@@ -437,6 +437,443 @@ impl CommandSpec {
     }
 }
 
+fn key_affects_typed_mobility(key: &str) -> bool {
+    key.starts_with("fn_knock:session:")
+        || key.starts_with("fn_knock:auth_mobility:")
+        || key.starts_with(crate::storage::typed_login_backoff::LOGIN_BACKOFF_PREFIX)
+        || key.starts_with(crate::storage::typed_docker_admin::SESSION_PREFIX)
+        || key.starts_with(crate::storage::typed_docker_admin::LOGIN_BACKOFF_PREFIX)
+        || key.starts_with(crate::storage::typed_event_dedupe::DEDUPE_PREFIX)
+        || crate::storage::typed_fnos_share::owns_key(key)
+        || key.starts_with(crate::storage::typed_hmac_nonce::NONCE_PREFIX)
+        || key.starts_with(crate::storage::typed_subdomain_rate_limit::RATE_LIMIT_PREFIX)
+        || key.starts_with(crate::storage::typed_wol_cooldown::COOLDOWN_PREFIX)
+        || key.starts_with(crate::storage::typed_notification_runtime::LEASE_PREFIX)
+        || key.starts_with(crate::storage::typed_notification_runtime::COOLDOWN_PREFIX)
+        || key.starts_with(crate::storage::typed_notification_runtime::WINDOW_PREFIX)
+        || key == crate::storage::typed_notification_runtime::READY_KEY
+        || key.starts_with(crate::storage::typed_passkey_runtime::CHALLENGE_PREFIX)
+        || key.starts_with(crate::storage::typed_passkey_runtime::STATE_PREFIX)
+        || key.starts_with(crate::storage::typed_passkey_runtime::BIND_PREFIX)
+        || crate::storage::typed_subdomain_grant::owns_key(key)
+        || key.starts_with(crate::storage::typed_identity_runtime::OIDC_PREFIX)
+        || key.starts_with(crate::storage::typed_identity_runtime::LDAP_PREFIX)
+        || crate::storage::typed_whitelist_runtime::owns_key(key)
+}
+
+#[derive(Clone, Debug, Default)]
+enum TypedMobilitySyncScope {
+    #[default]
+    None,
+    Keys(BTreeSet<String>),
+    All,
+}
+
+impl TypedMobilitySyncScope {
+    fn from_key(key: &str) -> Self {
+        if key_affects_typed_mobility(key) {
+            Self::Keys(BTreeSet::from([key.to_string()]))
+        } else {
+            Self::None
+        }
+    }
+
+    fn from_keys(keys: impl IntoIterator<Item = String>) -> Self {
+        let keys = keys
+            .into_iter()
+            .filter(|key| key_affects_typed_mobility(key))
+            .collect::<BTreeSet<_>>();
+        if keys.is_empty() {
+            Self::None
+        } else {
+            Self::Keys(keys)
+        }
+    }
+
+    fn merge(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::All, _) | (_, Self::All) => Self::All,
+            (Self::None, scope) | (scope, Self::None) => scope,
+            (Self::Keys(mut left), Self::Keys(right)) => {
+                left.extend(right);
+                Self::Keys(left)
+            }
+        }
+    }
+}
+
+fn command_typed_mobility_scope(command: &CommandSpec) -> TypedMobilitySyncScope {
+    let mutates = matches!(
+        command.name.as_str(),
+        "SET"
+            | "SETEX"
+            | "DEL"
+            | "EXPIRE"
+            | "HSET"
+            | "HDEL"
+            | "SADD"
+            | "SREM"
+            | "ZADD"
+            | "ZREM"
+            | "ZREMRANGEBYSCORE"
+            | "EVAL"
+    );
+    if !mutates {
+        return TypedMobilitySyncScope::None;
+    }
+    if command.name == "EVAL"
+        && command.args.first().is_some_and(|script| {
+            script.contains("fn-knock:eval:collect-mobility-session-whitelist:v1")
+        })
+    {
+        return TypedMobilitySyncScope::None;
+    }
+    match command.name.as_str() {
+        "DEL" => TypedMobilitySyncScope::from_keys(command.args.iter().cloned()),
+        "EVAL" => {
+            let Some(key_count) = command
+                .args
+                .get(1)
+                .and_then(|value| value.parse::<usize>().ok())
+            else {
+                return if command.args.first().is_some_and(|script| {
+                    script.contains("fn_knock:session:")
+                        || script.contains("fn_knock:auth_mobility:")
+                }) {
+                    TypedMobilitySyncScope::All
+                } else {
+                    TypedMobilitySyncScope::None
+                };
+            };
+            TypedMobilitySyncScope::from_keys(command.args.iter().skip(2).take(key_count).cloned())
+        }
+        _ => command
+            .args
+            .first()
+            .map(|key| TypedMobilitySyncScope::from_key(key))
+            .unwrap_or_default(),
+    }
+}
+
+fn sync_typed_mobility_tx(
+    tx: &rusqlite::Transaction<'_>,
+    scope: TypedMobilitySyncScope,
+) -> RedisResult<()> {
+    // This scope began with mobility aggregates and now also carries the
+    // security-sensitive login-backoff shadow. Both repositories filter the
+    // exact keys they own, while `All` is reserved for keyspace replacement.
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'whitelist_auto_owner_mappings'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_whitelist_runtime::TypedWhitelistRuntimeRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_whitelist_runtime::TypedWhitelistRuntimeRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'subdomain_rule_grants'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_subdomain_grant::TypedSubdomainGrantRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_subdomain_grant::TypedSubdomainGrantRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'fnos_share_runtime_capabilities'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_fnos_share::TypedFnosShareRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_fnos_share::TypedFnosShareRepository::rebuild_from_legacy_tx(
+                    tx,
+                )?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'hmac_replay_nonces'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_hmac_nonce::TypedHmacNonceRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_hmac_nonce::TypedHmacNonceRepository::rebuild_from_legacy_tx(
+                    tx,
+                )?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'mobility_session_aggregates'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_mobility::TypedMobilityRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_mobility::TypedMobilityRepository::rebuild_from_legacy_tx(
+                    tx,
+                )?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'system_event_dedupe_leases'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_event_dedupe::TypedEventDedupeRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_event_dedupe::TypedEventDedupeRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'login_backoff_attempts'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_login_backoff::TypedLoginBackoffRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_login_backoff::TypedLoginBackoffRepository::rebuild_from_legacy_tx(
+                    tx,
+                )?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'docker_admin_session_documents'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_docker_admin::TypedDockerAdminRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_docker_admin::TypedDockerAdminRepository::rebuild_from_legacy_tx(
+                    tx,
+                )?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'subdomain_rule_rate_limit_counters'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_subdomain_rate_limit::TypedSubdomainRateLimitRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_subdomain_rate_limit::TypedSubdomainRateLimitRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'wol_wake_cooldowns'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_wol_cooldown::TypedWolCooldownRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_wol_cooldown::TypedWolCooldownRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'notification_runtime_leases'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_notification_runtime::TypedNotificationRuntimeRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_notification_runtime::TypedNotificationRuntimeRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'passkey_runtime_capabilities'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_passkey_runtime::TypedPasskeyRuntimeRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_passkey_runtime::TypedPasskeyRuntimeRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    if !matches!(scope, TypedMobilitySyncScope::None)
+        && tx.query_row(
+            "SELECT EXISTS(
+               SELECT 1 FROM sqlite_master
+               WHERE type = 'table' AND name = 'identity_runtime_aggregates'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        match &scope {
+            TypedMobilitySyncScope::None => {}
+            TypedMobilitySyncScope::Keys(keys) => {
+                crate::storage::typed_identity_runtime::TypedIdentityRuntimeRepository::reconcile_legacy_keys_tx(
+                    tx,
+                    &keys.iter().cloned().collect::<Vec<_>>(),
+                )?;
+            }
+            TypedMobilitySyncScope::All => {
+                crate::storage::typed_identity_runtime::TypedIdentityRuntimeRepository::rebuild_from_legacy_tx(tx)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 struct SchemaMigration {
     version: i64,
     name: &'static str,
@@ -740,6 +1177,19 @@ impl Pipeline {
         T::from_pipe_outputs(conn.execute_pipeline(self.commands).await?)
     }
 
+    /// Executes this pipeline inside a caller-owned SQLite transaction.
+    ///
+    /// Domain repositories use this together with
+    /// [`hash_field_matches_in_transaction`] so a typed-table mutation and
+    /// its compatibility-keyspace indexes share one commit boundary.
+    pub(crate) fn query_in_transaction<T: FromPipeOutput>(
+        mut self,
+        tx: &rusqlite::Transaction<'_>,
+    ) -> RedisResult<T> {
+        self.flush_current();
+        T::from_pipe_outputs(execute_pipeline_commands_tx(tx, self.commands)?)
+    }
+
     pub(crate) async fn query_async_replacing_prefix<T: FromPipeOutput>(
         mut self,
         conn: &mut ConnectionManager,
@@ -750,24 +1200,6 @@ impl Pipeline {
             .execute_pipeline_replacing_prefix(prefix, self.commands)
             .await?;
         Ok((deleted, T::from_pipe_outputs(outputs)?))
-    }
-
-    pub(crate) async fn query_async_if_hash_field_matches<T, F>(
-        mut self,
-        conn: &mut ConnectionManager,
-        key: &str,
-        field: &str,
-        matches: F,
-    ) -> RedisResult<(bool, T)>
-    where
-        T: FromPipeOutput,
-        F: FnOnce(Option<&str>) -> bool + Send + 'static,
-    {
-        self.flush_current();
-        let (matched, outputs) = conn
-            .execute_pipeline_if_hash_field_matches(key, field, self.commands, matches)
-            .await?;
-        Ok((matched, T::from_pipe_outputs(outputs)?))
     }
 
     fn push_simple(&mut self, name: &str, args: Vec<String>) -> &mut Self {
@@ -870,9 +1302,23 @@ impl ConnectionManager {
     pub(crate) async fn purge_expired_keys(&self) -> RedisResult<usize> {
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let cutoff = now_ms();
+            let expired_typed_shadow_keys = {
+                let mut statement = tx.prepare(
+                    "SELECT key FROM kv_keys
+                     WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?1",
+                )?;
+                statement
+                    .query_map(params![cutoff], |row| row.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()?
+            };
             let deleted = tx.execute(
                 "DELETE FROM kv_keys WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?1",
-                params![now_ms()],
+                params![cutoff],
+            )?;
+            sync_typed_mobility_tx(
+                &tx,
+                TypedMobilitySyncScope::from_keys(expired_typed_shadow_keys),
             )?;
             tx.commit()?;
             Ok(deleted)
@@ -880,7 +1326,82 @@ impl ConnectionManager {
         .await
     }
 
-    async fn call<T, F>(&self, f: F) -> RedisResult<T>
+    pub(crate) async fn delete_security_state_atomically(
+        &self,
+        password_key: &str,
+        session_prefix: &str,
+        backoff_prefix: &str,
+    ) -> RedisResult<(bool, usize, usize)> {
+        let password_key = password_key.to_string();
+        let session_pattern = format!("{}%", escape_like_pattern(session_prefix));
+        let backoff_pattern = format!("{}%", escape_like_pattern(backoff_prefix));
+        self.call(move |conn| {
+            let tx = immediate_transaction(conn)?;
+            purge_expired_all_tx(&tx)?;
+            let password_exists = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM kv_keys WHERE key = ?1)",
+                [&password_key],
+                |row| row.get::<_, bool>(0),
+            )?;
+            let session_keys = keys_matching_pattern_tx(&tx, &session_pattern)?;
+            let backoff_keys = keys_matching_pattern_tx(&tx, &backoff_pattern)?;
+            tx.execute("DELETE FROM kv_keys WHERE key = ?1", [&password_key])?;
+            tx.execute(
+                "DELETE FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\'",
+                [&session_pattern],
+            )?;
+            tx.execute(
+                "DELETE FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\'",
+                [&backoff_pattern],
+            )?;
+            let session_count = session_keys.len();
+            let backoff_count = backoff_keys.len();
+            sync_typed_mobility_tx(
+                &tx,
+                TypedMobilitySyncScope::from_keys(session_keys.into_iter().chain(backoff_keys)),
+            )?;
+            tx.commit()?;
+            Ok((password_exists, session_count, backoff_count))
+        })
+        .await
+    }
+
+    pub(crate) async fn replace_password_and_delete_security_state_atomically(
+        &self,
+        password_key: &str,
+        password_json: &str,
+        session_prefix: &str,
+        backoff_prefix: &str,
+    ) -> RedisResult<()> {
+        let password_key = password_key.to_string();
+        let password_json = password_json.to_string();
+        let session_pattern = format!("{}%", escape_like_pattern(session_prefix));
+        let backoff_pattern = format!("{}%", escape_like_pattern(backoff_prefix));
+        self.call(move |conn| {
+            let tx = immediate_transaction(conn)?;
+            purge_expired_all_tx(&tx)?;
+            let session_keys = keys_matching_pattern_tx(&tx, &session_pattern)?;
+            let backoff_keys = keys_matching_pattern_tx(&tx, &backoff_pattern)?;
+            set_string_tx(&tx, &password_key, &password_json, None)?;
+            tx.execute(
+                "DELETE FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\'",
+                [&session_pattern],
+            )?;
+            tx.execute(
+                "DELETE FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\'",
+                [&backoff_pattern],
+            )?;
+            sync_typed_mobility_tx(
+                &tx,
+                TypedMobilitySyncScope::from_keys(session_keys.into_iter().chain(backoff_keys)),
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn call<T, F>(&self, f: F) -> RedisResult<T>
     where
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
@@ -939,11 +1460,13 @@ impl ConnectionManager {
         let deleted = self
             .call(move |conn| {
                 let tx = immediate_transaction(conn)?;
+                let sync_mobility = TypedMobilitySyncScope::from_keys(keys.iter().cloned());
                 let mut deleted = 0usize;
                 for key in keys {
                     purge_expired_tx(&tx, &key)?;
                     deleted += delete_key_tx(&tx, &key)?;
                 }
+                sync_typed_mobility_tx(&tx, sync_mobility)?;
                 tx.commit()?;
                 Ok(deleted)
             })
@@ -984,11 +1507,15 @@ impl ConnectionManager {
         let key = key.into_key();
         let expires_at = now_ms() + ttl_seconds.max(1) * 1000;
         self.call(move |conn| {
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             purge_expired(conn, &key)?;
-            conn.execute(
+            let tx = immediate_transaction(conn)?;
+            tx.execute(
                 "UPDATE kv_keys SET expires_at_ms = ?2 WHERE key = ?1",
                 params![key, expires_at],
             )?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
+            tx.commit()?;
             Ok(())
         })
         .await
@@ -1067,11 +1594,13 @@ impl ConnectionManager {
         let value = value.to_string();
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             ensure_key_tx(&tx, &key, "hash", None)?;
             tx.execute(
                 "INSERT OR REPLACE INTO kv_hash(key, field, value) VALUES (?1, ?2, ?3)",
                 params![key, field, value],
             )?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1088,6 +1617,7 @@ impl ConnectionManager {
         let fields = fields.into_members();
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             purge_expired_tx(&tx, &key)?;
             for field in fields {
                 tx.execute(
@@ -1096,6 +1626,7 @@ impl ConnectionManager {
                 )?;
             }
             delete_collection_key_if_empty_tx(&tx, &key, "hash")?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1127,6 +1658,7 @@ impl ConnectionManager {
         let members = members.into_members();
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             ensure_key_tx(&tx, &key, "set", None)?;
             for member in members {
                 tx.execute(
@@ -1134,6 +1666,7 @@ impl ConnectionManager {
                     params![key, member],
                 )?;
             }
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1149,6 +1682,7 @@ impl ConnectionManager {
         let members = members.into_members();
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             purge_expired_tx(&tx, &key)?;
             for member in members {
                 tx.execute(
@@ -1157,6 +1691,7 @@ impl ConnectionManager {
                 )?;
             }
             delete_collection_key_if_empty_tx(&tx, &key, "set")?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1174,11 +1709,13 @@ impl ConnectionManager {
         let score = parse_f64(&score.to_string())?;
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             ensure_key_tx(&tx, &key, "zset", None)?;
             tx.execute(
                 "INSERT OR REPLACE INTO kv_zset(key, member, score) VALUES (?1, ?2, ?3)",
                 params![key, member, score],
             )?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1194,6 +1731,7 @@ impl ConnectionManager {
         let members = members.into_members();
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             purge_expired_tx(&tx, &key)?;
             for member in members {
                 tx.execute(
@@ -1202,28 +1740,7 @@ impl ConnectionManager {
                 )?;
             }
             delete_collection_key_if_empty_tx(&tx, &key, "zset")?;
-            tx.commit()?;
-            Ok(())
-        })
-        .await
-    }
-
-    pub(crate) async fn zrembyscore<K: IntoKey>(
-        &mut self,
-        key: K,
-        min_score: i64,
-        max_score: i64,
-    ) -> RedisResult<()> {
-        let key = key.into_key();
-        self.call(move |conn| {
-            let tx = immediate_transaction(conn)?;
-            purge_expired_tx(&tx, &key)?;
-            delete_zset_score_range_tx(
-                &tx,
-                &key,
-                ScoreBound::inclusive(min_score as f64),
-                ScoreBound::inclusive(max_score as f64),
-            )?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1235,24 +1752,6 @@ impl ConnectionManager {
         self.call(move |conn| {
             purge_expired(conn, &key)?;
             count_rows(conn, "SELECT COUNT(*) FROM kv_zset WHERE key = ?1", &[&key])
-        })
-        .await
-    }
-
-    pub(crate) async fn zcount<K: IntoKey>(
-        &mut self,
-        key: K,
-        min_score: i64,
-        max_score: i64,
-    ) -> RedisResult<i64> {
-        let key = key.into_key();
-        self.call(move |conn| {
-            purge_expired(conn, &key)?;
-            count_rows(
-                conn,
-                "SELECT COUNT(*) FROM kv_zset WHERE key = ?1 AND score >= ?2 AND score <= ?3",
-                &[&key, &(min_score as f64), &(max_score as f64)],
-            )
         })
         .await
     }
@@ -1407,7 +1906,9 @@ impl ConnectionManager {
     ) -> RedisResult<()> {
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = TypedMobilitySyncScope::from_key(&key);
             set_string_tx(&tx, &key, &value, ttl_ms_from_now.map(|ttl| now_ms() + ttl))?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(())
         })
@@ -1447,14 +1948,7 @@ impl ConnectionManager {
     ) -> RedisResult<Vec<CmdOutput>> {
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
-            let mut outputs = Vec::new();
-            for command in commands {
-                let ignore = command.ignore;
-                let output = execute_command_tx(&tx, command)?;
-                if !ignore {
-                    outputs.push(output);
-                }
-            }
+            let outputs = execute_pipeline_commands_tx(&tx, commands)?;
             tx.commit()?;
             Ok(outputs)
         })
@@ -1579,10 +2073,23 @@ impl ConnectionManager {
             let tx = immediate_transaction(conn)?;
             purge_expired_all_tx(&tx)?;
             let pattern = format!("{}%", escape_like_pattern(&prefix));
+            let removed_typed_shadow_keys = {
+                let mut statement = tx.prepare(
+                    "SELECT key FROM kv_keys
+                     WHERE key LIKE ?1 ESCAPE '\\'",
+                )?;
+                statement
+                    .query_map(params![pattern], |row| row.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()?
+            };
             let deleted = tx.execute(
                 "DELETE FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\'",
                 params![pattern],
             )?;
+            let sync_mobility = commands.iter().fold(
+                TypedMobilitySyncScope::from_keys(removed_typed_shadow_keys),
+                |scope, command| scope.merge(command_typed_mobility_scope(command)),
+            );
             let mut outputs = Vec::new();
             for command in commands {
                 let ignore = command.ignore;
@@ -1591,49 +2098,9 @@ impl ConnectionManager {
                     outputs.push(output);
                 }
             }
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok((deleted, outputs))
-        })
-        .await
-    }
-
-    async fn execute_pipeline_if_hash_field_matches<F>(
-        &mut self,
-        key: &str,
-        field: &str,
-        commands: Vec<CommandSpec>,
-        matches: F,
-    ) -> RedisResult<(bool, Vec<CmdOutput>)>
-    where
-        F: FnOnce(Option<&str>) -> bool + Send + 'static,
-    {
-        let key = key.to_string();
-        let field = field.to_string();
-        self.call(move |conn| {
-            let tx = immediate_transaction(conn)?;
-            purge_expired_tx(&tx, &key)?;
-            let current = tx
-                .query_row(
-                    "SELECT value FROM kv_hash WHERE key = ?1 AND field = ?2",
-                    params![key, field],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()?;
-            if !matches(current.as_deref()) {
-                tx.commit()?;
-                return Ok((false, Vec::new()));
-            }
-
-            let mut outputs = Vec::new();
-            for command in commands {
-                let ignore = command.ignore;
-                let output = execute_command_tx(&tx, command)?;
-                if !ignore {
-                    outputs.push(output);
-                }
-            }
-            tx.commit()?;
-            Ok((true, outputs))
         })
         .await
     }
@@ -1641,7 +2108,9 @@ impl ConnectionManager {
     async fn execute_command(&mut self, command: CommandSpec) -> RedisResult<CmdOutput> {
         self.call(move |conn| {
             let tx = immediate_transaction(conn)?;
+            let sync_mobility = command_typed_mobility_scope(&command);
             let output = execute_command_tx(&tx, command)?;
+            sync_typed_mobility_tx(&tx, sync_mobility)?;
             tx.commit()?;
             Ok(output)
         })
@@ -1993,6 +2462,210 @@ fn execute_command_tx(
     }
 }
 
+fn execute_pipeline_commands_tx(
+    tx: &rusqlite::Transaction<'_>,
+    commands: Vec<CommandSpec>,
+) -> RedisResult<Vec<CmdOutput>> {
+    let sync_mobility = commands
+        .iter()
+        .fold(TypedMobilitySyncScope::None, |scope, command| {
+            scope.merge(command_typed_mobility_scope(command))
+        });
+    let mut outputs = Vec::new();
+    for command in commands {
+        let ignore = command.ignore;
+        let output = execute_command_tx(tx, command)?;
+        if !ignore {
+            outputs.push(output);
+        }
+    }
+    sync_typed_mobility_tx(tx, sync_mobility)?;
+    Ok(outputs)
+}
+
+/// Compares one compatibility hash field inside a caller-owned transaction.
+///
+/// The transaction must use `IMMEDIATE` behavior when the result guards a
+/// subsequent write. That prevents another connection from changing the
+/// compatibility keyspace between this comparison and the caller's commit.
+pub(crate) fn hash_field_matches_in_transaction<F>(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+    field: &str,
+    matches: F,
+) -> RedisResult<bool>
+where
+    F: FnOnce(Option<&str>) -> bool,
+{
+    purge_expired_tx(tx, key)?;
+    let current = tx
+        .query_row(
+            "SELECT value FROM kv_hash WHERE key = ?1 AND field = ?2",
+            params![key, field],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    Ok(matches(current.as_deref()))
+}
+
+/// Reads a complete compatibility hash inside a caller-owned transaction.
+/// Expired keys are removed before the snapshot is returned, matching the
+/// public compatibility API.
+pub(crate) fn hash_entries_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+) -> RedisResult<Vec<(String, String)>> {
+    purge_expired_tx(tx, key)?;
+    if key_kind_tx(tx, key)? != Some("hash".to_string()) {
+        return Ok(Vec::new());
+    }
+    let mut statement =
+        tx.prepare("SELECT field, value FROM kv_hash WHERE key = ?1 ORDER BY field")?;
+    let rows = statement.query_map([key], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+/// Executes one Redis-compatible command inside a caller-owned SQLite
+/// transaction. Domain repositories use this to dual-write typed tables and
+/// the 2.x compatibility keyspace atomically.
+pub(crate) fn execute_command_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    name: &str,
+    args: Vec<String>,
+) -> RedisResult<CmdOutput> {
+    let command = CommandSpec {
+        name: name.to_ascii_uppercase(),
+        args,
+        ignore: false,
+    };
+    let sync_mobility = command_typed_mobility_scope(&command);
+    let output = execute_command_tx(tx, command)?;
+    sync_typed_mobility_tx(tx, sync_mobility)?;
+    Ok(output)
+}
+
+struct AuthMobilitySessionSnapshot {
+    whitelist_ids: BTreeSet<String>,
+    owned_binding_keys: BTreeSet<String>,
+    owner_record_keys: BTreeSet<String>,
+}
+
+fn collect_auth_mobility_document_references(
+    whitelist_ids: &mut BTreeSet<String>,
+    owner_record_keys: &mut BTreeSet<String>,
+    value: &serde_json::Value,
+    collect_owner_record_key: bool,
+) {
+    if let Some(id) = value
+        .get("whitelistRecordId")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+    {
+        whitelist_ids.insert(id.to_string());
+    }
+    if collect_owner_record_key
+        && let Some(key) = value
+            .get("autoWhitelistOwnerRecordKey")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+    {
+        owner_record_keys.insert(key.to_string());
+    }
+}
+
+fn auth_mobility_session_snapshot_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    session_index_key: &str,
+    active_details_key: &str,
+    proxy_binding_key: &str,
+    pending_key: &str,
+) -> RedisResult<AuthMobilitySessionSnapshot> {
+    for key in [
+        session_index_key,
+        active_details_key,
+        proxy_binding_key,
+        pending_key,
+    ] {
+        purge_expired_tx(tx, key)?;
+    }
+
+    let mut binding_keys = {
+        let mut statement = tx.prepare("SELECT member FROM kv_set WHERE key = ?1")?;
+        let rows = statement.query_map([session_index_key], |row| row.get::<_, String>(0))?;
+        rows.collect::<Result<BTreeSet<_>, _>>()?
+    };
+    binding_keys.insert(proxy_binding_key.to_string());
+
+    let mut whitelist_ids = BTreeSet::new();
+    let mut owned_binding_keys = BTreeSet::new();
+    let mut owner_record_keys = BTreeSet::new();
+    for binding_key in binding_keys {
+        let Some(raw) = string_get_tx(tx, &binding_key)? else {
+            continue;
+        };
+        let parsed = serde_json::from_str::<serde_json::Value>(&raw).ok();
+        let owner_matches = binding_key == proxy_binding_key
+            || parsed
+                .as_ref()
+                .and_then(|value| value.get("ownerSessionId"))
+                .and_then(serde_json::Value::as_str)
+                == Some(session_id);
+        if !owner_matches {
+            continue;
+        }
+        owned_binding_keys.insert(binding_key);
+        if let Some(value) = parsed.as_ref() {
+            collect_auth_mobility_document_references(
+                &mut whitelist_ids,
+                &mut owner_record_keys,
+                value,
+                false,
+            );
+        }
+    }
+
+    let active_values = {
+        let mut statement = tx.prepare("SELECT value FROM kv_hash WHERE key = ?1")?;
+        let rows = statement.query_map([active_details_key], |row| row.get::<_, String>(0))?;
+        rows.collect::<Result<Vec<_>, _>>()?
+    };
+    for raw in active_values {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
+            collect_auth_mobility_document_references(
+                &mut whitelist_ids,
+                &mut owner_record_keys,
+                &value,
+                true,
+            );
+        }
+    }
+
+    let pending = {
+        let mut statement = tx.prepare("SELECT field, value FROM kv_hash WHERE key = ?1")?;
+        let rows = statement.query_map([pending_key], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        rows.collect::<Result<Vec<_>, _>>()?
+    };
+    for (record_id, owner_record_key) in pending {
+        if !record_id.is_empty() {
+            whitelist_ids.insert(record_id);
+        }
+        if !owner_record_key.is_empty() {
+            owner_record_keys.insert(owner_record_key);
+        }
+    }
+
+    Ok(AuthMobilitySessionSnapshot {
+        whitelist_ids,
+        owned_binding_keys,
+        owner_record_keys,
+    })
+}
+
 fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResult<CmdOutput> {
     let script = arg(args, 0)?;
     let key_count = usize::try_from(parse_i64(arg(args, 1)?)?)
@@ -2014,9 +2687,12 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
                 .ok_or_else(|| storage_error("counter EVAL TTL missing"))?,
         )?
         .max(1);
-        let current = string_get_tx(tx, key)?
-            .and_then(|value| value.parse::<i64>().ok())
-            .unwrap_or(0);
+        let current = match string_get_tx(tx, key)? {
+            Some(value) => value
+                .parse::<i64>()
+                .map_err(|_| storage_error("counter value is not an integer"))?,
+            None => 0,
+        };
         let next = current
             .checked_add(1)
             .ok_or_else(|| storage_error("counter overflow"))?;
@@ -2108,10 +2784,11 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         let Ok(invite) = serde_json::from_str::<serde_json::Value>(&invite_raw) else {
             return Ok(CmdOutput::Int(0));
         };
-        if invite
-            .get("provider_id")
-            .and_then(serde_json::Value::as_str)
-            != Some(argv[3].as_str())
+        if invite.get("used_at").is_some()
+            || invite
+                .get("provider_id")
+                .and_then(serde_json::Value::as_str)
+                != Some(argv[3].as_str())
             || invite.get("totp_id").and_then(serde_json::Value::as_str) != Some(argv[4].as_str())
             || string_get_tx(tx, &keys[1])?.is_some()
             || string_get_tx(tx, &keys[2])?.is_some()
@@ -2132,9 +2809,45 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(1));
     }
 
-    if script.contains("fn-knock:eval:update-ldap-binding-if-owned:v1") {
+    if script.contains("fn-knock:eval:claim-oidc-binding:v1") {
+        if keys.len() < 4 || argv.len() < 5 {
+            return Err(storage_error("OIDC binding EVAL arguments missing"));
+        }
+        let Some(invite_raw) = string_get_tx(tx, &keys[0])? else {
+            return Ok(CmdOutput::Int(0));
+        };
+        let Ok(invite) = serde_json::from_str::<serde_json::Value>(&invite_raw) else {
+            return Ok(CmdOutput::Int(0));
+        };
+        let current_binding = string_get_tx(tx, &keys[1])?;
+        if invite
+            .get("provider_id")
+            .and_then(serde_json::Value::as_str)
+            != Some(argv[3].as_str())
+            || invite.get("totp_id").and_then(serde_json::Value::as_str) != Some(argv[4].as_str())
+            || current_binding
+                .as_deref()
+                .is_some_and(|binding_id| binding_id != argv[0])
+        {
+            return Ok(CmdOutput::Int(0));
+        }
+        let score = argv[2]
+            .parse::<f64>()
+            .map_err(|_| storage_error("OIDC binding EVAL score is invalid"))?;
+        set_string_tx(tx, &keys[1], &argv[0], None)?;
+        set_string_tx(tx, &keys[2], &argv[1], None)?;
+        ensure_key_tx(tx, &keys[3], "zset", None)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO kv_zset(key, member, score) VALUES (?1, ?2, ?3)",
+            params![&keys[3], &argv[0], score],
+        )?;
+        delete_key_tx(tx, &keys[0])?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:update-owned-binding:v1") {
         if keys.len() < 3 || argv.len() < 3 {
-            return Err(storage_error("LDAP binding update EVAL arguments missing"));
+            return Err(storage_error("binding update EVAL arguments missing"));
         }
         if string_get_tx(tx, &keys[0])?.as_deref() != Some(argv[0].as_str())
             || string_get_tx(tx, &keys[1])?.is_none()
@@ -2153,7 +2866,26 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(1));
     }
 
-    if script.contains("fn-knock:eval:cas-config-host-generation-raw:v1") {
+    if script.contains("fn-knock:eval:delete-owned-binding:v1") {
+        if keys.len() < 3 || argv.is_empty() {
+            return Err(storage_error("binding delete EVAL arguments missing"));
+        }
+        if string_get_tx(tx, &keys[1])?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        delete_key_tx(tx, &keys[1])?;
+        if string_get_tx(tx, &keys[0])?.as_deref() == Some(argv[0].as_str()) {
+            delete_key_tx(tx, &keys[0])?;
+        }
+        tx.execute(
+            "DELETE FROM kv_zset WHERE key = ?1 AND member = ?2",
+            params![&keys[2], &argv[0]],
+        )?;
+        delete_collection_key_if_empty_tx(tx, &keys[2], "zset")?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:cas-config-host-generation-raw:v3") {
         let config_key = keys
             .first()
             .ok_or_else(|| storage_error("config CAS config key missing"))?;
@@ -2207,7 +2939,17 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         }
         set_string_tx(tx, config_key, replacement_config_raw, None)?;
         set_string_tx(tx, generation_key, replacement_generation_raw, None)?;
-        return Ok(CmdOutput::Int(1));
+        let replacement_generation = replacement_generation_raw
+            .parse::<u64>()
+            .map_err(|_| storage_error("config CAS replacement generation is invalid"))?;
+        let typed_revision = crate::storage::typed_config::upsert_config_document_tx(
+            tx,
+            replacement_config_raw,
+            replacement_generation,
+        )?;
+        let typed_revision = i64::try_from(typed_revision)
+            .map_err(|_| storage_error("typed config revision exceeds SQLite range"))?;
+        return Ok(CmdOutput::Int(typed_revision));
     }
 
     if script.contains("fn-knock:eval:update-json-cas:v1")
@@ -2389,8 +3131,26 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(1));
     }
 
-    if script.contains("fn-knock:eval:destroy-mobility-session:v1") {
-        if keys.len() < 7 {
+    if script.contains("fn-knock:eval:collect-mobility-session-whitelist:v1") {
+        if keys.len() < 4 {
+            return Err(storage_error("collect mobility EVAL keys missing"));
+        }
+        let session_id = argv
+            .first()
+            .ok_or_else(|| storage_error("collect mobility EVAL session ID missing"))?;
+        let snapshot = auth_mobility_session_snapshot_tx(
+            tx, session_id, &keys[0], &keys[1], &keys[2], &keys[3],
+        )?;
+        return Ok(CmdOutput::Strings(
+            snapshot.whitelist_ids.into_iter().collect(),
+        ));
+    }
+
+    let destroys_session_authority =
+        script.contains("fn-knock:eval:destroy-mobility-session-and-authority:v2");
+    if destroys_session_authority || script.contains("fn-knock:eval:destroy-mobility-session:v1") {
+        let required_keys = if destroys_session_authority { 9 } else { 7 };
+        if keys.len() < required_keys {
             return Err(storage_error("destroy mobility EVAL keys missing"));
         }
         let session_id = argv
@@ -2399,94 +3159,16 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         let owner_prefix = argv
             .get(1)
             .ok_or_else(|| storage_error("destroy mobility EVAL owner prefix missing"))?;
-        for key in keys {
-            purge_expired_tx(tx, key)?;
-        }
-
-        let mut binding_keys = {
-            let mut statement = tx.prepare("SELECT member FROM kv_set WHERE key = ?1")?;
-            let rows = statement.query_map(params![&keys[0]], |row| row.get::<_, String>(0))?;
-            rows.collect::<Result<Vec<_>, _>>()?
-        };
-        if !binding_keys.iter().any(|key| key == &keys[5]) {
-            binding_keys.push(keys[5].clone());
-        }
-
-        let mut whitelist_ids = BTreeSet::new();
-        for binding_key in binding_keys {
-            let Some(raw) = string_get_tx(tx, &binding_key)? else {
-                continue;
-            };
-            let parsed = serde_json::from_str::<serde_json::Value>(&raw).ok();
-            let owner_matches = binding_key == keys[5]
-                || parsed
-                    .as_ref()
-                    .and_then(|value| value.get("ownerSessionId"))
-                    .and_then(serde_json::Value::as_str)
-                    == Some(session_id.as_str());
-            if !owner_matches {
-                continue;
-            }
-            if let Some(id) = parsed
-                .as_ref()
-                .and_then(|value| value.get("whitelistRecordId"))
-                .and_then(serde_json::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                whitelist_ids.insert(id.to_string());
-            }
+        let snapshot = auth_mobility_session_snapshot_tx(
+            tx, session_id, &keys[0], &keys[1], &keys[5], &keys[6],
+        )?;
+        for binding_key in snapshot.owned_binding_keys {
             delete_key_tx(tx, &binding_key)?;
         }
-
-        let active_values = {
-            let mut statement = tx.prepare("SELECT value FROM kv_hash WHERE key = ?1")?;
-            let rows = statement.query_map(params![&keys[1]], |row| row.get::<_, String>(0))?;
-            rows.collect::<Result<Vec<_>, _>>()?
-        };
-        let mut owner_record_keys = BTreeSet::new();
-        for raw in active_values {
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
-                continue;
-            };
-            if let Some(id) = value
-                .get("whitelistRecordId")
-                .and_then(serde_json::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                whitelist_ids.insert(id.to_string());
-            }
-            if let Some(key) = value
-                .get("autoWhitelistOwnerRecordKey")
-                .and_then(serde_json::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            {
-                owner_record_keys.insert(key.to_string());
-            }
-        }
-
-        let pending = {
-            let mut statement = tx.prepare("SELECT field, value FROM kv_hash WHERE key = ?1")?;
-            let rows = statement.query_map(params![&keys[6]], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })?;
-            rows.collect::<Result<Vec<_>, _>>()?
-        };
-        for (record_id, owner_record_key) in pending {
-            if !record_id.trim().is_empty() {
-                whitelist_ids.insert(record_id);
-            }
-            if !owner_record_key.trim().is_empty() {
-                owner_record_keys.insert(owner_record_key);
-            }
-        }
-
-        for owner_record_key in owner_record_keys {
+        for owner_record_key in snapshot.owner_record_keys {
             delete_key_tx(tx, &owner_record_key)?;
         }
-        for record_id in &whitelist_ids {
+        for record_id in &snapshot.whitelist_ids {
             let owner_key = format!("{owner_prefix}{record_id}:session");
             if string_get_tx(tx, &owner_key)?.as_deref() == Some(session_id.as_str()) {
                 delete_key_tx(tx, &owner_key)?;
@@ -2495,7 +3177,13 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         for key in [&keys[0], &keys[1], &keys[2], &keys[3], &keys[4], &keys[6]] {
             delete_key_tx(tx, key)?;
         }
-        return Ok(CmdOutput::Strings(whitelist_ids.into_iter().collect()));
+        if destroys_session_authority {
+            delete_key_tx(tx, &keys[7])?;
+            delete_key_tx(tx, &keys[8])?;
+        }
+        return Ok(CmdOutput::Strings(
+            snapshot.whitelist_ids.into_iter().collect(),
+        ));
     }
 
     if script.contains("fn-knock:eval:save-active-ip-if-session-live:v1") {
@@ -2793,6 +3481,62 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::OptionalString(value));
     }
 
+    if script.contains("fn-knock:eval:docker-admin-login-backoff:v1") {
+        let key = keys
+            .first()
+            .ok_or_else(|| storage_error("docker admin login backoff key missing"))?;
+        let ip = argv
+            .first()
+            .ok_or_else(|| storage_error("docker admin login backoff ip missing"))?;
+        let now = parse_i64(
+            argv.get(1)
+                .ok_or_else(|| storage_error("docker admin login backoff now missing"))?,
+        )?;
+        let now_iso = argv
+            .get(2)
+            .ok_or_else(|| storage_error("docker admin login backoff timestamp missing"))?;
+        let ttl = parse_i64(
+            argv.get(3)
+                .ok_or_else(|| storage_error("docker admin login backoff TTL missing"))?,
+        )?;
+        let base_delay = parse_i64(
+            argv.get(4)
+                .ok_or_else(|| storage_error("docker admin login backoff base missing"))?,
+        )?;
+        let max_delay = parse_i64(
+            argv.get(5)
+                .ok_or_else(|| storage_error("docker admin login backoff max missing"))?,
+        )?;
+        let attempts = string_get_tx(tx, key)?
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .and_then(|value| value.get("attempts").and_then(serde_json::Value::as_i64))
+            .unwrap_or(0)
+            .saturating_add(1);
+        let exponent = attempts.saturating_sub(1).clamp(0, 30) as u32;
+        let backoff_ms = base_delay
+            .saturating_mul(2_i64.saturating_pow(exponent))
+            .clamp(0, max_delay.max(0));
+        let blocked_until = now.saturating_add(backoff_ms);
+        let state = serde_json::json!({
+            "ip": ip,
+            "attempts": attempts,
+            "last_attempt_at": now_iso,
+            "blocked_until": blocked_until,
+        })
+        .to_string();
+        set_string_tx(
+            tx,
+            key,
+            &state,
+            Some(now_ms().saturating_add(ttl.max(1).saturating_mul(1000))),
+        )?;
+        return Ok(CmdOutput::Ints(vec![
+            attempts,
+            (backoff_ms + 999) / 1000,
+            blocked_until,
+        ]));
+    }
+
     if script.contains("fn-knock:eval:login-backoff:v1")
         || script.contains("local key = KEYS[1]") && script.contains("blockedUntil")
     {
@@ -3087,7 +3831,10 @@ fn xadd_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
     Ok(CmdOutput::String(id))
 }
 
-fn string_get_tx(tx: &rusqlite::Transaction<'_>, key: &str) -> RedisResult<Option<String>> {
+pub(crate) fn string_get_tx(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+) -> RedisResult<Option<String>> {
     purge_expired_tx(tx, key)?;
     if key_kind_tx(tx, key)? != Some("string".to_string()) {
         return Ok(None);
@@ -3212,26 +3959,60 @@ fn scan_keys_tx(tx: &rusqlite::Transaction<'_>, prefix: &str) -> RedisResult<Vec
     Ok(keys)
 }
 
-fn purge_expired(conn: &rusqlite::Connection, key: &str) -> RedisResult<()> {
-    conn.execute(
+fn keys_matching_pattern_tx(
+    tx: &rusqlite::Transaction<'_>,
+    pattern: &str,
+) -> RedisResult<Vec<String>> {
+    let mut statement =
+        tx.prepare("SELECT key FROM kv_keys WHERE key LIKE ?1 ESCAPE '\\' ORDER BY key ASC")?;
+    statement
+        .query_map([pattern], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(Into::into)
+}
+
+fn purge_expired(conn: &mut rusqlite::Connection, key: &str) -> RedisResult<()> {
+    let tx = immediate_transaction(conn)?;
+    let deleted = tx.execute(
         "DELETE FROM kv_keys WHERE key = ?1 AND expires_at_ms IS NOT NULL AND expires_at_ms <= ?2",
         params![key, now_ms()],
     )?;
+    if deleted > 0 {
+        sync_typed_mobility_tx(&tx, TypedMobilitySyncScope::from_key(key))?;
+    }
+    tx.commit()?;
     Ok(())
 }
 
 fn purge_expired_tx(tx: &rusqlite::Transaction<'_>, key: &str) -> RedisResult<()> {
-    tx.execute(
+    let deleted = tx.execute(
         "DELETE FROM kv_keys WHERE key = ?1 AND expires_at_ms IS NOT NULL AND expires_at_ms <= ?2",
         params![key, now_ms()],
     )?;
+    if deleted > 0 {
+        sync_typed_mobility_tx(tx, TypedMobilitySyncScope::from_key(key))?;
+    }
     Ok(())
 }
 
 fn purge_expired_all_tx(tx: &rusqlite::Transaction<'_>) -> RedisResult<()> {
+    let cutoff = now_ms();
+    let expired_typed_shadow_keys = {
+        let mut statement = tx.prepare(
+            "SELECT key FROM kv_keys
+             WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?1",
+        )?;
+        statement
+            .query_map(params![cutoff], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    };
     tx.execute(
         "DELETE FROM kv_keys WHERE expires_at_ms IS NOT NULL AND expires_at_ms <= ?1",
-        params![now_ms()],
+        params![cutoff],
+    )?;
+    sync_typed_mobility_tx(
+        tx,
+        TypedMobilitySyncScope::from_keys(expired_typed_shadow_keys),
     )?;
     Ok(())
 }
@@ -4454,6 +5235,214 @@ mod tests {
         assert_eq!(old, None);
         assert_eq!(restored.as_deref(), Some("value"));
         assert_eq!(outside.as_deref(), Some("keep"));
+    }
+
+    #[tokio::test]
+    async fn caller_owned_hash_cas_commits_typed_and_compatibility_writes_together() {
+        let mut manager = temp_manager().await;
+        let _: () = cmd("HSET")
+            .arg("fn_knock:test:cas-records")
+            .arg("record-1")
+            .arg("old")
+            .query_async(&mut manager)
+            .await
+            .expect("seed compatibility record");
+        manager
+            .call(|conn| {
+                conn.execute_batch(
+                    "CREATE TABLE test_typed_records (
+                       id TEXT PRIMARY KEY,
+                       document_json TEXT NOT NULL
+                     );",
+                )?;
+                Ok(())
+            })
+            .await
+            .expect("create typed test table");
+
+        let applied = manager
+            .call(|conn| {
+                let tx =
+                    conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+                let matched = hash_field_matches_in_transaction(
+                    &tx,
+                    "fn_knock:test:cas-records",
+                    "record-1",
+                    |current| current == Some("old"),
+                )?;
+                if matched {
+                    tx.execute(
+                        "INSERT INTO test_typed_records(id, document_json) VALUES (?1, ?2)",
+                        params!["record-1", "new"],
+                    )?;
+                    let mut pipeline = pipe();
+                    pipeline
+                        .hset("fn_knock:test:cas-records", "record-1", "new")
+                        .ignore();
+                    pipeline
+                        .zadd("fn_knock:test:cas-order", "record-1", 1)
+                        .ignore();
+                    pipeline.query_in_transaction::<()>(&tx)?;
+                }
+                tx.commit()?;
+                Ok(matched)
+            })
+            .await
+            .expect("apply caller-owned CAS");
+        assert!(applied);
+
+        let (typed, compatibility, indexed) = manager
+            .call(|conn| {
+                let typed = conn.query_row(
+                    "SELECT document_json FROM test_typed_records WHERE id = ?1",
+                    ["record-1"],
+                    |row| row.get::<_, String>(0),
+                )?;
+                let compatibility = conn.query_row(
+                    "SELECT value FROM kv_hash WHERE key = ?1 AND field = ?2",
+                    params!["fn_knock:test:cas-records", "record-1"],
+                    |row| row.get::<_, String>(0),
+                )?;
+                let indexed = conn.query_row(
+                    "SELECT COUNT(*) FROM kv_zset WHERE key = ?1 AND member = ?2",
+                    params!["fn_knock:test:cas-order", "record-1"],
+                    |row| row.get::<_, i64>(0),
+                )?;
+                Ok((typed, compatibility, indexed))
+            })
+            .await
+            .expect("read committed dual write");
+        assert_eq!(typed, "new");
+        assert_eq!(compatibility, "new");
+        assert_eq!(indexed, 1);
+
+        let stale_applied = manager
+            .call(|conn| {
+                let tx = conn.transaction_with_behavior(
+                    rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let matched = hash_field_matches_in_transaction(
+                    &tx,
+                    "fn_knock:test:cas-records",
+                    "record-1",
+                    |current| current == Some("old"),
+                )?;
+                if matched {
+                    tx.execute(
+                        "UPDATE test_typed_records SET document_json = 'stale' WHERE id = 'record-1'",
+                        [],
+                    )?;
+                    let mut pipeline = pipe();
+                    pipeline
+                        .hset("fn_knock:test:cas-records", "record-1", "stale")
+                        .ignore();
+                    pipeline.query_in_transaction::<()>(&tx)?;
+                }
+                tx.commit()?;
+                Ok(matched)
+            })
+            .await
+            .expect("reject stale caller-owned CAS");
+        assert!(!stale_applied);
+    }
+
+    #[tokio::test]
+    async fn caller_owned_pipeline_failure_rolls_back_typed_write() {
+        let manager = temp_manager().await;
+        manager
+            .call(|conn| {
+                conn.execute_batch(
+                    "CREATE TABLE test_typed_rollback (
+                       id TEXT PRIMARY KEY,
+                       document_json TEXT NOT NULL
+                     );",
+                )?;
+                Ok(())
+            })
+            .await
+            .expect("create rollback test table");
+
+        let error = manager
+            .call(|conn| {
+                let tx =
+                    conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+                tx.execute(
+                    "INSERT INTO test_typed_rollback(id, document_json) VALUES ('record-1', 'new')",
+                    [],
+                )?;
+                let mut pipeline = pipe();
+                pipeline.cmd("UNSUPPORTED_FOR_ROLLBACK_TEST").ignore();
+                pipeline.query_in_transaction::<()>(&tx)?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await
+            .expect_err("unsupported compatibility command must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported Redis-compatible command")
+        );
+
+        let count = manager
+            .call(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM test_typed_rollback", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map_err(Into::into)
+            })
+            .await
+            .expect("count rolled-back typed rows");
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn concurrent_caller_owned_hash_cas_has_one_winner() {
+        let mut manager = temp_manager().await;
+        let _: () = cmd("HSET")
+            .arg("fn_knock:test:concurrent-cas")
+            .arg("record-1")
+            .arg("start")
+            .query_async(&mut manager)
+            .await
+            .expect("seed concurrent CAS record");
+
+        let apply = |manager: ConnectionManager, replacement: &'static str| async move {
+            manager
+                .call(move |conn| {
+                    let tx =
+                        conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+                    let matched = hash_field_matches_in_transaction(
+                        &tx,
+                        "fn_knock:test:concurrent-cas",
+                        "record-1",
+                        |current| current == Some("start"),
+                    )?;
+                    if matched {
+                        let mut pipeline = pipe();
+                        pipeline
+                            .hset("fn_knock:test:concurrent-cas", "record-1", replacement)
+                            .ignore();
+                        pipeline.query_in_transaction::<()>(&tx)?;
+                    }
+                    tx.commit()?;
+                    Ok(matched)
+                })
+                .await
+        };
+        let (left, right) = tokio::join!(
+            apply(manager.clone(), "left"),
+            apply(manager.clone(), "right")
+        );
+        let left = left.expect("left CAS");
+        let right = right.expect("right CAS");
+        assert_ne!(left, right);
+
+        let final_value: Option<String> = manager
+            .hget("fn_knock:test:concurrent-cas", "record-1")
+            .await
+            .expect("read concurrent CAS winner");
+        assert!(matches!(final_value.as_deref(), Some("left" | "right")));
     }
 
     #[tokio::test]

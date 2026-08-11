@@ -41,7 +41,7 @@ export function useWhitelistRecords(translate: Translate) {
           records.value = recordsResponse.data;
         } else {
           toast.error(translate("admin.ipWhitelist.getFailed"), {
-            description: recordsResponse.message,
+            description: recordsResponse.message ?? undefined,
           });
         }
 
@@ -49,7 +49,7 @@ export function useWhitelistRecords(translate: Translate) {
           regionGroups.value = regionsResponse.data;
         } else {
           toast.error(translate("admin.ipWhitelist.regionGroupsLoadFailed"), {
-            description: regionsResponse.message,
+            description: regionsResponse.message ?? undefined,
           });
         }
       },

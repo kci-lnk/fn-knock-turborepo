@@ -176,6 +176,7 @@ pub(super) async fn save_client_settings_with_email(
     account_email: Option<&str>,
 ) -> crate::storage::StorageResult<Value> {
     let existing_email = state
+        .storage
         .store
         .get_json_value(ACME_CLIENT_SETTINGS_KEY)
         .await
@@ -193,6 +194,7 @@ pub(super) async fn save_client_settings_with_email(
         "updatedAt": now_node_iso(),
     });
     state
+        .storage
         .store
         .set_json_value(ACME_CLIENT_SETTINGS_KEY, &settings)
         .await?;
@@ -629,7 +631,11 @@ pub(super) async fn resolve_account_email(state: &AppState, email: Option<&str>)
     {
         return value.trim().to_string();
     }
-    if let Ok(Some(settings)) = state.store.get_json_value(ACME_CLIENT_SETTINGS_KEY).await
+    if let Ok(Some(settings)) = state
+        .storage
+        .store
+        .get_json_value(ACME_CLIENT_SETTINGS_KEY)
+        .await
         && let Some(value) = settings.get("accountEmail").and_then(Value::as_str)
         && is_valid_email(value)
     {

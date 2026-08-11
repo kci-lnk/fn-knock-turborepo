@@ -109,7 +109,11 @@ describe("scan discovery intensity", () => {
   });
 
   it("uses four concurrency-only levels and the shared settings endpoint", () => {
-    assert.match(scanApiSource, /"low" \| "medium" \| "high" \| "extreme"/u);
+    assert.match(scanApiSource, /ScanSchemas\["ScanDiscoverySettingsData"\]/u);
+    assert.match(
+      scanApiSource,
+      /ScanSchemas\["ScanDiscoverySettingsUpdateData"\]/u,
+    );
     assert.match(scanApiSource, /get\("\/scan\/discover-settings"\)/u);
     assert.match(scanApiSource, /post\("\/scan\/discover-settings"/u);
     assert.match(settingsComposableSource, /low: 32/u);

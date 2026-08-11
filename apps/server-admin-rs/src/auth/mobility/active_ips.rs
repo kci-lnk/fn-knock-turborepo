@@ -1,14 +1,14 @@
 use super::*;
 
 pub(super) async fn maintain_session_active_ips(state: &AppState) -> anyhow::Result<bool> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     if !settings.session_ip_mobility_enabled {
         return Ok(false);
     }
 
     let now = now_seconds();
-    let sessions = state.store.list_login_sessions().await?;
+    let sessions = state.storage.store.list_login_sessions().await?;
     let mut changed = false;
     for (session_id, session) in sessions {
         let removed = prune_session_active_ips(
@@ -67,6 +67,7 @@ pub(super) async fn register_login_session(
         Value::String(whitelist_record_id.clone()),
     );
     if state
+        .storage
         .store
         .update_session_value(session_id, session_updates)
         .await?
@@ -116,6 +117,7 @@ pub(super) async fn initialize_login_session_mobility_metadata(
     let login_event = mobility_login_event(ip, ip_location, None);
     let summary = mobility_summary(std::slice::from_ref(&login_event));
     if !state
+        .storage
         .store
         .initialize_auth_mobility_login_session(
             session_id,
@@ -161,7 +163,7 @@ pub(super) async fn record_session_active_ip(
     let settings = if let Some(settings) = args.settings {
         settings.clone()
     } else {
-        let config = args.state.store.get_config().await?;
+        let config = args.state.storage.store.get_config().await?;
         AuthCredentialSettings::from_config(&config)
     };
     if !settings.session_ip_mobility_enabled {
@@ -175,7 +177,13 @@ pub(super) async fn record_session_active_ip(
     let session = if let Some(session) = args.session {
         session.clone()
     } else {
-        let Some(session) = args.state.store.get_session(args.session_id).await? else {
+        let Some(session) = args
+            .state
+            .storage
+            .store
+            .get_session(args.session_id)
+            .await?
+        else {
             return Ok(None);
         };
         session
@@ -190,6 +198,7 @@ pub(super) async fn record_session_active_ip(
 
     let existing_value = args
         .state
+        .storage
         .store
         .get_auth_mobility_active_ip_detail(args.session_id, &normalized_ip)
         .await?;
@@ -204,7 +213,13 @@ pub(super) async fn record_session_active_ip(
         anyhow::bail!("Timed out waiting for auth mobility session mutation lock");
     };
     let result = async {
-        let Some(live_session) = args.state.store.get_session(args.session_id).await? else {
+        let Some(live_session) = args
+            .state
+            .storage
+            .store
+            .get_session(args.session_id)
+            .await?
+        else {
             return Ok(None);
         };
         record_session_active_ip_locked(&args, &settings, &normalized_ip, &live_session, &lease)
@@ -237,6 +252,7 @@ async fn record_session_active_ip_locked(
 
     let existing_value = args
         .state
+        .storage
         .store
         .get_auth_mobility_active_ip_detail(args.session_id, normalized_ip)
         .await?;
@@ -272,7 +288,7 @@ async fn record_session_active_ip_locked(
     let mut pending_whitelist_record_id = None::<String>;
 
     if is_follow_session_auto_grant(session) {
-        let config = args.state.store.get_config().await?;
+        let config = args.state.storage.store.get_config().await?;
         let auto_comment = normalize_auto_ip_grant_comment(session.comment.as_deref(), &config)
             .unwrap_or_else(|| auto_ip_grant_comment(&config));
         let owner_key = format!(
@@ -283,6 +299,7 @@ async fn record_session_active_ip_locked(
         let candidate_record_id = format!("whitelist:{}", uuid::Uuid::new_v4());
         if !args
             .state
+            .storage
             .store
             .add_auth_mobility_pending_whitelist(
                 args.session_id,
@@ -322,6 +339,7 @@ async fn record_session_active_ip_locked(
         if deferred.record.id != candidate_record_id {
             if !args
                 .state
+                .storage
                 .store
                 .add_auth_mobility_pending_whitelist(
                     args.session_id,
@@ -343,6 +361,7 @@ async fn record_session_active_ip_locked(
                 return Ok(None);
             }
             args.state
+                .storage
                 .store
                 .remove_auth_mobility_pending_whitelist(args.session_id, &candidate_record_id)
                 .await?;
@@ -386,6 +405,7 @@ async fn record_session_active_ip_locked(
     }
     let saved = args
         .state
+        .storage
         .store
         .save_auth_mobility_active_ip_detail(
             args.session_id,
@@ -425,6 +445,7 @@ async fn record_session_active_ip_locked(
     if let Some(whitelist_record_id) = whitelist_record_id.as_deref() {
         let owner_saved = args
             .state
+            .storage
             .store
             .set_auth_mobility_whitelist_owner(whitelist_record_id, args.session_id, storage_ttl)
             .await;
@@ -476,6 +497,7 @@ async fn record_session_active_ip_locked(
         if !lease.ensure_valid().await?
             || args
                 .state
+                .storage
                 .store
                 .get_session(args.session_id)
                 .await?
@@ -494,6 +516,7 @@ async fn record_session_active_ip_locked(
         }
         if let Some(record_id) = pending_whitelist_record_id.as_deref() {
             args.state
+                .storage
                 .store
                 .remove_auth_mobility_pending_whitelist(args.session_id, record_id)
                 .await?;
@@ -532,6 +555,7 @@ async fn rollback_active_ip_auto_whitelist(
     pending_whitelist_record_id: Option<&str>,
 ) {
     let _ = state
+        .storage
         .store
         .remove_auth_mobility_active_ips(session_id, &[ip.to_string()])
         .await;
@@ -541,6 +565,7 @@ async fn rollback_active_ip_auto_whitelist(
     }
     if let Some(record_id) = pending_whitelist_record_id {
         let _ = state
+            .storage
             .store
             .remove_auth_mobility_pending_whitelist(session_id, record_id)
             .await;
@@ -568,6 +593,7 @@ pub(super) async fn active_ip_touch_is_fresh_for_session(
         return Ok(true);
     }
     let existing = state
+        .storage
         .store
         .get_auth_mobility_active_ip_detail(session_id, &normalized_ip)
         .await?
@@ -605,6 +631,7 @@ pub(super) async fn prune_session_active_ips(
     let cutoff = now - settings.session_ip_mobility_window_seconds;
     let keep_ip = options.keep_ip.map(normalized_or_trimmed_ip);
     let ips_to_remove = state
+        .storage
         .store
         .collect_auth_mobility_prune_targets(
             session_id,
@@ -617,6 +644,7 @@ pub(super) async fn prune_session_active_ips(
         return Ok(0);
     }
     let details = state
+        .storage
         .store
         .remove_auth_mobility_active_ips(session_id, &ips_to_remove)
         .await?;
@@ -627,6 +655,7 @@ pub(super) async fn prune_session_active_ips(
     }
     if let Some(ttl) = resolve_proxy_session_ttl(parse_iso_unix(session.expires_at.as_deref())) {
         state
+            .storage
             .store
             .expire_auth_mobility_active_ip_keys(session_id, ttl)
             .await?;
@@ -650,6 +679,7 @@ pub async fn effective_session_ips(
     }
     let since = now_seconds() - settings.session_ip_mobility_window_seconds + 1;
     let mut ips = state
+        .storage
         .store
         .list_auth_mobility_recent_active_ip_details(session_id, since)
         .await?

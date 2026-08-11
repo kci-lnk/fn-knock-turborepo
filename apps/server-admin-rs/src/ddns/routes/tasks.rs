@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn ddns_update_interval_minutes(state: &AppState) -> anyhow::Result<i64> {
-    let raw = state.store.get_string_value(DDNS_SETTINGS).await?;
+    let raw = state.storage.store.get_string_value(DDNS_SETTINGS).await?;
     Ok(parse_settings(raw.as_deref())
         .get("updateIntervalMinutes")
         .and_then(Value::as_i64)
@@ -15,13 +15,21 @@ pub(super) async fn run_automatic_ddns_check(
     emit_skip_log: bool,
     emit_noop_log: bool,
 ) -> anyhow::Result<()> {
-    if state.store.get_string_value(DDNS_ENABLED).await?.as_deref() != Some("true") {
+    if state
+        .storage
+        .store
+        .get_string_value(DDNS_ENABLED)
+        .await?
+        .as_deref()
+        != Some("true")
+    {
         return Ok(());
     }
 
     let lock_key = format!("fn_knock:lock:{DDNS_UPDATE_LOCK_NAME}");
     let lock_id = Uuid::new_v4().to_string();
     let acquired = state
+        .storage
         .store
         .set_json_value_nx_ex(
             &lock_key,
@@ -36,7 +44,7 @@ pub(super) async fn run_automatic_ddns_check(
     let translator = Translator::from_state(state).await;
     let result = async {
         let targets = list_targets(state).await?;
-        let settings_raw = state.store.get_string_value(DDNS_SETTINGS).await?;
+        let settings_raw = state.storage.store.get_string_value(DDNS_SETTINGS).await?;
         let settings = parse_settings(settings_raw.as_deref());
         for target in targets
             .into_iter()
@@ -64,8 +72,7 @@ pub(super) async fn run_automatic_ddns_check(
                     append_target_log(state, "error", &target, &message, &translator).await;
                 tracing::warn!(target_id = %target.meta.id, %error, "automatic DDNS target check failed");
             }
-            if let Err(error) = state
-                .store
+            if let Err(error) = state.storage.store
                 .set_json_lock_if_owned_ex(
                     &lock_key,
                     &lock_id,
@@ -81,7 +88,12 @@ pub(super) async fn run_automatic_ddns_check(
     }
     .await;
 
-    if let Err(error) = state.store.delete_lock_if_owned(&lock_key, &lock_id).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .delete_lock_if_owned(&lock_key, &lock_id)
+        .await
+    {
         tracing::warn!(%error, "failed to release DDNS update lock");
     }
     result
@@ -696,6 +708,7 @@ pub(super) async fn stabilize_automatic_interface_ips(
             .map(String::as_str),
     );
     let mut recovery_data = state
+        .storage
         .store
         .hgetall_string_map(&target_interface_recovery_key(&target.meta.id))
         .await?;
@@ -818,6 +831,7 @@ pub(super) async fn stabilize_automatic_interface_ips(
 
     if recovery_data != original_recovery_data {
         state
+            .storage
             .store
             .replace_hash_string_map(
                 &target_interface_recovery_key(&target.meta.id),
@@ -1592,6 +1606,7 @@ pub(super) async fn append_target_log(
         "isPrimary": target.meta.is_primary
     });
     state
+        .storage
         .store
         .append_log_buffer(
             DDNS_LOGS,
@@ -1639,11 +1654,13 @@ pub(super) async fn set_target_last_check(
         ("message".to_string(), message.to_string()),
     ]);
     state
+        .storage
         .store
         .replace_hash_string_map(&target_last_check_key(&target.meta.id), &payload)
         .await?;
     if target.meta.is_primary {
         state
+            .storage
             .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_CHECK, &payload)
             .await?;
@@ -1672,11 +1689,13 @@ pub(super) async fn set_target_last_ip(
     }
     payload.insert("updated_at".to_string(), time_utils::now_iso());
     state
+        .storage
         .store
         .replace_hash_string_map(&target_last_ip_key(&target.meta.id), &payload)
         .await?;
     if target.meta.is_primary {
         state
+            .storage
             .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_IP, &payload)
             .await?;
@@ -1696,6 +1715,7 @@ pub(super) async fn set_target_last_ip(
     }
     anchor.insert("updated_at".to_string(), time_utils::now_iso());
     state
+        .storage
         .store
         .replace_hash_string_map(&target_selection_anchor_key(&target.meta.id), &anchor)
         .await?;

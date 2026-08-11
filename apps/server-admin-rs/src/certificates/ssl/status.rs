@@ -9,7 +9,7 @@ pub(super) async fn build_ssl_status_with_translator(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let local_status = local_ssl_status(&ssl);
     let gateway = gateway_ssl_status(state, translator).await;
@@ -124,7 +124,7 @@ pub(super) async fn gateway_ssl_status(
     state: &AppState,
     translator: &Translator,
 ) -> Result<Option<Value>, String> {
-    match state.go_backend.get_ssl_info().await {
+    match state.gateway.client.get_ssl_info().await {
         Ok((status, value)) if status.is_success() => {
             if value.get("success").and_then(Value::as_bool) == Some(false) {
                 return Err(value

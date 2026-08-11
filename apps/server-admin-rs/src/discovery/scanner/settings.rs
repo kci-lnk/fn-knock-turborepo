@@ -6,15 +6,19 @@ const EFFECTIVE_POLICY_FIELD: &str = "cidrExemptionPolicy";
 pub(crate) async fn migrate_scanner_cidr_ipset_on_boot(
     state: &AppState,
 ) -> Result<(), ScannerError> {
-    let Some(raw) = state.store.scanner_settings_raw().await? else {
-        state.ipsets.publish(SCANNER_EXEMPT_IPSET_KEY, None);
+    let Some(raw) = state.storage.store.scanner_settings_raw().await? else {
+        state
+            .security
+            .ipsets
+            .publish(SCANNER_EXEMPT_IPSET_KEY, None);
         return Ok(());
     };
     let (stored, policy) = compact_scanner_settings(&raw)?;
     if stored != raw {
-        state.store.save_scanner_settings(&stored).await?;
+        state.storage.store.save_scanner_settings(&stored).await?;
     }
     state
+        .security
         .ipsets
         .publish(SCANNER_EXEMPT_IPSET_KEY, non_empty_policy(policy));
     Ok(())
@@ -23,7 +27,7 @@ pub(crate) async fn migrate_scanner_cidr_ipset_on_boot(
 pub(super) async fn load_scanner_settings(
     state: &AppState,
 ) -> Result<ScannerSettings, ScannerError> {
-    let raw = state.store.scanner_settings_raw().await?;
+    let raw = state.storage.store.scanner_settings_raw().await?;
     ensure_effective_policy_loaded(state, raw.as_ref())?;
     Ok(scanner_settings_from_raw(
         raw.as_ref(),
@@ -35,7 +39,7 @@ pub(super) async fn save_scanner_settings(
     state: &AppState,
     body: UpdateScannerSettingsBody,
 ) -> Result<ScannerSettings, ScannerError> {
-    let previous_raw = state.store.scanner_settings_raw().await?;
+    let previous_raw = state.storage.store.scanner_settings_raw().await?;
     let previous = scanner_settings_from_raw(previous_raw.as_ref(), scanner_env_defaults());
     let manual_cidrs = match body.cidr_exemptions.as_ref() {
         Some(cidrs) => validate_scanner_cidr_exemptions(cidrs.clone())?,
@@ -88,8 +92,9 @@ pub(super) async fn save_scanner_settings(
         &region_policy,
         &effective_policy,
     );
-    state.store.save_scanner_settings(&stored).await?;
+    state.storage.store.save_scanner_settings(&stored).await?;
     state
+        .security
         .ipsets
         .publish(SCANNER_EXEMPT_IPSET_KEY, non_empty_policy(effective_policy));
     Ok(scanner_settings_from_raw(
@@ -242,6 +247,7 @@ fn ensure_effective_policy_loaded(
     let settings = scanner_settings_from_raw(raw, scanner_env_defaults());
     if let Some(expected_id) = settings.cidr_exemption_policy_id.as_deref()
         && state
+            .security
             .ipsets
             .get(SCANNER_EXEMPT_IPSET_KEY)
             .is_some_and(|policy| policy.id == expected_id)
@@ -251,6 +257,7 @@ fn ensure_effective_policy_loaded(
     let region_policy = region_policy_from_raw(raw)?;
     let effective_policy = effective_policy_from_raw(raw, &region_policy, &settings)?;
     state
+        .security
         .ipsets
         .publish(SCANNER_EXEMPT_IPSET_KEY, non_empty_policy(effective_policy));
     Ok(())

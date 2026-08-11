@@ -43,7 +43,7 @@ pub(super) async fn apply_preflight_behavior_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<()> {
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     apply_preflight_behavior_with_routed_upstream_and_config(
         state,
         headers,
@@ -180,6 +180,7 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
                 .headers_mut()
                 .insert("X-Option", HeaderValue::from_static("Deny"));
         } else if !state
+            .storage
             .store
             .is_recent_auth_ip_active(client_ip, time_utils::now_ms() / 1000)
             .await?
@@ -306,7 +307,7 @@ pub(super) async fn resolve_preflight_normal_access(
     let identity = inspect_auth_mobility_request(headers);
     let mut invalid_session_cookie = false;
     let browser_session = if let Some(session_id) = identity.session_id.as_deref() {
-        match state.store.get_session(session_id).await? {
+        match state.storage.store.get_session(session_id).await? {
             Some(session) if login_session_has_expired(&session) => {
                 invalid_session_cookie = true;
                 revoke_expired_presented_session(state, session_id, &session, config).await;
@@ -503,7 +504,7 @@ pub(crate) async fn revoke_expired_presented_session(
     // state. Writers recheck this key before publication, so authorization
     // fails closed immediately even if another request holds the mobility
     // mutation lease indefinitely.
-    if let Err(error) = state.store.delete_session(session_id).await {
+    if let Err(error) = state.storage.store.delete_session(session_id).await {
         tracing::warn!(%error, %session_id, "failed to delete expired auth session authority");
     }
 
@@ -512,6 +513,7 @@ pub(crate) async fn revoke_expired_presented_session(
         crate::crypto_utils::sha256_hex_str(session_id)
     );
     let should_start_cleanup = match state
+        .storage
         .store
         .set_json_value_nx_ex(
             &cleanup_marker_key,
@@ -533,17 +535,17 @@ pub(crate) async fn revoke_expired_presented_session(
         return;
     }
 
-    let state = state.clone();
+    let task_state = state.clone();
     let session_id = session_id.to_string();
     let session = session.clone();
     let config = config.clone();
-    tokio::spawn(async move {
+    state.spawn_background("expired-auth-session-cleanup", async move {
         let cleanup = async {
-            if let Err(error) = auth_mobility::destroy_session(&state, &session_id).await {
+            if let Err(error) = auth_mobility::destroy_session(&task_state, &session_id).await {
                 tracing::warn!(%error, %session_id, "failed to destroy expired auth session state");
             }
             if let Err(error) = auth_mobility::revoke_custom_post_login_ip_grant(
-                &state,
+                &task_state,
                 Some(&session),
                 Some(&config),
                 &session.ip,
@@ -552,7 +554,7 @@ pub(crate) async fn revoke_expired_presented_session(
             {
                 tracing::warn!(%error, %session_id, "failed to revoke expired session IP grant");
             }
-            whitelist::sync_reverse_proxy_trusted_ips(&state).await;
+            whitelist::sync_reverse_proxy_trusted_ips(&task_state).await;
         };
         if tokio::time::timeout(EXPIRED_SESSION_BACKGROUND_CLEANUP_TIMEOUT, cleanup)
             .await
@@ -560,7 +562,12 @@ pub(crate) async fn revoke_expired_presented_session(
         {
             tracing::warn!(%session_id, "timed out cleaning expired auth session secondary state");
         }
-        if let Err(error) = state.store.delete_key(&cleanup_marker_key).await {
+        if let Err(error) = task_state
+            .storage
+            .store
+            .delete_key(&cleanup_marker_key)
+            .await
+        {
             tracing::debug!(%error, %session_id, "failed to remove expired session cleanup marker");
         }
     });
@@ -783,7 +790,7 @@ pub(super) async fn resolve_auth_mobility_owner_sessions(
     let mut owners = Vec::new();
     let mut seen = BTreeSet::new();
     if let Some(session_id) = identity.session_id.as_deref()
-        && let Some(session) = state.store.get_session(session_id).await?
+        && let Some(session) = state.storage.store.get_session(session_id).await?
         && seen.insert(session_id.to_string())
     {
         owners.push((session_id.to_string(), session));
@@ -829,6 +836,7 @@ pub(super) async fn auth_mobility_binding_owner_session(
     subject_key: &str,
 ) -> anyhow::Result<Option<(String, LoginSession)>> {
     let Some(binding) = state
+        .storage
         .store
         .get_auth_mobility_binding(subject_type, subject_key)
         .await?
@@ -844,6 +852,7 @@ pub(super) async fn auth_mobility_binding_owner_session(
         return Ok(None);
     };
     Ok(state
+        .storage
         .store
         .get_session(owner_session_id)
         .await?
@@ -874,9 +883,9 @@ pub(super) async fn list_auth_mobility_owner_sessions_by_ip(
         return Ok(Vec::new());
     }
 
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let mut owners = Vec::new();
-    for (session_id, session) in state.store.list_login_sessions().await? {
+    for (session_id, session) in state.storage.store.list_login_sessions().await? {
         let ips =
             auth_mobility::effective_session_ips(state, &session_id, &session, &config).await?;
         if ips.iter().any(|ip| ip == &target_ip) {
@@ -983,12 +992,14 @@ pub(super) async fn session_auth_credential(
 ) -> anyhow::Result<Option<TotpCredential>> {
     if AuthMethod::Password.matches_session_str(&session.method) {
         return Ok(state
+            .storage
             .store
             .get_auth_account(&session.credential_id)
             .await?
             .map(password_account_to_credential));
     }
     Ok(state
+        .storage
         .store
         .get_totps()
         .await?

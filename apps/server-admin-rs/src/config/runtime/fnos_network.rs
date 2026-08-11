@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn load_fnos_network_tuning_status(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let tuning = normalize_fnos_network_tuning(config.get("fnos_network_tuning"));
     Ok(build_fnos_network_tuning_status(state, tuning))
 }
@@ -47,6 +47,7 @@ pub(super) async fn sync_fnos_network_tuning_after_import(
         .await);
     }
     if let Err(error) = state
+        .storage
         .store
         .set_config_top_level_value("fnos_network_tuning", applied)
         .await
@@ -81,6 +82,7 @@ async fn rollback_fnos_network_tuning_import(
     let mut detail = format!("{error}{runtime_rollback}{file_rollback}");
     let failed = build_fnos_network_tuning_import_failure(previous, &detail);
     if let Err(persist_error) = state
+        .storage
         .store
         .set_config_top_level_value("fnos_network_tuning", failed)
         .await
@@ -123,6 +125,7 @@ pub(super) async fn update_fnos_network_tuning_config(
 ) -> Result<Value, String> {
     let patch = normalize_fnos_network_tuning_patch(patch, translator)?;
     let previous_config = state
+        .storage
         .store
         .get_config()
         .await
@@ -163,7 +166,7 @@ pub(super) async fn update_fnos_network_tuning_config(
     clear_fnos_network_tuning_last_error(&mut next);
     let mut config = previous_config.clone();
     ensure_config_object(&mut config).insert("fnos_network_tuning".to_string(), next.clone());
-    if let Err(error) = state.store.save_config(&config).await {
+    if let Err(error) = state.storage.store.save_config(&config).await {
         let message = error.to_string();
         mark_fnos_network_tuning_failure(
             state,
@@ -189,6 +192,7 @@ pub(super) async fn update_fnos_network_tuning_config(
         return Err(error);
     }
     let saved_config = state
+        .storage
         .store
         .get_config()
         .await
@@ -645,7 +649,7 @@ pub(super) async fn mark_fnos_network_tuning_failure(
     }
     let mut config = previous_config.clone();
     ensure_config_object(&mut config).insert("fnos_network_tuning".to_string(), failed);
-    let _ = state.store.save_config(&config).await;
+    let _ = state.storage.store.save_config(&config).await;
 }
 
 pub(super) fn fnos_congestion_fallback(state: &Value) -> String {

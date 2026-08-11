@@ -3,7 +3,16 @@ import type {
   HostActiveIpsPayload,
   TrafficStats,
 } from "../../types";
+import type { operations as ApiContractOperations } from "@fn-knock/api-contract";
 import { apiClient } from "./client";
+
+type DashboardStatsOperation =
+  ApiContractOperations["get_api_admin_dashboard_stats"];
+type DashboardStatsQuery = NonNullable<
+  DashboardStatsOperation["parameters"]["query"]
+>;
+type DashboardActiveIpsQuery =
+  ApiContractOperations["get_api_admin_dashboard_active_ips"]["parameters"]["query"];
 
 export type {
   DashboardStats,
@@ -20,8 +29,9 @@ export const DashboardAPI = {
       typeof userIdOrOptions === "string"
         ? { userId: userIdOrOptions }
         : (userIdOrOptions ?? {});
+    const params = { rangeSec, ...options } satisfies DashboardStatsQuery;
     const res = await apiClient.get("/dashboard/stats", {
-      params: { rangeSec, ...options },
+      params,
     });
     return res.data.data;
   },
@@ -30,8 +40,9 @@ export const DashboardAPI = {
     return res.data.data;
   },
   async getHostActiveIps(host: string): Promise<HostActiveIpsPayload> {
+    const params = { host } satisfies DashboardActiveIpsQuery;
     const res = await apiClient.get("/dashboard/active-ips", {
-      params: { host },
+      params,
     });
     return res.data.data;
   },

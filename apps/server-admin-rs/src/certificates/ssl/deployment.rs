@@ -8,7 +8,7 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
     let config = match config {
         Some(config) => config,
         None => {
-            owned_config = state.store.get_config().await?;
+            owned_config = state.storage.store.get_config().await?;
             &owned_config
         }
     };
@@ -19,9 +19,9 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
         .cloned()
         .unwrap_or_default();
     let (status, value) = if certificates.is_empty() {
-        state.go_backend.clear_ssl().await?
+        state.gateway.client.clear_ssl().await?
     } else {
-        state.go_backend.set_ssl_deployment(&deployment).await?
+        state.gateway.client.set_ssl_deployment(&deployment).await?
     };
     if !status.is_success() || value.get("success").and_then(Value::as_bool) == Some(false) {
         return Err(anyhow!(

@@ -25,11 +25,23 @@ const isUiChunk = createChunkMatcher([
   'node_modules/vue-input-otp/',
 ])
 
-const isAuthCoreChunk = createChunkMatcher([
-  'node_modules/axios/',
+const isAppearanceCoreChunk = createChunkMatcher([
+  'packages/frontend-core/src/appearance',
+])
+
+const isCaptchaChunk = createChunkMatcher([
   'node_modules/crypto-js/',
   'node_modules/altcha/',
   'node_modules/@altcha/',
+])
+
+const isApiCoreChunk = createChunkMatcher([
+  'node_modules/axios/',
+  'packages/frontend-core/src/api/',
+  'packages/frontend-core/src/errors/',
+])
+
+const isAuthFeatureCoreChunk = createChunkMatcher([
   'packages/frontend-core/src/',
 ])
 
@@ -57,8 +69,17 @@ export default defineConfig({
           if (isUiChunk(id)) {
             return 'ui-vendor'
           }
-          if (isAuthCoreChunk(id)) {
-            return 'auth-core'
+          if (isAppearanceCoreChunk(id)) {
+            return 'appearance-core'
+          }
+          if (isCaptchaChunk(id)) {
+            return 'captcha-vendor'
+          }
+          if (isApiCoreChunk(id)) {
+            return 'api-core'
+          }
+          if (isAuthFeatureCoreChunk(id)) {
+            return 'auth-feature-core'
           }
         },
       },

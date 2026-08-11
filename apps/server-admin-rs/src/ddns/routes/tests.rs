@@ -31,16 +31,19 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
     };
     let last_ip = HashMap::from([("ipv6".to_string(), "2001:4860::20".to_string())]);
     state
+        .storage
         .store
         .replace_hash_string_map(&target_last_ip_key(&meta.id), &last_ip)
         .await
         .unwrap();
     state
+        .storage
         .store
         .replace_hash_string_map(&target_selection_anchor_key(&meta.id), &last_ip)
         .await
         .unwrap();
     state
+        .storage
         .store
         .replace_hash_string_map(
             &target_interface_recovery_key(&meta.id),
@@ -56,6 +59,7 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
 
     assert!(
         state
+            .storage
             .store
             .hgetall_string_map(&target_last_ip_key(&meta.id))
             .await
@@ -64,6 +68,7 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
     );
     assert_eq!(
         state
+            .storage
             .store
             .hgetall_string_map(&target_selection_anchor_key(&meta.id))
             .await
@@ -72,6 +77,7 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
     );
     assert!(
         state
+            .storage
             .store
             .hgetall_string_map(&target_interface_recovery_key(&meta.id))
             .await
@@ -91,6 +97,7 @@ async fn runtime_reset_preserves_interface_selection_anchor() {
         .unwrap();
     assert_eq!(
         state
+            .storage
             .store
             .hgetall_string_map(&target_selection_anchor_key(&target.meta.id))
             .await
@@ -1363,6 +1370,7 @@ async fn automatic_preferred_recovery_confirmations_persist_across_checks() {
     }
 
     let recovery = state
+        .storage
         .store
         .hgetall_string_map(&target_interface_recovery_key(&target.meta.id))
         .await
@@ -1400,6 +1408,7 @@ async fn automatic_preferred_recovery_confirmations_persist_across_checks() {
     assert_eq!(ips.ipv6.as_deref(), Some("2001:db8::10"));
     assert!(
         state
+            .storage
             .store
             .hgetall_string_map(&target_interface_recovery_key(&reset_target.meta.id))
             .await
@@ -3634,6 +3643,7 @@ async fn wildcard_root_pair_is_stored_canonically_and_conflicts_with_each_member
     .unwrap();
     let id = created.get("id").and_then(Value::as_str).unwrap();
     let stored = state
+        .storage
         .store
         .hgetall_string_map(&target_config_key(id))
         .await
@@ -3666,7 +3676,12 @@ async fn invalid_domain_target_writes_are_atomic() {
     let (_directory, state) = ddns_test_state().await;
     let translator = Translator::new("en");
 
-    let ids_before = state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap();
+    let ids_before = state
+        .storage
+        .store
+        .smembers_strings(DDNS_TARGET_IDS)
+        .await
+        .unwrap();
     let create_error = create_ddns_target(
         &state,
         TargetBody {
@@ -3688,7 +3703,12 @@ async fn invalid_domain_target_writes_are_atomic() {
             .is_some()
     );
     assert_eq!(
-        state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap(),
+        state
+            .storage
+            .store
+            .smembers_strings(DDNS_TARGET_IDS)
+            .await
+            .unwrap(),
         ids_before
     );
 
@@ -3714,7 +3734,12 @@ async fn invalid_domain_target_writes_are_atomic() {
             .is_some()
     );
     assert_eq!(
-        state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap(),
+        state
+            .storage
+            .store
+            .smembers_strings(DDNS_TARGET_IDS)
+            .await
+            .unwrap(),
         ids_before
     );
 
@@ -3738,10 +3763,26 @@ async fn invalid_domain_target_writes_are_atomic() {
     let config_key = target_config_key(id);
     let last_ip_key = target_last_ip_key(id);
     let last_check_key = target_last_check_key(id);
-    let before_meta = state.store.hgetall_string_map(&meta_key).await.unwrap();
-    let before_config = state.store.hgetall_string_map(&config_key).await.unwrap();
-    let before_last_ip = state.store.hgetall_string_map(&last_ip_key).await.unwrap();
+    let before_meta = state
+        .storage
+        .store
+        .hgetall_string_map(&meta_key)
+        .await
+        .unwrap();
+    let before_config = state
+        .storage
+        .store
+        .hgetall_string_map(&config_key)
+        .await
+        .unwrap();
+    let before_last_ip = state
+        .storage
+        .store
+        .hgetall_string_map(&last_ip_key)
+        .await
+        .unwrap();
     let before_last_check = state
+        .storage
         .store
         .hgetall_string_map(&last_check_key)
         .await
@@ -3772,19 +3813,35 @@ async fn invalid_domain_target_writes_are_atomic() {
             .is_some()
     );
     assert_eq!(
-        state.store.hgetall_string_map(&meta_key).await.unwrap(),
+        state
+            .storage
+            .store
+            .hgetall_string_map(&meta_key)
+            .await
+            .unwrap(),
         before_meta
     );
     assert_eq!(
-        state.store.hgetall_string_map(&config_key).await.unwrap(),
+        state
+            .storage
+            .store
+            .hgetall_string_map(&config_key)
+            .await
+            .unwrap(),
         before_config
     );
     assert_eq!(
-        state.store.hgetall_string_map(&last_ip_key).await.unwrap(),
+        state
+            .storage
+            .store
+            .hgetall_string_map(&last_ip_key)
+            .await
+            .unwrap(),
         before_last_ip
     );
     assert_eq!(
         state
+            .storage
             .store
             .hgetall_string_map(&last_check_key)
             .await
@@ -3793,7 +3850,12 @@ async fn invalid_domain_target_writes_are_atomic() {
     );
 
     let draft_key = format!("{DDNS_LEGACY_CONFIG_PREFIX}cloudflare");
-    let before_draft = state.store.hgetall_string_map(&draft_key).await.unwrap();
+    let before_draft = state
+        .storage
+        .store
+        .hgetall_string_map(&draft_key)
+        .await
+        .unwrap();
     assert!(
         save_primary_config(
             &state,
@@ -3809,7 +3871,12 @@ async fn invalid_domain_target_writes_are_atomic() {
         .is_some()
     );
     assert_eq!(
-        state.store.hgetall_string_map(&draft_key).await.unwrap(),
+        state
+            .storage
+            .store
+            .hgetall_string_map(&draft_key)
+            .await
+            .unwrap(),
         before_draft
     );
 }

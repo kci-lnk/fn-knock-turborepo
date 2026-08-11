@@ -184,9 +184,12 @@ pub(super) async fn resolve_callback(
             Value::String(time_utils::now_iso()),
         );
     }
-    oidc_save_binding(state, &binding)
+    if !oidc_update_binding_if_owned(state, &binding)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())?
+    {
+        return Err(oidc_text(translator, "accountNotBoundCannotLogin"));
+    }
     Ok(CallbackResolved {
         state: auth_state,
         provider,

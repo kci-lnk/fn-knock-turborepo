@@ -71,12 +71,21 @@ pub fn error_with_code(
         .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/healthz",
+    tag = "health",
+    responses(
+        (status = 200, description = "Storage and gateway are healthy", body = serde_json::Value),
+        (status = 503, description = "A required runtime component is unavailable", body = serde_json::Value)
+    )
+)]
 pub async fn healthz(State(state): State<AppState>) -> axum::response::Response {
-    let (storage_reachable, storage_error) = match state.store.ping().await {
+    let (storage_reachable, storage_error) = match state.storage.store.ping().await {
         Ok(()) => (true, Value::Null),
         Err(error) => (false, Value::String(error.to_string())),
     };
-    let gateway_probe = state.go_backend.get_server_info().await;
+    let gateway_probe = state.gateway.client.get_server_info().await;
     let (gateway_reachable, gateway_version, gateway_error) = match gateway_probe {
         Ok(value) if value.get("success").and_then(Value::as_bool) == Some(true) => (
             true,
@@ -132,11 +141,17 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
 /// shell and installer rollback check. Detailed errors remain in service logs.
 pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
     let (storage, bundle, process, dataplane, auth_bridge) = tokio::join!(
-        state.store.ping(),
-        state.go_backend.verify_bundle_compatibility(),
-        state.go_backend.health_serving(GATEWAY_HEALTH_PROCESS),
-        state.go_backend.health_serving(GATEWAY_HEALTH_DATAPLANE),
-        state.go_backend.health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
+        state.storage.store.ping(),
+        state.gateway.client.verify_bundle_compatibility(),
+        state.gateway.client.health_serving(GATEWAY_HEALTH_PROCESS),
+        state
+            .gateway
+            .client
+            .health_serving(GATEWAY_HEALTH_DATAPLANE),
+        state
+            .gateway
+            .client
+            .health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
     );
     let storage_ready = storage.is_ok();
     let bundle_ready = bundle.is_ok();

@@ -12,13 +12,13 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use tokio::time::{self as tokio_time, MissedTickBehavior};
 use url::Url;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     gateway_settings, http_body, i18n::Translator, response, runtime_config, ssl, state::AppState,
@@ -122,6 +122,7 @@ pub(crate) async fn acquire_host_mappings_transaction_lease(
         + Duration::from_secs(HOST_MAPPINGS_TRANSACTION_LOCK_WAIT_SECONDS);
     loop {
         if state
+            .storage
             .store
             .set_json_value_nx_ex(
                 HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
@@ -146,6 +147,7 @@ pub(crate) async fn acquire_host_mappings_transaction_lease(
                 loop {
                     interval.tick().await;
                     let refreshed = heartbeat_state
+                        .storage
                         .store
                         .set_json_lock_if_owned_ex(
                             HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
@@ -185,6 +187,7 @@ impl HostMappingsTransactionLease {
         }
         let refreshed = self
             .state
+            .storage
             .store
             .set_json_lock_if_owned_ex(
                 HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
@@ -217,6 +220,7 @@ impl HostMappingsTransactionLease {
         }
         let result = self
             .state
+            .storage
             .store
             .delete_lock_if_owned(HOST_MAPPINGS_TRANSACTION_LOCK_KEY, &self.lock_id)
             .await;
@@ -252,6 +256,7 @@ impl Drop for HostMappingsTransactionLease {
         if let Ok(runtime) = tokio::runtime::Handle::try_current() {
             runtime.spawn(async move {
                 if let Err(error) = state
+                    .storage
                     .store
                     .delete_lock_if_owned(HOST_MAPPINGS_TRANSACTION_LOCK_KEY, &lock_id)
                     .await
@@ -271,7 +276,7 @@ where
     Sync: FnOnce(AppState) -> SyncFuture,
     SyncFuture: std::future::Future<Output = Result<(), String>>,
 {
-    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let lease = acquire_host_mappings_transaction_lease(state)
         .await
         .map_err(|error| error.to_string())?
@@ -300,6 +305,7 @@ where
 pub(crate) async fn sync_current_go_host_rules(state: &AppState) -> Result<(), String> {
     with_host_mappings_runtime_transaction(state, |state| async move {
         let config = state
+            .storage
             .store
             .get_config()
             .await
@@ -312,6 +318,7 @@ pub(crate) async fn sync_current_go_host_rules(state: &AppState) -> Result<(), S
 pub(crate) async fn sync_current_go_auth_config(state: &AppState) -> Result<(), String> {
     with_host_mappings_runtime_transaction(state, |state| async move {
         let config = state
+            .storage
             .store
             .get_config()
             .await
@@ -779,15 +786,15 @@ fn extract_host_location_header<'a>(
     Some((host, path, header_with_suffix.strip_suffix(suffix)?))
 }
 
-#[derive(Deserialize)]
-struct MappingsBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct MappingsBody {
     mappings: Vec<Value>,
     #[serde(default)]
     revision: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct HostMappingCatalogBody {
+#[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct HostMappingCatalogBody {
     mappings: Vec<Value>,
     #[serde(default)]
     groups: Vec<Value>,
@@ -846,52 +853,52 @@ struct FaviconFetchBudget {
 }
 
 pub fn proxy_config_routes() -> Router<AppState> {
+    let host_mapping_routes: Router<AppState> = host_mapping_routes().into();
+    let proxy_routing_routes: Router<AppState> = proxy_routing_routes().into();
     Router::new()
-        .route(
-            "/api/admin/config/proxy_mappings",
-            post(update_proxy_mappings),
-        )
-        .route(
-            "/api/admin/config/host_mappings",
-            get(get_host_mappings).post(update_host_mappings),
-        )
-        .route(
-            "/api/admin/config/host_mapping_catalog",
-            get(get_host_mapping_catalog).post(update_host_mapping_catalog),
-        )
-        .route(
-            "/api/admin/config/host_mappings/basic_auth_probe",
-            post(basic_auth_probe),
-        )
-        .route(
-            "/api/admin/config/host_mappings/{host}/advanced_auth",
-            get(get_advanced_auth).put(update_advanced_auth),
-        )
-        .route(
-            "/api/admin/config/host_mappings/metadata",
-            post(host_mapping_metadata),
-        )
-        .route(
-            "/api/admin/config/host_mappings/refresh_titles",
-            post(refresh_host_mapping_titles),
-        )
-        .route(
-            "/api/admin/config/host_mappings/bookmarks/export",
-            get(export_host_mapping_bookmarks),
-        )
-        .route(
-            "/api/admin/config/stream_mappings",
-            get(get_stream_mappings).post(update_stream_mappings),
-        )
-        .route(
-            "/api/admin/config/subdomain_mode",
-            get(get_subdomain_mode).post(update_subdomain_mode),
-        )
+        .merge(host_mapping_routes)
+        .merge(proxy_routing_routes)
 }
 
+/// The Host mapping router is the executable source for the OpenAPI contract.
+/// Keep the compatibility response shapes and revision headers documented in
+/// `openapi_docs`; handlers intentionally retain `Response` for localized
+/// runtime errors and rollback behavior.
+pub(crate) fn host_mapping_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_host_mappings))
+        .routes(routes!(update_host_mappings))
+        .routes(routes!(get_host_mapping_catalog))
+        .routes(routes!(update_host_mapping_catalog))
+        .routes(routes!(basic_auth_probe))
+        .routes(routes!(get_advanced_auth))
+        .routes(routes!(update_advanced_auth))
+        .routes(routes!(host_mapping_metadata))
+        .routes(routes!(refresh_host_mapping_titles))
+        .routes(routes!(export_host_mapping_bookmarks))
+}
+
+/// Proxy, stream, and subdomain-mode routes share the executable OpenAPI
+/// source, while retaining their compatibility DTOs in `openapi_docs`.
+pub(crate) fn proxy_routing_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(update_proxy_mappings))
+        .routes(routes!(get_stream_mappings))
+        .routes(routes!(update_stream_mappings))
+        .routes(routes!(get_subdomain_mode))
+        .routes(routes!(update_subdomain_mode))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/host_mappings",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_host_mappings",
+    responses((status = 200, description = "Host mappings with revision header"))
+)]
 async fn get_host_mappings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load host mappings");
@@ -909,9 +916,16 @@ async fn get_host_mappings(State(state): State<AppState>) -> Response {
     host_mappings_response(mappings)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/host_mapping_catalog",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_host_mapping_catalog",
+    responses((status = 200, description = "Host mapping catalog with revision headers"))
+)]
 async fn get_host_mapping_catalog(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load host mapping catalog");
@@ -1084,12 +1098,26 @@ pub(crate) fn is_auth_host_mapping_target(target: &str) -> bool {
     is_auth_service_target(target)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings/basic_auth_probe",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings_basic_auth_probe",
+    responses((status = 200, description = "Basic-auth probe result"))
+)]
 async fn basic_auth_probe(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let target = body.get("target").and_then(Value::as_str).unwrap_or("");
     response::ok(probe_basic_auth_target(target, &translator).await).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings/metadata",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings_metadata",
+    responses((status = 200, description = "Host mapping metadata"))
+)]
 async fn host_mapping_metadata(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let target = body.get("target").and_then(Value::as_str).unwrap_or("");
@@ -1102,9 +1130,16 @@ async fn host_mapping_metadata(State(state): State<AppState>, Json(body): Json<V
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings/refresh_titles",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings_refresh_titles",
+    responses((status = 200, description = "Host mapping metadata refresh summary"))
+)]
 async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
         Ok(Some(lease)) => lease,
         Ok(None) => {
@@ -1121,7 +1156,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
             );
         }
     };
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings before metadata refresh");
@@ -1154,6 +1189,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
         }
     }
     match state
+        .storage
         .store
         .compare_and_set_host_mappings(&mappings, &next_mappings)
         .await
@@ -1176,6 +1212,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
     if let Err(error) = transaction_lease.ensure_owned().await {
         tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
         let _ = state
+            .storage
             .store
             .compare_and_set_host_mappings(&next_mappings, &mappings)
             .await;
@@ -1203,9 +1240,16 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
     response::ok(summary).into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/host_mappings/bookmarks/export",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_host_mappings_bookmarks_export",
+    responses((status = 200, description = "HTML bookmarks export"))
+)]
 async fn export_host_mapping_bookmarks(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings for bookmarks export");
@@ -1233,16 +1277,30 @@ async fn export_host_mapping_bookmarks(State(state): State<AppState>) -> Respons
     response
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/stream_mappings",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_stream_mappings",
+    responses((status = 200, description = "Stream mappings"))
+)]
 async fn get_stream_mappings(State(state): State<AppState>) -> Response {
     get_config_section(state, "stream_mappings", Value::Array(Vec::new())).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/subdomain_mode",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_subdomain_mode",
+    responses((status = 200, description = "Subdomain mode configuration"))
+)]
 async fn get_subdomain_mode(State(state): State<AppState>) -> Response {
     get_config_section(state, "subdomain_mode", default_subdomain_mode()).await
 }
 
 async fn get_config_section(state: AppState, key: &str, fallback: Value) -> Response {
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(config.get(key).cloned().unwrap_or(fallback)).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -1255,6 +1313,14 @@ async fn get_config_section(state: AppState, key: &str, fallback: Value) -> Resp
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/proxy_mappings",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_proxy_mappings",
+    request_body = MappingsBody,
+    responses((status = 200, description = "Updated reverse-proxy mappings"))
+)]
 async fn update_proxy_mappings(
     State(state): State<AppState>,
     Json(body): Json<MappingsBody>,
@@ -1270,7 +1336,7 @@ async fn update_proxy_mappings(
         }
     };
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before proxy mappings update");
@@ -1286,7 +1352,7 @@ async fn update_proxy_mappings(
         Value::Array(normalized.clone()),
     );
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
+    if let Err(error) = state.storage.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save proxy mappings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1311,6 +1377,14 @@ async fn update_proxy_mappings(
     response::ok(Value::Array(normalized)).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings",
+    request_body = MappingsBody,
+    responses((status = 200, description = "Updated host mappings with revision header"))
+)]
 async fn update_host_mappings(
     State(state): State<AppState>,
     Json(body): Json<MappingsBody>,
@@ -1319,7 +1393,7 @@ async fn update_host_mappings(
     // Keep persistence, runtime sync and any rollback in one transaction. The
     // mutex covers this AppState; the leased storage lock covers other states
     // and processes that share the same config database.
-    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
         Ok(Some(lease)) => lease,
         Ok(None) => {
@@ -1336,7 +1410,7 @@ async fn update_host_mappings(
             );
         }
     };
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before host mappings update");
@@ -1420,6 +1494,7 @@ async fn update_host_mappings(
     }
 
     let updated_config = match state
+        .storage
         .store
         .compare_and_set_host_mappings_with_visibility_policies(
             &previous_mappings,
@@ -1449,6 +1524,7 @@ async fn update_host_mappings(
             "concurrent config update made the persisted host mappings invalid; rolling back"
         );
         match state
+            .storage
             .store
             .compare_and_set_host_mappings_with_visibility_policies(
                 &normalized,
@@ -1460,6 +1536,7 @@ async fn update_host_mappings(
             Ok(Some(_)) => {}
             Ok(None) => {
                 let current_is_valid = state
+                    .storage
                     .store
                     .get_config()
                     .await
@@ -1495,6 +1572,7 @@ async fn update_host_mappings(
     if let Err(error) = transaction_lease.ensure_owned().await {
         tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
         let _ = state
+            .storage
             .store
             .compare_and_set_host_mappings_with_visibility_policies(
                 &normalized,
@@ -1535,13 +1613,21 @@ async fn update_host_mappings(
     host_mappings_response(normalized)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mapping_catalog",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mapping_catalog",
+    request_body = HostMappingCatalogBody,
+    responses((status = 200, description = "Updated host mapping catalog with revision headers"))
+)]
 async fn update_host_mapping_catalog(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<HostMappingCatalogBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
         Ok(Some(lease)) => lease,
         Ok(None) => {
@@ -1559,7 +1645,7 @@ async fn update_host_mapping_catalog(
         }
     };
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load host mapping catalog before update");
@@ -1674,6 +1760,7 @@ async fn update_host_mapping_catalog(
     }
 
     let updated_config = match state
+        .storage
         .store
         .compare_and_set_host_mapping_catalog_with_visibility_policies(
             &previous_mappings,
@@ -1709,6 +1796,7 @@ async fn update_host_mapping_catalog(
             .cloned()
             .unwrap_or_default();
         let rolled_back = state
+            .storage
             .store
             .compare_and_set_host_mapping_catalog_with_visibility_policies(
                 &normalized,
@@ -1779,6 +1867,14 @@ async fn update_host_mapping_catalog(
     host_mapping_catalog_response(normalized, groups, grouped_view)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/stream_mappings",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_stream_mappings",
+    request_body = MappingsBody,
+    responses((status = 200, description = "Updated stream mappings"))
+)]
 async fn update_stream_mappings(
     State(state): State<AppState>,
     Json(body): Json<MappingsBody>,
@@ -1808,9 +1904,9 @@ where
             );
         }
     };
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before stream mappings update");
@@ -1873,7 +1969,7 @@ where
         );
     }
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
+    if let Err(error) = state.storage.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save stream mappings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1908,6 +2004,13 @@ where
     response::success_empty().into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/subdomain_mode",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_subdomain_mode",
+    responses((status = 200, description = "Updated subdomain mode configuration"))
+)]
 async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let Some(patch) = body.as_object() else {
@@ -1917,7 +2020,7 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         );
     };
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before subdomain mode update");
@@ -1959,7 +2062,7 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         );
     }
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
+    if let Err(error) = state.storage.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save subdomain mode config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,

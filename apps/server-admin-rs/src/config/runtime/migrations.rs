@@ -16,6 +16,7 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if state
+        .storage
         .store
         .get_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY)
         .await?
@@ -42,6 +43,7 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if state
+        .storage
         .store
         .get_string_value(LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY)
         .await?
@@ -58,6 +60,7 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if state
+        .storage
         .store
         .get_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY)
         .await?
@@ -84,22 +87,25 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if config_changed {
-        state.store.save_config(config).await?;
+        state.storage.store.save_config(config).await?;
     }
     if mark_throttle_patch_done {
         state
+            .storage
             .store
             .set_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY, "1")
             .await?;
     }
     if mark_resource_alerts_patch_done {
         state
+            .storage
             .store
             .set_string_value(LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY, "1")
             .await?;
     }
     if mark_gateway_wol_default_patch_done {
         state
+            .storage
             .store
             .set_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY, "1")
             .await?;
@@ -271,7 +277,7 @@ pub(super) async fn apply_runtime_constraints_on_boot(
     }
 
     if !corrected.is_empty() {
-        state.store.save_config(config).await?;
+        state.storage.store.save_config(config).await?;
     }
     Ok(corrected)
 }

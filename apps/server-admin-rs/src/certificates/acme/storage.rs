@@ -6,6 +6,7 @@ pub(super) async fn ensure_acme_data_migrated(
     let existing = read_acme_applications_raw(state).await?;
     if !existing.is_empty() {
         state
+            .storage
             .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
@@ -14,6 +15,7 @@ pub(super) async fn ensure_acme_data_migrated(
 
     let Some(legacy) = read_legacy_settings(state).await? else {
         state
+            .storage
             .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
@@ -26,6 +28,7 @@ pub(super) async fn ensure_acme_data_migrated(
         .unwrap_or_default();
     if domains.is_empty() {
         state
+            .storage
             .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
@@ -71,10 +74,12 @@ pub(super) async fn ensure_acme_data_migrated(
     }
 
     state
+        .storage
         .store
         .set_json_value(ACME_APPLICATIONS_KEY, &Value::Array(vec![application]))
         .await?;
     state
+        .storage
         .store
         .set_json_value(
             ACME_ISSUED_CERTIFICATES_KEY,
@@ -82,6 +87,7 @@ pub(super) async fn ensure_acme_data_migrated(
         )
         .await?;
     state
+        .storage
         .store
         .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
         .await
@@ -106,6 +112,7 @@ pub(super) async fn read_acme_applications_raw(
     state: &AppState,
 ) -> crate::storage::StorageResult<Vec<Value>> {
     Ok(state
+        .storage
         .store
         .get_json_value(ACME_APPLICATIONS_KEY)
         .await?
@@ -121,6 +128,7 @@ pub(super) async fn write_acme_applications(
     applications: &[Value],
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .set_json_value(ACME_APPLICATIONS_KEY, &Value::Array(applications.to_vec()))
         .await
@@ -301,7 +309,11 @@ pub(super) async fn delete_acme_application_internal(
         .collect::<Vec<_>>();
     write_acme_applications(state, &next_applications).await?;
     if next_applications.is_empty() {
-        state.store.delete_key(ACME_LEGACY_SETTINGS_KEY).await?;
+        state
+            .storage
+            .store
+            .delete_key(ACME_LEGACY_SETTINGS_KEY)
+            .await?;
     }
     let deleted_issued_certificate = delete_acme_issued_certificate(state, id).await?;
     let primary_domain = existing
@@ -380,6 +392,7 @@ pub(super) async fn delete_acme_issued_certificate(
         })
         .collect::<Vec<_>>();
     state
+        .storage
         .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(next))
         .await?;
@@ -391,6 +404,7 @@ pub(super) async fn delete_acme_cert_pair(
     domain: &str,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .delete_key(&format!("{ACME_CERT_PREFIX}{domain}"))
         .await

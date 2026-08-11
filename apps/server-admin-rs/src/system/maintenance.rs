@@ -11,7 +11,6 @@ use axum::{
     extract::{DefaultBodyLimit, Json, State, rejection::JsonRejection},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::DeflateEncoder};
@@ -125,56 +124,38 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
 ];
 
 pub fn maintenance_routes() -> Router<AppState> {
+    let backup_routes: Router<AppState> = routes::backup_routes().into();
+    let maintenance_data_routes: Router<AppState> = routes::maintenance_data_routes().into();
     Router::new()
-        .route("/api/admin/maintenance/backup/export", get(export_backup))
-        .route(
-            "/api/admin/maintenance/backup/automatic",
-            get(get_automatic_backup_details).put(update_automatic_backup_config),
-        )
-        .route(
-            "/api/admin/maintenance/backup/automatic/files",
-            get(list_automatic_backup_files),
-        )
-        .route(
-            "/api/admin/maintenance/backup/files",
-            get(list_backup_files),
-        )
-        .route(
-            "/api/admin/maintenance/backup/export/fnos",
-            post(export_backup_to_directory),
-        )
-        .route(
-            "/api/admin/maintenance/backup/import",
-            post(import_backup).layer(DefaultBodyLimit::max(MAX_BACKUP_IMPORT_BODY_SIZE)),
-        )
-        .route(
-            "/api/admin/maintenance/backup/import/automatic",
-            post(import_backup_from_automatic_directory),
-        )
-        .route(
-            "/api/admin/maintenance/backup/import/fnos",
-            post(import_backup_from_directory),
-        )
-        .route("/api/admin/maintenance/data/clear", post(clear_all_data))
+        .merge(backup_routes)
+        .merge(maintenance_data_routes)
+}
+
+pub(crate) fn backup_openapi_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
+    routes::backup_routes()
+}
+
+pub(crate) fn maintenance_data_openapi_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
+    routes::maintenance_data_routes()
 }
 
 pub fn start_automatic_backup_tasks(state: AppState) {
     spawn_automatic_backup_task(state);
 }
 
-#[derive(serde::Deserialize)]
-struct ImportBackupBody {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub(crate) struct ImportBackupBody {
     filename: Option<String>,
     archive_base64: String,
 }
 
-#[derive(serde::Deserialize)]
-struct ImportBackupFromDirectoryBody {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub(crate) struct ImportBackupFromDirectoryBody {
     path: String,
 }
 
-#[derive(serde::Deserialize)]
-struct UpdateAutomaticBackupBody {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub(crate) struct UpdateAutomaticBackupBody {
     enabled: bool,
     interval_hours: i64,
     retention_days: i64,
@@ -224,13 +205,15 @@ mod routes;
 mod sync;
 mod zip;
 
+#[cfg(test)]
+use routes::clear_all_data_with_gateway_reset;
+
 use automatic::*;
 use directory::*;
 use export::*;
 use i18n::*;
 use import::*;
 use paths::*;
-use routes::*;
 use sync::*;
 use zip::*;
 

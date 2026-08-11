@@ -10,6 +10,7 @@ pub(super) async fn read_issued_certificates(
 ) -> crate::storage::StorageResult<Vec<Value>> {
     ensure_acme_data_migrated(state).await?;
     Ok(state
+        .storage
         .store
         .get_json_value(ACME_ISSUED_CERTIFICATES_KEY)
         .await?
@@ -64,7 +65,12 @@ pub(super) async fn get_acme_settings(state: &AppState) -> crate::storage::Stora
 pub(super) async fn read_legacy_settings(
     state: &AppState,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    let Some(value) = state.store.get_json_value(ACME_LEGACY_SETTINGS_KEY).await? else {
+    let Some(value) = state
+        .storage
+        .store
+        .get_json_value(ACME_LEGACY_SETTINGS_KEY)
+        .await?
+    else {
         return Ok(None);
     };
     let Some(object) = value.as_object() else {
@@ -100,6 +106,7 @@ pub(super) async fn ensure_client_settings(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
     if let Some(settings) = state
+        .storage
         .store
         .get_json_value(ACME_CLIENT_SETTINGS_KEY)
         .await?
@@ -112,6 +119,7 @@ pub(super) async fn ensure_client_settings(
         "updatedAt": now_node_iso(),
     });
     state
+        .storage
         .store
         .set_json_value(ACME_CLIENT_SETTINGS_KEY, &settings)
         .await?;
@@ -277,6 +285,7 @@ pub(super) async fn link_issued_certificate_to_library(
     }
     let linked = issued[index].clone();
     state
+        .storage
         .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(issued))
         .await?;
@@ -287,7 +296,7 @@ pub(super) async fn sync_gateway_if_acme_library_touched(
     state: &AppState,
     certificate_id: &str,
 ) -> anyhow::Result<()> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let should_sync = config
         .pointer("/ssl/active_cert_id")
         .and_then(Value::as_str)
@@ -307,7 +316,7 @@ pub(super) async fn read_acme_cert_pair(
     domain: &str,
 ) -> crate::storage::StorageResult<Option<(String, String)>> {
     let key = format!("{ACME_CERT_PREFIX}{domain}");
-    let Some(value) = state.store.get_json_value(&key).await? else {
+    let Some(value) = state.storage.store.get_json_value(&key).await? else {
         return Ok(None);
     };
     let cert = value
@@ -330,6 +339,7 @@ pub(super) async fn get_acme_job(
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
     Ok(state
+        .storage
         .store
         .get_json_value(&format!("{ACME_JOB_PREFIX}{id}"))
         .await?
@@ -343,6 +353,7 @@ pub(super) async fn get_acme_logs(
     order: &str,
 ) -> crate::storage::StorageResult<Vec<Value>> {
     let mut logs = state
+        .storage
         .store
         .list_log_buffer(
             &format!("{ACME_LOGS_PREFIX}{id}"),
@@ -362,7 +373,12 @@ pub(super) async fn get_acme_logs(
 pub(super) async fn get_active_acme_runtime_lock(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
-    let Some(raw_lock) = state.store.get_json_value(ACME_RUNTIME_LOCK_KEY).await? else {
+    let Some(raw_lock) = state
+        .storage
+        .store
+        .get_json_value(ACME_RUNTIME_LOCK_KEY)
+        .await?
+    else {
         return Ok(json!({ "locked": false }));
     };
     let lock = normalize_runtime_lock(&raw_lock);

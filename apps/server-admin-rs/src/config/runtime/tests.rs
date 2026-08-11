@@ -53,6 +53,7 @@ impl FirewallResetOperation for FailingThenSuccessfulFirewallReset {
                 .attempts
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let config = state
+                .storage
                 .store
                 .get_config()
                 .await
@@ -63,6 +64,7 @@ impl FirewallResetOperation for FailingThenSuccessfulFirewallReset {
                     Some(&json!([5666]))
                 );
                 state
+                    .storage
                     .store
                     .set_config_top_level_value("default_route", json!("/concurrent"))
                     .await
@@ -92,7 +94,7 @@ fn redis_json_keys_match_node_feature_section_store() {
 #[tokio::test]
 async fn boot_migration_enables_gateway_wol_shortcut_once() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config["gateway_portal"]["show_wol"] = json!(false);
 
     let applied = apply_boot_config_migrations(&state, &mut config)
@@ -102,6 +104,7 @@ async fn boot_migration_enables_gateway_wol_shortcut_once() {
     assert_eq!(config["gateway_portal"]["show_wol"], json!(true));
     assert_eq!(
         state
+            .storage
             .store
             .get_string_value(GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY)
             .await
@@ -171,9 +174,12 @@ async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        update_fnos_connect_waf(State(state.clone()), Json(json!({ "enabled": true })))
-            .await
-            .status(),
+        super::fnos_connect_waf::update_fnos_connect_waf(
+            State(state.clone()),
+            Json(json!({ "enabled": true })),
+        )
+        .await
+        .status(),
         StatusCode::FORBIDDEN
     );
     assert_eq!(
@@ -192,12 +198,17 @@ async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
         "use_auth": true,
         "comment": "SSH"
     }]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config
         .as_object_mut()
         .expect("config object")
         .insert("stream_mappings".to_string(), mappings.clone());
-    state.store.save_config(&config).await.expect("save config");
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
     save_protocol_mapping_feature(
         &state,
         &json!({
@@ -220,6 +231,7 @@ async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -252,12 +264,17 @@ async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config(
         "use_auth": true,
         "comment": "Needs repair"
     }]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config
         .as_object_mut()
         .expect("config object")
         .insert("stream_mappings".to_string(), mappings.clone());
-    state.store.save_config(&config).await.expect("save config");
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
     save_protocol_mapping_feature(&state, &json!({ "enabled": false }))
         .await
         .expect("disable protocol mapping feature");
@@ -279,6 +296,7 @@ async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config(
     );
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -374,11 +392,16 @@ async fn protocol_mapping_feature_rejects_invalid_patch_shapes_before_mutation()
 #[tokio::test]
 async fn protocol_mapping_feature_update_waits_for_the_shared_transaction_lock() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config["run_type"] = json!(0);
-    state.store.save_config(&config).await.expect("save config");
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
 
-    let guard = state.protocol_mapping_update_lock.lock().await;
+    let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let task_state = state.clone();
     let mut task = tokio::spawn(async move {
         update_protocol_mapping_feature(State(task_state), Json(json!({ "enabled": true }))).await
@@ -401,11 +424,16 @@ async fn protocol_mapping_feature_update_waits_for_the_shared_transaction_lock()
 #[tokio::test]
 async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config["run_type"] = json!(0);
     config["auto_manage_firewall"] = json!(false);
     config["firewall_additional_ports"] = json!([1234]);
-    state.store.save_config(&config).await.expect("save config");
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
 
     let response = update_firewall_additional_ports_transaction_with_reset(
         &state,
@@ -431,6 +459,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     );
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -451,6 +480,7 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
     assert_eq!(body.pointer("/data/additionalPorts"), Some(&json!([])));
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -463,10 +493,15 @@ async fn firewall_additional_ports_successfully_save_apply_and_clear() {
 #[tokio::test]
 async fn firewall_additional_ports_failure_restores_rules_without_overwriting_other_config() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     config["firewall_additional_ports"] = json!([1234]);
     config["default_route"] = json!("/before");
-    state.store.save_config(&config).await.expect("save config");
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
 
     let reset = FailingThenSuccessfulFirewallReset {
         attempts: std::sync::atomic::AtomicUsize::new(0),
@@ -479,6 +514,7 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
     assert_eq!(reset.attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -488,6 +524,7 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
     );
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -507,7 +544,7 @@ async fn firewall_additional_ports_failure_restores_rules_without_overwriting_ot
 #[tokio::test]
 async fn firewall_additional_ports_wait_for_the_shared_transaction_lock() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let guard = state.protocol_mapping_update_lock.lock().await;
+    let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let task_state = state.clone();
     let mut task = tokio::spawn(async move {
         update_firewall_additional_ports_transaction(&task_state, vec![5666]).await
@@ -531,7 +568,7 @@ async fn firewall_additional_ports_wait_for_the_shared_transaction_lock() {
 async fn manual_reset_and_clear_wait_for_the_shared_transaction_lock() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
 
-    let guard = state.protocol_mapping_update_lock.lock().await;
+    let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let reset_state = state.clone();
     let mut reset_task =
         tokio::spawn(async move { reset_firewall_with_transaction_lock(&reset_state, 1).await });
@@ -550,7 +587,7 @@ async fn manual_reset_and_clear_wait_for_the_shared_transaction_lock() {
             .is_err()
     );
 
-    let guard = state.protocol_mapping_update_lock.lock().await;
+    let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let clear_state = state.clone();
     let mut clear_task =
         tokio::spawn(async move { clear_firewall_with_transaction_lock(&clear_state).await });
@@ -782,6 +819,7 @@ fn validates_pow_difficulty_patch() {
 async fn captcha_updates_deep_merge_provider_subconfigs() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
     state
+        .storage
         .store
         .set_json_value(
             CAPTCHA_SETTINGS_KEY,
@@ -824,7 +862,7 @@ async fn captcha_updates_deep_merge_provider_subconfigs() {
 #[tokio::test]
 async fn captcha_update_waits_for_the_shared_transaction_lock() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
-    let guard = state.captcha_settings_update_lock.lock().await;
+    let guard = state.security.captcha_settings_update_lock.lock().await;
     let task_state = state.clone();
     let mut task = tokio::spawn(async move {
         update_captcha(

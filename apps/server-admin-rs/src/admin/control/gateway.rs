@@ -8,6 +8,7 @@ use crate::{
 pub(super) async fn refresh_gateway_auth_runtime(state: &AppState) -> anyhow::Result<()> {
     proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
         let config = state
+            .storage
             .store
             .get_config()
             .await
@@ -15,7 +16,8 @@ pub(super) async fn refresh_gateway_auth_runtime(state: &AppState) -> anyhow::Re
         let auth_config = build_gateway_auth_config(&config);
         ensure_go_success(
             state
-                .go_backend
+                .gateway
+                .client
                 .set_auth_config(&auth_config)
                 .await
                 .map_err(|error| error.to_string())?,

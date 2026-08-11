@@ -595,9 +595,7 @@ pub(super) fn mask_sensitive_value(value: &Value) -> String {
     };
     if value.is_empty() {
         String::new()
-    } else if value.len() <= 8 {
-        "********".to_string()
     } else {
-        format!("{}******", &value[..2])
+        "********".to_string()
     }
 }

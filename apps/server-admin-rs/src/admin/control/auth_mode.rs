@@ -7,6 +7,7 @@ use axum::{
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use totp_rs::Secret;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     auth::mode::{AuthLoginMode, AuthMethod},
@@ -32,6 +33,31 @@ use super::{
 
 const AUTH_MODE_SWITCH_BLOCKED: &str = "auth mode switch has blocking issues";
 
+/// Authentication-mode operations are registered through the same annotated
+/// handlers that contribute their OpenAPI operations.
+pub(crate) fn auth_mode_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(auth_login_mode_status))
+        .routes(routes!(auth_login_mode_preview))
+        .routes(routes!(auth_login_mode_switch))
+}
+
+/// Authentication-account operations are registered by the same annotated
+/// handlers that define their OpenAPI entries.
+pub(crate) fn auth_account_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(auth_accounts_list))
+        .routes(routes!(auth_account_create))
+        .routes(routes!(auth_account_update))
+        .routes(routes!(auth_account_delete))
+        .routes(routes!(auth_account_set_password))
+        .routes(routes!(auth_account_setup))
+        .routes(routes!(auth_account_totp_setup))
+        .routes(routes!(auth_account_totp_bind))
+        .routes(routes!(auth_account_update_access_scopes))
+        .routes(routes!(auth_account_update_subdomain_access))
+}
+
 #[derive(Clone)]
 struct AuthAccountRollbackSnapshot {
     accounts: Vec<AuthAccount>,
@@ -39,6 +65,13 @@ struct AuthAccountRollbackSnapshot {
     password: Option<AuthPasswordCredential>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/auth/mode",
+    tag = "auth",
+    operation_id = "get_api_admin_auth_mode",
+    responses((status = 200, description = "Authentication login mode status"))
+)]
 pub(super) async fn auth_login_mode_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_auth_mode_status(&state).await {
@@ -53,6 +86,14 @@ pub(super) async fn auth_login_mode_status(State(state): State<AppState>) -> Res
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/mode/preview",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_mode_preview",
+    request_body = AuthLoginModeBody,
+    responses((status = 200, description = "Authentication login mode switch preview"))
+)]
 pub(super) async fn auth_login_mode_preview(
     State(state): State<AppState>,
     Json(body): Json<AuthLoginModeBody>,
@@ -76,6 +117,14 @@ pub(super) async fn auth_login_mode_preview(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/mode/switch",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_mode_switch",
+    request_body = AuthLoginModeBody,
+    responses((status = 200, description = "Updated authentication login mode"))
+)]
 pub(super) async fn auth_login_mode_switch(
     State(state): State<AppState>,
     Json(body): Json<AuthLoginModeBody>,
@@ -104,6 +153,13 @@ pub(super) async fn auth_login_mode_switch(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/auth/accounts",
+    tag = "auth",
+    operation_id = "get_api_admin_auth_accounts",
+    responses((status = 200, description = "Authentication accounts"))
+)]
 pub(super) async fn auth_accounts_list(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_accounts_payload(&state).await {
@@ -118,6 +174,15 @@ pub(super) async fn auth_accounts_list(State(state): State<AppState>) -> Respons
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/auth/accounts/{id}",
+    tag = "auth",
+    operation_id = "patch_api_admin_auth_accounts_by_id",
+    request_body = AuthAccountPatchBody,
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Updated authentication account"))
+)]
 pub(super) async fn auth_account_update(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -204,6 +269,14 @@ pub(super) async fn auth_account_update(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/accounts",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_accounts",
+    request_body = AuthAccountCreateBody,
+    responses((status = 200, description = "Created authentication account"))
+)]
 pub(super) async fn auth_account_create(
     State(state): State<AppState>,
     Json(body): Json<AuthAccountCreateBody>,
@@ -277,8 +350,18 @@ pub(super) async fn auth_account_create(
             admin_control_text(&translator, "authAccounts.saveFailed"),
         );
     }
-    if let Err(error) = state.store.set_auth_password_credential(&record).await {
-        if let Err(rollback_error) = state.store.set_auth_accounts(&stored_accounts).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .set_auth_password_credential(&record)
+        .await
+    {
+        if let Err(rollback_error) = state
+            .storage
+            .store
+            .set_auth_accounts(&stored_accounts)
+            .await
+        {
             tracing::warn!(
                 %rollback_error,
                 account_id = %account.id,
@@ -303,6 +386,14 @@ pub(super) async fn auth_account_create(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/auth/accounts/{id}",
+    tag = "auth",
+    operation_id = "delete_api_admin_auth_accounts_by_id",
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Deleted authentication account"))
+)]
 pub(super) async fn auth_account_delete(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -327,6 +418,14 @@ pub(super) async fn auth_account_delete(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/accounts/{id}/totp/setup",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_accounts_by_id_totp_setup",
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Generated account TOTP setup secret"))
+)]
 pub(super) async fn auth_account_totp_setup(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -378,6 +477,15 @@ pub(super) async fn auth_account_totp_setup(
     .into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/accounts/{id}/totp/bind",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_accounts_by_id_totp_bind",
+    request_body = TotpBindBody,
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Bound account TOTP credential"))
+)]
 pub(super) async fn auth_account_totp_bind(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -401,7 +509,7 @@ pub(super) async fn auth_account_totp_bind(
         }
     }
 
-    let mut totps = match state.store.get_totps().await {
+    let mut totps = match state.storage.store.get_totps().await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, account_id = %id, "failed to load TOTP credentials before auth account TOTP bind");
@@ -450,7 +558,7 @@ pub(super) async fn auth_account_totp_bind(
         ),
     });
 
-    if let Err(error) = state.store.set_totps(&totps).await {
+    if let Err(error) = state.storage.store.set_totps(&totps).await {
         tracing::warn!(%error, account_id = %id, "failed to save auth account TOTP credential");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -459,7 +567,7 @@ pub(super) async fn auth_account_totp_bind(
     }
     if let Err(error) = persist_auth_accounts_projection(&state, &stored_accounts, &accounts).await
     {
-        let _ = state.store.delete_totp(&totp_id).await;
+        let _ = state.storage.store.delete_totp(&totp_id).await;
         tracing::warn!(%error, account_id = %id, "failed to save auth account after TOTP bind");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -482,6 +590,15 @@ pub(super) async fn auth_account_totp_bind(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/accounts/{id}/password",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_accounts_by_id_password",
+    request_body = AuthAccountPasswordBody,
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Updated authentication account password"))
+)]
 pub(super) async fn auth_account_set_password(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -547,7 +664,12 @@ pub(super) async fn auth_account_set_password(
             admin_control_text(&translator, "authAccounts.saveFailed"),
         );
     }
-    if let Err(error) = state.store.set_auth_password_credential(&record).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .set_auth_password_credential(&record)
+        .await
+    {
         rollback_auth_account_mutation(&state, &rollback, &id, "auth account password update")
             .await;
         tracing::warn!(%error, account_id = %id, "failed to save auth account password");
@@ -577,6 +699,15 @@ pub(super) async fn auth_account_set_password(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/auth/accounts/{id}/setup",
+    tag = "auth",
+    operation_id = "post_api_admin_auth_accounts_by_id_setup",
+    request_body = AuthAccountSetupBody,
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Updated authentication account setup"))
+)]
 pub(super) async fn auth_account_setup(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -675,7 +806,12 @@ pub(super) async fn auth_account_setup(
             admin_control_text(&translator, "authAccounts.syncFailed"),
         );
     }
-    if let Err(error) = state.store.set_auth_password_credential(&record).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .set_auth_password_credential(&record)
+        .await
+    {
         rollback_auth_account_mutation(&state, &rollback, &id, "auth account setup").await;
         tracing::warn!(%error, account_id = %id, "failed to save auth account setup password");
         return response::error(
@@ -703,6 +839,14 @@ pub(super) async fn auth_account_setup(
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/auth/accounts/{id}/access-scopes",
+    tag = "auth",
+    operation_id = "patch_api_admin_auth_accounts_by_id_access_scopes",
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Updated account access scopes"))
+)]
 pub(super) async fn auth_account_update_access_scopes(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -711,6 +855,14 @@ pub(super) async fn auth_account_update_access_scopes(
     update_account_permissions(&state, &id, Some(body.access_scopes), None).await
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/auth/accounts/{id}/subdomain-access",
+    tag = "auth",
+    operation_id = "patch_api_admin_auth_accounts_by_id_subdomain_access",
+    params(("id" = String, Path, description = "Authentication account identifier")),
+    responses((status = 200, description = "Updated account subdomain access"))
+)]
 pub(super) async fn auth_account_update_subdomain_access(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -726,7 +878,7 @@ async fn update_account_permissions(
     subdomain_access: Option<Value>,
 ) -> Response {
     let translator = Translator::from_state(state).await;
-    let mut account = match state.store.get_auth_account(id).await {
+    let mut account = match state.storage.store.get_auth_account(id).await {
         Ok(Some(account)) => account,
         Ok(None) => {
             return response::error(
@@ -742,7 +894,7 @@ async fn update_account_permissions(
             );
         }
     };
-    let stored_accounts = match state.store.get_auth_accounts().await {
+    let stored_accounts = match state.storage.store.get_auth_accounts().await {
         Ok(accounts) => accounts,
         Err(error) => {
             tracing::warn!(%error, account_id = %id, "failed to load auth accounts before permission update");
@@ -771,7 +923,7 @@ async fn update_account_permissions(
         subdomain_access_updated = true;
     }
     account.updated_at = time_utils::now_iso();
-    let saved = match state.store.save_auth_account(account.clone()).await {
+    let saved = match state.storage.store.save_auth_account(account.clone()).await {
         Ok(saved) => saved,
         Err(error) => {
             tracing::warn!(%error, account_id = %id, "failed to save auth account permission update");
@@ -900,9 +1052,9 @@ fn should_clear_auto_ip_grants_for_subdomain_update(
 }
 
 async fn build_auth_mode_status(state: &AppState) -> anyhow::Result<Value> {
-    let mode = state.store.get_auth_login_mode().await?;
-    let totps = state.store.get_totps().await?;
-    let stored_accounts = state.store.get_auth_accounts().await?;
+    let mode = state.storage.store.get_auth_login_mode().await?;
+    let totps = state.storage.store.get_totps().await?;
+    let stored_accounts = state.storage.store.get_auth_accounts().await?;
     let accounts = project_totps_to_accounts(&totps, &stored_accounts);
     let password_configured = count_configured_passwords(state, &accounts).await?;
     Ok(json!({
@@ -918,8 +1070,8 @@ async fn build_auth_mode_preview(
     state: &AppState,
     target_mode: AuthLoginMode,
 ) -> anyhow::Result<Value> {
-    let current_mode = state.store.get_auth_login_mode().await?;
-    let totps = state.store.get_totps().await?;
+    let current_mode = state.storage.store.get_auth_login_mode().await?;
+    let totps = state.storage.store.get_totps().await?;
     let (_, accounts) = projected_auth_accounts(state).await?;
     if target_mode == AuthLoginMode::Password {
         let projected = project_totps_to_accounts(&totps, &accounts);
@@ -989,6 +1141,7 @@ async fn switch_auth_login_mode(
         persist_auth_accounts_projection(state, &accounts, &projected).await?;
         destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
         state
+            .storage
             .store
             .set_auth_login_mode(AuthLoginMode::Password)
             .await?;
@@ -998,6 +1151,7 @@ async fn switch_auth_login_mode(
     } else {
         let (_, accounts) = projected_auth_accounts(state).await?;
         let totp_ids = state
+            .storage
             .store
             .get_totps()
             .await?
@@ -1012,7 +1166,11 @@ async fn switch_auth_login_mode(
         }
         apply_accounts_to_totps(state, &accounts).await?;
         destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
-        state.store.set_auth_login_mode(AuthLoginMode::Totp).await?;
+        state
+            .storage
+            .store
+            .set_auth_login_mode(AuthLoginMode::Totp)
+            .await?;
         destroy_sessions_for_disabled_auth_mode(state, target_mode).await?;
     }
     if let Err(error) = refresh_gateway_auth_runtime(state).await {
@@ -1076,6 +1234,7 @@ async fn delete_auth_account_and_linked_totp(state: &AppState, id: &str) -> anyh
     persist_auth_accounts_projection(state, &stored_accounts, &next_accounts).await?;
     for account_id in &remove_ids {
         state
+            .storage
             .store
             .delete_auth_password_credential(account_id)
             .await?;
@@ -1083,7 +1242,7 @@ async fn delete_auth_account_and_linked_totp(state: &AppState, id: &str) -> anyh
     }
 
     if !linked_totp_id.is_empty() {
-        let _ = state.store.delete_totp(&linked_totp_id).await?;
+        let _ = state.storage.store.delete_totp(&linked_totp_id).await?;
         auth_mobility::destroy_sessions_for_totp_credential(state, &linked_totp_id).await?;
         oidc_delete_bindings_by_totp(state, &linked_totp_id).await?;
         ldap_delete_bindings_by_totp(state, &linked_totp_id).await?;
@@ -1118,11 +1277,13 @@ fn account_ids_removed_by_account_delete(
 
 async fn account_payload(state: &AppState, account: &AuthAccount) -> anyhow::Result<Value> {
     let password_configured = state
+        .storage
         .store
         .get_auth_password_credential(&account.id)
         .await?
         .is_some();
     let source_totp = state
+        .storage
         .store
         .get_totps()
         .await?
@@ -1152,8 +1313,12 @@ async fn capture_auth_account_rollback(
 ) -> anyhow::Result<AuthAccountRollbackSnapshot> {
     Ok(AuthAccountRollbackSnapshot {
         accounts: accounts.to_vec(),
-        totps: state.store.get_totps().await?,
-        password: state.store.get_auth_password_credential(account_id).await?,
+        totps: state.storage.store.get_totps().await?,
+        password: state
+            .storage
+            .store
+            .get_auth_password_credential(account_id)
+            .await?,
     })
 }
 
@@ -1210,16 +1375,28 @@ async fn rollback_auth_account_mutation(
     account_id: &str,
     context: &'static str,
 ) {
-    if let Err(error) = state.store.set_auth_accounts(&snapshot.accounts).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .set_auth_accounts(&snapshot.accounts)
+        .await
+    {
         tracing::warn!(%error, %account_id, %context, "failed to roll back auth accounts");
     }
-    if let Err(error) = state.store.set_totps(&snapshot.totps).await {
+    if let Err(error) = state.storage.store.set_totps(&snapshot.totps).await {
         tracing::warn!(%error, %account_id, %context, "failed to roll back TOTP credentials");
     }
     let password_result = match snapshot.password.as_ref() {
-        Some(record) => state.store.set_auth_password_credential(record).await,
+        Some(record) => {
+            state
+                .storage
+                .store
+                .set_auth_password_credential(record)
+                .await
+        }
         None => {
             state
+                .storage
                 .store
                 .delete_auth_password_credential(account_id)
                 .await
@@ -1237,6 +1414,7 @@ async fn count_configured_passwords(
     let mut count = 0usize;
     for account in accounts {
         if state
+            .storage
             .store
             .get_auth_password_credential(&account.id)
             .await?
@@ -1255,8 +1433,8 @@ fn password_required_before_switch(account_count: usize, password_configured_cou
 pub(super) async fn projected_auth_accounts(
     state: &AppState,
 ) -> anyhow::Result<(Vec<AuthAccount>, Vec<AuthAccount>)> {
-    let totps = state.store.get_totps().await?;
-    let accounts = state.store.get_auth_accounts().await?;
+    let totps = state.storage.store.get_totps().await?;
+    let accounts = state.storage.store.get_auth_accounts().await?;
     let projected = project_totps_to_accounts(&totps, &accounts);
     Ok((accounts, projected))
 }
@@ -1267,7 +1445,7 @@ async fn persist_auth_accounts_projection(
     projected: &[AuthAccount],
 ) -> anyhow::Result<()> {
     if auth_accounts_need_store_update(current, projected) {
-        state.store.set_auth_accounts(projected).await?;
+        state.storage.store.set_auth_accounts(projected).await?;
     }
     let projected_ids = projected
         .iter()
@@ -1278,6 +1456,7 @@ async fn persist_auth_accounts_projection(
         .filter(|account| !projected_ids.contains(account.id.as_str()))
     {
         state
+            .storage
             .store
             .delete_auth_password_credential(&stale.id)
             .await?;
@@ -1436,7 +1615,7 @@ fn unique_auth_account_id(existing: &[AuthAccount]) -> String {
 }
 
 async fn account_has_usable_totp(state: &AppState, account: &AuthAccount) -> anyhow::Result<bool> {
-    let totps = state.store.get_totps().await?;
+    let totps = state.storage.store.get_totps().await?;
     Ok(account_has_usable_totp_in(&totps, account))
 }
 
@@ -1461,7 +1640,7 @@ fn unique_totp_id(existing: &[TotpCredential]) -> String {
 }
 
 async fn apply_accounts_to_totps(state: &AppState, accounts: &[AuthAccount]) -> anyhow::Result<()> {
-    let mut totps = state.store.get_totps().await?;
+    let mut totps = state.storage.store.get_totps().await?;
     let mut updated = false;
     for account in accounts {
         let Some(totp) = totps
@@ -1474,7 +1653,7 @@ async fn apply_accounts_to_totps(state: &AppState, accounts: &[AuthAccount]) -> 
         updated = true;
     }
     if updated {
-        state.store.set_totps(&totps).await?;
+        state.storage.store.set_totps(&totps).await?;
     }
     Ok(())
 }
@@ -1486,7 +1665,7 @@ async fn sync_account_to_source_totp(
     if account.source_totp_id.trim().is_empty() {
         return Ok(());
     }
-    let mut totps = state.store.get_totps().await?;
+    let mut totps = state.storage.store.get_totps().await?;
     let Some(totp) = totps
         .iter_mut()
         .find(|credential| credential.id == account.source_totp_id)
@@ -1494,7 +1673,7 @@ async fn sync_account_to_source_totp(
         return Ok(());
     };
     sync_totp_metadata_from_account(totp, account);
-    state.store.set_totps(&totps).await?;
+    state.storage.store.set_totps(&totps).await?;
     Ok(())
 }
 

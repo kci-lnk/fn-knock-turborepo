@@ -1,197 +1,65 @@
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
+
 import { apiClient } from "./client";
 
-export type WOLRelay = {
-  id: string;
-  name: string;
-  address: string;
-  port: number;
-  enabled: boolean;
-  keyVersion: number;
-  pskConfigured: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+type WolSchemas = ApiContractComponents["schemas"];
 
-export type WOLRelaySummary = Pick<
-  WOLRelay,
-  "id" | "name" | "address" | "port" | "enabled" | "pskConfigured"
->;
-
-export type WOLTarget = {
-  id: string;
-  name: string;
-  mac: string;
-  relayId: string | null;
-  broadcastAddress: string | null;
-  ipAddress: string | null;
-  deliveryMode: "local" | "relay";
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-  relay: WOLRelaySummary | null;
-  status: WOLTargetStatus;
-  integrations: WOLTargetIntegrations;
-};
-
-export type WOLIntegrationRuntimeState =
-  | "disabled"
-  | "credential_missing"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "error";
-
-export type WOLIntegrationRuntime = {
-  state: WOLIntegrationRuntimeState;
-  lastConnectedAt: string | null;
-  lastMessageAt: string | null;
-  lastError: string | null;
-};
-
-export type WOLTargetIntegrations = {
-  blinker: {
-    enabled: boolean;
-    bindComponent: boolean;
-    skipTlsVerify: boolean;
-    credentialConfigured: boolean;
-    runtime: WOLIntegrationRuntime;
-  };
-  bemfa: {
-    enabled: boolean;
-    topic: string;
-    skipTlsVerify: boolean;
-    credentialConfigured: boolean;
-    runtime: WOLIntegrationRuntime;
-  };
-};
-
+export type WOLRelay = WolSchemas["WolRelayData"];
+export type WOLRelaySummary = WolSchemas["WolRelaySummaryData"];
+export type WOLTarget = WolSchemas["WolTargetData"];
+export type WOLIntegrationRuntime =
+  WolSchemas["WolIntegrationRuntimeData"];
+export type WOLIntegrationRuntimeState = WOLIntegrationRuntime["state"];
+export type WOLTargetIntegrations =
+  WolSchemas["WolTargetIntegrationsData"];
+type WOLBlinkerIntegrationInput =
+  Omit<WolSchemas["WolBlinkerIntegrationInputData"], "deviceKey"> &
+    Required<
+      Pick<
+        WolSchemas["WolBlinkerIntegrationInputData"],
+        "bindComponent" | "skipTlsVerify"
+      >
+    > & { deviceKey?: string };
+type WOLBemfaIntegrationInput =
+  Omit<WolSchemas["WolBemfaIntegrationInputData"], "privateKey"> &
+    Required<
+      Pick<
+        WolSchemas["WolBemfaIntegrationInputData"],
+        "topic" | "skipTlsVerify"
+      >
+    > & { privateKey?: string };
 export type WOLTargetIntegrationInput = {
-  blinker: {
-    enabled: boolean;
-    deviceKey?: string;
-    bindComponent: boolean;
-    skipTlsVerify: boolean;
-  };
-  bemfa: {
-    enabled: boolean;
-    privateKey?: string;
-    topic: string;
-    skipTlsVerify: boolean;
-  };
+  blinker: WOLBlinkerIntegrationInput;
+  bemfa: WOLBemfaIntegrationInput;
 };
-
-export type WOLTargetStatus = {
-  state: "online" | "offline" | "unknown";
-  checkedAt: string | null;
-  lastOnlineAt: string | null;
-  observedIp: string | null;
-  lastError: string | null;
-};
-
-export type WOLRelayInput = Pick<
-  WOLRelay,
-  "name" | "address" | "port" | "enabled"
->;
-
-export type WOLTargetInput = Pick<
-  WOLTarget,
-  "name" | "mac" | "relayId" | "broadcastAddress" | "ipAddress" | "enabled"
-> & { integrations?: WOLTargetIntegrationInput };
-
-export type WOLBootstrap = {
-  pairingCode: string;
-};
-
-export type WOLRelayCredentialResult = {
-  relay: WOLRelay;
-  bootstrap: WOLBootstrap;
-};
-
-export type WOLDispatchResult = {
-  requestId: string;
-  relayId: string | null;
-  deliveryMode: "local" | "relay";
-  targetId?: string;
-  status: "ready" | "broadcasted";
-  attempts: number;
-  latencyMs: number;
-  acknowledgedAt: string;
-};
-
-export type WOLLocalRelayConfig = {
-  enabled: boolean;
-  relayId: string;
-  keyVersion: number;
-  listenAddress: string;
-  port: number;
-  broadcastDestinations: string[];
-  allowedSources: string[];
-  pskConfigured: boolean;
-  updatedAt: string;
-};
-
-export type WOLLocalRelayRuntime = {
-  enabled: boolean;
-  active: boolean;
-  listenAddress: string | null;
-  lastError: string | null;
-  updatedAt: string | null;
-};
-
-export type WOLLocalRelay = {
-  config: WOLLocalRelayConfig;
-  runtime: WOLLocalRelayRuntime;
-};
-
-export type WOLLocalRelayInput = Omit<
-  WOLLocalRelayConfig,
-  "pskConfigured" | "updatedAt"
-> & { psk?: string };
-
-export type WOLLocalNetwork = {
-  interfaceName: string;
-  address: string;
-  cidr: string;
-  scanCidr: string;
-  broadcastAddress: string;
-};
-
-export type WOLDiscoveredDevice = {
-  ip: string;
-  mac: string;
-  interfaceName: string;
-  broadcastAddress: string;
-};
-
-export type WOLDiscoveryResult = {
-  devices: WOLDiscoveredDevice[];
-  networks: WOLLocalNetwork[];
-  durationMs: number;
-  method: string;
-};
-
-export type WOLDiscoveryProgress = {
-  scannedHosts: number;
-  totalHosts: number;
-  foundDevices: number;
-  currentHost: string;
-};
-
-export type WOLDiscoveryJobState =
-  "queued" | "running" | "completed" | "cancelled" | "failed";
-
-export type WOLDiscoveryJobStatus = {
-  jobId: string;
-  state: WOLDiscoveryJobState;
-  createdAt: number;
-  updatedAt: number;
-  networks: WOLLocalNetwork[];
-  progress: WOLDiscoveryProgress;
-  devices: WOLDiscoveredDevice[];
-  nextCursor: number;
-  result: WOLDiscoveryResult | null;
-  error: string | null;
-};
+export type WOLTargetStatus = WolSchemas["WolTargetStatusData"];
+export type WOLRelayInput = WolSchemas["WolRelayInputData"] &
+  Required<Pick<WolSchemas["WolRelayInputData"], "port" | "enabled">>;
+export type WOLTargetInput = Omit<
+  WolSchemas["WolTargetInputData"],
+  "integrations"
+> &
+  Required<
+    Pick<
+      WolSchemas["WolTargetInputData"],
+      "relayId" | "broadcastAddress" | "ipAddress" | "enabled"
+    >
+  > & { integrations?: WOLTargetIntegrationInput };
+export type WOLBootstrap = WolSchemas["WolBootstrapData"];
+export type WOLRelayCredentialResult =
+  WolSchemas["WolRelayCredentialData"];
+export type WOLDispatchResult = WolSchemas["WolDispatchData"];
+export type WOLLocalRelayConfig = WolSchemas["WolLocalRelayConfigData"];
+export type WOLLocalRelayRuntime = WolSchemas["WolLocalRelayRuntimeData"];
+export type WOLLocalRelay = WolSchemas["WolLocalRelayData"];
+export type WOLLocalRelayInput = WolSchemas["WolLocalRelayInputData"] &
+  Required<Pick<WolSchemas["WolLocalRelayInputData"], "allowedSources">>;
+export type WOLLocalNetwork = WolSchemas["WolLocalNetworkData"];
+export type WOLDiscoveredDevice = WolSchemas["WolDiscoveredDeviceData"];
+export type WOLDiscoveryResult = WolSchemas["WolDiscoveryResultData"];
+export type WOLDiscoveryProgress = WolSchemas["WolDiscoveryProgressData"];
+export type WOLDiscoveryJobStatus = WolSchemas["WolDiscoveryJobData"];
+export type WOLDiscoveryJobState = WOLDiscoveryJobStatus["state"];
 
 export type WOLDiscoveryPollEvent =
   | { type: "meta"; data: WOLDiscoveryJobStatus }
@@ -234,7 +102,10 @@ const waitForDiscoveryPoll = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 
-type WOLList<T> = { total: number; items: T[] };
+type WOLRelayList = WolSchemas["WolRelayListData"];
+type WOLTargetList = WolSchemas["WolTargetListData"];
+type WOLLocalRelayPairBody = WolSchemas["WolLocalRelayPairBodyData"];
+type WOLDiscoveryBody = WolSchemas["WolDiscoveryBodyData"];
 
 export const WOLAPI = {
   async getLocalRelay(): Promise<WOLLocalRelay> {
@@ -246,12 +117,13 @@ export const WOLAPI = {
     return response.data.data;
   },
   async pairLocalRelay(pairingCode: string): Promise<WOLLocalRelay> {
-    const response = await apiClient.post("/wol/local-relay/pair", {
+    const payload: WOLLocalRelayPairBody = {
       pairingCode,
-    });
+    };
+    const response = await apiClient.post("/wol/local-relay/pair", payload);
     return response.data.data;
   },
-  async listRelays(): Promise<WOLList<WOLRelay>> {
+  async listRelays(): Promise<WOLRelayList> {
     const response = await apiClient.get("/wol/relays");
     return response.data.data;
   },
@@ -281,7 +153,7 @@ export const WOLAPI = {
     );
     return response.data.data;
   },
-  async listTargets(): Promise<WOLList<WOLTarget>> {
+  async listTargets(): Promise<WOLTargetList> {
     const response = await apiClient.get("/wol/targets");
     return response.data.data;
   },
@@ -296,9 +168,10 @@ export const WOLAPI = {
     targetCidrs: string[],
     signal?: AbortSignal,
   ): Promise<WOLDiscoveryJobStatus> {
+    const payload: WOLDiscoveryBody = { targetCidrs };
     const response = await apiClient.post(
       "/wol/discover/jobs",
-      { targetCidrs },
+      payload,
       { signal },
     );
     return response.data.data;
@@ -314,8 +187,11 @@ export const WOLAPI = {
     );
     return response.data.data;
   },
-  async cancelDiscoveryJob(jobId: string): Promise<void> {
-    await apiClient.delete(`/wol/discover/jobs/${encodeURIComponent(jobId)}`);
+  async cancelDiscoveryJob(jobId: string): Promise<WOLDiscoveryJobStatus> {
+    const response = await apiClient.delete(
+      `/wol/discover/jobs/${encodeURIComponent(jobId)}`,
+    );
+    return response.data.data;
   },
   async discoverLocalDevices(
     targetCidrs: string[],

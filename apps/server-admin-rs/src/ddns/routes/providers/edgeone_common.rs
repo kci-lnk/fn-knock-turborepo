@@ -169,6 +169,7 @@ async fn read_edgeone_overseas_access_state(
     provider_name: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
     Ok(state
+        .storage
         .store
         .get_json_value(&edgeone_overseas_access_state_key(provider_name))
         .await?
@@ -190,6 +191,7 @@ async fn write_edgeone_overseas_access_state(
     value: Value,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .set_json_value(&edgeone_overseas_access_state_key(provider_name), &value)
         .await

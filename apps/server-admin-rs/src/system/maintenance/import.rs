@@ -113,7 +113,7 @@ pub(super) async fn import_backup_archive_buffer(
     }
 
     let mut payload = {
-        let _archive_work_guard = state.backup_archive_work_lock.lock().await;
+        let _archive_work_guard = state.maintenance.backup_archive_work_lock.lock().await;
         extract_backup_payload_from_archive(buffer).await?
     };
     let elapsed_ms = payload
@@ -146,14 +146,14 @@ pub(super) async fn import_backup_archive_buffer(
     // Automatic backup settings describe this installation rather than the
     // imported snapshot. Preserve them inside the same atomic prefix
     // replacement so a restore cannot silently disable the scheduler.
-    let _automatic_backup_guard = state.automatic_backup_lock.lock().await;
+    let _automatic_backup_guard = state.maintenance.automatic_backup_lock.lock().await;
     importable_entries.extend(preserved_automatic_backup_entries(state).await?);
 
     // Backup replacement clears the complete fn_knock: prefix. Serialize it
     // with Host Mapping config/runtime updates using a lease whose own key is
     // deliberately outside that prefix, and retain it until runtime sync has
     // consumed the restored config.
-    let _host_mappings_guard = state.host_mappings_update_lock.lock().await;
+    let _host_mappings_guard = state.gateway.host_mappings_update_lock.lock().await;
     let host_mappings_lease = proxy_config::acquire_host_mappings_transaction_lease(state)
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?
@@ -167,6 +167,7 @@ pub(super) async fn import_backup_archive_buffer(
 
     let previous_snapshot_at_ms = time_utils::now_ms();
     let previous_entries = state
+        .storage
         .store
         .export_backup_entries_by_prefix_limited(
             KNOCK_BACKUP_PREFIX,
@@ -179,6 +180,7 @@ pub(super) async fn import_backup_archive_buffer(
         backup_config_from_entries(&previous_entries).unwrap_or_else(|| json!({}));
 
     let cleared_keys = state
+        .storage
         .store
         .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &importable_entries, SCAN_COUNT)
         .await
@@ -272,6 +274,7 @@ async fn rollback_backup_import_storage(
     let elapsed_ms = time_utils::now_ms().saturating_sub(snapshot_at_ms).max(0);
     let previous_entries = age_backup_entries(previous_entries.to_vec(), elapsed_ms);
     let rollback_result = state
+        .storage
         .store
         .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &previous_entries, SCAN_COUNT)
         .await;

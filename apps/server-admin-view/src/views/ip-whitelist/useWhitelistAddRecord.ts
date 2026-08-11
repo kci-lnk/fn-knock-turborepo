@@ -134,7 +134,7 @@ export function useWhitelistAddRecord({
 
         if (!response.success || !response.data) {
           toast.error(translate("admin.ipWhitelist.addFailed"), {
-            description: response.message,
+            description: response.message ?? undefined,
           });
           return;
         }
@@ -183,7 +183,7 @@ export function useWhitelistAddRecord({
       });
       if (!response.success) {
         toast.error(translate("admin.ipWhitelist.addFailed"), {
-          description: response.message,
+          description: response.message ?? undefined,
         });
         return;
       }

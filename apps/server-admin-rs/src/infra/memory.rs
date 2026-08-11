@@ -19,11 +19,9 @@ pub(crate) fn trim_allocated_memory() -> bool {
     }
 }
 
-pub(crate) fn trim_allocated_memory_after(delay: Duration) {
-    tokio::spawn(async move {
-        tokio::time::sleep(delay).await;
-        if trim_allocated_memory() {
-            tracing::debug!("trimmed allocator memory after startup");
-        }
-    });
+pub(crate) async fn trim_allocated_memory_after(delay: Duration) {
+    tokio::time::sleep(delay).await;
+    if trim_allocated_memory() {
+        tracing::debug!("trimmed allocator memory after startup");
+    }
 }

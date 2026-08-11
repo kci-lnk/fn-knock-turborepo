@@ -1,68 +1,14 @@
-export type SystemEventType =
-  | "FN_EVENT_AUTH_LOGIN_SUCCESS"
-  | "FN_EVENT_AUTH_LOGOUT"
-  | "FN_EVENT_AUTH_LOGIN_FAILURE"
-  | "FN_EVENT_AUTH_SESSION_IP_DRIFT"
-  | "FN_EVENT_SECURITY_SCANNER_BLOCKED"
-  | "FN_EVENT_DDNS_UPDATE_COMPLETED"
-  | "FN_EVENT_WOL_WAKE_COMPLETED"
-  | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
-  | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
-  | "FN_EVENT_WAF_BLOCKED"
-  | "FN_EVENT_SSH_LOGIN_SUCCESS"
-  | "FN_EVENT_SSH_LOGIN_FAILURE"
-  | "FN_EVENT_SSH_IP_BLOCKED"
-  | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE"
-  | "FN_EVENT_SYSTEM_CPU_ALERT"
-  | "FN_EVENT_SYSTEM_CPU_RECOVERED"
-  | "FN_EVENT_SYSTEM_MEMORY_ALERT"
-  | "FN_EVENT_SYSTEM_MEMORY_RECOVERED"
-  | "FN_EVENT_TUNNEL_FRP_CONNECTED"
-  | "FN_EVENT_TUNNEL_FRP_DISCONNECTED"
-  | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED"
-  | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED"
-  | "FN_EVENT_RUNTIME_STARTED"
-  | "FN_EVENT_RUNTIME_STOPPED"
-  | "FN_EVENT_RUNTIME_RESTARTED"
-  | "FN_EVENT_RUNTIME_HEALTH_FAILED"
-  | "FN_EVENT_RUNTIME_RECOVERED"
-  | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
 
-export type SystemEventLevel = "INFO" | "WARN" | "ERROR" | "CRITICAL";
+type SystemEventSchemas = ApiContractComponents["schemas"];
 
-export type SystemEventSource =
-  "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
-
-export type SystemEventSubjectKind =
-  | "IP"
-  | "SESSION"
-  | "DDNS"
-  | "RESOURCE"
-  | "APPLICATION"
-  | "TUNNEL"
-  | "COMPONENT";
-
-export interface SystemEventSubject {
-  kind: SystemEventSubjectKind;
-  id: string;
-}
-
-export interface SystemEventRecord {
-  id: string;
-  type: SystemEventType;
-  source: SystemEventSource;
-  level: SystemEventLevel;
-  happened_at: string;
-  dedupe_key?: string;
-  subject?: SystemEventSubject;
-  tags?: string[];
-  payload: Record<string, unknown>;
-}
-
-export interface SystemEventListPayload {
-  events: SystemEventRecord[];
-  total: number;
-}
+export type SystemEventRecord = SystemEventSchemas["SystemEventData"];
+export type SystemEventListPayload = SystemEventSchemas["SystemEventListData"];
+export type SystemEventType = SystemEventRecord["type"];
+export type SystemEventLevel = SystemEventRecord["level"];
+export type SystemEventSource = SystemEventRecord["source"];
+export type SystemEventSubject = SystemEventSchemas["SystemEventSubjectData"];
+export type SystemEventSubjectKind = SystemEventSubject["kind"];
 
 export type NotificationProviderType =
   | "wxpusher"

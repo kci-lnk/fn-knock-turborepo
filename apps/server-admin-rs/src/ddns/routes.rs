@@ -26,6 +26,7 @@ use interface_selector::*;
 use providers::*;
 use public_check::*;
 use route_actions::*;
+use route_actions::{__path_clear_logs, __path_poll};
 use settings::*;
 use store::*;
 use target::*;
@@ -39,7 +40,6 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use get_if_addrs::{IfAddr, get_if_addrs};
@@ -49,6 +49,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time as tokio_time;
 use tokio::{net::lookup_host, task::JoinSet};
 use url::Url;
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
 use crate::{http_body, i18n::Translator, response, state::AppState, system_events, time_utils};
@@ -202,49 +203,38 @@ struct DDNSProviderUpdateResult {
 }
 
 pub fn ddns_status_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/ddns/status", get(get_status))
-        .route("/api/admin/ddns/toggle", post(toggle))
-        .route("/api/admin/ddns/providers", get(get_providers))
-        .route(
-            "/api/admin/ddns/settings",
-            get(get_settings).post(update_settings),
-        )
-        .route(
-            "/api/admin/ddns/public-check/test",
-            post(test_public_check_sources),
-        )
-        .route("/api/admin/ddns/interfaces", get(get_interfaces))
-        .route(
-            "/api/admin/ddns/interfaces/resolve",
-            post(resolve_interface_selector_preview),
-        )
-        .route("/api/admin/ddns/provider", post(set_provider))
-        .route(
-            "/api/admin/ddns/config/{provider}",
-            get(get_config).post(save_config),
-        )
-        .route(
-            "/api/admin/ddns/targets",
-            get(get_targets).post(create_target),
-        )
-        .route(
-            "/api/admin/ddns/targets/{id}",
-            get(get_target).put(update_target).delete(delete_target),
-        )
-        .route(
-            "/api/admin/ddns/targets/{id}/enabled",
-            post(set_target_enabled),
-        )
-        .route("/api/admin/ddns/test", post(test_primary_target))
-        .route("/api/admin/ddns/targets/{id}/test", post(test_target))
-        .route("/api/admin/ddns/logs", get(get_logs).delete(clear_logs))
-        .route("/api/admin/ddns/poll", get(poll))
+    ddns_openapi_routes().into()
+}
+
+pub(crate) fn ddns_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_status))
+        .routes(routes!(toggle))
+        .routes(routes!(get_providers))
+        .routes(routes!(get_settings))
+        .routes(routes!(update_settings))
+        .routes(routes!(test_public_check_sources))
+        .routes(routes!(get_interfaces))
+        .routes(routes!(resolve_interface_selector_preview))
+        .routes(routes!(set_provider))
+        .routes(routes!(get_config))
+        .routes(routes!(save_config))
+        .routes(routes!(get_targets))
+        .routes(routes!(create_target))
+        .routes(routes!(get_target))
+        .routes(routes!(update_target))
+        .routes(routes!(delete_target))
+        .routes(routes!(set_target_enabled))
+        .routes(routes!(test_primary_target))
+        .routes(routes!(test_target))
+        .routes(routes!(get_logs))
+        .routes(routes!(clear_logs))
+        .routes(routes!(poll))
 }
 
 pub fn start_ddns_tasks(state: AppState) {
     let startup_state = state.clone();
-    tokio::spawn(async move {
+    state.spawn_background("ddns-startup-check", async move {
         tokio::select! {
             _ = startup_state.shutdown.cancelled() => return,
             _ = tokio_time::sleep(Duration::from_secs(DDNS_STARTUP_CHECK_DELAY_SECONDS)) => {}
@@ -259,11 +249,12 @@ pub fn start_ddns_tasks(state: AppState) {
         }
     });
 
-    tokio::spawn(async move {
+    let scheduler_state = state.clone();
+    state.spawn_background("ddns-scheduler", async move {
         loop {
             let interval_result = tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = ddns_update_interval_minutes(&state) => result,
+                _ = scheduler_state.shutdown.cancelled() => break,
+                result = ddns_update_interval_minutes(&scheduler_state) => result,
             };
             let interval_minutes = match interval_result {
                 Ok(value) => value,
@@ -273,15 +264,15 @@ pub fn start_ddns_tasks(state: AppState) {
                 }
             };
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = scheduler_state.shutdown.cancelled() => break,
                 _ = tokio_time::sleep(Duration::from_secs((interval_minutes.max(1) as u64) * 60)) => {}
-                _ = state.ddns_schedule_reload.notified() => {
+                _ = scheduler_state.ddns_schedule_reload.notified() => {
                     continue;
                 }
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = run_automatic_ddns_check(&state, "cron", true, false) => {
+                _ = scheduler_state.shutdown.cancelled() => break,
+                result = run_automatic_ddns_check(&scheduler_state, "cron", true, false) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "DDNS scheduled check failed");
                     }
@@ -295,6 +286,7 @@ pub(super) fn reload_ddns_schedule(state: &AppState) {
     state.ddns_schedule_reload.notify_one();
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/status", tag = "ddns", operation_id = "get_api_admin_ddns_status", responses((status = 200, description = "DDNS status")))]
 async fn get_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_ddns_status(&state, &translator).await {
@@ -309,9 +301,10 @@ async fn get_status(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/toggle", tag = "ddns", operation_id = "post_api_admin_ddns_toggle", responses((status = 200, description = "Updated DDNS enabled state")))]
 async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let was_enabled = match state.store.get_string_value(DDNS_ENABLED).await {
+    let was_enabled = match state.storage.store.get_string_value(DDNS_ENABLED).await {
         Ok(value) => value.as_deref() == Some("true"),
         Err(error) => {
             tracing::warn!(%error, "failed to read DDNS enabled state");
@@ -322,6 +315,7 @@ async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> 
         }
     };
     match state
+        .storage
         .store
         .set_string_value(DDNS_ENABLED, if body.enabled { "true" } else { "false" })
         .await
@@ -329,7 +323,7 @@ async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> 
         Ok(()) => {
             if body.enabled && !was_enabled {
                 let run_state = state.clone();
-                tokio::spawn(async move {
+                state.spawn_background("ddns-enable-check", async move {
                     tokio::select! {
                         _ = run_state.shutdown.cancelled() => {}
                         result = run_automatic_ddns_check(&run_state, "enable", true, false) => {
@@ -352,14 +346,16 @@ async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> 
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/providers", tag = "ddns", operation_id = "get_api_admin_ddns_providers", responses((status = 200, description = "DDNS providers")))]
 async fn get_providers(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(provider_catalog(&translator)).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/settings", tag = "ddns", operation_id = "get_api_admin_ddns_settings", responses((status = 200, description = "DDNS settings")))]
 async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_string_value(DDNS_SETTINGS).await {
+    match state.storage.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => response::ok(parse_settings(raw.as_deref())).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to load DDNS settings");
@@ -371,12 +367,13 @@ async fn get_settings(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/settings", tag = "ddns", operation_id = "post_api_admin_ddns_settings", responses((status = 200, description = "Updated DDNS settings")))]
 async fn update_settings(
     State(state): State<AppState>,
     Json(body): Json<SettingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let current = match state.store.get_string_value(DDNS_SETTINGS).await {
+    let current = match state.storage.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => parse_settings(raw.as_deref()),
         Err(error) => {
             tracing::warn!(%error, "failed to load current DDNS settings");
@@ -433,6 +430,7 @@ async fn update_settings(
     });
     let serialized = serde_json::to_string(&stored).unwrap_or_default();
     match state
+        .storage
         .store
         .set_string_value(DDNS_SETTINGS, &serialized)
         .await
@@ -456,6 +454,7 @@ async fn update_settings(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/public-check/test", tag = "ddns", operation_id = "post_api_admin_ddns_public_check_test", responses((status = 200, description = "DDNS public IP source test results")))]
 async fn test_public_check_sources(
     State(state): State<AppState>,
     Json(body): Json<PublicCheckTestBody>,
@@ -486,7 +485,7 @@ async fn test_public_check_sources(
         Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
     };
     let stored_settings = if body.http_transport.is_none() || body.public_dns_provider.is_none() {
-        match state.store.get_string_value(DDNS_SETTINGS).await {
+        match state.storage.store.get_string_value(DDNS_SETTINGS).await {
             Ok(raw) => Some(parse_settings(raw.as_deref())),
             Err(error) => {
                 tracing::warn!(%error, "failed to load DDNS settings for public check test");
@@ -544,10 +543,12 @@ async fn test_public_check_sources(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/interfaces", tag = "ddns", operation_id = "get_api_admin_ddns_interfaces", responses((status = 200, description = "DDNS network interfaces")))]
 async fn get_interfaces() -> Response {
     response::ok(list_ddns_network_interfaces()).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/interfaces/resolve", tag = "ddns", operation_id = "post_api_admin_ddns_interfaces_resolve", responses((status = 200, description = "DDNS interface selector preview")))]
 async fn resolve_interface_selector_preview(
     State(state): State<AppState>,
     Json(body): Json<InterfaceSelectorPreviewBody>,
@@ -612,6 +613,7 @@ async fn resolve_interface_selector_preview(
     .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/provider", tag = "ddns", operation_id = "post_api_admin_ddns_provider", responses((status = 200, description = "Updated primary DDNS provider")))]
 async fn set_provider(State(state): State<AppState>, Json(body): Json<ProviderBody>) -> Response {
     match set_primary_provider(&state, &body.provider).await {
         Ok(()) => response::success_empty().into_response(),
@@ -619,6 +621,7 @@ async fn set_provider(State(state): State<AppState>, Json(body): Json<ProviderBo
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/config/{provider}", tag = "ddns", operation_id = "get_api_admin_ddns_config_provider", responses((status = 200, description = "DDNS provider configuration")))]
 async fn get_config(State(state): State<AppState>, Path(provider): Path<String>) -> Response {
     match primary_target(&state).await {
         Ok(primary) if primary.meta.provider.as_deref() == Some(provider.as_str()) => {
@@ -629,6 +632,7 @@ async fn get_config(State(state): State<AppState>, Path(provider): Path<String>)
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/config/{provider}", tag = "ddns", operation_id = "post_api_admin_ddns_config_provider", responses((status = 200, description = "Saved DDNS provider configuration")))]
 async fn save_config(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -640,6 +644,7 @@ async fn save_config(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/targets", tag = "ddns", operation_id = "get_api_admin_ddns_targets", responses((status = 200, description = "DDNS targets")))]
 async fn get_targets(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match targets_overview(&state, &translator).await {
@@ -648,6 +653,7 @@ async fn get_targets(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/targets/{id}", tag = "ddns", operation_id = "get_api_admin_ddns_targets_id", responses((status = 200, description = "DDNS target")))]
 async fn get_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match target_detail(&state, &id, &translator).await {
@@ -660,6 +666,7 @@ async fn get_target(State(state): State<AppState>, Path(id): Path<String>) -> Re
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/targets", tag = "ddns", operation_id = "post_api_admin_ddns_targets", responses((status = 200, description = "Created DDNS target")))]
 async fn create_target(State(state): State<AppState>, Json(body): Json<TargetBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     match create_ddns_target(&state, body, &translator).await {
@@ -668,6 +675,7 @@ async fn create_target(State(state): State<AppState>, Json(body): Json<TargetBod
     }
 }
 
+#[utoipa::path(put, path = "/api/admin/ddns/targets/{id}", tag = "ddns", operation_id = "put_api_admin_ddns_targets_id", responses((status = 200, description = "Updated DDNS target")))]
 async fn update_target(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -680,6 +688,7 @@ async fn update_target(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ddns/targets/{id}", tag = "ddns", operation_id = "delete_api_admin_ddns_targets_id", responses((status = 200, description = "Deleted DDNS target")))]
 async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match delete_ddns_target(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
@@ -687,6 +696,7 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/targets/{id}/enabled", tag = "ddns", operation_id = "post_api_admin_ddns_targets_id_enabled", responses((status = 200, description = "Updated DDNS target enabled state")))]
 async fn set_target_enabled(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -698,6 +708,7 @@ async fn set_target_enabled(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/test", tag = "ddns", operation_id = "post_api_admin_ddns_test", responses((status = 200, description = "DDNS primary target test result")))]
 async fn test_primary_target(State(state): State<AppState>) -> Response {
     match primary_target(&state).await {
         Ok(target) => manual_test_target(&state, &target.meta.id).await,
@@ -705,13 +716,16 @@ async fn test_primary_target(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ddns/targets/{id}/test", tag = "ddns", operation_id = "post_api_admin_ddns_targets_id_test", responses((status = 200, description = "DDNS target test result")))]
 async fn test_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     manual_test_target(&state, &id).await
 }
 
+#[utoipa::path(get, path = "/api/admin/ddns/logs", tag = "ddns", operation_id = "get_api_admin_ddns_logs", responses((status = 200, description = "DDNS logs")))]
 async fn get_logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
+        .storage
         .store
         .list_log_buffer(
             DDNS_LOGS,
@@ -759,7 +773,7 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
         tracing::warn!(%error, "failed to append DDNS manual test start log");
     }
 
-    let settings = match state.store.get_string_value(DDNS_SETTINGS).await {
+    let settings = match state.storage.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => parse_settings(raw.as_deref()),
         Err(error) => {
             tracing::warn!(%error, "failed to load DDNS settings for manual test");

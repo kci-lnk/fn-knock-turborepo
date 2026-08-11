@@ -176,11 +176,6 @@ pub(super) async fn delete_provider_value(state: &AppState, id: &str) -> NotifyR
             &[("rule", rule_name)],
         )));
     }
-    let key = provider_key(id);
-    state.store.delete_keys(&[key]).await?;
-    state
-        .store
-        .zrem_string_member(PROVIDERS_INDEX_KEY, id)
-        .await?;
+    state.storage.store.delete_notification_provider(id).await?;
     Ok(())
 }

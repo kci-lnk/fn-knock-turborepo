@@ -12,12 +12,31 @@ pub(crate) struct LdapBindingClaim<'a> {
     pub score: i64,
 }
 
-pub(crate) struct LdapBindingUpdate<'a> {
+pub(crate) struct OwnedBindingUpdate<'a> {
     pub subject_key: &'a str,
     pub binding_key: &'a str,
     pub bindings_index_key: &'a str,
     pub binding_id: &'a str,
     pub binding: &'a Value,
+    pub score: i64,
+}
+
+pub(crate) struct OwnedBindingDelete<'a> {
+    pub subject_key: &'a str,
+    pub binding_key: &'a str,
+    pub bindings_index_key: &'a str,
+    pub binding_id: &'a str,
+}
+
+pub(crate) struct OidcBindingClaim<'a> {
+    pub invite_key: &'a str,
+    pub subject_key: &'a str,
+    pub binding_key: &'a str,
+    pub bindings_index_key: &'a str,
+    pub binding_id: &'a str,
+    pub binding: &'a Value,
+    pub provider_id: &'a str,
+    pub totp_id: &'a str,
     pub score: i64,
 }
 
@@ -43,8 +62,16 @@ async fn load_config_fence_snapshot(
         ])
         .query_async(conn)
         .await?;
-    let config_raw = values.first().cloned().flatten();
-    let generation_raw = values.get(1).cloned().flatten();
+    config_fence_snapshot_from_raw(
+        values.first().cloned().flatten(),
+        values.get(1).cloned().flatten(),
+    )
+}
+
+fn config_fence_snapshot_from_raw(
+    config_raw: Option<String>,
+    generation_raw: Option<String>,
+) -> crate::storage::StorageResult<ConfigFenceSnapshot> {
     let config = match config_raw.as_deref() {
         Some(raw) => serde_json::from_str(raw)?,
         None => default_config(),
@@ -67,11 +94,11 @@ async fn compare_and_set_config_fence_snapshot(
     snapshot: &ConfigFenceSnapshot,
     replacement_raw: &str,
     replacement_generation: u64,
-) -> crate::storage::StorageResult<bool> {
+) -> crate::storage::StorageResult<Option<u64>> {
     let applied: i64 = redis::cmd("EVAL")
         .arg(
             r#"
--- fn-knock:eval:cas-config-host-generation-raw:v1
+-- fn-knock:eval:cas-config-host-generation-raw:v3
 local current_config = redis.call("GET", KEYS[1])
 local current_generation = redis.call("GET", KEYS[2])
 local function raw_matches(current, expected_exists, expected)
@@ -108,7 +135,14 @@ return 1
         .arg(replacement_generation.to_string())
         .query_async(conn)
         .await?;
-    Ok(applied == 1)
+    if applied == 0 {
+        return Ok(None);
+    }
+    let revision = u64::try_from(applied)
+        .ok()
+        .filter(|revision| *revision > 0)
+        .ok_or_else(|| crate::storage::storage_error("typed config revision is invalid"))?;
+    Ok(Some(revision))
 }
 
 fn config_host_mappings(config: &Value) -> Value {
@@ -210,12 +244,125 @@ fn inject_config_generation_marker(
 }
 
 impl Store {
+    async fn verify_fnos_share_shadow_key(&self, key: &str) -> crate::storage::StorageResult<()> {
+        if !crate::storage::typed_fnos_share::owns_key(key) {
+            return Ok(());
+        }
+        let matched = self.typed_fnos_share.verify_and_repair_key(key).await?;
+        if matched {
+            if !self
+                .typed_fnos_share_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed fnOS share runtime comparison recovered");
+            }
+            return Ok(());
+        }
+        self.typed_fnos_share_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_fnos_share_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed fnOS share shadow differed from the compatibility capability and was repaired"
+        );
+        Ok(())
+    }
+
+    async fn verify_subdomain_grant_shadow_key(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<()> {
+        if !crate::storage::typed_subdomain_grant::owns_key(key) {
+            return Ok(());
+        }
+        let matched = self
+            .typed_subdomain_grant
+            .verify_and_repair_key(key)
+            .await?;
+        if matched {
+            if !self
+                .typed_subdomain_grant_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed subdomain grant aggregate comparison recovered");
+            }
+            return Ok(());
+        }
+        self.typed_subdomain_grant_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_subdomain_grant_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed subdomain grant shadow differed from the compatibility aggregate and was repaired"
+        );
+        Ok(())
+    }
+
+    async fn verify_whitelist_runtime_shadow_key(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<()> {
+        if !crate::storage::typed_whitelist_runtime::owns_key(key) {
+            return Ok(());
+        }
+        let matched = self
+            .typed_whitelist_runtime
+            .verify_and_repair_key(key)
+            .await?;
+        if matched {
+            if !self
+                .typed_whitelist_runtime_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed whitelist owner runtime comparison recovered");
+            }
+            return Ok(());
+        }
+        self.typed_whitelist_runtime_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_whitelist_runtime_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed whitelist owner runtime differed from compatibility state and was repaired"
+        );
+        Ok(())
+    }
+
+    pub(crate) async fn verify_identity_runtime_shadow(
+        &self,
+        protocol: &str,
+    ) -> crate::storage::StorageResult<()> {
+        let matched = self
+            .typed_identity_runtime
+            .verify_and_repair_protocol(protocol)
+            .await?;
+        if matched {
+            if !self
+                .typed_identity_runtime_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!(protocol, "typed identity runtime comparison recovered");
+            }
+            return Ok(());
+        }
+        self.typed_identity_runtime_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_identity_runtime_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            protocol,
+            "typed identity runtime shadow differed from compatibility state and was repaired"
+        );
+        Ok(())
+    }
+
     pub async fn ping(&self) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         redis::cmd("PING").query_async(&mut conn).await
     }
 
     pub async fn get_json_value(&self, key: &str) -> crate::storage::StorageResult<Option<Value>> {
+        self.verify_fnos_share_shadow_key(key).await?;
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(key).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
@@ -225,6 +372,8 @@ impl Store {
         &self,
         key: &str,
     ) -> crate::storage::StorageResult<Option<String>> {
+        self.verify_subdomain_grant_shadow_key(key).await?;
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         conn.get(key).await
     }
@@ -235,6 +384,7 @@ impl Store {
         value: &str,
         ttl_seconds: Option<i64>,
     ) -> crate::storage::StorageResult<()> {
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         if let Some(ttl_seconds) = ttl_seconds.filter(|value| *value > 0) {
             let _: () = conn.set_ex(key, value, ttl_seconds as u64).await?;
@@ -265,6 +415,13 @@ impl Store {
         key: &str,
         ttl_seconds: i64,
     ) -> crate::storage::StorageResult<i64> {
+        if key.starts_with(crate::storage::typed_subdomain_rate_limit::RATE_LIMIT_PREFIX) {
+            let matched = self
+                .typed_subdomain_rate_limit
+                .verify_and_repair(key)
+                .await?;
+            self.observe_subdomain_rate_limit_shadow_comparison(matched);
+        }
         let mut conn = self.conn();
         let script = r#"
 -- fn-knock:eval:increment-counter-with-ttl:v1
@@ -283,6 +440,25 @@ return count
             .await
     }
 
+    fn observe_subdomain_rate_limit_shadow_comparison(&self, matched: bool) {
+        if matched {
+            if !self
+                .typed_subdomain_rate_limit_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed subdomain rate-limit shadow comparison recovered");
+            }
+            return;
+        }
+        self.typed_subdomain_rate_limit_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_subdomain_rate_limit_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed subdomain rate-limit shadow differed from the compatibility counter and was repaired"
+        );
+    }
+
     /// Store an expiring string and track it in a sorted-set expiry index,
     /// refusing new members once the live index reaches `limit`.
     ///
@@ -299,6 +475,8 @@ return count
         expires_at_score: i64,
         limit: i64,
     ) -> crate::storage::StorageResult<bool> {
+        self.verify_subdomain_grant_shadow_key(data_key).await?;
+        self.verify_subdomain_grant_shadow_key(index_key).await?;
         let mut conn = self.conn();
         let script = r#"
 -- fn-knock:eval:set-expiring-string-with-zset-limit:v1
@@ -342,6 +520,14 @@ return 1
         value: &str,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
+        self.verify_fnos_share_shadow_key(key).await?;
+        if let Some(target_id) = key
+            .strip_prefix(crate::storage::typed_wol_cooldown::COOLDOWN_PREFIX)
+            .filter(|target_id| !target_id.is_empty())
+        {
+            let matched = self.typed_wol_cooldown.verify_and_repair(target_id).await?;
+            self.observe_wol_cooldown_shadow_comparison(matched);
+        }
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(key)
@@ -354,11 +540,32 @@ return 1
         Ok(result.as_deref() == Some("OK"))
     }
 
+    fn observe_wol_cooldown_shadow_comparison(&self, matched: bool) {
+        if matched {
+            if !self
+                .typed_wol_cooldown_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed WOL cooldown shadow comparison recovered");
+            }
+            return;
+        }
+        self.typed_wol_cooldown_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_wol_cooldown_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed WOL cooldown shadow differed from the compatibility guard and was repaired"
+        );
+    }
+
     pub async fn delete_key_if_value(
         &self,
         key: &str,
         value: &str,
     ) -> crate::storage::StorageResult<()> {
+        self.verify_fnos_share_shadow_key(key).await?;
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         let _: i64 = redis::cmd("EVAL")
             .arg(
@@ -379,11 +586,9 @@ return 1
     }
 
     pub async fn delete_key(&self, key: &str) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        conn.del(key).await
-    }
-
-    pub async fn delete_key_count(&self, key: &str) -> crate::storage::StorageResult<usize> {
+        self.verify_fnos_share_shadow_key(key).await?;
+        self.verify_subdomain_grant_shadow_key(key).await?;
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         conn.del(key).await
     }
@@ -473,19 +678,26 @@ return 1
         Ok(claimed == 1)
     }
 
-    /// Updates LDAP binding metadata only while the provider-scoped subject
-    /// still points at the same binding. This prevents a concurrent admin
+    /// Updates binding metadata only while the provider-scoped subject still
+    /// points at the same binding. This prevents a concurrent admin
     /// revocation from being resurrected by an in-flight login.
-    pub(crate) async fn update_ldap_binding_if_owned(
+    pub(crate) async fn update_binding_if_owned(
         &self,
-        update: LdapBindingUpdate<'_>,
+        update: OwnedBindingUpdate<'_>,
     ) -> crate::storage::StorageResult<bool> {
+        if update.binding_id.is_empty()
+            || update.subject_key.is_empty()
+            || update.binding_key.is_empty()
+            || update.bindings_index_key.is_empty()
+        {
+            return Ok(false);
+        }
         let binding_raw = serde_json::to_string(update.binding)?;
         let mut conn = self.conn();
         let updated: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
--- fn-knock:eval:update-ldap-binding-if-owned:v1
+-- fn-knock:eval:update-owned-binding:v1
 if redis.call("GET", KEYS[1]) ~= ARGV[1]
   or redis.call("EXISTS", KEYS[2]) == 0 then
   return 0
@@ -505,6 +717,97 @@ return 1
             .query_async(&mut conn)
             .await?;
         Ok(updated == 1)
+    }
+
+    /// Removes a binding document, its subject owner, and its list index in
+    /// one transaction. A stale caller can never delete a subject owner that
+    /// has already moved to a different binding.
+    pub(crate) async fn delete_binding_if_owned(
+        &self,
+        deletion: OwnedBindingDelete<'_>,
+    ) -> crate::storage::StorageResult<bool> {
+        if deletion.binding_id.is_empty()
+            || deletion.subject_key.is_empty()
+            || deletion.binding_key.is_empty()
+            || deletion.bindings_index_key.is_empty()
+        {
+            return Ok(false);
+        }
+        let mut conn = self.conn();
+        let deleted: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+-- fn-knock:eval:delete-owned-binding:v1
+if redis.call("EXISTS", KEYS[2]) == 0 then
+  return 0
+end
+redis.call("DEL", KEYS[2])
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  redis.call("DEL", KEYS[1])
+end
+redis.call("ZREM", KEYS[3], ARGV[1])
+return 1
+"#,
+            )
+            .arg(3)
+            .arg(deletion.subject_key)
+            .arg(deletion.binding_key)
+            .arg(deletion.bindings_index_key)
+            .arg(deletion.binding_id)
+            .query_async(&mut conn)
+            .await?;
+        Ok(deleted == 1)
+    }
+
+    /// Consumes an OIDC invitation only in the same transaction that claims
+    /// (or refreshes) its provider-scoped subject binding.
+    pub(crate) async fn claim_oidc_binding_and_consume_invite(
+        &self,
+        claim: OidcBindingClaim<'_>,
+    ) -> crate::storage::StorageResult<bool> {
+        if claim.binding_id.is_empty()
+            || claim.provider_id.is_empty()
+            || claim.totp_id.is_empty()
+            || claim.subject_key.is_empty()
+            || claim.binding_key.is_empty()
+        {
+            return Ok(false);
+        }
+        let binding_raw = serde_json::to_string(claim.binding)?;
+        let mut conn = self.conn();
+        let claimed: i64 = redis::cmd("EVAL")
+            .arg(
+                r#"
+-- fn-knock:eval:claim-oidc-binding:v1
+local invite_raw = redis.call("GET", KEYS[1])
+if not invite_raw then return 0 end
+local decoded, invite = pcall(cjson.decode, invite_raw)
+if not decoded or type(invite) ~= "table" then return 0 end
+if invite["used_at"] ~= nil
+  or tostring(invite["provider_id"] or "") ~= ARGV[4]
+  or tostring(invite["totp_id"] or "") ~= ARGV[5] then return 0 end
+local current_binding = redis.call("GET", KEYS[2])
+if current_binding and current_binding ~= ARGV[1] then return 0 end
+redis.call("SET", KEYS[2], ARGV[1])
+redis.call("SET", KEYS[3], ARGV[2])
+redis.call("ZADD", KEYS[4], ARGV[3], ARGV[1])
+redis.call("DEL", KEYS[1])
+return 1
+"#,
+            )
+            .arg(4)
+            .arg(claim.invite_key)
+            .arg(claim.subject_key)
+            .arg(claim.binding_key)
+            .arg(claim.bindings_index_key)
+            .arg(claim.binding_id)
+            .arg(binding_raw)
+            .arg(claim.score)
+            .arg(claim.provider_id)
+            .arg(claim.totp_id)
+            .query_async(&mut conn)
+            .await?;
+        Ok(claimed == 1)
     }
 
     pub async fn hgetall_string_map(
@@ -610,6 +913,7 @@ return 1
         Ok(values.into_iter().next().unwrap_or_default())
     }
 
+    #[cfg(test)]
     pub async fn trim_oldest_zset_members(
         &self,
         key: &str,
@@ -652,6 +956,8 @@ return 1
         index_key: &str,
         member: &str,
     ) -> crate::storage::StorageResult<()> {
+        self.verify_subdomain_grant_shadow_key(data_key).await?;
+        self.verify_subdomain_grant_shadow_key(index_key).await?;
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.del(data_key).ignore().zrem(index_key, member).ignore();
@@ -698,14 +1004,6 @@ return 1
         conn.del(keys).await
     }
 
-    pub async fn delete_keys_count(&self, keys: &[String]) -> crate::storage::StorageResult<usize> {
-        if keys.is_empty() {
-            return Ok(0);
-        }
-        let mut conn = self.conn();
-        conn.del(keys).await
-    }
-
     pub async fn scan_keys(
         &self,
         prefix: &str,
@@ -734,24 +1032,35 @@ return 1
         Ok(keys)
     }
 
-    pub async fn clear_keys_by_prefix(
-        &self,
-        prefix: &str,
-        count: usize,
-    ) -> crate::storage::StorageResult<usize> {
-        let keys = self.scan_keys(prefix, count).await?;
-        let mut deleted = 0;
-        for chunk in keys.chunks(200) {
-            deleted += self.delete_keys_count(chunk).await?;
-        }
-        Ok(deleted)
-    }
-
     pub async fn clear_all_keys(&self) -> crate::storage::StorageResult<usize> {
         let mut conn = self.conn();
         let (cleared_keys, _): (usize, ()) = redis::pipe()
             .query_async_replacing_prefix(&mut conn, "")
             .await?;
+        self.typed_docker_admin.rebuild_from_legacy().await?;
+        self.typed_event_dedupe.rebuild_from_legacy().await?;
+        self.rebuild_typed_system_events_from_legacy().await?;
+        self.typed_fnos_share.rebuild_from_legacy().await?;
+        self.typed_hmac_nonce.rebuild_from_legacy().await?;
+        self.typed_login_backoff.rebuild_from_legacy().await?;
+        self.typed_mobility.rebuild_from_legacy().await?;
+        self.typed_notification_runtime
+            .rebuild_from_legacy()
+            .await?;
+        self.rebuild_typed_notification_documents_from_legacy()
+            .await?;
+        self.rebuild_typed_notification_history_from_legacy()
+            .await?;
+        self.typed_passkey_runtime.rebuild_from_legacy().await?;
+        self.typed_subdomain_grant.rebuild_from_legacy().await?;
+        self.typed_identity_runtime.rebuild_from_legacy().await?;
+        self.typed_subdomain_rate_limit
+            .rebuild_from_legacy()
+            .await?;
+        self.rebuild_typed_whitelist_from_legacy().await?;
+        self.typed_whitelist_runtime.rebuild_from_legacy().await?;
+        self.typed_wol_cooldown.rebuild_from_legacy().await?;
+        self.refresh_config_snapshot().await?;
         Ok(cleared_keys)
     }
 
@@ -1018,6 +1327,24 @@ return 1
         if batched_commands > 0 {
             pipe.query_async::<()>(&mut conn).await?;
         }
+        self.typed_event_dedupe.rebuild_from_legacy().await?;
+        self.rebuild_typed_system_events_from_legacy().await?;
+        self.typed_fnos_share.rebuild_from_legacy().await?;
+        self.typed_hmac_nonce.rebuild_from_legacy().await?;
+        self.typed_mobility.rebuild_from_legacy().await?;
+        self.typed_notification_runtime
+            .rebuild_from_legacy()
+            .await?;
+        self.rebuild_typed_notification_documents_from_legacy()
+            .await?;
+        self.rebuild_typed_notification_history_from_legacy()
+            .await?;
+        self.typed_passkey_runtime.rebuild_from_legacy().await?;
+        self.typed_subdomain_grant.rebuild_from_legacy().await?;
+        self.typed_identity_runtime.rebuild_from_legacy().await?;
+        self.rebuild_typed_whitelist_from_legacy().await?;
+        self.typed_whitelist_runtime.rebuild_from_legacy().await?;
+        self.typed_wol_cooldown.rebuild_from_legacy().await?;
         self.refresh_config_snapshot().await?;
         Ok(())
     }
@@ -1056,6 +1383,24 @@ return 1
         let (cleared_keys, _): (usize, ()) =
             pipe.query_async_replacing_prefix(&mut conn, prefix).await?;
         if prefix == "fn_knock:" {
+            self.typed_event_dedupe.rebuild_from_legacy().await?;
+            self.rebuild_typed_system_events_from_legacy().await?;
+            self.typed_fnos_share.rebuild_from_legacy().await?;
+            self.typed_hmac_nonce.rebuild_from_legacy().await?;
+            self.typed_mobility.rebuild_from_legacy().await?;
+            self.typed_notification_runtime
+                .rebuild_from_legacy()
+                .await?;
+            self.rebuild_typed_notification_documents_from_legacy()
+                .await?;
+            self.rebuild_typed_notification_history_from_legacy()
+                .await?;
+            self.typed_passkey_runtime.rebuild_from_legacy().await?;
+            self.typed_subdomain_grant.rebuild_from_legacy().await?;
+            self.typed_identity_runtime.rebuild_from_legacy().await?;
+            self.rebuild_typed_whitelist_from_legacy().await?;
+            self.typed_whitelist_runtime.rebuild_from_legacy().await?;
+            self.typed_wol_cooldown.rebuild_from_legacy().await?;
             self.refresh_config_snapshot().await?;
         }
         Ok(cleared_keys)
@@ -1112,6 +1457,7 @@ return 1
         value: &Value,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         let serialized = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
         let result: Option<String> = redis::cmd("SET")
@@ -1132,6 +1478,7 @@ return 1
         value: &Value,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         let serialized = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
         let result: i64 = redis::cmd("EVAL")
@@ -1165,6 +1512,7 @@ return 1
         key: &str,
         lock_id: &str,
     ) -> crate::storage::StorageResult<bool> {
+        self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -1191,11 +1539,133 @@ return 1
     }
 
     pub async fn get_config(&self) -> crate::storage::StorageResult<Value> {
-        let mut conn = self.conn();
-        let snapshot = load_config_fence_snapshot(&mut conn).await?;
-        let mut config = snapshot.config;
-        inject_config_generation_marker(&mut config, snapshot.generation)?;
+        let (config, _) = self.load_typed_config_primary().await?;
         Ok(config)
+    }
+
+    pub(super) async fn reconcile_typed_config_from_legacy(
+        &self,
+    ) -> crate::storage::StorageResult<(Value, u64)> {
+        self.load_typed_config_primary().await
+    }
+
+    async fn load_typed_config_primary(&self) -> crate::storage::StorageResult<(Value, u64)> {
+        let shadow = self
+            .typed_config
+            .load_shadow(CONFIG_KEY, HOST_MAPPINGS_GENERATION_KEY)
+            .await?;
+        let legacy_snapshot =
+            config_fence_snapshot_from_raw(shadow.legacy.config_raw, shadow.legacy.generation_raw)?;
+        match shadow.typed {
+            Ok(Some(typed))
+                if typed.document == legacy_snapshot.config
+                    && typed.host_mappings_generation == legacy_snapshot.generation =>
+            {
+                self.observe_typed_config_shadow(&legacy_snapshot, Ok(Some(typed.clone())));
+                self.typed_config_primary_bootstrapped
+                    .store(true, AtomicOrdering::Release);
+                let mut config = typed.document;
+                inject_config_generation_marker(&mut config, typed.host_mappings_generation)?;
+                Ok((config, typed.revision))
+            }
+            typed => {
+                // A newly-created database has no typed document until this
+                // first read seeds it from the 2.x-compatible keyspace. That
+                // expected bootstrap is not a shadow inconsistency. Once a
+                // primary document has been established, missing data,
+                // corruption, and content divergence are counted and
+                // surfaced as fallbacks.
+                let initial_bootstrap = matches!(&typed, Ok(None))
+                    && !self
+                        .typed_config_primary_bootstrapped
+                        .load(AtomicOrdering::Acquire);
+                if !initial_bootstrap {
+                    self.observe_typed_config_shadow(&legacy_snapshot, typed);
+                }
+                let reconciled = self
+                    .typed_config
+                    .reconcile_from_legacy(
+                        CONFIG_KEY,
+                        HOST_MAPPINGS_GENERATION_KEY,
+                        &default_config(),
+                    )
+                    .await?;
+                let repaired_snapshot = config_fence_snapshot_from_raw(
+                    reconciled.legacy.config_raw,
+                    reconciled.legacy.generation_raw,
+                )?;
+                self.typed_config_shadow_healthy
+                    .store(true, AtomicOrdering::Release);
+                self.typed_config_primary_bootstrapped
+                    .store(true, AtomicOrdering::Release);
+                tracing::info!(
+                    typed_revision = reconciled.typed_revision,
+                    host_mappings_generation = repaired_snapshot.generation,
+                    "repaired typed config from legacy fallback"
+                );
+                let mut config = repaired_snapshot.config;
+                inject_config_generation_marker(&mut config, repaired_snapshot.generation)?;
+                Ok((config, reconciled.typed_revision))
+            }
+        }
+    }
+
+    fn observe_typed_config_shadow(
+        &self,
+        snapshot: &ConfigFenceSnapshot,
+        typed: crate::storage::StorageResult<
+            Option<crate::storage::typed_config::TypedConfigDocument>,
+        >,
+    ) {
+        match typed {
+            Ok(Some(typed))
+                if typed.document == snapshot.config
+                    && typed.host_mappings_generation == snapshot.generation =>
+            {
+                if !self
+                    .typed_config_shadow_healthy
+                    .swap(true, AtomicOrdering::AcqRel)
+                {
+                    tracing::info!(
+                        typed_revision = typed.revision,
+                        host_mappings_generation = snapshot.generation,
+                        "typed config shadow recovered"
+                    );
+                }
+            }
+            Ok(typed) => {
+                self.typed_config_shadow_mismatches
+                    .fetch_add(1, AtomicOrdering::Relaxed);
+                if self
+                    .typed_config_shadow_healthy
+                    .swap(false, AtomicOrdering::AcqRel)
+                {
+                    tracing::warn!(
+                        legacy_generation = snapshot.generation,
+                        typed_generation = typed
+                            .as_ref()
+                            .map(|document| document.host_mappings_generation),
+                        typed_revision = typed.as_ref().map(|document| document.revision),
+                        typed_present = typed.is_some(),
+                        "typed config mismatch; falling back to legacy keyspace and repairing typed primary"
+                    );
+                }
+            }
+            Err(error) => {
+                self.typed_config_shadow_mismatches
+                    .fetch_add(1, AtomicOrdering::Relaxed);
+                if self
+                    .typed_config_shadow_healthy
+                    .swap(false, AtomicOrdering::AcqRel)
+                {
+                    tracing::warn!(
+                        %error,
+                        legacy_generation = snapshot.generation,
+                        "typed config read failed; falling back to legacy keyspace and repairing typed primary"
+                    );
+                }
+            }
+        }
     }
 
     /// Atomically replaces the complete config only when the persisted
@@ -1230,7 +1700,7 @@ return 1
                 snapshot.generation
             };
             let replacement_raw = serde_json::to_string(&replacement_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1240,7 +1710,7 @@ return 1
             {
                 let mut published = replacement_config;
                 inject_config_generation_marker(&mut published, replacement_generation)?;
-                self.publish_config_snapshot(published.clone());
+                self.publish_config_snapshot(published.clone(), revision);
                 return Ok(Some(published));
             }
         }
@@ -1321,7 +1791,7 @@ return 1
             } else {
                 snapshot.generation
             };
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1330,7 +1800,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, replacement_generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(Some(current_config));
             }
         }
@@ -1457,7 +1927,7 @@ return 1
             } else {
                 snapshot.generation
             };
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1466,7 +1936,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, replacement_generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(Some(current_config));
             }
         }
@@ -1525,7 +1995,7 @@ return 1
                 );
             }
             let replacement_raw = serde_json::to_string(&current_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1534,7 +2004,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(current_config);
             }
         }
@@ -1577,7 +2047,7 @@ return 1
             object.insert(key.to_string(), value.clone());
 
             let replacement_raw = serde_json::to_string(&current_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1586,7 +2056,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(current_config);
             }
         }
@@ -1625,7 +2095,7 @@ return 1
             section_object.extend(fields.clone());
 
             let replacement_raw = serde_json::to_string(&current_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1634,7 +2104,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(current_config);
             }
         }
@@ -1679,7 +2149,7 @@ return 1
                 }
             }
             let replacement_raw = serde_json::to_string(&current_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1688,7 +2158,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut current_config, snapshot.generation)?;
-                self.publish_config_snapshot(current_config.clone());
+                self.publish_config_snapshot(current_config.clone(), revision);
                 return Ok(Some(current_config));
             }
         }
@@ -1744,7 +2214,7 @@ return 1
             };
             strip_internal_config_metadata(&mut replacement_config);
             let replacement_raw = serde_json::to_string(&replacement_config)?;
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1753,7 +2223,7 @@ return 1
             .await?
             {
                 inject_config_generation_marker(&mut replacement_config, replacement_generation)?;
-                self.publish_config_snapshot(replacement_config);
+                self.publish_config_snapshot(replacement_config, revision);
                 return Ok(());
             }
         }
@@ -1782,7 +2252,7 @@ return 1
                         crate::storage::storage_error("host mappings generation overflow")
                     })?
                 };
-            if compare_and_set_config_fence_snapshot(
+            if let Some(revision) = compare_and_set_config_fence_snapshot(
                 &mut conn,
                 &snapshot,
                 &replacement_raw,
@@ -1792,7 +2262,7 @@ return 1
             {
                 let mut published_config = replacement_config.clone();
                 inject_config_generation_marker(&mut published_config, replacement_generation)?;
-                self.publish_config_snapshot(published_config);
+                self.publish_config_snapshot(published_config, revision);
                 return Ok(());
             }
         }

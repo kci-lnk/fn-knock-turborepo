@@ -257,10 +257,12 @@ pub(super) async fn save_acme_issued_certificate(
     issued.retain(|item| item.get("applicationId").and_then(Value::as_str) != Some(application_id));
     issued.insert(0, next.clone());
     state
+        .storage
         .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(issued))
         .await?;
     state
+        .storage
         .store
         .set_json_value(
             &format!(
@@ -285,6 +287,7 @@ pub(super) async fn restore_acme_issued_certificate_snapshot(
         issued.insert(0, previous.clone());
     }
     state
+        .storage
         .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(issued))
         .await?;
@@ -332,6 +335,7 @@ pub(super) async fn restore_acme_issued_certificate_snapshot(
         return Ok(());
     }
     state
+        .storage
         .store
         .set_json_value(
             &format!("{ACME_CERT_PREFIX}{previous_primary_domain}"),
@@ -421,7 +425,7 @@ pub(super) async fn prepare_acme_library_after_issue(
     let issued_certificate = get_usable_issued_certificate_for_application(state, application)
         .await?
         .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.noMatchingIssuedCertificate")))?;
-    let previous_config = state.store.get_config().await?;
+    let previous_config = state.storage.store.get_config().await?;
     let previous_ssl = previous_config.get("ssl").cloned();
     let normalized_previous_ssl = ssl::normalize_ssl_config(previous_config.get("ssl"));
     let linked =
@@ -479,7 +483,7 @@ pub(super) async fn prepare_acme_library_after_issue(
         t,
     )
     .await?;
-    let next_config = state.store.get_config().await?;
+    let next_config = state.storage.store.get_config().await?;
     let should_sync_gateway = should_activate
         || next_config
             .pointer("/ssl/deployment_mode")
@@ -500,6 +504,7 @@ pub(super) async fn restore_ssl_after_failed_acme_deployment(
     previous_ssl: Option<&Value>,
 ) -> anyhow::Result<AcmeSslRollbackOutcome> {
     match state
+        .storage
         .store
         .compare_and_set_ssl_config(expected_ssl, previous_ssl)
         .await?
@@ -509,7 +514,7 @@ pub(super) async fn restore_ssl_after_failed_acme_deployment(
             Ok(AcmeSslRollbackOutcome::RestoredPrevious(restored_config))
         }
         None => Ok(AcmeSslRollbackOutcome::PreservedConcurrent(
-            state.store.get_config().await?,
+            state.storage.store.get_config().await?,
         )),
     }
 }
@@ -553,7 +558,7 @@ async fn sync_newer_ssl_deployment_until_current<D: AcmeSslDeployment>(
 ) -> anyhow::Result<()> {
     let mut deployed_ssl = deployed_config.get("ssl").cloned();
     for _ in 0..32 {
-        let current_config = state.store.get_config().await?;
+        let current_config = state.storage.store.get_config().await?;
         if current_config.get("ssl") == deployed_ssl.as_ref() {
             return Ok(());
         }

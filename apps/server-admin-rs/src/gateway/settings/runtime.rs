@@ -6,7 +6,8 @@ pub(super) async fn sync_gateway_visibility_runtime(
 ) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_gateway_visibility(&visibility_sync_payload(runtime))
             .await
             .map_err(|error| error.to_string())?,
@@ -17,6 +18,7 @@ pub(crate) async fn sync_gateway_visibility_runtime_from_store(
     state: &AppState,
 ) -> Result<(), String> {
     let runtime = state
+        .storage
         .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
@@ -31,7 +33,8 @@ pub(super) async fn sync_gateway_proxy_headers_runtime(
 ) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_forwarded_headers_config(&omit_targets_sync_payload(runtime))
             .await
             .map_err(|error| error.to_string())?,
@@ -53,7 +56,8 @@ async fn sync_gateway_host_response_runtime_locked(
 ) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_preserve_host_config(&omit_targets_sync_payload(runtime))
             .await
             .map_err(|error| error.to_string())?,
@@ -72,6 +76,7 @@ pub(crate) async fn sync_gateway_target_runtime_for_config(
     }
     proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
         let current_config = state
+            .storage
             .store
             .get_config()
             .await
@@ -114,6 +119,7 @@ async fn sync_gateway_target_runtime_for_config_locked(
 
     let effective_config = if save_config {
         state
+            .storage
             .store
             .merge_gateway_target_config_sections(
                 expected_proxy_source.as_ref(),
@@ -144,6 +150,7 @@ async fn sync_gateway_target_runtime_for_config_locked(
         compile_gateway_host_response_state(&effective_config, &host_response_requested);
 
     state
+        .storage
         .store
         .set_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY, &proxy_compiled.runtime)
         .await
@@ -151,6 +158,7 @@ async fn sync_gateway_target_runtime_for_config_locked(
     sync_gateway_proxy_headers_runtime(state, &proxy_compiled.runtime).await?;
 
     state
+        .storage
         .store
         .set_json_value(
             GATEWAY_HOST_RESPONSE_RUNTIME_KEY,
@@ -236,6 +244,7 @@ pub(super) fn omit_targets_sync_payload(runtime: &Value) -> Value {
 pub(crate) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> Result<(), String> {
     proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
         let current_config = state
+            .storage
             .store
             .get_config()
             .await
@@ -248,7 +257,8 @@ pub(crate) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> R
 async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_auth_config(&build_gateway_auth_config(config))
             .await
             .map_err(|error| error.to_string())?,
@@ -260,7 +270,8 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
     );
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_reverse_proxy_throttle(&throttle)
             .await
             .map_err(|error| error.to_string())?,
@@ -272,14 +283,16 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
     );
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_crawler_blocker_config(&crawler)
             .await
             .map_err(|error| error.to_string())?,
     )?;
     let portal = effective_gateway_portal(config);
     let portal_response = state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_portal_config(&portal)
         .await
         .map_err(|error| error.to_string())?;
@@ -290,7 +303,8 @@ async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result
             .unwrap_or(&default_gateway_unmatched_route()),
     );
     let unmatched_route_response = state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_unmatched_route_config(&unmatched_route)
         .await
         .map_err(|error| error.to_string())?;
@@ -359,6 +373,7 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
         return Ok(false);
     }
     if state
+        .storage
         .store
         .get_string_value(flag_key)
         .await
@@ -371,7 +386,7 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
 
     proxy_config::sync_current_go_host_rules(state).await?;
 
-    if let Err(error) = state.store.set_string_value(flag_key, "1").await {
+    if let Err(error) = state.storage.store.set_string_value(flag_key, "1").await {
         tracing::warn!(%error, %flag_key, "failed to mark gateway portal host-rules patch applied");
     }
     Ok(true)

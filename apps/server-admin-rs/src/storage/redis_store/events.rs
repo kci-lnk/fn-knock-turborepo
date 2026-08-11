@@ -1,15 +1,60 @@
 use super::*;
+use tokio_rusqlite::rusqlite::{Transaction, TransactionBehavior};
+
+fn system_event_command_tx(
+    tx: &Transaction<'_>,
+    command: &str,
+    args: Vec<String>,
+) -> crate::storage::StorageResult<redis::CmdOutput> {
+    redis::execute_command_in_transaction(tx, command, args)
+}
+
+fn command_ok_tx(
+    tx: &Transaction<'_>,
+    command: &str,
+    args: Vec<String>,
+) -> crate::storage::StorageResult<()> {
+    let _ = system_event_command_tx(tx, command, args)?;
+    Ok(())
+}
 
 impl Store {
+    #[cfg(test)]
     pub async fn append_system_event(
         &self,
         event: &Value,
         retention_days: i64,
         max_records: i64,
     ) -> crate::storage::StorageResult<()> {
+        self.append_system_event_if_dedupe_available(event, retention_days, max_records, None, 0)
+            .await
+            .map(|_| ())
+    }
+
+    /// Atomically claims an optional dedupe window and persists the event.
+    /// A failed event write cannot leave a live dedupe key that suppresses a
+    /// retry, and a competing claimant observes `false` without writing.
+    pub async fn append_system_event_if_dedupe_available(
+        &self,
+        event: &Value,
+        retention_days: i64,
+        max_records: i64,
+        dedupe_key: Option<&str>,
+        dedupe_ttl_seconds: i64,
+    ) -> crate::storage::StorageResult<bool> {
         let event_id = event.get("id").and_then(Value::as_str).unwrap_or("");
         if event_id.trim().is_empty() {
-            return Ok(());
+            return Ok(false);
+        }
+        let dedupe_key = dedupe_key
+            .filter(|key| !key.is_empty() && dedupe_ttl_seconds > 0)
+            .map(str::to_string);
+        if let Some(dedupe_key) = dedupe_key.as_deref() {
+            let matched = self
+                .typed_event_dedupe
+                .verify_and_repair(dedupe_key)
+                .await?;
+            self.observe_typed_event_dedupe_shadow(matched);
         }
         let now = crate::time_utils::now_ms();
         let retention_days = retention_days.clamp(1, MAX_EVENT_RETENTION_DAYS);
@@ -25,66 +70,226 @@ impl Store {
         let expires_at_ms = happened_at_ms + retention_ms;
         let ttl_seconds =
             (((expires_at_ms - now).max(1000) + 999) / 1000).clamp(1, retention_seconds);
+        // Match the actual compatibility-key TTL, including the future-date
+        // cap above. A typed shadow must never retain an event longer than
+        // the legacy data key that remains authoritative in 2.x.
+        let typed_expires_at_ms = now.saturating_add(ttl_seconds.saturating_mul(1000));
         let serialized = serde_json::to_string(event).unwrap_or_default();
 
-        let mut conn = self.conn();
-        let stream_id: String = redis::cmd("XADD")
-            .arg(EVENTS_STREAM_KEY)
-            .arg("*")
-            .arg("event")
-            .arg(&serialized)
-            .query_async(&mut conn)
-            .await?;
+        let event_id = event_id.to_string();
+        let dedupe_key = dedupe_key.map(|key| format!("{EVENTS_DEDUPE_PREFIX}{key}"));
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                if let Some(dedupe_key) = dedupe_key {
+                    let claimed = system_event_command_tx(
+                        &tx,
+                        "SET",
+                        vec![
+                            dedupe_key,
+                            "1".to_string(),
+                            "EX".to_string(),
+                            dedupe_ttl_seconds.max(1).to_string(),
+                            "NX".to_string(),
+                        ],
+                    )?;
+                    if !matches!(
+                        claimed,
+                        redis::CmdOutput::OptionalString(Some(ref value)) if value == "OK"
+                    ) {
+                        return Ok(false);
+                    }
+                }
+                let stream_id = match system_event_command_tx(
+                    &tx,
+                    "XADD",
+                    vec![
+                        EVENTS_STREAM_KEY.to_string(),
+                        "*".to_string(),
+                        "event".to_string(),
+                        serialized.clone(),
+                    ],
+                )? {
+                    redis::CmdOutput::String(stream_id) => stream_id,
+                    _ => return Err(crate::storage::storage_error("unexpected event stream id")),
+                };
+                TypedEventRepository::upsert_tx(
+                    &tx,
+                    &event_id,
+                    &serialized,
+                    happened_at_ms,
+                    typed_expires_at_ms,
+                    &stream_id,
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "SETEX",
+                    vec![
+                        system_event_data_key(&event_id),
+                        ttl_seconds.to_string(),
+                        serialized,
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "ZADD",
+                    vec![
+                        EVENTS_INDEX_KEY.to_string(),
+                        happened_at_ms.to_string(),
+                        event_id.clone(),
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "SETEX",
+                    vec![
+                        system_event_stream_id_key(&event_id),
+                        ttl_seconds.to_string(),
+                        stream_id,
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "ZREMRANGEBYSCORE",
+                    vec![
+                        EVENTS_INDEX_KEY.to_string(),
+                        "0".to_string(),
+                        cutoff_timestamp.to_string(),
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "EXPIRE",
+                    vec![EVENTS_INDEX_KEY.to_string(), retention_seconds.to_string()],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "XTRIM",
+                    vec![
+                        EVENTS_STREAM_KEY.to_string(),
+                        "MINID".to_string(),
+                        format!("{cutoff_timestamp}-0"),
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "XTRIM",
+                    vec![
+                        EVENTS_STREAM_KEY.to_string(),
+                        "MAXLEN".to_string(),
+                        max_records.to_string(),
+                    ],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "EXPIRE",
+                    vec![EVENTS_STREAM_KEY.to_string(), retention_seconds.to_string()],
+                )?;
+                let record_count = match system_event_command_tx(
+                    &tx,
+                    "ZCARD",
+                    vec![EVENTS_INDEX_KEY.to_string()],
+                )? {
+                    redis::CmdOutput::Int(count) => count,
+                    _ => {
+                        return Err(crate::storage::storage_error(
+                            "unexpected event index count",
+                        ));
+                    }
+                };
+                let overflow = record_count - max_records;
+                if overflow > 0 {
+                    let stale_ids = match system_event_command_tx(
+                        &tx,
+                        "ZRANGE",
+                        vec![
+                            EVENTS_INDEX_KEY.to_string(),
+                            "0".to_string(),
+                            (overflow - 1).to_string(),
+                        ],
+                    )? {
+                        redis::CmdOutput::Strings(ids) => ids,
+                        _ => {
+                            return Err(crate::storage::storage_error(
+                                "unexpected stale event ids",
+                            ));
+                        }
+                    };
+                    command_ok_tx(
+                        &tx,
+                        "ZREM",
+                        std::iter::once(EVENTS_INDEX_KEY.to_string())
+                            .chain(stale_ids.iter().cloned())
+                            .collect(),
+                    )?;
+                    let stale_keys = stale_ids
+                        .iter()
+                        .flat_map(|id| [system_event_data_key(id), system_event_stream_id_key(id)])
+                        .collect::<Vec<_>>();
+                    command_ok_tx(&tx, "DEL", stale_keys)?;
+                }
+                TypedEventRepository::trim_tx(&tx, cutoff_timestamp, max_records)?;
+                tx.commit()?;
+                Ok(true)
+            })
+            .await
+    }
 
-        let mut pipe = redis::pipe();
-        pipe.set_ex(
-            system_event_data_key(event_id),
-            &serialized,
-            ttl_seconds as u64,
-        )
-        .ignore();
-        pipe.zadd(EVENTS_INDEX_KEY, event_id, happened_at_ms)
-            .ignore();
-        pipe.set_ex(
-            system_event_stream_id_key(event_id),
-            stream_id,
-            ttl_seconds as u64,
-        )
-        .ignore();
-        pipe.zrembyscore(EVENTS_INDEX_KEY, 0, cutoff_timestamp)
-            .ignore();
-        pipe.expire(EVENTS_INDEX_KEY, retention_seconds).ignore();
-        pipe.cmd("XTRIM")
-            .arg(EVENTS_STREAM_KEY)
-            .arg("MINID")
-            .arg(format!("{cutoff_timestamp}-0"))
-            .ignore();
-        pipe.cmd("XTRIM")
-            .arg(EVENTS_STREAM_KEY)
-            .arg("MAXLEN")
-            .arg(max_records)
-            .ignore();
-        pipe.expire(EVENTS_STREAM_KEY, retention_seconds).ignore();
-        let _: () = pipe.query_async(&mut conn).await?;
-        let record_count: i64 = conn.zcard(EVENTS_INDEX_KEY).await?;
-        let overflow = record_count - max_records;
-        if overflow > 0 {
-            let stale_ids = conn
-                .zrange(EVENTS_INDEX_KEY, 0, (overflow - 1) as isize)
-                .await?;
-            conn.zrem(EVENTS_INDEX_KEY, stale_ids.clone()).await?;
-            let stale_keys = stale_ids
-                .iter()
-                .flat_map(|event_id| {
-                    [
-                        system_event_data_key(event_id),
-                        system_event_stream_id_key(event_id),
-                    ]
-                })
-                .collect::<Vec<_>>();
-            let _: i64 = conn.del(stale_keys).await?;
+    pub(crate) async fn rebuild_typed_system_events_from_legacy(
+        &self,
+    ) -> crate::storage::StorageResult<()> {
+        self.typed_events
+            .rebuild_from_legacy(
+                EVENTS_INDEX_KEY,
+                EVENTS_DATA_PREFIX,
+                EVENTS_STREAM_ID_PREFIX,
+            )
+            .await
+    }
+
+    fn observe_typed_event_dedupe_shadow(&self, matched: bool) {
+        if matched {
+            if !self
+                .typed_event_dedupe_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed system-event dedupe shadow comparison recovered");
+            }
+            return;
         }
-        Ok(())
+        self.typed_event_dedupe_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_event_dedupe_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed system-event dedupe shadow differed from the compatibility lease and was repaired"
+        );
+    }
+
+    fn observe_typed_event_shadow_healthy(&self) {
+        if !self
+            .typed_events_shadow_healthy
+            .swap(true, AtomicOrdering::AcqRel)
+        {
+            tracing::info!("typed system-event shadow comparison recovered");
+        }
+    }
+
+    fn observe_typed_event_shadow_failure(&self, reason: &str) {
+        self.typed_events_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        if self
+            .typed_events_shadow_healthy
+            .swap(false, AtomicOrdering::AcqRel)
+        {
+            tracing::warn!(%reason, "typed system-event shadow comparison failed");
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn typed_event_shadow_mismatch_count(&self) -> u64 {
+        self.typed_events_shadow_mismatches
+            .load(AtomicOrdering::Acquire)
     }
 
     pub async fn latest_system_event_stream_id(
@@ -143,9 +348,11 @@ impl Store {
         token: &str,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
+        let key = notification_runtime_lock_key(name);
+        self.verify_notification_runtime_shadow(&key).await?;
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
-            .arg(notification_runtime_lock_key(name))
+            .arg(key)
             .arg(token)
             .arg("EX")
             .arg(ttl_seconds.max(1))
@@ -160,6 +367,8 @@ impl Store {
         name: &str,
         token: &str,
     ) -> crate::storage::StorageResult<()> {
+        let key = notification_runtime_lock_key(name);
+        self.verify_notification_runtime_shadow(&key).await?;
         let mut conn = self.conn();
         let _: i64 = redis::cmd("EVAL")
             .arg(
@@ -172,7 +381,7 @@ impl Store {
                 "#,
             )
             .arg(1)
-            .arg(notification_runtime_lock_key(name))
+            .arg(key)
             .arg(token)
             .query_async(&mut conn)
             .await?;
@@ -188,15 +397,45 @@ impl Store {
         window_seconds: i64,
     ) -> crate::storage::StorageResult<i64> {
         let key = notification_window_key(rule_id, group_key);
+        self.verify_notification_runtime_shadow(&key).await?;
         let window_ms = window_seconds.max(1) * 1000;
         let start_score = (happened_at_ms - window_ms).max(0);
-        let mut conn = self.conn();
-        let _: () = conn.zadd(&key, event_id, happened_at_ms).await?;
-        let _: () = conn
-            .zrembyscore(&key, 0, start_score.saturating_sub(1))
-            .await?;
-        let _: () = conn.expire(&key, (window_seconds * 2).max(60)).await?;
-        conn.zcount(&key, start_score, happened_at_ms).await
+        let event_id = event_id.to_string();
+        let ttl_seconds = (window_seconds * 2).max(60);
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                command_ok_tx(
+                    &tx,
+                    "ZADD",
+                    vec![key.clone(), happened_at_ms.to_string(), event_id],
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "ZREMRANGEBYSCORE",
+                    vec![
+                        key.clone(),
+                        "0".to_string(),
+                        start_score.saturating_sub(1).to_string(),
+                    ],
+                )?;
+                command_ok_tx(&tx, "EXPIRE", vec![key.clone(), ttl_seconds.to_string()])?;
+                let count = match system_event_command_tx(
+                    &tx,
+                    "ZCOUNT",
+                    vec![key, start_score.to_string(), happened_at_ms.to_string()],
+                )? {
+                    redis::CmdOutput::Int(count) => count,
+                    _ => {
+                        return Err(crate::storage::storage_error(
+                            "unexpected notification window count",
+                        ));
+                    }
+                };
+                tx.commit()?;
+                Ok(count)
+            })
+            .await
     }
 
     pub async fn get_notification_cooldown_until(
@@ -204,8 +443,9 @@ impl Store {
         rule_id: &str,
         group_key: &str,
     ) -> crate::storage::StorageResult<Option<String>> {
-        self.get_string_value(&notification_cooldown_key(rule_id, group_key))
-            .await
+        let key = notification_cooldown_key(rule_id, group_key);
+        self.verify_notification_runtime_shadow(&key).await?;
+        self.get_string_value(&key).await
     }
 
     pub async fn set_notification_cooldown_until(
@@ -218,13 +458,10 @@ impl Store {
         if cooldown_seconds <= 0 {
             return Ok(());
         }
+        let key = notification_cooldown_key(rule_id, group_key);
+        self.verify_notification_runtime_shadow(&key).await?;
         let mut conn = self.conn();
-        conn.set_ex(
-            notification_cooldown_key(rule_id, group_key),
-            until,
-            cooldown_seconds as u64,
-        )
-        .await
+        conn.set_ex(key, until, cooldown_seconds as u64).await
     }
 
     pub async fn enqueue_notification_delivery(
@@ -232,6 +469,8 @@ impl Store {
         id: &str,
         ready_at_ms: i64,
     ) -> crate::storage::StorageResult<()> {
+        self.verify_notification_runtime_shadow(NOTIFICATION_DELIVERIES_READY_KEY)
+            .await?;
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.zadd(NOTIFICATION_DELIVERIES_READY_KEY, id, ready_at_ms)
@@ -250,6 +489,8 @@ impl Store {
         limit: usize,
         now_ms: i64,
     ) -> crate::storage::StorageResult<Vec<String>> {
+        self.verify_notification_runtime_shadow(NOTIFICATION_DELIVERIES_READY_KEY)
+            .await?;
         let mut conn = self.conn();
         let ids: Vec<String> = redis::cmd("EVAL")
             .arg(
@@ -280,32 +521,100 @@ impl Store {
         Ok(ids.into_iter().filter(|id| !id.trim().is_empty()).collect())
     }
 
-    pub async fn acquire_system_event_dedupe(
-        &self,
-        key: &str,
-        ttl_seconds: i64,
-    ) -> crate::storage::StorageResult<bool> {
-        let mut conn = self.conn();
-        let result: Option<String> = redis::cmd("SET")
-            .arg(format!("{EVENTS_DEDUPE_PREFIX}{key}"))
-            .arg("1")
-            .arg("EX")
-            .arg(ttl_seconds.max(1))
-            .arg("NX")
-            .query_async(&mut conn)
-            .await?;
-        Ok(result.as_deref() == Some("OK"))
-    }
-
-    pub async fn release_system_event_dedupe(
+    async fn verify_notification_runtime_shadow(
         &self,
         key: &str,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        conn.del(format!("{EVENTS_DEDUPE_PREFIX}{key}")).await
+        let matched = self
+            .typed_notification_runtime
+            .verify_and_repair_key(key)
+            .await?;
+        if matched {
+            if !self
+                .typed_notification_runtime_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed notification runtime shadow comparison recovered");
+            }
+        } else {
+            self.typed_notification_runtime_shadow_mismatches
+                .fetch_add(1, AtomicOrdering::AcqRel);
+            self.typed_notification_runtime_shadow_healthy
+                .store(false, AtomicOrdering::Release);
+            let runtime_kind = if key.starts_with(NOTIFICATION_RUNTIME_LOCK_PREFIX) {
+                "lease"
+            } else if key.starts_with(NOTIFICATION_RUNTIME_COOLDOWN_PREFIX) {
+                "cooldown"
+            } else if key.starts_with(NOTIFICATION_RUNTIME_WINDOW_PREFIX) {
+                "window"
+            } else {
+                "ready_queue"
+            };
+            tracing::warn!(
+                runtime_kind,
+                "typed notification runtime shadow differed from the compatibility keyspace and was repaired"
+            );
+        }
+        Ok(())
     }
 
     pub async fn list_system_events(
+        &self,
+        page: i64,
+        limit: i64,
+        search: &str,
+        event_type: Option<&str>,
+        level: Option<&str>,
+        source: Option<&str>,
+    ) -> crate::storage::StorageResult<Value> {
+        let typed = self.typed_events.load_active().await;
+        let typed_page = typed.as_ref().map(|events| {
+            system_event_page(
+                events.iter().map(|document| document.event.clone()),
+                page,
+                limit,
+                search,
+                event_type,
+                level,
+                source,
+            )
+        });
+        match (
+            typed_page,
+            self.list_system_events_legacy(page, limit, search, event_type, level, source)
+                .await,
+        ) {
+            (Ok(typed_page), Ok(legacy_page)) if typed_page == legacy_page => {
+                self.observe_typed_event_shadow_healthy();
+                Ok(typed_page)
+            }
+            (Ok(_), Ok(legacy_page)) => {
+                self.observe_typed_event_shadow_failure(
+                    "typed system-event page differs from legacy keyspace",
+                );
+                self.rebuild_typed_system_events_from_legacy().await?;
+                Ok(legacy_page)
+            }
+            (Ok(typed_page), Err(error)) => {
+                self.observe_typed_event_shadow_failure(&format!(
+                    "legacy system-event comparison failed while typed primary remained available: {error}"
+                ));
+                Ok(typed_page)
+            }
+            (Err(error), Ok(legacy_page)) => {
+                self.observe_typed_event_shadow_failure(&format!(
+                    "typed system-event read failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_system_events_from_legacy().await?;
+                Ok(legacy_page)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy system-event reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn list_system_events_legacy(
         &self,
         page: i64,
         limit: i64,
@@ -393,6 +702,69 @@ impl Store {
         to_ms: i64,
         types: &[&str],
     ) -> crate::storage::StorageResult<Vec<(Value, i64)>> {
+        let typed = self.typed_events.load_active().await;
+        let allowed_types = types
+            .iter()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .collect::<HashSet<_>>();
+        let typed_events = typed.as_ref().map(|events| {
+            events
+                .iter()
+                .filter(|document| {
+                    document.happened_at_ms >= from_ms.max(0)
+                        && document.happened_at_ms <= to_ms.max(from_ms)
+                        && (allowed_types.is_empty()
+                            || document
+                                .event
+                                .get("type")
+                                .and_then(Value::as_str)
+                                .is_some_and(|event_type| allowed_types.contains(event_type)))
+                })
+                .map(|document| (document.event.clone(), document.happened_at_ms))
+                .collect::<Vec<_>>()
+        });
+        match (
+            typed_events,
+            self.list_system_events_by_range_legacy(from_ms, to_ms, types)
+                .await,
+        ) {
+            (Ok(typed_events), Ok(legacy_events)) if typed_events == legacy_events => {
+                self.observe_typed_event_shadow_healthy();
+                Ok(typed_events)
+            }
+            (Ok(_), Ok(legacy_events)) => {
+                self.observe_typed_event_shadow_failure(
+                    "typed system-event range differs from legacy keyspace",
+                );
+                self.rebuild_typed_system_events_from_legacy().await?;
+                Ok(legacy_events)
+            }
+            (Ok(typed_events), Err(error)) => {
+                self.observe_typed_event_shadow_failure(&format!(
+                    "legacy system-event range comparison failed while typed primary remained available: {error}"
+                ));
+                Ok(typed_events)
+            }
+            (Err(error), Ok(legacy_events)) => {
+                self.observe_typed_event_shadow_failure(&format!(
+                    "typed system-event range read failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_system_events_from_legacy().await?;
+                Ok(legacy_events)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy system-event range reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn list_system_events_by_range_legacy(
+        &self,
+        from_ms: i64,
+        to_ms: i64,
+        types: &[&str],
+    ) -> crate::storage::StorageResult<Vec<(Value, i64)>> {
         let mut conn = self.conn();
         let pairs: Vec<String> = redis::cmd("ZRANGEBYSCORE")
             .arg(EVENTS_INDEX_KEY)
@@ -467,67 +839,107 @@ impl Store {
         if unique_ids.is_empty() {
             return Ok(());
         }
-        let mut conn = self.conn();
-        let stream_ids: Vec<Option<String>> = redis::cmd("MGET")
-            .arg(
-                unique_ids
-                    .iter()
-                    .map(|id| system_event_stream_id_key(id))
-                    .collect::<Vec<_>>(),
-            )
-            .query_async(&mut conn)
-            .await?;
-        let valid_stream_ids = stream_ids.into_iter().flatten().collect::<Vec<_>>();
-        let mut pipe = redis::pipe();
-        pipe.del(
-            unique_ids
-                .iter()
-                .map(|id| system_event_data_key(id))
-                .collect::<Vec<_>>(),
-        )
-        .ignore();
-        pipe.del(
-            unique_ids
-                .iter()
-                .map(|id| system_event_stream_id_key(id))
-                .collect::<Vec<_>>(),
-        )
-        .ignore();
-        pipe.zrem(EVENTS_INDEX_KEY, unique_ids.clone()).ignore();
-        if !valid_stream_ids.is_empty() {
-            pipe.cmd("XDEL")
-                .arg(EVENTS_STREAM_KEY)
-                .arg(valid_stream_ids)
-                .ignore();
-        }
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(())
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let stream_ids = match system_event_command_tx(
+                    &tx,
+                    "MGET",
+                    unique_ids
+                        .iter()
+                        .map(|id| system_event_stream_id_key(id))
+                        .collect(),
+                )? {
+                    redis::CmdOutput::OptionalStrings(ids) => ids,
+                    _ => {
+                        return Err(crate::storage::storage_error(
+                            "unexpected system-event stream-id response",
+                        ));
+                    }
+                };
+                let valid_stream_ids = stream_ids.into_iter().flatten().collect::<Vec<_>>();
+                command_ok_tx(
+                    &tx,
+                    "DEL",
+                    unique_ids
+                        .iter()
+                        .map(|id| system_event_data_key(id))
+                        .collect(),
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "DEL",
+                    unique_ids
+                        .iter()
+                        .map(|id| system_event_stream_id_key(id))
+                        .collect(),
+                )?;
+                command_ok_tx(
+                    &tx,
+                    "ZREM",
+                    std::iter::once(EVENTS_INDEX_KEY.to_string())
+                        .chain(unique_ids.iter().cloned())
+                        .collect(),
+                )?;
+                if !valid_stream_ids.is_empty() {
+                    command_ok_tx(
+                        &tx,
+                        "XDEL",
+                        std::iter::once(EVENTS_STREAM_KEY.to_string())
+                            .chain(valid_stream_ids)
+                            .collect(),
+                    )?;
+                }
+                TypedEventRepository::delete_tx(&tx, &unique_ids)?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await
     }
 
     pub async fn clear_system_events(&self) -> crate::storage::StorageResult<usize> {
-        let mut conn = self.conn();
-        let ids: Vec<String> = conn.zrange(EVENTS_INDEX_KEY, 0, -1).await?;
-        let mut pipe = redis::pipe();
-        for batch in ids.chunks(EVENT_CLEAR_CHUNK_SIZE) {
-            pipe.del(
-                batch
-                    .iter()
-                    .map(|id| system_event_data_key(id))
-                    .collect::<Vec<_>>(),
-            )
-            .ignore();
-            pipe.del(
-                batch
-                    .iter()
-                    .map(|id| system_event_stream_id_key(id))
-                    .collect::<Vec<_>>(),
-            )
-            .ignore();
-        }
-        pipe.del(EVENTS_INDEX_KEY).ignore();
-        pipe.del(EVENTS_STREAM_KEY).ignore();
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(ids.len())
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let ids = match system_event_command_tx(
+                    &tx,
+                    "ZRANGE",
+                    vec![
+                        EVENTS_INDEX_KEY.to_string(),
+                        "0".to_string(),
+                        "-1".to_string(),
+                    ],
+                )? {
+                    redis::CmdOutput::Strings(ids) => ids,
+                    _ => {
+                        return Err(crate::storage::storage_error(
+                            "unexpected system-event index response",
+                        ));
+                    }
+                };
+                for batch in ids.chunks(EVENT_CLEAR_CHUNK_SIZE) {
+                    command_ok_tx(
+                        &tx,
+                        "DEL",
+                        batch.iter().map(|id| system_event_data_key(id)).collect(),
+                    )?;
+                    command_ok_tx(
+                        &tx,
+                        "DEL",
+                        batch
+                            .iter()
+                            .map(|id| system_event_stream_id_key(id))
+                            .collect(),
+                    )?;
+                }
+                command_ok_tx(&tx, "DEL", vec![EVENTS_INDEX_KEY.to_string()])?;
+                command_ok_tx(&tx, "DEL", vec![EVENTS_STREAM_KEY.to_string()])?;
+                TypedEventRepository::clear_tx(&tx)?;
+                let count = ids.len();
+                tx.commit()?;
+                Ok(count)
+            })
+            .await
     }
 
     async fn system_events_by_ids(
@@ -576,4 +988,30 @@ impl Store {
             .await?;
         Ok(())
     }
+}
+
+fn system_event_page(
+    events: impl IntoIterator<Item = Value>,
+    page: i64,
+    limit: i64,
+    search: &str,
+    event_type: Option<&str>,
+    level: Option<&str>,
+    source: Option<&str>,
+) -> Value {
+    let safe_page = page.max(1);
+    let safe_limit = limit.clamp(1, 100);
+    let page_start = (safe_page - 1) * safe_limit;
+    let mut total = 0_i64;
+    let mut page_events = Vec::new();
+    for event in events {
+        if !system_event_matches_filters(&event, search, event_type, level, source) {
+            continue;
+        }
+        if total >= page_start && page_events.len() < safe_limit as usize {
+            page_events.push(event);
+        }
+        total += 1;
+    }
+    json!({ "events": page_events, "total": total })
 }

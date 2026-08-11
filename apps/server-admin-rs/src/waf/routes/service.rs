@@ -8,7 +8,7 @@ pub(super) async fn get_waf_details(state: &AppState) -> anyhow::Result<Value> {
     let rules_state = read_rules_state(state).await?;
     let system_rules = list_rule_files(state, "system", &manifest_cache, &rules_state).await?;
     let custom_rules = list_rule_files(state, "custom", &manifest_cache, &rules_state).await?;
-    let status = match state.go_backend.get_waf_status().await {
+    let status = match state.gateway.client.get_waf_status().await {
         Ok(value)
             if value
                 .get("success")
@@ -55,7 +55,7 @@ pub(super) async fn get_waf_details(state: &AppState) -> anyhow::Result<Value> {
 }
 
 pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow::Result<Value> {
-    let mut full_config = state.store.get_config().await?;
+    let mut full_config = state.storage.store.get_config().await?;
     if !full_config.is_object() {
         full_config = store::default_config();
     }
@@ -85,7 +85,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
     if let Some(object) = full_config.as_object_mut() {
         object.insert("waf".to_string(), next.clone());
     }
-    state.store.save_config(&full_config).await?;
+    state.storage.store.save_config(&full_config).await?;
 
     let should_apply_to_gateway = has_any_key(
         patch,
@@ -153,7 +153,7 @@ pub(super) fn should_sync_system_rules_for_restore(
 }
 
 pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
-    let full_config = state.store.get_config().await?;
+    let full_config = state.storage.store.get_config().await?;
     let config = normalize_waf_config_for_full_config(&full_config, state);
     if apply_recommended_lfi_rule_patch_if_needed(state).await? {
         tracing::info!(
@@ -193,6 +193,7 @@ pub(super) async fn apply_recommended_lfi_rule_patch_if_needed(
     state: &AppState,
 ) -> anyhow::Result<bool> {
     if state
+        .storage
         .store
         .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
         .await?
@@ -202,10 +203,11 @@ pub(super) async fn apply_recommended_lfi_rule_patch_if_needed(
         return Ok(false);
     }
 
-    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
     // The boot WAF task can overlap other startup work. Recheck after taking
     // the rule-state lock so only one caller applies and marks this patch.
     if state
+        .storage
         .store
         .get_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY)
         .await?
@@ -224,6 +226,7 @@ pub(super) async fn apply_recommended_lfi_rule_patch_if_needed(
         write_rules_state(state, &rules_state).await?;
     }
     state
+        .storage
         .store
         .set_string_value(RECOMMENDED_LFI_RULE_PATCH_FLAG_KEY, "1")
         .await?;
@@ -259,6 +262,7 @@ pub(super) async fn check_and_sync_system_waf_rules_if_needed(
     }
     ensure_waf_directories(state).await?;
     if !state
+        .storage
         .store
         .set_lock_if_not_exists(
             "waf-system-rules-auto-update",
@@ -330,7 +334,7 @@ pub(super) async fn has_system_rule_files(state: &AppState) -> anyhow::Result<bo
 }
 
 pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
-    let Ok(config) = state.store.get_config().await else {
+    let Ok(config) = state.storage.store.get_config().await else {
         return DEFAULT_WAF_DRAIN_INTERVAL_SECONDS;
     };
     let waf = config.get("waf");
@@ -352,7 +356,7 @@ pub(super) async fn set_waf_rule_enabled(
     state: &AppState,
     input: WafRuleToggleBody,
 ) -> anyhow::Result<Value> {
-    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     let source = if input.source.as_deref() == Some("custom") {
         "custom"
@@ -409,7 +413,7 @@ pub(super) async fn set_waf_rule_enabled(
 }
 
 pub(super) async fn set_recommended_system_rules(state: &AppState) -> anyhow::Result<Value> {
-    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     let details = get_waf_details(state).await?;
     let existing_names = details
@@ -519,7 +523,7 @@ pub(super) async fn upload_custom_waf_rules(
     state: &AppState,
     input: WafUploadBody,
 ) -> anyhow::Result<Value> {
-    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     if input.files.is_empty() {
         anyhow::bail!("Select at least one .conf file");
@@ -550,7 +554,7 @@ pub(super) async fn delete_custom_waf_rule(
     state: &AppState,
     filename: &str,
 ) -> anyhow::Result<Value> {
-    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    let _rules_guard = state.security.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     let safe = safe_rule_filename(filename)?;
     let config = load_waf_config(state).await?;
@@ -597,7 +601,8 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
     }
 
     let response = state
-        .go_backend
+        .gateway
+        .client
         .drain_waf_events(DEFAULT_DRAIN_LIMIT)
         .await?;
     let data = go_response_data(response, "Failed to drain WAF events")?;
@@ -612,6 +617,7 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
         .collect::<Vec<_>>();
     if !events.is_empty() {
         state
+            .storage
             .store
             .persist_waf_events(
                 &events,
@@ -634,7 +640,7 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
 }
 
 pub(super) async fn load_waf_config(state: &AppState) -> crate::storage::StorageResult<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     Ok(normalize_waf_config_for_full_config(&config, state))
 }
 
@@ -795,7 +801,7 @@ pub(super) async fn apply_waf_config_to_gateway(
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        let response = state.go_backend.set_waf_config(config).await?;
+        let response = state.gateway.client.set_waf_config(config).await?;
         let _ = go_response_data(response, "Failed to sync WAF config")?;
         return Ok(());
     }
@@ -803,7 +809,7 @@ pub(super) async fn apply_waf_config_to_gateway(
     if !has_any_enabled_rule_files(state, &rules_state, None).await? {
         anyhow::bail!("{empty_rules_message}");
     }
-    let response = state.go_backend.reload_waf_rules(config).await?;
+    let response = state.gateway.client.reload_waf_rules(config).await?;
     let _ = go_response_data(response, "Failed to load WAF rules")?;
     Ok(())
 }

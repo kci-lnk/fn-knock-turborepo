@@ -4,7 +4,7 @@ mod provider;
 mod runtime;
 mod storage;
 
-pub(crate) use admin::ldap_admin_routes;
+pub(crate) use admin::{ldap_admin_openapi_routes, ldap_admin_routes};
 pub(crate) use runtime::{ldap_public_providers, ldap_runtime_routes, login};
 pub(crate) use storage::ldap_delete_bindings_by_totp;
 

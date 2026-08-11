@@ -36,7 +36,7 @@ defineProps<{
   loading: boolean;
   modeLabel: (value?: string) => string;
   releaseIpsFromWafLogs: (ips: string[]) => Promise<void> | void;
-  routeTypeLabel: (value?: string) => string;
+  routeTypeLabel: (value?: string | null) => string;
   selectedWafEntryKeys: Set<string>;
   toggleWafEntrySelection: (key?: string) => void;
   viewDetails: (entry: WAFEvent) => void;

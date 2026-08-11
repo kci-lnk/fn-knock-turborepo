@@ -19,6 +19,28 @@ ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 RUNTIME_LOG_DIR="${DATA_DIR}/runtime/logs"
 SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
 SUPERVISOR_EVENTS_DIR="${DATA_DIR}/runtime/supervisor-events"
+RUNTIME_PID_DIR="${DATA_DIR}/runtime/pids"
+GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
+MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
+
+write_pid_file() {
+  local path="$1" pid="$2" temp="${path}.tmp-$$"
+  mkdir -p "${RUNTIME_PID_DIR}"
+  chmod 700 "${DATA_DIR}/runtime" "${RUNTIME_PID_DIR}" 2>/dev/null || true
+  printf '%s\n' "${pid}" > "${temp}"
+  chmod 600 "${temp}" 2>/dev/null || true
+  mv -f "${temp}" "${path}"
+}
+
+remove_pid_file() {
+  local path="$1" expected_pid="$2" recorded=""
+  if [ -r "${path}" ]; then
+    recorded="$(tr -d '\r\n' < "${path}" 2>/dev/null || true)"
+  fi
+  if [ -z "${recorded}" ] || [ "${recorded}" = "${expected_pid}" ]; then
+    rm -f "${path}"
+  fi
+}
 
 supervisor_log() {
   local level="$1" component="$2" event="$3" reason="$4" exit_code="${5:-null}"
@@ -109,6 +131,8 @@ cleanup() {
   local code=$?
   trap - EXIT INT TERM
   terminate_children
+  remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
+  remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   exit "${code}"
 }
 
@@ -117,6 +141,8 @@ stop_gracefully() {
   echo "[fn-knock] stop requested; terminating services"
   supervisor_log INFO supervisor stop_requested signal null || true
   terminate_children
+  remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
+  remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   exit 0
 }
 
@@ -153,6 +179,7 @@ FN_KNOCK_DISABLE_IPTABLES=1 \
   -admin-port "${GO_BACKEND_PORT}" \
   -proxy-port "${GO_REPROXY_PORT}" &
 GATEWAY_PID=$!
+write_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID}"
 wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
 supervisor_log INFO gateway_process started supervisor_start null || true
 
@@ -172,6 +199,7 @@ echo "[fn-knock] starting Synology CGI backend: ${BACKEND_HOST}:${BACKEND_PORT}"
   "${RUST_BACKEND_BIN}"
 ) &
 BACKEND_PID=$!
+write_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID}"
 wait_for_process_or_fail "${BACKEND_PID}" "administration service"
 supervisor_log INFO management started supervisor_start null || true
 

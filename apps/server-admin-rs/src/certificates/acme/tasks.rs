@@ -5,6 +5,7 @@ const DEFAULT_ACME_RENEW_INTERVAL_SECONDS: u64 = 6 * 60 * 60;
 
 pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<()> {
     let acquired = state
+        .storage
         .store
         .set_lock_if_not_exists("acme-renew", acme_renew_lock_ttl_seconds())
         .await?;
@@ -74,7 +75,7 @@ pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<
 pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::Result<()> {
     let applications = read_acme_applications(state).await?;
     let t = Translator::from_state(state).await;
-    let mut config = state.store.get_config().await?;
+    let mut config = state.storage.store.get_config().await?;
     let previous_ssl = config.get("ssl").cloned();
     let mut deployment_changed = false;
 
@@ -149,7 +150,7 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
                 &t,
             )
             .await?;
-            config = state.store.get_config().await?;
+            config = state.storage.store.get_config().await?;
             Ok(should_activate
                 || config
                     .pointer("/ssl/deployment_mode")

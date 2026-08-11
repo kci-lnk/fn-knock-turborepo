@@ -1,5 +1,6 @@
 use super::*;
 
+#[utoipa::path(get, path = "/api/admin/ssl/status", tag = "ssl", operation_id = "get_api_admin_ssl_status", responses((status = 200, description = "SSL status")))]
 pub(super) async fn status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_ssl_status_with_translator(&state, &translator).await {
@@ -14,10 +15,12 @@ pub(super) async fn status(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/shared-files", tag = "ssl", operation_id = "get_api_admin_ssl_shared_files", responses((status = 200, description = "SSL shared files")))]
 pub(super) async fn shared_files() -> Response {
     response::ok(list_ssl_shared_files()).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/shared-files/content", tag = "ssl", operation_id = "get_api_admin_ssl_shared_files_content", responses((status = 200, description = "SSL shared file content")))]
 pub(super) async fn shared_file_content(
     State(state): State<AppState>,
     Query(query): Query<SharedContentQuery>,
@@ -29,9 +32,10 @@ pub(super) async fn shared_file_content(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/cert.pem", tag = "ssl", operation_id = "get_api_admin_ssl_cert_pem", responses((status = 200, description = "Active certificate PEM attachment")))]
 pub(super) async fn active_cert_pem(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => {
             let ssl = normalize_ssl_config(config.get("ssl"));
             let cert = ssl.get("cert").and_then(Value::as_str).unwrap_or("");
@@ -57,9 +61,10 @@ pub(super) async fn active_cert_pem(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/cert.zip", tag = "ssl", operation_id = "get_api_admin_ssl_cert_zip", responses((status = 200, description = "Active certificate ZIP attachment")))]
 pub(super) async fn active_cert_zip(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => {
             let ssl = normalize_ssl_config(config.get("ssl"));
             let cert = ssl.get("cert").and_then(Value::as_str).unwrap_or("");
@@ -91,6 +96,7 @@ pub(super) async fn active_cert_zip(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/ca/status", tag = "ssl", operation_id = "get_api_admin_ssl_ca_status", responses((status = 200, description = "Local CA status")))]
 pub(super) async fn ca_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let paths = ca_paths(&state);
@@ -119,6 +125,7 @@ pub(super) fn build_ca_status_payload(cert: &str) -> Option<Value> {
     }))
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/ca/init", tag = "ssl", operation_id = "post_api_admin_ssl_ca_init", responses((status = 200, description = "Initialized local CA")))]
 pub(super) async fn ca_init(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match init_root_ca(&state) {
@@ -130,6 +137,7 @@ pub(super) async fn ca_init(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssl/ca", tag = "ssl", operation_id = "delete_api_admin_ssl_ca", responses((status = 200, description = "Cleared local CA")))]
 pub(super) async fn ca_clear(State(state): State<AppState>) -> Response {
     let paths = ca_paths(&state);
     let _ = std::fs::remove_file(paths.cert);
@@ -137,6 +145,7 @@ pub(super) async fn ca_clear(State(state): State<AppState>) -> Response {
     response::success_empty().into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/ca/cert.pem", tag = "ssl", operation_id = "get_api_admin_ssl_ca_cert_pem", responses((status = 200, description = "Local CA PEM attachment")))]
 pub(super) async fn ca_cert_pem(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let paths = ca_paths(&state);
@@ -157,6 +166,7 @@ pub(super) async fn ca_cert_pem(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/ca/server-cert.zip", tag = "ssl", operation_id = "get_api_admin_ssl_ca_server_cert_zip", responses((status = 200, description = "Local CA server certificate ZIP attachment")))]
 pub(super) async fn ca_server_cert_zip(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let hosts = match get_ca_hosts(&state).await {
@@ -189,6 +199,7 @@ pub(super) async fn ca_server_cert_zip(State(state): State<AppState>) -> Respons
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssl/ca/hosts", tag = "ssl", operation_id = "get_api_admin_ssl_ca_hosts", responses((status = 200, description = "Local CA hosts")))]
 pub(super) async fn ca_hosts(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_ca_hosts(&state).await {
@@ -200,6 +211,7 @@ pub(super) async fn ca_hosts(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/ca/hosts", tag = "ssl", operation_id = "post_api_admin_ssl_ca_hosts", responses((status = 200, description = "Added local CA host")))]
 pub(super) async fn add_ca_host(
     State(state): State<AppState>,
     Json(body): Json<AddCaHostBody>,
@@ -221,6 +233,7 @@ pub(super) async fn add_ca_host(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssl/ca/hosts", tag = "ssl", operation_id = "delete_api_admin_ssl_ca_hosts", responses((status = 200, description = "Deleted local CA host")))]
 pub(super) async fn delete_ca_host(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = if body.is_empty() {
@@ -249,6 +262,7 @@ pub(super) async fn delete_ca_host(State(state): State<AppState>, body: Bytes) -
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/ca/issue", tag = "ssl", operation_id = "post_api_admin_ssl_ca_issue", responses((status = 200, description = "Issued local CA certificate")))]
 pub(super) async fn ca_issue(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let hosts = match get_ca_hosts(&state).await {
@@ -310,6 +324,7 @@ pub(super) fn build_ca_issue_certificate_body(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/certificates", tag = "ssl", operation_id = "post_api_admin_ssl_certificates", responses((status = 200, description = "Saved certificate")))]
 pub(super) async fn save_certificate(
     State(state): State<AppState>,
     Json(body): Json<SaveCertificateBody>,
@@ -325,7 +340,7 @@ pub(super) async fn save_certificate(
             let deployment_mode = if activate {
                 "single_active"
             } else {
-                let config = match state.store.get_config().await {
+                let config = match state.storage.store.get_config().await {
                     Ok(config) => config,
                     Err(error) => {
                         return response::error(
@@ -362,6 +377,7 @@ pub(super) async fn save_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/activate", tag = "ssl", operation_id = "post_api_admin_ssl_activate", responses((status = 200, description = "Activated certificate")))]
 pub(super) async fn activate_certificate(
     State(state): State<AppState>,
     Json(body): Json<ActivateBody>,
@@ -386,12 +402,13 @@ pub(super) async fn activate_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssl/deployment-mode", tag = "ssl", operation_id = "post_api_admin_ssl_deployment_mode", responses((status = 200, description = "Updated SSL deployment mode")))]
 pub(super) async fn set_deployment_mode(
     State(state): State<AppState>,
     Json(body): Json<DeploymentModeBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.store.get_config().await {
+    let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             return response::error(
@@ -423,14 +440,14 @@ pub(super) async fn set_deployment_mode(
         ssl = mirror_active_ssl_certificate(&ssl, Some(&active_id));
     }
     config["ssl"] = ssl;
-    if let Err(error) = state.store.save_config(&config).await {
+    if let Err(error) = state.storage.store.save_config(&config).await {
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_error_or_route_text(&translator, "deploymentModeSaveFailed", &error),
         );
     }
     if let Err(error) = sync_ssl_deployment_to_gateway(&state, Some(&config)).await {
-        let _ = state.store.save_config(&previous).await;
+        let _ = state.storage.store.save_config(&previous).await;
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_gateway_error(&translator, &error.to_string()),
@@ -445,6 +462,7 @@ pub(super) async fn set_deployment_mode(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssl/certificates/{id}", tag = "ssl", operation_id = "delete_api_admin_ssl_certificates_id", responses((status = 200, description = "Deleted certificate")))]
 pub(super) async fn delete_certificate(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -452,7 +470,7 @@ pub(super) async fn delete_certificate(
     let translator = Translator::from_state(&state).await;
     match delete_ssl_certificate(&state, &id).await {
         Ok((true, removed_active)) => {
-            let config = match state.store.get_config().await {
+            let config = match state.storage.store.get_config().await {
                 Ok(config) => config,
                 Err(error) => {
                     return response::error(
@@ -486,6 +504,7 @@ pub(super) async fn delete_certificate(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssl/certificates", tag = "ssl", operation_id = "delete_api_admin_ssl_certificates", responses((status = 200, description = "Cleared certificate library")))]
 pub(super) async fn clear_library(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match clear_ssl_certificate_library(&state).await {
@@ -503,6 +522,7 @@ pub(super) async fn clear_library(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssl", tag = "ssl", operation_id = "delete_api_admin_ssl", responses((status = 200, description = "Cleared active certificate")))]
 pub(super) async fn clear_ssl(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match clear_active_ssl(&state).await {

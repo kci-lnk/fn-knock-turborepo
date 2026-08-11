@@ -92,7 +92,7 @@ pub(super) async fn download_cloudflared(state: AppState) {
         // Keep tunnel state changes and the executable swap serialized with
         // config/managed-tunnel operations. The download itself happens first,
         // so a running tunnel is paused only for the short replacement window.
-        let _manage_guard = state.cloudflared_manage_lock.lock().await;
+        let _manage_guard = state.tunnel.cloudflared_manage_lock.lock().await;
         let should_resume = cloudflared::pause_cloudflared_for_asset_update(&state).await?;
         let install = install_cloudflared_binary_transactionally(
             &temp,

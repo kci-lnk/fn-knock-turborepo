@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
 import BinaryDownloadCard from "@admin-shared/components/system/BinaryDownloadCard.vue";
 import {
   extractErrorMessage,
@@ -9,24 +10,17 @@ import {
 import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
 import { toast } from "@admin-shared/utils/toast";
 
-type ResourceDownloadStatus = "idle" | "downloading" | "completed" | "error";
+type ResourceDownloadStatus =
+  ApiContractComponents["schemas"]["SystemAssetDownloadProgressData"]["status"];
 
-type ResourceStatusPayload = {
-  downloaded: boolean;
-  platform: string;
-  progress?: {
-    error?: string;
-    percent?: number;
-    status?: ResourceDownloadStatus;
-  };
-  supported: boolean;
-};
+type ResourceStatusPayload =
+  | ApiContractComponents["schemas"]["CloudflaredAssetStatusData"]
+  | ApiContractComponents["schemas"]["FrpAssetStatusData"];
 
-type ResourceApiResponse<T = unknown> = {
-  data?: T;
-  message?: string;
-  success: boolean;
-};
+type ResourceApiResponse<T = unknown> = Omit<
+  ApiContractComponents["schemas"]["ApiSuccessEnvelope"],
+  "data"
+> & { data?: T };
 
 const props = withDefaults(
   defineProps<{

@@ -1,82 +1,25 @@
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
+
 import { apiClient } from "./client";
 
-export interface DiscoveredServiceInfo {
-  serviceKey?: string;
-  host?: string;
-  port: number;
-  httpStatus: number;
-  requiresBasicAuth?: boolean;
-  detail: {
-    name: string;
-    label: string;
-    rule: {
-      path: string;
-      rewrite_html: boolean;
-      use_auth: boolean;
-      use_root_mode: boolean;
-      strip_path: boolean;
-      target: string;
-    };
-    isDefault: boolean;
-  };
-}
+type ScanSchemas = ApiContractComponents["schemas"];
 
-export interface ScanDiscoverResponse {
-  host: string;
-  totalPortsScanned: number;
-  foundServices: number;
-  scannedHosts?: number;
-  scanHostCount?: number;
-  scanScope?: string | null;
-  scanCidrs?: string[];
-  intensityMode?: ScanIntensityMode;
-  intensityLevel?: ScanIntensityLevel;
-  recommendedLevel?: ScanIntensityLevel;
-  configuredConcurrency?: number;
-  effectiveConcurrency?: number;
-  services: DiscoveredServiceInfo[];
-}
-
-export type ScanIntensityMode = "auto" | "manual";
-export type ScanIntensityLevel = "low" | "medium" | "high" | "extreme";
-
-export interface ScanDiscoveryCapability {
-  cpuCores: number;
-  totalMemoryMiB: number | null;
-  availableMemoryMiB: number | null;
-  fileDescriptorLimit: number | null;
-  safeConcurrency: number;
-}
-
-export interface ScanDiscoverySettings {
-  intensityMode: ScanIntensityMode;
-  configuredLevel: ScanIntensityLevel;
-  recommendedLevel: ScanIntensityLevel;
-  effectiveLevel: ScanIntensityLevel;
-  configuredConcurrency: number;
-  effectiveConcurrency: number;
-  capability: ScanDiscoveryCapability;
-}
-
-export interface ScanDiscoverySettingsSaveRequest {
-  intensity_mode: ScanIntensityMode;
-  intensity_level: ScanIntensityLevel;
-}
-
-export interface ScanDiscoverProgress {
-  scannedPorts: number;
-  totalPorts: number;
-  scannedHosts: number;
-  totalHosts: number;
-  currentHost?: string;
-}
+export type DiscoveredServiceInfo = ScanSchemas["ScanDiscoveredServiceData"];
+export type ScanDiscoverResponse = ScanSchemas["ScanDiscoverResultData"];
+export type ScanDiscoverMeta = ScanSchemas["ScanDiscoverMetaData"];
+export type ScanIntensityMode = ScanDiscoverySettings["intensityMode"];
+export type ScanIntensityLevel = ScanDiscoverySettings["effectiveLevel"];
+export type ScanDiscoveryCapability =
+  ScanSchemas["ScanDiscoveryCapabilityData"];
+export type ScanDiscoverySettings = ScanSchemas["ScanDiscoverySettingsData"];
+export type ScanDiscoverySettingsSaveRequest =
+  ScanSchemas["ScanDiscoverySettingsUpdateData"];
+export type ScanDiscoverProgress = ScanSchemas["ScanDiscoverProgressData"];
 
 export type ScanDiscoverPollEvent =
   | {
       type: "meta";
-      data: ScanDiscoverResponse & {
-        portRange?: string;
-      };
+      data: ScanDiscoverMeta;
     }
   | {
       type: "progress";
@@ -96,52 +39,15 @@ export type ScanDiscoverPollEvent =
       type: "cancelled";
     };
 
-export type ScanDiscoveryTargetSource =
-  | "docker"
-  | "loopback"
-  | "interface"
-  | "mapping"
-  | "custom"
-  | "saved";
-
-export interface ScanDiscoveryTarget {
-  cidr: string;
-  label: string;
-  source: ScanDiscoveryTargetSource;
-  hostCount: number;
-  isAutomatic: boolean;
-}
-
+export type ScanDiscoveryTarget = ScanSchemas["ScanDiscoveryTargetData"];
+export type ScanDiscoveryTargetSource = ScanDiscoveryTarget["source"];
+export type ScanDiscoveryHostCandidate =
+  ScanSchemas["ScanDiscoveryHostCandidateData"];
 export type ScanDiscoveryHostCandidateSource =
-  | "configured"
-  | "proxy"
-  | "request_host";
-
-export interface ScanDiscoveryHostCandidate {
-  address: string;
-  cidr: string;
-  source: ScanDiscoveryHostCandidateSource;
-  recommended: boolean;
-  includedInAutomaticScan: boolean;
-}
-
-export interface ScanDiscoveryTargetsResponse {
-  automaticTargets: ScanDiscoveryTarget[];
-  hostCandidates?: ScanDiscoveryHostCandidate[];
-  customTargets: ScanDiscoveryTarget[];
-  selectedTargets?: ScanDiscoveryTarget[];
-  selectionMode?: "automatic" | "custom";
-  selectedCidrs: string[];
-  effectiveCidrs: string[];
-  limits: {
-    maxCidrs: number;
-    maxHosts: number;
-  };
-}
-
-export interface ScanDiscoverRequest {
-  target_cidrs: string[];
-}
+  ScanDiscoveryHostCandidate["source"];
+export type ScanDiscoveryTargetsResponse =
+  ScanSchemas["ScanDiscoveryTargetsData"];
+export type ScanDiscoverRequest = ScanSchemas["ScanDiscoverJobBodyData"];
 
 export interface ScanDiscoverPollOptions {
   signal?: AbortSignal;
@@ -149,25 +55,8 @@ export interface ScanDiscoverPollOptions {
   onEvent?: (event: ScanDiscoverPollEvent) => void;
 }
 
-export type ScanDiscoverJobState =
-  | "queued"
-  | "running"
-  | "completed"
-  | "cancelled"
-  | "failed";
-
-export interface ScanDiscoverJobStatus {
-  jobId: string;
-  state: ScanDiscoverJobState;
-  createdAt: number;
-  updatedAt: number;
-  meta: (ScanDiscoverResponse & { portRange?: string }) | null;
-  progress: ScanDiscoverProgress | null;
-  services: DiscoveredServiceInfo[];
-  nextCursor: number;
-  result: ScanDiscoverResponse | null;
-  error: string | null;
-}
+export type ScanDiscoverJobStatus = ScanSchemas["ScanDiscoverJobData"];
+export type ScanDiscoverJobState = ScanDiscoverJobStatus["state"];
 
 const createScanAbortError = (): Error => {
   const error = new Error("Scan cancelled");
@@ -200,29 +89,13 @@ const waitForDiscoverPoll = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 
-export type HostMappingProbeStatus = "online" | "stale" | "unsupported";
-
-export interface HostMappingProbeResult {
-  host: string;
-  target: string;
-  status: HostMappingProbeStatus;
-  httpStatus?: number;
-  error?: string;
-  latencyMs?: number;
-}
-
-export interface HostMappingsProbeRequest {
-  hosts?: string[];
-}
-
-export interface HostMappingsProbeResponse {
-  results: HostMappingProbeResult[];
-}
-
-export interface ScanDiscoveryTargetsSaveRequest {
-  custom_cidrs?: string[];
-  selected_cidrs?: string[];
-}
+export type HostMappingProbeResult =
+  ScanSchemas["HostMappingProbeResultData"];
+export type HostMappingProbeStatus = HostMappingProbeResult["status"];
+export type HostMappingsProbeRequest = ScanSchemas["HostMappingsProbeBodyData"];
+export type HostMappingsProbeResponse = ScanSchemas["HostMappingsProbeData"];
+export type ScanDiscoveryTargetsSaveRequest =
+  ScanSchemas["ScanDiscoveryTargetsUpdateData"];
 
 export const ScanAPI = {
   async getDiscoverSettings(): Promise<ScanDiscoverySettings> {

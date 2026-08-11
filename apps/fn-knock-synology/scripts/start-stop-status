@@ -9,6 +9,20 @@ PID_FILE="${PKGVAR}/fn-knock.pid"
 LOG_FILE="${PKGVAR}/fn-knock.log"
 ENTRYPOINT="${PKGDEST}/bin/fn-knock-entrypoint"
 BACKEND_PORT="${BACKEND_PORT:-7998}"
+READINESS_URL="http://127.0.0.1:${BACKEND_PORT}/__fn-knock/readyz"
+RUNTIME_PID_DIR="${PKGVAR}/runtime/pids"
+GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
+MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
+START_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-180}"
+STOP_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS:-75}"
+FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS:-10}"
+
+is_positive_integer() {
+    case "${1:-}" in
+        ''|*[!0-9]*|0) return 1 ;;
+        *) return 0 ;;
+    esac
+}
 
 pid_is_running() {
     [ -r "${PID_FILE}" ] || return 1
@@ -19,6 +33,76 @@ pid_is_running() {
     kill -0 "${PID}" 2>/dev/null || return 1
     [ -r "/proc/${PID}/cmdline" ] || return 0
     tr '\000' ' ' < "/proc/${PID}/cmdline" | grep -q 'fn-knock-entrypoint'
+}
+
+pid_owns_isolated_group() {
+    [ -n "${PID:-}" ] || return 1
+    if [ -r "/proc/${PID}/stat" ]; then
+        process_stat="$(cat "/proc/${PID}/stat" 2>/dev/null)" || return 1
+        process_stat="${process_stat##*) }"
+        set -- ${process_stat}
+        [ "${3:-}" = "${PID}" ] && [ "${4:-}" = "${PID}" ]
+        return
+    fi
+    process_group="$(ps -o pgid= -p "${PID}" 2>/dev/null | tr -d ' ')"
+    [ "${process_group}" = "${PID}" ]
+}
+
+recorded_child_is_running() {
+    child_pid_file="$1"
+    child_command="$2"
+    [ -r "${child_pid_file}" ] || return 1
+    CHILD_PID="$(cat "${child_pid_file}" 2>/dev/null)"
+    case "${CHILD_PID}" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    kill -0 "${CHILD_PID}" 2>/dev/null || return 1
+    [ -r "/proc/${CHILD_PID}/cmdline" ] || return 1
+    tr '\000' ' ' < "/proc/${CHILD_PID}/cmdline" | grep -q "${child_command}"
+}
+
+recorded_children_are_running() {
+    recorded_child_is_running "${MANAGEMENT_PID_FILE}" 'server-admin-rs' || \
+        recorded_child_is_running "${GATEWAY_PID_FILE}" 'go-reauth-proxy'
+}
+
+signal_recorded_child() {
+    signal="$1"
+    child_pid_file="$2"
+    child_command="$3"
+    if recorded_child_is_running "${child_pid_file}" "${child_command}"; then
+        kill "-${signal}" "${CHILD_PID}" 2>/dev/null || true
+    fi
+}
+
+signal_recorded_children() {
+    signal="$1"
+    signal_recorded_child "${signal}" "${MANAGEMENT_PID_FILE}" 'server-admin-rs'
+    signal_recorded_child "${signal}" "${GATEWAY_PID_FILE}" 'go-reauth-proxy'
+}
+
+remove_runtime_pid_files() {
+    rm -f "${PID_FILE}" "${MANAGEMENT_PID_FILE}" "${GATEWAY_PID_FILE}"
+}
+
+signal_service() {
+    signal="$1"
+    pid_is_running || return 0
+    if pid_owns_isolated_group; then
+        kill "-${signal}" -- "-${PID}" 2>/dev/null || kill "-${signal}" "${PID}" 2>/dev/null || true
+    else
+        kill "-${signal}" "${PID}" 2>/dev/null || true
+    fi
+}
+
+wait_for_service_exit() {
+    timeout="$1"
+    elapsed=0
+    while { pid_is_running || recorded_children_are_running; } && [ "${elapsed}" -lt "${timeout}" ]; do
+        elapsed=$((elapsed + 1))
+        sleep 1
+    done
+    ! pid_is_running && ! recorded_children_are_running
 }
 
 write_runtime_ports() {
@@ -34,68 +118,109 @@ write_runtime_ports() {
     chmod 644 "${PKGVAR}/runtime-ports.env"
 }
 
+launch_service() {
+    SESSION_LAUNCHER="$(command -v setsid 2>/dev/null || true)"
+
+    umask 077
+    if [ -n "${SESSION_LAUNCHER}" ]; then
+        PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/syno/bin" \
+        HOME="${PKGHOME}" \
+        TMPDIR="${PKGTMP}" \
+        FN_KNOCK_APP_HOME="${PKGDEST}" \
+        FN_KNOCK_DATA_DIR="${PKGVAR}" \
+        FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        BACKEND_PORT="${BACKEND_PORT}" \
+        AUTH_PORT="${AUTH_PORT:-7997}" \
+        GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}" \
+        GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}" \
+        nohup "${SESSION_LAUNCHER}" "${ENTRYPOINT}" >> "${LOG_FILE}" 2>&1 &
+    else
+        PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/syno/bin" \
+        HOME="${PKGHOME}" \
+        TMPDIR="${PKGTMP}" \
+        FN_KNOCK_APP_HOME="${PKGDEST}" \
+        FN_KNOCK_DATA_DIR="${PKGVAR}" \
+        FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        BACKEND_PORT="${BACKEND_PORT}" \
+        AUTH_PORT="${AUTH_PORT:-7997}" \
+        GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}" \
+        GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}" \
+        nohup "${ENTRYPOINT}" >> "${LOG_FILE}" 2>&1 &
+    fi
+    PID=$!
+    printf '%s\n' "${PID}" > "${PID_FILE}"
+}
+
+stop_service() {
+    if ! pid_is_running && ! recorded_children_are_running; then
+        remove_runtime_pid_files
+        return 0
+    fi
+
+    signal_service TERM
+    signal_recorded_children TERM
+    if ! wait_for_service_exit "${STOP_TIMEOUT_SECONDS}"; then
+        signal_service KILL
+        signal_recorded_children KILL
+        wait_for_service_exit "${FORCE_KILL_TIMEOUT_SECONDS}" || {
+            printf 'fn-knock process group did not stop; PID %s is still running\n' "${PID}" \
+                > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            return 1
+        }
+    fi
+    remove_runtime_pid_files
+}
+
 start_service() {
     if pid_is_running; then
         return 0
     fi
-    rm -f "${PID_FILE}"
+    if recorded_children_are_running; then
+        stop_service || return 1
+    else
+        remove_runtime_pid_files
+    fi
     mkdir -p "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"
     write_runtime_ports
-    umask 077
-    PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/syno/bin" \
-    HOME="${PKGHOME}" \
-    TMPDIR="${PKGTMP}" \
-    FN_KNOCK_APP_HOME="${PKGDEST}" \
-    FN_KNOCK_DATA_DIR="${PKGVAR}" \
-    FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
-    BACKEND_PORT="${BACKEND_PORT}" \
-    AUTH_PORT="${AUTH_PORT:-7997}" \
-    GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}" \
-    GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}" \
-    nohup "${ENTRYPOINT}" >> "${LOG_FILE}" 2>&1 &
-    PID=$!
-    printf '%s\n' "${PID}" > "${PID_FILE}"
+    launch_service
 
-    attempts=0
-    while [ "${attempts}" -lt 20 ]; do
-        if ! kill -0 "${PID}" 2>/dev/null; then
+    started_at="$(date '+%s')"
+    deadline=$((started_at + START_TIMEOUT_SECONDS))
+    while [ "$(date '+%s')" -lt "${deadline}" ]; do
+        if ! pid_is_running; then
             rm -f "${PID_FILE}"
-            printf 'fn-knock exited during startup; see %s\n' "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            printf 'fn-knock exited during startup; see %s\n' "${LOG_FILE}" \
+                > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             return 1
         fi
-        if curl -fsS "http://127.0.0.1:${BACKEND_PORT}/" >/dev/null 2>&1; then
+        if curl -fsS --max-time 5 "${READINESS_URL}" >/dev/null 2>&1; then
             return 0
         fi
-        attempts=$((attempts + 1))
         sleep 1
     done
 
-    kill "${PID}" 2>/dev/null || true
-    rm -f "${PID_FILE}"
-    printf 'fn-knock health check timed out; see %s\n' "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+    stop_service || true
+    printf 'fn-knock readiness timed out after %s seconds; see %s\n' \
+        "${START_TIMEOUT_SECONDS}" "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
     return 1
 }
 
-stop_service() {
-    if ! pid_is_running; then
-        rm -f "${PID_FILE}"
-        return 0
-    fi
-    kill "${PID}" 2>/dev/null || true
-    attempts=0
-    while kill -0 "${PID}" 2>/dev/null && [ "${attempts}" -lt 30 ]; do
-        attempts=$((attempts + 1))
-        sleep 1
-    done
-    if kill -0 "${PID}" 2>/dev/null; then
-        kill -KILL "${PID}" 2>/dev/null || true
-    fi
-    rm -f "${PID_FILE}"
+validate_configuration() {
+    is_positive_integer "${START_TIMEOUT_SECONDS}" || return 1
+    is_positive_integer "${STOP_TIMEOUT_SECONDS}" || return 1
+    is_positive_integer "${FORCE_KILL_TIMEOUT_SECONDS}" || return 1
+    return 0
 }
 
 case "${1:-}" in
-    start) start_service ;;
-    stop) stop_service ;;
+    start)
+        validate_configuration || exit 1
+        start_service
+        ;;
+    stop)
+        validate_configuration || exit 1
+        stop_service
+        ;;
     status)
         if pid_is_running; then
             exit 0
@@ -106,6 +231,14 @@ case "${1:-}" in
     prestart)
         [ -x "${ENTRYPOINT}" ] || {
             printf 'Missing executable: %s\n' "${ENTRYPOINT}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            exit 1
+        }
+        command -v curl >/dev/null 2>&1 || {
+            printf 'Missing required command: curl\n' > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            exit 1
+        }
+        validate_configuration || {
+            printf 'Invalid fn-knock lifecycle timeout configuration\n' > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             exit 1
         }
         ;;

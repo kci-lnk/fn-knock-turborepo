@@ -1,19 +1,19 @@
 use axum::{
-    Json, Router,
+    Json,
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     http_utils::normalize_ip, i18n::Translator, ip_location, oidc_admin::oidc_get_provider,
     response, state::AppState, time_utils,
 };
 
-const SYSTEM_EVENT_TYPES: &[&str] = &[
+pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_AUTH_LOGIN_SUCCESS",
     "FN_EVENT_AUTH_LOGOUT",
     "FN_EVENT_AUTH_LOGIN_FAILURE",
@@ -43,14 +43,14 @@ const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_RUNTIME_RECOVERED",
     "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
 ];
-const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
-const SYSTEM_EVENT_SOURCES: &[&str] = &[
+pub(crate) const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
+pub(crate) const SYSTEM_EVENT_SOURCES: &[&str] = &[
     "SERVER_ADMIN",
     "GO_REAUTH_PROXY",
     "SYSTEM_MONITOR",
     "RUNTIME_MONITOR",
 ];
-const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] = &[
+pub(crate) const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] = &[
     "IP",
     "SESSION",
     "DDNS",
@@ -126,14 +126,14 @@ struct DeleteEventsBody {
     ids: Vec<String>,
 }
 
-pub fn internal_system_event_routes() -> Router<AppState> {
-    Router::new().route("/api/internal/system-events", post(publish_internal_event))
+pub fn internal_system_event_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(publish_internal_event))
 }
 
-pub fn admin_event_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/events", get(list_events).delete(delete_events))
-        .route("/api/admin/events/clear", delete(clear_events))
+pub fn admin_event_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_events, delete_events))
+        .routes(routes!(clear_events))
 }
 
 pub async fn publish_waf_blocked_event(state: &AppState, event: &Value) -> anyhow::Result<bool> {
@@ -790,37 +790,28 @@ async fn publish_system_event_body(
     }
 
     let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
-    let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
-        dedupe_ttl_seconds > 0
-            && state
-                .store
-                .acquire_system_event_dedupe(key, dedupe_ttl_seconds)
-                .await?
-    } else {
-        false
-    };
-    if dedupe_key.is_some() && dedupe_ttl_seconds > 0 && !acquired_dedupe {
-        return Ok(false);
-    }
-
     let event = build_event_envelope(body, subject, dedupe_key);
-    if let Err(error) = state
+    state
+        .storage
         .store
-        .append_system_event(
+        .append_system_event_if_dedupe_available(
             &event,
             event_config.retention_days,
             event_config.max_records,
+            event.get("dedupe_key").and_then(Value::as_str),
+            dedupe_ttl_seconds,
         )
         .await
-    {
-        if acquired_dedupe && let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-            let _ = state.store.release_system_event_dedupe(key).await;
-        }
-        return Err(error.into());
-    }
-    Ok(true)
+        .map_err(Into::into)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/internal/system-events",
+    tag = "system-events",
+    operation_id = "post_api_internal_system_events",
+    responses((status = 200, description = "Published or skipped system event"))
+)]
 async fn publish_internal_event(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -882,52 +873,28 @@ async fn publish_internal_event(
     }
 
     let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
-    let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
-        if dedupe_ttl_seconds > 0 {
-            match state
-                .store
-                .acquire_system_event_dedupe(key, dedupe_ttl_seconds)
-                .await
-            {
-                Ok(true) => true,
-                Ok(false) => {
-                    return Json(json!({ "success": true, "skipped": true, "data": Value::Null }))
-                        .into_response();
-                }
-                Err(error) => {
-                    tracing::warn!(%error, "failed to acquire system event dedupe key");
-                    return response::error(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        system_event_route_text(&translator, "writeEventFailed"),
-                    );
-                }
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    };
-
     let event = build_event_envelope(body, subject, dedupe_key);
     match state
+        .storage
         .store
-        .append_system_event(
+        .append_system_event_if_dedupe_available(
             &event,
             event_config.retention_days,
             event_config.max_records,
+            event.get("dedupe_key").and_then(Value::as_str),
+            dedupe_ttl_seconds,
         )
         .await
     {
-        Ok(()) => {
+        Ok(true) => {
             let mut event = event;
             hydrate_system_event_ip_locations(&state, std::slice::from_mut(&mut event)).await;
             Json(json!({ "success": true, "skipped": false, "data": event })).into_response()
         }
+        Ok(false) => {
+            Json(json!({ "success": true, "skipped": true, "data": Value::Null })).into_response()
+        }
         Err(error) => {
-            if acquired_dedupe && let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-                let _ = state.store.release_system_event_dedupe(key).await;
-            }
             tracing::warn!(%error, "failed to append system event");
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -937,6 +904,13 @@ async fn publish_internal_event(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/events",
+    tag = "events",
+    operation_id = "get_api_admin_events",
+    responses((status = 200, description = "System event page"))
+)]
 async fn list_events(
     State(state): State<AppState>,
     Query(query): Query<EventListQuery>,
@@ -983,6 +957,7 @@ async fn list_events(
     };
 
     match state
+        .storage
         .store
         .list_system_events(
             parse_positive_int(query.page.as_deref(), 1),
@@ -1079,12 +1054,19 @@ async fn hydrate_oidc_failure_provider_names(state: &AppState, events: &mut [Val
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/events",
+    tag = "events",
+    operation_id = "delete_api_admin_events",
+    responses((status = 200, description = "System events deleted"))
+)]
 async fn delete_events(
     State(state): State<AppState>,
     Json(body): Json<DeleteEventsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.delete_system_events(&body.ids).await {
+    match state.storage.store.delete_system_events(&body.ids).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete system events");
@@ -1096,9 +1078,16 @@ async fn delete_events(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/events/clear",
+    tag = "events",
+    operation_id = "delete_api_admin_events_clear",
+    responses((status = 200, description = "System event clear result"))
+)]
 async fn clear_events(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.clear_system_events().await {
+    match state.storage.store.clear_system_events().await {
         Ok(deleted_count) => {
             response::ok(json!({ "deleted_count": deleted_count })).into_response()
         }
@@ -1235,7 +1224,7 @@ struct EventSystemConfig {
 async fn load_event_system_config(
     state: &AppState,
 ) -> crate::storage::StorageResult<EventSystemConfig> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let event_system = config
         .get("event_system")
         .and_then(Value::as_object)

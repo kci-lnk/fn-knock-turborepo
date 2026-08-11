@@ -4,6 +4,7 @@ export const protectedAdminPanelDeploymentTargets = [
   "docker",
   "openwrt",
   "linux",
+  "macos",
   "windows",
 ] as const satisfies ReadonlyArray<DeploymentTarget>;
 

@@ -487,7 +487,7 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
-  async function saveAppearanceConfig(next: Partial<AppearanceConfig>) {
+  async function saveAppearanceConfig(next: AppearanceConfig) {
     const result = await ConfigAPI.updateAppearanceConfig(next);
     applyAppearanceConfig(result);
     if (config.value) {

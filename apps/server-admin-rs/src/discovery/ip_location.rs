@@ -1,16 +1,16 @@
 use std::{collections::HashSet, env, time::Duration};
 
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::post,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use tokio::time::MissedTickBehavior;
 use url::Url;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{http_body, http_utils, i18n::Translator, response, state::AppState, time_utils};
 
@@ -89,23 +89,24 @@ enum LookupOutcome {
     Failure(String),
 }
 
-pub fn ip_location_routes() -> Router<AppState> {
-    Router::new().route("/api/admin/ip-location/batch", post(batch))
+pub fn ip_location_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(batch))
 }
 
 pub fn start_ip_location_worker(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("ip-location-worker", async move {
         let mut interval = tokio::time::interval(QUEUE_POLL_INTERVAL);
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         interval.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = interval.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = process_queue(&state) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = process_queue(&task_state) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "IP location queue tick failed");
                     }
@@ -144,7 +145,11 @@ pub async fn get_ip_location_snapshot(
         }));
     }
 
-    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
+    if let Some(cached) = state
+        .storage
+        .store
+        .get_ip_location_cache(&normalized_ip)
+        .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
         return Ok(serde_json::to_value(build_snapshot(
@@ -183,6 +188,7 @@ pub async fn register_usage(
     };
     if !references.is_empty() {
         state
+            .storage
             .store
             .add_ip_location_references(
                 &normalized_ip,
@@ -192,7 +198,11 @@ pub async fn register_usage(
             .await?;
     }
 
-    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
+    if let Some(cached) = state
+        .storage
+        .store
+        .get_ip_location_cache(&normalized_ip)
+        .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
         if !references.is_empty() {
@@ -205,6 +215,13 @@ pub async fn register_usage(
     Ok(String::new())
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/ip-location/batch",
+    tag = "ip-location",
+    operation_id = "post_api_admin_ip_location_batch",
+    responses((status = 200, description = "Queued and current IP location snapshots"))
+)]
 async fn batch(State(state): State<AppState>, Json(body): Json<BatchBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     if body.ips.len() > IP_LOCATION_BATCH_LIMIT {
@@ -292,7 +309,11 @@ async fn ensure_enqueued(
         ));
     }
 
-    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
+    if let Some(cached) = state
+        .storage
+        .store
+        .get_ip_location_cache(&normalized_ip)
+        .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
         let current = get_state(state, &normalized_ip).await?;
@@ -302,6 +323,7 @@ async fn ensure_enqueued(
             build_success_state(result, current.attempts)
         };
         state
+            .storage
             .store
             .set_ip_location_state(
                 &normalized_ip,
@@ -323,6 +345,7 @@ async fn ensure_enqueued(
             result: None,
         };
         state
+            .storage
             .store
             .set_ip_location_state(
                 &normalized_ip,
@@ -352,6 +375,7 @@ async fn ensure_enqueued(
         result: None,
     };
     state
+        .storage
         .store
         .enqueue_ip_location(
             &normalized_ip,
@@ -366,6 +390,7 @@ async fn ensure_enqueued(
 
 async fn process_queue(state: &AppState) -> anyhow::Result<()> {
     let due_ips = state
+        .storage
         .store
         .due_ip_location_ips(time_utils::now_ms(), QUEUE_BATCH_SIZE)
         .await?;
@@ -374,11 +399,11 @@ async fn process_queue(state: &AppState) -> anyhow::Result<()> {
     }
 
     for ip in due_ips {
-        let state = state.clone();
-        tokio::spawn(async move {
+        let task_state = state.clone();
+        state.spawn_background("ip-location-lookup", async move {
             tokio::select! {
-                _ = state.shutdown.cancelled() => {}
-                result = process_one(&state, &ip) => {
+                _ = task_state.shutdown.cancelled() => {}
+                result = process_one(&task_state, &ip) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, %ip, "failed to process IP location lookup");
                     }
@@ -393,6 +418,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     let lookup_timeout = lookup_timeout();
     let lock_ttl_seconds = (lookup_timeout.as_secs() + 5).max(10) as usize;
     let locked = state
+        .storage
         .store
         .acquire_ip_location_lock(ip, time_utils::now_ms(), lock_ttl_seconds)
         .await?;
@@ -401,7 +427,11 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     }
 
     let result = async {
-        state.store.remove_ip_location_queue_entry(ip).await?;
+        state
+            .storage
+            .store
+            .remove_ip_location_queue_entry(ip)
+            .await?;
         let current = get_state(state, ip).await?;
         let attempts = current.attempts.max(0);
         if attempts >= MAX_ATTEMPTS {
@@ -418,6 +448,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                 result: None,
             };
             state
+                .storage
                 .store
                 .set_ip_location_state(
                     ip,
@@ -438,6 +469,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
             result: None,
         };
         state
+            .storage
             .store
             .set_ip_location_state(
                 ip,
@@ -452,6 +484,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                 let result = *result;
                 let success_state = build_success_state(result.clone(), next_attempt);
                 state
+                    .storage
                     .store
                     .complete_ip_location_lookup(
                         ip,
@@ -474,6 +507,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                         result: None,
                     };
                     state
+                        .storage
                         .store
                         .set_ip_location_state(
                             ip,
@@ -493,6 +527,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                         result: None,
                     };
                     state
+                        .storage
                         .store
                         .enqueue_ip_location(
                             ip,
@@ -508,7 +543,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     }
     .await;
 
-    let release_result = state.store.release_ip_location_lock(ip).await;
+    let release_result = state.storage.store.release_ip_location_lock(ip).await;
     if let Err(error) = release_result {
         tracing::warn!(%error, %ip, "failed to release IP location lock");
     }
@@ -573,6 +608,7 @@ async fn lookup_remote(state: &AppState, ip: &str, timeout: Duration) -> LookupO
 
 async fn ip_lookup_api_url(state: &AppState) -> Result<Url, String> {
     let raw = state
+        .storage
         .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await
@@ -719,7 +755,7 @@ fn js_array_item_string(value: &Value) -> String {
 }
 
 async fn get_state(state: &AppState, ip: &str) -> crate::storage::StorageResult<IpLocationState> {
-    let raw = state.store.get_ip_location_state(ip).await?;
+    let raw = state.storage.store.get_ip_location_state(ip).await?;
     Ok(raw
         .and_then(|value| serde_json::from_value::<IpLocationState>(value).ok())
         .unwrap_or_else(|| IpLocationState {
@@ -768,7 +804,7 @@ async fn sync_references(
     ip: &str,
     result: &IpLocationResult,
 ) -> anyhow::Result<()> {
-    let refs = state.store.ip_location_references(ip).await?;
+    let refs = state.storage.store.ip_location_references(ip).await?;
     sync_tracked_references(state, ip, result, &refs).await
 }
 
@@ -790,6 +826,7 @@ async fn sync_tracked_references(
     }
     if !stale_refs.is_empty() {
         state
+            .storage
             .store
             .remove_ip_location_references(ip, &stale_refs)
             .await?;
@@ -834,30 +871,7 @@ async fn sync_hash_ip_location(
     field: &str,
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
-    let Some(mut record) = state.store.hget_json_value(key, field).await? else {
-        return Ok(false);
-    };
-    if !record_matches_ip(&record, &result.normalized_ip, "ip") {
-        return Ok(false);
-    }
-    if record.get("ipLocation").and_then(Value::as_str) == Some(result.raw.as_str()) {
-        return Ok(true);
-    }
-    if let Some(object) = record.as_object_mut() {
-        object.insert("ipLocation".to_string(), Value::String(result.raw.clone()));
-    } else {
-        return Ok(false);
-    }
-    state.store.hset_json_value(key, field, &record).await?;
-    Ok(true)
-}
-
-async fn sync_json_ip_location(
-    state: &AppState,
-    key: &str,
-    result: &IpLocationResult,
-) -> anyhow::Result<bool> {
-    let (Some(mut record), ttl) = state.store.get_json_value_with_ttl(key).await? else {
+    let Some(mut record) = state.storage.store.hget_json_value(key, field).await? else {
         return Ok(false);
     };
     if !record_matches_ip(&record, &result.normalized_ip, "ip") {
@@ -872,6 +886,34 @@ async fn sync_json_ip_location(
         return Ok(false);
     }
     state
+        .storage
+        .store
+        .hset_json_value(key, field, &record)
+        .await?;
+    Ok(true)
+}
+
+async fn sync_json_ip_location(
+    state: &AppState,
+    key: &str,
+    result: &IpLocationResult,
+) -> anyhow::Result<bool> {
+    let (Some(mut record), ttl) = state.storage.store.get_json_value_with_ttl(key).await? else {
+        return Ok(false);
+    };
+    if !record_matches_ip(&record, &result.normalized_ip, "ip") {
+        return Ok(false);
+    }
+    if record.get("ipLocation").and_then(Value::as_str) == Some(result.raw.as_str()) {
+        return Ok(true);
+    }
+    if let Some(object) = record.as_object_mut() {
+        object.insert("ipLocation".to_string(), Value::String(result.raw.clone()));
+    } else {
+        return Ok(false);
+    }
+    state
+        .storage
         .store
         .set_json_value_preserve_ttl(key, &record, ttl)
         .await?;
@@ -884,7 +926,7 @@ async fn sync_session_timeline(
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
     let key = format!("fn_knock:auth_mobility:timeline:{session_id}");
-    let (Some(record), ttl) = state.store.get_json_value_with_ttl(&key).await? else {
+    let (Some(record), ttl) = state.storage.store.get_json_value_with_ttl(&key).await? else {
         return Ok(false);
     };
     let Some(events) = record.as_array() else {
@@ -921,6 +963,7 @@ async fn sync_session_timeline(
         return Ok(true);
     }
     state
+        .storage
         .store
         .set_json_value_preserve_ttl(&key, &Value::Array(next_events), ttl)
         .await?;
@@ -933,7 +976,7 @@ async fn sync_system_event(
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
     let key = format!("fn_knock:events:data:{event_id}");
-    let (Some(mut event), ttl) = state.store.get_json_value_with_ttl(&key).await? else {
+    let (Some(mut event), ttl) = state.storage.store.get_json_value_with_ttl(&key).await? else {
         return Ok(false);
     };
     let event_type = event
@@ -970,6 +1013,7 @@ async fn sync_system_event(
         return Ok(true);
     }
     state
+        .storage
         .store
         .set_json_value_preserve_ttl(&key, &event, ttl)
         .await?;

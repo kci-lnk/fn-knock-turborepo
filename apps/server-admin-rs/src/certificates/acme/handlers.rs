@@ -1,4 +1,36 @@
 use super::*;
+use utoipa_axum::{router::OpenApiRouter, routes};
+
+pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(uninstall_acme))
+        .routes(routes!(status))
+        .routes(routes!(overview))
+        .routes(routes!(dns_providers))
+        .routes(routes!(subdomain_recommendation))
+        .routes(routes!(init_acme))
+        .routes(routes!(save_client_settings_route))
+        .routes(routes!(config))
+        .routes(routes!(save_config))
+        .routes(routes!(applications))
+        .routes(routes!(create_application))
+        .routes(routes!(application))
+        .routes(routes!(update_application))
+        .routes(routes!(delete_application))
+        .routes(routes!(delete_application_certificate))
+        .routes(routes!(sync_application_library))
+        .routes(routes!(deploy_application_certificate))
+        .routes(routes!(request_application_certificate))
+        .routes(routes!(request_certificate))
+        .routes(routes!(stop_active_job))
+        .routes(routes!(job))
+        .routes(routes!(job_logs))
+        .routes(routes!(job_poll))
+        .routes(routes!(cert_info))
+        .routes(routes!(delete_cert))
+        .routes(routes!(cert_download))
+        .routes(routes!(deploy_domain_certificate))
+}
 
 fn acme_false_message(message: String) -> Response {
     Json(json!({ "success": false, "message": message })).into_response()
@@ -14,6 +46,7 @@ pub(super) fn build_init_acme_payload(executable_path: PathBuf, client_settings:
     })
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/status", tag = "acme", responses((status = 200, description = "ACME status")))]
 pub(super) async fn status(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     if let Err(error) = ensure_acme_data_migrated(&state).await {
@@ -62,6 +95,7 @@ pub(super) async fn status(State(state): State<AppState>) -> Response {
     response::ok(data).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/overview", tag = "acme", responses((status = 200, description = "ACME overview")))]
 pub(super) async fn overview(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     if let Err(error) = ensure_acme_data_migrated(&state).await {
@@ -126,6 +160,7 @@ pub(super) async fn overview(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/acme", tag = "acme", responses((status = 200, description = "Uninstalled ACME")))]
 pub(super) async fn uninstall_acme(State(state): State<AppState>) -> Response {
     if crate::runtime_profile::deployment_target(&state) == "windows" {
         return delete_resource(State(state)).await;
@@ -158,6 +193,7 @@ pub(super) async fn uninstall_acme(State(state): State<AppState>) -> Response {
     response::ok(current_acme_install_state(&state, &t).await).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/init", tag = "acme", responses((status = 200, description = "Initialized ACME")))]
 pub(super) async fn init_acme(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     let client_settings = match ensure_client_settings(&state).await {
@@ -177,7 +213,7 @@ pub(super) async fn init_acme(State(state): State<AppState>) -> Response {
             .and_then(Value::as_str)
             .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY)
             .to_string();
-        tokio::spawn(async move {
+        state.spawn_background("acme-client-install", async move {
             start_acme_install(install_state, certificate_authority).await;
         });
     }
@@ -188,6 +224,7 @@ pub(super) async fn init_acme(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/client-settings", tag = "acme", responses((status = 200, description = "Updated ACME client settings")))]
 pub(super) async fn save_client_settings_route(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -263,6 +300,7 @@ pub(super) async fn save_client_settings_route(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/config", tag = "acme", responses((status = 200, description = "ACME configuration")))]
 pub(super) async fn config(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     match get_acme_settings(&state).await {
@@ -277,6 +315,7 @@ pub(super) async fn config(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/config", tag = "acme", responses((status = 200, description = "Updated ACME configuration")))]
 pub(super) async fn save_config(State(state): State<AppState>, req: Request<Body>) -> Response {
     let t = Translator::from_state(&state).await;
     let (body, _) = match read_replayable_json_body(req, &t).await {
@@ -334,6 +373,7 @@ pub(super) async fn save_config(State(state): State<AppState>, req: Request<Body
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/applications", tag = "acme", responses((status = 200, description = "Created ACME application")))]
 pub(super) async fn create_application(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -388,6 +428,7 @@ pub(super) async fn create_application(
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/acme/applications/{id}", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Updated ACME application")))]
 pub(super) async fn update_application(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -491,6 +532,7 @@ pub(super) async fn update_application(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/acme/applications/{id}", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Deleted ACME application")))]
 pub(super) async fn delete_application(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -523,6 +565,7 @@ pub(super) async fn delete_application(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/acme/applications/{id}/certificate", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Deleted ACME application certificate")))]
 pub(super) async fn delete_application_certificate(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -541,6 +584,7 @@ pub(super) async fn delete_application_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/library/sync", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Synchronized ACME certificate library")))]
 pub(super) async fn sync_application_library(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -593,6 +637,7 @@ pub(super) async fn sync_application_library(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/deploy", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Deployed ACME application certificate")))]
 pub(super) async fn deploy_application_certificate(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -639,6 +684,7 @@ pub(super) async fn deploy_application_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/applications/{id}/request", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "Requested ACME application certificate")))]
 pub(super) async fn request_application_certificate(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -663,6 +709,7 @@ pub(super) async fn request_application_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/request", tag = "acme", responses((status = 200, description = "Requested legacy ACME certificate")))]
 pub(super) async fn request_certificate(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -727,6 +774,7 @@ pub(super) async fn request_certificate(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/jobs/active/stop", tag = "acme", responses((status = 200, description = "Stopped active ACME job")))]
 pub(super) async fn stop_active_job(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     match stop_active_acme_job(&state, &t).await {
@@ -741,6 +789,7 @@ pub(super) async fn stop_active_job(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/dns-providers", tag = "acme", responses((status = 200, description = "ACME DNS providers")))]
 pub(super) async fn dns_providers(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     let providers = if crate::runtime_profile::deployment_target(&state) == "windows" {
@@ -751,9 +800,10 @@ pub(super) async fn dns_providers(State(state): State<AppState>) -> Response {
     response::ok(Value::Array(providers)).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/subdomain-recommendation", tag = "acme", responses((status = 200, description = "ACME subdomain recommendation")))]
 pub(super) async fn subdomain_recommendation(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(build_subdomain_certificate_recommendation(
             &state, &config, &t,
         ))
@@ -884,6 +934,7 @@ pub(super) async fn build_application_overview(
     Ok(output)
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/applications", tag = "acme", responses((status = 200, description = "ACME applications")))]
 pub(super) async fn applications(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     match read_acme_applications(&state).await {
@@ -898,6 +949,7 @@ pub(super) async fn applications(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/applications/{id}", tag = "acme", params(("id" = String, Path, description = "ACME application identifier")), responses((status = 200, description = "ACME application")))]
 pub(super) async fn application(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -916,6 +968,7 @@ pub(super) async fn application(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/jobs/{id}", tag = "acme", params(("id" = String, Path, description = "ACME job identifier")), responses((status = 200, description = "ACME job")))]
 pub(super) async fn job(State(state): State<AppState>, AxumPath(id): AxumPath<String>) -> Response {
     let t = Translator::from_state(&state).await;
     match get_acme_job(&state, &id).await {
@@ -931,6 +984,7 @@ pub(super) async fn job(State(state): State<AppState>, AxumPath(id): AxumPath<St
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/jobs/{id}/logs", tag = "acme", params(("id" = String, Path, description = "ACME job identifier")), responses((status = 200, description = "ACME job logs")))]
 pub(super) async fn job_logs(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -948,6 +1002,7 @@ pub(super) async fn job_logs(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/jobs/{id}/poll", tag = "acme", operation_id = "get_api_admin_acme_jobs__id__poll", params(("id" = String, Path, description = "ACME job identifier")), responses((status = 200, description = "ACME job poll result")))]
 pub(super) async fn job_poll(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -990,6 +1045,7 @@ pub(super) async fn job_poll(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/certs/{domain}", tag = "acme", params(("domain" = String, Path, description = "Certificate domain")), responses((status = 200, description = "ACME certificate")))]
 pub(super) async fn cert_info(
     State(state): State<AppState>,
     AxumPath(domain): AxumPath<String>,
@@ -1012,6 +1068,7 @@ pub(super) async fn cert_info(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/acme/certs/{domain}", tag = "acme", params(("domain" = String, Path, description = "Certificate domain")), responses((status = 200, description = "Deleted ACME certificate")))]
 pub(super) async fn delete_cert(
     State(state): State<AppState>,
     AxumPath(domain): AxumPath<String>,
@@ -1082,6 +1139,7 @@ pub(super) async fn delete_cert(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/acme/certs/{domain}/download", tag = "acme", params(("domain" = String, Path, description = "Certificate domain")), responses((status = 200, description = "ACME certificate archive")))]
 pub(super) async fn cert_download(
     State(state): State<AppState>,
     AxumPath(domain): AxumPath<String>,
@@ -1114,6 +1172,7 @@ pub(super) async fn cert_download(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/acme/certs/{domain}/deploy", tag = "acme", params(("domain" = String, Path, description = "Certificate domain")), responses((status = 200, description = "Deployed ACME certificate")))]
 pub(super) async fn deploy_domain_certificate(
     State(state): State<AppState>,
     AxumPath(domain): AxumPath<String>,

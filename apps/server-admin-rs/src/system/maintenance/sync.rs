@@ -7,7 +7,7 @@ pub(super) async fn sync_runtime_after_import(
 ) -> (Vec<String>, Vec<String>) {
     let mut warnings = Vec::new();
     let mut synced_steps = Vec::new();
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             warnings.push(format!(
@@ -56,7 +56,8 @@ pub(super) async fn sync_runtime_after_import(
         })
     });
     match state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_logging_config_status(&gateway_logging)
         .await
     {
@@ -144,7 +145,7 @@ pub(super) async fn sync_runtime_after_import(
 
     let locale_label = maintenance_backup_text(translator, "syncSteps.locale");
     let locale = normalize_locale_config(config.get("locale").unwrap_or(&Value::Null));
-    match state.go_backend.set_locale_config(&locale).await {
+    match state.gateway.client.set_locale_config(&locale).await {
         Ok((status, value))
             if status == reqwest::StatusCode::NOT_FOUND
                 || (status.is_success()

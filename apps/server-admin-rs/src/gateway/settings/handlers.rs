@@ -1,5 +1,28 @@
 use super::*;
+use axum::Json;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+pub(super) fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_gateway, update_gateway))
+        .routes(routes!(get_gateway_visibility, update_gateway_visibility))
+        .routes(routes!(
+            get_gateway_proxy_headers,
+            update_gateway_proxy_headers
+        ))
+        .routes(routes!(
+            get_gateway_host_response,
+            update_gateway_host_response
+        ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/gateway",
+    tag = "config",
+    operation_id = "get_api_admin_config_gateway",
+    responses((status = 200, description = "Gateway settings"))
+)]
 pub(super) async fn get_gateway(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_gateway_settings_response(&state).await {
@@ -14,6 +37,13 @@ pub(super) async fn get_gateway(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/gateway",
+    tag = "config",
+    operation_id = "post_api_admin_config_gateway",
+    responses((status = 200, description = "Updated gateway settings"))
+)]
 pub(super) async fn update_gateway(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -26,7 +56,7 @@ pub(super) async fn update_gateway(
         );
     };
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway update");
@@ -40,7 +70,7 @@ pub(super) async fn update_gateway(
     let mut updated_config = previous_config.clone();
     apply_gateway_patch(&mut updated_config, patch);
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
+    if let Err(error) = state.storage.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save gateway settings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -89,6 +119,13 @@ pub(super) async fn update_gateway(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/gateway/visibility",
+    tag = "config",
+    operation_id = "get_api_admin_config_gateway_visibility",
+    responses((status = 200, description = "Gateway visibility settings"))
+)]
 pub(super) async fn get_gateway_visibility(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_gateway_visibility_details(&state).await {
@@ -103,12 +140,19 @@ pub(super) async fn get_gateway_visibility(State(state): State<AppState>) -> Res
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/gateway/visibility",
+    tag = "config",
+    operation_id = "post_api_admin_config_gateway_visibility",
+    responses((status = 200, description = "Updated gateway visibility settings"))
+)]
 pub(super) async fn update_gateway_visibility(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway visibility update");
@@ -119,6 +163,7 @@ pub(super) async fn update_gateway_visibility(
         }
     };
     let previous_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
@@ -154,6 +199,13 @@ pub(super) async fn update_gateway_visibility(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/gateway/proxy-headers",
+    tag = "config",
+    operation_id = "get_api_admin_config_gateway_proxy_headers",
+    responses((status = 200, description = "Gateway proxy header settings"))
+)]
 pub(super) async fn get_gateway_proxy_headers(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_gateway_proxy_headers_details(&state, &translator).await {
@@ -168,12 +220,19 @@ pub(super) async fn get_gateway_proxy_headers(State(state): State<AppState>) -> 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/gateway/proxy-headers",
+    tag = "config",
+    operation_id = "post_api_admin_config_gateway_proxy_headers",
+    responses((status = 200, description = "Updated gateway proxy header settings"))
+)]
 pub(super) async fn update_gateway_proxy_headers(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway proxy headers update");
@@ -190,6 +249,7 @@ pub(super) async fn update_gateway_proxy_headers(
         );
     }
     let previous_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await
@@ -225,6 +285,13 @@ pub(super) async fn update_gateway_proxy_headers(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/gateway/host-response",
+    tag = "config",
+    operation_id = "get_api_admin_config_gateway_host_response",
+    responses((status = 200, description = "Gateway host response settings"))
+)]
 pub(super) async fn get_gateway_host_response(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_gateway_host_response_details(&state, &translator).await {
@@ -239,12 +306,19 @@ pub(super) async fn get_gateway_host_response(State(state): State<AppState>) -> 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/gateway/host-response",
+    tag = "config",
+    operation_id = "post_api_admin_config_gateway_host_response",
+    responses((status = 200, description = "Updated gateway host response settings"))
+)]
 pub(super) async fn update_gateway_host_response(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway host response update");
@@ -261,6 +335,7 @@ pub(super) async fn update_gateway_host_response(
         );
     }
     let previous_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await

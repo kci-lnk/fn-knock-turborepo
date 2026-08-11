@@ -9,6 +9,7 @@ pub(super) async fn load_block(
         return Ok(None);
     }
     Ok(state
+        .storage
         .store
         .get_json_value(&format!("{BLOCK_DATA_PREFIX}{normalized}"))
         .await?
@@ -25,6 +26,7 @@ pub(super) async fn save_block(
     let ip = record.get("ip").and_then(Value::as_str).unwrap_or_default();
     let ttl = block_ttl_seconds(&record);
     state
+        .storage
         .store
         .set_json_value_ex(&format!("{BLOCK_DATA_PREFIX}{ip}"), &record, ttl)
         .await?;
@@ -35,21 +37,31 @@ pub(super) async fn save_block(
     {
         let score = iso_score(record.get("expires_at").and_then(Value::as_str));
         state
+            .storage
             .store
             .zadd_string_member(BLOCKS_INDEX_KEY, ip, score)
             .await?;
     } else {
-        state.store.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
+        state
+            .storage
+            .store
+            .zrem_string_member(BLOCKS_INDEX_KEY, ip)
+            .await?;
     }
     Ok(())
 }
 
 pub(super) async fn active_blocks(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
-    let keys = state.store.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
+    let keys = state
+        .storage
+        .store
+        .scan_keys(BLOCK_DATA_PREFIX, 100)
+        .await?;
     let mut records = Vec::new();
     let now = time_utils::now_ms();
     for key in keys {
         if let Some(record) = state
+            .storage
             .store
             .get_json_value(&key)
             .await?
@@ -58,7 +70,11 @@ pub(super) async fn active_blocks(state: &AppState) -> crate::storage::StorageRe
             if is_active_block(&record, now) {
                 records.push(record);
             } else if let Some(ip) = record.get("ip").and_then(Value::as_str) {
-                state.store.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
+                state
+                    .storage
+                    .store
+                    .zrem_string_member(BLOCKS_INDEX_KEY, ip)
+                    .await?;
             }
         }
     }

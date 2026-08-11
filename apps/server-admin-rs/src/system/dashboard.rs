@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
 use axum::{
-    Json, Router,
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time::{MissedTickBehavior, interval};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     i18n::Translator,
@@ -40,28 +40,27 @@ struct ActiveIpsQuery {
     host: Option<String>,
 }
 
-pub fn dashboard_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/dashboard/stats", get(stats))
-        .route("/api/admin/dashboard/realtime", get(realtime))
-        .route("/api/admin/dashboard/active-ips", get(active_ips))
-        .route(
-            "/api/admin/config/dashboard_display",
-            get(get_dashboard_display).post(update_dashboard_display),
-        )
+pub fn dashboard_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(stats))
+        .routes(routes!(realtime))
+        .routes(routes!(active_ips))
+        .routes(routes!(get_dashboard_display, update_dashboard_display))
 }
 
 pub fn start_traffic_tasks(state: AppState) {
     let collect_state = state.clone();
-    tokio::spawn(async move {
-        run_traffic_collect_loop(collect_state).await;
-    });
-
-    tokio::spawn(async move {
-        run_traffic_cleanup_loop(state).await;
-    });
+    state.spawn_background("traffic-collector", run_traffic_collect_loop(collect_state));
+    state.spawn_background("traffic-cleanup", run_traffic_cleanup_loop(state.clone()));
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/dashboard/stats",
+    tag = "dashboard",
+    operation_id = "get_api_admin_dashboard_stats",
+    responses((status = 200, description = "Dashboard traffic statistics"))
+)]
 async fn stats(
     State(state): State<AppState>,
     Query(query): Query<DashboardStatsQuery>,
@@ -77,20 +76,27 @@ async fn stats(
 
     let result = tokio::try_join!(
         state
+            .storage
             .store
             .list_traffic_points(&user_id, "in", from_sec, now_sec, host_ref),
         state
+            .storage
             .store
             .list_traffic_points(&user_id, "out", from_sec, now_sec, host_ref),
         state
+            .storage
             .store
             .list_error5xx_points(&user_id, from_sec, now_sec, host_ref),
         state
+            .storage
             .store
             .list_error5xx_points(&user_id, now_sec - 24 * 3600, now_sec, host_ref),
-        state
-            .store
-            .list_error5xx_points(&user_id, now_sec - 7 * 24 * 3600, now_sec, host_ref)
+        state.storage.store.list_error5xx_points(
+            &user_id,
+            now_sec - 7 * 24 * 3600,
+            now_sec,
+            host_ref
+        )
     );
 
     let (in_points, out_points, err5xx_points, err5xx_1d_points, err5xx_1w_points) = match result {
@@ -165,6 +171,13 @@ async fn stats(
     .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/dashboard/realtime",
+    tag = "dashboard",
+    operation_id = "get_api_admin_dashboard_realtime",
+    responses((status = 200, description = "Current dashboard traffic snapshot"))
+)]
 async fn realtime(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_realtime_payload(&state).await {
@@ -183,6 +196,13 @@ async fn realtime(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/dashboard/active-ips",
+    tag = "dashboard",
+    operation_id = "get_api_admin_dashboard_active_ips",
+    responses((status = 200, description = "Active client addresses for one host"))
+)]
 async fn active_ips(
     State(state): State<AppState>,
     Query(query): Query<ActiveIpsQuery>,
@@ -196,7 +216,7 @@ async fn active_ips(
         );
     }
 
-    let (status, envelope) = match state.go_backend.get_host_active_ips(host.clone()).await {
+    let (status, envelope) = match state.gateway.client.get_host_active_ips(host.clone()).await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to read active IP stats from Go backend");
@@ -282,9 +302,16 @@ async fn active_ips(
     .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/dashboard_display",
+    tag = "config",
+    operation_id = "get_api_admin_config_dashboard_display",
+    responses((status = 200, description = "Dashboard display configuration"))
+)]
 async fn get_dashboard_display(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(normalize_dashboard_display(config.get("dashboard_display")))
             .into_response(),
         Err(error) => {
@@ -297,12 +324,20 @@ async fn get_dashboard_display(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/dashboard_display",
+    tag = "config",
+    operation_id = "post_api_admin_config_dashboard_display",
+    responses((status = 200, description = "Updated dashboard display configuration"))
+)]
 async fn update_dashboard_display(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let config = match state
+        .storage
         .store
         .merge_config_object_fields("dashboard_display", dashboard_display_update_fields(&body))
         .await
@@ -363,6 +398,7 @@ async fn run_traffic_cleanup_loop(state: AppState) {
 
 async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let acquired = state
+        .storage
         .store
         .set_lock_if_not_exists(
             "traffic-collect",
@@ -376,6 +412,7 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let snapshot = fetch_traffic_stats(state).await?;
     let records = build_snapshot_records(&snapshot);
     state
+        .storage
         .store
         .record_traffic_snapshot(
             &state.settings.traffic_user_id,
@@ -389,6 +426,7 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
 
 async fn cleanup_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let acquired = state
+        .storage
         .store
         .set_lock_if_not_exists(
             "traffic-cleanup",
@@ -399,6 +437,7 @@ async fn cleanup_traffic_once(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     }
     let _ = state
+        .storage
         .store
         .cleanup_traffic_metrics(state.settings.traffic_keep_seconds)
         .await?;
@@ -421,7 +460,7 @@ async fn build_realtime_payload(state: &AppState) -> anyhow::Result<Option<Value
 }
 
 async fn fetch_traffic_stats(state: &AppState) -> anyhow::Result<Value> {
-    let (status, envelope) = state.go_backend.get_traffic_stats().await?;
+    let (status, envelope) = state.gateway.client.get_traffic_stats().await?;
     if status.as_u16() == 404 || envelope_code(&envelope) == Some(404) {
         return Ok(default_traffic_snapshot());
     }
@@ -666,7 +705,7 @@ fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
     fields
 }
 
-const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
+pub(crate) const DEFAULT_SIDEBAR_MENU_ORDER: &[&str] = &[
     "dashboard",
     "route_mapping",
     "tunnel",

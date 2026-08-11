@@ -3,7 +3,8 @@ use super::*;
 pub(super) async fn sync_go_rules(state: &AppState, rules: &Value) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_rules(rules)
             .await
             .map_err(|error| error.to_string())?,
@@ -24,7 +25,8 @@ pub(crate) async fn sync_go_host_rules_locked(
     );
     let result = async {
         let response = state
-            .go_backend
+            .gateway
+            .client
             .set_host_rules(rules)
             .await
             .map_err(|error| error.to_string())?;
@@ -57,7 +59,8 @@ pub(crate) async fn sync_go_host_rules_locked(
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
     state.set_gateway_config_synced(false);
     let result = state
-        .go_backend
+        .gateway
+        .client
         .flush_host_rules()
         .await
         .map_err(|error| error.to_string())
@@ -343,7 +346,8 @@ pub(super) async fn sync_go_auth_config(state: &AppState, config: &Value) -> Res
     let auth_config = build_gateway_auth_config(config);
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_auth_config(&auth_config)
             .await
             .map_err(|error| error.to_string())?,
@@ -360,6 +364,7 @@ pub(super) async fn sync_host_mappings_runtime(
     // while the caller still owns the lease so the runtime always follows the
     // latest complete persisted config.
     let current_config = state
+        .storage
         .store
         .get_config()
         .await

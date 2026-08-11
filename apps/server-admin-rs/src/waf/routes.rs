@@ -11,7 +11,6 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
 };
 use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -21,6 +20,7 @@ use tokio::{
     fs,
     time::{self as tokio_time, MissedTickBehavior},
 };
+use utoipa_axum::{router::OpenApiRouter, routes};
 use zip::ZipArchive;
 
 use crate::{
@@ -182,28 +182,30 @@ fn localize_waf_error(translator: &Translator, message: &str) -> String {
 }
 
 pub fn waf_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/waf/details", get(details))
-        .route("/api/admin/waf/status", get(status))
-        .route("/api/admin/waf/config", post(config))
-        .route("/api/admin/waf/manifest/refresh", post(refresh_manifest))
-        .route("/api/admin/waf/system/sync", post(sync_system_rules))
-        .route(
-            "/api/admin/waf/rules/recommended",
-            post(enable_recommended_rules),
-        )
-        .route("/api/admin/waf/rules/enabled", post(set_rule_enabled))
-        .route("/api/admin/waf/rules/{source}/{filename}", get(read_rule))
-        .route("/api/admin/waf/custom/upload", post(upload_custom))
-        .route("/api/admin/waf/custom/{filename}", delete(delete_custom))
-        .route("/api/admin/waf/events/drain", post(drain_events))
-        .route("/api/admin/waf/logs", get(logs).delete(delete_logs))
-        .route("/api/admin/waf/logs/{trace_id}", get(log_detail))
+    waf_openapi_routes().into()
+}
+
+pub(crate) fn waf_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(details))
+        .routes(routes!(status))
+        .routes(routes!(config))
+        .routes(routes!(refresh_manifest))
+        .routes(routes!(sync_system_rules))
+        .routes(routes!(enable_recommended_rules))
+        .routes(routes!(set_rule_enabled))
+        .routes(routes!(read_rule))
+        .routes(routes!(upload_custom))
+        .routes(routes!(delete_custom))
+        .routes(routes!(drain_events))
+        .routes(routes!(logs))
+        .routes(routes!(log_detail))
+        .routes(routes!(delete_logs))
 }
 
 pub fn start_waf_tasks(state: AppState) {
     let boot_state = state.clone();
-    tokio::spawn(async move {
+    state.spawn_background("waf-boot-sync", async move {
         tokio::select! {
             _ = boot_state.shutdown.cancelled() => {}
             result = sync_waf_on_boot(&boot_state) => {
@@ -215,7 +217,7 @@ pub fn start_waf_tasks(state: AppState) {
     });
 
     let drain_state = state.clone();
-    tokio::spawn(async move {
+    state.spawn_background("waf-event-drain", async move {
         tokio::select! {
             _ = drain_state.shutdown.cancelled() => return,
             result = drain_waf_events_now(&drain_state) => {
@@ -244,7 +246,8 @@ pub fn start_waf_tasks(state: AppState) {
         }
     });
 
-    tokio::spawn(async move {
+    let update_state = state.clone();
+    state.spawn_background("waf-rules-update", async move {
         let mut ticker = tokio_time::interval(std::time::Duration::from_secs(
             WAF_SYSTEM_RULES_AUTO_UPDATE_SECONDS,
         ));
@@ -252,12 +255,12 @@ pub fn start_waf_tasks(state: AppState) {
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = update_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = check_and_sync_system_waf_rules_if_needed(&state) => {
+                _ = update_state.shutdown.cancelled() => break,
+                result = check_and_sync_system_waf_rules_if_needed(&update_state) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "failed to auto update WAF system rules");
                     }
@@ -299,6 +302,7 @@ struct WafUploadFile {
     content_base64: String,
 }
 
+#[utoipa::path(get, path = "/api/admin/waf/details", tag = "waf", operation_id = "get_api_admin_waf_details", responses((status = 200, description = "WAF details")))]
 async fn details(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_waf_details(&state).await {
@@ -313,9 +317,10 @@ async fn details(axum::extract::State(state): axum::extract::State<AppState>) ->
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/waf/status", tag = "waf", operation_id = "get_api_admin_waf_status", responses((status = 200, description = "WAF status")))]
 async fn status(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.go_backend.get_waf_status().await {
+    match state.gateway.client.get_waf_status().await {
         Ok(value) => {
             if !value
                 .get("success")
@@ -347,6 +352,7 @@ async fn status(axum::extract::State(state): axum::extract::State<AppState>) -> 
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/config", tag = "waf", operation_id = "post_api_admin_waf_config", responses((status = 200, description = "Updated WAF configuration")))]
 async fn config(
     axum::extract::State(state): axum::extract::State<AppState>,
     axum::Json(body): axum::Json<Value>,
@@ -361,6 +367,7 @@ async fn config(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/manifest/refresh", tag = "waf", operation_id = "post_api_admin_waf_manifest_refresh", responses((status = 200, description = "Refreshed WAF manifest")))]
 async fn refresh_manifest(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match refresh_system_manifest_cache(&state).await {
@@ -381,6 +388,7 @@ async fn refresh_manifest(axum::extract::State(state): axum::extract::State<AppS
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/system/sync", tag = "waf", operation_id = "post_api_admin_waf_system_sync", responses((status = 200, description = "Synchronized system WAF rules")))]
 async fn sync_system_rules(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Response {
@@ -394,6 +402,7 @@ async fn sync_system_rules(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/rules/enabled", tag = "waf", operation_id = "post_api_admin_waf_rules_enabled", responses((status = 200, description = "Updated WAF rule state")))]
 async fn set_rule_enabled(
     axum::extract::State(state): axum::extract::State<AppState>,
     axum::Json(body): axum::Json<WafRuleToggleBody>,
@@ -408,6 +417,7 @@ async fn set_rule_enabled(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/rules/recommended", tag = "waf", operation_id = "post_api_admin_waf_rules_recommended", responses((status = 200, description = "Enabled recommended WAF rules")))]
 async fn enable_recommended_rules(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Response {
@@ -421,6 +431,7 @@ async fn enable_recommended_rules(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/waf/rules/{source}/{filename}", tag = "waf", operation_id = "get_api_admin_waf_rules_source_filename", responses((status = 200, description = "WAF rule content")))]
 async fn read_rule(
     axum::extract::State(state): axum::extract::State<AppState>,
     Path((source, filename)): Path<(String, String)>,
@@ -435,6 +446,7 @@ async fn read_rule(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/custom/upload", tag = "waf", operation_id = "post_api_admin_waf_custom_upload", responses((status = 200, description = "Uploaded custom WAF rules")))]
 async fn upload_custom(
     axum::extract::State(state): axum::extract::State<AppState>,
     axum::Json(body): axum::Json<WafUploadBody>,
@@ -449,6 +461,7 @@ async fn upload_custom(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/waf/custom/{filename}", tag = "waf", operation_id = "delete_api_admin_waf_custom_filename", responses((status = 200, description = "Deleted custom WAF rule")))]
 async fn delete_custom(
     axum::extract::State(state): axum::extract::State<AppState>,
     Path(filename): Path<String>,
@@ -463,6 +476,7 @@ async fn delete_custom(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/waf/events/drain", tag = "waf", operation_id = "post_api_admin_waf_events_drain", responses((status = 200, description = "Drained WAF events")))]
 async fn drain_events(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match drain_waf_events_now(&state).await {
@@ -474,6 +488,7 @@ async fn drain_events(axum::extract::State(state): axum::extract::State<AppState
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/waf/logs", tag = "waf", operation_id = "get_api_admin_waf_logs", responses((status = 200, description = "WAF logs")))]
 async fn logs(
     axum::extract::State(state): axum::extract::State<AppState>,
     Query(query): Query<WafLogQuery>,
@@ -488,6 +503,7 @@ async fn logs(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/waf/logs/{trace_id}", tag = "waf", operation_id = "get_api_admin_waf_logs_trace_id", responses((status = 200, description = "WAF log event")))]
 async fn log_detail(
     axum::extract::State(state): axum::extract::State<AppState>,
     Path(trace_id): Path<String>,
@@ -506,6 +522,7 @@ async fn log_detail(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/waf/logs", tag = "waf", operation_id = "delete_api_admin_waf_logs", responses((status = 200, description = "Deleted WAF logs")))]
 async fn delete_logs(
     axum::extract::State(state): axum::extract::State<AppState>,
     body: Bytes,
@@ -527,8 +544,8 @@ async fn delete_logs(
         }
     };
 
-    match state.store.delete_waf_log_date(&date).await {
-        Ok(deleted) => match state.store.list_waf_log_dates(&today()).await {
+    match state.storage.store.delete_waf_log_date(&date).await {
+        Ok(deleted) => match state.storage.store.list_waf_log_dates(&today()).await {
             Ok(available_dates) => response::ok(json!({
                 "date": date,
                 "deleted": deleted,

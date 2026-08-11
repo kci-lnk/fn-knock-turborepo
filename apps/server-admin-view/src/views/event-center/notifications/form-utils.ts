@@ -1,17 +1,20 @@
-import type { NotificationSchemaField } from "../../../types";
+import type {
+  NotificationProviderType,
+  NotificationSchemaField,
+} from "../../../types";
 
 export type ProviderDialogMode = "create" | "edit";
 
 export type EditableProviderForm = {
   name: string;
-  type: string;
+  type: NotificationProviderType | "";
   enabled: boolean;
   connection_config: Record<string, unknown>;
 };
 
 export type ProviderFormPayload = {
   name?: string;
-  type: string;
+  type: NotificationProviderType;
   enabled: boolean;
   connection_config: Record<string, unknown>;
 };

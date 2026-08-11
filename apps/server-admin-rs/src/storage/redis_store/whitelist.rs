@@ -2,8 +2,192 @@ use super::*;
 
 const WHITELIST_MUTATION_MAX_RETRIES: usize = 8;
 
+enum TypedWhitelistMutation {
+    Upsert(TypedWhitelistDocument),
+    Delete {
+        kind: &'static str,
+        id: String,
+    },
+    ReplaceKind {
+        kind: &'static str,
+        documents: Vec<TypedWhitelistDocument>,
+    },
+}
+
+fn typed_whitelist_record(
+    record: &WhitelistRecord,
+) -> crate::storage::StorageResult<TypedWhitelistDocument> {
+    Ok(TypedWhitelistDocument {
+        kind: "record",
+        id: record.id.clone(),
+        document_json: serde_json::to_string(record)?,
+        sort_score: record.created_at,
+        expires_at: record.expire_at,
+        status: record.status.clone(),
+    })
+}
+
+fn typed_whitelist_region(
+    record: &WhitelistRegionGroupRecord,
+) -> crate::storage::StorageResult<TypedWhitelistDocument> {
+    Ok(TypedWhitelistDocument {
+        kind: "region",
+        id: record.id.clone(),
+        document_json: serde_json::to_string(record)?,
+        sort_score: record.created_at,
+        expires_at: record.expire_at,
+        status: record.status.clone(),
+    })
+}
+
+fn whitelist_record_from_typed(
+    document: TypedWhitelistDocument,
+) -> crate::storage::StorageResult<WhitelistRecord> {
+    let record = deserialize_whitelist_record(&document.document_json).ok_or_else(|| {
+        crate::storage::storage_error(format!(
+            "typed whitelist record {} is malformed",
+            document.id
+        ))
+    })?;
+    if record.id != document.id
+        || record.created_at != document.sort_score
+        || record.expire_at != document.expires_at
+        || record.status != document.status
+    {
+        return Err(crate::storage::storage_error(format!(
+            "typed whitelist record {} metadata mismatch",
+            document.id
+        )));
+    }
+    Ok(record)
+}
+
+fn whitelist_region_from_typed(
+    document: TypedWhitelistDocument,
+) -> crate::storage::StorageResult<WhitelistRegionGroupRecord> {
+    let record = deserialize_whitelist_region_group(&document.document_json).ok_or_else(|| {
+        crate::storage::storage_error(format!(
+            "typed whitelist region {} is malformed",
+            document.id
+        ))
+    })?;
+    if record.id != document.id
+        || record.created_at != document.sort_score
+        || record.expire_at != document.expires_at
+        || record.status != document.status
+    {
+        return Err(crate::storage::storage_error(format!(
+            "typed whitelist region {} metadata mismatch",
+            document.id
+        )));
+    }
+    Ok(record)
+}
+
 impl Store {
+    pub(crate) async fn rebuild_typed_whitelist_from_legacy(
+        &self,
+    ) -> crate::storage::StorageResult<()> {
+        self.conn()
+            .call(|conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let records = redis::hash_entries_in_transaction(&tx, WHITELIST_RECORDS)?;
+                let regions =
+                    redis::hash_entries_in_transaction(&tx, WHITELIST_REGION_GROUP_RECORDS)?;
+                let mut documents = Vec::with_capacity(records.len() + regions.len());
+                for (field, raw) in records {
+                    let Some(record) = deserialize_whitelist_record(&raw) else {
+                        continue;
+                    };
+                    if record.id == field {
+                        documents.push(typed_whitelist_record(&record)?);
+                    }
+                }
+                for (field, raw) in regions {
+                    let Some(region) = deserialize_whitelist_region_group(&raw) else {
+                        continue;
+                    };
+                    if region.id == field {
+                        documents.push(typed_whitelist_region(&region)?);
+                    }
+                }
+                TypedWhitelistRepository::replace_all_tx(&tx, &documents)?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await
+    }
+
+    fn observe_typed_whitelist_shadow_healthy(&self) {
+        if !self
+            .typed_whitelist_shadow_healthy
+            .swap(true, AtomicOrdering::AcqRel)
+        {
+            tracing::info!("typed whitelist document comparison recovered");
+        }
+    }
+
+    fn observe_typed_whitelist_shadow_failure(&self, reason: &str) {
+        self.typed_whitelist_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        if self
+            .typed_whitelist_shadow_healthy
+            .swap(false, AtomicOrdering::AcqRel)
+        {
+            tracing::warn!(%reason, "typed whitelist document comparison failed");
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn typed_whitelist_shadow_mismatch_count(&self) -> u64 {
+        self.typed_whitelist_shadow_mismatches
+            .load(AtomicOrdering::Acquire)
+    }
+
     pub async fn get_whitelist_record(
+        &self,
+        id: &str,
+    ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
+        let typed = self
+            .typed_whitelist
+            .load_one("record", id)
+            .await
+            .and_then(|document| document.map(whitelist_record_from_typed).transpose());
+        let legacy = self.get_whitelist_record_legacy(id).await;
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if typed == legacy => {
+                self.observe_typed_whitelist_shadow_healthy();
+                Ok(typed)
+            }
+            (Ok(_), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(
+                    "typed whitelist record differs from legacy keyspace",
+                );
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Err(error), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "typed whitelist record read failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Ok(_), Err(error)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "legacy whitelist record comparison failed; refusing typed-only authorization data: {error}"
+                ));
+                Err(error)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy whitelist record reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn get_whitelist_record_legacy(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
@@ -13,6 +197,54 @@ impl Store {
     }
 
     pub async fn list_whitelist_records(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<WhitelistRecord>> {
+        let typed = self
+            .typed_whitelist
+            .load_kind("record")
+            .await
+            .and_then(|documents| {
+                let mut records = documents
+                    .into_iter()
+                    .map(whitelist_record_from_typed)
+                    .collect::<crate::storage::StorageResult<Vec<_>>>()?;
+                records.retain(WhitelistRecord::is_active);
+                records.sort_by_key(|record| std::cmp::Reverse(record.created_at));
+                Ok(records)
+            });
+        let legacy = self.list_whitelist_records_legacy().await;
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if typed == legacy => {
+                self.observe_typed_whitelist_shadow_healthy();
+                Ok(typed)
+            }
+            (Ok(_), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(
+                    "typed whitelist record list differs from legacy keyspace",
+                );
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Err(error), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "typed whitelist record list failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Ok(_), Err(error)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "legacy whitelist list comparison failed; refusing typed-only authorization data: {error}"
+                ));
+                Err(error)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy whitelist list reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn list_whitelist_records_legacy(
         &self,
     ) -> crate::storage::StorageResult<Vec<WhitelistRecord>> {
         let mut conn = self.conn();
@@ -73,12 +305,11 @@ impl Store {
         &self,
         record: &WhitelistRecord,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.hset(
             WHITELIST_RECORDS,
             &record.id,
-            serde_json::to_string(record).unwrap_or_default(),
+            serde_json::to_string(record)?,
         )
         .ignore();
         pipe.zadd(WHITELIST_RECORD_ORDER, &record.id, record.created_at)
@@ -87,8 +318,11 @@ impl Store {
             pipe.zadd(WHITELIST_EXPIRY, &record.id, expire_at).ignore();
         }
         queue_whitelist_indexes(&mut pipe, record);
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(())
+        self.execute_typed_whitelist_pipeline(
+            TypedWhitelistMutation::Upsert(typed_whitelist_record(record)?),
+            pipe,
+        )
+        .await
     }
 
     pub async fn replace_whitelist_record(
@@ -125,8 +359,12 @@ impl Store {
         }
         queue_remove_whitelist_indexes(&mut pipe, previous);
         queue_whitelist_indexes(&mut pipe, next);
-        self.execute_whitelist_record_pipeline_if_current(previous, pipe)
-            .await
+        self.execute_whitelist_record_pipeline_if_current(
+            previous,
+            TypedWhitelistMutation::Upsert(typed_whitelist_record(next)?),
+            pipe,
+        )
+        .await
     }
 
     pub async fn delete_whitelist_record(
@@ -144,7 +382,14 @@ impl Store {
             pipe.zrem(WHITELIST_EXPIRY, id).ignore();
             queue_remove_whitelist_indexes(&mut pipe, &record);
             if self
-                .execute_whitelist_record_pipeline_if_current(&record, pipe)
+                .execute_whitelist_record_pipeline_if_current(
+                    &record,
+                    TypedWhitelistMutation::Delete {
+                        kind: "record",
+                        id: id.to_string(),
+                    },
+                    pipe,
+                )
                 .await?
             {
                 return Ok(Some(record));
@@ -175,7 +420,11 @@ impl Store {
             pipe.zrem(WHITELIST_EXPIRY, id).ignore();
             queue_remove_whitelist_indexes(&mut pipe, &record);
             if self
-                .execute_whitelist_record_pipeline_if_current(&record, pipe)
+                .execute_whitelist_record_pipeline_if_current(
+                    &record,
+                    TypedWhitelistMutation::Upsert(typed_whitelist_record(&next)?),
+                    pipe,
+                )
                 .await?
             {
                 return Ok(Some(record));
@@ -201,7 +450,11 @@ impl Store {
             pipe.hset(WHITELIST_RECORDS, id, serde_json::to_string(&next)?)
                 .ignore();
             if self
-                .execute_whitelist_record_pipeline_if_current(&previous, pipe)
+                .execute_whitelist_record_pipeline_if_current(
+                    &previous,
+                    TypedWhitelistMutation::Upsert(typed_whitelist_record(&next)?),
+                    pipe,
+                )
                 .await?
             {
                 return Ok(Some(next));
@@ -239,6 +492,47 @@ impl Store {
     }
 
     pub async fn get_whitelist_region_group(
+        &self,
+        id: &str,
+    ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
+        let typed = self
+            .typed_whitelist
+            .load_one("region", id)
+            .await
+            .and_then(|document| document.map(whitelist_region_from_typed).transpose());
+        let legacy = self.get_whitelist_region_group_legacy(id).await;
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if typed == legacy => {
+                self.observe_typed_whitelist_shadow_healthy();
+                Ok(typed)
+            }
+            (Ok(_), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(
+                    "typed whitelist region differs from legacy keyspace",
+                );
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Err(error), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "typed whitelist region read failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Ok(_), Err(error)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "legacy whitelist region comparison failed; refusing typed-only authorization data: {error}"
+                ));
+                Err(error)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy whitelist region reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn get_whitelist_region_group_legacy(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
@@ -334,7 +628,19 @@ impl Store {
                 }
             }
         }
-        let _: () = pipe.query_async(&mut conn).await?;
+        drop(conn);
+        let typed_regions = rewritten
+            .iter()
+            .map(typed_whitelist_region)
+            .collect::<crate::storage::StorageResult<Vec<_>>>()?;
+        self.execute_typed_whitelist_pipeline(
+            TypedWhitelistMutation::ReplaceKind {
+                kind: "region",
+                documents: typed_regions,
+            },
+            pipe,
+        )
+        .await?;
         active.sort_by(|left, right| {
             right
                 .created_at
@@ -345,6 +651,59 @@ impl Store {
     }
 
     pub async fn list_whitelist_region_groups(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<WhitelistRegionGroupRecord>> {
+        let typed = self
+            .typed_whitelist
+            .load_kind("region")
+            .await
+            .and_then(|documents| {
+                let mut records = documents
+                    .into_iter()
+                    .map(whitelist_region_from_typed)
+                    .collect::<crate::storage::StorageResult<Vec<_>>>()?;
+                records.retain(WhitelistRegionGroupRecord::is_active);
+                records.sort_by(|left, right| {
+                    right
+                        .created_at
+                        .cmp(&left.created_at)
+                        .then_with(|| right.id.cmp(&left.id))
+                });
+                Ok(records)
+            });
+        let legacy = self.list_whitelist_region_groups_legacy().await;
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if typed == legacy => {
+                self.observe_typed_whitelist_shadow_healthy();
+                Ok(typed)
+            }
+            (Ok(_), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(
+                    "typed whitelist region list differs from legacy keyspace",
+                );
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Err(error), Ok(legacy)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "typed whitelist region list failed; using legacy fallback: {error}"
+                ));
+                self.rebuild_typed_whitelist_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Ok(_), Err(error)) => {
+                self.observe_typed_whitelist_shadow_failure(&format!(
+                    "legacy whitelist region comparison failed; refusing typed-only authorization data: {error}"
+                ));
+                Err(error)
+            }
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy whitelist region list reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn list_whitelist_region_groups_legacy(
         &self,
     ) -> crate::storage::StorageResult<Vec<WhitelistRegionGroupRecord>> {
         let mut conn = self.conn();
@@ -396,12 +755,11 @@ impl Store {
         &self,
         record: &WhitelistRegionGroupRecord,
     ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.hset(
             WHITELIST_REGION_GROUP_RECORDS,
             &record.id,
-            serde_json::to_string(record).unwrap_or_default(),
+            serde_json::to_string(record)?,
         )
         .ignore();
         pipe.zadd(WHITELIST_REGION_GROUP_ORDER, &record.id, record.created_at)
@@ -410,72 +768,99 @@ impl Store {
             pipe.zadd(WHITELIST_REGION_GROUP_EXPIRY, &record.id, expire_at)
                 .ignore();
         }
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(())
+        self.execute_typed_whitelist_pipeline(
+            TypedWhitelistMutation::Upsert(typed_whitelist_region(record)?),
+            pipe,
+        )
+        .await
     }
 
     pub async fn delete_whitelist_region_group(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
-        let Some(record) = self.get_whitelist_region_group(id).await? else {
-            return Ok(None);
-        };
-        if !record.is_active() {
-            return Ok(None);
+        for _ in 0..WHITELIST_MUTATION_MAX_RETRIES {
+            let Some(record) = self.get_whitelist_region_group(id).await? else {
+                return Ok(None);
+            };
+            if !record.is_active() {
+                return Ok(None);
+            }
+            let mut next = record.clone();
+            next.status = "deleted".to_string();
+            next.updated_at = chrono_like_now_seconds();
+            next.cidrs.clear();
+            next.policy_id.clear();
+            next.policy = None;
+            next.source_cidr_count = 0;
+            next.range_count = 0;
+            let mut pipe = redis::pipe();
+            pipe.hset(
+                WHITELIST_REGION_GROUP_RECORDS,
+                id,
+                serde_json::to_string(&next)?,
+            )
+            .ignore();
+            pipe.zrem(WHITELIST_REGION_GROUP_ORDER, id).ignore();
+            pipe.zrem(WHITELIST_REGION_GROUP_EXPIRY, id).ignore();
+            if self
+                .execute_whitelist_region_pipeline_if_current(
+                    &record,
+                    TypedWhitelistMutation::Upsert(typed_whitelist_region(&next)?),
+                    pipe,
+                )
+                .await?
+            {
+                return Ok(Some(record));
+            }
         }
-        let mut next = record.clone();
-        next.status = "deleted".to_string();
-        next.updated_at = chrono_like_now_seconds();
-        next.cidrs.clear();
-        next.policy_id.clear();
-        next.policy = None;
-        next.source_cidr_count = 0;
-        next.range_count = 0;
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-        pipe.hset(
-            WHITELIST_REGION_GROUP_RECORDS,
-            id,
-            serde_json::to_string(&next).unwrap_or_default(),
-        )
-        .ignore();
-        pipe.zrem(WHITELIST_REGION_GROUP_ORDER, id).ignore();
-        pipe.zrem(WHITELIST_REGION_GROUP_EXPIRY, id).ignore();
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(Some(record))
+        Err(crate::storage::storage_error(format!(
+            "whitelist region group {id} kept changing during deletion"
+        )))
     }
 
     pub async fn expire_whitelist_region_group(
         &self,
         id: &str,
     ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
-        let Some(record) = self.get_whitelist_region_group(id).await? else {
-            return Ok(None);
-        };
-        if !record.is_active() {
-            return Ok(None);
+        for _ in 0..WHITELIST_MUTATION_MAX_RETRIES {
+            let Some(record) = self.get_whitelist_region_group(id).await? else {
+                return Ok(None);
+            };
+            if !record.is_active() {
+                return Ok(None);
+            }
+            let mut next = record.clone();
+            next.status = "expired".to_string();
+            next.updated_at = chrono_like_now_seconds();
+            next.cidrs.clear();
+            next.policy_id.clear();
+            next.policy = None;
+            next.source_cidr_count = 0;
+            next.range_count = 0;
+            let mut pipe = redis::pipe();
+            pipe.hset(
+                WHITELIST_REGION_GROUP_RECORDS,
+                id,
+                serde_json::to_string(&next)?,
+            )
+            .ignore();
+            pipe.zrem(WHITELIST_REGION_GROUP_ORDER, id).ignore();
+            pipe.zrem(WHITELIST_REGION_GROUP_EXPIRY, id).ignore();
+            if self
+                .execute_whitelist_region_pipeline_if_current(
+                    &record,
+                    TypedWhitelistMutation::Upsert(typed_whitelist_region(&next)?),
+                    pipe,
+                )
+                .await?
+            {
+                return Ok(Some(record));
+            }
         }
-        let mut next = record.clone();
-        next.status = "expired".to_string();
-        next.updated_at = chrono_like_now_seconds();
-        next.cidrs.clear();
-        next.policy_id.clear();
-        next.policy = None;
-        next.source_cidr_count = 0;
-        next.range_count = 0;
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-        pipe.hset(
-            WHITELIST_REGION_GROUP_RECORDS,
-            id,
-            serde_json::to_string(&next).unwrap_or_default(),
-        )
-        .ignore();
-        pipe.zrem(WHITELIST_REGION_GROUP_ORDER, id).ignore();
-        pipe.zrem(WHITELIST_REGION_GROUP_EXPIRY, id).ignore();
-        let _: () = pipe.query_async(&mut conn).await?;
-        Ok(Some(record))
+        Err(crate::storage::storage_error(format!(
+            "whitelist region group {id} kept changing during expiration"
+        )))
     }
 
     pub async fn cleanup_whitelist_concrete_targets(
@@ -597,22 +982,195 @@ impl Store {
     async fn execute_whitelist_record_pipeline_if_current(
         &self,
         expected: &WhitelistRecord,
+        mutation: TypedWhitelistMutation,
         pipe: redis::Pipeline,
     ) -> crate::storage::StorageResult<bool> {
         let expected_json = serde_json::to_string(expected)?;
-        let mut conn = self.conn();
-        let (matched, ()): (bool, ()) = pipe
-            .query_async_if_hash_field_matches(
-                &mut conn,
-                WHITELIST_RECORDS,
-                &expected.id,
-                move |raw| {
-                    raw.and_then(deserialize_whitelist_record)
-                        .and_then(|record| serde_json::to_string(&record).ok())
-                        .is_some_and(|current| current == expected_json)
-                },
+        let expected_id = expected.id.clone();
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let matched = redis::hash_field_matches_in_transaction(
+                    &tx,
+                    WHITELIST_RECORDS,
+                    &expected_id,
+                    |raw| {
+                        raw.and_then(deserialize_whitelist_record)
+                            .and_then(|record| serde_json::to_string(&record).ok())
+                            .is_some_and(|current| current == expected_json)
+                    },
+                )?;
+                if matched {
+                    apply_typed_whitelist_mutation(&tx, mutation)?;
+                    pipe.query_in_transaction::<()>(&tx)?;
+                }
+                tx.commit()?;
+                Ok(matched)
+            })
+            .await
+    }
+
+    async fn execute_whitelist_region_pipeline_if_current(
+        &self,
+        expected: &WhitelistRegionGroupRecord,
+        mutation: TypedWhitelistMutation,
+        pipe: redis::Pipeline,
+    ) -> crate::storage::StorageResult<bool> {
+        let expected_json = serde_json::to_string(expected)?;
+        let expected_id = expected.id.clone();
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                let matched = redis::hash_field_matches_in_transaction(
+                    &tx,
+                    WHITELIST_REGION_GROUP_RECORDS,
+                    &expected_id,
+                    |raw| {
+                        raw.and_then(deserialize_whitelist_region_group)
+                            .and_then(|record| serde_json::to_string(&record).ok())
+                            .is_some_and(|current| current == expected_json)
+                    },
+                )?;
+                if matched {
+                    apply_typed_whitelist_mutation(&tx, mutation)?;
+                    pipe.query_in_transaction::<()>(&tx)?;
+                }
+                tx.commit()?;
+                Ok(matched)
+            })
+            .await
+    }
+
+    async fn execute_typed_whitelist_pipeline(
+        &self,
+        mutation: TypedWhitelistMutation,
+        pipe: redis::Pipeline,
+    ) -> crate::storage::StorageResult<()> {
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(
+                    tokio_rusqlite::rusqlite::TransactionBehavior::Immediate,
+                )?;
+                apply_typed_whitelist_mutation(&tx, mutation)?;
+                pipe.query_in_transaction::<()>(&tx)?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await
+    }
+}
+
+fn apply_typed_whitelist_mutation(
+    tx: &tokio_rusqlite::rusqlite::Transaction<'_>,
+    mutation: TypedWhitelistMutation,
+) -> crate::storage::StorageResult<()> {
+    match mutation {
+        TypedWhitelistMutation::Upsert(document) => {
+            TypedWhitelistRepository::upsert_tx(tx, &document)
+        }
+        TypedWhitelistMutation::Delete { kind, id } => {
+            TypedWhitelistRepository::delete_tx(tx, kind, &id)
+        }
+        TypedWhitelistMutation::ReplaceKind { kind, documents } => {
+            TypedWhitelistRepository::delete_kind_tx(tx, kind)?;
+            for document in &documents {
+                TypedWhitelistRepository::upsert_tx(tx, document)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod transaction_tests {
+    use super::*;
+
+    fn region_record() -> WhitelistRegionGroupRecord {
+        WhitelistRegionGroupRecord {
+            id: "whitelist-region:cas".to_string(),
+            regions: vec![WhitelistRegionInput {
+                province: "广东".to_string(),
+                query_city: None,
+                operator: None,
+            }],
+            cidrs: vec!["192.0.2.0/24".to_string()],
+            policy_id: String::new(),
+            policy: None,
+            source_cidr_count: 1,
+            range_count: 1,
+            expire_at: None,
+            source: "manual".to_string(),
+            created_at: 1,
+            updated_at: 1,
+            status: "active".to_string(),
+            comment: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn stale_region_cas_cannot_overwrite_compatibility_or_typed_state() {
+        let directory = tempfile::tempdir().expect("create temp dir");
+        let store = Store::connect(directory.path().join("fn-knock.sqlite3"))
+            .await
+            .expect("open store");
+        let original = region_record();
+        store
+            .insert_whitelist_region_group(&original)
+            .await
+            .expect("insert original region");
+
+        let mut fresh = original.clone();
+        fresh.updated_at = 2;
+        fresh.comment = Some("fresh".to_string());
+        store
+            .insert_whitelist_region_group(&fresh)
+            .await
+            .expect("write concurrent replacement");
+
+        let mut stale_tombstone = original.clone();
+        stale_tombstone.status = "deleted".to_string();
+        stale_tombstone.cidrs.clear();
+        stale_tombstone.source_cidr_count = 0;
+        stale_tombstone.range_count = 0;
+        let mut pipeline = redis::pipe();
+        pipeline
+            .hset(
+                WHITELIST_REGION_GROUP_RECORDS,
+                &original.id,
+                serde_json::to_string(&stale_tombstone).unwrap(),
             )
-            .await?;
-        Ok(matched)
+            .ignore();
+        pipeline
+            .zrem(WHITELIST_REGION_GROUP_ORDER, &original.id)
+            .ignore();
+
+        let matched = store
+            .execute_whitelist_region_pipeline_if_current(
+                &original,
+                TypedWhitelistMutation::Upsert(typed_whitelist_region(&stale_tombstone).unwrap()),
+                pipeline,
+            )
+            .await
+            .expect("run stale region CAS");
+        assert!(!matched);
+
+        let current = store
+            .get_whitelist_region_group(&original.id)
+            .await
+            .unwrap()
+            .expect("current region");
+        assert_eq!(current.status, "active");
+        assert_eq!(current.comment.as_deref(), Some("fresh"));
+        let typed = store
+            .typed_whitelist
+            .load_one("region", &original.id)
+            .await
+            .unwrap()
+            .expect("typed current region");
+        assert_eq!(typed.document_json, serde_json::to_string(&fresh).unwrap());
     }
 }

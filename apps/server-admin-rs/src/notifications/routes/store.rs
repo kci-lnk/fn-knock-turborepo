@@ -1,14 +1,14 @@
 use super::*;
 
 pub(super) async fn load_providers(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
-    load_indexed_values(state, PROVIDERS_INDEX_KEY, PROVIDERS_DATA_PREFIX).await
+    state.storage.store.load_notification_providers().await
 }
 
 pub(super) async fn load_provider(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.store.get_json_value(&provider_key(id)).await
+    state.storage.store.load_notification_provider(id).await
 }
 
 pub(super) async fn save_provider_raw(
@@ -26,24 +26,21 @@ pub(super) async fn save_provider_raw(
             .or_else(|| provider.get("created_at").and_then(Value::as_str)),
     );
     state
+        .storage
         .store
-        .set_json_value(&provider_key(id), provider)
-        .await?;
-    state
-        .store
-        .zadd_string_member(PROVIDERS_INDEX_KEY, id, score)
+        .save_notification_provider(id, provider, score)
         .await
 }
 
 pub(super) async fn load_rules(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
-    load_indexed_values(state, RULES_INDEX_KEY, RULES_DATA_PREFIX).await
+    state.storage.store.load_notification_rules().await
 }
 
 pub(super) async fn load_rule(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.store.get_json_value(&rule_key(id)).await
+    state.storage.store.load_notification_rule(id).await
 }
 
 pub(super) async fn save_rule_raw(
@@ -56,10 +53,10 @@ pub(super) async fn save_rule_raw(
             .and_then(Value::as_str)
             .or_else(|| rule.get("created_at").and_then(Value::as_str)),
     );
-    state.store.set_json_value(&rule_key(id), rule).await?;
     state
+        .storage
         .store
-        .zadd_string_member(RULES_INDEX_KEY, id, score)
+        .save_notification_rule(id, rule, score)
         .await
 }
 
@@ -67,51 +64,7 @@ pub(super) async fn load_trigger(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state
-        .store
-        .get_json_value(&format!("{TRIGGERS_DATA_PREFIX}{id}"))
-        .await
-}
-
-fn history_cutoff_score_ms() -> i64 {
-    time_utils::now_ms() - HISTORY_RETENTION_TTL_SECONDS * 1000
-}
-
-pub(super) async fn touch_trigger_index(
-    state: &AppState,
-    trigger: &Value,
-) -> crate::storage::StorageResult<()> {
-    let id = trigger
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let score = iso_score_ms(trigger.get("created_at").and_then(Value::as_str));
-    let count = state
-        .store
-        .zadd_trim_count_expire(
-            TRIGGERS_INDEX_KEY,
-            id,
-            score,
-            history_cutoff_score_ms().saturating_add(1),
-            HISTORY_RETENTION_TTL_SECONDS as usize,
-        )
-        .await?;
-    if count > HISTORY_MAX_RECORDS {
-        let removed = state
-            .store
-            .trim_oldest_zset_members(TRIGGERS_INDEX_KEY, HISTORY_MAX_RECORDS)
-            .await?;
-        state
-            .store
-            .delete_keys(
-                &removed
-                    .iter()
-                    .map(|id| format!("{TRIGGERS_DATA_PREFIX}{id}"))
-                    .collect::<Vec<_>>(),
-            )
-            .await?;
-    }
-    Ok(())
+    state.storage.store.load_notification_trigger(id).await
 }
 
 pub(super) async fn save_trigger_raw(
@@ -124,11 +77,12 @@ pub(super) async fn save_trigger_raw(
         .unwrap_or_default();
     let created_at = trigger.get("created_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(created_at);
-    state
+    let _ = state
+        .storage
         .store
-        .set_json_value_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
+        .save_notification_trigger(id, trigger, iso_score_ms(created_at), ttl, false)
         .await?;
-    touch_trigger_index(state, trigger).await
+    Ok(())
 }
 
 pub(super) async fn save_trigger_if_absent(
@@ -141,68 +95,18 @@ pub(super) async fn save_trigger_if_absent(
         .unwrap_or_default();
     let created_at = trigger.get("created_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(created_at);
-    let saved = state
+    state
+        .storage
         .store
-        .set_json_value_nx_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
-        .await?;
-    if saved {
-        touch_trigger_index(state, trigger).await?;
-        return Ok(true);
-    }
-    if let Some(existing) = load_trigger(state, id).await? {
-        touch_trigger_index(state, &existing).await?;
-    }
-    Ok(false)
-}
-
-pub(super) async fn touch_delivery_index(
-    state: &AppState,
-    delivery: &Value,
-) -> crate::storage::StorageResult<()> {
-    let id = delivery
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let score = iso_score_ms(delivery.get("triggered_at").and_then(Value::as_str));
-    let count = state
-        .store
-        .zadd_trim_count_expire(
-            DELIVERIES_INDEX_KEY,
-            id,
-            score,
-            history_cutoff_score_ms().saturating_add(1),
-            HISTORY_RETENTION_TTL_SECONDS as usize,
-        )
-        .await?;
-    if count > HISTORY_MAX_RECORDS {
-        let removed = state
-            .store
-            .trim_oldest_zset_members(DELIVERIES_INDEX_KEY, HISTORY_MAX_RECORDS)
-            .await?;
-        state
-            .store
-            .delete_keys(
-                &removed
-                    .iter()
-                    .map(|id| delivery_key(id))
-                    .collect::<Vec<_>>(),
-            )
-            .await?;
-        for id in removed {
-            state
-                .store
-                .zrem_string_member(DELIVERIES_READY_KEY, &id)
-                .await?;
-        }
-    }
-    Ok(())
+        .save_notification_trigger(id, trigger, iso_score_ms(created_at), ttl, true)
+        .await
 }
 
 pub(super) async fn load_delivery(
     state: &AppState,
     id: &str,
 ) -> crate::storage::StorageResult<Option<Value>> {
-    state.store.get_json_value(&delivery_key(id)).await
+    state.storage.store.load_notification_delivery(id).await
 }
 
 pub(super) async fn save_delivery_raw(
@@ -215,11 +119,12 @@ pub(super) async fn save_delivery_raw(
         .unwrap_or_default();
     let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(triggered_at);
-    state
+    let _ = state
+        .storage
         .store
-        .set_json_value_ex(&delivery_key(id), delivery, ttl)
+        .save_notification_delivery(id, delivery, iso_score_ms(triggered_at), ttl, false)
         .await?;
-    touch_delivery_index(state, delivery).await
+    Ok(())
 }
 
 pub(super) async fn save_delivery_if_absent(
@@ -232,18 +137,11 @@ pub(super) async fn save_delivery_if_absent(
         .unwrap_or_default();
     let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(triggered_at);
-    let saved = state
+    state
+        .storage
         .store
-        .set_json_value_nx_ex(&delivery_key(id), delivery, ttl)
-        .await?;
-    if saved {
-        touch_delivery_index(state, delivery).await?;
-        return Ok(true);
-    }
-    if let Some(existing) = load_delivery(state, id).await? {
-        touch_delivery_index(state, &existing).await?;
-    }
-    Ok(false)
+        .save_notification_delivery(id, delivery, iso_score_ms(triggered_at), ttl, true)
+        .await
 }
 
 pub(super) fn history_ttl_seconds(happened_at: Option<&str>) -> usize {
@@ -349,34 +247,10 @@ pub(super) fn resolve_delivery_ready_at_ms(delivery: &Value) -> i64 {
         .unwrap_or_else(time_utils::now_ms)
 }
 
-pub(super) async fn load_indexed_values(
-    state: &AppState,
-    index_key: &str,
-    data_prefix: &str,
-) -> crate::storage::StorageResult<Vec<Value>> {
-    let ids = state.store.zrevrange_strings(index_key).await?;
-    let mut values = Vec::new();
-    let mut stale_ids = Vec::new();
-    for id in ids {
-        match state
-            .store
-            .get_json_value(&format!("{data_prefix}{id}"))
-            .await?
-        {
-            Some(value) => values.push(value),
-            None => stale_ids.push(id),
-        }
-    }
-    for id in stale_ids {
-        state.store.zrem_string_member(index_key, &id).await?;
-    }
-    Ok(values)
-}
-
 pub(super) async fn list_history<F>(
     state: &AppState,
     index_key: &str,
-    data_prefix: &str,
+    _data_prefix: &str,
     page: i64,
     limit: i64,
     matches: F,
@@ -384,21 +258,21 @@ pub(super) async fn list_history<F>(
 where
     F: Fn(&Value) -> bool,
 {
-    let ids = state.store.zrevrange_strings(index_key).await?;
+    let kind = match index_key {
+        TRIGGERS_INDEX_KEY => "trigger",
+        DELIVERIES_INDEX_KEY => "delivery",
+        _ => {
+            return Err(crate::storage::storage_error(
+                "invalid notification history index",
+            ));
+        }
+    };
+    let values = state.storage.store.load_notification_history(kind).await?;
     let page_start = (page.saturating_sub(1)).saturating_mul(limit);
     let mut matched_total = 0_i64;
     let mut items = Vec::new();
-    let mut stale_ids = Vec::new();
 
-    for id in ids {
-        let value = state
-            .store
-            .get_json_value(&format!("{data_prefix}{id}"))
-            .await?;
-        let Some(value) = value else {
-            stale_ids.push(id);
-            continue;
-        };
+    for value in values {
         if !matches(&value) {
             continue;
         }
@@ -406,9 +280,6 @@ where
             items.push(value);
         }
         matched_total += 1;
-    }
-    for id in stale_ids {
-        state.store.zrem_string_member(index_key, &id).await?;
     }
     Ok((items, matched_total))
 }
@@ -424,40 +295,26 @@ pub(super) async fn clear_delivery_values(
     state: &AppState,
     filter: ClearDeliveryFilter,
 ) -> crate::storage::StorageResult<usize> {
-    let ids = state.store.zrevrange_strings(DELIVERIES_INDEX_KEY).await?;
+    let deliveries = state
+        .storage
+        .store
+        .load_notification_history("delivery")
+        .await?;
     let mut matched_ids = Vec::new();
-    let mut stale_ids = Vec::new();
-    for id in ids {
-        match state.store.get_json_value(&delivery_key(&id)).await? {
-            Some(value) => {
-                if matches_optional_string(&value, "rule_id", filter.rule_id.as_deref())
-                    && matches_optional_string(&value, "provider_id", filter.provider_id.as_deref())
-                    && matches_optional_string(&value, "trigger_id", filter.trigger_id.as_deref())
-                    && matches_optional_string(&value, "status", filter.status.as_deref())
-                {
-                    matched_ids.push(id);
-                }
-            }
-            None => stale_ids.push(id),
+    for value in deliveries {
+        if matches_optional_string(&value, "rule_id", filter.rule_id.as_deref())
+            && matches_optional_string(&value, "provider_id", filter.provider_id.as_deref())
+            && matches_optional_string(&value, "trigger_id", filter.trigger_id.as_deref())
+            && matches_optional_string(&value, "status", filter.status.as_deref())
+            && let Some(id) = value.get("id").and_then(Value::as_str)
+        {
+            matched_ids.push(id.to_string());
         }
     }
-
-    let delete_keys = matched_ids
-        .iter()
-        .map(|id| delivery_key(id))
-        .collect::<Vec<_>>();
-    state.store.delete_keys(&delete_keys).await?;
-    for id in stale_ids.iter().chain(matched_ids.iter()) {
-        state
-            .store
-            .zrem_string_member(DELIVERIES_INDEX_KEY, id)
-            .await?;
-    }
-    for id in &matched_ids {
-        state
-            .store
-            .zrem_string_member(DELIVERIES_READY_KEY, id)
-            .await?;
-    }
+    state
+        .storage
+        .store
+        .delete_notification_deliveries(&matched_ids)
+        .await?;
     Ok(matched_ids.len())
 }

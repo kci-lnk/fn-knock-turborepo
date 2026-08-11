@@ -1,5 +1,33 @@
 use super::*;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(overview))
+        .routes(routes!(web_status))
+        .routes(routes!(get_config))
+        .routes(routes!(save_config))
+        .routes(routes!(start_primary))
+        .routes(routes!(stop_primary))
+        .routes(routes!(get_logs))
+        .routes(routes!(clear_logs))
+        .routes(routes!(poll_primary))
+        .routes(routes!(get_instances))
+        .routes(routes!(create_instance))
+        .routes(routes!(create_draft))
+        .routes(routes!(get_instance))
+        .routes(routes!(update_instance))
+        .routes(routes!(delete_instance))
+        .routes(routes!(start_instance))
+        .routes(routes!(stop_instance))
+        .routes(routes!(restart_instance))
+        .routes(routes!(get_instance_logs))
+        .routes(routes!(clear_instance_logs))
+        .routes(routes!(poll_instance))
+}
+
+#[utoipa::path(get, path = "/api/admin/frpc/status", tag = "frpc", operation_id = "get_api_admin_frpc_status", responses((status = 200, description = "FRPC status")))]
 pub(super) async fn status(State(state): State<AppState>) -> Response {
     frpc_response(
         &state,
@@ -27,6 +55,7 @@ pub(super) async fn status(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/overview", tag = "frpc", operation_id = "get_api_admin_frpc_overview", responses((status = 200, description = "FRPC overview")))]
 pub(super) async fn overview(
     State(state): State<AppState>,
     Query(query): Query<LimitQuery>,
@@ -47,10 +76,12 @@ pub(super) async fn overview(
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/web-status", tag = "frpc", operation_id = "get_api_admin_frpc_web_status", responses((status = 200, description = "FRPC web status")))]
 pub(super) async fn web_status() -> Response {
     response::ok(json!({ "tcp": [] })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/config", tag = "frpc", operation_id = "get_api_admin_frpc_config", responses((status = 200, description = "FRPC configuration")))]
 pub(super) async fn get_config(State(state): State<AppState>) -> Response {
     frpc_response(
         &state,
@@ -63,6 +94,7 @@ pub(super) async fn get_config(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/config", tag = "frpc", operation_id = "post_api_admin_frpc_config", responses((status = 200, description = "Updated FRPC configuration")))]
 pub(super) async fn save_config(
     State(state): State<AppState>,
     Json(body): Json<ConfigBody>,
@@ -74,6 +106,7 @@ pub(super) async fn save_config(
     .await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/start", tag = "frpc", operation_id = "post_api_admin_frpc_start", responses((status = 200, description = "Started primary FRPC instance")))]
 pub(super) async fn start_primary(State(state): State<AppState>) -> Response {
     frpc_response(
         &state,
@@ -86,6 +119,7 @@ pub(super) async fn start_primary(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/stop", tag = "frpc", operation_id = "post_api_admin_frpc_stop", responses((status = 200, description = "Stopped primary FRPC instance")))]
 pub(super) async fn stop_primary(State(state): State<AppState>) -> Response {
     frpc_response_empty(
         &state,
@@ -94,6 +128,7 @@ pub(super) async fn stop_primary(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/logs", tag = "frpc", operation_id = "get_api_admin_frpc_logs", responses((status = 200, description = "Primary FRPC logs")))]
 pub(super) async fn get_logs(
     State(state): State<AppState>,
     Query(query): Query<LimitQuery>,
@@ -115,6 +150,7 @@ pub(super) async fn get_logs(
     .await
 }
 
+#[utoipa::path(delete, path = "/api/admin/frpc/logs", tag = "frpc", operation_id = "delete_api_admin_frpc_logs", responses((status = 200, description = "Cleared primary FRPC logs")))]
 pub(super) async fn clear_logs(State(state): State<AppState>) -> Response {
     frpc_response_empty(
         &state,
@@ -123,6 +159,7 @@ pub(super) async fn clear_logs(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/poll", tag = "frpc", operation_id = "get_api_admin_frpc_poll", responses((status = 200, description = "Primary FRPC poll result")))]
 pub(super) async fn poll_primary(
     State(state): State<AppState>,
     Query(query): Query<PollQuery>,
@@ -144,6 +181,7 @@ pub(super) async fn poll_primary(
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/instances", tag = "frpc", operation_id = "get_api_admin_frpc_instances", responses((status = 200, description = "FRPC instances")))]
 pub(super) async fn get_instances(State(state): State<AppState>) -> Response {
     frpc_response(
         &state,
@@ -152,11 +190,13 @@ pub(super) async fn get_instances(State(state): State<AppState>) -> Response {
     .await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/instances/draft", tag = "frpc", operation_id = "post_api_admin_frpc_instances_draft", responses((status = 200, description = "Created FRPC draft")))]
 pub(super) async fn create_draft(State(state): State<AppState>) -> Response {
     let _ = state;
     response::ok(json!({ "content": default_frpc_template() })).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/instances", tag = "frpc", operation_id = "post_api_admin_frpc_instances", responses((status = 200, description = "Created FRPC instance")))]
 pub(super) async fn create_instance(
     State(state): State<AppState>,
     Json(body): Json<InstanceBody>,
@@ -173,6 +213,7 @@ pub(super) async fn create_instance(
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/instances/{id}", tag = "frpc", operation_id = "get_api_admin_frpc_instances__id_", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "FRPC instance")))]
 pub(super) async fn get_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -193,6 +234,7 @@ pub(super) async fn get_instance(
     .await
 }
 
+#[utoipa::path(put, path = "/api/admin/frpc/instances/{id}", tag = "frpc", operation_id = "put_api_admin_frpc_instances_id", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Updated FRPC instance")))]
 pub(super) async fn update_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -210,6 +252,7 @@ pub(super) async fn update_instance(
     .await
 }
 
+#[utoipa::path(delete, path = "/api/admin/frpc/instances/{id}", tag = "frpc", operation_id = "delete_api_admin_frpc_instances_id", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Deleted FRPC instance")))]
 pub(super) async fn delete_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -217,6 +260,7 @@ pub(super) async fn delete_instance(
     frpc_response_empty(&state, delete_instance_inner(&state, &id).await).await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/instances/{id}/start", tag = "frpc", operation_id = "post_api_admin_frpc_instances_id_start", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Started FRPC instance")))]
 pub(super) async fn start_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -232,6 +276,7 @@ pub(super) async fn start_instance(
     .await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/instances/{id}/stop", tag = "frpc", operation_id = "post_api_admin_frpc_instances_id_stop", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Stopped FRPC instance")))]
 pub(super) async fn stop_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -239,6 +284,7 @@ pub(super) async fn stop_instance(
     frpc_response_empty(&state, stop_instance_inner(&state, &id).await).await
 }
 
+#[utoipa::path(post, path = "/api/admin/frpc/instances/{id}/restart", tag = "frpc", operation_id = "post_api_admin_frpc_instances_id_restart", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Restarted FRPC instance")))]
 pub(super) async fn restart_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -254,6 +300,7 @@ pub(super) async fn restart_instance(
     .await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/instances/{id}/logs", tag = "frpc", operation_id = "get_api_admin_frpc_instances__id__logs", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "FRPC instance logs")))]
 pub(super) async fn get_instance_logs(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -271,6 +318,7 @@ pub(super) async fn get_instance_logs(
     .await
 }
 
+#[utoipa::path(delete, path = "/api/admin/frpc/instances/{id}/logs", tag = "frpc", operation_id = "delete_api_admin_frpc_instances_id_logs", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "Cleared FRPC instance logs")))]
 pub(super) async fn clear_instance_logs(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,
@@ -278,6 +326,7 @@ pub(super) async fn clear_instance_logs(
     frpc_response_empty(&state, clear_logs_inner(&state, &id).await).await
 }
 
+#[utoipa::path(get, path = "/api/admin/frpc/instances/{id}/poll", tag = "frpc", operation_id = "get_api_admin_frpc_instances__id__poll", params(("id" = String, Path, description = "FRPC instance identifier")), responses((status = 200, description = "FRPC instance poll result")))]
 pub(super) async fn poll_instance(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<String>,

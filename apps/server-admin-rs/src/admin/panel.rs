@@ -5,13 +5,13 @@ use axum::{
     http::{HeaderMap, HeaderValue, Request, StatusCode, Uri, header},
     middleware::Next,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use scrypt::{Params as ScryptParams, scrypt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::env;
 use subtle::ConstantTimeEq;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     cookies::{self, ADMIN_PANEL_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME},
@@ -22,7 +22,7 @@ use crate::{
     runtime_config,
     runtime_profile::{self, RuntimeProfile},
     state::AppState,
-    store::{DockerAdminPasswordRecord, DockerAdminSessionRecord, LoginAttemptRecord},
+    store::{DockerAdminPasswordRecord, DockerAdminSessionRecord},
     system_events, time_utils,
 };
 
@@ -30,8 +30,6 @@ const DEFAULT_SESSION_TTL_SECONDS: i64 = 12 * 60 * 60;
 const MIN_SESSION_TTL_SECONDS: i64 = 15 * 60;
 const MAX_SESSION_TTL_SECONDS: i64 = 7 * 24 * 60 * 60;
 const REMEMBER_ME_SESSION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
-const LOGIN_BACKOFF_BASE_DELAY_MS: i64 = 2000;
-const LOGIN_BACKOFF_MAX_DELAY_MS: i64 = 15 * 60 * 1000;
 const SCRYPT_N: u32 = 16_384;
 const SCRYPT_R: u32 = 8;
 const SCRYPT_P: u32 = 1;
@@ -82,21 +80,37 @@ struct LoginBody {
 }
 
 pub fn admin_routes(protected_admin_view: bool) -> Router<AppState> {
+    let panel_config_routes: Router<AppState> = panel_config_routes().into();
+    let panel_session_routes: Router<AppState> = panel_session_routes().into();
     Router::new()
-        .route("/api/admin/panel/bootstrap", get(bootstrap))
-        .route("/api/admin/panel/password", post(set_password))
-        .route("/api/admin/panel/password/change", post(change_password))
-        .route("/api/admin/panel/login", post(login))
-        .route("/api/admin/panel/logout", post(logout))
-        .route("/api/admin/config", get(config))
-        .route("/api/admin/config/locale", get(locale).post(update_locale))
-        .route(
-            "/api/admin/config/appearance",
-            get(appearance).post(update_appearance),
-        )
+        .merge(panel_session_routes)
+        .merge(panel_config_routes)
         .layer(Extension(PanelRuntime {
             enabled: protected_admin_view,
         }))
+}
+
+/// Panel bootstrap and session mutation endpoints share the annotated runtime
+/// routes used to generate their OpenAPI operations.
+pub(crate) fn panel_session_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(bootstrap))
+        .routes(routes!(set_password))
+        .routes(routes!(change_password))
+        .routes(routes!(login))
+        .routes(routes!(logout))
+}
+
+/// The locale and appearance endpoints share their annotated route definition
+/// with the OpenAPI document. Keep this separate from the panel-auth handlers
+/// above so additions cannot silently bypass the API contract.
+pub(crate) fn panel_config_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(config))
+        .routes(routes!(locale))
+        .routes(routes!(update_locale))
+        .routes(routes!(appearance))
+        .routes(routes!(update_appearance))
 }
 
 pub async fn admin_auth_middleware(
@@ -203,6 +217,13 @@ fn is_admin_public_path(path: &str) -> bool {
     )
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/panel/bootstrap",
+    tag = "panel",
+    operation_id = "get_api_admin_panel_bootstrap",
+    responses((status = 200, description = "Admin panel bootstrap state"))
+)]
 async fn bootstrap(
     State(state): State<AppState>,
     Extension(runtime): Extension<PanelRuntime>,
@@ -221,8 +242,9 @@ async fn bootstrap(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/config", tag = "config", operation_id = "get_api_admin_config", responses((status = 200, description = "Safe application configuration")))]
 async fn config(State(state): State<AppState>) -> Response {
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(mut config) => {
             let host_mappings_revision = proxy_config::host_mappings_revision_from_config(&config);
             let host_mapping_catalog_revision =
@@ -288,7 +310,7 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .unwrap_or(7);
-    let runtime = match state.go_backend.get_logging_config().await {
+    let runtime = match state.gateway.client.get_logging_config().await {
         Ok(value) if value.get("success").and_then(Value::as_bool) == Some(true) => {
             value.pointer("/data").cloned().unwrap_or(Value::Null)
         }
@@ -443,8 +465,15 @@ fn safe_ssl_config(value: Option<&Value>) -> Value {
     Value::Object(object)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/locale",
+    tag = "config",
+    operation_id = "get_api_admin_config_locale",
+    responses((status = 200, description = "Locale configuration"))
+)]
 async fn locale(State(state): State<AppState>) -> Response {
-    match state.store.locale().await {
+    match state.storage.store.locale().await {
         Ok(locale) => response::ok(locale).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -457,8 +486,15 @@ async fn locale(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/appearance",
+    tag = "config",
+    operation_id = "get_api_admin_config_appearance",
+    responses((status = 200, description = "Appearance configuration"))
+)]
 async fn appearance(State(state): State<AppState>) -> Response {
-    match state.store.appearance().await {
+    match state.storage.store.appearance().await {
         Ok(appearance) => response::ok(appearance).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -471,12 +507,20 @@ async fn appearance(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/locale",
+    tag = "config",
+    operation_id = "post_api_admin_config_locale",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated locale configuration"))
+)]
 async fn update_locale(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let next = normalize_locale_config(&body);
     match save_config_section(&state, "locale", next.clone()).await {
         Ok(()) => {
-            if let Err(error) = state.go_backend.set_locale_config(&next).await {
+            if let Err(error) = state.gateway.client.set_locale_config(&next).await {
                 tracing::warn!(%error, "failed to sync locale config to Go backend");
             }
             response::ok(next).into_response()
@@ -491,6 +535,14 @@ async fn update_locale(State(state): State<AppState>, Json(body): Json<Value>) -
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/appearance",
+    tag = "config",
+    operation_id = "post_api_admin_config_appearance",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated appearance configuration"))
+)]
 async fn update_appearance(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let next = normalize_appearance_config(&body);
@@ -506,6 +558,14 @@ async fn update_appearance(State(state): State<AppState>, Json(body): Json<Value
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/panel/password",
+    tag = "panel",
+    operation_id = "post_api_admin_panel_password",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Configured admin panel password"))
+)]
 async fn set_password(
     State(state): State<AppState>,
     Extension(runtime): Extension<PanelRuntime>,
@@ -528,7 +588,7 @@ async fn set_password(
         );
     }
 
-    match state.store.docker_admin_password().await {
+    match state.storage.store.docker_admin_password().await {
         Ok(Some(_)) => {
             return response::error(
                 StatusCode::BAD_REQUEST,
@@ -555,7 +615,12 @@ async fn set_password(
             );
         }
     };
-    if let Err(error) = state.store.set_docker_admin_password(&record).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .replace_docker_admin_password_and_clear_security_state(&record)
+        .await
+    {
         tracing::warn!(%error, "failed to store docker admin password");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -578,6 +643,7 @@ async fn set_password(
             }
         };
     let _ = state
+        .storage
         .store
         .reset_docker_admin_login_attempt(&client_ip_for_tracking(&headers))
         .await;
@@ -596,6 +662,14 @@ async fn set_password(
     .await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/panel/password/change",
+    tag = "panel",
+    operation_id = "post_api_admin_panel_password_change",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Changed admin panel password"))
+)]
 async fn change_password(
     State(state): State<AppState>,
     Extension(runtime): Extension<PanelRuntime>,
@@ -617,7 +691,7 @@ async fn change_password(
         );
     }
 
-    let existing = match state.store.docker_admin_password().await {
+    let existing = match state.storage.store.docker_admin_password().await {
         Ok(Some(record)) => record,
         Ok(None) => {
             return response::error(
@@ -661,23 +735,8 @@ async fn change_password(
             );
         }
     };
-    if let Err(error) = state.store.set_docker_admin_password(&record).await {
+    if let Err(error) = state.storage.store.set_docker_admin_password(&record).await {
         tracing::warn!(%error, "failed to store docker admin password");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_panel_text(&translator, "dockerPanel.changePasswordFailed"),
-        );
-    }
-
-    if let Err(error) = state.store.clear_docker_admin_sessions().await {
-        tracing::warn!(%error, "failed to clear docker admin sessions after password change");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_panel_text(&translator, "dockerPanel.changePasswordFailed"),
-        );
-    }
-    if let Err(error) = state.store.clear_docker_admin_login_failures().await {
-        tracing::warn!(%error, "failed to clear docker admin login failures after password change");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             admin_panel_text(&translator, "dockerPanel.changePasswordFailed"),
@@ -718,6 +777,14 @@ async fn change_password(
     .await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/panel/login",
+    tag = "panel",
+    operation_id = "post_api_admin_panel_login",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Admin panel login result"))
+)]
 async fn login(
     State(state): State<AppState>,
     Extension(runtime): Extension<PanelRuntime>,
@@ -769,7 +836,7 @@ async fn login(
         }
     }
 
-    let Some(password_record) = (match state.store.docker_admin_password().await {
+    let Some(password_record) = (match state.storage.store.docker_admin_password().await {
         Ok(record) => record,
         Err(error) => {
             tracing::warn!(%error, "failed to load docker admin password");
@@ -826,6 +893,7 @@ async fn login(
     }
 
     let _ = state
+        .storage
         .store
         .reset_docker_admin_login_attempt(&client_ip)
         .await;
@@ -860,6 +928,13 @@ async fn login(
     .await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/panel/logout",
+    tag = "panel",
+    operation_id = "post_api_admin_panel_logout",
+    responses((status = 200, description = "Admin panel logout result"))
+)]
 async fn logout(
     State(state): State<AppState>,
     Extension(runtime): Extension<PanelRuntime>,
@@ -867,7 +942,11 @@ async fn logout(
     uri: Uri,
 ) -> Response {
     if let Some(session_id) = cookies::read_cookie(&headers, ADMIN_PANEL_SESSION_COOKIE_NAME) {
-        let _ = state.store.delete_docker_admin_session(&session_id).await;
+        let _ = state
+            .storage
+            .store
+            .delete_docker_admin_session(&session_id)
+            .await;
     }
     panel_success_with_cookie(
         &state,
@@ -933,8 +1012,8 @@ async fn build_bootstrap_state_with_session(
     runtime_enabled: bool,
     new_session: Option<&DockerAdminSessionRecord>,
 ) -> anyhow::Result<Value> {
-    let locale = state.store.locale().await?;
-    let appearance = state.store.appearance().await?;
+    let locale = state.storage.store.locale().await?;
+    let appearance = state.storage.store.appearance().await?;
     let deployment_target = runtime_profile::deployment_target(state);
 
     if !runtime_enabled {
@@ -950,7 +1029,7 @@ async fn build_bootstrap_state_with_session(
         }));
     }
 
-    let password_configured = state.store.docker_admin_password().await?.is_some();
+    let password_configured = state.storage.store.docker_admin_password().await?.is_some();
     let auth_context = if let Some(session) = new_session {
         json!({
             "authenticated": true,
@@ -979,16 +1058,28 @@ pub(crate) async fn resolve_panel_auth_context(
 ) -> anyhow::Result<Value> {
     'panel_session: {
         if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME)
-            && let Some(mut record) = state.store.docker_admin_session(&session_id).await?
+            && let Some(mut record) = state
+                .storage
+                .store
+                .docker_admin_session(&session_id)
+                .await?
         {
             let now = time_utils::now_ms();
             if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now) {
-                let Some(password) = state.store.docker_admin_password().await? else {
-                    let _ = state.store.delete_docker_admin_session(&session_id).await;
+                let Some(password) = state.storage.store.docker_admin_password().await? else {
+                    let _ = state
+                        .storage
+                        .store
+                        .delete_docker_admin_session(&session_id)
+                        .await;
                     break 'panel_session;
                 };
                 if !panel_session_password_revision_is_current(&mut record, &password) {
-                    let _ = state.store.delete_docker_admin_session(&session_id).await;
+                    let _ = state
+                        .storage
+                        .store
+                        .delete_docker_admin_session(&session_id)
+                        .await;
                     break 'panel_session;
                 }
                 let current_ip = client_ip_for_tracking(headers);
@@ -1023,6 +1114,7 @@ pub(crate) async fn resolve_panel_auth_context(
                     record.updated_at = time_utils::now_iso();
                     record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
                     let session_still_exists = state
+                        .storage
                         .store
                         .refresh_docker_admin_session_if_exists(&record)
                         .await?;
@@ -1058,13 +1150,17 @@ pub(crate) async fn resolve_panel_auth_context(
                     }
                 }
             } else {
-                let _ = state.store.delete_docker_admin_session(&session_id).await;
+                let _ = state
+                    .storage
+                    .store
+                    .delete_docker_admin_session(&session_id)
+                    .await;
             }
         }
     }
 
     if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME)
-        && let Some(session) = state.store.get_session(&session_id).await?
+        && let Some(session) = state.storage.store.get_session(&session_id).await?
         && is_docker_admin_panel_reauth_session_allowed(state, &session).await?
     {
         return Ok(json!({
@@ -1115,14 +1211,19 @@ async fn is_docker_admin_panel_reauth_session_allowed(
         return Ok(false);
     }
     if session.method.eq_ignore_ascii_case("PASSWORD") {
-        let Some(account) = state.store.get_auth_account(&session.credential_id).await? else {
+        let Some(account) = state
+            .storage
+            .store
+            .get_auth_account(&session.credential_id)
+            .await?
+        else {
             return Ok(false);
         };
         return Ok(has_docker_admin_panel_access_scope(
             &crate::store::normalize_totp_access_scopes(account.access_scopes),
         ));
     }
-    let totps = state.store.get_totps().await?;
+    let totps = state.storage.store.get_totps().await?;
     Ok(is_docker_admin_panel_totp_reauth_session_allowed(
         session, &totps,
     ))
@@ -1169,14 +1270,23 @@ async fn create_panel_session(
         ip: client_ip_for_tracking(headers),
         user_agent: user_agent_for_tracking(headers),
     };
-    state.store.set_docker_admin_session(&record).await?;
+    state
+        .storage
+        .store
+        .set_docker_admin_session(&record)
+        .await?;
     let current_password_revision = state
+        .storage
         .store
         .docker_admin_password()
         .await?
         .map(|password| docker_admin_password_revision(&password));
     if current_password_revision.as_deref() != Some(password_revision) {
-        let _ = state.store.delete_docker_admin_session(&record.id).await;
+        let _ = state
+            .storage
+            .store
+            .delete_docker_admin_session(&record.id)
+            .await;
         anyhow::bail!("docker admin password changed while creating a session");
     }
     Ok(record)
@@ -1327,7 +1437,7 @@ fn validate_password(password: &str) -> Result<(), &'static str> {
 }
 
 async fn ensure_login_allowed(state: &AppState, ip: &str) -> anyhow::Result<Option<(i64, i64)>> {
-    let Some(record) = state.store.docker_admin_login_attempt(ip).await? else {
+    let Some(record) = state.storage.store.docker_admin_login_attempt(ip).await? else {
         return Ok(None);
     };
     let now = time_utils::now_ms();
@@ -1341,25 +1451,12 @@ async fn ensure_login_allowed(state: &AppState, ip: &str) -> anyhow::Result<Opti
 }
 
 async fn register_login_failure(state: &AppState, ip: &str) -> anyhow::Result<(i64, i64)> {
-    let previous_attempts = state
+    state
+        .storage
         .store
-        .docker_admin_login_attempt(ip)
-        .await?
-        .map(|record| record.attempts)
-        .unwrap_or(0);
-    let attempts = previous_attempts.saturating_add(1);
-    let exponent = attempts.saturating_sub(1).min(30);
-    let backoff_ms =
-        (LOGIN_BACKOFF_BASE_DELAY_MS * 2_i64.pow(exponent)).min(LOGIN_BACKOFF_MAX_DELAY_MS);
-    let blocked_until = time_utils::now_ms() + backoff_ms;
-    let record = LoginAttemptRecord {
-        ip: ip.to_string(),
-        attempts,
-        last_attempt_at: time_utils::now_iso(),
-        blocked_until,
-    };
-    state.store.set_docker_admin_login_attempt(&record).await?;
-    Ok(((backoff_ms + 999) / 1000, blocked_until))
+        .register_docker_admin_login_failure(ip)
+        .await
+        .map_err(Into::into)
 }
 
 fn client_ip_for_tracking(headers: &HeaderMap) -> String {
@@ -1385,14 +1482,14 @@ async fn save_config_section(
     key: &str,
     value: Value,
 ) -> crate::storage::StorageResult<()> {
-    let mut config = state.store.get_config().await?;
+    let mut config = state.storage.store.get_config().await?;
     if !config.is_object() {
         config = crate::store::default_config();
     }
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), value);
     }
-    state.store.save_config(&config).await
+    state.storage.store.save_config(&config).await
 }
 
 pub(crate) fn normalize_locale_config(value: &Value) -> Value {

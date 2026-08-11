@@ -21,7 +21,7 @@ pub(super) fn is_waf_blocking_event(event: &Value) -> bool {
 
 pub(super) async fn query_waf_logs(state: &AppState, query: &WafLogQuery) -> anyhow::Result<Value> {
     let date = normalize_date(query.date.as_deref()).map_err(anyhow::Error::msg)?;
-    let available_dates = state.store.list_waf_log_dates(&today()).await?;
+    let available_dates = state.storage.store.list_waf_log_dates(&today()).await?;
     let limit = normalize_limit(query.limit.as_deref());
     let cursor = normalize_cursor(query.cursor.as_deref());
 
@@ -79,13 +79,14 @@ pub(super) async fn query_unfiltered(
     cursor: i64,
     limit: i64,
 ) -> anyhow::Result<WafLogPage> {
-    let original_total = state.store.waf_log_date_total(date).await?;
+    let original_total = state.storage.store.waf_log_date_total(date).await?;
     let mut events = Vec::<Value>::new();
     let mut stale_ids = Vec::<String>::new();
     let mut offset = cursor;
 
     while events.len() < (limit + 1) as usize {
         let ids = state
+            .storage
             .store
             .waf_log_ids_desc(
                 date,
@@ -103,6 +104,7 @@ pub(super) async fn query_unfiltered(
     }
 
     state
+        .storage
         .store
         .remove_waf_log_stale_ids(date, &stale_ids)
         .await?;
@@ -140,6 +142,7 @@ pub(super) async fn query_filtered(
 
     loop {
         let ids = state
+            .storage
             .store
             .waf_log_ids_desc(
                 date,
@@ -166,6 +169,7 @@ pub(super) async fn query_filtered(
     }
 
     state
+        .storage
         .store
         .remove_waf_log_stale_ids(date, &stale_ids)
         .await?;
@@ -189,7 +193,7 @@ pub(super) struct EventBatch {
 }
 
 pub(super) async fn events_by_ids(state: &AppState, ids: &[String]) -> anyhow::Result<EventBatch> {
-    let raws = state.store.waf_log_events_by_ids(ids).await?;
+    let raws = state.storage.store.waf_log_events_by_ids(ids).await?;
     let mut events = Vec::new();
     let mut stale_ids = Vec::new();
     for (id, raw) in ids.iter().zip(raws) {
@@ -210,6 +214,7 @@ pub(super) async fn get_waf_log_event(
         return Ok(None);
     }
     Ok(state
+        .storage
         .store
         .get_waf_log_event(trace_id)
         .await?

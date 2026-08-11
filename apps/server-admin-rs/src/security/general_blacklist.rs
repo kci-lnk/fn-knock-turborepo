@@ -1,13 +1,12 @@
 use axum::{
-    Router,
     body::Bytes,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
 };
 use serde::Deserialize;
 use serde_json::Value;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{http_utils::normalize_ip, i18n::Translator, response, state::AppState};
 
@@ -68,16 +67,20 @@ struct ListQuery {
     search: Option<String>,
 }
 
-pub fn general_blacklist_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/general-blacklist",
-            get(list).post(add).delete(remove),
-        )
-        .route("/api/admin/general-blacklist/status", post(status))
-        .route("/api/admin/general-blacklist/{ip}", delete(remove_ip))
+pub fn general_blacklist_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list, add, remove))
+        .routes(routes!(status))
+        .routes(routes!(remove_ip))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/general-blacklist",
+    tag = "general-blacklist",
+    operation_id = "get_api_admin_general_blacklist",
+    responses((status = 200, description = "General blacklist page"))
+)]
 async fn list(State(state): State<AppState>, Query(query): Query<ListQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     let page = match parse_positive_i32(query.page.as_deref(), 1, "page must be a positive integer")
@@ -100,12 +103,20 @@ async fn list(State(state): State<AppState>, Query(query): Query<ListQuery>) -> 
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .list_general_blacklist(page, limit, query.search.unwrap_or_default())
             .await,
     )
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/general-blacklist/status",
+    tag = "general-blacklist",
+    operation_id = "post_api_admin_general_blacklist_status",
+    responses((status = 200, description = "General blacklist status"))
+)]
 async fn status(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = match parse_body(&body) {
@@ -117,10 +128,17 @@ async fn status(State(state): State<AppState>, body: Bytes) -> Response {
     let ips = normalize_status_ip_list(parsed.get("ips").cloned().unwrap_or(Value::Null));
     go_data_response(
         &translator,
-        state.go_backend.check_general_blacklist(ips).await,
+        state.gateway.client.check_general_blacklist(ips).await,
     )
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/general-blacklist",
+    tag = "general-blacklist",
+    operation_id = "post_api_admin_general_blacklist",
+    responses((status = 200, description = "General blacklist mutation result"))
+)]
 async fn add(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = match parse_body(&body) {
@@ -152,12 +170,20 @@ async fn add(State(state): State<AppState>, body: Bytes) -> Response {
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .add_general_blacklist(ips, source.to_string(), comment)
             .await,
     )
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/general-blacklist",
+    tag = "general-blacklist",
+    operation_id = "delete_api_admin_general_blacklist",
+    responses((status = 200, description = "General blacklist mutation result"))
+)]
 async fn remove(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = match parse_body(&body) {
@@ -181,10 +207,17 @@ async fn remove(State(state): State<AppState>, body: Bytes) -> Response {
     }
     go_data_response(
         &translator,
-        state.go_backend.remove_general_blacklist(ips).await,
+        state.gateway.client.remove_general_blacklist(ips).await,
     )
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/general-blacklist/{ip}",
+    tag = "general-blacklist",
+    operation_id = "delete_api_admin_general_blacklist__ip_",
+    responses((status = 200, description = "General blacklist mutation result"))
+)]
 async fn remove_ip(State(state): State<AppState>, Path(ip): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     let normalized = normalize_ip(&ip);
@@ -198,7 +231,8 @@ async fn remove_ip(State(state): State<AppState>, Path(ip): Path<String>) -> Res
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .remove_general_blacklist(vec![normalized])
             .await,
     )

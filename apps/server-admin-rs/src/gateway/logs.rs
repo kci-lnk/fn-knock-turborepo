@@ -5,10 +5,10 @@ use axum::{
     extract::{DefaultBodyLimit, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     http_utils::{is_private_or_local_ip, normalize_ip},
@@ -48,7 +48,7 @@ struct GatewayLogAnalyticsQuery {
     to: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct GatewayLoggingConfigBody {
     enabled: bool,
     #[serde(default)]
@@ -59,24 +59,23 @@ struct GatewayLoggingConfigBody {
 const GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES: usize = 1024 * 1024;
 
 pub fn gateway_logs_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/gateway-logs/config",
-            get(get_config).post(update_config),
-        )
-        .route("/api/admin/gateway-logs/directory", get(directory))
-        .route("/api/admin/gateway-logs/dates", get(dates))
-        .route(
-            "/api/admin/gateway-logs/analytics",
-            get(analytics).post(refresh_analytics_geo),
-        )
-        .route(
-            "/api/admin/gateway-logs/entries",
-            get(entries).delete(delete_entries),
-        )
-        .layer(DefaultBodyLimit::max(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES))
+    let routes: Router<AppState> = gateway_logs_openapi_routes().into();
+    routes.layer(DefaultBodyLimit::max(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES))
 }
 
+pub(crate) fn gateway_logs_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_config))
+        .routes(routes!(update_config))
+        .routes(routes!(directory))
+        .routes(routes!(dates))
+        .routes(routes!(entries))
+        .routes(routes!(delete_entries))
+        .routes(routes!(analytics))
+        .routes(routes!(refresh_analytics_geo))
+}
+
+#[utoipa::path(get, path = "/api/admin/gateway-logs/config", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_config", responses((status = 200, description = "Gateway logging configuration")))]
 async fn get_config(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let settings = match gateway_logging_settings(&state).await {
@@ -90,7 +89,8 @@ async fn get_config(State(state): State<AppState>) -> Response {
         }
     };
     let runtime = match state
-        .go_backend
+        .gateway
+        .client
         .get_logging_config()
         .await
         .and_then(go_backend_data)
@@ -104,6 +104,7 @@ async fn get_config(State(state): State<AppState>) -> Response {
     response::ok(gateway_logging_config_response(settings, &runtime)).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/gateway-logs/config", tag = "gateway-logs", operation_id = "post_api_admin_gateway_logs_config", request_body = GatewayLoggingConfigBody, responses((status = 200, description = "Updated gateway logging configuration")))]
 async fn update_config(
     State(state): State<AppState>,
     Json(body): Json<GatewayLoggingConfigBody>,
@@ -114,7 +115,7 @@ async fn update_config(
         record_localhost: body.record_localhost,
         max_days: normalize_gateway_logging_max_days(body.max_days),
     };
-    let mut config = match state.store.get_config().await {
+    let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read config before gateway logging update");
@@ -132,7 +133,7 @@ async fn update_config(
             "max_days": settings.max_days
         }),
     );
-    if let Err(error) = state.store.save_config(&config).await {
+    if let Err(error) = state.storage.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save gateway logging config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -141,7 +142,8 @@ async fn update_config(
     }
 
     match state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_logging_config(&json!({
             "enabled": settings.enabled,
             "record_localhost": settings.record_localhost,
@@ -161,12 +163,14 @@ async fn update_config(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/gateway-logs/directory", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_directory", responses((status = 200, description = "Gateway log directory")))]
 async fn directory(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .get_logging_directory()
             .await
             .and_then(go_backend_data),
@@ -174,12 +178,14 @@ async fn directory(State(state): State<AppState>) -> Response {
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/gateway-logs/dates", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_dates", responses((status = 200, description = "Available gateway log dates")))]
 async fn dates(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .get_log_dates()
             .await
             .and_then(go_backend_data),
@@ -187,6 +193,7 @@ async fn dates(State(state): State<AppState>) -> Response {
     )
 }
 
+#[utoipa::path(get, path = "/api/admin/gateway-logs/entries", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_entries", responses((status = 200, description = "Gateway log entries")))]
 async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     let waf_status = normalize_waf_status_filter(query.waf_status.as_deref());
@@ -208,13 +215,15 @@ async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQu
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/gateway-logs/analytics", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_analytics", responses((status = 200, description = "Gateway log analytics")))]
 async fn analytics(
     State(state): State<AppState>,
     Query(query): Query<GatewayLogAnalyticsQuery>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let result = state
-        .go_backend
+        .gateway
+        .client
         .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
             from_date: query.from.unwrap_or_default(),
             to_date: query.to.unwrap_or_default(),
@@ -234,6 +243,7 @@ async fn analytics(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/gateway-logs/analytics", tag = "gateway-logs", operation_id = "post_api_admin_gateway_logs_analytics", responses((status = 200, description = "Gateway analytics refresh state")))]
 async fn refresh_analytics_geo(
     State(state): State<AppState>,
     Query(query): Query<GatewayLogAnalyticsQuery>,
@@ -257,7 +267,8 @@ async fn refresh_analytics_geo(
     };
     let result = with_geo_refresh_lease(&state, &lock_id, async {
         state
-            .go_backend
+            .gateway
+            .client
             .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
                 from_date: query.from.unwrap_or_default(),
                 to_date: query.to.unwrap_or_default(),
@@ -283,6 +294,7 @@ async fn refresh_analytics_geo(
     response::ok(json!({ "refreshing": true })).into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/gateway-logs/entries", tag = "gateway-logs", operation_id = "delete_api_admin_gateway_logs_entries", responses((status = 200, description = "Deleted gateway log entries")))]
 async fn delete_entries(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed: Value = match serde_json::from_slice(&body) {
@@ -302,7 +314,8 @@ async fn delete_entries(State(state): State<AppState>, body: Bytes) -> Response 
     go_data_response(
         &translator,
         state
-            .go_backend
+            .gateway
+            .client
             .delete_log_date(date)
             .await
             .and_then(go_backend_data),
@@ -485,7 +498,8 @@ async fn go_log_entries(
         pagination,
     };
     state
-        .go_backend
+        .gateway
+        .client
         .query_log_entries(rpc_query)
         .await
         .and_then(go_backend_data)
@@ -552,7 +566,7 @@ struct GatewayLoggingSettings {
 async fn gateway_logging_settings(
     state: &AppState,
 ) -> crate::storage::StorageResult<GatewayLoggingSettings> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let raw = config
         .get("gateway_logging")
         .and_then(Value::as_object)

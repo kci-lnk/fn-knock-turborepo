@@ -1,5 +1,6 @@
 use super::*;
 
+#[utoipa::path(get, path = "/api/admin/ssh-security/config", tag = "ssh-security", operation_id = "get_api_admin_ssh_security_config", responses((status = 200, description = "SSH security configuration")))]
 pub(super) async fn get_config(State(state): State<AppState>) -> Response {
     match ssh_security_details(&state).await {
         Ok(details) => response::ok(details).into_response(),
@@ -14,6 +15,7 @@ pub(super) async fn get_config(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssh-security/config", tag = "ssh-security", operation_id = "post_api_admin_ssh_security_config", request_body = serde_json::Value, responses((status = 200, description = "Updated SSH security configuration")))]
 pub(super) async fn update_config(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -33,6 +35,7 @@ pub(super) async fn update_config(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssh-security/firewall/sync", tag = "ssh-security", operation_id = "post_api_admin_ssh_security_firewall_sync", responses((status = 200, description = "SSH firewall synchronization result")))]
 pub(super) async fn sync_firewall(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match sync_firewall_blocks_now(&state, &translator).await {
@@ -89,6 +92,7 @@ pub(super) async fn sync_firewall(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/ssh-security/firewall/clear", tag = "ssh-security", operation_id = "post_api_admin_ssh_security_firewall_clear", responses((status = 200, description = "SSH firewall clear result")))]
 pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let availability = ssh_security_availability(&state, &translator);
@@ -99,7 +103,7 @@ pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
         "chain_name": SSH_FIREWALL_CHAIN,
         "parent_chain": ["INPUT", "DOCKER-USER"]
     });
-    match state.go_backend.clear_ssh_firewall(&payload).await {
+    match state.gateway.client.clear_ssh_firewall(&payload).await {
         Ok(value) => {
             if let Err(error) = ensure_go_success(value, &translator, "clearSshPolicyFailed")
                 .map_err(|error| {
@@ -151,6 +155,7 @@ pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssh-security/login-logs", tag = "ssh-security", operation_id = "get_api_admin_ssh_security_login_logs", responses((status = 200, description = "Recent SSH login logs")))]
 pub(super) async fn login_logs(
     State(state): State<AppState>,
     Query(query): Query<ListQuery>,
@@ -206,6 +211,7 @@ pub(super) async fn login_logs(
         .into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/ssh-security/blocks", tag = "ssh-security", operation_id = "get_api_admin_ssh_security_blocks", responses((status = 200, description = "Active SSH security blocks")))]
 pub(super) async fn list_blocks(
     State(state): State<AppState>,
     Query(query): Query<ListQuery>,
@@ -236,6 +242,7 @@ pub(super) async fn list_blocks(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/ssh-security/blocks/{ip}", tag = "ssh-security", operation_id = "get_api_admin_ssh_security_blocks_by_ip", params(("ip" = String, Path, description = "Blocked IP address")), responses((status = 200, description = "SSH security block")))]
 pub(super) async fn get_block(
     State(state): State<AppState>,
     AxumPath(ip): AxumPath<String>,
@@ -273,6 +280,7 @@ pub(super) async fn get_block(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssh-security/blocks/{ip}", tag = "ssh-security", operation_id = "delete_api_admin_ssh_security_blocks_by_ip", params(("ip" = String, Path, description = "Blocked IP address")), responses((status = 200, description = "Deleted SSH security block")))]
 pub(super) async fn delete_block(
     State(state): State<AppState>,
     AxumPath(ip): AxumPath<String>,
@@ -294,6 +302,7 @@ pub(super) async fn delete_block(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/ssh-security/blocks", tag = "ssh-security", operation_id = "delete_api_admin_ssh_security_blocks", responses((status = 200, description = "Deleted SSH security blocks")))]
 pub(super) async fn delete_blocks(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = parse_json_body(&body);

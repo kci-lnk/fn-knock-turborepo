@@ -4,9 +4,10 @@ use std::time::{Duration, SystemTime};
 pub(super) const AUTOMATIC_BACKUP_TEMP_PREFIX: &str = ".automatic-backup-";
 
 pub(super) fn spawn_automatic_backup_task(state: AppState) {
-    tokio::spawn(async move {
-        automatic_backup_scheduler(state).await;
-    });
+    state.spawn_background(
+        "automatic-backup",
+        automatic_backup_scheduler(state.clone()),
+    );
 }
 
 pub(super) async fn automatic_backup_details(state: &AppState) -> anyhow::Result<Value> {
@@ -34,7 +35,7 @@ pub(super) async fn save_automatic_backup_config(
     body: UpdateAutomaticBackupBody,
 ) -> Result<Value, BackupImportError> {
     validate_automatic_backup_config(&body)?;
-    let guard = state.automatic_backup_lock.lock().await;
+    let guard = state.maintenance.automatic_backup_lock.lock().await;
     let previous = load_automatic_backup_config(state)
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
@@ -87,6 +88,7 @@ pub(super) async fn save_automatic_backup_config(
     };
     runtime["next_backup_at"] = next_backup_at;
     state
+        .storage
         .store
         .set_json_values_atomically(&[
             (AUTOMATIC_BACKUP_CONFIG_KEY, &config),
@@ -95,7 +97,7 @@ pub(super) async fn save_automatic_backup_config(
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
     drop(guard);
-    state.automatic_backup_notify.notify_one();
+    state.maintenance.automatic_backup_notify.notify_one();
 
     Ok(automatic_backup_details_value(state, config, runtime))
 }
@@ -161,6 +163,7 @@ pub(super) async fn preserved_automatic_backup_entries(
     let mut entries = Vec::new();
     for key in [AUTOMATIC_BACKUP_CONFIG_KEY, AUTOMATIC_BACKUP_RUNTIME_KEY] {
         if let Some(entry) = state
+            .storage
             .store
             .export_backup_entry(key)
             .await
@@ -213,6 +216,7 @@ pub(super) async fn resolve_automatic_backup_archive_path(
 
 pub(super) async fn load_automatic_backup_config(state: &AppState) -> anyhow::Result<Value> {
     let value = state
+        .storage
         .store
         .get_json_value(AUTOMATIC_BACKUP_CONFIG_KEY)
         .await?;
@@ -271,6 +275,7 @@ fn normalized_integer(value: Option<&Value>, fallback: i64, min: i64, max: i64) 
 
 pub(super) async fn load_automatic_backup_runtime(state: &AppState) -> anyhow::Result<Value> {
     let value = state
+        .storage
         .store
         .get_json_value(AUTOMATIC_BACKUP_RUNTIME_KEY)
         .await?;
@@ -296,6 +301,7 @@ fn normalized_timestamp(value: Option<&Value>) -> Option<&str> {
 
 async fn save_automatic_backup_runtime(state: &AppState, runtime: &Value) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .set_json_value(AUTOMATIC_BACKUP_RUNTIME_KEY, runtime)
         .await
@@ -328,7 +334,7 @@ pub(super) async fn automatic_backup_scheduler(state: AppState) {
         if config.get("enabled").and_then(Value::as_bool) != Some(true) {
             tokio::select! {
                 _ = state.shutdown.cancelled() => return,
-                _ = state.automatic_backup_notify.notified() => {}
+                _ = state.maintenance.automatic_backup_notify.notified() => {}
             }
             continue;
         }
@@ -364,13 +370,13 @@ pub(super) async fn automatic_backup_scheduler(state: AppState) {
 async fn wait_for_automatic_backup_wakeup(state: &AppState, seconds: u64) {
     tokio::select! {
         _ = state.shutdown.cancelled() => {}
-        _ = state.automatic_backup_notify.notified() => {}
+        _ = state.maintenance.automatic_backup_notify.notified() => {}
         _ = tokio::time::sleep(Duration::from_secs(seconds.max(1))) => {}
     }
 }
 
 pub(super) async fn run_automatic_backup_once(state: &AppState) -> anyhow::Result<Value> {
-    let _guard = state.automatic_backup_lock.lock().await;
+    let _guard = state.maintenance.automatic_backup_lock.lock().await;
     let config = load_automatic_backup_config(state).await?;
     if config.get("enabled").and_then(Value::as_bool) != Some(true) {
         return Ok(Value::Null);

@@ -29,6 +29,7 @@ describe("admin panel reset guides", () => {
       "docker",
       "openwrt",
       "linux",
+      "macos",
       "windows",
     ]);
 
@@ -38,6 +39,7 @@ describe("admin panel reset guides", () => {
       "docker",
       "openwrt",
       "linux",
+      "macos",
       "synology",
       "windows",
       "dev",
@@ -46,6 +48,7 @@ describe("admin panel reset guides", () => {
         "docker",
         "openwrt",
         "linux",
+        "macos",
         "windows",
       ].includes(target);
       assert.equal(
@@ -72,13 +75,16 @@ describe("admin panel reset guides", () => {
     assert.deepEqual(guideCommands("linux"), [
       "sudo knock reset-panel-password",
     ]);
+    assert.deepEqual(guideCommands("macos"), [
+      "sudo knock reset-panel-password",
+    ]);
     assert.deepEqual(guideCommands("windows"), [
       '& "$env:ProgramFiles\\Knock 敲门\\fn-knock-service.exe" reset-panel-password',
     ]);
   });
 
   it("never leaks Docker instructions into non-Docker guides", () => {
-    for (const target of ["openwrt", "linux", "windows"] as const) {
+    for (const target of ["openwrt", "linux", "macos", "windows"] as const) {
       assert.doesNotMatch(guideCommands(target).join("\n"), /docker|compose/iu);
     }
   });

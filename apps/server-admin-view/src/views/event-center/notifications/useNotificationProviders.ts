@@ -190,9 +190,10 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
     if (!value) return;
     const currentType = providerForm.value.type;
     const previousGeneratedName = buildGeneratedProviderName(currentType);
-    const nextType = String(value);
     const nextDefinition =
-      catalog.value.find((item) => item.type === nextType) || null;
+      catalog.value.find((item) => item.type === String(value)) || null;
+    if (!nextDefinition) return;
+    const nextType = nextDefinition.type;
     const shouldRefreshName =
       dialogMode.value === "create" &&
       (!providerForm.value.name.trim() ||
@@ -228,7 +229,7 @@ export const useNotificationProviders = (active: Readonly<Ref<boolean>>) => {
     }
     return {
       name: providerForm.value.name.trim() || undefined,
-      type: providerForm.value.type,
+      type: definition.type,
       enabled: providerForm.value.enabled,
       connection_config: connectionConfig,
     };

@@ -1,5 +1,12 @@
 use super::*;
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/captcha",
+    tag = "config",
+    operation_id = "get_api_admin_config_captcha",
+    responses((status = 200, description = "CAPTCHA configuration"))
+)]
 pub(super) async fn get_captcha(State(state): State<AppState>) -> Response {
     match load_captcha_settings(&state).await {
         Ok(data) => response::ok(data).into_response(),
@@ -14,6 +21,14 @@ pub(super) async fn get_captcha(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/captcha",
+    tag = "config",
+    operation_id = "post_api_admin_config_captcha",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated CAPTCHA configuration"))
+)]
 pub(super) async fn update_captcha(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -40,7 +55,7 @@ pub(super) async fn update_captcha(
 
     // Validation and the read-modify-write update must observe the same
     // snapshot so concurrent partial updates cannot lose each other's fields.
-    let _update_guard = state.captcha_settings_update_lock.lock().await;
+    let _update_guard = state.security.captcha_settings_update_lock.lock().await;
     let current = match load_captcha_settings(&state).await {
         Ok(current) => current,
         Err(error) => {
@@ -126,6 +141,13 @@ fn validate_optional_pow_number(value: Option<&Value>, fallback: i64) -> Result<
     Ok(value)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/terminal_feature",
+    tag = "config",
+    operation_id = "get_api_admin_config_terminal_feature",
+    responses((status = 200, description = "Terminal feature configuration"))
+)]
 pub(super) async fn get_terminal_feature(State(state): State<AppState>) -> Response {
     match load_config_section(&state, "terminal_feature", normalize_terminal_feature).await {
         Ok(data) => response::ok(data).into_response(),
@@ -140,6 +162,13 @@ pub(super) async fn get_terminal_feature(State(state): State<AppState>) -> Respo
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/terminal_feature",
+    tag = "config",
+    operation_id = "post_api_admin_config_terminal_feature",
+    responses((status = 200, description = "Updated terminal feature configuration"))
+)]
 pub(super) async fn update_terminal_feature(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -172,6 +201,13 @@ pub(super) async fn update_terminal_feature(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/wol_feature",
+    tag = "config",
+    operation_id = "get_api_admin_config_wol_feature",
+    responses((status = 200, description = "Wake-on-LAN feature configuration"))
+)]
 pub(super) async fn get_wol_feature(State(state): State<AppState>) -> Response {
     match load_config_section(&state, "wol_feature", normalize_wol_feature).await {
         Ok(data) => response::ok(data).into_response(),
@@ -186,6 +222,14 @@ pub(super) async fn get_wol_feature(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/wol_feature",
+    tag = "config",
+    operation_id = "post_api_admin_config_wol_feature",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated Wake-on-LAN feature configuration"))
+)]
 pub(super) async fn update_wol_feature(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -198,8 +242,8 @@ pub(super) async fn update_wol_feature(
         );
     }
 
-    let _guard = state.wol_feature_update_lock.lock().await;
-    let previous_config = match state.store.get_config().await {
+    let _guard = state.wol.feature_update_lock.lock().await;
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before WoL feature update");
@@ -223,7 +267,7 @@ pub(super) async fn update_wol_feature(
         .unwrap_or(false);
     ensure_object(&mut updated_config).insert("wol_feature".to_string(), next.clone());
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
+    if let Err(error) = state.storage.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save WoL feature config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -235,7 +279,12 @@ pub(super) async fn update_wol_feature(
         notify_wol_runtime_reload(&state);
     }
     if let Err(message) = gateway_settings::sync_gateway_runtime(&state, &updated_config).await {
-        let rollback_saved = state.store.save_config(&previous_config).await.is_ok();
+        let rollback_saved = state
+            .storage
+            .store
+            .save_config(&previous_config)
+            .await
+            .is_ok();
         if rollback_saved {
             let _ = gateway_settings::sync_gateway_runtime(&state, &previous_config).await;
             if stopped_before_gateway_sync {
@@ -257,10 +306,19 @@ pub(super) async fn update_wol_feature(
 
 fn notify_wol_runtime_reload(state: &AppState) {
     state
-        .wol_runtime_reload
+        .wol
+        .runtime_reload
         .send_modify(|generation| *generation = generation.wrapping_add(1));
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/run_type",
+    tag = "config",
+    operation_id = "post_api_admin_config_run_type",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated runtime mode"))
+)]
 pub(super) async fn update_run_type(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -278,9 +336,9 @@ pub(super) async fn update_run_type(
             capability_blocked_text(&state, "direct_mode_available", &translator),
         );
     }
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before run_type update");
@@ -330,7 +388,7 @@ pub(super) async fn update_run_type(
         Value::String(reverse_proxy_submode),
     );
 
-    if let Err(error) = state.store.save_config(&next_config).await {
+    if let Err(error) = state.storage.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save run_type config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -341,7 +399,7 @@ pub(super) async fn update_run_type(
         let disabled = json!({ "enabled": false });
         if let Err(error) = save_protocol_mapping_feature(&state, &disabled).await {
             tracing::warn!(%error, "failed to disable protocol mapping feature after run_type update");
-            if let Err(rollback_error) = state.store.save_config(&previous_config).await {
+            if let Err(rollback_error) = state.storage.store.save_config(&previous_config).await {
                 tracing::warn!(%rollback_error, "failed to rollback run_type config");
             }
             return response::error(
@@ -397,8 +455,15 @@ pub(super) async fn cleanup_auto_whitelist_after_direct_mode(state: &AppState, r
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/protocol_mapping_feature",
+    tag = "config",
+    operation_id = "get_api_admin_config_protocol_mapping_feature",
+    responses((status = 200, description = "Protocol mapping feature setting"))
+)]
 pub(super) async fn get_protocol_mapping_feature(State(state): State<AppState>) -> Response {
-    let fallback_config = state.store.get_config().await.ok();
+    let fallback_config = state.storage.store.get_config().await.ok();
     match load_protocol_mapping_feature(&state, fallback_config.as_ref()).await {
         Ok(config) => response::ok(config).into_response(),
         Err(error) => {
@@ -412,6 +477,14 @@ pub(super) async fn get_protocol_mapping_feature(State(state): State<AppState>) 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/protocol_mapping_feature",
+    tag = "config",
+    operation_id = "post_api_admin_config_protocol_mapping_feature",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated protocol mapping feature setting"))
+)]
 pub(super) async fn update_protocol_mapping_feature(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -433,8 +506,8 @@ pub(super) async fn update_protocol_mapping_feature(
             admin_text(&translator, "protocolMapping.availabilityInvalid"),
         );
     }
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
-    let previous_config = match state.store.get_config().await {
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before protocol mapping update");
@@ -505,6 +578,13 @@ pub(super) async fn update_protocol_mapping_feature(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/smart_connect/details",
+    tag = "config",
+    operation_id = "get_api_admin_config_smart_connect_details",
+    responses((status = 200, description = "Smart Connect details"))
+)]
 pub(super) async fn get_smart_connect_details(State(state): State<AppState>) -> Response {
     match load_smart_connect_details(&state).await {
         Ok(data) => response::ok(data).into_response(),
@@ -519,6 +599,13 @@ pub(super) async fn get_smart_connect_details(State(state): State<AppState>) -> 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/smart_connect",
+    tag = "config",
+    operation_id = "post_api_admin_config_smart_connect",
+    responses((status = 200, description = "Updated Smart Connect configuration"))
+)]
 pub(super) async fn update_smart_connect(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -530,9 +617,9 @@ pub(super) async fn update_smart_connect(
             capability_blocked_text(&state, "smart_connect_available", &translator),
         );
     }
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
 
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before smart connect update");
@@ -574,7 +661,7 @@ pub(super) async fn update_smart_connect(
     smart = normalize_smart_connect_config(Some(&smart));
     ensure_config_object(&mut next_config).insert("smart_connect".to_string(), smart);
 
-    if let Err(error) = state.store.save_config(&next_config).await {
+    if let Err(error) = state.storage.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save smart connect config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -615,6 +702,13 @@ pub(super) async fn update_smart_connect(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/fnos_network_tuning",
+    tag = "config",
+    operation_id = "get_api_admin_config_fnos_network_tuning",
+    responses((status = 200, description = "fnOS network tuning status"))
+)]
 pub(super) async fn get_fnos_network_tuning(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_fnos_network_tuning_status(&state).await {
@@ -631,6 +725,13 @@ pub(super) async fn get_fnos_network_tuning(State(state): State<AppState>) -> Re
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/fnos_network_tuning",
+    tag = "config",
+    operation_id = "post_api_admin_config_fnos_network_tuning",
+    responses((status = 200, description = "Updated fnOS network tuning configuration"))
+)]
 pub(super) async fn update_fnos_network_tuning(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -651,6 +752,13 @@ pub(super) async fn update_fnos_network_tuning(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/fnos_share_bypass",
+    tag = "config",
+    operation_id = "get_api_admin_config_fnos_share_bypass",
+    responses((status = 200, description = "fnOS share bypass configuration"))
+)]
 pub(super) async fn get_fnos_share_bypass(State(state): State<AppState>) -> Response {
     match load_config_section(&state, "fnos_share_bypass", normalize_fnos_share_bypass).await {
         Ok(data) => response::ok(data).into_response(),
@@ -665,6 +773,13 @@ pub(super) async fn get_fnos_share_bypass(State(state): State<AppState>) -> Resp
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/fnos_share_bypass",
+    tag = "config",
+    operation_id = "post_api_admin_config_fnos_share_bypass",
+    responses((status = 200, description = "Updated fnOS share bypass configuration"))
+)]
 pub(super) async fn update_fnos_share_bypass(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -689,6 +804,13 @@ pub(super) async fn update_fnos_share_bypass(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/fnos_port_icon_hijack",
+    tag = "config",
+    operation_id = "get_api_admin_config_fnos_port_icon_hijack",
+    responses((status = 200, description = "fnOS port icon hijack configuration"))
+)]
 pub(super) async fn get_fnos_port_icon_hijack(State(state): State<AppState>) -> Response {
     match load_config_section(
         &state,
@@ -709,12 +831,19 @@ pub(super) async fn get_fnos_port_icon_hijack(State(state): State<AppState>) -> 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/fnos_port_icon_hijack",
+    tag = "config",
+    operation_id = "post_api_admin_config_fnos_port_icon_hijack",
+    responses((status = 200, description = "Updated fnOS port icon hijack configuration"))
+)]
 pub(super) async fn update_fnos_port_icon_hijack(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before fnos port icon hijack update");
@@ -742,7 +871,7 @@ pub(super) async fn update_fnos_port_icon_hijack(
         object.insert("fnos_port_icon_hijack".to_string(), next.clone());
     }
 
-    if let Err(error) = state.store.save_config(&next_config).await {
+    if let Err(error) = state.storage.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save fnos port icon hijack config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -751,7 +880,8 @@ pub(super) async fn update_fnos_port_icon_hijack(
     }
 
     match state
-        .go_backend
+        .gateway
+        .client
         .set_fnos_port_icon_hijack_config(&next)
         .await
         .and_then(ensure_go_success)
@@ -759,7 +889,7 @@ pub(super) async fn update_fnos_port_icon_hijack(
         Ok(()) => response::ok(next).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to sync fnos port icon hijack config to Go backend");
-            if let Err(rollback_error) = state.store.save_config(&previous_config).await {
+            if let Err(rollback_error) = state.storage.store.save_config(&previous_config).await {
                 tracing::warn!(
                     %rollback_error,
                     "failed to rollback fnos port icon hijack config"
@@ -777,6 +907,13 @@ pub(super) async fn update_fnos_port_icon_hijack(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/auto_https",
+    tag = "config",
+    operation_id = "get_api_admin_config_auto_https",
+    responses((status = 200, description = "Auto HTTPS configuration"))
+)]
 pub(super) async fn get_auto_https(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_config_section(
@@ -801,6 +938,14 @@ pub(super) async fn get_auto_https(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/auto_https",
+    tag = "config",
+    operation_id = "post_api_admin_config_auto_https",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated Auto HTTPS configuration"))
+)]
 pub(super) async fn update_auto_https(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -863,6 +1008,14 @@ pub(super) async fn update_auto_https(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/auto_manage_firewall",
+    tag = "config",
+    operation_id = "post_api_admin_config_auto_manage_firewall",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated automatic firewall management"))
+)]
 pub(super) async fn update_auto_manage_firewall(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -916,6 +1069,13 @@ fn build_firewall_additional_ports_details(
     })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/firewall_additional_ports",
+    tag = "config",
+    operation_id = "get_api_admin_config_firewall_additional_ports",
+    responses((status = 200, description = "Firewall additional port configuration"))
+)]
 pub(super) async fn get_firewall_additional_ports(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !host_firewall_available(&state) {
@@ -924,7 +1084,7 @@ pub(super) async fn get_firewall_additional_ports(State(state): State<AppState>)
             capability_blocked_text(&state, "host_firewall_available", &translator),
         );
     }
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load firewall additional ports config");
@@ -948,6 +1108,14 @@ pub(super) async fn get_firewall_additional_ports(State(state): State<AppState>)
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/firewall_additional_ports",
+    tag = "config",
+    operation_id = "post_api_admin_config_firewall_additional_ports",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated firewall additional port configuration"))
+)]
 pub(super) async fn update_firewall_additional_ports(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1006,8 +1174,8 @@ where
     R: FirewallResetOperation + ?Sized,
 {
     let translator = Translator::from_state(state).await;
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
-    let previous_config = match state.store.get_config().await {
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before firewall ports update");
@@ -1039,6 +1207,7 @@ where
     let previous_ports =
         normalize_firewall_additional_ports(previous_config.get("firewall_additional_ports"));
     let next_config = match state
+        .storage
         .store
         .set_config_top_level_value("firewall_additional_ports", json!(ports))
         .await
@@ -1063,6 +1232,7 @@ where
             tracing::warn!(%error, "failed to apply firewall additional ports");
             let localized_error = localize_runtime_config_error(&translator, &error);
             let rollback_result = match state
+                .storage
                 .store
                 .set_config_top_level_value("firewall_additional_ports", json!(previous_ports))
                 .await
@@ -1101,6 +1271,14 @@ where
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/firewall/reset",
+    tag = "firewall",
+    operation_id = "post_api_admin_firewall_reset",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Reset firewall"))
+)]
 pub(super) async fn reset_firewall(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1142,10 +1320,17 @@ pub(super) async fn reset_firewall_with_transaction_lock(
     state: &AppState,
     run_type: i64,
 ) -> Result<Value, String> {
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
     reset_firewall_for_run_type(state, run_type).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/firewall/clear",
+    tag = "firewall",
+    operation_id = "post_api_admin_firewall_clear",
+    responses((status = 200, description = "Clear firewall"))
+)]
 pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !host_firewall_available(&state) {
@@ -1175,10 +1360,11 @@ pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
 pub(super) async fn clear_firewall_with_transaction_lock(
     state: &AppState,
 ) -> Result<Value, String> {
-    let _protocol_mapping_guard = state.protocol_mapping_update_lock.lock().await;
+    let _protocol_mapping_guard = state.gateway.protocol_mapping_update_lock.lock().await;
     clear_legacy_gateway_redirects(state, gateway_port(), true).await?;
     let value = state
-        .go_backend
+        .gateway
+        .client
         .clean_iptables()
         .await
         .map_err(|error| error.to_string())?;
@@ -1186,9 +1372,16 @@ pub(super) async fn clear_firewall_with_transaction_lock(
     Ok(json!({ "gatewayPort": gateway_port() }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/sync-routes",
+    tag = "config",
+    operation_id = "post_api_admin_sync_routes",
+    responses((status = 200, description = "Synchronized route configuration"))
+)]
 pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before route sync");
@@ -1208,7 +1401,8 @@ pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
 
     let gateway_logging = normalize_gateway_logging(config.get("gateway_logging"));
     if let Err(error) = state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_logging_config(&gateway_logging)
         .await
         .and_then(ensure_go_success)
@@ -1293,8 +1487,15 @@ pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/default_route",
+    tag = "config",
+    operation_id = "get_api_admin_config_default_route",
+    responses((status = 200, description = "Default route setting"))
+)]
 pub(super) async fn get_default_route(State(state): State<AppState>) -> Response {
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(json!({
             "default_route": config
                 .get("default_route")
@@ -1313,6 +1514,14 @@ pub(super) async fn get_default_route(State(state): State<AppState>) -> Response
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/default_route",
+    tag = "config",
+    operation_id = "post_api_admin_config_default_route",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated default route setting"))
+)]
 pub(super) async fn update_default_route(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1325,7 +1534,7 @@ pub(super) async fn update_default_route(
         .to_string();
     match save_top_level_config_value(&state, "default_route", Value::String(path.clone())).await {
         Ok(()) => {
-            if let Err(error) = state.go_backend.set_default_route(&path).await {
+            if let Err(error) = state.gateway.client.set_default_route(&path).await {
                 tracing::warn!(%error, "failed to sync default route to Go backend");
             }
             response::success_empty().into_response()
@@ -1340,6 +1549,14 @@ pub(super) async fn update_default_route(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/default_tunnel",
+    tag = "config",
+    operation_id = "post_api_admin_config_default_tunnel",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated default tunnel setting"))
+)]
 pub(super) async fn update_default_tunnel(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1366,10 +1583,17 @@ pub(super) async fn update_default_tunnel(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/proxy_protocol_force",
+    tag = "config",
+    operation_id = "get_api_admin_config_proxy_protocol_force",
+    responses((status = 200, description = "Proxy protocol force setting"))
+)]
 pub(super) async fn get_proxy_protocol_force(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let upstream_unavailable = runtime_config_route_text(&translator, "upstreamUnavailable");
-    match state.go_backend.get_proxy_protocol_force().await {
+    match state.gateway.client.get_proxy_protocol_force().await {
         Ok(value) => {
             if !value
                 .get("success")
@@ -1390,6 +1614,14 @@ pub(super) async fn get_proxy_protocol_force(State(state): State<AppState>) -> R
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/proxy_protocol_force",
+    tag = "config",
+    operation_id = "post_api_admin_config_proxy_protocol_force",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated proxy protocol force setting"))
+)]
 pub(super) async fn update_proxy_protocol_force(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1403,7 +1635,7 @@ pub(super) async fn update_proxy_protocol_force(
     };
 
     let upstream_unavailable = runtime_config_route_text(&translator, "upstreamUnavailable");
-    match state.go_backend.set_proxy_protocol_force(force).await {
+    match state.gateway.client.set_proxy_protocol_force(force).await {
         Ok(value) => {
             if !value
                 .get("success")
@@ -1424,6 +1656,13 @@ pub(super) async fn update_proxy_protocol_force(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/run_mode_prompt_preferences",
+    tag = "config",
+    operation_id = "get_api_admin_config_run_mode_prompt_preferences",
+    responses((status = 200, description = "Run mode prompt preferences"))
+)]
 pub(super) async fn get_run_mode_prompt_preferences(State(state): State<AppState>) -> Response {
     match load_run_mode_prompt_preferences(&state).await {
         Ok(data) => response::ok(data).into_response(),
@@ -1438,6 +1677,14 @@ pub(super) async fn get_run_mode_prompt_preferences(State(state): State<AppState
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/run_mode_prompt_preferences",
+    tag = "config",
+    operation_id = "post_api_admin_config_run_mode_prompt_preferences",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated run mode prompt preferences"))
+)]
 pub(super) async fn update_run_mode_prompt_preferences(
     State(state): State<AppState>,
     Json(body): Json<Value>,
@@ -1456,6 +1703,7 @@ pub(super) async fn update_run_mode_prompt_preferences(
     merge_object(&mut current, &body);
     let next = normalize_run_mode_prompt_preferences(Some(&current));
     match state
+        .storage
         .store
         .set_json_value(RUN_MODE_PROMPT_PREFERENCES_KEY, &next)
         .await
@@ -1471,6 +1719,13 @@ pub(super) async fn update_run_mode_prompt_preferences(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/welcome_guide",
+    tag = "config",
+    operation_id = "get_api_admin_config_welcome_guide",
+    responses((status = 200, description = "Welcome guide status"))
+)]
 pub(super) async fn get_welcome_guide(State(state): State<AppState>) -> Response {
     match load_welcome_guide_status(&state).await {
         Ok(data) => response::ok(data).into_response(),
@@ -1485,6 +1740,13 @@ pub(super) async fn get_welcome_guide(State(state): State<AppState>) -> Response
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/welcome_guide/complete",
+    tag = "config",
+    operation_id = "post_api_admin_config_welcome_guide_complete",
+    responses((status = 200, description = "Completed welcome guide"))
+)]
 pub(super) async fn complete_welcome_guide(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let current = match load_welcome_guide_status(&state).await {
@@ -1503,6 +1765,7 @@ pub(super) async fn complete_welcome_guide(State(state): State<AppState>) -> Res
             .unwrap_or_else(time_utils::now_iso),
     });
     match state
+        .storage
         .store
         .set_json_value(WELCOME_GUIDE_STATUS_KEY, &next)
         .await

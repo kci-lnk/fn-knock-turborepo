@@ -11,11 +11,11 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs as tokio_fs, process::Command, sync::Mutex};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 mod cloudflare_api;
 mod managed;
@@ -103,17 +103,21 @@ struct CloudflaredConfig {
 }
 
 pub fn cloudflared_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/cloudflared/status", get(status))
-        .route(
-            "/api/admin/cloudflared/config",
-            get(config).post(save_config),
-        )
-        .route("/api/admin/cloudflared/start", post(start))
-        .route("/api/admin/cloudflared/stop", post(stop))
-        .route("/api/admin/cloudflared/logs", get(logs).delete(clear_logs))
-        .route("/api/admin/cloudflared/poll", get(poll))
-        .merge(managed::routes())
+    cloudflared_openapi_routes().into()
+}
+
+pub(crate) fn cloudflared_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(config))
+        .routes(routes!(save_config))
+        .routes(routes!(start))
+        .routes(routes!(stop))
+        .routes(routes!(logs))
+        .routes(routes!(clear_logs))
+        .routes(routes!(poll))
+        .merge(managed::openapi_routes())
+        .merge(optimization::openapi_routes())
 }
 
 pub(crate) async fn cleanup_before_data_clear(state: &AppState) -> Result<(), String> {
@@ -125,21 +129,25 @@ pub(crate) async fn cleanup_before_data_clear(state: &AppState) -> Result<(), St
 pub fn start_cloudflared_tasks(state: AppState) {
     manager(&state).ensure_dir();
     optimization::start_tasks(state.clone());
-    tokio::spawn(async move {
-        match should_resume_tunnel(&state).await {
+    let task_state = state.clone();
+    state.spawn_background("cloudflared-restore", async move {
+        match should_resume_tunnel(&task_state).await {
             Ok(true) => {
-                let translator = Translator::from_state(&state).await;
-                if let Err(error) =
-                    append_logs(&state, vec![cloudflared_text(&translator, "resumeOnBoot")]).await
+                let translator = Translator::from_state(&task_state).await;
+                if let Err(error) = append_logs(
+                    &task_state,
+                    vec![cloudflared_text(&translator, "resumeOnBoot")],
+                )
+                .await
                 {
                     tracing::warn!(%error, "failed to append cloudflared resume log");
                 }
-                if let Err(error) = ensure_cloudflared_supervisor(&state).await {
-                    let _ = append_logs(&state, vec![format!("resume error: {error}")]).await;
+                if let Err(error) = ensure_cloudflared_supervisor(&task_state).await {
+                    let _ = append_logs(&task_state, vec![format!("resume error: {error}")]).await;
                 }
             }
             Ok(false) => {
-                if let Err(error) = ensure_cloudflared_supervisor(&state).await {
+                if let Err(error) = ensure_cloudflared_supervisor(&task_state).await {
                     tracing::warn!(%error, "failed to initialize cloudflared supervisor");
                 }
             }
@@ -153,7 +161,7 @@ pub(crate) fn schedule_managed_reconcile_after_host_mappings_change(state: AppSt
 }
 
 pub(crate) async fn clear_credentials_after_backup_restore(state: &AppState) -> Result<(), String> {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let manager = manager(state);
     // Reading first performs the legacy plaintext migration and rewrites the
     // non-secret config before both encrypted credentials are removed.
@@ -238,6 +246,7 @@ async fn restore_credentials_after_failed_backup_restore(
     Ok(())
 }
 
+#[utoipa::path(get, path = "/api/admin/cloudflared/status", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_status", responses((status = 200, description = "Cloudflared status")))]
 async fn status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
@@ -263,8 +272,9 @@ async fn status(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/cloudflared/config", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_config", responses((status = 200, description = "Cloudflared configuration")))]
 async fn config(State(state): State<AppState>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     match manager(&state).read_config() {
         Ok(config) => response::ok(managed::public_config_state(&state, &config.protocol).await)
@@ -279,8 +289,9 @@ async fn config(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/cloudflared/config", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_config", responses((status = 200, description = "Updated Cloudflared configuration")))]
 async fn save_config(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
     let previous_config = match manager.read_config() {
@@ -427,8 +438,9 @@ async fn restore_manual_config(
     manager.write_config(previous_config)
 }
 
+#[utoipa::path(post, path = "/api/admin/cloudflared/start", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_start", responses((status = 200, description = "Started Cloudflared")))]
 async fn start(State(state): State<AppState>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let manager = manager(&state);
     if !manager.downloaded() {
@@ -458,8 +470,9 @@ async fn start(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/cloudflared/stop", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_stop", responses((status = 200, description = "Stopped Cloudflared")))]
 async fn stop(State(state): State<AppState>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let translator = Translator::from_state(&state).await;
     let result = match ensure_cloudflared_supervisor(&state).await {
         Ok(handle) => handle.stop().await,
@@ -477,10 +490,12 @@ async fn stop(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/cloudflared/logs", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_logs", responses((status = 200, description = "Cloudflared logs")))]
 async fn logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     let limit = parse_log_limit(query.limit.as_deref(), 200, LOG_MAX_LEN);
     match state
+        .storage
         .store
         .list_log_buffer(LOG_KEY, limit, LOG_MAX_LEN)
         .await
@@ -496,9 +511,10 @@ async fn logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/cloudflared/logs", tag = "cloudflared", operation_id = "delete_api_admin_cloudflared_logs", responses((status = 200, description = "Cleared Cloudflared logs")))]
 async fn clear_logs(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.clear_log_buffer(LOG_KEY).await {
+    match state.storage.store.clear_log_buffer(LOG_KEY).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to clear cloudflared logs");
@@ -510,9 +526,11 @@ async fn clear_logs(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/cloudflared/poll", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_poll", responses((status = 200, description = "Cloudflared poll result")))]
 async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
+        .storage
         .store
         .poll_log_buffer(LOG_KEY, query.cursor.as_deref())
         .await
@@ -691,7 +709,8 @@ pub(crate) async fn ensure_cloudflared_supervisor(
     state: &AppState,
 ) -> Result<SupervisorHandle, String> {
     if let Some(handle) = state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .get(CLOUDFLARED_SUPERVISOR_KEY)
         .await
     {
@@ -701,6 +720,7 @@ pub(crate) async fn ensure_cloudflared_supervisor(
         .await
         .map_err(|error| error.to_string())?;
     let mut initial = state
+        .storage
         .store
         .get_json_value(CLOUDFLARED_RUNTIME_KEY)
         .await
@@ -723,7 +743,8 @@ pub(crate) async fn ensure_cloudflared_supervisor(
         ),
     });
     Ok(state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .ensure(adapter, initial, state.shutdown.clone())
         .await)
 }
@@ -809,6 +830,7 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
         {
             let runtime_pid = self
                 .state
+                .storage
                 .store
                 .get_json_value(CLOUDFLARED_RUNTIME_KEY)
                 .await
@@ -854,11 +876,13 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
     async fn persist_snapshot(&self, snapshot: &SupervisorSnapshot) -> Result<(), String> {
         let previous = self
             .state
+            .storage
             .store
             .get_json_value(CLOUDFLARED_RUNTIME_KEY)
             .await
             .map_err(|error| error.to_string())?;
         self.state
+            .storage
             .store
             .set_json_value(
                 CLOUDFLARED_RUNTIME_KEY,
@@ -875,11 +899,18 @@ impl TunnelProcessAdapter for CloudflaredProcessAdapter {
             let rollback = match previous {
                 Some(value) => {
                     self.state
+                        .storage
                         .store
                         .set_json_value(CLOUDFLARED_RUNTIME_KEY, &value)
                         .await
                 }
-                None => self.state.store.delete_key(CLOUDFLARED_RUNTIME_KEY).await,
+                None => {
+                    self.state
+                        .storage
+                        .store
+                        .delete_key(CLOUDFLARED_RUNTIME_KEY)
+                        .await
+                }
             };
             return Err(match rollback {
                 Ok(()) => error,
@@ -1032,6 +1063,7 @@ async fn append_logs(state: &AppState, lines: Vec<String>) -> crate::storage::St
         return Ok(());
     }
     state
+        .storage
         .store
         .append_log_buffer(LOG_KEY, &normalized, LOG_TTL_SECONDS, LOG_MAX_LEN)
         .await
@@ -1097,7 +1129,8 @@ async fn emit_cloudflared_connectivity_with_state(
     let state = state.clone();
     let connection = Arc::clone(connection);
     let shutdown = state.shutdown.clone();
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("cloudflared-disconnect-confirmation", async move {
         tokio::select! {
             _ = tokio::time::sleep_until(timer.deadline) => {}
             _ = timer.cancelled() => return,
@@ -1109,7 +1142,7 @@ async fn emit_cloudflared_connectivity_with_state(
             return;
         };
         publish_cloudflared_connectivity_event(
-            &state,
+            &task_state,
             false,
             disconnected.pid,
             disconnected.message.as_deref(),
@@ -1150,7 +1183,8 @@ async fn cloudflared_event_pid(state: &AppState, pid: Option<u32>) -> Option<u32
         return pid;
     }
     state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .get(CLOUDFLARED_SUPERVISOR_KEY)
         .await
         .and_then(|handle| handle.snapshot().pid)
@@ -1450,7 +1484,7 @@ async fn should_resume_tunnel(state: &AppState) -> crate::storage::StorageResult
 }
 
 async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
-    let _guard = state.tunnel_runtime_update_lock.lock().await;
+    let _guard = state.tunnel.runtime_update_lock.lock().await;
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
@@ -1467,6 +1501,7 @@ async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
         Value::String(time_utils::now_iso()),
     );
     state
+        .storage
         .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &runtime)
         .await
@@ -1474,7 +1509,7 @@ async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
 }
 
 async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
-    let _guard = state.tunnel_runtime_update_lock.lock().await;
+    let _guard = state.tunnel.runtime_update_lock.lock().await;
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
@@ -1487,6 +1522,7 @@ async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
         Value::String(time_utils::now_iso()),
     );
     state
+        .storage
         .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &runtime)
         .await
@@ -1494,7 +1530,11 @@ async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
 }
 
 async fn tunnel_runtime_state(state: &AppState) -> crate::storage::StorageResult<Value> {
-    let raw = state.store.get_json_value(TUNNEL_RUNTIME_KEY).await?;
+    let raw = state
+        .storage
+        .store
+        .get_json_value(TUNNEL_RUNTIME_KEY)
+        .await?;
     Ok(normalize_tunnel_runtime_state(raw))
 }
 

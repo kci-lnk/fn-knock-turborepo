@@ -78,6 +78,10 @@ require_cmd jq
 require_cmd cargo
 
 VERSION="$(jq -er '.version | strings | select(length > 0)' "${ROOT_DIR}/version.json")"
+GATEWAY_COMMIT="$(
+  jq -er '.gatewayCommit | strings | select(test("^[0-9a-f]{40}$"))' \
+    "${ROOT_DIR}/version.json" 2>/dev/null
+)" || fail "version.json gatewayCommit must be a 40-character lowercase Git commit"
 RELEASE_CHANNEL="$(
   jq -er '.releaseChannel // "stable" | strings | select(. == "stable" or . == "beta")' \
     "${ROOT_DIR}/version.json"
@@ -103,6 +107,10 @@ assert_equal \
   "${VERSION}" \
   "$(read_lock_package_version "${ROOT_DIR}/apps/server-admin-rs/Cargo.lock" server-admin-rs)"
 assert_equal \
+  "API contract package version" \
+  "${VERSION}" \
+  "$(jq -er '.version' "${ROOT_DIR}/packages/api-contract/package.json")"
+assert_equal \
   "desktop package version" \
   "${VERSION}" \
   "$(jq -er '.version' "${ROOT_DIR}/apps/fn-knock-desktop/package.json")"
@@ -110,6 +118,10 @@ assert_equal \
   "desktop package-lock version" \
   "${VERSION}" \
   "$(jq -er '.packages["apps/fn-knock-desktop"].version' "${ROOT_DIR}/package-lock.json")"
+assert_equal \
+  "API contract package-lock version" \
+  "${VERSION}" \
+  "$(jq -er '.packages["packages/api-contract"].version' "${ROOT_DIR}/package-lock.json")"
 assert_equal \
   "desktop Cargo version" \
   "${VERSION}" \
@@ -143,8 +155,9 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
     printf 'release_channel=%s\n' "${RELEASE_CHANNEL}"
     printf 'prerelease=%s\n' "${PRERELEASE}"
     printf 'control_api_version=%s\n' "${CONTROL_API_VERSION}"
+    printf 'gateway_commit=%s\n' "${GATEWAY_COMMIT}"
     printf 'release_notes=%s\n' "${RELEASE_NOTES}"
   } >> "${GITHUB_OUTPUT}"
 fi
 
-log "release contract is valid: ${TAG}, channel=${RELEASE_CHANNEL}, control API ${CONTROL_API_VERSION}"
+log "release contract is valid: ${TAG}, channel=${RELEASE_CHANNEL}, control API ${CONTROL_API_VERSION}, gateway ${GATEWAY_COMMIT}"

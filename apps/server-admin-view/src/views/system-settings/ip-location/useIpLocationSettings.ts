@@ -187,7 +187,10 @@ export const useIpLocationSettings = () => {
         });
       } else {
         toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-          description: result.message,
+          description:
+            result.message ||
+            result.msg ||
+            t("admin.ipLocationSettings.ipLookupUnavailable"),
         });
       }
     });
@@ -199,7 +202,8 @@ export const useIpLocationSettings = () => {
       const result = await IpLocationSettingsAPI.testCidr(url);
       if (!result.success) {
         toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-          description: result.message,
+          description:
+            result.message || t("admin.ipLocationSettings.cidrUnavailable"),
         });
         return;
       }

@@ -70,7 +70,7 @@ pub(crate) async fn ldap_public_providers(
 }
 
 async fn invite(State(state): State<AppState>, Query(query): Query<InviteQuery>) -> Response {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for LDAP invite");
@@ -86,7 +86,7 @@ async fn invite(State(state): State<AppState>, Query(query): Query<InviteQuery>)
             .and_then(Value::as_str)
             .unwrap_or(crate::i18n::DEFAULT_LOCALE),
     );
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => {}
         Ok(AuthLoginMode::Password) => {
             return response::error(
@@ -151,7 +151,7 @@ async fn invite(State(state): State<AppState>, Query(query): Query<InviteQuery>)
         .get("totp_id")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let totp = match state.store.get_totps().await {
+    let totp = match state.storage.store.get_totps().await {
         Ok(items) => items.into_iter().find(|item| item.id == totp_id),
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP for LDAP invitation");
@@ -197,7 +197,7 @@ async fn bind_identity(
 ) -> Response {
     let client_ip = super::super::routes::client_ip_for_auth(&headers);
     let tracking_ip = crate::backoff::normalize_auth_failure_tracking_ip(&client_ip);
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config during LDAP binding");
@@ -213,7 +213,7 @@ async fn bind_identity(
             .and_then(Value::as_str)
             .unwrap_or(crate::i18n::DEFAULT_LOCALE),
     );
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => {}
         Ok(AuthLoginMode::Password) => {
             return response::error(
@@ -229,7 +229,12 @@ async fn bind_identity(
             );
         }
     }
-    match state.store.get_login_backoff_status(&tracking_ip).await {
+    match state
+        .storage
+        .store
+        .get_login_backoff_status(&tracking_ip)
+        .await
+    {
         Ok(status) if status.blocked => {
             let retry_after = status.retry_after.unwrap_or(1).max(1);
             return backoff_login_response(
@@ -276,7 +281,7 @@ async fn bind_identity(
         .get("totp_id")
         .and_then(Value::as_str)
         .unwrap_or("");
-    match state.store.get_totps().await {
+    match state.storage.store.get_totps().await {
         Ok(totps) if totps.iter().any(|totp| totp.id == totp_id) => {}
         Ok(_) => {
             return response::error(StatusCode::NOT_FOUND, text(&translator, "totpMissing"));
@@ -513,6 +518,7 @@ async fn register_failure(
         .and_then(Value::as_str)
         .unwrap_or("LDAP");
     match state
+        .storage
         .store
         .register_login_backoff_failure(tracking_ip)
         .await
@@ -571,7 +577,7 @@ async fn create_session_response(
     client_ip: &str,
     tracking_ip: &str,
 ) -> Response {
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => {}
         Ok(AuthLoginMode::Password) => {
             return response::error(
@@ -588,7 +594,7 @@ async fn create_session_response(
         }
     }
     let totp_id = binding.get("totp_id").and_then(Value::as_str).unwrap_or("");
-    let totp = match state.store.get_totps().await {
+    let totp = match state.storage.store.get_totps().await {
         Ok(items) => items.into_iter().find(|item| item.id == totp_id),
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP for LDAP session");
@@ -649,7 +655,7 @@ async fn create_session_response(
             );
         }
     };
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => {}
         Ok(AuthLoginMode::Password) => {
             if let Err(error) = auth_mobility::destroy_session(state, &created.session_id).await {
@@ -673,7 +679,7 @@ async fn create_session_response(
             );
         }
     }
-    if let Err(error) = state.store.reset_login_backoff(tracking_ip).await {
+    if let Err(error) = state.storage.store.reset_login_backoff(tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset LDAP login backoff");
     }
     let cookie = cookies::session_cookie(

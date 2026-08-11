@@ -1,5 +1,20 @@
 use super::*;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+pub(super) fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_settings, update_settings))
+        .routes(routes!(list_blacklist, delete_blacklist))
+        .routes(routes!(get_blacklist_record, delete_blacklist_record))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/scanner/settings",
+    tag = "scanner",
+    operation_id = "get_api_admin_scanner_settings",
+    responses((status = 200, description = "Scanner settings"))
+)]
 pub(super) async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_scanner_settings(&state).await {
@@ -14,6 +29,13 @@ pub(super) async fn get_settings(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/scanner/settings",
+    tag = "scanner",
+    operation_id = "post_api_admin_scanner_settings",
+    responses((status = 200, description = "Updated scanner settings"))
+)]
 pub(super) async fn update_settings(
     State(state): State<AppState>,
     Json(body): Json<UpdateScannerSettingsBody>,
@@ -39,6 +61,13 @@ pub(super) async fn update_settings(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/scanner/blacklist",
+    tag = "scanner",
+    operation_id = "get_api_admin_scanner_blacklist",
+    responses((status = 200, description = "Scanner blacklist page"))
+)]
 pub(super) async fn list_blacklist(
     State(state): State<AppState>,
     Query(query): Query<ListQuery>,
@@ -48,6 +77,7 @@ pub(super) async fn list_blacklist(
     let limit = parse_i64(query.limit.as_deref(), 20);
     let search = query.search.as_deref().unwrap_or("");
     match state
+        .storage
         .store
         .list_scanner_blacklist(page, limit, search)
         .await
@@ -63,12 +93,19 @@ pub(super) async fn list_blacklist(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/scanner/blacklist/{ip}",
+    tag = "scanner",
+    operation_id = "get_api_admin_scanner_blacklist__ip_",
+    responses((status = 200, description = "Scanner blacklist record"))
+)]
 pub(super) async fn get_blacklist_record(
     State(state): State<AppState>,
     Path(ip): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_scanner_blacklist_record(&ip).await {
+    match state.storage.store.get_scanner_blacklist_record(&ip).await {
         Ok(Some(record)) => response::ok(record).into_response(),
         Ok(None) => response::error(
             StatusCode::NOT_FOUND,
@@ -84,13 +121,20 @@ pub(super) async fn get_blacklist_record(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/scanner/blacklist/{ip}",
+    tag = "scanner",
+    operation_id = "delete_api_admin_scanner_blacklist__ip_",
+    responses((status = 200, description = "Scanner blacklist record deleted"))
+)]
 pub(super) async fn delete_blacklist_record(
     State(state): State<AppState>,
     Path(ip): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let ips = sanitize_scanner_ips([ip]);
-    match state.store.remove_scanner_blacklist(&ips).await {
+    match state.storage.store.remove_scanner_blacklist(&ips).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete scanner blacklist record");
@@ -102,6 +146,13 @@ pub(super) async fn delete_blacklist_record(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/scanner/blacklist",
+    tag = "scanner",
+    operation_id = "delete_api_admin_scanner_blacklist",
+    responses((status = 200, description = "Scanner blacklist records deleted"))
+)]
 pub(super) async fn delete_blacklist(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let ips = match parse_blacklist_delete_ips(&body) {
@@ -119,7 +170,7 @@ pub(super) async fn delete_blacklist(State(state): State<AppState>, body: Bytes)
             scanner_text(&translator, "atLeastOneIpRequired"),
         );
     }
-    match state.store.remove_scanner_blacklist(&ips).await {
+    match state.storage.store.remove_scanner_blacklist(&ips).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete scanner blacklist records");

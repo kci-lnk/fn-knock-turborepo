@@ -15,6 +15,48 @@ end
 return 1
 "#;
 
+const COLLECT_AUTH_MOBILITY_SESSION_WHITELIST_SCRIPT: &str = r#"
+-- fn-knock:eval:collect-mobility-session-whitelist:v1
+local session_id = ARGV[1]
+local whitelist_ids = {}
+local seen_whitelist = {}
+
+local function add_whitelist(id)
+  if type(id) == "string" and id ~= "" and not seen_whitelist[id] then
+    seen_whitelist[id] = true
+    table.insert(whitelist_ids, id)
+  end
+end
+
+local function decode_json(raw)
+  if not raw then return nil end
+  local ok, decoded = pcall(cjson.decode, raw)
+  if not ok or type(decoded) ~= "table" then return nil end
+  return decoded
+end
+
+local binding_keys = redis.call("SMEMBERS", KEYS[1])
+table.insert(binding_keys, KEYS[3])
+local seen_binding = {}
+for _, binding_key in ipairs(binding_keys) do
+  if not seen_binding[binding_key] then
+    seen_binding[binding_key] = true
+    local decoded = decode_json(redis.call("GET", binding_key))
+    if decoded and (binding_key == KEYS[3] or decoded["ownerSessionId"] == session_id) then
+      add_whitelist(decoded["whitelistRecordId"])
+    end
+  end
+end
+for _, raw in ipairs(redis.call("HVALS", KEYS[2])) do
+  local decoded = decode_json(raw)
+  if decoded then add_whitelist(decoded["whitelistRecordId"]) end
+end
+local pending = redis.call("HKEYS", KEYS[4])
+for _, id in ipairs(pending) do add_whitelist(id) end
+table.sort(whitelist_ids)
+return whitelist_ids
+"#;
+
 async fn compare_and_set_json(
     conn: &mut ConnectionManager,
     key: &str,
@@ -32,6 +74,64 @@ async fn compare_and_set_json(
 }
 
 impl Store {
+    async fn verify_auth_session_shadow(
+        &self,
+        session_id: &str,
+    ) -> crate::storage::StorageResult<()> {
+        let matched = self
+            .typed_mobility
+            .verify_and_repair_session_authority(session_id)
+            .await?;
+        self.observe_typed_mobility_shadow_comparison(matched);
+        Ok(())
+    }
+
+    fn observe_typed_mobility_shadow_comparison(&self, matched: bool) {
+        if matched {
+            if !self
+                .typed_mobility_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed mobility aggregate comparison recovered");
+            }
+            return;
+        }
+        self.typed_mobility_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_mobility_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed mobility shadow differed from the compatibility aggregate and was repaired"
+        );
+    }
+
+    async fn verify_passkey_runtime_shadow_key(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<()> {
+        let matched = self
+            .typed_passkey_runtime
+            .verify_and_repair_key(key)
+            .await?;
+        if matched {
+            if !self
+                .typed_passkey_runtime_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed passkey runtime shadow comparison recovered");
+            }
+            return Ok(());
+        }
+        self.typed_passkey_runtime_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_passkey_runtime_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        tracing::warn!(
+            "typed passkey runtime shadow differed from the compatibility capability and was repaired"
+        );
+        Ok(())
+    }
+
     pub async fn get_auth_login_mode(
         &self,
     ) -> crate::storage::StorageResult<crate::auth::mode::AuthLoginMode> {
@@ -303,6 +403,23 @@ impl Store {
         nonce: &str,
         ttl_seconds: usize,
     ) -> crate::storage::StorageResult<bool> {
+        let matched = self.typed_hmac_nonce.verify_and_repair(nonce).await?;
+        if matched {
+            if !self
+                .typed_hmac_nonce_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed HMAC nonce shadow comparison recovered");
+            }
+        } else {
+            self.typed_hmac_nonce_shadow_mismatches
+                .fetch_add(1, AtomicOrdering::Relaxed);
+            self.typed_hmac_nonce_shadow_healthy
+                .store(false, AtomicOrdering::Release);
+            tracing::warn!(
+                "typed HMAC nonce shadow differed from the compatibility replay guard and was repaired"
+            );
+        }
         let mut conn = self.conn();
         let key = format!("fn_knock:nonce:{nonce}");
         let result: Option<String> = redis::cmd("SET")
@@ -340,6 +457,7 @@ impl Store {
     ) -> crate::storage::StorageResult<LoginBackoffStatus> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(login_backoff_key(ip)).await?;
+        self.verify_login_backoff_shadow(ip).await?;
         Ok(login_backoff_status_from_raw(
             ip,
             raw.as_deref(),
@@ -404,6 +522,7 @@ impl Store {
             cursor = next_cursor;
         }
         if keys.is_empty() {
+            self.verify_all_login_backoff_shadows().await?;
             return Ok(Vec::new());
         }
         let values: Vec<Option<String>> = redis::cmd("MGET")
@@ -422,6 +541,7 @@ impl Store {
                 items.push(status);
             }
         }
+        self.verify_all_login_backoff_shadows().await?;
         items.sort_by(|left, right| {
             right
                 .retry_after
@@ -429,6 +549,44 @@ impl Store {
                 .cmp(&left.retry_after.unwrap_or_default())
         });
         Ok(items)
+    }
+
+    async fn verify_login_backoff_shadow(&self, ip: &str) -> crate::storage::StorageResult<()> {
+        let matched = self.typed_login_backoff.verify_and_repair(ip).await?;
+        self.observe_login_backoff_shadow_comparison(matched, Some(ip));
+        Ok(())
+    }
+
+    async fn verify_all_login_backoff_shadows(&self) -> crate::storage::StorageResult<()> {
+        let matched = self.typed_login_backoff.verify_and_repair_all().await?;
+        self.observe_login_backoff_shadow_comparison(matched, None);
+        Ok(())
+    }
+
+    fn observe_login_backoff_shadow_comparison(&self, matched: bool, ip: Option<&str>) {
+        if matched {
+            if !self
+                .typed_login_backoff_shadow_healthy
+                .swap(true, AtomicOrdering::AcqRel)
+            {
+                tracing::info!("typed login-backoff shadow comparison recovered");
+            }
+            return;
+        }
+        self.typed_login_backoff_shadow_mismatches
+            .fetch_add(1, AtomicOrdering::Relaxed);
+        self.typed_login_backoff_shadow_healthy
+            .store(false, AtomicOrdering::Release);
+        if let Some(ip) = ip {
+            tracing::warn!(
+                ip,
+                "typed login-backoff shadow differed from the compatibility record and was repaired"
+            );
+        } else {
+            tracing::warn!(
+                "typed login-backoff shadow set differed from the compatibility keyspace and was repaired"
+            );
+        }
     }
 
     pub async fn add_session(
@@ -439,14 +597,22 @@ impl Store {
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let key = crate::auth_session_keys::session_key(session_id);
-        conn.set_ex(key, serde_json::to_string(session)?, ttl_seconds as u64)
-            .await
+        conn.set_ex(
+            key,
+            serde_json::to_string(session)?,
+            ttl_seconds.max(1) as u64,
+        )
+        .await
     }
 
     pub async fn get_session(
         &self,
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<LoginSession>> {
+        // The compatibility key remains the sole authorization authority. The
+        // typed aggregate is compared and repaired before that key is read, so
+        // a typed-only or corrupt row can never create an authenticated session.
+        self.verify_auth_session_shadow(session_id).await?;
         let mut conn = self.conn();
         let key = crate::auth_session_keys::session_key(session_id);
         let raw: Option<String> = conn.get(key).await?;
@@ -524,6 +690,7 @@ impl Store {
         &self,
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
+        self.verify_auth_session_shadow(session_id).await?;
         let mut conn = self.conn();
         let key = crate::auth_session_keys::session_key(session_id);
         let raw: Option<String> = conn.get(key).await?;
@@ -581,6 +748,9 @@ impl Store {
         let timeline_key = auth_mobility_timeline_key(session_id);
         let summary_key = auth_mobility_summary_key(session_id);
         let whitelist_owner_key = auth_mobility_whitelist_owner_key(whitelist_record_id);
+        let serialized_binding = serde_json::to_string(binding)?;
+        let serialized_timeline = serde_json::to_string(&vec![login_event.clone()])?;
+        let serialized_summary = serde_json::to_string(summary)?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -603,12 +773,9 @@ return 1
             .arg(summary_key)
             .arg(session_index_key)
             .arg(whitelist_owner_key)
-            .arg(serde_json::to_string(binding).unwrap_or_else(|_| "{}".to_string()))
-            .arg(
-                serde_json::to_string(&vec![login_event.clone()])
-                    .unwrap_or_else(|_| "[]".to_string()),
-            )
-            .arg(serde_json::to_string(summary).unwrap_or_else(|_| "{}".to_string()))
+            .arg(serialized_binding)
+            .arg(serialized_timeline)
+            .arg(serialized_summary)
             .arg(ttl_seconds)
             .arg(session_id)
             .query_async(&mut conn)
@@ -680,13 +847,10 @@ return 1
     ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
+        let serialized_binding = serde_json::to_string(binding)?;
         let mut conn = self.conn();
-        conn.set_ex(
-            binding_key,
-            serde_json::to_string(binding).unwrap_or_else(|_| "{}".to_string()),
-            ttl_seconds.max(1) as u64,
-        )
-        .await
+        conn.set_ex(binding_key, serialized_binding, ttl_seconds.max(1) as u64)
+            .await
     }
 
     pub async fn save_auth_mobility_owned_binding(
@@ -702,6 +866,7 @@ return 1
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let session_key = crate::auth_session_keys::session_key(owner_session_id);
         let session_index_key = auth_mobility_session_index_key(owner_session_id);
+        let serialized_binding = serde_json::to_string(binding)?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -718,7 +883,7 @@ return 1
             .arg(session_key)
             .arg(binding_key)
             .arg(session_index_key)
-            .arg(serde_json::to_string(binding).unwrap_or_else(|_| "{}".to_string()))
+            .arg(serialized_binding)
             .arg(binding_ttl_seconds.max(1))
             .arg(session_index_ttl_seconds.unwrap_or_default())
             .query_async(&mut conn)
@@ -735,6 +900,7 @@ return 1
     ) -> crate::storage::StorageResult<bool> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
+        let serialized_binding = serde_json::to_string(binding)?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -758,7 +924,7 @@ return 1
             .arg(2)
             .arg(&binding_key)
             .arg(auth_mobility_session_index_key(previous_owner_session_id))
-            .arg(serde_json::to_string(binding).unwrap_or_else(|_| "{}".to_string()))
+            .arg(serialized_binding)
             .arg(previous_owner_session_id)
             .query_async(&mut conn)
             .await?;
@@ -775,6 +941,7 @@ return 1
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let session_key = crate::auth_session_keys::session_key(owner_session_id);
+        let serialized_binding = serde_json::to_string(binding)?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -794,7 +961,7 @@ return 1
             .arg(2)
             .arg(session_key)
             .arg(binding_key)
-            .arg(serde_json::to_string(binding).unwrap_or_else(|_| "{}".to_string()))
+            .arg(serialized_binding)
             .query_async(&mut conn)
             .await?;
         Ok(result == 1)
@@ -862,10 +1029,8 @@ return 1
         .max()
         .unwrap_or_default();
         let mut conn = self.conn();
-        let serialized_events =
-            serde_json::to_string(&next_events).unwrap_or_else(|_| "[]".to_string());
-        let serialized_summary =
-            serde_json::to_string(&next_summary).unwrap_or_else(|_| "{}".to_string());
+        let serialized_events = serde_json::to_string(&next_events)?;
+        let serialized_summary = serde_json::to_string(&next_summary)?;
         let result: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
@@ -939,6 +1104,7 @@ return 1
         let session_key = crate::auth_session_keys::session_key(session_id);
         let zset_key = auth_mobility_active_ip_zset_key(session_id);
         let detail_key = auth_mobility_active_ip_details_key(session_id);
+        let serialized_detail = serde_json::to_string(detail)?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -958,7 +1124,7 @@ return 1
             .arg(detail_key)
             .arg(ip)
             .arg(score)
-            .arg(serde_json::to_string(detail).unwrap_or_else(|_| "{}".to_string()))
+            .arg(serialized_detail)
             .arg(ttl_seconds)
             .query_async(&mut conn)
             .await?;
@@ -1109,12 +1275,14 @@ return 1
         let pending_key = auth_mobility_session_pending_whitelist_key(session_id);
         let proxy_hash = auth_mobility_subject_hash("proxy-session", session_id);
         let proxy_binding_key = auth_mobility_binding_key("proxy-session", &proxy_hash);
+        let session_key = crate::auth_session_keys::session_key(session_id);
+        let mutation_lock_key = crate::auth_mobility_keys::session_mutation_lock_key(session_id);
 
         let mut conn = self.conn();
         redis::cmd("EVAL")
             .arg(
                 r#"
--- fn-knock:eval:destroy-mobility-session:v1
+-- fn-knock:eval:destroy-mobility-session-and-authority:v2
 local session_id = ARGV[1]
 local owner_prefix = ARGV[2]
 local whitelist_ids = {}
@@ -1177,12 +1345,12 @@ for _, id in ipairs(whitelist_ids) do
   local owner_key = owner_prefix .. id .. ":session"
   if redis.call("GET", owner_key) == session_id then redis.call("DEL", owner_key) end
 end
-redis.call("DEL", KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5], KEYS[7])
+redis.call("DEL", KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5], KEYS[7], KEYS[8], KEYS[9])
 table.sort(whitelist_ids)
 return whitelist_ids
 "#,
             )
-            .arg(7)
+            .arg(9)
             .arg(session_index_key)
             .arg(active_details_key)
             .arg(active_zset_key)
@@ -1190,6 +1358,8 @@ return whitelist_ids
             .arg(summary_key)
             .arg(proxy_binding_key)
             .arg(pending_key)
+            .arg(session_key)
+            .arg(mutation_lock_key)
             .arg(session_id)
             .arg("fn_knock:auth_mobility:whitelist:")
             .query_async(&mut conn)
@@ -1205,44 +1375,23 @@ return whitelist_ids
         let pending_key = auth_mobility_session_pending_whitelist_key(session_id);
         let proxy_hash = auth_mobility_subject_hash("proxy-session", session_id);
         let proxy_binding_key = auth_mobility_binding_key("proxy-session", &proxy_hash);
-
         let mut conn = self.conn();
-        let mut binding_keys = conn.smembers(&session_index_key).await?;
-        if !binding_keys.iter().any(|key| key == &proxy_binding_key) {
-            binding_keys.push(proxy_binding_key.clone());
-        }
-
-        let mut whitelist_ids = BTreeSet::new();
-        for binding_key in binding_keys {
-            let raw: Option<String> = conn.get(&binding_key).await?;
-            let Some(value) = raw
-                .as_deref()
-                .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-            else {
-                continue;
-            };
-            let owner_matches = binding_key == proxy_binding_key
-                || value
-                    .get("ownerSessionId")
-                    .and_then(Value::as_str)
-                    .is_some_and(|owner| owner == session_id);
-            if owner_matches {
-                collect_auth_mobility_whitelist_id(&mut whitelist_ids, &value);
-            }
-        }
-        for raw in conn.hvals(&active_details_key).await? {
-            if let Ok(value) = serde_json::from_str::<Value>(&raw) {
-                collect_auth_mobility_whitelist_id(&mut whitelist_ids, &value);
-            }
-        }
-        whitelist_ids.extend(
-            conn.hgetall(&pending_key)
-                .await?
-                .into_keys()
-                .map(|id| id.trim().to_string())
-                .filter(|id| !id.is_empty()),
-        );
-        Ok(whitelist_ids.into_iter().collect())
+        let whitelist_ids = redis::cmd("EVAL")
+            .arg(COLLECT_AUTH_MOBILITY_SESSION_WHITELIST_SCRIPT)
+            .arg(4)
+            .arg(session_index_key)
+            .arg(active_details_key)
+            .arg(proxy_binding_key)
+            .arg(pending_key)
+            .arg(session_id)
+            .query_async(&mut conn)
+            .await?;
+        let matched = self
+            .typed_mobility
+            .verify_and_repair_session(session_id)
+            .await?;
+        self.observe_typed_mobility_shadow_comparison(matched);
+        Ok(whitelist_ids)
     }
 
     pub async fn get_passkeys(&self) -> crate::storage::StorageResult<Vec<Value>> {
@@ -1437,6 +1586,8 @@ return whitelist_ids
         challenge: &str,
         challenge_type: &str,
     ) -> crate::storage::StorageResult<bool> {
+        let key = format!("fn_knock:passkey:challenge:{challenge}");
+        self.verify_passkey_runtime_shadow_key(&key).await?;
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -1451,7 +1602,7 @@ return 0
 "#,
             )
             .arg(1)
-            .arg(format!("fn_knock:passkey:challenge:{challenge}"))
+            .arg(key)
             .arg(challenge_type)
             .query_async(&mut conn)
             .await?;
@@ -1479,14 +1630,18 @@ return 0
         &self,
         token: &str,
     ) -> crate::storage::StorageResult<Option<String>> {
+        let key = format!("fn_knock:passkey:bind:{token}");
+        self.verify_passkey_runtime_shadow_key(&key).await?;
         let mut conn = self.conn();
-        conn.get(format!("fn_knock:passkey:bind:{token}")).await
+        conn.get(key).await
     }
 
     pub async fn consume_passkey_bind_token(
         &self,
         token: &str,
     ) -> crate::storage::StorageResult<Option<String>> {
+        let key = format!("fn_knock:passkey:bind:{token}");
+        self.verify_passkey_runtime_shadow_key(&key).await?;
         let mut conn = self.conn();
         redis::cmd("EVAL")
             .arg(
@@ -1501,7 +1656,7 @@ return value
 "#,
             )
             .arg(1)
-            .arg(format!("fn_knock:passkey:bind:{token}"))
+            .arg(key)
             .query_async(&mut conn)
             .await
     }
@@ -1524,19 +1679,9 @@ return value
         &self,
         challenge: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
-        self.consume_json_value(&format!("fn_knock:passkey:state:{challenge}"))
-            .await
-    }
-}
-
-fn collect_auth_mobility_whitelist_id(ids: &mut BTreeSet<String>, value: &Value) {
-    if let Some(id) = value
-        .get("whitelistRecordId")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|id| !id.is_empty())
-    {
-        ids.insert(id.to_string());
+        let key = format!("fn_knock:passkey:state:{challenge}");
+        self.verify_passkey_runtime_shadow_key(&key).await?;
+        self.consume_json_value(&key).await
     }
 }
 

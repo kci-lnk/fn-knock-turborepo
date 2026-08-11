@@ -15,7 +15,7 @@ use std::{
 use tokio::{process::Command, task::JoinSet, time};
 use uuid::Uuid;
 
-use crate::time_utils;
+use crate::{state::AppState, time_utils};
 
 const MAX_NETWORKS: usize = 16;
 const MAX_SCAN_HOSTS: usize = 4096;
@@ -106,6 +106,7 @@ type DiscoveryJobHandle = Arc<Mutex<DiscoveryJob>>;
 static DISCOVERY_JOBS: OnceLock<Mutex<HashMap<String, DiscoveryJobHandle>>> = OnceLock::new();
 
 pub(super) async fn start_discovery_job(
+    state: &AppState,
     target_cidrs: Vec<String>,
 ) -> Result<DiscoveryJobStatus, DiscoveryJobError> {
     let networks = tokio::task::spawn_blocking(move || networks_for_scan(&target_cidrs))
@@ -151,7 +152,7 @@ pub(super) async fn start_discovery_job(
     }
 
     let initial = job_status(&job, 0);
-    tokio::spawn(run_discovery_job(job, targets));
+    state.spawn_background("wol-discovery-job", run_discovery_job(job, targets));
     Ok(initial)
 }
 

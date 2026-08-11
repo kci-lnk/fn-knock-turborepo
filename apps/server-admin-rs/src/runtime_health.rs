@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex as StdMutex, Once, OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -46,6 +46,9 @@ const LOG_HIGH_QUEUE_SIZE: usize = 256;
 const LOG_REPEAT_WINDOW: Duration = Duration::from_secs(60);
 const LOG_REPEAT_TTL: Duration = Duration::from_secs(5 * 60);
 const MAX_LOG_REPEAT_KEYS: usize = 1024;
+const SESSION_PHASE_STARTING: u8 = 0;
+const SESSION_PHASE_RUNNING: u8 = 1;
+const SESSION_PHASE_STOPPED: u8 = 2;
 
 static PANIC_INSTANCE_ID: OnceLock<String> = OnceLock::new();
 
@@ -176,6 +179,8 @@ struct RuntimeHealthInner {
     monitor_done: Notify,
     monitor_stopped: AtomicBool,
     management_abnormal_reported: AtomicBool,
+    session_phase: AtomicU8,
+    session_write: Mutex<()>,
 }
 
 struct Tracker {
@@ -230,11 +235,13 @@ struct DiagnosticLogger {
     directory: PathBuf,
     repeats: Arc<StdMutex<HashMap<String, RepeatEntry>>>,
     control: mpsc::Sender<DiagnosticControl>,
+    writer: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 enum DiagnosticControl {
     Flush(oneshot::Sender<()>),
     Clear(oneshot::Sender<Result<(), String>>),
+    Shutdown,
 }
 
 struct RepeatEntry {
@@ -289,6 +296,8 @@ impl RuntimeHealth {
                 monitor_done: Notify::new(),
                 monitor_stopped: AtomicBool::new(false),
                 management_abnormal_reported: AtomicBool::new(false),
+                session_phase: AtomicU8::new(SESSION_PHASE_STARTING),
+                session_write: Mutex::new(()),
             }),
         })
     }
@@ -320,6 +329,10 @@ impl RuntimeHealth {
         self.inner.logger.flush().await;
     }
 
+    pub(crate) async fn shutdown_operational_log(&self, timeout: Duration) -> bool {
+        self.inner.logger.shutdown(timeout).await
+    }
+
     pub(crate) async fn clear_operational_log(&self, component: &str) -> anyhow::Result<()> {
         match component {
             "management" => self.inner.logger.clear().await,
@@ -344,7 +357,7 @@ impl RuntimeHealth {
     }
 
     async fn initialize_session(&self, state: &AppState) -> anyhow::Result<()> {
-        if let Some(raw) = state.store.get_string_value(SESSION_KEY).await?
+        if let Some(raw) = state.storage.store.get_string_value(SESSION_KEY).await?
             && let Ok(previous) = serde_json::from_str::<Value>(&raw)
             && previous.get("state").and_then(Value::as_str) == Some("running")
         {
@@ -365,13 +378,34 @@ impl RuntimeHealth {
             };
             self.publish_or_buffer(state, input).await;
         }
-        self.persist_session(state, "running").await?;
-        let previous_gateway = state.store.get_string_value(GATEWAY_INSTANCE_KEY).await?;
+        self.persist_session(state, "starting").await?;
+        let previous_gateway = state
+            .storage
+            .store
+            .get_string_value(GATEWAY_INSTANCE_KEY)
+            .await?;
         *self.inner.seen_gateway_instance.lock().await = previous_gateway;
         Ok(())
     }
 
     async fn persist_session(&self, state: &AppState, session_state: &str) -> anyhow::Result<()> {
+        let phase = match session_state {
+            "starting" => SESSION_PHASE_STARTING,
+            "running" => SESSION_PHASE_RUNNING,
+            "stopped" => SESSION_PHASE_STOPPED,
+            _ => anyhow::bail!("unsupported runtime session state"),
+        };
+        self.inner.session_phase.store(phase, Ordering::Release);
+        self.persist_current_session(state).await
+    }
+
+    async fn persist_current_session(&self, state: &AppState) -> anyhow::Result<()> {
+        let _write = self.inner.session_write.lock().await;
+        let session_state = match self.inner.session_phase.load(Ordering::Acquire) {
+            SESSION_PHASE_RUNNING => "running",
+            SESSION_PHASE_STOPPED => "stopped",
+            _ => "starting",
+        };
         let raw = serde_json::to_string(&json!({
             "instance_id": self.inner.management_instance_id,
             "pid": std::process::id(),
@@ -380,10 +414,15 @@ impl RuntimeHealth {
             "state": session_state,
         }))?;
         state
+            .storage
             .store
             .set_string_value_with_optional_ttl(SESSION_KEY, &raw, Some(RUNTIME_STATE_TTL_SECONDS))
             .await?;
         Ok(())
+    }
+
+    pub(crate) async fn mark_session_ready(&self, state: &AppState) -> anyhow::Result<()> {
+        self.persist_session(state, "running").await
     }
 
     async fn publish_or_buffer(&self, state: &AppState, input: RuntimeEventInput) {
@@ -476,20 +515,26 @@ impl RuntimeHealth {
         let checked_at = time_utils::now_iso();
         let storage_started = Instant::now();
         let (runtime_info, process_health, dataplane_health, auth_health, storage) = tokio::join!(
-            tokio::time::timeout(PROBE_TIMEOUT, state.go_backend.get_runtime_info()),
+            tokio::time::timeout(PROBE_TIMEOUT, state.gateway.client.get_runtime_info()),
             tokio::time::timeout(
                 PROBE_TIMEOUT,
-                state.go_backend.health_serving(GATEWAY_HEALTH_PROCESS),
+                state.gateway.client.health_serving(GATEWAY_HEALTH_PROCESS),
             ),
             tokio::time::timeout(
                 PROBE_TIMEOUT,
-                state.go_backend.health_serving(GATEWAY_HEALTH_DATAPLANE),
+                state
+                    .gateway
+                    .client
+                    .health_serving(GATEWAY_HEALTH_DATAPLANE),
             ),
             tokio::time::timeout(
                 PROBE_TIMEOUT,
-                state.go_backend.health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
+                state
+                    .gateway
+                    .client
+                    .health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
             ),
-            tokio::time::timeout(PROBE_TIMEOUT, state.store.ping()),
+            tokio::time::timeout(PROBE_TIMEOUT, state.storage.store.ping()),
         );
 
         let management = ProbeResult {
@@ -876,6 +921,7 @@ impl RuntimeHealth {
         )
         .await;
         if state
+            .storage
             .store
             .set_string_value_with_optional_ttl(
                 GATEWAY_INSTANCE_KEY,
@@ -974,7 +1020,9 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
             Some(&runtime.inner.management_instance_id),
         )
         .await;
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("runtime-health-monitor", async move {
+        let state = task_state;
         let mut probe = tokio::time::interval(PROBE_INTERVAL);
         probe.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut heartbeat = tokio::time::interval(SESSION_HEARTBEAT_INTERVAL);
@@ -1002,7 +1050,7 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                 }
                 _ = probe.tick() => runtime.run_probe(&state).await,
                 _ = heartbeat.tick() => {
-                    if runtime.persist_session(&state, "running").await.is_err() {
+                    if runtime.persist_current_session(&state).await.is_err() {
                         runtime.inner.logger.log(
                             "ERROR",
                             "storage",
@@ -1013,7 +1061,7 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                     }
                 }
                 _ = storage_gc.tick() => {
-                    if let Err(error) = state.store.purge_expired_keys().await {
+                    if let Err(error) = state.storage.store.purge_expired_keys().await {
                         tracing::warn!(%error, "failed to purge expired storage keys");
                         runtime.inner.logger.log(
                             "WARN",
@@ -1236,7 +1284,7 @@ impl DiagnosticLogger {
         let (high_tx, high_rx) = mpsc::channel(LOG_HIGH_QUEUE_SIZE);
         let (control_tx, control_rx) = mpsc::channel(4);
         let path = directory.join("management.jsonl");
-        tokio::spawn(diagnostic_writer(path, info_rx, high_rx, control_rx));
+        let writer = tokio::spawn(diagnostic_writer(path, info_rx, high_rx, control_rx));
         Ok(Self {
             info: info_tx,
             high: high_tx,
@@ -1244,6 +1292,7 @@ impl DiagnosticLogger {
             directory,
             repeats: Arc::new(StdMutex::new(HashMap::new())),
             control: control_tx,
+            writer: Arc::new(Mutex::new(Some(writer))),
         })
     }
 
@@ -1259,6 +1308,7 @@ impl DiagnosticLogger {
             directory,
             repeats: Arc::new(StdMutex::new(HashMap::new())),
             control,
+            writer: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -1415,6 +1465,23 @@ impl DiagnosticLogger {
         }
         Ok(())
     }
+
+    async fn shutdown(&self, timeout: Duration) -> bool {
+        let Some(mut writer) = self.writer.lock().await.take() else {
+            return true;
+        };
+        let deadline = tokio::time::Instant::now() + timeout;
+        let command_sent = matches!(
+            tokio::time::timeout_at(deadline, self.control.send(DiagnosticControl::Shutdown)).await,
+            Ok(Ok(()))
+        );
+        if command_sent && tokio::time::timeout_at(deadline, &mut writer).await.is_ok() {
+            return true;
+        }
+        writer.abort();
+        let _ = writer.await;
+        false
+    }
 }
 
 async fn diagnostic_writer(
@@ -1448,6 +1515,12 @@ async fn diagnostic_writer(
                             .and_then(|writer| writer.clear().map_err(|error| error.to_string()));
                         let _ = ack.send(result);
                         continue;
+                    }
+                    Some(DiagnosticControl::Shutdown) => {
+                        while let Ok(bytes) = high.try_recv() { if let Some(writer) = writer.as_mut() { let _ = writer.write(&bytes); } }
+                        while let Ok(bytes) = info.try_recv() { if let Some(writer) = writer.as_mut() { let _ = writer.write(&bytes); } }
+                        if let Some(writer) = writer.as_mut() { let _ = writer.flush(); }
+                        break;
                     }
                     None => None,
                 }
@@ -1859,6 +1932,7 @@ mod tests {
             directory: directory.path().to_path_buf(),
             repeats: Arc::new(StdMutex::new(HashMap::new())),
             control,
+            writer: Arc::new(Mutex::new(None)),
         };
         logger.log("INFO", "storage", "write_failed", "sqlite_busy", Map::new());
         logger.log("INFO", "storage", "write_failed", "sqlite_busy", Map::new());
@@ -1952,6 +2026,25 @@ mod tests {
         assert!(!directory.path().join("management.jsonl.1").exists());
         assert_eq!(logger.dropped_info.load(Ordering::Relaxed), 0);
         assert!(logger.repeats.lock().unwrap().is_empty());
+        assert!(logger.shutdown(Duration::from_secs(2)).await);
+    }
+
+    #[tokio::test]
+    async fn diagnostic_logger_shutdown_flushes_pending_records_and_is_idempotent() {
+        let directory = tempfile::tempdir().unwrap();
+        let logger = DiagnosticLogger::new(directory.path().to_path_buf()).unwrap();
+        logger.log(
+            "INFO",
+            "management",
+            "stopped",
+            "graceful_shutdown",
+            Map::new(),
+        );
+
+        assert!(logger.shutdown(Duration::from_secs(2)).await);
+        assert!(logger.shutdown(Duration::from_secs(2)).await);
+        let contents = std::fs::read_to_string(directory.path().join("management.jsonl")).unwrap();
+        assert!(contents.contains("\"reason_code\":\"graceful_shutdown\""));
     }
 
     #[test]
@@ -2018,6 +2111,7 @@ mod tests {
     async fn stale_running_session_emits_abnormal_exit_but_stopped_session_does_not() {
         let (_directory, state) = runtime_test_state().await;
         state
+            .storage
             .store
             .set_string_value_with_optional_ttl(
                 SESSION_KEY,
@@ -2037,9 +2131,22 @@ mod tests {
             .initialize_session(&state)
             .await
             .unwrap();
-        let session_ttl = state.store.ttl_seconds(SESSION_KEY).await.unwrap();
+        let starting_session = state
+            .storage
+            .store
+            .get_string_value(SESSION_KEY)
+            .await
+            .unwrap()
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .unwrap();
+        assert_eq!(
+            starting_session.get("state").and_then(Value::as_str),
+            Some("starting")
+        );
+        let session_ttl = state.storage.store.ttl_seconds(SESSION_KEY).await.unwrap();
         assert!(session_ttl > 0 && session_ttl <= RUNTIME_STATE_TTL_SECONDS);
         let events = state
+            .storage
             .store
             .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
             .await
@@ -2050,7 +2157,25 @@ mod tests {
             Some("FN_EVENT_RUNTIME_ABNORMAL_EXIT")
         );
 
-        state.store.clear_system_events().await.unwrap();
+        state
+            .runtime_health
+            .mark_session_ready(&state)
+            .await
+            .unwrap();
+        let running_session = state
+            .storage
+            .store
+            .get_string_value(SESSION_KEY)
+            .await
+            .unwrap()
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .unwrap();
+        assert_eq!(
+            running_session.get("state").and_then(Value::as_str),
+            Some("running")
+        );
+
+        state.storage.store.clear_system_events().await.unwrap();
         state
             .runtime_health
             .persist_session(&state, "stopped")
@@ -2062,6 +2187,40 @@ mod tests {
             .await
             .unwrap();
         let events = state
+            .storage
+            .store
+            .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
+            .await
+            .unwrap();
+        assert_eq!(events.get("total").and_then(Value::as_i64), Some(0));
+    }
+
+    #[tokio::test]
+    async fn interrupted_starting_session_is_not_reported_as_an_abnormal_exit() {
+        let (_directory, state) = runtime_test_state().await;
+        state
+            .storage
+            .store
+            .set_string_value(
+                SESSION_KEY,
+                &serde_json::to_string(&json!({
+                    "instance_id": "interrupted-start",
+                    "state": "starting",
+                    "heartbeat_at": "2026-01-01T00:00:00.000Z",
+                }))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        state
+            .runtime_health
+            .initialize_session(&state)
+            .await
+            .unwrap();
+
+        let events = state
+            .storage
             .store
             .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
             .await
@@ -2091,6 +2250,7 @@ mod tests {
         state.runtime_health.import_supervisor_hints(&state).await;
         assert!(!tokio::fs::try_exists(&hint).await.unwrap());
         let events = state
+            .storage
             .store
             .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
             .await
@@ -2132,6 +2292,7 @@ mod tests {
         }
         assert_eq!(temporary_count, MAX_SUPERVISOR_TEMP_FILES);
         let events = state
+            .storage
             .store
             .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
             .await
@@ -2161,9 +2322,15 @@ mod tests {
 
         state.runtime_health.observe_gateway_instance(&state).await;
         state.runtime_health.observe_gateway_instance(&state).await;
-        let instance_ttl = state.store.ttl_seconds(GATEWAY_INSTANCE_KEY).await.unwrap();
+        let instance_ttl = state
+            .storage
+            .store
+            .ttl_seconds(GATEWAY_INSTANCE_KEY)
+            .await
+            .unwrap();
         assert!(instance_ttl > 0 && instance_ttl <= RUNTIME_STATE_TTL_SECONDS);
         let events = state
+            .storage
             .store
             .list_system_events(1, 10, "", None, None, Some("RUNTIME_MONITOR"))
             .await

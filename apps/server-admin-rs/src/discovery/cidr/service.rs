@@ -18,20 +18,26 @@ const PROVINCES_REQUIRING_CITY_AGGREGATION: &[&str] = &["广东", "浙江"];
 
 pub(crate) async fn migrate_cidr_query_caches_on_boot(state: &AppState) -> anyhow::Result<usize> {
     let keys = state
+        .storage
         .store
         .scan_keys(&format!("{CACHE_PREFIX}:"), 200)
         .await?;
     let mut migrated = 0usize;
     for key in keys.into_iter().filter(|key| key.contains(":cidrs:")) {
-        let (data, ttl) = state.store.get_json_value_with_ttl(&key).await?;
+        let (data, ttl) = state.storage.store.get_json_value_with_ttl(&key).await?;
         let Some(data) = data else {
-            state.store.delete_keys(std::slice::from_ref(&key)).await?;
+            state
+                .storage
+                .store
+                .delete_keys(std::slice::from_ref(&key))
+                .await?;
             tracing::warn!(%key, "removed malformed CIDR query cache entry");
             continue;
         };
         match compact_query_data(&data) {
             Ok(compact) if compact != data => {
                 state
+                    .storage
                     .store
                     .set_json_value_preserve_ttl(&key, &compact, ttl)
                     .await?;
@@ -39,7 +45,11 @@ pub(crate) async fn migrate_cidr_query_caches_on_boot(state: &AppState) -> anyho
             }
             Ok(_) => {}
             Err(error) => {
-                state.store.delete_keys(std::slice::from_ref(&key)).await?;
+                state
+                    .storage
+                    .store
+                    .delete_keys(std::slice::from_ref(&key))
+                    .await?;
                 tracing::warn!(%key, %error, "removed invalid CIDR query cache entry");
             }
         }
@@ -59,11 +69,12 @@ pub(crate) async fn cached_compiled_policy_by_id(
         return Ok(None);
     }
     let keys = state
+        .storage
         .store
         .scan_keys(&format!("{CACHE_PREFIX}:"), 200)
         .await?;
     for key in keys.into_iter().filter(|key| key.contains(":cidrs:")) {
-        let Some(data) = state.store.get_json_value(&key).await? else {
+        let Some(data) = state.storage.store.get_json_value(&key).await? else {
             continue;
         };
         let Some(encoded) = data.get(COMPILED_QUERY_POLICY_FIELD) else {
@@ -281,6 +292,7 @@ async fn get_cached_query_at(
     if requires_city_aggregation(query) {
         let data = aggregate_province_cidrs_at(state, query, base_url).await?;
         state
+            .storage
             .store
             .set_json_value_ex(&key, &data, SUCCESS_CACHE_TTL_SECONDS)
             .await?;
@@ -308,6 +320,7 @@ async fn get_cached_leaf_query_at(
     validate_operator_echo(&data, query.operator).map_err(CidrError::Service)?;
     let data = compact_query_data(&data)?;
     state
+        .storage
         .store
         .set_json_value_ex(&key, &data, SUCCESS_CACHE_TTL_SECONDS)
         .await?;
@@ -319,7 +332,7 @@ async fn load_cached_query(
     query: &CidrRegionQuery,
     key: &str,
 ) -> Result<Option<Value>, CidrError> {
-    let (data, ttl) = state.store.get_json_value_with_ttl(key).await?;
+    let (data, ttl) = state.storage.store.get_json_value_with_ttl(key).await?;
     let Some(data) = data else {
         return Ok(None);
     };
@@ -327,6 +340,7 @@ async fn load_cached_query(
     let compact = compact_query_data(&data)?;
     if compact != data {
         state
+            .storage
             .store
             .set_json_value_preserve_ttl(key, &compact, ttl)
             .await?;
@@ -494,13 +508,14 @@ async fn get_cached_data_at(
     query: &[(&str, &str)],
 ) -> Result<Value, CidrError> {
     let key = namespaced_cache_key(base_url, logical_key);
-    if let Some(data) = state.store.get_json_value(&key).await? {
+    if let Some(data) = state.storage.store.get_json_value(&key).await? {
         return Ok(data);
     }
     let data = fetch_data(state, base_url, path, query)
         .await
         .map_err(CidrError::Service)?;
     state
+        .storage
         .store
         .set_json_value_ex(&key, &data, SUCCESS_CACHE_TTL_SECONDS)
         .await?;

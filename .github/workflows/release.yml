@@ -36,7 +36,7 @@ jobs:
       prerelease: ${{ steps.contract.outputs.prerelease }}
       control_api_version: ${{ steps.contract.outputs.control_api_version }}
       source_sha: ${{ steps.source.outputs.sha }}
-      go_sha: ${{ steps.gateway.outputs.sha }}
+      go_sha: ${{ steps.contract.outputs.gateway_commit }}
 
     steps:
       - name: Checkout fn-knock
@@ -80,15 +80,6 @@ jobs:
         run: |
           sha="$(git rev-parse HEAD)"
           printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
-
-      - name: Freeze Go gateway main commit
-        id: gateway
-        shell: bash
-        run: |
-          sha="$(git ls-remote https://github.com/kci-lnk/Go-Reauth-Proxy.git refs/heads/main | awk '{print $1}')"
-          printf '%s\n' "${sha}" | grep -Eq '^[0-9a-f]{40}$'
-          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
-          printf 'Go-Reauth-Proxy/main -> %s\n' "${sha}"
 
   quality:
     needs: preflight
@@ -170,12 +161,8 @@ jobs:
           npm ci
           cargo install cargo-audit --version 0.22.2 --locked
 
-      - name: Run static and release quality gates
-        run: |
-          npm run security:audit
-          npm run lint
-          npm run check-types
-          npm run fn-knock:release:test
+      - name: Run unified quality gate
+        run: npm run quality:check
 
       - name: Verify generated Go control-plane stubs
         shell: bash

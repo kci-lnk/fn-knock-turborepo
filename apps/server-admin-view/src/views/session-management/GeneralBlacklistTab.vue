@@ -332,7 +332,7 @@ onMounted(() => {
                 <TableCell class="font-medium">
                   <div class="font-mono text-sm break-all">{{ record.ip }}</div>
                   <div class="text-xs text-muted-foreground mt-0.5 break-all">
-                    {{ record.ipLocation || getLocationText(record.ip) }}
+                    {{ getLocationText(record.ip) }}
                   </div>
                 </TableCell>
                 <TableCell>

@@ -58,6 +58,7 @@ async fn acquire_auth_mobility_session_mutation_lease(
             return Ok(None);
         }
         if state
+            .storage
             .store
             .set_json_value_nx_ex(
                 &key,
@@ -98,7 +99,7 @@ async fn acquire_auth_mobility_session_mutation_lease(
                             heartbeat_valid.store(false, Ordering::Release);
                             break;
                         }
-                        result = heartbeat_state.store.set_json_lock_if_owned_ex(
+                        result = heartbeat_state.storage.store.set_json_lock_if_owned_ex(
                             &heartbeat_key,
                             &heartbeat_lock_id,
                             &heartbeat_payload,
@@ -136,6 +137,7 @@ impl AuthMobilitySessionMutationLease {
         }
         let refreshed = self
             .state
+            .storage
             .store
             .set_json_lock_if_owned_ex(
                 &self.key,
@@ -158,6 +160,7 @@ impl AuthMobilitySessionMutationLease {
             heartbeat.abort();
         }
         self.state
+            .storage
             .store
             .delete_lock_if_owned(&self.key, &self.lock_id)
             .await
@@ -223,7 +226,8 @@ struct AuthCredentialSettings {
 }
 
 pub fn start_auth_mobility_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("auth-mobility-maintenance", async move {
         let mut ticker = time::interval(std::time::Duration::from_secs(
             AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS,
         ));
@@ -231,12 +235,12 @@ pub fn start_auth_mobility_tasks(state: AppState) {
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = maintain_session_active_ips(&state) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = maintain_session_active_ips(&task_state) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "auth mobility active IP maintenance failed");
                     }
@@ -564,6 +568,7 @@ async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
         return None;
     }
     state
+        .storage
         .store
         .get_ip_location_cache(ip)
         .await

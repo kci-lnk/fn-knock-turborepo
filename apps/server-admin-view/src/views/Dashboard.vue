@@ -215,6 +215,7 @@ watch(showTunnelSection, (visible) => {
           <Dialog v-model:open="themeDialogOpen">
             <DialogTrigger as-child>
               <Button
+                data-testid="theme-preset-trigger"
                 variant="ghost"
                 size="icon"
                 class="h-9 w-9 shrink-0 rounded-lg bg-muted p-[3px] text-foreground shadow-none hover:bg-muted hover:text-foreground"
@@ -242,6 +243,7 @@ watch(showTunnelSection, (visible) => {
                 <Button
                   v-for="preset in themePresetOptions"
                   :key="preset.key"
+                  :data-theme-preset="preset.key"
                   type="button"
                   variant="outline"
                   class="h-auto justify-start gap-3 px-3 py-3 text-left"

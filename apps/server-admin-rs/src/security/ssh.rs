@@ -14,7 +14,6 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use flate2::read::GzDecoder;
 use ipnet::IpNet;
@@ -22,6 +21,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use tokio::time as tokio_time;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     cidr::{CidrOperator, CidrRegionQuery, CompiledIpSet, compile_ip_set},
@@ -83,32 +83,28 @@ struct ListQuery {
 }
 
 pub fn ssh_security_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/ssh-security/config",
-            get(get_config).post(update_config),
-        )
-        .route("/api/admin/ssh-security/firewall/sync", post(sync_firewall))
-        .route(
-            "/api/admin/ssh-security/firewall/clear",
-            post(clear_firewall),
-        )
-        .route("/api/admin/ssh-security/login-logs", get(login_logs))
-        .route(
-            "/api/admin/ssh-security/blocks",
-            get(list_blocks).delete(delete_blocks),
-        )
-        .route(
-            "/api/admin/ssh-security/blocks/{ip}",
-            get(get_block).delete(delete_block),
-        )
+    ssh_security_openapi_routes().into()
+}
+
+pub(crate) fn ssh_security_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_config))
+        .routes(routes!(update_config))
+        .routes(routes!(sync_firewall))
+        .routes(routes!(clear_firewall))
+        .routes(routes!(login_logs))
+        .routes(routes!(list_blocks))
+        .routes(routes!(delete_blocks))
+        .routes(routes!(get_block))
+        .routes(routes!(delete_block))
 }
 
 pub fn start_ssh_security_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("ssh-security-maintenance", async move {
         tokio::select! {
-            _ = state.shutdown.cancelled() => return,
-            result = ssh_security_maintenance_tick(&state) => {
+            _ = task_state.shutdown.cancelled() => return,
+            result = ssh_security_maintenance_tick(&task_state) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "SSH security boot sync failed");
                 }
@@ -117,16 +113,16 @@ pub fn start_ssh_security_tasks(state: AppState) {
 
         loop {
             let interval = tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                interval = ssh_security_tick_interval(&state) => interval,
+                _ = task_state.shutdown.cancelled() => break,
+                interval = ssh_security_tick_interval(&task_state) => interval,
             };
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = tokio_time::sleep(interval) => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = ssh_security_maintenance_tick(&state) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = ssh_security_maintenance_tick(&task_state) => {
                     if let Err(error) = result {
                         tracing::debug!(%error, "SSH security maintenance tick failed");
                     }

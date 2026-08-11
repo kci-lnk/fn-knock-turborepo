@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn export_backup_archive(state: &AppState) -> anyhow::Result<BackupArchive> {
-    let _archive_work_guard = state.backup_archive_work_lock.lock().await;
+    let _archive_work_guard = state.maintenance.backup_archive_work_lock.lock().await;
     let payload = export_backup_payload(state).await?;
     let exported_at = payload
         .get("exported_at")
@@ -37,6 +37,7 @@ pub(super) async fn export_backup_payload(state: &AppState) -> anyhow::Result<Va
     // packaging the archive can never extend a key's lifetime on restore.
     let exported_at = time_utils::now_iso();
     let mut entries = state
+        .storage
         .store
         .export_backup_entries_by_prefix_limited(
             KNOCK_BACKUP_PREFIX,

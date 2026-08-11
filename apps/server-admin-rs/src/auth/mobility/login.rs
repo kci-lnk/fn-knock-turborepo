@@ -15,10 +15,13 @@ async fn publish_login_auto_whitelist(
     let owner_record_key = whitelist::whitelist_auto_owner_record_key(&owner_key);
     let ttl_seconds = (expire_at - now_seconds()).max(1);
     let result = async {
-        if state.store.get_session(session_id).await?.is_none() || !lease.ensure_valid().await? {
+        if state.storage.store.get_session(session_id).await?.is_none()
+            || !lease.ensure_valid().await?
+        {
             anyhow::bail!("Login session was revoked before whitelist publication");
         }
         if !state
+            .storage
             .store
             .add_auth_mobility_pending_whitelist(
                 session_id,
@@ -47,7 +50,9 @@ async fn publish_login_auto_whitelist(
             anyhow::bail!("Login whitelist publication lease was lost");
         }
         whitelist::publish_deferred_session_auto_whitelist(state, deferred).await?;
-        if !lease.ensure_valid().await? || state.store.get_session(session_id).await?.is_none() {
+        if !lease.ensure_valid().await?
+            || state.storage.store.get_session(session_id).await?.is_none()
+        {
             anyhow::bail!("Login session was revoked during whitelist publication");
         }
         // Keep this entry as the logout-enumerable owner index. Active-IP
@@ -60,6 +65,7 @@ async fn publish_login_auto_whitelist(
         let _ = whitelist::rollback_session_auto_whitelist(state, &owner_key, whitelist_record_id)
             .await;
         let _ = state
+            .storage
             .store
             .remove_auth_mobility_pending_whitelist(session_id, whitelist_record_id)
             .await;
@@ -157,6 +163,7 @@ pub async fn create_login_session(
         ip_location: ip_location.clone(),
     };
     if let Err(error) = state
+        .storage
         .store
         .add_session(&session_id, &session, ttl_seconds)
         .await

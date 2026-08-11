@@ -1,0 +1,248 @@
+use serde::Serialize;
+use utoipa::ToSchema;
+
+use super::{GatewayVisibilitySelectionData, GatewayVisibilitySelectionInputData};
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ProxyMappingData {
+    path: Option<String>,
+    target: String,
+    rewrite_html: Option<bool>,
+    use_auth: Option<bool>,
+    use_root_mode: Option<bool>,
+    strip_path: Option<bool>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ProxyMappingsUpdateData {
+    mappings: Vec<ProxyMappingData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamMappingData {
+    protocol: String,
+    listen_port: i64,
+    target: String,
+    use_auth: bool,
+    #[schema(nullable = false)]
+    comment: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamMappingInputData {
+    #[schema(nullable = false)]
+    protocol: Option<String>,
+    listen_port: i64,
+    target: String,
+    #[schema(nullable = false)]
+    use_auth: Option<bool>,
+    #[schema(nullable = false)]
+    comment: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamMappingsUpdateData {
+    mappings: Vec<StreamMappingInputData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct SubdomainModeData {
+    root_domain: String,
+    auth_host: String,
+    auth_target: String,
+    cookie_domain: String,
+    edge_client_ip_enabled: bool,
+    aliyun_esa_enabled: bool,
+    tencent_edgeone_enabled: bool,
+    public_auth_base_url: String,
+    public_http_port: i64,
+    public_https_port: i64,
+    auth_cache_ttl_seconds: i64,
+    auth_cache_unauthorized_ttl_seconds: i64,
+    default_access_mode: String,
+    auto_add_whitelist_on_login: bool,
+    passkey_rp_mode: String,
+    passkey_rp_id: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct SubdomainModeUpdateData {
+    root_domain: Option<String>,
+    auth_host: Option<String>,
+    auth_target: Option<String>,
+    cookie_domain: Option<String>,
+    edge_client_ip_enabled: Option<bool>,
+    aliyun_esa_enabled: Option<bool>,
+    tencent_edgeone_enabled: Option<bool>,
+    public_auth_base_url: Option<String>,
+    public_http_port: Option<i64>,
+    public_https_port: Option<i64>,
+    auth_cache_ttl_seconds: Option<i64>,
+    auth_cache_unauthorized_ttl_seconds: Option<i64>,
+    default_access_mode: Option<String>,
+    auto_add_whitelist_on_login: Option<bool>,
+    passkey_rp_mode: Option<String>,
+    passkey_rp_id: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct SubdomainSslAutoSelectionData {
+    applied: bool,
+    certificate_id: String,
+    label: String,
+    message: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct SubdomainModeResponseData {
+    root_domain: String,
+    auth_host: String,
+    auth_target: String,
+    cookie_domain: String,
+    edge_client_ip_enabled: bool,
+    aliyun_esa_enabled: bool,
+    tencent_edgeone_enabled: bool,
+    public_auth_base_url: String,
+    public_http_port: i64,
+    public_https_port: i64,
+    auth_cache_ttl_seconds: i64,
+    auth_cache_unauthorized_ttl_seconds: i64,
+    default_access_mode: String,
+    auto_add_whitelist_on_login: bool,
+    passkey_rp_mode: String,
+    passkey_rp_id: String,
+    #[schema(required = true)]
+    ssl_auto_selection: Option<SubdomainSslAutoSelectionData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct HostMappingBasicAuthInputData {
+    enabled: bool,
+    username: String,
+    password: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct HostMappingBasicAuthProbeBodyData {
+    target: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct HostMappingBasicAuthProbeData {
+    requires_basic_auth: bool,
+    #[schema(required = true)]
+    http_status: Option<u16>,
+    #[schema(nullable = false)]
+    error: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct HostMappingMetadataBodyData {
+    target: String,
+    basic_auth: Option<HostMappingBasicAuthInputData>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct HostMappingMetadataData {
+    title: String,
+    favicon: String,
+    final_url: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct HostMappingRefreshSummaryData {
+    updated: i64,
+    failed: i64,
+    skipped: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthConditionData {
+    id: String,
+    target: String,
+    operator: String,
+    name: String,
+    values: Vec<String>,
+    #[schema(nullable = false)]
+    selections: Option<Vec<GatewayVisibilitySelectionData>>,
+    #[schema(nullable = false)]
+    cidrs: Option<Vec<String>>,
+    #[schema(nullable = false)]
+    policy_id: Option<String>,
+    #[schema(nullable = false)]
+    source_cidr_count: Option<usize>,
+    #[schema(nullable = false)]
+    range_count: Option<usize>,
+    #[schema(nullable = false)]
+    resolved_at: Option<String>,
+    #[schema(nullable = false)]
+    cidr_source: Option<String>,
+    #[schema(nullable = false)]
+    cidr_source_fingerprint: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthConditionInputData {
+    id: String,
+    target: String,
+    operator: String,
+    #[schema(nullable = false)]
+    name: Option<String>,
+    #[schema(nullable = false)]
+    values: Option<Vec<String>>,
+    #[schema(nullable = false)]
+    selections: Option<Vec<GatewayVisibilitySelectionInputData>>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthRuleGroupData {
+    id: String,
+    conditions: Vec<AdvancedAuthConditionData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthRuleGroupInputData {
+    id: String,
+    conditions: Vec<AdvancedAuthConditionInputData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthConfigData {
+    enabled: bool,
+    idle_ttl_seconds: i64,
+    max_lifetime_seconds: i64,
+    #[schema(nullable = false)]
+    policy_version: Option<String>,
+    groups: Vec<AdvancedAuthRuleGroupData>,
+    #[schema(nullable = false)]
+    compiled_at: Option<String>,
+    #[schema(nullable = false)]
+    cidr_source: Option<String>,
+    #[schema(nullable = false)]
+    cidr_source_fingerprint: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthConfigInputData {
+    enabled: Option<bool>,
+    idle_ttl_seconds: Option<i64>,
+    max_lifetime_seconds: Option<i64>,
+    groups: Option<Vec<AdvancedAuthRuleGroupInputData>>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthUpdateBodyData {
+    revision: Option<String>,
+    #[schema(nullable = false)]
+    advanced_auth: Option<AdvancedAuthConfigInputData>,
+    acknowledge_broad_rules: Option<bool>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct AdvancedAuthDetailsData {
+    host: String,
+    revision: String,
+    advanced_auth: AdvancedAuthConfigData,
+}

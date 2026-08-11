@@ -7,6 +7,7 @@ use axum::{
 use serde_json::{Map, Value, json};
 use std::collections::HashSet;
 use totp_rs::Secret;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     auth::mode::AuthLoginMode,
@@ -44,9 +45,58 @@ use super::{
     },
 };
 
+/// Credential-settings endpoints are registered through their annotated
+/// handlers so runtime and OpenAPI routes cannot drift.
+pub(crate) fn auth_credential_settings_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_auth_credential_settings))
+        .routes(routes!(update_auth_credential_settings))
+}
+
+/// Basic TOTP setup endpoints share their annotated runtime route definitions
+/// with the OpenAPI document.
+pub(crate) fn totp_bootstrap_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(totp_status))
+        .routes(routes!(totp_setup))
+        .routes(routes!(totp_bind))
+}
+
+/// TOTP lifecycle, transfer, and credential mutations use annotated routes so
+/// their runtime behavior and OpenAPI operations have one source of truth.
+pub(crate) fn totp_management_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(totp_delete))
+        .routes(routes!(totp_update_access_scopes))
+        .routes(routes!(totp_update_subdomain_access))
+        .routes(routes!(totp_update_comment))
+        .routes(routes!(passkey_delete))
+        .routes(routes!(totp_export))
+        .routes(routes!(totp_import))
+        .routes(routes!(totp_passkeys))
+}
+
+/// Session-management routes are declared once for both the Axum runtime and
+/// the generated OpenAPI document.
+pub(crate) fn session_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(sessions_list))
+        .routes(routes!(session_get))
+        .routes(routes!(session_delete))
+        .routes(routes!(session_update_comment))
+        .routes(routes!(session_mobility_details))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/auth_credential_settings",
+    tag = "config",
+    operation_id = "get_api_admin_config_auth_credential_settings",
+    responses((status = 200, description = "Authentication credential settings"))
+)]
 pub(super) async fn get_auth_credential_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(auth_credential_settings_from_config(&config)).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to load auth credential settings");
@@ -58,12 +108,20 @@ pub(super) async fn get_auth_credential_settings(State(state): State<AppState>) 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/auth_credential_settings",
+    tag = "config",
+    operation_id = "post_api_admin_config_auth_credential_settings",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated authentication credential settings"))
+)]
 pub(super) async fn update_auth_credential_settings(
     State(state): State<AppState>,
     Json(body): Json<AuthCredentialSettingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.store.get_config().await {
+    let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before auth settings update");
@@ -123,7 +181,7 @@ pub(super) async fn update_auth_credential_settings(
     }
     ensure_object(&mut config).insert("auth_credential_settings".to_string(), normalized.clone());
 
-    match state.store.save_config(&config).await {
+    match state.storage.store.save_config(&config).await {
         Ok(()) => {
             if session_ip_mobility_changed {
                 whitelist::sync_reverse_proxy_trusted_ips(&state).await;
@@ -166,9 +224,16 @@ pub(super) async fn update_auth_credential_settings(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/totp/status",
+    tag = "totp",
+    operation_id = "get_api_admin_totp_status",
+    responses((status = 200, description = "TOTP credential status"))
+)]
 pub(super) async fn totp_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_totps().await {
+    match state.storage.store.get_totps().await {
         Ok(credentials) => response::ok(json!({
             "bound": !credentials.is_empty(),
             "credentials": credentials
@@ -184,6 +249,13 @@ pub(super) async fn totp_status(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/totp/setup",
+    tag = "totp",
+    operation_id = "post_api_admin_totp_setup",
+    responses((status = 200, description = "Generated TOTP setup secret"))
+)]
 pub(super) async fn totp_setup() -> Response {
     let secret = match Secret::generate_secret().to_encoded() {
         Secret::Encoded(value) => value,
@@ -198,6 +270,14 @@ pub(super) async fn totp_setup() -> Response {
     .into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/totp/bind",
+    tag = "totp",
+    operation_id = "post_api_admin_totp_bind",
+    request_body = TotpBindBody,
+    responses((status = 200, description = "Bound TOTP credential"))
+)]
 pub(super) async fn totp_bind(
     State(state): State<AppState>,
     Json(body): Json<TotpBindBody>,
@@ -229,7 +309,7 @@ pub(super) async fn totp_bind(
         subdomain_access: json!({ "mode": "all", "hosts": [] }),
     };
 
-    match state.store.add_totp(credential).await {
+    match state.storage.store.add_totp(credential).await {
         Ok(()) => {
             response::success_message(admin_control_text(&translator, "totp.bound")).into_response()
         }
@@ -243,6 +323,13 @@ pub(super) async fn totp_bind(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/totp/credentials/export",
+    tag = "totp",
+    operation_id = "get_api_admin_totp_credentials_export",
+    responses((status = 200, description = "TOTP or password credential export"))
+)]
 pub(super) async fn totp_export(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match build_current_auth_credentials_export(&state).await {
@@ -275,12 +362,19 @@ pub(super) async fn totp_export(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/totp/credentials/import",
+    tag = "totp",
+    operation_id = "post_api_admin_totp_credentials_import",
+    responses((status = 200, description = "Credential import summary"))
+)]
 pub(super) async fn totp_import(
     State(state): State<AppState>,
     Json(body): Json<TotpImportBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let existing_totps = match state.store.get_totps().await {
+    let existing_totps = match state.storage.store.get_totps().await {
         Ok(credentials) => credentials,
         Err(error) => {
             tracing::warn!(%error, "failed to load existing TOTP credentials for import");
@@ -290,7 +384,7 @@ pub(super) async fn totp_import(
             );
         }
     };
-    let existing_accounts = match state.store.get_auth_accounts().await {
+    let existing_accounts = match state.storage.store.get_auth_accounts().await {
         Ok(accounts) => accounts,
         Err(error) => {
             tracing::warn!(%error, "failed to load existing auth accounts for credential import");
@@ -333,7 +427,7 @@ pub(super) async fn totp_import(
             if !plan.credentials.is_empty() {
                 let mut next = existing_totps;
                 next.extend(plan.credentials);
-                if let Err(error) = state.store.set_totps(&next).await {
+                if let Err(error) = state.storage.store.set_totps(&next).await {
                     tracing::warn!(%error, "failed to import TOTP credentials");
                     return response::error(
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -366,15 +460,16 @@ pub(super) async fn totp_import(
 async fn build_current_auth_credentials_export(
     state: &AppState,
 ) -> anyhow::Result<(Value, String)> {
-    let mode = state.store.get_auth_login_mode().await?;
+    let mode = state.storage.store.get_auth_login_mode().await?;
     let exported_at = time_utils::now_iso();
     let timestamp = exported_at.replace([':', '.'], "-");
     if mode == AuthLoginMode::Password {
         let (_, accounts) = projected_auth_accounts(state).await?;
-        let totps = state.store.get_totps().await?;
+        let totps = state.storage.store.get_totps().await?;
         let mut password_credentials = Vec::new();
         for account in &accounts {
             if let Some(record) = state
+                .storage
                 .store
                 .get_auth_password_credential(&account.id)
                 .await?
@@ -390,7 +485,7 @@ async fn build_current_auth_credentials_export(
         ));
     }
 
-    let credentials = state.store.get_totps().await?;
+    let credentials = state.storage.store.get_totps().await?;
     let payload = build_totp_export_payload(&credentials, &exported_at);
     Ok((
         payload,
@@ -405,6 +500,7 @@ async fn existing_auth_password_account_ids(
     let mut ids = HashSet::new();
     for account in accounts {
         if state
+            .storage
             .store
             .get_auth_password_credential(&account.id)
             .await?
@@ -428,15 +524,23 @@ async fn apply_password_credential_import(
         if !plan.totp_credentials.is_empty() {
             let mut next_totps = existing_totps.clone();
             next_totps.extend(plan.totp_credentials.clone());
-            state.store.set_totps(&next_totps).await?;
+            state.storage.store.set_totps(&next_totps).await?;
         }
         if !plan.accounts.is_empty() {
             let mut next_accounts = existing_accounts.clone();
             next_accounts.extend(plan.accounts.clone());
-            state.store.set_auth_accounts(&next_accounts).await?;
+            state
+                .storage
+                .store
+                .set_auth_accounts(&next_accounts)
+                .await?;
         }
         for credential in &plan.password_credentials {
-            state.store.set_auth_password_credential(credential).await?;
+            state
+                .storage
+                .store
+                .set_auth_password_credential(credential)
+                .await?;
         }
         anyhow::Ok(())
     }
@@ -469,6 +573,7 @@ async fn password_credential_snapshots(
             snapshots.push((
                 credential.account_id.clone(),
                 state
+                    .storage
                     .store
                     .get_auth_password_credential(&credential.account_id)
                     .await?,
@@ -484,17 +589,22 @@ async fn rollback_password_credential_import(
     totps: &[TotpCredential],
     password_snapshots: &[(String, Option<AuthPasswordCredential>)],
 ) {
-    if let Err(error) = state.store.set_auth_accounts(accounts).await {
+    if let Err(error) = state.storage.store.set_auth_accounts(accounts).await {
         tracing::warn!(%error, "failed to roll back auth accounts after credential import failure");
     }
-    if let Err(error) = state.store.set_totps(totps).await {
+    if let Err(error) = state.storage.store.set_totps(totps).await {
         tracing::warn!(%error, "failed to roll back TOTP credentials after credential import failure");
     }
     for (account_id, snapshot) in password_snapshots {
         let result = if let Some(record) = snapshot {
-            state.store.set_auth_password_credential(record).await
+            state
+                .storage
+                .store
+                .set_auth_password_credential(record)
+                .await
         } else {
             state
+                .storage
                 .store
                 .delete_auth_password_credential(account_id)
                 .await
@@ -505,9 +615,17 @@ async fn rollback_password_credential_import(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/totp/{id}",
+    tag = "totp",
+    operation_id = "delete_api_admin_totp_by_id",
+    params(("id" = String, Path, description = "TOTP credential identifier")),
+    responses((status = 200, description = "Deleted TOTP credential"))
+)]
 pub(super) async fn totp_delete(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.delete_totp(&id).await {
+    match state.storage.store.delete_totp(&id).await {
         Ok(true) => {
             if let Err(error) = delete_auth_accounts_for_totp(&state, &id).await {
                 tracing::warn!(%error, %id, "failed to delete auth accounts for deleted TOTP credential");
@@ -564,7 +682,7 @@ pub(super) async fn totp_delete(State(state): State<AppState>, Path(id): Path<St
 }
 
 async fn delete_auth_accounts_for_totp(state: &AppState, totp_id: &str) -> anyhow::Result<()> {
-    let mut accounts = state.store.get_auth_accounts().await?;
+    let mut accounts = state.storage.store.get_auth_accounts().await?;
     let deleted_ids = auth_account_ids_for_deleted_totp(&accounts, totp_id);
     if deleted_ids.is_empty() {
         return Ok(());
@@ -574,9 +692,10 @@ async fn delete_auth_accounts_for_totp(state: &AppState, totp_id: &str) -> anyho
             .iter()
             .any(|deleted_id| deleted_id == account.id.as_str())
     });
-    state.store.set_auth_accounts(&accounts).await?;
+    state.storage.store.set_auth_accounts(&accounts).await?;
     for account_id in deleted_ids {
         state
+            .storage
             .store
             .delete_auth_password_credential(&account_id)
             .await?;
@@ -593,6 +712,14 @@ fn auth_account_ids_for_deleted_totp(accounts: &[AuthAccount], totp_id: &str) ->
         .collect()
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/totp/{id}/access-scopes",
+    tag = "totp",
+    operation_id = "patch_api_admin_totp_by_id_access_scopes",
+    params(("id" = String, Path, description = "TOTP credential identifier")),
+    responses((status = 200, description = "Updated TOTP access scopes"))
+)]
 pub(super) async fn totp_update_access_scopes(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -600,6 +727,7 @@ pub(super) async fn totp_update_access_scopes(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
+        .storage
         .store
         .update_totp_access_scopes(&id, body.access_scopes)
         .await
@@ -619,13 +747,21 @@ pub(super) async fn totp_update_access_scopes(
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/totp/{id}/subdomain-access",
+    tag = "totp",
+    operation_id = "patch_api_admin_totp_by_id_subdomain_access",
+    params(("id" = String, Path, description = "TOTP credential identifier")),
+    responses((status = 200, description = "Updated TOTP subdomain access"))
+)]
 pub(super) async fn totp_update_subdomain_access(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(body): Json<TotpSubdomainAccessBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous = match state.store.get_totps().await {
+    let previous = match state.storage.store.get_totps().await {
         Ok(credentials) => credentials
             .into_iter()
             .find(|credential| credential.id == id),
@@ -638,6 +774,7 @@ pub(super) async fn totp_update_subdomain_access(
         }
     };
     match state
+        .storage
         .store
         .update_totp_subdomain_access(&id, body.subdomain_access)
         .await
@@ -703,6 +840,7 @@ pub(super) async fn totp_update_subdomain_access(
 
 async fn rollback_totp_subdomain_access_update(state: &AppState, previous: &TotpCredential) {
     if let Err(error) = state
+        .storage
         .store
         .update_totp_subdomain_access(&previous.id, previous.subdomain_access.clone())
         .await
@@ -721,13 +859,27 @@ async fn rollback_totp_subdomain_access_update(state: &AppState, previous: &Totp
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/totp/{id}/comment",
+    tag = "totp",
+    operation_id = "patch_api_admin_totp_by_id_comment",
+    request_body = TotpCommentBody,
+    params(("id" = String, Path, description = "TOTP credential identifier")),
+    responses((status = 200, description = "Updated TOTP comment"))
+)]
 pub(super) async fn totp_update_comment(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(body): Json<TotpCommentBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.update_totp_comment(&id, body.comment).await {
+    match state
+        .storage
+        .store
+        .update_totp_comment(&id, body.comment)
+        .await
+    {
         Ok(Some(_)) => response::success_message(admin_control_text(&translator, "totp.updated"))
             .into_response(),
         Ok(None) => response::error(
@@ -744,12 +896,20 @@ pub(super) async fn totp_update_comment(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/totp/{totp_id}/passkeys",
+    tag = "totp",
+    operation_id = "get_api_admin_totp_by_totp_id_passkeys",
+    params(("totp_id" = String, Path, description = "TOTP credential identifier")),
+    responses((status = 200, description = "Passkeys associated with the TOTP credential"))
+)]
 pub(super) async fn totp_passkeys(
     State(state): State<AppState>,
     Path(totp_id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_passkeys().await {
+    match state.storage.store.get_passkeys().await {
         Ok(passkeys) => {
             let filtered = passkeys
                 .into_iter()
@@ -767,12 +927,20 @@ pub(super) async fn totp_passkeys(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/passkeys/{id}",
+    tag = "passkeys",
+    operation_id = "delete_api_admin_passkeys_by_id",
+    params(("id" = String, Path, description = "Passkey credential identifier")),
+    responses((status = 200, description = "Deleted passkey credential"))
+)]
 pub(super) async fn passkey_delete(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.delete_passkey(&id).await {
+    match state.storage.store.delete_passkey(&id).await {
         Ok(true) => response::success_message(admin_control_text(&translator, "passkeys.deleted"))
             .into_response(),
         Ok(false) => response::error(
@@ -789,9 +957,16 @@ pub(super) async fn passkey_delete(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/sessions",
+    tag = "sessions",
+    operation_id = "get_api_admin_sessions",
+    responses((status = 200, description = "Authentication sessions"))
+)]
 pub(super) async fn sessions_list(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.list_session_values().await {
+    match state.storage.store.list_session_values().await {
         Ok(sessions) => {
             let mut records = Vec::with_capacity(sessions.len());
             for (id, data) in sessions {
@@ -810,9 +985,17 @@ pub(super) async fn sessions_list(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/sessions/{id}",
+    tag = "sessions",
+    operation_id = "get_api_admin_sessions_by_id",
+    params(("id" = String, Path, description = "Session identifier")),
+    responses((status = 200, description = "Authentication session"))
+)]
 pub(super) async fn session_get(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_session_value(&id).await {
+    match state.storage.store.get_session_value(&id).await {
         Ok(Some(data)) => {
             let data = ensure_session_comment(&state, &id, data, &translator).await;
             response::ok(session_record_with_mobility(&state, id, data).await).into_response()
@@ -831,6 +1014,15 @@ pub(super) async fn session_get(State(state): State<AppState>, Path(id): Path<St
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/admin/sessions/{id}/comment",
+    tag = "sessions",
+    operation_id = "patch_api_admin_sessions_by_id_comment",
+    request_body = SessionCommentBody,
+    params(("id" = String, Path, description = "Session identifier")),
+    responses((status = 200, description = "Updated authentication session"))
+)]
 pub(super) async fn session_update_comment(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -840,7 +1032,7 @@ pub(super) async fn session_update_comment(
     let mut updates = Map::new();
     let comment = body.comment;
     updates.insert("comment".to_string(), Value::String(comment.clone()));
-    match state.store.update_session_value(&id, updates).await {
+    match state.storage.store.update_session_value(&id, updates).await {
         Ok(Some(data)) => {
             if let Err(error) = sync_session_whitelist_comments(&state, &id, &data, &comment).await
             {
@@ -862,6 +1054,14 @@ pub(super) async fn session_update_comment(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/sessions/{id}",
+    tag = "sessions",
+    operation_id = "delete_api_admin_sessions_by_id",
+    params(("id" = String, Path, description = "Session identifier")),
+    responses((status = 200, description = "Deleted authentication session"))
+)]
 pub(super) async fn session_delete(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -880,12 +1080,20 @@ pub(super) async fn session_delete(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/sessions/{id}/mobility",
+    tag = "sessions",
+    operation_id = "get_api_admin_sessions_by_id_mobility",
+    params(("id" = String, Path, description = "Session identifier")),
+    responses((status = 200, description = "Session mobility details"))
+)]
 pub(super) async fn session_mobility_details(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_session_value(&id).await {
+    match state.storage.store.get_session_value(&id).await {
         Ok(Some(session)) => {
             let mut details = session_mobility_details_value(&state, &id, Some(&session)).await;
             hydrate_mobility_event_ip_locations(&state, &id, &mut details).await;
@@ -960,6 +1168,7 @@ mod tests {
             .await
             .expect("admin session test state");
         state
+            .storage
             .store
             .save_config(&json!({}))
             .await
@@ -968,6 +1177,7 @@ mod tests {
         let session_id = "admin-delete-session";
         let session_ip = "203.0.113.45";
         state
+            .storage
             .store
             .add_session(
                 session_id,
@@ -997,6 +1207,7 @@ mod tests {
         whitelist::sync_reverse_proxy_trusted_ips(&state).await;
 
         let before = state
+            .storage
             .store
             .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
             .await
@@ -1012,6 +1223,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
         let after = state
+            .storage
             .store
             .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
             .await

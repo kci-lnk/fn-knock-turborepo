@@ -6,11 +6,12 @@ pub(super) async fn rollback_gateway_visibility(
     previous_runtime: &Value,
     translator: &Translator,
 ) -> Option<String> {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback gateway visibility config");
         return Some(translator.t("server.admin.rollback.restoreVisibilityConfigFailed"));
     }
     if let Err(error) = state
+        .storage
         .store
         .set_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY, previous_runtime)
         .await
@@ -31,11 +32,12 @@ pub(super) async fn rollback_gateway_proxy_headers(
     previous_runtime: &Value,
     translator: &Translator,
 ) -> Option<String> {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback gateway proxy headers config");
         return Some(translator.t("server.admin.rollback.restoreProxyHeadersConfigFailed"));
     }
     if let Err(error) = state
+        .storage
         .store
         .set_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY, previous_runtime)
         .await
@@ -56,11 +58,12 @@ pub(super) async fn rollback_gateway_host_response(
     previous_runtime: &Value,
     translator: &Translator,
 ) -> Option<String> {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback gateway host response config");
         return Some(translator.t("server.gatewayHostResponse.restoreConfigFailed"));
     }
     if let Err(error) = state
+        .storage
         .store
         .set_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY, previous_runtime)
         .await
@@ -115,7 +118,7 @@ pub(super) fn non_empty_message(
 }
 
 pub(super) async fn rollback_gateway_settings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback gateway settings config");
         return;
     }

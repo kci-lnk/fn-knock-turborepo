@@ -24,7 +24,7 @@ pub(super) async fn build_status(
 ) -> FrpcResult<FrpcInstanceStatus> {
     let handle = ensure_frpc_supervisor(state, meta).await?;
     let supervisor = handle.snapshot();
-    let runtime = read_runtime(&state.store, &meta.id).await?;
+    let runtime = read_runtime(&state.storage.store, &meta.id).await?;
     let content = read_config_for_meta(meta).await?;
     Ok(FrpcInstanceStatus {
         id: meta.id.clone(),
@@ -154,6 +154,7 @@ pub(super) async fn list_logs_inner(
 ) -> FrpcResult<Vec<String>> {
     let meta = get_meta_or_error(state, id).await?;
     Ok(state
+        .storage
         .store
         .list_log_buffer(&log_key(&meta.id), limit, log_max_len(&meta.id))
         .await?)
@@ -161,7 +162,11 @@ pub(super) async fn list_logs_inner(
 
 pub(super) async fn clear_logs_inner(state: &AppState, id: &str) -> FrpcResult<()> {
     let meta = get_meta_or_error(state, id).await?;
-    state.store.clear_log_buffer(&log_key(&meta.id)).await?;
+    state
+        .storage
+        .store
+        .clear_log_buffer(&log_key(&meta.id))
+        .await?;
     Ok(())
 }
 
@@ -172,6 +177,7 @@ pub(super) async fn poll_inner(
 ) -> FrpcResult<Value> {
     let meta = get_meta_or_error(state, id).await?;
     let logs = state
+        .storage
         .store
         .poll_log_buffer(&log_key(&meta.id), cursor)
         .await?;
@@ -195,6 +201,7 @@ pub(super) async fn append_logs(
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>();
     state
+        .storage
         .store
         .append_log_buffer(
             &log_key(&meta.id),
@@ -244,13 +251,13 @@ pub(super) async fn restore_on_boot(state: &AppState) -> FrpcResult<()> {
     let had_runtime = has_any_runtime_data(state).await?;
     ensure_primary_instance(state).await?;
     if !had_runtime && should_resume_tunnel(state).await {
-        let mut runtime = read_runtime(&state.store, FRPC_PRIMARY_INSTANCE_ID).await?;
+        let mut runtime = read_runtime(&state.storage.store, FRPC_PRIMARY_INSTANCE_ID).await?;
         runtime.desired_running = true;
-        write_runtime(&state.store, FRPC_PRIMARY_INSTANCE_ID, &runtime).await?;
+        write_runtime(&state.storage.store, FRPC_PRIMARY_INSTANCE_ID, &runtime).await?;
     }
     let metas = all_metas(state).await?;
     for meta in metas {
-        let runtime = read_runtime(&state.store, &meta.id).await?;
+        let runtime = read_runtime(&state.storage.store, &meta.id).await?;
         let _ = ensure_frpc_supervisor(state, &meta).await?;
         if runtime.desired_running {
             append_logs(state, &meta, &[default_frpc_text("resumeOnBoot")]).await?;
@@ -261,8 +268,9 @@ pub(super) async fn restore_on_boot(state: &AppState) -> FrpcResult<()> {
 }
 
 pub(super) async fn has_any_runtime_data(state: &AppState) -> FrpcResult<bool> {
-    for id in read_instance_ids(&state.store).await? {
+    for id in read_instance_ids(&state.storage.store).await? {
         if state
+            .storage
             .store
             .get_json_value(&instance_key(&id, "runtime"))
             .await?
@@ -275,10 +283,13 @@ pub(super) async fn has_any_runtime_data(state: &AppState) -> FrpcResult<bool> {
 }
 
 pub(super) async fn update_aggregate_tunnel_state(state: &AppState) -> anyhow::Result<()> {
-    let _guard = state.tunnel_runtime_update_lock.lock().await;
+    let _guard = state.tunnel.runtime_update_lock.lock().await;
     let mut desired = false;
-    for id in read_instance_ids(&state.store).await? {
-        if read_runtime(&state.store, &id).await?.desired_running {
+    for id in read_instance_ids(&state.storage.store).await? {
+        if read_runtime(&state.storage.store, &id)
+            .await?
+            .desired_running
+        {
             desired = true;
             break;
         }
@@ -308,6 +319,7 @@ async fn mark_tunnel_running(state: &AppState) -> anyhow::Result<()> {
         Value::String(time_utils::now_iso()),
     );
     state
+        .storage
         .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &Value::Object(object))
         .await?;
@@ -327,6 +339,7 @@ async fn mark_tunnel_stopped(state: &AppState) -> anyhow::Result<()> {
             Value::String(time_utils::now_iso()),
         );
         state
+            .storage
             .store
             .set_json_value(TUNNEL_RUNTIME_KEY, &Value::Object(object))
             .await?;
@@ -336,6 +349,7 @@ async fn mark_tunnel_stopped(state: &AppState) -> anyhow::Result<()> {
 
 pub(super) async fn load_tunnel_state(state: &AppState) -> serde_json::Map<String, Value> {
     let Some(raw) = state
+        .storage
         .store
         .get_json_value(TUNNEL_RUNTIME_KEY)
         .await

@@ -1,4 +1,5 @@
 import type { ComputedRef, Ref } from "vue";
+import type { operations as ApiContractOperations } from "@fn-knock/api-contract";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { toast } from "@admin-shared/utils/toast";
@@ -20,14 +21,8 @@ type AsyncActionRun = <T>(
   },
 ) => Promise<T | undefined>;
 
-type SyncRoutesResult = {
-  success: boolean;
-  message?: string;
-  data?: {
-    synced_host_rules?: number;
-    synced_rules?: number;
-  };
-};
+type SyncRoutesResult =
+  ApiContractOperations["post_api_admin_sync_routes"]["responses"][200]["content"]["application/json"];
 
 type RefreshTitlesSummary = {
   failed: number;

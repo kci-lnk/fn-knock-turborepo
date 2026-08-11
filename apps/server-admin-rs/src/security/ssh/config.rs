@@ -1,13 +1,17 @@
 use super::*;
 
 pub(crate) async fn migrate_ssh_ipset_on_boot(state: &AppState) -> anyhow::Result<()> {
-    let raw = state.store.get_json_value(RUNTIME_KEY).await?;
+    let raw = state.storage.store.get_json_value(RUNTIME_KEY).await?;
     let runtime = normalize_runtime(raw);
     let enabled = runtime.get("enabled").and_then(Value::as_bool) == Some(true);
     let policy = policy_from_runtime(&runtime)?.into_current_format();
     let compact = compact_runtime(enabled, &policy, runtime.get("updated_at").cloned());
-    state.store.set_json_value(RUNTIME_KEY, &compact).await?;
-    state.ipsets.publish(
+    state
+        .storage
+        .store
+        .set_json_value(RUNTIME_KEY, &compact)
+        .await?;
+    state.security.ipsets.publish(
         SSH_ALLOWED_IPSET_KEY,
         (enabled && policy.range_count() > 0).then_some(policy),
     );
@@ -53,12 +57,16 @@ pub(super) async fn update_ssh_security_config(
             return Err(SshError::Runtime(availability.reason));
         }
     }
-    let mut all = state.store.get_config().await?;
+    let mut all = state.storage.store.get_config().await?;
     if let Some(object) = all.as_object_mut() {
         object.insert("ssh_security".to_string(), config.clone());
     }
-    state.store.save_config(&all).await?;
-    state.store.set_json_value(RUNTIME_KEY, &runtime).await?;
+    state.storage.store.save_config(&all).await?;
+    state
+        .storage
+        .store
+        .set_json_value(RUNTIME_KEY, &runtime)
+        .await?;
     publish_runtime_policy(state, &runtime)
         .map_err(|error| SshError::Runtime(error.to_string()))?;
     apply_ssh_security_config_once(state, &config, &runtime)
@@ -68,13 +76,13 @@ pub(super) async fn update_ssh_security_config(
 }
 
 pub(super) async fn load_config(state: &AppState) -> crate::storage::StorageResult<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     Ok(normalize_config(config.get("ssh_security").cloned()))
 }
 
 pub(super) async fn load_runtime(state: &AppState) -> crate::storage::StorageResult<Value> {
     Ok(normalize_runtime(
-        state.store.get_json_value(RUNTIME_KEY).await?,
+        state.storage.store.get_json_value(RUNTIME_KEY).await?,
     ))
 }
 
@@ -306,7 +314,7 @@ pub(super) fn compact_runtime(
 fn publish_runtime_policy(state: &AppState, runtime: &Value) -> anyhow::Result<()> {
     let enabled = runtime.get("enabled").and_then(Value::as_bool) == Some(true);
     let policy = policy_from_runtime(runtime)?;
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         SSH_ALLOWED_IPSET_KEY,
         (enabled && policy.range_count() > 0).then_some(policy),
     );

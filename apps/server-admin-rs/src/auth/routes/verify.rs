@@ -49,7 +49,7 @@ pub(super) async fn build_auth_shell_data(
     redirect_uri: Option<&str>,
     include_redirect: bool,
 ) -> anyhow::Result<(Value, AuthAccess)> {
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let captcha_settings = runtime_config::load_captcha_settings(state).await?;
     let locale = config
         .get("locale")
@@ -67,6 +67,7 @@ pub(super) async fn build_auth_shell_data(
         .await?;
     let client_ip = client_ip_for_auth(&auth_shell_headers);
     let login_mode = state
+        .storage
         .store
         .get_auth_login_mode()
         .await
@@ -158,7 +159,7 @@ async fn append_shared_session_cookie_for_auth_shell(
     let Some(session_id) = identity.session_id.as_deref() else {
         return Ok(());
     };
-    let Some(session) = state.store.get_session(session_id).await? else {
+    let Some(session) = state.storage.store.get_session(session_id).await? else {
         return Ok(());
     };
     let Some(expires_at) = session
@@ -205,7 +206,7 @@ pub(super) async fn resolve_auth_access_with_routed_upstream(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> anyhow::Result<AuthAccess> {
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     resolve_auth_access_with_routed_upstream_and_config(
         state,
         headers,
@@ -504,7 +505,7 @@ fn rate_limited_access(set_cookies: Vec<String>) -> AuthAccess {
 }
 
 pub(super) async fn public_captcha_settings(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let settings = runtime_config::load_captcha_settings(state).await?;
     let translator = translator_from_config(&config);
     Ok(public_captcha_settings_from_settings(

@@ -156,7 +156,7 @@ pub struct LoginBackoffStatus {
     pub blocked_until: Option<i64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WhitelistRecord {
     pub id: String,
     pub ip: String,
@@ -214,7 +214,7 @@ pub struct WhitelistRegionInput {
     pub operator: Option<crate::cidr::CidrOperator>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WhitelistRegionGroupRecord {
     pub id: String,
     #[serde(default)]

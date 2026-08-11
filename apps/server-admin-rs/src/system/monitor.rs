@@ -16,18 +16,19 @@ struct CpuSnapshot {
 }
 
 pub fn start_system_monitor_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("system-resource-monitor", async move {
         let mut ticker = time::interval(system_monitor_interval());
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             let lock_result = tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = state.store.set_lock_if_not_exists(
+                _ = task_state.shutdown.cancelled() => break,
+                result = task_state.storage.store.set_lock_if_not_exists(
                     "system-resource-monitor",
                     system_monitor_lock_ttl_seconds(),
                 ) => result,
@@ -35,8 +36,8 @@ pub fn start_system_monitor_tasks(state: AppState) {
             match lock_result {
                 Ok(true) => {
                     tokio::select! {
-                        _ = state.shutdown.cancelled() => break,
-                        result = tick_system_monitor(&state) => {
+                        _ = task_state.shutdown.cancelled() => break,
+                        result = tick_system_monitor(&task_state) => {
                             if let Err(error) = result {
                                 tracing::warn!(%error, "system resource monitor tick failed");
                             }
@@ -53,7 +54,7 @@ pub fn start_system_monitor_tasks(state: AppState) {
 }
 
 async fn tick_system_monitor(state: &AppState) -> anyhow::Result<()> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     if !event_system_monitor_enabled(&config) {
         reset_states(state).await;
         return Ok(());
@@ -76,11 +77,12 @@ async fn process_metric(
     let rule = normalize_rule(rule);
     let state_key = metric_state_key(metric);
     if !rule.enabled {
-        state.store.delete_key(state_key).await?;
+        state.storage.store.delete_key(state_key).await?;
         return Ok(());
     }
 
     let current = state
+        .storage
         .store
         .get_json_value(state_key)
         .await?
@@ -111,6 +113,7 @@ async fn process_metric(
 
     let Some(usage_percent) = usage_percent else {
         state
+            .storage
             .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
@@ -142,6 +145,7 @@ async fn process_metric(
             }
         }
         state
+            .storage
             .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
@@ -172,6 +176,7 @@ async fn process_metric(
             next.insert("belowRecoverSince".to_string(), Value::Null);
         }
         state
+            .storage
             .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
@@ -184,6 +189,7 @@ async fn process_metric(
         next.insert("aboveThresholdSince".to_string(), Value::Null);
     }
     state
+        .storage
         .store
         .set_json_value(state_key, &Value::Object(next))
         .await?;
@@ -222,8 +228,8 @@ async fn publish_resource_event(
 }
 
 pub(crate) async fn reset_states(state: &AppState) {
-    let _ = state.store.delete_key(CPU_STATE_KEY).await;
-    let _ = state.store.delete_key(MEMORY_STATE_KEY).await;
+    let _ = state.storage.store.delete_key(CPU_STATE_KEY).await;
+    let _ = state.storage.store.delete_key(MEMORY_STATE_KEY).await;
 }
 
 fn read_cpu_usage_percent(previous: Option<&Value>) -> (Option<f64>, Option<CpuSnapshot>) {

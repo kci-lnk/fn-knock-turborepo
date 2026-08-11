@@ -5,7 +5,6 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use fn_knock_wol_protocol::{AckStatus, Command, MacAddress};
@@ -15,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
 use crate::{crypto_utils, response, state::AppState, time_utils};
@@ -282,36 +282,46 @@ impl WolHttpError {
 
 pub fn wol_routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .route(
-            "/api/admin/wol/local-relay",
-            get(get_local_relay).put(update_local_relay),
-        )
-        .route("/api/admin/wol/local-relay/pair", post(pair_local_relay))
-        .route("/api/admin/wol/relays", get(get_relays).post(create_relay))
-        .route(
-            "/api/admin/wol/relays/{id}",
-            get(get_relay).put(update_relay).delete(delete_relay),
-        )
-        .route(
-            "/api/admin/wol/relays/{id}/rotate-psk",
-            post(rotate_relay_psk),
-        )
-        .route("/api/admin/wol/relays/{id}/probe", post(probe_relay))
-        .route(
-            "/api/admin/wol/targets",
-            get(get_targets).post(create_target),
-        )
-        .route("/api/admin/wol/discover/jobs", post(start_discovery))
-        .route(
-            "/api/admin/wol/discover/jobs/{id}",
-            get(get_discovery).delete(cancel_discovery),
-        )
-        .route(
-            "/api/admin/wol/targets/{id}",
-            get(get_target).put(update_target).delete(delete_target),
-        )
-        .route("/api/admin/wol/targets/{id}/wake", post(wake_target))
+        .merge(wol_local_relay_openapi_routes())
+        .merge(wol_discovery_openapi_routes())
+        .merge(wol_relay_openapi_routes())
+        .merge(wol_target_openapi_routes())
         .route_layer(middleware::from_fn_with_state(state, require_wol_feature))
+}
+
+pub(crate) fn wol_local_relay_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_local_relay))
+        .routes(routes!(update_local_relay))
+        .routes(routes!(pair_local_relay))
+}
+
+pub(crate) fn wol_discovery_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(start_discovery))
+        .routes(routes!(get_discovery))
+        .routes(routes!(cancel_discovery))
+}
+
+pub(crate) fn wol_relay_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_relays))
+        .routes(routes!(create_relay))
+        .routes(routes!(get_relay))
+        .routes(routes!(update_relay))
+        .routes(routes!(delete_relay))
+        .routes(routes!(rotate_relay_psk))
+        .routes(routes!(probe_relay))
+}
+
+pub(crate) fn wol_target_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_targets))
+        .routes(routes!(create_target))
+        .routes(routes!(get_target))
+        .routes(routes!(update_target))
+        .routes(routes!(delete_target))
+        .routes(routes!(wake_target))
 }
 
 async fn require_wol_feature(
@@ -332,6 +342,7 @@ async fn require_wol_feature(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/local-relay", tag = "wol", operation_id = "get_api_admin_wol_local_relay", responses((status = 200, description = "Local Wake-on-LAN relay configuration")))]
 async fn get_local_relay(State(state): State<AppState>) -> Response {
     match local_relay_response(&state).await {
         Ok(value) => response::ok(value).into_response(),
@@ -339,6 +350,7 @@ async fn get_local_relay(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(put, path = "/api/admin/wol/local-relay", tag = "wol", operation_id = "put_api_admin_wol_local_relay", request_body = serde_json::Value, responses((status = 200, description = "Updated local Wake-on-LAN relay configuration")))]
 async fn update_local_relay(
     State(state): State<AppState>,
     body: Result<Json<LocalRelayBody>, JsonRejection>,
@@ -355,6 +367,7 @@ async fn update_local_relay(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/local-relay/pair", tag = "wol", operation_id = "post_api_admin_wol_local_relay_pair", request_body = serde_json::Value, responses((status = 200, description = "Paired local Wake-on-LAN relay configuration")))]
 async fn pair_local_relay(
     State(state): State<AppState>,
     body: Result<Json<LocalRelayPairBody>, JsonRejection>,
@@ -399,7 +412,7 @@ async fn update_local_relay_inner(
     body: LocalRelayBody,
 ) -> Result<Value, WolHttpError> {
     let (config, psk) = validate_local_relay_body(body)?;
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let previous_config = load_local_relay_config(state)
         .await
         .map_err(|error| internal_error("load local Relay configuration", error))?;
@@ -448,7 +461,7 @@ async fn update_local_relay_inner(
             tracing::warn!(%error, "failed to remove superseded WoL pairing credential");
         }
     }
-    state.wol_relay_reload.notify_one();
+    state.wol.relay_reload.notify_one();
     local_relay_response(state).await
 }
 
@@ -475,10 +488,11 @@ async fn local_relay_response(state: &AppState) -> Result<Value, WolHttpError> {
         psk_configured,
         updated_at: config.updated_at,
     };
-    let runtime = state.wol_relay_status.read().await.clone();
+    let runtime = state.wol.relay_status.read().await.clone();
     Ok(json!({ "config": view, "runtime": runtime }))
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/relays", tag = "wol", operation_id = "get_api_admin_wol_relays", responses((status = 200, description = "Wake-on-LAN relays")))]
 async fn get_relays(State(state): State<AppState>) -> Response {
     match relay_views(&state).await {
         Ok(items) => response::ok(json!({ "total": items.len(), "items": items })).into_response(),
@@ -486,6 +500,7 @@ async fn get_relays(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/relays/{id}", tag = "wol", operation_id = "get_api_admin_wol_relays_by_id", params(("id" = String, Path, description = "Relay identifier")), responses((status = 200, description = "Wake-on-LAN relay")))]
 async fn get_relay(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match load_relay(&state, &id).await {
         Ok(Some(relay)) => response::ok(relay_view(&state, relay)).into_response(),
@@ -494,6 +509,7 @@ async fn get_relay(State(state): State<AppState>, Path(id): Path<String>) -> Res
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/relays", tag = "wol", operation_id = "post_api_admin_wol_relays", request_body = serde_json::Value, responses((status = 200, description = "Created relay with pairing credentials")))]
 async fn create_relay(
     State(state): State<AppState>,
     body: Result<Json<RelayBody>, JsonRejection>,
@@ -510,7 +526,7 @@ async fn create_relay(
 
 async fn create_relay_inner(state: &AppState, body: RelayBody) -> Result<Value, WolHttpError> {
     let (name, address, port) = validate_relay_body(&body)?;
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let now = time_utils::now_iso();
     let relay = RelayRecord {
         id: Uuid::new_v4().to_string(),
@@ -539,6 +555,7 @@ async fn create_relay_inner(state: &AppState, body: RelayBody) -> Result<Value, 
     }))
 }
 
+#[utoipa::path(put, path = "/api/admin/wol/relays/{id}", tag = "wol", operation_id = "put_api_admin_wol_relays_by_id", request_body = serde_json::Value, params(("id" = String, Path, description = "Relay identifier")), responses((status = 200, description = "Updated Wake-on-LAN relay")))]
 async fn update_relay(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -560,7 +577,7 @@ async fn update_relay_inner(
     body: RelayBody,
 ) -> Result<RelayView, WolHttpError> {
     let (name, address, port) = validate_relay_body(&body)?;
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let mut relay = load_relay(state, id)
         .await
         .map_err(|error| internal_error("load Relay", error))?
@@ -576,6 +593,7 @@ async fn update_relay_inner(
     Ok(relay_view(state, relay))
 }
 
+#[utoipa::path(delete, path = "/api/admin/wol/relays/{id}", tag = "wol", operation_id = "delete_api_admin_wol_relays_by_id", params(("id" = String, Path, description = "Relay identifier")), responses((status = 200, description = "Deleted Wake-on-LAN relay")))]
 async fn delete_relay(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match delete_relay_inner(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
@@ -584,7 +602,7 @@ async fn delete_relay(State(state): State<AppState>, Path(id): Path<String>) -> 
 }
 
 async fn delete_relay_inner(state: &AppState, id: &str) -> Result<(), WolHttpError> {
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let relay = load_relay(state, id)
         .await
         .map_err(|error| internal_error("load Relay", error))?
@@ -614,6 +632,7 @@ async fn delete_relay_inner(state: &AppState, id: &str) -> Result<(), WolHttpErr
     Ok(())
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/relays/{id}/rotate-psk", tag = "wol", operation_id = "post_api_admin_wol_relays_by_id_rotate_psk", params(("id" = String, Path, description = "Relay identifier")), responses((status = 200, description = "Rotated relay pairing credentials")))]
 async fn rotate_relay_psk(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match rotate_relay_psk_inner(&state, &id).await {
         Ok(value) => response::ok(value).into_response(),
@@ -622,7 +641,7 @@ async fn rotate_relay_psk(State(state): State<AppState>, Path(id): Path<String>)
 }
 
 async fn rotate_relay_psk_inner(state: &AppState, id: &str) -> Result<Value, WolHttpError> {
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let mut relay = load_relay(state, id)
         .await
         .map_err(|error| internal_error("load Relay", error))?
@@ -654,6 +673,7 @@ async fn rotate_relay_psk_inner(state: &AppState, id: &str) -> Result<Value, Wol
     }))
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/relays/{id}/probe", tag = "wol", operation_id = "post_api_admin_wol_relays_by_id_probe", params(("id" = String, Path, description = "Relay identifier")), responses((status = 200, description = "Relay probe result")))]
 async fn probe_relay(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match dispatch_for_relay(&state, &id, Command::Probe, None).await {
         Ok(result) => response::ok(result).into_response(),
@@ -661,17 +681,22 @@ async fn probe_relay(State(state): State<AppState>, Path(id): Path<String>) -> R
     }
 }
 
-async fn start_discovery(body: Result<Json<DiscoveryJobBody>, JsonRejection>) -> Response {
+#[utoipa::path(post, path = "/api/admin/wol/discover/jobs", tag = "wol", operation_id = "post_api_admin_wol_discover_jobs", request_body = serde_json::Value, responses((status = 200, description = "Started Wake-on-LAN discovery job")))]
+async fn start_discovery(
+    State(state): State<AppState>,
+    body: Result<Json<DiscoveryJobBody>, JsonRejection>,
+) -> Response {
     let Json(body) = match body {
         Ok(body) => body,
         Err(_) => return WolHttpError::bad_request("Discovery request is invalid").into_response(),
     };
-    match start_discovery_job(body.target_cidrs).await {
+    match start_discovery_job(&state, body.target_cidrs).await {
         Ok(job) => response::ok(job).into_response(),
         Err(error) => discovery_job_error(error).into_response(),
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/discover/jobs/{id}", tag = "wol", operation_id = "get_api_admin_wol_discover_jobs_by_id", params(("id" = String, Path, description = "Discovery job identifier")), responses((status = 200, description = "Wake-on-LAN discovery job")))]
 async fn get_discovery(Path(id): Path<String>, Query(query): Query<DiscoveryJobQuery>) -> Response {
     match get_discovery_job(&id, query.cursor.unwrap_or_default()) {
         Some(job) => response::ok(job).into_response(),
@@ -679,6 +704,7 @@ async fn get_discovery(Path(id): Path<String>, Query(query): Query<DiscoveryJobQ
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/wol/discover/jobs/{id}", tag = "wol", operation_id = "delete_api_admin_wol_discover_jobs_by_id", params(("id" = String, Path, description = "Discovery job identifier")), responses((status = 200, description = "Cancelled Wake-on-LAN discovery job")))]
 async fn cancel_discovery(Path(id): Path<String>) -> Response {
     match cancel_discovery_job(&id) {
         Some(job) => response::ok(job).into_response(),
@@ -686,6 +712,7 @@ async fn cancel_discovery(Path(id): Path<String>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/targets", tag = "wol", operation_id = "get_api_admin_wol_targets", responses((status = 200, description = "Wake-on-LAN targets")))]
 async fn get_targets(State(state): State<AppState>) -> Response {
     match target_views(&state).await {
         Ok(items) => response::ok(json!({ "total": items.len(), "items": items })).into_response(),
@@ -693,6 +720,7 @@ async fn get_targets(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/wol/targets/{id}", tag = "wol", operation_id = "get_api_admin_wol_targets_by_id", params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "Wake-on-LAN target")))]
 async fn get_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match load_target(&state, &id).await {
         Ok(Some(target)) => match target_view(&state, target).await {
@@ -704,6 +732,7 @@ async fn get_target(State(state): State<AppState>, Path(id): Path<String>) -> Re
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/targets", tag = "wol", operation_id = "post_api_admin_wol_targets", request_body = serde_json::Value, responses((status = 200, description = "Created Wake-on-LAN target")))]
 async fn create_target(
     State(state): State<AppState>,
     body: Result<Json<TargetBody>, JsonRejection>,
@@ -729,7 +758,7 @@ async fn create_target_inner(
         broadcast_address,
         ip_address,
     } = validate_target_body(&body)?;
-    let guard = state.wol_config_lock.lock().await;
+    let guard = state.wol.config_lock.lock().await;
     if let Some(relay_id) = relay_id.as_deref() {
         require_relay(state, relay_id).await?;
     }
@@ -761,6 +790,7 @@ async fn create_target_inner(
     target_view(state, target).await
 }
 
+#[utoipa::path(put, path = "/api/admin/wol/targets/{id}", tag = "wol", operation_id = "put_api_admin_wol_targets_by_id", request_body = serde_json::Value, params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "Updated Wake-on-LAN target")))]
 async fn update_target(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -788,7 +818,7 @@ async fn update_target_inner(
         broadcast_address,
         ip_address,
     } = validate_target_body(&body)?;
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     if let Some(relay_id) = relay_id.as_deref() {
         require_relay(state, relay_id).await?;
     }
@@ -897,8 +927,9 @@ async fn update_target_inner(
     target_view(state, target).await
 }
 
+#[utoipa::path(delete, path = "/api/admin/wol/targets/{id}", tag = "wol", operation_id = "delete_api_admin_wol_targets_by_id", params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "Deleted Wake-on-LAN target")))]
 async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     match load_target(&state, &id).await {
         Ok(Some(_)) => {
             if let Err(error) = super::store::delete_target_status(&state, &id).await {
@@ -956,6 +987,7 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/wol/targets/{id}/wake", tag = "wol", operation_id = "post_api_admin_wol_targets_by_id_wake", params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "Wake dispatch result")))]
 async fn wake_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match wake_target_inner(&state, &id).await {
         Ok(value) => response::ok(value).into_response(),
@@ -1703,9 +1735,9 @@ mod tests {
     #[tokio::test]
     async fn new_enabled_target_is_checked_before_create_returns() {
         let (_directory, state) = test_state().await;
-        let mut config = state.store.get_config().await.unwrap();
+        let mut config = state.storage.store.get_config().await.unwrap();
         config["wol_feature"]["enabled"] = json!(true);
-        state.store.save_config(&config).await.unwrap();
+        state.storage.store.save_config(&config).await.unwrap();
         let target = create_target_inner(
             &state,
             TargetBody {
@@ -1841,6 +1873,7 @@ mod tests {
             StatusCode::CONFLICT
         );
         state
+            .storage
             .store
             .set_key_if_not_exists_with_ttl(
                 &format!("fn_knock:wol:runtime:cooldown:{}", target.id),
@@ -1858,6 +1891,7 @@ mod tests {
         );
 
         let stored = state
+            .storage
             .store
             .export_backup_entries_by_prefix_limited("fn_knock:wol:", 1024 * 1024, |_| true)
             .await
@@ -1925,6 +1959,7 @@ mod tests {
         assert_eq!(deleted.status(), StatusCode::OK);
         assert!(
             state
+                .storage
                 .store
                 .get_json_value(&format!("fn_knock:wol:target-status:{}", target.id))
                 .await
@@ -1941,9 +1976,9 @@ mod tests {
     #[tokio::test]
     async fn built_in_relay_handles_authenticated_probe_and_broadcast_end_to_end() {
         let (_directory, state) = test_state().await;
-        let mut config = state.store.get_config().await.unwrap();
+        let mut config = state.storage.store.get_config().await.unwrap();
         config["wol_feature"]["enabled"] = json!(true);
-        state.store.save_config(&config).await.unwrap();
+        state.storage.store.save_config(&config).await.unwrap();
         let port_reservation = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let relay_port = port_reservation.local_addr().unwrap().port();
         drop(port_reservation);
@@ -1984,7 +2019,7 @@ mod tests {
         super::super::relay::start_wol_relay_tasks(state.clone());
         tokio::time::timeout(std::time::Duration::from_secs(2), async {
             loop {
-                if state.wol_relay_status.read().await["active"] == true {
+                if state.wol.relay_status.read().await["active"] == true {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -2015,6 +2050,7 @@ mod tests {
         assert_eq!(&magic[..6], &[0xff; 6]);
 
         let backup = state
+            .storage
             .store
             .export_backup_entries_by_prefix_limited("fn_knock:wol:", 1024 * 1024, |_| true)
             .await
@@ -2029,7 +2065,7 @@ mod tests {
         );
         tokio::time::timeout(std::time::Duration::from_secs(2), async {
             loop {
-                if state.wol_relay_status.read().await["active"] == false {
+                if state.wol.relay_status.read().await["active"] == false {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -2303,6 +2339,7 @@ mod tests {
         assert!(shared_bemfa.integrations.bemfa.credential_configured);
 
         let backup = state
+            .storage
             .store
             .export_backup_entries_by_prefix_limited("fn_knock:wol:", 1024 * 1024, |_| true)
             .await

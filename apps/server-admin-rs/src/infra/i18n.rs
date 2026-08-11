@@ -20,7 +20,7 @@ impl Translator {
     }
 
     pub async fn from_state(state: &AppState) -> Self {
-        let locale = state.store.locale().await.ok().and_then(|value| {
+        let locale = state.storage.store.locale().await.ok().and_then(|value| {
             value
                 .get("default_locale")
                 .and_then(Value::as_str)

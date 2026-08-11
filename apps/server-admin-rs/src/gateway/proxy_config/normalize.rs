@@ -14,7 +14,7 @@ pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
 }
 
 pub(super) async fn rollback_proxy_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback proxy mappings config");
         return;
     }
@@ -69,6 +69,7 @@ pub(super) async fn rollback_host_mappings_with_runtime_sync<Sync, SyncFuture>(
         .cloned()
         .unwrap_or_default();
     let restored_config = match state
+        .storage
         .store
         .compare_and_set_host_mappings_with_visibility_policies(
             expected_current_mappings,
@@ -95,7 +96,7 @@ pub(super) async fn rollback_host_mappings_with_runtime_sync<Sync, SyncFuture>(
 }
 
 pub(super) async fn rollback_stream_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback stream mappings config");
         return;
     }
@@ -105,7 +106,7 @@ pub(super) async fn rollback_stream_mappings(state: &AppState, previous_config: 
 }
 
 pub(super) async fn rollback_subdomain_mode(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback subdomain mode config");
         return;
     }

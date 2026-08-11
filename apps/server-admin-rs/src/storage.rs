@@ -1,6 +1,23 @@
 pub(crate) mod legacy_redis_migration;
 pub(crate) mod redis_compat;
 pub(crate) mod redis_store;
+pub(crate) mod typed_config;
+pub(crate) mod typed_docker_admin;
+pub(crate) mod typed_event_dedupe;
+pub(crate) mod typed_events;
+pub(crate) mod typed_fnos_share;
+pub(crate) mod typed_hmac_nonce;
+pub(crate) mod typed_identity_runtime;
+pub(crate) mod typed_login_backoff;
+pub(crate) mod typed_mobility;
+pub(crate) mod typed_notification_runtime;
+pub(crate) mod typed_notifications;
+pub(crate) mod typed_passkey_runtime;
+pub(crate) mod typed_subdomain_grant;
+pub(crate) mod typed_subdomain_rate_limit;
+pub(crate) mod typed_whitelist;
+pub(crate) mod typed_whitelist_runtime;
+pub(crate) mod typed_wol_cooldown;
 
 pub(crate) use redis_store as store;
 

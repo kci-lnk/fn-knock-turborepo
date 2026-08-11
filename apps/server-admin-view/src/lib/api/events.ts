@@ -8,11 +8,45 @@ import type {
   NotificationTriggerListPayload,
   NotificationTriggerStatus,
   SystemEventLevel,
-  SystemEventListPayload,
   SystemEventSource,
   SystemEventType,
 } from "../../types";
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 import { apiClient } from "./client";
+
+type GetEventsOperation = ApiContractOperations["get_api_admin_events"];
+type GetEventsQuery = NonNullable<GetEventsOperation["parameters"]["query"]>;
+type GetEventsResponse =
+  GetEventsOperation["responses"][200]["content"]["application/json"];
+type DeleteEventsOperation = ApiContractOperations["delete_api_admin_events"];
+type DeleteEventsBody =
+  DeleteEventsOperation["requestBody"]["content"]["application/json"];
+type DeleteEventsResponse =
+  DeleteEventsOperation["responses"][200]["content"]["application/json"];
+type ClearEventsResponse =
+  ApiContractOperations["delete_api_admin_events_clear"]["responses"][200]["content"]["application/json"];
+type NotificationSchemas = ApiContractComponents["schemas"];
+type NotificationProviderCreateBody =
+  NotificationSchemas["NotificationProviderCreateBodyData"];
+type NotificationProviderUpdateBody =
+  NotificationSchemas["NotificationProviderUpdateBodyData"];
+type NotificationProviderTestBody =
+  NotificationSchemas["NotificationProviderTestBodyData"];
+type NotificationRuleCreateBody =
+  NotificationSchemas["NotificationRuleCreateBodyData"];
+type NotificationRuleUpdateBody =
+  NotificationSchemas["NotificationRuleUpdateBodyData"];
+type NotificationTriggerQuery = NonNullable<
+  ApiContractOperations["get_api_admin_notifications_triggers"]["parameters"]["query"]
+>;
+type NotificationDeliveryQuery = NonNullable<
+  ApiContractOperations["get_api_admin_notifications_deliveries"]["parameters"]["query"]
+>;
+type NotificationDeliveryClearBody =
+  NotificationSchemas["NotificationDeliveryClearBodyData"];
 
 export type {
   NotificationDeliveryListPayload,
@@ -40,34 +74,27 @@ export const EventCenterAPI = {
     type?: SystemEventType | "all";
     level?: SystemEventLevel | "all";
     source?: SystemEventSource | "all";
-  }): Promise<{
-    success: boolean;
-    data: SystemEventListPayload;
-    message?: string;
-  }> {
+  }): Promise<GetEventsResponse> {
+    const query = {
+      page: params.page,
+      limit: params.limit,
+      search: params.search,
+      type: params.type && params.type !== "all" ? params.type : undefined,
+      level: params.level && params.level !== "all" ? params.level : undefined,
+      source:
+        params.source && params.source !== "all" ? params.source : undefined,
+    } satisfies GetEventsQuery;
     const res = await apiClient.get("/events", {
-      params: {
-        page: params.page,
-        limit: params.limit,
-        search: params.search,
-        type: params.type && params.type !== "all" ? params.type : undefined,
-        level:
-          params.level && params.level !== "all" ? params.level : undefined,
-        source:
-          params.source && params.source !== "all" ? params.source : undefined,
-      },
+      params: query,
     });
     return res.data;
   },
-  async deleteEvents(ids: string[]) {
-    const res = await apiClient.delete("/events", { data: { ids } });
+  async deleteEvents(ids: string[]): Promise<DeleteEventsResponse> {
+    const body = { ids } satisfies DeleteEventsBody;
+    const res = await apiClient.delete("/events", { data: body });
     return res.data;
   },
-  async clearEvents(): Promise<{
-    success: boolean;
-    data: { deleted_count: number };
-    message?: string;
-  }> {
+  async clearEvents(): Promise<ClearEventsResponse> {
     const res = await apiClient.delete("/events/clear");
     return res.data;
   },
@@ -97,22 +124,13 @@ export const EventCenterAPI = {
     );
     return res.data;
   },
-  async createNotificationProvider(payload: {
-    name?: string;
-    type: string;
-    enabled: boolean;
-    connection_config: Record<string, unknown>;
-  }) {
+  async createNotificationProvider(payload: NotificationProviderCreateBody) {
     const res = await apiClient.post("/notifications/providers", payload);
     return res.data;
   },
   async updateNotificationProvider(
     id: string,
-    payload: {
-      name?: string;
-      enabled?: boolean;
-      connection_config?: Record<string, unknown>;
-    },
+    payload: NotificationProviderUpdateBody,
   ) {
     const res = await apiClient.patch(
       `/notifications/providers/${encodeURIComponent(id)}`,
@@ -132,13 +150,7 @@ export const EventCenterAPI = {
     );
     return res.data;
   },
-  async testNotificationProviderDraft(payload: {
-    id?: string;
-    name?: string;
-    type: string;
-    enabled: boolean;
-    connection_config: Record<string, unknown>;
-  }) {
+  async testNotificationProviderDraft(payload: NotificationProviderTestBody) {
     const res = await apiClient.post("/notifications/providers/test", payload);
     return res.data;
   },
@@ -150,11 +162,14 @@ export const EventCenterAPI = {
     const res = await apiClient.get("/notifications/rules");
     return res.data;
   },
-  async createNotificationRule(payload: Record<string, unknown>) {
+  async createNotificationRule(payload: NotificationRuleCreateBody) {
     const res = await apiClient.post("/notifications/rules", payload);
     return res.data;
   },
-  async updateNotificationRule(id: string, payload: Record<string, unknown>) {
+  async updateNotificationRule(
+    id: string,
+    payload: NotificationRuleUpdateBody,
+  ) {
     const res = await apiClient.patch(
       `/notifications/rules/${encodeURIComponent(id)}`,
       payload,
@@ -177,14 +192,15 @@ export const EventCenterAPI = {
     data: NotificationTriggerListPayload;
     message?: string;
   }> {
+    const query = {
+      page: params.page,
+      limit: params.limit,
+      rule_id: params.rule_id || undefined,
+      status:
+        params.status && params.status !== "all" ? params.status : undefined,
+    } satisfies NotificationTriggerQuery;
     const res = await apiClient.get("/notifications/triggers", {
-      params: {
-        page: params.page,
-        limit: params.limit,
-        rule_id: params.rule_id || undefined,
-        status:
-          params.status && params.status !== "all" ? params.status : undefined,
-      },
+      params: query,
     });
     return res.data;
   },
@@ -200,16 +216,17 @@ export const EventCenterAPI = {
     data: NotificationDeliveryListPayload;
     message?: string;
   }> {
+    const query = {
+      page: params.page,
+      limit: params.limit,
+      rule_id: params.rule_id || undefined,
+      provider_id: params.provider_id || undefined,
+      trigger_id: params.trigger_id || undefined,
+      status:
+        params.status && params.status !== "all" ? params.status : undefined,
+    } satisfies NotificationDeliveryQuery;
     const res = await apiClient.get("/notifications/deliveries", {
-      params: {
-        page: params.page,
-        limit: params.limit,
-        rule_id: params.rule_id || undefined,
-        provider_id: params.provider_id || undefined,
-        trigger_id: params.trigger_id || undefined,
-        status:
-          params.status && params.status !== "all" ? params.status : undefined,
-      },
+      params: query,
     });
     return res.data;
   },
@@ -219,14 +236,15 @@ export const EventCenterAPI = {
     trigger_id?: string;
     status?: NotificationDeliveryStatus | "all";
   }) {
+    const body = {
+      rule_id: params.rule_id || undefined,
+      provider_id: params.provider_id || undefined,
+      trigger_id: params.trigger_id || undefined,
+      status:
+        params.status && params.status !== "all" ? params.status : undefined,
+    } satisfies NotificationDeliveryClearBody;
     const res = await apiClient.delete("/notifications/deliveries", {
-      data: {
-        rule_id: params.rule_id || undefined,
-        provider_id: params.provider_id || undefined,
-        trigger_id: params.trigger_id || undefined,
-        status:
-          params.status && params.status !== "all" ? params.status : undefined,
-      },
+      data: body,
     });
     return res.data as {
       success: boolean;

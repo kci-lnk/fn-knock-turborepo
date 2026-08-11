@@ -171,6 +171,7 @@ pub(crate) struct CidrCapabilities {
 
 pub(crate) async fn configured_cidr_source(state: &AppState) -> Result<(String, String), String> {
     let settings = state
+        .storage
         .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await
@@ -557,6 +558,7 @@ mod tests {
 
     async fn configure_custom_source(state: &AppState, url: &str) {
         state
+            .storage
             .store
             .set_json_value(
                 IP_LOCATION_API_SETTINGS_KEY,
@@ -626,6 +628,7 @@ mod tests {
         let (_directory, state) = cidr_test_state().await;
         let key = "fn_knock:cidr:test-source:cidrs:test-query";
         state
+            .storage
             .store
             .set_json_value_ex(
                 key,
@@ -644,7 +647,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(migrate_cidr_query_caches_on_boot(&state).await.unwrap(), 1);
-        let (stored, ttl) = state.store.get_json_value_with_ttl(key).await.unwrap();
+        let (stored, ttl) = state
+            .storage
+            .store
+            .get_json_value_with_ttl(key)
+            .await
+            .unwrap();
         let stored = stored.unwrap();
         assert!(stored.get("cidr_groups").is_none());
         assert_eq!(stored["fnknock_ipset_cache_version"], json!(1));
@@ -657,6 +665,7 @@ mod tests {
         let (_directory, state) = cidr_test_state().await;
         let policy = compile_ip_set(["203.0.113.0/25", "203.0.113.128/25"]).unwrap();
         state
+            .storage
             .store
             .set_json_value(
                 "fn_knock:cidr:test-source:cidrs:offline-recovery",

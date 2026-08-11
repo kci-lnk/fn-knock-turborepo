@@ -35,16 +35,37 @@ use super::{
     text::{dnsmasq_text, tunnel_manager_text, tunnel_manager_text_params},
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/system/clock/status",
+    tag = "system",
+    operation_id = "get_api_admin_system_clock_status",
+    responses((status = 200, description = "Cached system clock status"))
+)]
 pub(super) async fn clock_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(cached_clock_status(&state, &translator).await).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/system/clock/check",
+    tag = "system",
+    operation_id = "post_api_admin_system_clock_check",
+    responses((status = 200, description = "Refreshed system clock status"))
+)]
 pub(super) async fn clock_check(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(refresh_clock_status(&state, &translator).await).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/system/clock/sync",
+    tag = "system",
+    operation_id = "post_api_admin_system_clock_sync",
+    responses((status = 200, description = "System clock synchronization result"))
+)]
 pub(super) async fn clock_sync(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !system_clock_sync_available(&state) {
@@ -64,6 +85,7 @@ pub(super) async fn clock_sync(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/system/cloudflared/status", tag = "system", operation_id = "get_api_admin_system_cloudflared_status", responses((status = 200, description = "Cloudflared binary status")))]
 pub(super) async fn cloudflared_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(build_cloudflared_status(
@@ -73,10 +95,12 @@ pub(super) async fn cloudflared_status(State(state): State<AppState>) -> Respons
     .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/system/cloudflared/download", tag = "system", operation_id = "post_api_admin_system_cloudflared_download", responses((status = 200, description = "Cloudflared download started")))]
 pub(super) async fn cloudflared_download(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if start_download("cloudflared") {
-        tokio::spawn(download_cloudflared(state));
+        let task_state = state.clone();
+        state.spawn_background("cloudflared-download", download_cloudflared(task_state));
     }
     response::success_message(tunnel_manager_text(
         &translator,
@@ -86,6 +110,7 @@ pub(super) async fn cloudflared_download(State(state): State<AppState>) -> Respo
     .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/system/cloudflared/cancel", tag = "system", operation_id = "post_api_admin_system_cloudflared_cancel", responses((status = 200, description = "Cloudflared download cancelled")))]
 pub(super) async fn cloudflared_cancel(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     request_cancel("cloudflared");
@@ -97,6 +122,7 @@ pub(super) async fn cloudflared_cancel(State(state): State<AppState>) -> Respons
     .into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/system/cloudflared", tag = "system", operation_id = "delete_api_admin_system_cloudflared", responses((status = 200, description = "Cloudflared binary removed")))]
 pub(super) async fn cloudflared_delete(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let platform = detect_cloudflared_platform();
@@ -109,7 +135,7 @@ pub(super) async fn cloudflared_delete(State(state): State<AppState>) -> Respons
             tunnel_manager_text(&translator, "cloudflared", "platformUnsupported"),
         );
     };
-    let _manage_guard = state.cloudflared_manage_lock.lock().await;
+    let _manage_guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let should_resume = match cloudflared::pause_cloudflared_for_asset_update(&state).await {
         Ok(value) => value,
         Err(error) => {
@@ -160,20 +186,24 @@ pub(super) fn cloudflared_delete_unsupported_message(
         .then(|| tunnel_manager_text(translator, "cloudflared", "platformUnsupported"))
 }
 
+#[utoipa::path(get, path = "/api/admin/system/frp/status", tag = "system", operation_id = "get_api_admin_system_frp_status", responses((status = 200, description = "FRP binary status")))]
 pub(super) async fn frp_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(build_frp_status(&state.settings.data_dir, &translator)).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/system/frp/download", tag = "system", operation_id = "post_api_admin_system_frp_download", responses((status = 200, description = "FRP download started")))]
 pub(super) async fn frp_download(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if start_download("frp") {
-        tokio::spawn(download_frp(state));
+        let task_state = state.clone();
+        state.spawn_background("frp-download", download_frp(task_state));
     }
     response::success_message(tunnel_manager_text(&translator, "frp", "downloadStarted"))
         .into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/system/frp/cancel", tag = "system", operation_id = "post_api_admin_system_frp_cancel", responses((status = 200, description = "FRP download cancelled")))]
 pub(super) async fn frp_cancel(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     request_cancel("frp");
@@ -181,6 +211,7 @@ pub(super) async fn frp_cancel(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/system/frp", tag = "system", operation_id = "delete_api_admin_system_frp", responses((status = 200, description = "FRP binary removed")))]
 pub(super) async fn frp_delete(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let frp_dir = state.settings.data_dir.join("frp");
@@ -209,11 +240,13 @@ pub(super) async fn frp_delete(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/system/dnsmasq/status", tag = "system", operation_id = "get_api_admin_system_dnsmasq_status", responses((status = 200, description = "dnsmasq runtime status")))]
 pub(super) async fn dnsmasq_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(build_dnsmasq_status_with_translator(&translator)).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/system/dnsmasq/install", tag = "system", operation_id = "post_api_admin_system_dnsmasq_install", responses((status = 200, description = "dnsmasq installation state")))]
 pub(super) async fn dnsmasq_install(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     if !smart_connect_available(&state) {

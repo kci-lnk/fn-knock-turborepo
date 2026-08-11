@@ -55,7 +55,11 @@ pub(crate) async fn is_blacklisted_for_preflight(
         return Ok(false);
     }
 
-    Ok(state.store.scanner_blacklist_exists(&clean_ip).await?)
+    Ok(state
+        .storage
+        .store
+        .scanner_blacklist_exists(&clean_ip)
+        .await?)
 }
 
 pub(crate) async fn is_common_path_for_preflight(
@@ -123,7 +127,7 @@ pub(crate) async fn is_common_path_for_preflight(
         return Ok(true);
     }
 
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     Ok(config
         .get("proxy_mappings")
         .and_then(Value::as_array)
@@ -164,6 +168,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
     let min_score = now - settings.window_seconds * 1000;
     let window_min_score = now - settings.window_minutes * 60 * 1000;
     let hit_count = state
+        .storage
         .store
         .record_scanner_suspicious_hit(
             &clean_ip,
@@ -177,6 +182,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
 
     if hit_count >= settings.threshold && !is_blacklisted_for_preflight(state, &clean_ip).await? {
         let hits = state
+            .storage
             .store
             .scanner_suspicious_hits_since(&clean_ip, window_min_score)
             .await?
@@ -187,6 +193,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
             })
             .collect::<Vec<_>>();
         let ip_location = state
+            .storage
             .store
             .get_ip_location_cache(&clean_ip)
             .await?
@@ -210,6 +217,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
             object.insert("ipLocation".to_string(), Value::String(location));
         }
         state
+            .storage
             .store
             .add_scanner_blacklist_record(&clean_ip, &record, now, settings.blacklist_ttl_seconds)
             .await?;
@@ -284,6 +292,7 @@ pub(super) fn is_scanner_cidr_exempt_ip(state: &AppState, ip: &str) -> bool {
         return false;
     };
     state
+        .security
         .ipsets
         .get(SCANNER_EXEMPT_IPSET_KEY)
         .is_some_and(|policy| policy.contains(ip))

@@ -9,11 +9,11 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs, process::Command, sync::Mutex};
+use utoipa_axum::router::OpenApiRouter;
 use uuid::Uuid;
 
 use crate::{
@@ -161,7 +161,6 @@ mod supervisor;
 
 use binary::*;
 use errors::*;
-use handlers::*;
 use i18n::*;
 use parsing::*;
 use process::*;
@@ -171,42 +170,17 @@ use summary::*;
 use supervisor::*;
 
 pub fn frpc_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/frpc/status", get(status))
-        .route("/api/admin/frpc/overview", get(overview))
-        .route("/api/admin/frpc/web-status", get(web_status))
-        .route("/api/admin/frpc/config", get(get_config).post(save_config))
-        .route("/api/admin/frpc/start", post(start_primary))
-        .route("/api/admin/frpc/stop", post(stop_primary))
-        .route("/api/admin/frpc/logs", get(get_logs).delete(clear_logs))
-        .route("/api/admin/frpc/poll", get(poll_primary))
-        .route(
-            "/api/admin/frpc/instances",
-            get(get_instances).post(create_instance),
-        )
-        .route("/api/admin/frpc/instances/draft", post(create_draft))
-        .route(
-            "/api/admin/frpc/instances/{id}",
-            get(get_instance)
-                .put(update_instance)
-                .delete(delete_instance),
-        )
-        .route("/api/admin/frpc/instances/{id}/start", post(start_instance))
-        .route("/api/admin/frpc/instances/{id}/stop", post(stop_instance))
-        .route(
-            "/api/admin/frpc/instances/{id}/restart",
-            post(restart_instance),
-        )
-        .route(
-            "/api/admin/frpc/instances/{id}/logs",
-            get(get_instance_logs).delete(clear_instance_logs),
-        )
-        .route("/api/admin/frpc/instances/{id}/poll", get(poll_instance))
+    frpc_openapi_routes().into()
+}
+
+pub(crate) fn frpc_openapi_routes() -> OpenApiRouter<AppState> {
+    handlers::openapi_routes()
 }
 
 pub fn start_frpc_tasks(state: AppState) {
-    tokio::spawn(async move {
-        if let Err(error) = restore_on_boot(&state).await {
+    let task_state = state.clone();
+    state.spawn_background("frpc-restore", async move {
+        if let Err(error) = restore_on_boot(&task_state).await {
             tracing::warn!(%error, "failed to restore frpc runtime on boot");
         }
     });

@@ -3,10 +3,10 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     auth::mode::AuthLoginMode, crypto_utils, i18n::Translator, oidc_admin::callback_base_url,
@@ -25,7 +25,7 @@ use super::{
     },
 };
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, utoipa::ToSchema)]
 struct TestBody {
     username: Option<String>,
     password: Option<String>,
@@ -36,33 +36,29 @@ fn text(translator: &Translator, key: &str) -> String {
 }
 
 pub(crate) fn ldap_admin_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/auth/ldap/catalog", get(provider_catalog))
-        .route(
-            "/api/admin/auth/ldap/providers",
-            get(providers).post(create_provider),
-        )
-        .route(
-            "/api/admin/auth/ldap/providers/{id}",
-            patch(update_provider).delete(remove_provider),
-        )
-        .route(
-            "/api/admin/auth/ldap/providers/{id}/test",
-            post(test_provider),
-        )
-        .route(
-            "/api/admin/auth/ldap/totp/{totp_id}/bindings",
-            get(bindings_by_totp),
-        )
-        .route("/api/admin/auth/ldap/bindings/{id}", delete(remove_binding))
-        .route("/api/admin/auth/ldap/invitations", post(create_invitation))
+    ldap_admin_openapi_routes().into()
 }
 
+pub(crate) fn ldap_admin_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(provider_catalog))
+        .routes(routes!(providers))
+        .routes(routes!(create_provider))
+        .routes(routes!(update_provider))
+        .routes(routes!(remove_provider))
+        .routes(routes!(test_provider))
+        .routes(routes!(bindings_by_totp))
+        .routes(routes!(remove_binding))
+        .routes(routes!(create_invitation))
+}
+
+#[utoipa::path(get, path = "/api/admin/auth/ldap/catalog", tag = "auth-ldap", operation_id = "get_api_admin_auth_ldap_catalog", responses((status = 200, description = "LDAP provider catalog")))]
 async fn provider_catalog(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     response::ok(json!({ "providers": catalog(&translator) })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/auth/ldap/providers", tag = "auth-ldap", operation_id = "get_api_admin_auth_ldap_providers", responses((status = 200, description = "LDAP providers")))]
 async fn providers(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match list_providers(&state).await {
@@ -80,6 +76,7 @@ async fn providers(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/ldap/providers", tag = "auth-ldap", operation_id = "post_api_admin_auth_ldap_providers", request_body = serde_json::Value, responses((status = 200, description = "Created LDAP provider")))]
 async fn create_provider(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     let Some(input) = body.as_object() else {
@@ -103,6 +100,7 @@ async fn create_provider(State(state): State<AppState>, Json(body): Json<Value>)
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/auth/ldap/providers/{id}", tag = "auth-ldap", operation_id = "patch_api_admin_auth_ldap_providers_by_id", request_body = serde_json::Value, params(("id" = String, Path, description = "LDAP provider identifier")), responses((status = 200, description = "Updated LDAP provider")))]
 async fn update_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -143,6 +141,7 @@ async fn update_provider(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/auth/ldap/providers/{id}", tag = "auth-ldap", operation_id = "delete_api_admin_auth_ldap_providers_by_id", params(("id" = String, Path, description = "LDAP provider identifier")), responses((status = 200, description = "Deleted LDAP provider")))]
 async fn remove_provider(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match get_provider(&state, &id).await {
@@ -170,6 +169,7 @@ async fn remove_provider(State(state): State<AppState>, Path(id): Path<String>) 
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/ldap/providers/{id}/test", tag = "auth-ldap", operation_id = "post_api_admin_auth_ldap_providers_by_id_test", request_body = Option<TestBody>, params(("id" = String, Path, description = "LDAP provider identifier")), responses((status = 200, description = "LDAP provider connection test result")))]
 async fn test_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -248,6 +248,7 @@ async fn test_provider(
     Json(json!({ "success": success, "message": message })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/auth/ldap/totp/{totp_id}/bindings", tag = "auth-ldap", operation_id = "get_api_admin_auth_ldap_totp_by_totp_id_bindings", params(("totp_id" = String, Path, description = "TOTP credential identifier")), responses((status = 200, description = "LDAP bindings for a TOTP credential")))]
 async fn bindings_by_totp(State(state): State<AppState>, Path(totp_id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match list_bindings(&state).await {
@@ -294,6 +295,7 @@ async fn bindings_by_totp(State(state): State<AppState>, Path(totp_id): Path<Str
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/auth/ldap/bindings/{id}", tag = "auth-ldap", operation_id = "delete_api_admin_auth_ldap_bindings_by_id", params(("id" = String, Path, description = "LDAP binding identifier")), responses((status = 200, description = "Deleted LDAP binding")))]
 async fn remove_binding(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match delete_binding(&state, &id).await {
@@ -309,6 +311,7 @@ async fn remove_binding(State(state): State<AppState>, Path(id): Path<String>) -
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/auth/ldap/invitations", tag = "auth-ldap", operation_id = "post_api_admin_auth_ldap_invitations", request_body = serde_json::Value, responses((status = 200, description = "Created LDAP binding invitation")))]
 async fn create_invitation(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -316,7 +319,7 @@ async fn create_invitation(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.get_auth_login_mode().await {
+    match state.storage.store.get_auth_login_mode().await {
         Ok(AuthLoginMode::Totp) => {}
         Ok(AuthLoginMode::Password) => {
             return response::error(
@@ -348,7 +351,7 @@ async fn create_invitation(
             text(&translator, "invitationFieldsRequired"),
         );
     }
-    let totps = match state.store.get_totps().await {
+    let totps = match state.storage.store.get_totps().await {
         Ok(totps) => totps,
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP credentials for LDAP invite");
@@ -383,7 +386,7 @@ async fn create_invitation(
             );
         }
     };
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for LDAP invite URL");

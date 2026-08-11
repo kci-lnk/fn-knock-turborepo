@@ -119,6 +119,7 @@ pub(super) async fn try_acquire_geo_refresh(
 ) -> crate::storage::StorageResult<Option<String>> {
     let lock_id = uuid::Uuid::new_v4().to_string();
     let acquired = state
+        .storage
         .store
         .set_json_value_nx_ex(
             GEO_REFRESH_LOCK_KEY,
@@ -134,6 +135,7 @@ pub(super) async fn try_acquire_geo_refresh(
 
 pub(super) async fn release_geo_refresh(state: &AppState, lock_id: &str) {
     if let Err(error) = state
+        .storage
         .store
         .delete_lock_if_owned(GEO_REFRESH_LOCK_KEY, lock_id)
         .await
@@ -144,6 +146,7 @@ pub(super) async fn release_geo_refresh(state: &AppState, lock_id: &str) {
 
 async fn renew_geo_refresh(state: &AppState, lock_id: &str) -> crate::storage::StorageResult<bool> {
     state
+        .storage
         .store
         .set_json_lock_if_owned_ex(
             GEO_REFRESH_LOCK_KEY,
@@ -191,7 +194,7 @@ pub(super) fn spawn_geo_refresh(state: &AppState, mut data: Value, lock_id: Stri
         })
         .collect::<Vec<_>>();
     let task_state = state.clone();
-    tokio::spawn(async move {
+    state.spawn_background("gateway-analytics-geo-refresh", async move {
         if let Err(error) = run_geo_refresh(&task_state, ips, &lock_id).await {
             tracing::warn!(%error, "gateway analytics geo refresh failed");
         }
@@ -201,6 +204,7 @@ pub(super) fn spawn_geo_refresh(state: &AppState, mut data: Value, lock_id: Stri
 
 async fn is_geo_refresh_active(state: &AppState) -> crate::storage::StorageResult<bool> {
     Ok(state
+        .storage
         .store
         .get_json_value(GEO_REFRESH_LOCK_KEY)
         .await?

@@ -10,7 +10,7 @@ use std::{
 use ipnet::IpNet;
 use serde_json::{Value, json};
 use tokio::{
-    task::JoinHandle,
+    task::AbortHandle,
     time::{self, MissedTickBehavior},
 };
 
@@ -36,7 +36,7 @@ const MAX_RECENT_AUTH_IP_TOUCHES: usize = 4096;
 #[derive(Default)]
 struct ScheduledRebuild {
     next_id: u64,
-    task: Option<(u64, JoinHandle<()>)>,
+    task: Option<(u64, AbortHandle)>,
 }
 
 #[derive(Clone, Debug)]
@@ -71,10 +71,11 @@ pub enum CommonAuthLocationClassification {
 }
 
 pub fn start_common_auth_location_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("common-auth-locations", async move {
         tokio::select! {
-            _ = state.shutdown.cancelled() => return,
-            result = rebuild_common_auth_locations_runtime_state(&state) => {
+            _ = task_state.shutdown.cancelled() => return,
+            result = rebuild_common_auth_locations_runtime_state(&task_state) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "failed to rebuild common auth locations on boot");
                 }
@@ -85,12 +86,12 @@ pub fn start_common_auth_location_tasks(state: AppState) {
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = rebuild_common_auth_locations_runtime_state(&state) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = rebuild_common_auth_locations_runtime_state(&task_state) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "failed to rebuild common auth locations");
                     }
@@ -108,8 +109,11 @@ pub async fn migrate_common_auth_location_ipset_on_boot(state: &AppState) -> any
 pub(crate) async fn migrate_common_auth_location_ipset_in_storage(
     state: &AppState,
 ) -> anyhow::Result<Value> {
-    let Some(raw) = state.store.get_string_value(RUNTIME_KEY).await? else {
-        state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
+    let Some(raw) = state.storage.store.get_string_value(RUNTIME_KEY).await? else {
+        state
+            .security
+            .ipsets
+            .publish(COMMON_LOCATION_IPSET_KEY, None);
         return Ok(compact_common_location_runtime(
             &Value::Null,
             false,
@@ -121,10 +125,11 @@ pub(crate) async fn migrate_common_auth_location_ipset_in_storage(
     let policy = policy_from_runtime(&previous)?.into_current_format();
     let runtime = compact_common_location_runtime(&previous, enabled, &policy);
     state
+        .storage
         .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         COMMON_LOCATION_IPSET_KEY,
         (enabled && policy.range_count() > 0).then_some(policy),
     );
@@ -141,7 +146,12 @@ pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Re
     if !claim_recent_auth_ip_touch(&store_key, &normalized, now) {
         return Ok(());
     }
-    if let Err(error) = state.store.record_recent_auth_ip(&normalized, now).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .record_recent_auth_ip(&normalized, now)
+        .await
+    {
         release_recent_auth_ip_touch(&store_key, &normalized, now);
         return Err(error.into());
     }
@@ -199,6 +209,7 @@ pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> an
         return Ok(false);
     };
     Ok(state
+        .security
         .ipsets
         .get(COMMON_LOCATION_IPSET_KEY)
         .is_some_and(|policy| policy.contains(ip)))
@@ -213,7 +224,7 @@ pub async fn classify_auth_location(
         return CommonAuthLocationClassification::Unknown;
     }
 
-    let cached = match state.store.get_ip_location_cache(&normalized).await {
+    let cached = match state.storage.store.get_ip_location_cache(&normalized).await {
         Ok(Some(cached)) => cached,
         Ok(None) => {
             if let Err(error) = ensure_ip_locations_enqueued(state, vec![normalized.clone()]).await
@@ -228,7 +239,7 @@ pub async fn classify_auth_location(
         }
     };
 
-    let runtime = match state.store.get_string_value(RUNTIME_KEY).await {
+    let runtime = match state.storage.store.get_string_value(RUNTIME_KEY).await {
         Ok(Some(raw)) => match serde_json::from_str::<Value>(&raw) {
             Ok(runtime) => runtime,
             Err(error) => {
@@ -299,6 +310,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_REGION_CIDRS_PER_LOCATION", 128).max(0) as usize;
 
     let entries = state
+        .storage
         .store
         .list_recent_auth_ips_with_scores(now_seconds(), max_recent_ips)
         .await?
@@ -309,7 +321,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
     let mut samples = Vec::new();
     let mut pending_ips = Vec::new();
     for entry in &entries {
-        let cached = state.store.get_ip_location_cache(&entry.ip).await?;
+        let cached = state.storage.store.get_ip_location_cache(&entry.ip).await?;
         collect_resolved_sample_or_pending(entry, cached, &mut samples, &mut pending_ips);
     }
     if !pending_ips.is_empty() {
@@ -395,11 +407,12 @@ pub async fn rebuild_common_auth_locations_runtime_state(
     });
     CompiledIpSet::apply_runtime_envelope(&mut runtime, Some(&policy));
     state
+        .storage
         .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         COMMON_LOCATION_IPSET_KEY,
         (policy.range_count() > 0).then_some(policy),
     );
@@ -414,11 +427,11 @@ pub async fn rebuild_common_auth_locations_runtime_state(
 }
 
 async fn common_auth_location_consumers_enabled(state: &AppState) -> anyhow::Result<bool> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     if existing_common_location_consumer_enabled(&config, None) {
         return Ok(true);
     }
-    let scanner_settings = state.store.scanner_settings_raw().await?;
+    let scanner_settings = state.storage.store.scanner_settings_raw().await?;
     if existing_common_location_consumer_enabled(&Value::Null, scanner_settings.as_ref()) {
         return Ok(true);
     }
@@ -457,6 +470,7 @@ fn pow_common_location_consumer_enabled(captcha: &Value) -> bool {
 
 async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow::Result<Value> {
     if let Some(runtime) = state
+        .storage
         .store
         .get_string_value(RUNTIME_KEY)
         .await?
@@ -468,7 +482,10 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
             .and_then(Value::as_array)
             .is_none_or(Vec::is_empty)
     {
-        state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
+        state
+            .security
+            .ipsets
+            .publish(COMMON_LOCATION_IPSET_KEY, None);
         return Ok(runtime);
     }
 
@@ -482,11 +499,15 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
     });
     CompiledIpSet::apply_runtime_envelope(&mut runtime, None);
     state
+        .storage
         .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
-    state.ipsets.publish(COMMON_LOCATION_IPSET_KEY, None);
+    state
+        .security
+        .ipsets
+        .publish(COMMON_LOCATION_IPSET_KEY, None);
     Ok(runtime)
 }
 
@@ -511,32 +532,31 @@ fn schedule_common_auth_locations_rebuild_after(
     }
     scheduled.next_id = scheduled.next_id.wrapping_add(1).max(1);
     let task_id = scheduled.next_id;
-    scheduled.task = Some((
-        task_id,
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = state.shutdown.cancelled() => return,
-                _ = time::sleep(delay) => {}
+    let task_state = state.clone();
+    let task = state.spawn_abortable_background("common-auth-locations-rebuild", async move {
+        tokio::select! {
+            _ = task_state.shutdown.cancelled() => return,
+            _ = time::sleep(delay) => {}
+        }
+        {
+            let Ok(mut scheduled) = SCHEDULED_REBUILD.lock() else {
+                return;
+            };
+            if !matches!(scheduled.task.as_ref(), Some((id, _)) if *id == task_id) {
+                return;
             }
-            {
-                let Ok(mut scheduled) = SCHEDULED_REBUILD.lock() else {
-                    return;
-                };
-                if !matches!(scheduled.task.as_ref(), Some((id, _)) if *id == task_id) {
-                    return;
-                }
-                scheduled.task = None;
-            }
-            tokio::select! {
-                _ = state.shutdown.cancelled() => {}
-                result = rebuild_common_auth_locations_runtime_state(&state) => {
-                    if let Err(error) = result {
-                        tracing::warn!(%error, %reason, "failed to rebuild common auth locations");
-                    }
+            scheduled.task = None;
+        }
+        tokio::select! {
+            _ = task_state.shutdown.cancelled() => {}
+            result = rebuild_common_auth_locations_runtime_state(&task_state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, %reason, "failed to rebuild common auth locations");
                 }
             }
-        }),
-    ));
+        }
+    });
+    scheduled.task = task.map(|task| (task_id, task));
 }
 
 fn common_auth_locations_rebuild_debounce() -> Duration {
@@ -555,7 +575,7 @@ async fn sync_common_auth_locations_to_gateway(
     state: &AppState,
     runtime: &Value,
 ) -> anyhow::Result<()> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let waf = config.get("waf").unwrap_or(&Value::Null);
     sync_common_auth_locations_to_gateway_with_waf(state, runtime, waf).await
 }
@@ -565,6 +585,7 @@ pub async fn sync_common_auth_locations_for_waf(
     waf: &Value,
 ) -> anyhow::Result<()> {
     let runtime = state
+        .storage
         .store
         .get_string_value(RUNTIME_KEY)
         .await?
@@ -598,7 +619,8 @@ async fn sync_common_auth_locations_to_gateway_with_waf(
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null),
     });
     let (status, response) = state
-        .go_backend
+        .gateway
+        .client
         .set_common_location_exemptions(&payload)
         .await?;
     if let Some(error) = common_location_sync_failure(status, &response) {

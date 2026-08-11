@@ -175,6 +175,7 @@ pub(super) async fn save_relay(state: &AppState, relay: &RelayRecord) -> anyhow:
 
 pub(super) async fn delete_relay(state: &AppState, id: &str) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .delete_string_and_zrem(&relay_key(id), RELAY_INDEX_KEY, id)
         .await?;
@@ -205,6 +206,7 @@ pub(super) async fn save_target(state: &AppState, target: &TargetRecord) -> anyh
 
 pub(super) async fn delete_target(state: &AppState, id: &str) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .delete_string_and_zrem(&target_key(id), TARGET_INDEX_KEY, id)
         .await?;
@@ -226,6 +228,7 @@ pub(super) async fn save_target_status(
     status: &TargetStatusRecord,
 ) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .set_json_value(&target_status_key(id), &serde_json::to_value(status)?)
         .await?;
@@ -233,12 +236,17 @@ pub(super) async fn save_target_status(
 }
 
 pub(super) async fn delete_target_status(state: &AppState, id: &str) -> anyhow::Result<()> {
-    state.store.delete_key(&target_status_key(id)).await?;
+    state
+        .storage
+        .store
+        .delete_key(&target_status_key(id))
+        .await?;
     Ok(())
 }
 
 pub(super) async fn load_local_relay_config(state: &AppState) -> anyhow::Result<LocalRelayConfig> {
     state
+        .storage
         .store
         .get_json_value(LOCAL_RELAY_CONFIG_KEY)
         .await?
@@ -253,6 +261,7 @@ pub(super) async fn save_local_relay_config(
     config: &LocalRelayConfig,
 ) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .set_json_value(LOCAL_RELAY_CONFIG_KEY, &serde_json::to_value(config)?)
         .await?;
@@ -268,9 +277,9 @@ where
     T: for<'de> Deserialize<'de>,
     F: Fn(&str) -> String,
 {
-    let ids = state.store.zrevrange_strings(index_key).await?;
+    let ids = state.storage.store.zrevrange_strings(index_key).await?;
     let keys = ids.iter().map(|id| key(id)).collect::<Vec<_>>();
-    let values = state.store.mget_string_values(&keys).await?;
+    let values = state.storage.store.mget_string_values(&keys).await?;
     let mut records = Vec::with_capacity(values.len());
     for value in values.into_iter().flatten() {
         match serde_json::from_str(&value) {
@@ -285,7 +294,7 @@ async fn load_record<T>(state: &AppState, key: &str) -> anyhow::Result<Option<T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    let value = state.store.get_json_value(key).await?;
+    let value = state.storage.store.get_json_value(key).await?;
     value
         .map(serde_json::from_value::<T>)
         .transpose()
@@ -301,6 +310,7 @@ async fn save_record<T: Serialize>(
 ) -> anyhow::Result<()> {
     let serialized = serde_json::to_string(value)?;
     state
+        .storage
         .store
         .set_string_and_zadd(data_key, &serialized, index_key, id, time_utils::now_ms())
         .await?;

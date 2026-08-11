@@ -16,7 +16,6 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
 };
 use base64::{Engine as _, engine::general_purpose};
 use serde::{Deserialize, Serialize};
@@ -29,6 +28,7 @@ use tokio::{
     task,
     time::{Instant, MissedTickBehavior, interval, sleep},
 };
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
 use crate::{
@@ -248,18 +248,18 @@ struct CreateSessionBody {
     rows: Option<f64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct RenameSessionBody {
     title: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct InputBody {
     #[serde(rename = "dataBase64")]
     data_base64: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct ResizeBody {
     cols: f64,
     rows: f64,
@@ -272,53 +272,39 @@ struct PollQuery {
 }
 
 pub fn terminal_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/terminal/status", get(status))
-        .route("/api/admin/terminal/tmux/install", post(install_tmux))
-        .route(
-            "/api/admin/terminal/sessions",
-            get(list_sessions).post(create_session),
-        )
-        .route(
-            "/api/admin/terminal/sessions/{id}",
-            get(get_session)
-                .patch(rename_session)
-                .delete(delete_session),
-        )
-        .route(
-            "/api/admin/terminal/sessions/{id}/attachments",
-            post(create_attachment),
-        )
-        .route(
-            "/api/admin/terminal/attachments/{id}/poll",
-            get(poll_attachment),
-        )
-        .route(
-            "/api/admin/terminal/attachments/{id}/input",
-            post(send_input),
-        )
-        .route(
-            "/api/admin/terminal/attachments/{id}/resize",
-            post(resize_attachment),
-        )
-        .route(
-            "/api/admin/terminal/attachments/{id}",
-            delete(delete_attachment),
-        )
+    let terminal_runtime_routes: Router<AppState> = terminal_runtime_routes().into();
+    Router::new().merge(terminal_runtime_routes)
+}
+
+pub(crate) fn terminal_runtime_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(install_tmux))
+        .routes(routes!(list_sessions))
+        .routes(routes!(create_session))
+        .routes(routes!(get_session))
+        .routes(routes!(rename_session))
+        .routes(routes!(delete_session))
+        .routes(routes!(create_attachment))
+        .routes(routes!(poll_attachment))
+        .routes(routes!(send_input))
+        .routes(routes!(resize_attachment))
+        .routes(routes!(delete_attachment))
 }
 
 pub fn start_terminal_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("terminal-session-cleanup", async move {
         let mut ticker = interval(Duration::from_secs(60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = cleanup_expired_sessions(&state) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = cleanup_expired_sessions(&task_state) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "failed to cleanup expired terminal sessions");
                     }

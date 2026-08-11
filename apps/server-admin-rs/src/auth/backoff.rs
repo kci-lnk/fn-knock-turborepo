@@ -1,12 +1,12 @@
 use axum::{
-    Json, Router,
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use serde::Deserialize;
 use serde_json::json;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{http_utils::normalize_ip, i18n::Translator, response, state::AppState};
 
@@ -24,15 +24,22 @@ struct BackoffResetBody {
     ip: String,
 }
 
-pub fn backoff_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/backoff/list", get(list))
-        .route("/api/admin/backoff/status", get(status))
-        .route("/api/admin/backoff/reset", post(reset))
+pub fn backoff_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list))
+        .routes(routes!(status))
+        .routes(routes!(reset))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/backoff/list",
+    tag = "backoff",
+    operation_id = "get_api_admin_backoff_list",
+    responses((status = 200, description = "Active login backoff records"))
+)]
 async fn list(State(state): State<AppState>) -> Response {
-    match state.store.list_blocked_login_backoffs().await {
+    match state.storage.store.list_blocked_login_backoffs().await {
         Ok(items) => response::ok(items).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -45,6 +52,13 @@ async fn list(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/backoff/status",
+    tag = "backoff",
+    operation_id = "get_api_admin_backoff_status",
+    responses((status = 200, description = "Login backoff status for an IP"))
+)]
 async fn status(
     State(state): State<AppState>,
     Query(query): Query<BackoffStatusQuery>,
@@ -56,7 +70,7 @@ async fn status(
             backoff_route_text(&translator, "ipRequired"),
         );
     };
-    match state.store.get_login_backoff_status(&ip).await {
+    match state.storage.store.get_login_backoff_status(&ip).await {
         Ok(status) => response::ok(status).into_response(),
         Err(error) => {
             tracing::warn!(%error, %ip, "failed to inspect login backoff status");
@@ -68,10 +82,17 @@ async fn status(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/admin/backoff/reset",
+    tag = "backoff",
+    operation_id = "post_api_admin_backoff_reset",
+    responses((status = 200, description = "Login backoff reset result"))
+)]
 async fn reset(State(state): State<AppState>, Json(body): Json<BackoffResetBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     let ip = normalize_auth_failure_tracking_ip(&body.ip);
-    match state.store.reset_login_backoff(&ip).await {
+    match state.storage.store.reset_login_backoff(&ip).await {
         Ok(()) => response::ok(json!({})).into_response(),
         Err(error) => {
             tracing::warn!(%error, %ip, "failed to reset login backoff");

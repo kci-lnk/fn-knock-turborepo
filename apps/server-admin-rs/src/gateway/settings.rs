@@ -1,11 +1,9 @@
 use std::{collections::BTreeSet, net::IpAddr};
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 use ipnet::IpNet;
 use serde_json::{Map, Value, json};
@@ -55,28 +53,12 @@ fn localize_gateway_route_message(translator: &Translator, message: &str) -> Str
     }
 }
 
-pub fn gateway_settings_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/config/gateway",
-            get(get_gateway).post(update_gateway),
-        )
-        .route(
-            "/api/admin/config/gateway/visibility",
-            get(get_gateway_visibility).post(update_gateway_visibility),
-        )
-        .route(
-            "/api/admin/config/gateway/proxy-headers",
-            get(get_gateway_proxy_headers).post(update_gateway_proxy_headers),
-        )
-        .route(
-            "/api/admin/config/gateway/host-response",
-            get(get_gateway_host_response).post(update_gateway_host_response),
-        )
+pub fn gateway_settings_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
+    handlers::routes()
 }
 
 pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for gateway settings boot sync");
@@ -89,6 +71,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let visibility_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
@@ -105,6 +88,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let proxy_headers_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await
@@ -121,6 +105,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let host_response_runtime = match state
+        .storage
         .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await
@@ -168,7 +153,6 @@ mod runtime;
 pub(crate) use compile::compile_host_visibility_config;
 use compile::*;
 use details::*;
-use handlers::*;
 use hosts::*;
 pub(crate) use migrate::{migrate_visibility_policies_locked, migrate_visibility_policies_on_boot};
 use normalize::*;

@@ -6,7 +6,7 @@ use axum::{
     middleware::{self, Next},
     response::Response as AxumResponse,
 };
-use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
+use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
 use super::docker_admin_view;
 use crate::{
@@ -36,8 +36,12 @@ use crate::{
     proxy_config::proxy_config_routes,
     response,
     runtime_config::{
-        firewall_runtime_routes, fnos_connect_waf_routes, runtime_config_routes,
-        smart_connect_config_routes, terminal_feature_routes,
+        auto_https_config_routes, captcha_config_routes, default_route_config_routes,
+        firewall_runtime_routes, fnos_connect_waf_routes, fnos_network_tuning_routes,
+        fnos_port_icon_hijack_routes, fnos_share_bypass_routes, protocol_mapping_feature_routes,
+        proxy_protocol_force_routes, run_mode_prompt_preferences_routes, run_type_config_routes,
+        smart_connect_config_routes, sync_routes_config_routes, terminal_feature_routes,
+        welcome_guide_routes, wol_feature_config_routes,
     },
     runtime_health::routes::runtime_health_routes,
     runtime_profile,
@@ -62,33 +66,84 @@ use crate::{
 pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Router {
     let capabilities =
         runtime_profile::get_runtime_capabilities(&runtime_profile::get_runtime_profile(&state));
+    backend_router_with_capabilities(state, protected_admin_view, capabilities)
+}
+
+fn backend_router_with_capabilities(
+    state: AppState,
+    protected_admin_view: bool,
+    capabilities: runtime_profile::RuntimeCapabilities,
+) -> Router {
+    // These domains register runtime routes and OpenAPI operations from the same
+    // annotated handlers. Remaining domains migrate in similarly scoped batches.
+    let dashboard_routes: Router<AppState> = dashboard_routes().into();
+    let cidr_routes: Router<AppState> = cidr_routes().into();
+    let ip_location_routes: Router<AppState> = ip_location_routes().into();
+    let ip_location_config_routes: Router<AppState> = ip_location_config_routes().into();
+    let backoff_routes: Router<AppState> = backoff_routes().into();
+    let internal_system_event_routes: Router<AppState> = internal_system_event_routes().into();
+    let admin_event_routes: Router<AppState> = admin_event_routes().into();
+    let runtime_health_routes: Router<AppState> = runtime_health_routes().into();
+    let general_blacklist_routes: Router<AppState> = general_blacklist_routes().into();
+    let scanner_routes: Router<AppState> = scanner_routes().into();
+    let gateway_settings_routes: Router<AppState> = gateway_settings_routes().into();
+    let system_info_routes: Router<AppState> = system_info_routes().into();
+    let security_overview_routes: Router<AppState> = security_overview_routes().into();
+    let update_routes: Router<AppState> = update_routes().into();
+    let fnos_port_icon_hijack_routes: Router<AppState> = fnos_port_icon_hijack_routes().into();
+    let fnos_network_tuning_routes: Router<AppState> = fnos_network_tuning_routes().into();
+    let fnos_share_bypass_routes: Router<AppState> = fnos_share_bypass_routes().into();
+    let welcome_guide_routes: Router<AppState> = welcome_guide_routes().into();
+    let proxy_protocol_force_routes: Router<AppState> = proxy_protocol_force_routes().into();
+    let run_mode_prompt_preferences_routes: Router<AppState> =
+        run_mode_prompt_preferences_routes().into();
+    let protocol_mapping_feature_routes: Router<AppState> =
+        protocol_mapping_feature_routes().into();
+    let auto_https_config_routes: Router<AppState> = auto_https_config_routes().into();
+    let default_route_config_routes: Router<AppState> = default_route_config_routes().into();
+    let captcha_config_routes: Router<AppState> = captcha_config_routes().into();
+    let run_type_config_routes: Router<AppState> = run_type_config_routes().into();
+    let wol_feature_config_routes: Router<AppState> = wol_feature_config_routes().into();
+    let sync_routes_config_routes: Router<AppState> = sync_routes_config_routes().into();
     let mut api = Router::new()
         .route("/api/admin/healthz", axum::routing::get(response::healthz))
         .merge(openapi_docs_routes())
         .merge(admin_routes(protected_admin_view))
         .merge(admin_control_routes())
-        .merge(backoff_routes())
+        .merge(backoff_routes)
         .merge(whitelist_routes())
         .merge(proxy_config_routes())
-        .merge(runtime_config_routes())
-        .merge(dashboard_routes())
+        .merge(sync_routes_config_routes)
+        .merge(fnos_port_icon_hijack_routes)
+        .merge(fnos_network_tuning_routes)
+        .merge(fnos_share_bypass_routes)
+        .merge(welcome_guide_routes)
+        .merge(proxy_protocol_force_routes)
+        .merge(run_mode_prompt_preferences_routes)
+        .merge(protocol_mapping_feature_routes)
+        .merge(auto_https_config_routes)
+        .merge(default_route_config_routes)
+        .merge(captcha_config_routes)
+        .merge(run_type_config_routes)
+        .merge(wol_feature_config_routes)
+        .merge(dashboard_routes)
         .merge(ddns_status_routes())
         .merge(scan_asset_routes())
-        .merge(cidr_routes())
-        .merge(scanner_routes())
-        .merge(security_overview_routes())
-        .merge(admin_event_routes())
-        .merge(runtime_health_routes())
-        .merge(internal_system_event_routes())
-        .merge(system_info_routes())
+        .merge(cidr_routes)
+        .merge(scanner_routes)
+        .merge(security_overview_routes)
+        .merge(admin_event_routes)
+        .merge(runtime_health_routes)
+        .merge(internal_system_event_routes)
+        .merge(system_info_routes)
         .merge(system_asset_routes())
         .merge(ssl_routes())
-        .merge(general_blacklist_routes())
+        .merge(general_blacklist_routes)
         .merge(gateway_logs_routes())
         .merge(deep_monitor_routes())
-        .merge(gateway_settings_routes())
-        .merge(ip_location_routes())
-        .merge(ip_location_config_routes())
+        .merge(gateway_settings_routes)
+        .merge(ip_location_routes)
+        .merge(ip_location_config_routes)
         .merge(maintenance_routes())
         .merge(notification_routes())
         .merge(oidc_admin_routes())
@@ -99,23 +154,26 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         api = api.merge(acme_routes());
     }
     if capabilities.fnos_certificate_sync_available {
-        api = api.merge(fnos_certificate_sync_routes());
+        let fnos_certificate_sync_routes: Router<AppState> = fnos_certificate_sync_routes().into();
+        api = api.merge(fnos_certificate_sync_routes);
     }
     if capabilities.host_firewall_available {
-        api = api.merge(firewall_runtime_routes());
+        let firewall_runtime_routes: Router<AppState> = firewall_runtime_routes().into();
+        api = api.merge(firewall_runtime_routes);
     }
     if capabilities.fnos_connect_waf_available {
-        api = api.merge(fnos_connect_waf_routes());
+        let fnos_connect_waf_routes: Router<AppState> = fnos_connect_waf_routes().into();
+        api = api.merge(fnos_connect_waf_routes);
     }
     if capabilities.smart_connect_available {
+        let smart_connect_config_routes: Router<AppState> = smart_connect_config_routes().into();
         api = api
-            .merge(smart_connect_config_routes())
+            .merge(smart_connect_config_routes)
             .merge(smart_connect_asset_routes());
     }
     if capabilities.terminal_available {
-        api = api
-            .merge(terminal_feature_routes())
-            .merge(terminal_routes());
+        let terminal_feature_routes: Router<AppState> = terminal_feature_routes().into();
+        api = api.merge(terminal_feature_routes).merge(terminal_routes());
     }
     if capabilities.ssh_security_available {
         api = api.merge(ssh_security_routes());
@@ -126,7 +184,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
     if capabilities.frpc_available {
         api = api.merge(frpc_routes());
     }
-    api = api.merge(update_routes());
+    api = api.merge(update_routes);
     let api = api.fallback(api_not_found);
     let api = if protected_admin_view {
         api.layer(middleware::from_fn_with_state(
@@ -147,6 +205,9 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
     } else {
         api
     };
+    let api = api.layer(middleware::from_fn(admin_same_origin_middleware));
+    #[cfg(test)]
+    let api = api.layer(middleware::from_fn(route_contract_probe_middleware));
 
     let router = Router::new()
         .route("/__fn-knock/readyz", axum::routing::get(response::readyz))
@@ -154,9 +215,36 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(admin_static_routes())
         .fallback(static_files::admin_fallback)
         .layer(CompressionLayer::new())
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn(browser_security_headers_middleware));
 
-    router.layer(CorsLayer::permissive()).with_state(state)
+    router.with_state(state)
+}
+
+#[cfg(test)]
+async fn route_contract_probe_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+    use axum::extract::MatchedPath;
+
+    if req
+        .headers()
+        .contains_key("x-fn-knock-route-contract-probe")
+    {
+        let matched_path = req
+            .extensions()
+            .get::<MatchedPath>()
+            .map(MatchedPath::as_str)
+            .unwrap_or_default();
+        let mut response = AxumResponse::new(Body::empty());
+        *response.status_mut() = StatusCode::NO_CONTENT;
+        if let Ok(value) = HeaderValue::from_str(matched_path) {
+            response
+                .headers_mut()
+                .insert("x-fn-knock-matched-path", value);
+        }
+        return response;
+    }
+
+    next.run(req).await
 }
 
 async fn api_not_found(State(state): State<AppState>) -> axum::response::Response {
@@ -184,11 +272,11 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .fallback(static_files::auth_fallback)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
-        .layer(middleware::from_fn(auth_security_headers_middleware))
+        .layer(middleware::from_fn(browser_security_headers_middleware))
         .with_state(state)
 }
 
-async fn auth_security_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+async fn browser_security_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
     headers.insert(
@@ -208,7 +296,7 @@ async fn auth_security_headers_middleware(req: Request<Body>, next: Next) -> Axu
 }
 
 async fn auth_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResponse {
-    if auth_request_origin_allowed(req.method(), req.headers()) {
+    if browser_request_origin_allowed(req.method(), req.headers()) {
         return next.run(req).await;
     }
 
@@ -218,7 +306,18 @@ async fn auth_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResp
     )
 }
 
-fn auth_request_origin_allowed(method: &Method, headers: &HeaderMap) -> bool {
+async fn admin_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResponse {
+    if browser_request_origin_allowed(req.method(), req.headers()) {
+        return next.run(req).await;
+    }
+
+    response::error(
+        StatusCode::FORBIDDEN,
+        "Cross-origin management request denied",
+    )
+}
+
+fn browser_request_origin_allowed(method: &Method, headers: &HeaderMap) -> bool {
     if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return true;
     }
@@ -262,6 +361,19 @@ fn auth_request_origin_allowed(method: &Method, headers: &HeaderMap) -> bool {
     let Some(direct_authority) = direct_authority else {
         return false;
     };
+    // fnOS rewrites Host while proxying /cgi through trim_http_cgi. The admin
+    // frontend therefore supplies its browser origin in a non-safelisted
+    // header. Cross-origin browser callers cannot attach this header unless a
+    // CORS preflight succeeds, and these routers never grant CORS access.
+    let cgi_browser_origin_matches = authority_is_loopback(direct_authority)
+        && headers
+            .get("x-fn-knock-browser-origin")
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .is_some_and(|value| value == origin.as_str().trim_end_matches('/'));
+    if cgi_browser_origin_matches {
+        return true;
+    }
     let internal_signed_candidate = authority_is_loopback(direct_authority)
         && ["x-timestamp", "x-nonce", "x-signature"]
             .iter()
@@ -340,6 +452,23 @@ mod tests {
         (directory, state)
     }
 
+    fn materialize_contract_path(path: &str) -> String {
+        let mut materialized = String::with_capacity(path.len());
+        let mut remaining = path;
+        while let Some(start) = remaining.find('{') {
+            materialized.push_str(&remaining[..start]);
+            let parameter = &remaining[start + 1..];
+            let Some(end) = parameter.find('}') else {
+                materialized.push_str(&remaining[start..]);
+                return materialized;
+            };
+            materialized.push_str("route-probe");
+            remaining = &parameter[end + 1..];
+        }
+        materialized.push_str(remaining);
+        materialized
+    }
+
     async fn auth_router_test_state(hmac_secret: &str) -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().expect("temporary auth router database");
         let mut settings = crate::settings::Settings::from_env();
@@ -406,6 +535,20 @@ mod tests {
                 .get(header::X_FRAME_OPTIONS)
                 .and_then(|value| value.to_str().ok()),
             Some("DENY")
+        );
+        assert_eq!(
+            bootstrap
+                .headers()
+                .get(header::X_CONTENT_TYPE_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("nosniff")
+        );
+        assert_eq!(
+            bootstrap
+                .headers()
+                .get(header::REFERRER_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-referrer")
         );
 
         let session = app
@@ -499,13 +642,47 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(cross_origin.status(), StatusCode::FORBIDDEN);
+        assert!(
+            cross_origin
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .is_none()
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("frame-ancestors 'none'")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::X_FRAME_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("DENY")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::X_CONTENT_TYPE_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("nosniff")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::REFERRER_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-referrer")
+        );
 
         let cross_site_without_origin = Request::post("/api/auth/wol/targets/device-1/wake")
             .header(header::HOST, "auth.example.com")
             .header("sec-fetch-site", "cross-site")
             .body(Body::empty())
             .unwrap();
-        assert!(!auth_request_origin_allowed(
+        assert!(!browser_request_origin_allowed(
             cross_site_without_origin.method(),
             cross_site_without_origin.headers()
         ));
@@ -517,7 +694,7 @@ mod tests {
             .header("sec-fetch-site", "same-origin")
             .body(Body::empty())
             .unwrap();
-        assert!(auth_request_origin_allowed(
+        assert!(browser_request_origin_allowed(
             same_origin.method(),
             same_origin.headers()
         ));
@@ -529,7 +706,7 @@ mod tests {
             .header("x-forwarded-proto", "https")
             .body(Body::empty())
             .unwrap();
-        assert!(!auth_request_origin_allowed(
+        assert!(!browser_request_origin_allowed(
             forged_forwarded_host.method(),
             forged_forwarded_host.headers()
         ));
@@ -544,10 +721,172 @@ mod tests {
             .header("x-signature", "validated-by-inner-middleware")
             .body(Body::empty())
             .unwrap();
-        assert!(auth_request_origin_allowed(
+        assert!(browser_request_origin_allowed(
             signed_loopback_proxy.method(),
             signed_loopback_proxy.headers()
         ));
+    }
+
+    #[tokio::test]
+    async fn backend_router_rejects_cross_origin_mutations_and_sets_browser_headers() {
+        let (_directory, state) = openwrt_test_state().await;
+        let app = backend_router(state, false);
+
+        let cross_origin = app
+            .clone()
+            .oneshot(
+                Request::post("/api/admin/config")
+                    .header(header::HOST, "admin.example.com")
+                    .header(header::ORIGIN, "https://attacker.invalid")
+                    .header("sec-fetch-site", "cross-site")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cross_origin.status(), StatusCode::FORBIDDEN);
+        assert!(
+            cross_origin
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .is_none()
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("frame-ancestors 'none'")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::X_FRAME_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("DENY")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::X_CONTENT_TYPE_OPTIONS)
+                .and_then(|value| value.to_str().ok()),
+            Some("nosniff")
+        );
+        assert_eq!(
+            cross_origin
+                .headers()
+                .get(header::REFERRER_POLICY)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-referrer")
+        );
+
+        let same_origin = Request::post("/api/admin/config")
+            .header(header::HOST, "admin.example.com")
+            .header(header::ORIGIN, "https://admin.example.com")
+            .header("x-forwarded-proto", "https")
+            .header("sec-fetch-site", "same-origin")
+            .body(Body::empty())
+            .unwrap();
+        assert!(browser_request_origin_allowed(
+            same_origin.method(),
+            same_origin.headers()
+        ));
+
+        let fnos_cgi_same_origin = Request::post("/api/admin/config")
+            .header(header::HOST, "127.0.0.1:7998")
+            .header(header::ORIGIN, "http://192.168.31.98:19122")
+            .header(
+                "x-fn-knock-browser-origin",
+                "http://192.168.31.98:19122",
+            )
+            .body(Body::empty())
+            .unwrap();
+        assert!(browser_request_origin_allowed(
+            fnos_cgi_same_origin.method(),
+            fnos_cgi_same_origin.headers()
+        ));
+
+        let forged_cgi_origin = Request::post("/api/admin/config")
+            .header(header::HOST, "127.0.0.1:7998")
+            .header(header::ORIGIN, "https://attacker.invalid")
+            .header("x-fn-knock-browser-origin", "https://admin.example.com")
+            .body(Body::empty())
+            .unwrap();
+        assert!(!browser_request_origin_allowed(
+            forged_cgi_origin.method(),
+            forged_cgi_origin.headers()
+        ));
+
+        let cross_site_cgi_origin = Request::post("/api/admin/config")
+            .header(header::HOST, "127.0.0.1:7998")
+            .header(header::ORIGIN, "https://attacker.invalid")
+            .header("x-fn-knock-browser-origin", "https://attacker.invalid")
+            .header("sec-fetch-site", "cross-site")
+            .body(Body::empty())
+            .unwrap();
+        assert!(!browser_request_origin_allowed(
+            cross_site_cgi_origin.method(),
+            cross_site_cgi_origin.headers()
+        ));
+    }
+
+    #[tokio::test]
+    async fn every_openapi_operation_matches_a_real_axum_route() {
+        let (_directory, state) = openwrt_test_state().await;
+        let mut capabilities = runtime_profile::get_runtime_capabilities(
+            &runtime_profile::get_runtime_profile(&state),
+        );
+        capabilities.acme_available = true;
+        capabilities.fnos_certificate_sync_available = true;
+        capabilities.host_firewall_available = true;
+        capabilities.fnos_connect_waf_available = true;
+        capabilities.smart_connect_available = true;
+        capabilities.terminal_available = true;
+        capabilities.ssh_security_available = true;
+        capabilities.cloudflared_available = true;
+        capabilities.frpc_available = true;
+        let app = backend_router_with_capabilities(state, false, capabilities);
+        let document = crate::openapi_docs::build_openapi_document();
+        let paths = document["paths"]
+            .as_object()
+            .expect("OpenAPI paths should be an object");
+        let methods = ["get", "post", "put", "patch", "delete", "head", "options"];
+        let mut checked = 0usize;
+
+        for (contract_path, path_item) in paths {
+            let operations = path_item
+                .as_object()
+                .expect("OpenAPI path item should be an object");
+            for method in methods {
+                if !operations.contains_key(method) {
+                    continue;
+                }
+                let request_path = materialize_contract_path(contract_path);
+                let request = Request::builder()
+                    .method(Method::from_bytes(method.as_bytes()).expect("valid HTTP method"))
+                    .uri(&request_path)
+                    .header("x-fn-knock-route-contract-probe", "1")
+                    .body(Body::empty())
+                    .expect("route contract probe request");
+                let response = app
+                    .clone()
+                    .oneshot(request)
+                    .await
+                    .expect("route contract probe response");
+                let matched_path = response
+                    .headers()
+                    .get("x-fn-knock-matched-path")
+                    .and_then(|value| value.to_str().ok());
+                assert_eq!(
+                    matched_path,
+                    Some(contract_path.as_str()),
+                    "{method} {contract_path} does not match a registered Axum route"
+                );
+                checked += 1;
+            }
+        }
+
+        assert_eq!(checked, 410, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

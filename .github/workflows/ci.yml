@@ -1,0 +1,407 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Last gateway revision used before version.json started pinning this repository.
+  GATEWAY_COMMIT_BEFORE_MANIFEST_PIN: "a0e9ff7e34d4ae683b47011cda43578885bd75a3"
+  NODE_VERSION: "22.22.3"
+  NPM_VERSION: "10.8.2"
+  PROTOC_VERSION: "35.1"
+  PROTOC_LINUX_X86_64_SHA256: "6930ebf62bd4ea607b98fff052596c6ee564b9835b4ce172c75a3f53ae9d91b7"
+  RUST_VERSION: "1.96.0"
+  RUSTSEC_ADVISORY_DB_REVISION: 309ad29d8fe448bf986019e05d47b9e0e29a2218
+
+jobs:
+  quality:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+      FN_KNOCK_RUSTSEC_ADVISORY_DB: ${{ github.workspace }}/rustsec-advisory-db
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read pinned Go gateway commit
+        id: gateway
+        shell: bash
+        run: |
+          sha="$(jq -er '.gatewayCommit | strings | select(test("^[0-9a-f]{40}$"))' version.json)"
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout pinned Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ steps.gateway.outputs.sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen RustSec advisory database
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: RustSec/advisory-db
+          path: rustsec-advisory-db
+          ref: ${{ env.RUSTSEC_ADVISORY_DB_REVISION }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy
+
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: linux-quality
+          cache-bin: "false"
+          workspaces: |
+            apps/server-admin-rs -> target
+            apps/fn-knock-desktop/native -> target
+
+      - name: Set up verified protobuf compiler
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          install_dir="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          printf '%s  %s\n' "${PROTOC_LINUX_X86_64_SHA256}" "${archive}" | sha256sum --check -
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          printf '%s\n' "${install_dir}/bin" >> "${GITHUB_PATH}"
+
+      - name: Install locked dependencies and audit tool
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Run unified quality gate
+        run: npm run quality:check
+
+      - name: Reject breaking HTTP contract changes
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          baseline="${RUNNER_TEMP}/openapi-base.json"
+          if ! git show "origin/${GITHUB_BASE_REF}:packages/api-contract/openapi.json" > "${baseline}"; then
+            echo "No base OpenAPI contract exists yet; generated-file checks still apply"
+            exit 0
+          fi
+          go install github.com/oasdiff/oasdiff@v1.26.1
+          "$(go env GOPATH)/bin/oasdiff" breaking --fail-on ERR --format githubactions \
+            "${baseline}" packages/api-contract/openapi.json
+
+      - name: Verify generated Go control-plane stubs
+        shell: bash
+        run: |
+          bash ./scripts/sync-go-grpc-contract.sh Go-Reauth-Proxy
+          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
+
+  runtime-performance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read pinned Go gateway commit
+        id: gateway
+        shell: bash
+        run: printf 'sha=%s\n' "$(jq -er .gatewayCommit version.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout pinned Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ steps.gateway.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Restore current runtime Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: linux-runtime-performance-current
+          cache-bin: "false"
+          workspaces: apps/server-admin-rs -> target
+
+      - name: Build current runtime artifacts
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          npm run runtime:build
+          version="$(jq -er .version version.json)"
+          (
+            cd Go-Reauth-Proxy
+            go build -trimpath \
+              -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=${version} -X go-reauth-proxy/pkg/version.Commit=${{ steps.gateway.outputs.sha }}" \
+              -o "${RUNNER_TEMP}/go-reauth-proxy-current" ./cmd/server
+          )
+
+      - name: Check out base runtime sources
+        id: baseline
+        shell: bash
+        run: |
+          base_root="${RUNNER_TEMP}/fn-knock-base"
+          base_gateway="${RUNNER_TEMP}/go-reauth-proxy-base-source"
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          git fetch --no-tags origin "${base_sha}"
+          git worktree add --detach "${base_root}" "${base_sha}"
+          base_gateway_commit="$(jq -er '
+            if has("gatewayCommit") then
+              (.gatewayCommit | strings | select(test("^[0-9a-f]{40}$")))
+            else
+              "__before_manifest_pin__"
+            end
+          ' "${base_root}/version.json")"
+          if [ "${base_gateway_commit}" = "__before_manifest_pin__" ]; then
+            base_gateway_commit="${GATEWAY_COMMIT_BEFORE_MANIFEST_PIN}"
+            echo "Base manifest predates gatewayCommit; using ${base_gateway_commit}"
+          fi
+          git -C Go-Reauth-Proxy fetch --no-tags origin "${base_gateway_commit}"
+          git -C Go-Reauth-Proxy worktree add --detach "${base_gateway}" "${base_gateway_commit}"
+          printf 'root=%s\n' "${base_root}" >> "${GITHUB_OUTPUT}"
+          printf 'gateway=%s\n' "${base_gateway}" >> "${GITHUB_OUTPUT}"
+          printf 'gateway_commit=%s\n' "${base_gateway_commit}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build base Rust and Go runtime binaries
+        shell: bash
+        run: |
+          base_target="${RUNNER_TEMP}/fn-knock-rust-base-target"
+          base_version="$(jq -er .version "${{ steps.baseline.outputs.root }}/version.json")"
+          base_manifest="${{ steps.baseline.outputs.root }}/apps/server-admin-rs/Cargo.toml"
+          base_profile="runtime-test"
+          if ! rg -q '^\[profile\.runtime-test\]' "${base_manifest}"; then
+            # Pre-profile baselines used the same release settings except for
+            # runtime-test's cheaper thin LTO. Preserve an equivalent comparison.
+            base_profile="release"
+            export CARGO_PROFILE_RELEASE_LTO="thin"
+          fi
+          CARGO_TARGET_DIR="${base_target}" cargo build --locked \
+            --manifest-path "${base_manifest}" \
+            --profile "${base_profile}" --bin server-admin-rs
+          install -m 0755 "${base_target}/${base_profile}/server-admin-rs" \
+            "${RUNNER_TEMP}/server-admin-rs-base"
+          (
+            cd "${{ steps.baseline.outputs.gateway }}"
+            go build -trimpath \
+              -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=${base_version} -X go-reauth-proxy/pkg/version.Commit=${{ steps.baseline.outputs.gateway_commit }}" \
+              -o "${RUNNER_TEMP}/go-reauth-proxy-base" ./cmd/server
+          )
+
+      - name: Measure base and current runtime performance
+        shell: bash
+        env:
+          FN_KNOCK_RUNTIME_PERF_RUNS: "5"
+        run: |
+          current="${RUNNER_TEMP}/runtime-performance-current.json"
+          base="${RUNNER_TEMP}/runtime-performance-base.json"
+          FN_KNOCK_RUNTIME_SERVER_BIN="${GITHUB_WORKSPACE}/apps/server-admin-rs/target/runtime-test/server-admin-rs" \
+          FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-current" \
+            node scripts/runtime-performance.mjs > "${current}"
+          # Frontend dist remains from the current checkout for both runs, so this
+          # comparison isolates Rust/Go runtime startup and idle-memory changes.
+          FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
+          FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
+            node scripts/runtime-performance.mjs > "${base}"
+          node scripts/check-runtime-performance.mjs \
+            --base "${base}" --current "${current}" \
+            --max-readiness-regression 0.10 --max-rss-regression 0.05
+          {
+            echo '### Runtime performance PR gate'
+            echo 'Base and current use the same freshly-built frontend assets; only Rust/Go runtime binaries differ.'
+            echo '#### Base'
+            echo '```json'
+            cat "${base}"
+            echo '```'
+            echo '#### Current'
+            echo '```json'
+            cat "${current}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload runtime performance comparison
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-performance-pr-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/runtime-performance-base.json
+            ${{ runner.temp }}/runtime-performance-current.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  accessibility:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Read pinned Go gateway commit
+        id: gateway
+        shell: bash
+        run: printf 'sha=%s\n' "$(jq -er .gatewayCommit version.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout pinned Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ steps.gateway.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Restore browser runtime Rust build cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          shared-key: linux-runtime-browser
+          cache-bin: "false"
+          workspaces: apps/server-admin-rs -> target
+
+      - name: Set up verified protobuf compiler
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          install_dir="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          printf '%s  %s\n' "${PROTOC_LINUX_X86_64_SHA256}" "${archive}" | sha256sum --check -
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          printf '%s\n' "${install_dir}/bin" >> "${GITHUB_PATH}"
+
+      - name: Build runtime and install browser
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          npx playwright install --with-deps chromium
+          npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          npm run runtime:build
+          version="$(jq -er .version version.json)"
+          gateway_commit="${{ steps.gateway.outputs.sha }}"
+          (
+            cd Go-Reauth-Proxy
+            go build -trimpath \
+              -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=${version} -X go-reauth-proxy/pkg/version.Commit=${gateway_commit}" \
+              -o "${RUNNER_TEMP}/go-reauth-proxy" ./cmd/server
+          )
+
+      - name: Run full accessibility audit
+        env:
+          FN_KNOCK_A11Y_GATEWAY_BIN: ${{ runner.temp }}/go-reauth-proxy
+          FN_KNOCK_RUNTIME_SERVER_BIN: ${{ github.workspace }}/apps/server-admin-rs/target/runtime-test/server-admin-rs
+        run: npm run a11y:audit
+
+      - name: Run protected runtime browser flows
+        env:
+          FN_KNOCK_RUNTIME_E2E_GATEWAY_BIN: ${{ runner.temp }}/go-reauth-proxy
+          FN_KNOCK_RUNTIME_SERVER_BIN: ${{ github.workspace }}/apps/server-admin-rs/target/runtime-test/server-admin-rs
+        run: npm run runtime:e2e
+
+      - name: Measure runtime readiness and idle RSS
+        env:
+          FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN: ${{ runner.temp }}/go-reauth-proxy
+          FN_KNOCK_RUNTIME_SERVER_BIN: ${{ github.workspace }}/apps/server-admin-rs/target/runtime-test/server-admin-rs
+          FN_KNOCK_RUNTIME_PERF_RUNS: "5"
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run runtime:measure | tee "${RUNNER_TEMP}/runtime-performance.json"
+          {
+            echo '### Runtime performance sample'
+            echo '```json'
+            cat "${RUNNER_TEMP}/runtime-performance.json"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload runtime performance sample
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-performance-${{ github.run_id }}
+          path: ${{ runner.temp }}/runtime-performance.json
+          if-no-files-found: error
+          retention-days: 14

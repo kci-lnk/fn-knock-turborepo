@@ -1,12 +1,11 @@
 use axum::{
-    Router,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, response, state::AppState, time_utils};
 
@@ -23,10 +22,17 @@ struct OverviewQuery {
     range_sec: Option<String>,
 }
 
-pub fn security_overview_routes() -> Router<AppState> {
-    Router::new().route("/api/admin/security/overview", get(overview))
+pub fn security_overview_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(overview))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/security/overview",
+    tag = "security",
+    operation_id = "get_api_admin_security_overview",
+    responses((status = 200, description = "Security overview for the requested time range"))
+)]
 async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQuery>) -> Response {
     let range_sec = crate::node_compat::parse_i64_or(query.range_sec.as_deref(), 3600)
         .clamp(60, 30 * 24 * 3600);
@@ -35,6 +41,7 @@ async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQue
     let bucket_count = ((range_sec as f64 / 900.0).round() as i64).clamp(12, 48);
 
     let events = match state
+        .storage
         .store
         .list_system_events_by_range(
             from_ms,
@@ -65,6 +72,7 @@ async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQue
         .map(|point| point.0)
         .collect::<Vec<_>>();
     let (waf_total, waf_counts) = match state
+        .storage
         .store
         .count_waf_logs_for_buckets(&bucket_starts, now_ms)
         .await

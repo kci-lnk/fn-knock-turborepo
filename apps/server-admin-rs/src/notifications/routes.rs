@@ -36,7 +36,6 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, patch, post},
 };
 use lettre::{
     Address, AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -47,25 +46,21 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use tokio::time;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, response, state::AppState, time_utils};
 
-const PROVIDERS_INDEX_KEY: &str = "fn_knock:notifications:providers:index";
-const PROVIDERS_DATA_PREFIX: &str = "fn_knock:notifications:providers:data:";
-const RULES_INDEX_KEY: &str = "fn_knock:notifications:rules:index";
-const RULES_DATA_PREFIX: &str = "fn_knock:notifications:rules:data:";
 const TRIGGERS_INDEX_KEY: &str = "fn_knock:notifications:triggers:index";
 const TRIGGERS_DATA_PREFIX: &str = "fn_knock:notifications:triggers:data:";
 const DELIVERIES_INDEX_KEY: &str = "fn_knock:notifications:deliveries:index";
 const DELIVERIES_DATA_PREFIX: &str = "fn_knock:notifications:deliveries:data:";
-const DELIVERIES_READY_KEY: &str = "fn_knock:notifications:deliveries:ready";
 const HISTORY_RETENTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
-const HISTORY_MAX_RECORDS: i64 = 50_000;
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(3000);
 const DELIVERY_INTERVAL: Duration = Duration::from_millis(1500);
 const STREAM_BATCH_SIZE: usize = 50;
 const DELIVERY_BATCH_SIZE: usize = 10;
 const DISPATCH_LEASE_TTL_SECONDS: usize = 15;
+const DELIVERY_RECOVERY_RETRY_DELAY_MS: i64 = 1_500;
 const APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH: usize = 360;
 const DEFAULT_NOTIFICATION_MESSAGE_TITLE: &str = "fn-knock 通知";
 
@@ -168,47 +163,37 @@ struct PageQuery {
 }
 
 pub fn notification_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/notifications/providers/catalog",
-            get(provider_catalog),
-        )
-        .route(
-            "/api/admin/notifications/providers",
-            get(list_providers).post(create_provider),
-        )
-        .route(
-            "/api/admin/notifications/providers/test",
-            post(test_provider_draft),
-        )
-        .route(
-            "/api/admin/notifications/providers/{id}",
-            get(get_provider)
-                .patch(update_provider)
-                .delete(delete_provider),
-        )
-        .route(
-            "/api/admin/notifications/providers/{id}/test",
-            post(test_provider),
-        )
-        .route(
-            "/api/admin/notifications/rules",
-            get(list_rules).post(create_rule),
-        )
-        .route(
-            "/api/admin/notifications/rules/{id}",
-            patch(update_rule).delete(delete_rule),
-        )
-        .route("/api/admin/notifications/triggers", get(list_triggers))
-        .route(
-            "/api/admin/notifications/deliveries",
-            get(list_deliveries).delete(clear_deliveries),
-        )
+    notification_openapi_routes().into()
+}
+
+pub(crate) fn notification_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(provider_catalog))
+        .routes(routes!(list_providers))
+        .routes(routes!(create_provider))
+        .routes(routes!(test_provider_draft))
+        .routes(routes!(get_provider))
+        .routes(routes!(update_provider))
+        .routes(routes!(delete_provider))
+        .routes(routes!(test_provider))
+        .routes(routes!(list_rules))
+        .routes(routes!(create_rule))
+        .routes(routes!(update_rule))
+        .routes(routes!(delete_rule))
+        .routes(routes!(list_deliveries))
+        .routes(routes!(clear_deliveries))
+        .routes(routes!(list_triggers))
 }
 
 pub fn start_notification_tasks(state: AppState) {
-    tokio::spawn(notification_dispatch_loop(state.clone()));
-    tokio::spawn(notification_delivery_loop(state));
+    state.spawn_background(
+        "notification-dispatch",
+        notification_dispatch_loop(state.clone()),
+    );
+    state.spawn_background(
+        "notification-delivery",
+        notification_delivery_loop(state.clone()),
+    );
 }
 
 async fn notification_dispatch_loop(state: AppState) {
@@ -231,6 +216,14 @@ async fn notification_dispatch_loop(state: AppState) {
 }
 
 async fn notification_delivery_loop(state: AppState) {
+    if let Err(error) = state
+        .storage
+        .store
+        .rebuild_notification_delivery_ready_queue()
+        .await
+    {
+        tracing::warn!(%error, "failed to recover notification delivery queue");
+    }
     let mut interval = time::interval(DELIVERY_INTERVAL);
     interval.tick().await;
     loop {
@@ -249,6 +242,7 @@ async fn notification_delivery_loop(state: AppState) {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/providers/catalog", tag = "notifications", operation_id = "get_api_admin_notifications_providers_catalog", responses((status = 200, description = "Notification provider catalog")))]
 async fn provider_catalog(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     let providers = PROVIDER_TYPES
@@ -259,6 +253,7 @@ async fn provider_catalog(State(state): State<AppState>) -> Response {
     response::ok(json!({ "providers": providers })).into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/providers", tag = "notifications", operation_id = "get_api_admin_notifications_providers", responses((status = 200, description = "Notification providers")))]
 async fn list_providers(State(state): State<AppState>) -> Response {
     match load_providers(&state).await {
         Ok(providers) => {
@@ -275,6 +270,7 @@ async fn list_providers(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/providers/{id}", tag = "notifications", operation_id = "get_api_admin_notifications_providers_id", responses((status = 200, description = "Notification provider")))]
 async fn get_provider(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_provider(&state, &id).await {
@@ -290,6 +286,7 @@ async fn get_provider(State(state): State<AppState>, Path(id): Path<String>) -> 
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/notifications/providers", tag = "notifications", operation_id = "post_api_admin_notifications_providers", responses((status = 200, description = "Created notification provider")))]
 async fn create_provider(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     match create_provider_value(&state, body).await {
         Ok(provider) => response::ok(provider).into_response(),
@@ -300,6 +297,7 @@ async fn create_provider(State(state): State<AppState>, Json(body): Json<Value>)
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/notifications/providers/{id}", tag = "notifications", operation_id = "patch_api_admin_notifications_providers_id", responses((status = 200, description = "Updated notification provider")))]
 async fn update_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -314,6 +312,7 @@ async fn update_provider(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/notifications/providers/{id}", tag = "notifications", operation_id = "delete_api_admin_notifications_providers_id", responses((status = 200, description = "Deleted notification provider")))]
 async fn delete_provider(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match delete_provider_value(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
@@ -324,6 +323,7 @@ async fn delete_provider(State(state): State<AppState>, Path(id): Path<String>) 
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/notifications/providers/{id}/test", tag = "notifications", operation_id = "post_api_admin_notifications_providers_id_test", responses((status = 200, description = "Notification provider test result")))]
 async fn test_provider(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_provider(&state, &id).await {
@@ -354,6 +354,7 @@ async fn test_provider(State(state): State<AppState>, Path(id): Path<String>) ->
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/notifications/providers/test", tag = "notifications", operation_id = "post_api_admin_notifications_providers_test", responses((status = 200, description = "Notification provider draft test result")))]
 async fn test_provider_draft(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     let translator = Translator::from_state(&state).await;
     match draft_provider_value(&state, body).await {
@@ -378,6 +379,7 @@ async fn test_provider_draft(State(state): State<AppState>, Json(body): Json<Val
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/rules", tag = "notifications", operation_id = "get_api_admin_notifications_rules", responses((status = 200, description = "Notification rules")))]
 async fn list_rules(State(state): State<AppState>) -> Response {
     match load_rules(&state).await {
         Ok(rules) => response::ok(json!({ "rules": rules })).into_response(),
@@ -385,6 +387,7 @@ async fn list_rules(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/notifications/rules", tag = "notifications", operation_id = "post_api_admin_notifications_rules", responses((status = 200, description = "Created notification rule")))]
 async fn create_rule(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
     match create_rule_value(&state, body).await {
         Ok(rule) => response::ok(rule).into_response(),
@@ -395,6 +398,7 @@ async fn create_rule(State(state): State<AppState>, Json(body): Json<Value>) -> 
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/notifications/rules/{id}", tag = "notifications", operation_id = "patch_api_admin_notifications_rules_id", responses((status = 200, description = "Updated notification rule")))]
 async fn update_rule(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -409,6 +413,7 @@ async fn update_rule(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/notifications/rules/{id}", tag = "notifications", operation_id = "delete_api_admin_notifications_rules_id", responses((status = 200, description = "Deleted notification rule")))]
 async fn delete_rule(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match delete_rule_value(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
@@ -419,6 +424,7 @@ async fn delete_rule(State(state): State<AppState>, Path(id): Path<String>) -> R
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/triggers", tag = "notifications", operation_id = "get_api_admin_notifications_triggers", responses((status = 200, description = "Notification trigger history")))]
 async fn list_triggers(State(state): State<AppState>, Query(query): Query<PageQuery>) -> Response {
     let safe_status = query
         .status
@@ -445,6 +451,7 @@ async fn list_triggers(State(state): State<AppState>, Query(query): Query<PageQu
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/notifications/deliveries", tag = "notifications", operation_id = "get_api_admin_notifications_deliveries", responses((status = 200, description = "Notification delivery history")))]
 async fn list_deliveries(
     State(state): State<AppState>,
     Query(query): Query<PageQuery>,
@@ -476,6 +483,7 @@ async fn list_deliveries(
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/notifications/deliveries", tag = "notifications", operation_id = "delete_api_admin_notifications_deliveries", responses((status = 200, description = "Deleted notification delivery history")))]
 async fn clear_deliveries(State(state): State<AppState>, body: Bytes) -> Response {
     let translator = Translator::from_state(&state).await;
     let parsed = match parse_json_body(&body, &translator) {

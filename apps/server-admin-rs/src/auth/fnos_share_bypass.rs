@@ -627,6 +627,7 @@ async fn validate_share_link(
     let lock_key = validation_lock_key(&backend.identity, share_id);
     let lock_token = hex::encode(rand::random::<[u8; 12]>());
     let acquired = state
+        .storage
         .store
         .set_key_if_not_exists_with_ttl(
             &lock_key,
@@ -653,6 +654,7 @@ async fn validate_share_link(
         let _ = cache_validation(state, &cache_key, &fresh.data, config).await;
     }
     let _ = state
+        .storage
         .store
         .delete_key_if_value(&lock_key, &lock_token)
         .await;
@@ -744,6 +746,7 @@ async fn cache_validation(
     config: &ResolvedFnosShareConfig,
 ) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .set_json_value_ex(
             key,
@@ -759,6 +762,7 @@ async fn get_cached_validation(
     key: &str,
 ) -> anyhow::Result<Option<ShareValidationCacheRecord>> {
     Ok(state
+        .storage
         .store
         .get_json_value(key)
         .await?
@@ -786,6 +790,7 @@ async fn get_share_session(
     session_id: &str,
 ) -> anyhow::Result<Option<ShareSessionRecord>> {
     Ok(state
+        .storage
         .store
         .get_json_value(&share_session_key(session_id))
         .await?
@@ -806,6 +811,7 @@ async fn save_share_session(
     }
     next.last_seen_at = time_utils::now_iso();
     state
+        .storage
         .store
         .set_json_value_ex(
             &share_session_key(session_id),

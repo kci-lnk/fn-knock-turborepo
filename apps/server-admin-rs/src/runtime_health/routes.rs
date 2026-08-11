@@ -6,17 +6,16 @@ use std::{
 };
 
 use axum::{
-    Router,
     body::Body,
     extract::{Path as AxumPath, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
-    routing::get,
 };
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use utoipa_axum::{router::OpenApiRouter, routes};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 use crate::{app_version::APP_LOCAL_VERSION, response, state::AppState, time_utils};
@@ -33,24 +32,32 @@ struct RuntimeLogQuery {
     limit: Option<usize>,
 }
 
-pub(crate) fn runtime_health_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/runtime-health", get(runtime_health))
-        .route(
-            "/api/admin/runtime-health/logs/{component}",
-            get(runtime_logs).delete(clear_runtime_logs),
-        )
-        .route("/api/admin/runtime-health/diagnostics", get(diagnostics))
-        .route(
-            "/api/admin/runtime-health/diagnostics/archive",
-            get(diagnostics_archive),
-        )
+pub(crate) fn runtime_health_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(runtime_health))
+        .routes(routes!(runtime_logs, clear_runtime_logs))
+        .routes(routes!(diagnostics))
+        .routes(routes!(diagnostics_archive))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/runtime-health",
+    tag = "runtime-health",
+    operation_id = "get_api_admin_runtime_health",
+    responses((status = 200, description = "Runtime health snapshot"))
+)]
 async fn runtime_health(State(state): State<AppState>) -> Response {
     response::ok(state.runtime_health.snapshot().await).into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/runtime-health/logs/{component}",
+    tag = "runtime-health",
+    operation_id = "get_api_admin_runtime_health_logs__component_",
+    responses((status = 200, description = "Runtime component logs"))
+)]
 async fn runtime_logs(
     State(state): State<AppState>,
     AxumPath(component): AxumPath<String>,
@@ -81,6 +88,13 @@ async fn runtime_logs(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/admin/runtime-health/logs/{component}",
+    tag = "runtime-health",
+    operation_id = "delete_api_admin_runtime_health_logs__component_",
+    responses((status = 200, description = "Runtime component logs cleared"))
+)]
 async fn clear_runtime_logs(
     State(state): State<AppState>,
     AxumPath(component): AxumPath<String>,
@@ -104,6 +118,13 @@ async fn clear_runtime_logs(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/runtime-health/diagnostics",
+    tag = "runtime-health",
+    operation_id = "get_api_admin_runtime_health_diagnostics",
+    responses((status = 200, description = "Sanitized runtime diagnostics"))
+)]
 async fn diagnostics(State(state): State<AppState>) -> Response {
     match build_diagnostics(&state).await {
         Ok(value) => response::ok(value).into_response(),
@@ -117,6 +138,13 @@ async fn diagnostics(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/runtime-health/diagnostics/archive",
+    tag = "runtime-health",
+    operation_id = "get_api_admin_runtime_health_diagnostics_archive",
+    responses((status = 200, description = "Runtime diagnostics ZIP archive"))
+)]
 async fn diagnostics_archive(State(state): State<AppState>) -> Response {
     match build_archive(&state).await {
         Ok(bytes) if bytes.len() <= MAX_ARCHIVE_BYTES => {
@@ -151,11 +179,34 @@ async fn diagnostics_archive(State(state): State<AppState>) -> Response {
 
 async fn build_diagnostics(state: &AppState) -> anyhow::Result<Value> {
     let snapshot = state.runtime_health.snapshot().await;
+    let typed_config_shadow = state.storage.store.typed_config_shadow_status();
+    let typed_docker_admin_shadow = state.storage.store.typed_docker_admin_shadow_status();
+    let typed_event_dedupe_shadow = state.storage.store.typed_event_dedupe_shadow_status();
+    let typed_fnos_share_shadow = state.storage.store.typed_fnos_share_shadow_status();
+    let typed_hmac_nonce_shadow = state.storage.store.typed_hmac_nonce_shadow_status();
+    let typed_identity_runtime_shadow = state.storage.store.typed_identity_runtime_shadow_status();
+    let typed_login_backoff_shadow = state.storage.store.typed_login_backoff_shadow_status();
+    let typed_mobility_shadow = state.storage.store.typed_mobility_shadow_status();
+    let typed_notification_runtime_shadow = state
+        .storage
+        .store
+        .typed_notification_runtime_shadow_status();
+    let typed_passkey_runtime_shadow = state.storage.store.typed_passkey_runtime_shadow_status();
+    let typed_subdomain_grant_shadow = state.storage.store.typed_subdomain_grant_shadow_status();
+    let typed_subdomain_rate_limit_shadow = state
+        .storage
+        .store
+        .typed_subdomain_rate_limit_shadow_status();
+    let typed_wol_cooldown_shadow = state.storage.store.typed_wol_cooldown_shadow_status();
+    let typed_whitelist_runtime_shadow =
+        state.storage.store.typed_whitelist_runtime_shadow_status();
     let first = state
+        .storage
         .store
         .list_system_events(1, 100, "", None, None, Some("RUNTIME_MONITOR"))
         .await?;
     let second = state
+        .storage
         .store
         .list_system_events(2, 100, "", None, None, Some("RUNTIME_MONITOR"))
         .await?;
@@ -185,8 +236,24 @@ async fn build_diagnostics(state: &AppState) -> anyhow::Result<Value> {
         },
         "runtime": snapshot,
         "recent_runtime_events": events,
+        "storage_migration": {
+            "typed_config_shadow": typed_config_shadow,
+            "typed_docker_admin_shadow": typed_docker_admin_shadow,
+            "typed_event_dedupe_shadow": typed_event_dedupe_shadow,
+            "typed_fnos_share_shadow": typed_fnos_share_shadow,
+            "typed_hmac_nonce_shadow": typed_hmac_nonce_shadow,
+            "typed_identity_runtime_shadow": typed_identity_runtime_shadow,
+            "typed_login_backoff_shadow": typed_login_backoff_shadow,
+            "typed_mobility_shadow": typed_mobility_shadow,
+            "typed_notification_runtime_shadow": typed_notification_runtime_shadow,
+            "typed_passkey_runtime_shadow": typed_passkey_runtime_shadow,
+            "typed_subdomain_grant_shadow": typed_subdomain_grant_shadow,
+            "typed_subdomain_rate_limit_shadow": typed_subdomain_rate_limit_shadow,
+            "typed_wol_cooldown_shadow": typed_wol_cooldown_shadow,
+            "typed_whitelist_runtime_shadow": typed_whitelist_runtime_shadow,
+        },
         "collection": {
-            "includes": ["component health", "runtime lifecycle events", "bounded operational logs"],
+            "includes": ["component health", "runtime lifecycle events", "storage migration health", "bounded operational logs"],
             "excludes": ["requests", "WAF details", "authentication records", "configuration", "environment", "certificates", "database"],
         },
     });
@@ -525,6 +592,198 @@ mod tests {
         settings.altcha_hmac_key = Some("diagnostics-altcha-key".to_string());
         let state = AppState::new(settings).await.unwrap();
         (directory, state)
+    }
+
+    #[tokio::test]
+    async fn diagnostics_exposes_only_storage_shadow_health() {
+        let (_directory, state) = diagnostics_test_state().await;
+        state
+            .storage
+            .store
+            .set_config_top_level_value(
+                "diagnostics_private_config_canary",
+                json!("typed-config-secret-canary"),
+            )
+            .await
+            .unwrap();
+        state
+            .storage
+            .store
+            .set_json_value(
+                "fn_knock:oidc:providers:data:diagnostics-canary",
+                &json!({
+                    "id": "diagnostics-canary",
+                    "client_secret": "identity-runtime-secret-canary"
+                }),
+            )
+            .await
+            .unwrap();
+
+        let diagnostics = build_diagnostics(&state).await.unwrap();
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_config_shadow/phase"),
+            Some(&json!("typed_primary"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_config_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_config_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_mobility_shadow/phase"),
+            Some(&json!("dual_write_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_mobility_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_mobility_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_docker_admin_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_docker_admin_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_docker_admin_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_event_dedupe_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_event_dedupe_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_event_dedupe_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_fnos_share_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_fnos_share_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_fnos_share_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_hmac_nonce_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_hmac_nonce_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_hmac_nonce_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_identity_runtime_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_identity_runtime_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_identity_runtime_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_login_backoff_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_login_backoff_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_login_backoff_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_subdomain_grant_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_subdomain_grant_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_subdomain_grant_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_subdomain_rate_limit_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_subdomain_rate_limit_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics
+                .pointer("/storage_migration/typed_subdomain_rate_limit_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_wol_cooldown_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_wol_cooldown_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_wol_cooldown_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_whitelist_runtime_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_whitelist_runtime_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_whitelist_runtime_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_notification_runtime_shadow/phase"),
+            Some(&json!("legacy_primary_shadow"))
+        );
+        assert_eq!(
+            diagnostics.pointer("/storage_migration/typed_notification_runtime_shadow/healthy"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            diagnostics
+                .pointer("/storage_migration/typed_notification_runtime_shadow/mismatch_count"),
+            Some(&json!(0))
+        );
+        let encoded = serde_json::to_string(&diagnostics).unwrap();
+        assert!(!encoded.contains("diagnostics_private_config_canary"));
+        assert!(!encoded.contains("typed-config-secret-canary"));
+        assert!(!encoded.contains("diagnostics-canary"));
+        assert!(!encoded.contains("identity-runtime-secret-canary"));
+        assert!(!encoded.contains(state.storage.store.path().to_string_lossy().as_ref()));
     }
 
     #[test]

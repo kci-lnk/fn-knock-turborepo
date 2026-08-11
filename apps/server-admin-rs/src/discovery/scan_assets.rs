@@ -14,7 +14,6 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
 };
 use get_if_addrs::{IfAddr, get_if_addrs};
 use serde::Deserialize;
@@ -26,6 +25,7 @@ use tokio::{
     time::timeout,
 };
 use url::Url;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, response, runtime_profile, state::AppState};
 
@@ -160,22 +160,17 @@ struct DiscoveryHttpResult {
 }
 
 pub fn scan_asset_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/scan/discover-targets",
-            get(get_discover_targets).post(save_discover_targets),
-        )
-        .route(
-            "/api/admin/scan/discover-settings",
-            get(get_discover_settings).post(save_discover_settings),
-        )
-        .route("/api/admin/scan/discover/jobs", post(start_discover_job))
-        .route(
-            "/api/admin/scan/discover/jobs/{job_id}",
-            get(get_discover_job).delete(cancel_discover_job_route),
-        )
-        .route(
-            "/api/admin/scan/host-mappings/probe",
-            post(probe_host_mappings),
-        )
+    scan_asset_openapi_routes().into()
+}
+
+pub(crate) fn scan_asset_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_discover_targets))
+        .routes(routes!(save_discover_targets))
+        .routes(routes!(get_discover_settings))
+        .routes(routes!(save_discover_settings))
+        .routes(routes!(start_discover_job))
+        .routes(routes!(get_discover_job))
+        .routes(routes!(cancel_discover_job_route))
+        .routes(routes!(probe_host_mappings))
 }

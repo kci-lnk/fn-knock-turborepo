@@ -227,6 +227,7 @@ async fn repeated_same_session_ip_does_not_commit_storage_writes() {
     settings.internal_rpc_token = "auth-hotpath-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "auth_credential_settings": {
@@ -241,6 +242,7 @@ async fn repeated_same_session_ip_does_not_commit_storage_writes() {
     session.ip_location = Some("test-location".to_string());
     session.expires_at = Some(time_utils::iso_after_seconds(3600));
     state
+        .storage
         .store
         .add_session("session-1", &session, 3600)
         .await
@@ -282,6 +284,7 @@ async fn repeated_same_session_ip_does_not_commit_storage_writes() {
         Value::String("observer-control-write".to_string()),
     );
     state
+        .storage
         .store
         .update_session_value("session-1", control_update)
         .await
@@ -303,6 +306,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     settings.internal_rpc_token = "auth-revocation-race-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "auth_credential_settings": {
@@ -319,6 +323,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     stale_session.post_login_ip_grant_mode = Some("follow_session".to_string());
     stale_session.comment = Some("Automatically authorized after sign-in".to_string());
     state
+        .storage
         .store
         .add_session("revoked-session", &stale_session, 3600)
         .await
@@ -342,6 +347,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     assert!(result.is_none());
     assert!(
         state
+            .storage
             .store
             .get_session("revoked-session")
             .await
@@ -350,6 +356,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     );
     assert!(
         state
+            .storage
             .store
             .get_auth_mobility_active_ip_detail("revoked-session", "203.0.113.10")
             .await
@@ -358,6 +365,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     );
     assert!(
         state
+            .storage
             .store
             .list_whitelist_records()
             .await
@@ -366,6 +374,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     );
 
     state
+        .storage
         .store
         .add_session("revoked-update-session", &stale_session, 3600)
         .await
@@ -385,6 +394,7 @@ async fn revoked_borrowed_session_cannot_recreate_active_ip_or_whitelist() {
     assert!(update_result.is_none());
     assert!(
         state
+            .storage
             .store
             .get_auth_mobility_active_ip_detail("revoked-update-session", "203.0.113.11")
             .await
@@ -403,6 +413,7 @@ async fn concurrent_first_fragments_create_one_follow_session_whitelist() {
     session.post_login_ip_grant_mode = Some("follow_session".to_string());
     session.comment = Some("Automatically authorized after sign-in".to_string());
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -436,12 +447,14 @@ async fn concurrent_first_fragments_create_one_follow_session_whitelist() {
     }
 
     let records = state
+        .storage
         .store
         .list_whitelist_records()
         .await
         .expect("whitelist records");
     assert_eq!(records.len(), 1, "parallel first use leaked an orphan");
     let detail = state
+        .storage
         .store
         .get_auth_mobility_active_ip_detail(session_id, client_ip)
         .await
@@ -463,6 +476,7 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
     session.post_login_ip_grant_mode = Some("follow_session".to_string());
     session.comment = Some("Automatically authorized after sign-in".to_string());
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -482,6 +496,7 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
     );
     assert!(
         state
+            .storage
             .store
             .save_auth_mobility_owned_binding(
                 "fnos-token",
@@ -522,9 +537,18 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
         .expect("destroy task")
         .expect("destroy result");
 
-    assert!(state.store.get_session(session_id).await.unwrap().is_none());
     assert!(
         state
+            .storage
+            .store
+            .get_session(session_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        state
+            .storage
             .store
             .list_auth_mobility_active_ip_details(session_id)
             .await
@@ -533,6 +557,7 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
     );
     assert!(
         state
+            .storage
             .store
             .list_whitelist_records()
             .await
@@ -541,6 +566,7 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
     );
     assert!(
         state
+            .storage
             .store
             .get_auth_mobility_binding("fnos-token", "logout-race-token")
             .await
@@ -549,6 +575,7 @@ async fn concurrent_logout_is_a_barrier_for_active_whitelist_and_bindings() {
     );
     assert!(
         state
+            .storage
             .store
             .list_auth_mobility_session_binding_keys(session_id)
             .await
@@ -564,6 +591,7 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
     let client_ip = "203.0.113.90";
     let session = test_browser_session(client_ip);
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -574,6 +602,7 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
     let record_id = "whitelist:pending-crash";
     assert!(
         state
+            .storage
             .store
             .add_auth_mobility_pending_whitelist(session_id, record_id, &owner_record_key, 3600,)
             .await
@@ -593,6 +622,7 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
     assert_eq!(deferred.record.status, "pending");
     assert_eq!(
         state
+            .storage
             .store
             .get_whitelist_record(record_id)
             .await
@@ -607,6 +637,7 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
         .expect("destroy pending session");
     assert!(
         state
+            .storage
             .store
             .get_whitelist_record(record_id)
             .await
@@ -615,6 +646,7 @@ async fn logout_collects_whitelist_left_pending_before_publication() {
     );
     assert!(
         state
+            .storage
             .store
             .get_string_value(&owner_record_key)
             .await
@@ -630,6 +662,7 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
     let client_ip = "203.0.113.91";
     let session = test_browser_session(client_ip);
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -640,6 +673,7 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
     let record_id = "whitelist:retryable-session";
     assert!(
         state
+            .storage
             .store
             .add_auth_mobility_pending_whitelist(session_id, record_id, &owner_record_key, 3600,)
             .await
@@ -688,6 +722,7 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
     );
     assert!(
         state
+            .storage
             .store
             .get_session(session_id)
             .await
@@ -697,6 +732,7 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
     );
     assert!(
         state
+            .storage
             .store
             .get_whitelist_record(record_id)
             .await
@@ -714,6 +750,7 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
         .expect("retry session deletion");
     assert!(
         state
+            .storage
             .store
             .get_session(session_id)
             .await
@@ -725,7 +762,12 @@ async fn failed_authoritative_session_delete_remains_retryable_after_grant_clean
 #[tokio::test]
 async fn custom_login_whitelist_is_session_indexed_and_revoked() {
     let (_directory, state) = mobility_test_state("custom-login-index").await;
-    let mut config = state.store.get_config().await.expect("current config");
+    let mut config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("current config");
     config.as_object_mut().expect("config object").insert(
         "auth_credential_settings".to_string(),
         json!({
@@ -737,6 +779,7 @@ async fn custom_login_whitelist_is_session_indexed_and_revoked() {
         }),
     );
     state
+        .storage
         .store
         .save_config(&config)
         .await
@@ -765,6 +808,7 @@ async fn custom_login_whitelist_is_session_indexed_and_revoked() {
         .expect("custom whitelist ID");
     assert_eq!(
         state
+            .storage
             .store
             .get_whitelist_record(record_id)
             .await
@@ -779,6 +823,7 @@ async fn custom_login_whitelist_is_session_indexed_and_revoked() {
         .expect("destroy custom login");
     assert!(
         state
+            .storage
             .store
             .get_whitelist_record(record_id)
             .await
@@ -802,6 +847,7 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
     settings.internal_rpc_token = "auth-restore-compat-test".to_string();
     let state = AppState::new(settings).await.expect("auth test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "auth_credential_settings": {
@@ -815,6 +861,7 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
     let client_ip = "203.0.113.10";
     let session = test_browser_session(client_ip);
     state
+        .storage
         .store
         .add_session(session_id, &session, 3600)
         .await
@@ -837,6 +884,7 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
         resolve_message: None,
     };
     state
+        .storage
         .store
         .insert_whitelist_record(&whitelist_record)
         .await
@@ -851,6 +899,7 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
         Some(whitelist_record.id.clone()),
     );
     state
+        .storage
         .store
         .save_auth_mobility_binding_with_ttl("proxy-session", session_id, &binding, 3600)
         .await
@@ -911,6 +960,7 @@ async fn mobility_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     settings.internal_rpc_token = format!("auth-{name}-test");
     let state = AppState::new(settings).await.expect("auth test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "auth_credential_settings": {

@@ -185,7 +185,7 @@ async fn handle_authorize_http(
     let access_mode = requested_access_mode(&headers);
     let mut response = empty_authorize_http_response();
 
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let translator = translator_from_config(&config);
     let matched_rule_valid = request
         .subdomain_rule_match
@@ -342,7 +342,7 @@ async fn handle_verify_auth(state: AppState, request: VerifyAuthRequest) -> Veri
     let uri = uri_from_auth_context(request.context.as_ref());
     let (routed_upstream, routed_upstream_host, routed_upstream_route_id) =
         routed_upstream_from_auth_context(request.context.as_ref());
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let translator = translator_from_config(&config);
     match resolve_auth_access_with_routed_upstream_and_config(
         &state,
@@ -478,7 +478,7 @@ async fn handle_preflight_auth(
         routed_upstream_from_auth_context(request.context.as_ref());
     let mut response = new_preflight_response();
 
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     if let Err(error) = apply_preflight_behavior_with_routed_upstream_and_config(
         &state,
         &headers,
@@ -547,7 +547,7 @@ async fn handle_verify_stream_auth(
     );
     insert_header(&mut headers, "X-Reauth-Target", &request.target);
     let uri = Uri::from_static("/");
-    let config = state.store.config_snapshot();
+    let config = state.storage.store.config_snapshot();
     let translator = translator_from_config(&config);
 
     let session_access = match resolve_stream_session_access(
@@ -959,6 +959,7 @@ mod tests {
         settings.internal_rpc_token = "rule-mobility-isolation-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         state
+            .storage
             .store
             .save_config(&json!({
                 "run_type": 3,
@@ -982,6 +983,7 @@ mod tests {
             .await
             .expect("auth config");
         state
+            .storage
             .store
             .add_totp(TotpCredential {
                 id: "totp-1".to_string(),
@@ -1013,6 +1015,7 @@ mod tests {
             ip_location: None,
         };
         state
+            .storage
             .store
             .add_session("session-1", &session, 3_600)
             .await
@@ -1052,6 +1055,7 @@ mod tests {
         assert!(verify.set_cookies.is_empty());
         assert!(
             state
+                .storage
                 .store
                 .list_auth_mobility_recent_active_ip_details("session-1", 0)
                 .await
@@ -1074,6 +1078,7 @@ mod tests {
         settings.internal_rpc_token = "rule-cookie-probe-round-trip".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         state
+            .storage
             .store
             .save_config(&json!({
                 "run_type": 3,
@@ -1161,6 +1166,7 @@ mod tests {
         assert!(!second_verify.set_cookies[0].contains("=p1."));
         assert_eq!(
             state
+                .storage
                 .store
                 .count_keys_by_prefix("fn_knock:auth:subdomain_rule_grant:")
                 .await
@@ -1204,6 +1210,7 @@ mod tests {
         settings.internal_rpc_token = "stream-scope-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         state
+            .storage
             .store
             .save_config(&json!({
                 "auth_credential_settings": {
@@ -1227,6 +1234,7 @@ mod tests {
             }),
         };
         state
+            .storage
             .store
             .add_totp(credential.clone())
             .await
@@ -1251,6 +1259,7 @@ mod tests {
             ip_location: None,
         };
         state
+            .storage
             .store
             .add_session("session-1", &session, 3600)
             .await
@@ -1258,6 +1267,7 @@ mod tests {
         let now = time_utils::now_ms() / 1000;
         assert!(
             state
+                .storage
                 .store
                 .save_auth_mobility_active_ip_detail(
                     "session-1",
@@ -1299,6 +1309,7 @@ mod tests {
         let mut updates = serde_json::Map::new();
         updates.insert("ip".to_string(), Value::String("203.0.113.11".to_string()));
         state
+            .storage
             .store
             .update_session_value("session-1", updates)
             .await
@@ -1327,6 +1338,7 @@ mod tests {
         });
         assert!(
             state
+                .storage
                 .store
                 .save_auth_mobility_active_ip_detail(
                     "session-1",
@@ -1347,6 +1359,7 @@ mod tests {
 
         assert!(
             state
+                .storage
                 .store
                 .save_auth_mobility_active_ip_detail(
                     "session-1",
@@ -1379,6 +1392,7 @@ mod tests {
 
         let all_access = json!({ "mode": "all", "hosts": [], "streams": [] });
         state
+            .storage
             .store
             .update_totp_subdomain_access(&credential.id, all_access.clone())
             .await
@@ -1405,6 +1419,7 @@ mod tests {
             Value::String("2000-01-01T00:00:00Z".to_string()),
         );
         state
+            .storage
             .store
             .update_session_value("session-1", updates)
             .await
@@ -1432,6 +1447,7 @@ mod tests {
         settings.internal_rpc_token = "stream-canonical-policy-test".to_string();
         let state = AppState::new(settings).await.expect("auth test state");
         state
+            .storage
             .store
             .save_config(&json!({
                 "auth_credential_settings": {
@@ -1481,6 +1497,7 @@ mod tests {
         };
         for credential in [&tcp_credential, &udp_credential, &all_credential] {
             state
+                .storage
                 .store
                 .add_totp(credential.clone())
                 .await
@@ -1509,6 +1526,7 @@ mod tests {
 
         let ipv6 = "[2001:0db8:0:0::10]";
         state
+            .storage
             .store
             .add_session("session-tcp", &session_for(&tcp_credential, ipv6), 3_600)
             .await
@@ -1526,6 +1544,7 @@ mod tests {
             Value::String("2000-01-01T00:00:00Z".to_string()),
         );
         state
+            .storage
             .store
             .update_session_value("session-tcp", updates)
             .await
@@ -1572,6 +1591,7 @@ mod tests {
                 .allowed
         );
         let refreshed_tcp_session = state
+            .storage
             .store
             .get_session("session-tcp")
             .await
@@ -1584,6 +1604,7 @@ mod tests {
         );
 
         state
+            .storage
             .store
             .add_session("session-udp", &session_for(&udp_credential, ipv6), 3_600)
             .await
@@ -1606,6 +1627,7 @@ mod tests {
         disabled.post_login_ip_grant_mode = None;
         disabled.stream_access_expires_at = None;
         state
+            .storage
             .store
             .add_session("session-disabled", &disabled, 3_600)
             .await
@@ -1621,6 +1643,7 @@ mod tests {
         legacy_follow.post_login_ip_grant_mode = Some("follow_session".to_string());
         legacy_follow.stream_access_expires_at = None;
         state
+            .storage
             .store
             .add_session("session-legacy", &legacy_follow, 3_600)
             .await
@@ -1635,6 +1658,7 @@ mod tests {
         let mut missing_credential = session_for(&all_credential, "203.0.113.30");
         missing_credential.totp_id = "missing-totp".to_string();
         state
+            .storage
             .store
             .add_session("session-missing", &missing_credential, 3_600)
             .await
@@ -1647,6 +1671,7 @@ mod tests {
         );
 
         state
+            .storage
             .store
             .add_session(
                 "session-invalid-ip",

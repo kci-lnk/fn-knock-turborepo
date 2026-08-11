@@ -77,6 +77,8 @@ do
   expected_beta="$(jq -r 'if (.releaseChannel // "stable") == "stable" then "no" else "yes" end' "${ROOT_DIR}/version.json")"
   tar -xOf "${output_path}" INFO | grep -Fqx "beta=\"${expected_beta}\"" || \
     fail "${synology_arch} SPK INFO has the wrong beta marker"
+  tar -xOf "${output_path}" INFO | grep -Fqx 'start_dep_services="network-online.target"' || \
+    fail "${synology_arch} SPK must wait for DSM network readiness"
 
   tar -xOf "${output_path}" package.tgz > "${PACKAGE_TGZ}"
   payload_listing="$(tar -tzf "${PACKAGE_TGZ}")"

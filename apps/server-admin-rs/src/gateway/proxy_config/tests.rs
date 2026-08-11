@@ -1433,14 +1433,19 @@ async fn manual_metadata_refresh_rolls_back_config_when_runtime_sync_fails() {
             "favicon": "before.ico"
         }]
     });
-    state.store.save_config(&previous_config).await.unwrap();
+    state
+        .storage
+        .store
+        .save_config(&previous_config)
+        .await
+        .unwrap();
 
     let response = refresh_host_mapping_titles(State(state.clone())).await;
 
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     metadata_requested_rx.await.unwrap();
     assert_eq!(
-        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        config_without_internal_metadata(state.storage.store.get_config().await.unwrap()),
         previous_config
     );
 }
@@ -1468,7 +1473,12 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
             "title": "After refresh"
         }]
     });
-    state.store.save_config(&changed_config).await.unwrap();
+    state
+        .storage
+        .store
+        .save_config(&changed_config)
+        .await
+        .unwrap();
 
     let runtime_calls = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let captured_calls = runtime_calls.clone();
@@ -1483,6 +1493,7 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
         &changed_mappings,
         move |state, config, mappings| async move {
             let stored = state
+                .storage
                 .store
                 .get_config()
                 .await
@@ -1512,7 +1523,7 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
         previous_config
     );
     assert_eq!(
-        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        config_without_internal_metadata(state.storage.store.get_config().await.unwrap()),
         previous_config
     );
 }
@@ -1541,7 +1552,12 @@ async fn host_mapping_rollback_does_not_overwrite_a_newer_mapping_commit() {
             "protocol_mode": "http2"
         }]
     });
-    state.store.save_config(&newer_config).await.unwrap();
+    state
+        .storage
+        .store
+        .save_config(&newer_config)
+        .await
+        .unwrap();
 
     let runtime_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let captured_calls = runtime_calls.clone();
@@ -1558,7 +1574,7 @@ async fn host_mapping_rollback_does_not_overwrite_a_newer_mapping_commit() {
 
     assert_eq!(runtime_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
     assert_eq!(
-        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        config_without_internal_metadata(state.storage.store.get_config().await.unwrap()),
         newer_config
     );
 }
@@ -1576,6 +1592,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
         "protocol_mode": "auto"
     })];
     first_state
+        .storage
         .store
         .save_config(&json!({
             "host_mappings": expected,
@@ -1585,6 +1602,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
         .await
         .unwrap();
     let expected = first_state
+        .storage
         .store
         .get_config()
         .await
@@ -1595,7 +1613,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
         .unwrap();
     let first_revision = host_mappings_revision(&expected);
     let second_revision = host_mappings_revision(
-        second_state.store.get_config().await.unwrap()["host_mappings"]
+        second_state.storage.store.get_config().await.unwrap()["host_mappings"]
             .as_array()
             .unwrap(),
     );
@@ -1604,9 +1622,10 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
     // Commit an unrelated section from the second state after both writers
     // obtained the same host-mapping revision. The section CAS must merge into
     // this latest full document instead of restoring generation 1.
-    let mut unrelated_update = second_state.store.get_config().await.unwrap();
+    let mut unrelated_update = second_state.storage.store.get_config().await.unwrap();
     unrelated_update["unrelated"]["generation"] = json!(2);
     second_state
+        .storage
         .store
         .save_config(&unrelated_update)
         .await
@@ -1631,6 +1650,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
         tokio::spawn(async move {
             barrier.wait().await;
             state
+                .storage
                 .store
                 .compare_and_set_host_mappings(&expected, &replacement)
                 .await
@@ -1645,6 +1665,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
         tokio::spawn(async move {
             barrier.wait().await;
             state
+                .storage
                 .store
                 .compare_and_set_host_mappings(&expected, &replacement)
                 .await
@@ -1656,7 +1677,7 @@ async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sectio
     let second_result = second_task.await.unwrap();
 
     assert_ne!(first_result.is_some(), second_result.is_some());
-    let final_config = first_state.store.get_config().await.unwrap();
+    let final_config = first_state.storage.store.get_config().await.unwrap();
     assert_eq!(final_config["unrelated"]["generation"], json!(2));
     let final_mappings = final_config["host_mappings"].as_array().unwrap();
     assert!(final_mappings == &first_replacement || final_mappings == &second_replacement);
@@ -1738,6 +1759,7 @@ async fn host_mapping_lease_loss_is_reported_by_release_and_runtime_transaction(
         .unwrap()
         .unwrap();
     state
+        .storage
         .store
         .set_json_value(
             HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
@@ -1747,6 +1769,7 @@ async fn host_mapping_lease_loss_is_reported_by_release_and_runtime_transaction(
         .unwrap();
     assert!(lease.release().await.is_err());
     state
+        .storage
         .store
         .delete_key(HOST_MAPPINGS_TRANSACTION_LOCK_KEY)
         .await
@@ -1754,6 +1777,7 @@ async fn host_mapping_lease_loss_is_reported_by_release_and_runtime_transaction(
 
     let result = with_host_mappings_runtime_transaction(&state, |state| async move {
         state
+            .storage
             .store
             .set_json_value(
                 HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
@@ -1766,6 +1790,7 @@ async fn host_mapping_lease_loss_is_reported_by_release_and_runtime_transaction(
     .await;
     assert!(result.unwrap_err().contains("lease ownership was lost"));
     state
+        .storage
         .store
         .delete_key(HOST_MAPPINGS_TRANSACTION_LOCK_KEY)
         .await
@@ -1784,14 +1809,16 @@ async fn delayed_runtime_host_sync_reads_latest_mapping_after_acquiring_lease() 
         "protocol_mode": "auto"
     })];
     mutation_state
+        .storage
         .store
         .save_config(&json!({ "host_mappings": initial_mappings }))
         .await
         .unwrap();
-    let initial_mappings = mutation_state.store.get_config().await.unwrap()["host_mappings"]
-        .as_array()
-        .cloned()
-        .unwrap();
+    let initial_mappings =
+        mutation_state.storage.store.get_config().await.unwrap()["host_mappings"]
+            .as_array()
+            .cloned()
+            .unwrap();
     let mutation_lease = acquire_host_mappings_transaction_lease(&mutation_state)
         .await
         .unwrap()
@@ -1799,7 +1826,7 @@ async fn delayed_runtime_host_sync_reads_latest_mapping_after_acquiring_lease() 
     let (captured_tx, captured_rx) = tokio::sync::oneshot::channel();
     let runtime_task = tokio::spawn(async move {
         with_host_mappings_runtime_transaction(&runtime_state, move |state| async move {
-            let mappings = state.store.get_config().await.unwrap()["host_mappings"]
+            let mappings = state.storage.store.get_config().await.unwrap()["host_mappings"]
                 .as_array()
                 .cloned()
                 .unwrap();
@@ -1817,6 +1844,7 @@ async fn delayed_runtime_host_sync_reads_latest_mapping_after_acquiring_lease() 
         "protocol_mode": "http1"
     })];
     mutation_state
+        .storage
         .store
         .compare_and_set_host_mappings(&initial_mappings, &latest_mappings)
         .await
@@ -1840,6 +1868,7 @@ async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states()
         "protocol_mode": "auto"
     })];
     host_state
+        .storage
         .store
         .save_config(&json!({
             "host_mappings": initial_mappings,
@@ -1850,7 +1879,7 @@ async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states()
 
     // This snapshot carries generation N and is intentionally held until
     // after another AppState commits host generation N+1.
-    let mut stale_full_config = full_writer_state.store.get_config().await.unwrap();
+    let mut stale_full_config = full_writer_state.storage.store.get_config().await.unwrap();
     let initial_mappings = stale_full_config["host_mappings"]
         .as_array()
         .cloned()
@@ -1861,6 +1890,7 @@ async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states()
         "protocol_mode": "http1"
     })];
     host_state
+        .storage
         .store
         .compare_and_set_host_mappings(&initial_mappings, &next_mappings)
         .await
@@ -1869,16 +1899,18 @@ async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states()
 
     stale_full_config["unrelated"]["generation"] = json!(2);
     let stale_save = full_writer_state
+        .storage
         .store
         .save_config(&stale_full_config)
         .await;
     assert!(stale_save.is_err());
 
-    let final_config = host_state.store.get_config().await.unwrap();
+    let final_config = host_state.storage.store.get_config().await.unwrap();
     assert_eq!(final_config["host_mappings"], json!(next_mappings));
     assert_eq!(final_config["unrelated"]["generation"], json!(1));
     assert_eq!(
         host_state
+            .storage
             .store
             .get_string_value("fn_knock:config:host_mappings:generation")
             .await
@@ -1887,6 +1919,7 @@ async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states()
         Some("2")
     );
     let persisted_raw = host_state
+        .storage
         .store
         .get_string_value("fn_knock:config")
         .await
@@ -2711,10 +2744,16 @@ async fn disabled_stream_mapping_deletion_does_not_depend_on_gateway_runtime() {
             "comment": "legacy UDP"
         }
     ]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
-    state.store.save_config(&config).await.expect("save config");
     state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
+    state
+        .storage
         .store
         .set_json_value(
             "fn_knock:protocol-mapping:feature",
@@ -2742,6 +2781,7 @@ async fn disabled_stream_mapping_deletion_does_not_depend_on_gateway_runtime() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -2761,10 +2801,16 @@ async fn enabled_stream_mapping_can_delete_the_only_legacy_udp_loop() {
         "use_auth": true,
         "comment": "legacy UDP"
     }]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
-    state.store.save_config(&config).await.expect("save config");
     state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
+    state
+        .storage
         .store
         .set_json_value(
             "fn_knock:protocol-mapping:feature",
@@ -2789,6 +2835,7 @@ async fn enabled_stream_mapping_can_delete_the_only_legacy_udp_loop() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await
@@ -2821,10 +2868,16 @@ async fn stream_mapping_update_waits_for_the_protocol_mapping_transaction_lock()
             "use_auth": true
         }
     ]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     ensure_object(&mut config).insert("stream_mappings".to_string(), mappings);
-    state.store.save_config(&config).await.expect("save config");
     state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
+    state
+        .storage
         .store
         .set_json_value(
             "fn_knock:protocol-mapping:feature",
@@ -2833,7 +2886,7 @@ async fn stream_mapping_update_waits_for_the_protocol_mapping_transaction_lock()
         .await
         .expect("enable protocol mappings");
 
-    let guard = state.protocol_mapping_update_lock.lock().await;
+    let guard = state.gateway.protocol_mapping_update_lock.lock().await;
     let task_state = state.clone();
     let mut task = tokio::spawn(async move {
         update_stream_mappings(
@@ -2884,10 +2937,16 @@ async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
             "comment": "legacy UDP"
         }
     ]);
-    let mut config = state.store.get_config().await.expect("load config");
+    let mut config = state.storage.store.get_config().await.expect("load config");
     ensure_object(&mut config).insert("stream_mappings".to_string(), mappings.clone());
-    state.store.save_config(&config).await.expect("save config");
     state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save config");
+    state
+        .storage
         .store
         .set_json_value(
             "fn_knock:protocol-mapping:feature",
@@ -2922,6 +2981,7 @@ async fn enabled_legacy_loop_cleanup_requires_disabling_before_persisting() {
     );
     assert_eq!(
         state
+            .storage
             .store
             .get_config()
             .await

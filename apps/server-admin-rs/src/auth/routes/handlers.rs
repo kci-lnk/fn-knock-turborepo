@@ -20,7 +20,7 @@ pub(super) async fn bootstrap(
     match build_auth_shell_data(&state, &headers, &uri, query.redirect_uri.as_deref(), true).await {
         Ok((mut data, access)) => {
             let mut clear_cookie = None;
-            if let Ok(config) = state.store.get_config().await
+            if let Ok(config) = state.storage.store.get_config().await
                 && let Some((message, cookie)) =
                     consume_login_error_for_bootstrap(&state, &headers, &uri, &config).await
             {
@@ -242,7 +242,7 @@ pub(super) async fn oidc_client_metadata(
         .pointer("/connection_config/client_id")
         .and_then(Value::as_str)
         .unwrap_or("fnknock-qq-public");
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(_) => {
             return response::error(
@@ -278,7 +278,7 @@ pub(super) async fn oidc_invite(
     State(state): State<AppState>,
     Query(query): Query<OidcInviteQuery>,
 ) -> Response {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -356,7 +356,7 @@ pub(super) async fn login(
 ) -> Response {
     let client_ip = client_ip_for_auth(&headers);
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config during login");
@@ -369,7 +369,12 @@ pub(super) async fn login(
     };
     let translator = translator_from_config(&config);
 
-    match state.store.get_login_backoff_status(&tracking_ip).await {
+    match state
+        .storage
+        .store
+        .get_login_backoff_status(&tracking_ip)
+        .await
+    {
         Ok(status) if status.blocked => {
             let retry_after = status.retry_after.unwrap_or(1).max(1);
             return with_auth_headers(backoff_login_response(
@@ -392,7 +397,7 @@ pub(super) async fn login(
         return with_auth_headers(response::error(StatusCode::BAD_REQUEST, message));
     }
 
-    let login_mode = match state.store.get_auth_login_mode().await {
+    let login_mode = match state.storage.store.get_auth_login_mode().await {
         Ok(mode) => mode,
         Err(error) => {
             tracing::warn!(%error, "failed to load auth login mode");
@@ -458,7 +463,7 @@ pub(super) async fn login(
     }
     let token = body.token.as_deref().unwrap_or("").trim();
 
-    let totps = match state.store.get_totps().await {
+    let totps = match state.storage.store.get_totps().await {
         Ok(totps) => totps,
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP credentials");
@@ -477,6 +482,7 @@ pub(super) async fn login(
 
     let Some(credential) = find_matching_totp(&totps, token) else {
         match state
+            .storage
             .store
             .register_login_backoff_failure(&tracking_ip)
             .await
@@ -584,7 +590,7 @@ pub(super) async fn login(
             auth_route_text(&translator, "createSessionFailed"),
         ));
     }
-    if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
+    if let Err(error) = state.storage.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset auth login backoff after success");
     }
 
@@ -696,7 +702,12 @@ async fn password_login(
     let account = if username.is_empty() || password.is_empty() {
         None
     } else {
-        match state.store.get_auth_account_by_username(username).await {
+        match state
+            .storage
+            .store
+            .get_auth_account_by_username(username)
+            .await
+        {
             Ok(account) => account,
             Err(error) => {
                 tracing::warn!(%error, "failed to load auth account for password login");
@@ -708,7 +719,12 @@ async fn password_login(
         }
     };
     let verified = if let Some(account) = account.as_ref() {
-        match state.store.get_auth_password_credential(&account.id).await {
+        match state
+            .storage
+            .store
+            .get_auth_password_credential(&account.id)
+            .await
+        {
             Ok(Some(record)) => {
                 match crate::auth::password::verify_auth_password(password, &record) {
                     Ok(value) => value,
@@ -739,7 +755,7 @@ async fn password_login(
         return register_password_login_failure(state, headers, tracking_ip, translator).await;
     };
 
-    let totp_credential = match state.store.get_totps().await {
+    let totp_credential = match state.storage.store.get_totps().await {
         Ok(totps) => totps
             .into_iter()
             .find(|credential| credential.id == account.source_totp_id),
@@ -810,7 +826,7 @@ async fn password_login(
             auth_route_text(translator, "createSessionFailed"),
         ));
     }
-    if let Err(error) = state.store.reset_login_backoff(tracking_ip).await {
+    if let Err(error) = state.storage.store.reset_login_backoff(tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset password login backoff after success");
     }
 
@@ -871,6 +887,7 @@ async fn register_password_login_failure(
     translator: &Translator,
 ) -> Response {
     match state
+        .storage
         .store
         .register_login_backoff_failure(tracking_ip)
         .await
@@ -954,7 +971,7 @@ pub(super) async fn logout(
         } else {
             false
         };
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => Some(config),
         Err(error) => {
             tracing::warn!(%error, "failed to load config for logout");

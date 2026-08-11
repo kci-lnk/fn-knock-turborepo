@@ -32,13 +32,14 @@ pub(super) struct TargetStatusView {
 pub(crate) fn start_wol_tasks(state: AppState) {
     super::relay::start_wol_relay_tasks(state.clone());
     super::integrations::start_integration_tasks(state.clone());
-    tokio::spawn(async move {
-        status_supervisor(state).await;
+    let task_state = state.clone();
+    state.spawn_background("wol-status-supervisor", async move {
+        status_supervisor(task_state).await;
     });
 }
 
 async fn status_supervisor(state: AppState) {
-    let mut runtime_reload = state.wol_runtime_reload.subscribe();
+    let mut runtime_reload = state.wol.runtime_reload.subscribe();
     loop {
         if state.shutdown.is_cancelled() {
             return;
@@ -118,11 +119,18 @@ fn spawn_target_check(tasks: &mut JoinSet<()>, state: &AppState, target: TargetR
 }
 
 pub(super) fn schedule_target_rechecks(state: AppState, target_id: String) {
-    tokio::spawn(async move {
-        time::sleep(Duration::from_secs(5)).await;
-        let _ = check_target_by_id(&state, &target_id).await;
-        time::sleep(Duration::from_secs(15)).await;
-        let _ = check_target_by_id(&state, &target_id).await;
+    let task_state = state.clone();
+    state.spawn_background("wol-target-recheck", async move {
+        tokio::select! {
+            _ = task_state.shutdown.cancelled() => return,
+            _ = time::sleep(Duration::from_secs(5)) => {}
+        }
+        let _ = check_target_by_id(&task_state, &target_id).await;
+        tokio::select! {
+            _ = task_state.shutdown.cancelled() => return,
+            _ = time::sleep(Duration::from_secs(15)) => {}
+        }
+        let _ = check_target_by_id(&task_state, &target_id).await;
     });
 }
 
@@ -252,7 +260,7 @@ async fn persist_result(
     )
     .await?;
     if state_changed {
-        let _ = state.wol_status_updates.send(serde_json::json!({
+        let _ = state.wol.status_updates.send(serde_json::json!({
             "targetId": id,
             "state": state_name,
         }));
@@ -269,7 +277,7 @@ async fn persist_result_if_current(
     // CRUD uses the same lock. Re-read only while holding it so an old probe
     // cannot recreate status after deletion or overwrite the reset performed
     // by an address/MAC/Relay edit.
-    let _guard = state.wol_config_lock.lock().await;
+    let _guard = state.wol.config_lock.lock().await;
     let Some(current) = load_target(state, &checked_target.id).await? else {
         return Ok(());
     };

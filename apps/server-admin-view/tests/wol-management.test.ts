@@ -5,6 +5,24 @@ import { describe, it } from "node:test";
 const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
+const contractSchemas = (
+  JSON.parse(
+    readSource("../../../packages/api-contract/openapi.json"),
+  ) as {
+    components: {
+      schemas: Record<
+        string,
+        {
+          properties?: Record<
+            string,
+            { type?: unknown; writeOnly?: boolean }
+          >;
+        }
+      >;
+    };
+  }
+).components.schemas;
+
 describe("Wake-on-LAN management", () => {
   it("gates navigation, route access, portal settings, and permissions on the feature switch", () => {
     const features = readSource(
@@ -42,8 +60,8 @@ describe("Wake-on-LAN management", () => {
 
     assert.match(app, /start_wol_tasks\(state\.clone\(\)\)/u);
     assert.match(relay, /state\.shutdown\.cancelled\(\)/u);
-    assert.match(relay, /state\.wol_relay_reload\.notified\(\)/u);
-    assert.match(relay, /wol_runtime_reload\.subscribe\(\)/u);
+    assert.match(relay, /state\.wol\.relay_reload\.notified\(\)/u);
+    assert.match(relay, /state\.wol\.runtime_reload\.subscribe\(\)/u);
     assert.match(relay, /runtime_reload\.changed\(\)/u);
     assert.doesNotMatch(bootstrap, /fn-knock-wol-relay|psk_file|systemd/u);
     assert.equal(
@@ -55,6 +73,9 @@ describe("Wake-on-LAN management", () => {
   it("pairs with one code and hides Relay credentials from the basic UI", () => {
     const api = readSource("../src/lib/api/wol.ts");
     const page = readSource("../src/views/WOLManagement.vue");
+    const model = readSource(
+      "../src/views/wol-management/wol-management-model.ts",
+    );
     const localRelay = readSource(
       "../src/views/wol-management/WOLLocalRelaySettings.vue",
     );
@@ -65,19 +86,32 @@ describe("Wake-on-LAN management", () => {
     assert.match(api, /get\("\/wol\/local-relay"\)/u);
     assert.match(api, /put\("\/wol\/local-relay", payload\)/u);
     assert.match(api, /post\("\/wol\/local-relay\/pair"/u);
-    assert.match(api, /pskConfigured: boolean/u);
-    assert.doesNotMatch(
-      api.slice(
-        api.indexOf("export type WOLLocalRelayConfig"),
-        api.indexOf("export type WOLLocalRelayInput"),
-      ),
-      /\bpsk:\s*string/u,
+    assert.match(
+      api,
+      /WOLLocalRelayConfig = WolSchemas\["WolLocalRelayConfigData"\]/u,
+    );
+    assert.equal(
+      contractSchemas.WolLocalRelayConfigData.properties?.pskConfigured.type,
+      "boolean",
+    );
+    assert.equal(
+      contractSchemas.WolLocalRelayConfigData.properties?.psk,
+      undefined,
+    );
+    assert.equal(
+      contractSchemas.WolLocalRelayInputData.properties?.psk.writeOnly,
+      true,
+    );
+    assert.equal(
+      contractSchemas.WolLocalRelayPairBodyData.properties?.pairingCode
+        .writeOnly,
+      true,
     );
     assert.match(localRelay, /pairingCode/u);
     assert.doesNotMatch(localRelay, /model\.psk|relayId|keyVersion/u);
     assert.match(bootstrap, /credential\.bootstrap\.pairingCode/u);
     assert.doesNotMatch(bootstrap, /credential\.bootstrap\.psk/u);
-    assert.match(page, /psk: ""/u);
+    assert.match(model, /psk: ""/u);
     assert.doesNotMatch(page + localRelay, /localStorage|sessionStorage/u);
     assert.doesNotMatch(page, /value="local-relay"/u);
   });
@@ -93,6 +127,9 @@ describe("Wake-on-LAN management", () => {
 
   it("prioritizes target names over technical wake details", () => {
     const page = readSource("../src/views/WOLManagement.vue");
+    const portalSettings = readSource(
+      "../src/views/wol-management/WOLPortalSettingsDialog.vue",
+    );
     const template = page.slice(page.indexOf("<template>"));
     const primaryIndex = template.indexOf('data-testid="wol-target-primary"');
     const technicalIndex = template.indexOf(
@@ -117,7 +154,8 @@ describe("Wake-on-LAN management", () => {
       template,
       /target\.status\.observedIp \|\| target\.ipAddress/u,
     );
-    assert.match(template, /admin\.wol\.portal\.showShortcut/u);
+    assert.match(template, /WOLPortalSettingsDialog/u);
+    assert.match(portalSettings, /admin\.wol\.portal\.showShortcut/u);
   });
 
   it("streams LAN discovery, generates editable names, and hides redundant wake paths", () => {
@@ -170,19 +208,43 @@ describe("Wake-on-LAN management", () => {
   it("uses one provider select and shows write-only settings only while editing", () => {
     const api = readSource("../src/lib/api/wol.ts");
     const page = readSource("../src/views/WOLManagement.vue");
+    const model = readSource(
+      "../src/views/wol-management/wol-management-model.ts",
+    );
     const dialog = readSource(
       "../src/views/wol-management/WOLTargetDialog.vue",
     );
 
-    assert.match(api, /credentialConfigured: boolean/u);
+    assert.match(api, /WolTargetIntegrationsData/u);
     assert.match(api, /deviceKey\?: string/u);
     assert.match(api, /privateKey\?: string/u);
-    assert.doesNotMatch(
-      api.slice(
-        api.indexOf("export type WOLTargetIntegrations"),
-        api.indexOf("export type WOLTargetIntegrationInput"),
-      ),
-      /deviceKey|privateKey/u,
+    assert.equal(
+      contractSchemas.WolBlinkerIntegrationData.properties
+        ?.credentialConfigured.type,
+      "boolean",
+    );
+    assert.equal(
+      contractSchemas.WolBemfaIntegrationData.properties?.credentialConfigured
+        .type,
+      "boolean",
+    );
+    assert.equal(
+      contractSchemas.WolBlinkerIntegrationData.properties?.deviceKey,
+      undefined,
+    );
+    assert.equal(
+      contractSchemas.WolBemfaIntegrationData.properties?.privateKey,
+      undefined,
+    );
+    assert.equal(
+      contractSchemas.WolBlinkerIntegrationInputData.properties?.deviceKey
+        .writeOnly,
+      true,
+    );
+    assert.equal(
+      contractSchemas.WolBemfaIntegrationInputData.properties?.privateKey
+        .writeOnly,
+      true,
     );
     assert.match(dialog, /v-if="mode === 'edit' && integrations"/u);
     assert.match(dialog, /type="password"/u);
@@ -211,7 +273,7 @@ describe("Wake-on-LAN management", () => {
       dialog.slice(dialog.indexOf("<template>")),
       /skipTlsVerify|tlsWarning|blinker-tls|bemfa-tls/u,
     );
-    assert.equal((page.match(/skipTlsVerify: true/gu) ?? []).length, 2);
+    assert.equal((model.match(/skipTlsVerify: true/gu) ?? []).length, 2);
     assert.match(
       page,
       /const \{ integrations: _integrations, \.\.\.createPayload \}/u,

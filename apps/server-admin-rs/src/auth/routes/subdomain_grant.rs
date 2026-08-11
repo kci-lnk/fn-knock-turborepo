@@ -11,7 +11,7 @@ use crate::{auth::cookies, crypto_utils, state::AppState, time_utils};
 pub(crate) const COOKIE_NAME: &str = "fn-knock-subdomain-rule-grant";
 const KEY_PREFIX: &str = "fn_knock:auth:subdomain_rule_grant:";
 const ACTIVE_INDEX_PREFIX: &str = "fn_knock:auth:subdomain_rule_grant_active:";
-const RATE_KEY_PREFIX: &str = "fn_knock:auth:subdomain_rule_rate:";
+const RATE_KEY_PREFIX: &str = crate::storage::typed_subdomain_rate_limit::RATE_LIMIT_PREFIX;
 const RENEWAL_GRANULARITY_SECONDS: i64 = 60;
 const RATE_WINDOW_SECONDS: i64 = 60;
 const PROBE_PREFIX: &str = "p1";
@@ -391,6 +391,7 @@ pub(crate) async fn authorize(
     let encoded = serde_json::to_string(&record)?;
     let grant_key = key(&token);
     let stored = match state
+        .storage
         .store
         .set_expiring_string_with_zset_limit(
             &grant_key,
@@ -460,12 +461,12 @@ async fn authorize_existing(
         return Ok(None);
     };
     let grant_key = key(&token);
-    let Some(raw) = state.store.get_string_value(&grant_key).await? else {
+    let Some(raw) = state.storage.store.get_string_value(&grant_key).await? else {
         return Ok(None);
     };
     let Ok(mut record) = serde_json::from_str::<GrantRecord>(&raw) else {
         if renew {
-            let _ = state.store.delete_key(&grant_key).await;
+            let _ = state.storage.store.delete_key(&grant_key).await;
         }
         return Ok(None);
     };
@@ -480,6 +481,7 @@ async fn authorize_existing(
     if !valid {
         if renew {
             let _ = state
+                .storage
                 .store
                 .delete_string_and_zrem(&grant_key, &active_index_key(&record.host), &grant_key)
                 .await;
@@ -500,6 +502,7 @@ async fn authorize_existing(
         record.last_access_at = now;
         let encoded = serde_json::to_string(&record)?;
         let stored = state
+            .storage
             .store
             .set_expiring_string_with_zset_limit(
                 &grant_key,
@@ -549,6 +552,7 @@ async fn enforce_issue_rate_limit(
     let host_key = format!("{RATE_KEY_PREFIX}host:{host_hash}");
     let client_key = format!("{RATE_KEY_PREFIX}client:{client_hash}");
     let host_count = state
+        .storage
         .store
         .increment_counter_with_ttl(&host_key, RATE_WINDOW_SECONDS)
         .await?;
@@ -556,6 +560,7 @@ async fn enforce_issue_rate_limit(
         anyhow::bail!(RATE_LIMITED_ERROR);
     }
     let client_count = state
+        .storage
         .store
         .increment_counter_with_ttl(&client_key, RATE_WINDOW_SECONDS)
         .await?;
@@ -604,17 +609,19 @@ pub(crate) async fn revoke(state: &AppState, headers: &HeaderMap) -> anyhow::Res
     if let Some(token) = cookies::read_cookie(headers, COOKIE_NAME) {
         let grant_key = key(&token);
         let record = state
+            .storage
             .store
             .get_string_value(&grant_key)
             .await?
             .and_then(|raw| serde_json::from_str::<GrantRecord>(&raw).ok());
         if let Some(record) = record {
             state
+                .storage
                 .store
                 .delete_string_and_zrem(&grant_key, &active_index_key(&record.host), &grant_key)
                 .await?;
         } else {
-            state.store.delete_key(&grant_key).await?;
+            state.storage.store.delete_key(&grant_key).await?;
         }
     }
     Ok(())
@@ -740,11 +747,17 @@ mod tests {
         let probe_cookie = first.set_cookie.expect("cookie capability probe");
         assert!(probe_cookie.starts_with(&format!("{COOKIE_NAME}={PROBE_PREFIX}.")));
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             0
         );
         assert_eq!(
             state
+                .storage
                 .store
                 .count_keys_by_prefix(RATE_KEY_PREFIX)
                 .await
@@ -759,7 +772,12 @@ mod tests {
         assert_eq!(second.state, "transient");
         assert!(second.set_cookie.is_some());
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             0
         );
 
@@ -773,7 +791,12 @@ mod tests {
         let grant_cookie = issued.set_cookie.expect("persistent grant cookie");
         assert!(!grant_cookie.contains(&format!("={PROBE_PREFIX}.")));
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             1
         );
 
@@ -809,11 +832,17 @@ mod tests {
             assert!(access.set_cookie.is_some());
         }
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             0
         );
         assert_eq!(
             state
+                .storage
                 .store
                 .count_keys_by_prefix(RATE_KEY_PREFIX)
                 .await
@@ -822,6 +851,7 @@ mod tests {
         );
         assert!(
             state
+                .storage
                 .store
                 .scan_keys("fn_knock:auth:subdomain_rule_issue_slot:", 10)
                 .await
@@ -872,7 +902,12 @@ mod tests {
         assert_eq!(issued, RATE_PER_CLIENT);
         assert_eq!(transient, 20 - RATE_PER_CLIENT);
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             1
         );
     }
@@ -908,7 +943,12 @@ mod tests {
             }
         }
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             RATE_PER_CLIENT
         );
     }
@@ -947,7 +987,12 @@ mod tests {
                 .is_none()
         );
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             0
         );
 
@@ -976,7 +1021,12 @@ mod tests {
         grant_headers.insert(header::COOKIE, cookie_header(&grant_cookie));
         revoke(&state, &grant_headers).await.expect("revoke grant");
         assert_eq!(
-            state.store.count_keys_by_prefix(KEY_PREFIX).await.unwrap(),
+            state
+                .storage
+                .store
+                .count_keys_by_prefix(KEY_PREFIX)
+                .await
+                .unwrap(),
             0
         );
 

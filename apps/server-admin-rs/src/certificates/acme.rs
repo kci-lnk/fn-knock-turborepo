@@ -18,7 +18,6 @@ use axum::{
     extract::{Path as AxumPath, Query, State},
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get},
 };
 use bytes::Bytes;
 use serde::Deserialize;
@@ -29,6 +28,7 @@ use tokio::{
     process::Command,
     time::{self as tokio_time, MissedTickBehavior},
 };
+use utoipa_axum::router::OpenApiRouter;
 use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 use crate::{i18n::Translator, response, ssl, state::AppState, time_utils};
@@ -49,7 +49,8 @@ mod validation;
 
 use analysis::*;
 use certificates::*;
-use handlers::*;
+#[cfg(test)]
+use handlers::build_init_acme_payload;
 use install::*;
 use jobs::*;
 use lookup::*;
@@ -114,95 +115,27 @@ fn acme_route_text(t: &Translator, key: &str) -> String {
 }
 
 pub fn acme_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/admin/acme", delete(uninstall_acme))
-        .route("/api/admin/acme/status", get(status))
-        .route("/api/admin/acme/resource/status", get(resource_status))
-        .route(
-            "/api/admin/acme/resource/initialize",
-            axum::routing::post(initialize_resource),
-        )
-        .route(
-            "/api/admin/acme/resource/cancel",
-            axum::routing::post(cancel_resource_initialization),
-        )
-        .route("/api/admin/acme/resource", delete(delete_resource))
-        .route("/api/admin/acme/overview", get(overview))
-        .route("/api/admin/acme/dns-providers", get(dns_providers))
-        .route(
-            "/api/admin/acme/subdomain-recommendation",
-            get(subdomain_recommendation),
-        )
-        .route("/api/admin/acme/init", axum::routing::post(init_acme))
-        .route(
-            "/api/admin/acme/client-settings",
-            axum::routing::post(save_client_settings_route),
-        )
-        .route("/api/admin/acme/config", get(config).post(save_config))
-        .route(
-            "/api/admin/acme/applications",
-            get(applications).post(create_application),
-        )
-        .route(
-            "/api/admin/acme/applications/{id}",
-            get(application)
-                .patch(update_application)
-                .delete(delete_application),
-        )
-        .route(
-            "/api/admin/acme/applications/{id}/certificate",
-            delete(delete_application_certificate),
-        )
-        .route(
-            "/api/admin/acme/applications/{id}/library/sync",
-            axum::routing::post(sync_application_library),
-        )
-        .route(
-            "/api/admin/acme/applications/{id}/deploy",
-            axum::routing::post(deploy_application_certificate),
-        )
-        .route(
-            "/api/admin/acme/applications/{id}/request",
-            axum::routing::post(request_application_certificate),
-        )
-        .route(
-            "/api/admin/acme/request",
-            axum::routing::post(request_certificate),
-        )
-        .route(
-            "/api/admin/acme/jobs/active/stop",
-            axum::routing::post(stop_active_job),
-        )
-        .route("/api/admin/acme/jobs/{id}/poll", get(job_poll))
-        .route("/api/admin/acme/jobs/{id}", get(job))
-        .route("/api/admin/acme/jobs/{id}/logs", get(job_logs))
-        .route(
-            "/api/admin/acme/certs/{domain}",
-            get(cert_info).delete(delete_cert),
-        )
-        .route(
-            "/api/admin/acme/certs/{domain}/download",
-            get(cert_download),
-        )
-        .route(
-            "/api/admin/acme/certs/{domain}/deploy",
-            axum::routing::post(deploy_domain_certificate),
-        )
+    acme_openapi_routes().into()
+}
+
+pub(crate) fn acme_openapi_routes() -> OpenApiRouter<AppState> {
+    handlers::openapi_routes().merge(resource::openapi_routes())
 }
 
 pub fn start_acme_tasks(state: AppState) {
-    tokio::spawn(async move {
+    let task_state = state.clone();
+    state.spawn_background("acme-auto-renew", async move {
         let mut ticker = tokio_time::interval(acme_renew_interval());
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = task_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                result = run_acme_auto_renew_once(state.clone()) => {
+                _ = task_state.shutdown.cancelled() => break,
+                result = run_acme_auto_renew_once(task_state.clone()) => {
                     if let Err(error) = result {
                         tracing::warn!(%error, "ACME auto-renew task failed");
                     }

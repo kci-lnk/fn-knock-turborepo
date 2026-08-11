@@ -1,6 +1,6 @@
 import type { WAFConfig } from "./types/waf";
 import type { AppearanceConfig } from "@frontend-core/appearance";
-import type { DateTimeDisplayMode } from "@admin-shared/composables/useDateTimeDisplayState";
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
 
 export type { AppearanceConfig } from "@frontend-core/appearance";
 export type { DateTimeDisplayMode } from "@admin-shared/composables/useDateTimeDisplayState";
@@ -14,28 +14,19 @@ export interface ProxyMapping {
   strip_path: boolean;
 }
 
-export type RunType = 0 | 1 | 3;
-export type ReverseProxySubmode = "path" | "subdomain";
-export type LocaleCode = "zh-CN" | "zh-Hant" | "en" | "ko-KR" | "ja-JP";
+export type RunType =
+  ApiContractComponents["schemas"]["RunTypeUpdateData"]["run_type"];
+export type ReverseProxySubmode = NonNullable<
+  ApiContractComponents["schemas"]["RunTypeUpdateData"]["reverse_proxy_submode"]
+>;
+export type LocaleConfig = ApiContractComponents["schemas"]["LocaleConfigData"];
+export type LocaleCode = LocaleConfig["default_locale"];
 
-export interface LocaleConfig {
-  default_locale: LocaleCode;
-}
-
-export interface WelcomeGuideStatus {
-  completed: boolean;
-  completed_at: string | null;
-}
+export type WelcomeGuideStatus =
+  ApiContractComponents["schemas"]["WelcomeGuideData"];
 
 export type DeploymentTarget =
-  | "fpk"
-  | "fpk-lite"
-  | "docker"
-  | "openwrt"
-  | "linux"
-  | "synology"
-  | "windows"
-  | "dev";
+  ApiContractComponents["schemas"]["PanelBootstrapData"]["deployment_target"];
 
 export interface RuntimeProfile {
   deployment_target: DeploymentTarget;
@@ -67,21 +58,15 @@ export interface RuntimeCapabilities {
   desktop_update_managed?: boolean;
 }
 
-export interface DockerAdminBootstrapState {
-  deployment_target: DeploymentTarget;
-  enabled: boolean;
-  password_configured: boolean;
-  authenticated: boolean;
-  auth_source: "panel_session" | "reauth_session" | null;
-  session_expires_at: string | null;
-  locale: LocaleConfig;
-  appearance: AppearanceConfig;
-}
+export type DockerAdminBootstrapState =
+  ApiContractComponents["schemas"]["PanelBootstrapData"];
 
-export type HostAccessMode = "login_first" | "strict_whitelist";
+export type HostAccessMode =
+  ApiContractComponents["schemas"]["SubdomainModeData"]["default_access_mode"];
 export type HostProtocolMode = "auto" | "http1" | "http2";
 export type HostServiceRole = "app" | "auth";
-export type StreamMappingProtocol = "tcp" | "udp";
+export type StreamMappingProtocol =
+  ApiContractComponents["schemas"]["StreamMappingData"]["protocol"];
 
 export interface HostMappingBasicAuth {
   enabled: boolean;
@@ -107,65 +92,30 @@ export interface HostMappingVisibility {
 }
 
 export type AdvancedAuthConditionTarget =
-  | "source_ip"
-  | "source_region"
-  | "url_path"
-  | "request_header"
-  | "query_parameter"
-  | "http_method";
-
+  ApiContractComponents["schemas"]["AdvancedAuthConditionData"]["target"];
 export type AdvancedAuthOperator =
-  | "equals"
-  | "not_equals"
-  | "in_cidr"
-  | "not_in_cidr"
-  | "in"
-  | "not_in"
-  | "exists"
-  | "not_exists"
-  | "prefix"
-  | "not_prefix"
-  | "contains"
-  | "not_contains"
-  | "starts_with"
-  | "not_starts_with"
-  | "ends_with"
-  | "not_ends_with"
-  | "regex"
-  | "not_regex";
-
-export interface AdvancedAuthCondition {
-  id: string;
-  target: AdvancedAuthConditionTarget;
-  operator: AdvancedAuthOperator;
-  name?: string;
-  values?: string[];
+  ApiContractComponents["schemas"]["AdvancedAuthConditionData"]["operator"];
+export type AdvancedAuthConditionContract =
+  ApiContractComponents["schemas"]["AdvancedAuthConditionData"];
+export type AdvancedAuthCondition = Omit<
+  AdvancedAuthConditionContract,
+  "selections"
+> & {
   selections: GatewayVisibilitySelection[];
-  /** Resolved CIDRs are returned by the control plane and are read-only. */
-  cidrs?: string[];
-  policy_id?: string;
-  source_cidr_count?: number;
-  range_count?: number;
-  resolved_at?: string;
-  cidr_source?: string;
-  cidr_source_fingerprint?: string;
-}
-
-export interface AdvancedAuthRuleGroup {
-  id: string;
+};
+type AdvancedAuthRuleGroupContract =
+  ApiContractComponents["schemas"]["AdvancedAuthRuleGroupData"];
+export type AdvancedAuthRuleGroup = Omit<
+  AdvancedAuthRuleGroupContract,
+  "conditions"
+> & {
   conditions: AdvancedAuthCondition[];
-}
-
-export interface AdvancedAuthConfig {
-  enabled: boolean;
-  idle_ttl_seconds: number;
-  max_lifetime_seconds: number;
-  policy_version?: string;
+};
+export type AdvancedAuthConfigContract =
+  ApiContractComponents["schemas"]["AdvancedAuthConfigData"];
+export type AdvancedAuthConfig = Omit<AdvancedAuthConfigContract, "groups"> & {
   groups: AdvancedAuthRuleGroup[];
-  compiled_at?: string;
-  cidr_source?: string;
-  cidr_source_fingerprint?: string;
-}
+};
 
 export type HostLocationMatch = "exact" | "prefix";
 export type HostLocationAction = "proxy" | "response";
@@ -216,698 +166,195 @@ export interface HostMappingGroup {
   name: string;
 }
 
-export interface HostMappingRefreshSummary {
-  updated: number;
-  failed: number;
-  skipped: number;
-}
+export type HostMappingRefreshSummary =
+  ApiContractComponents["schemas"]["HostMappingRefreshSummaryData"];
 
-export interface UrlMetadataPreview {
-  title: string;
-  favicon: string;
-  finalUrl: string;
-}
+export type UrlMetadataPreview =
+  ApiContractComponents["schemas"]["HostMappingMetadataData"];
 
-export interface StreamMapping {
-  protocol: StreamMappingProtocol;
-  listen_port: number;
-  target: string;
-  use_auth: boolean;
-  comment?: string;
-}
+export type StreamMapping =
+  ApiContractComponents["schemas"]["StreamMappingData"];
 
-export type PasskeyRpMode = "auth_host" | "parent_domain";
-export type PostLoginIpGrantMode = "follow_session" | "disabled" | "custom";
+export type PasskeyRpMode =
+  ApiContractComponents["schemas"]["SubdomainModeData"]["passkey_rp_mode"];
+export type PostLoginIpGrantMode =
+  ApiContractComponents["schemas"]["AuthCredentialSettingsData"]["post_login_ip_grant_mode"];
 
-export interface SubdomainModeConfig {
-  root_domain: string;
-  auth_host: string;
-  auth_target: string;
-  cookie_domain: string;
-  edge_client_ip_enabled: boolean;
-  aliyun_esa_enabled: boolean;
-  tencent_edgeone_enabled: boolean;
-  public_auth_base_url: string;
-  public_http_port?: number;
-  public_https_port?: number;
-  auth_cache_ttl_seconds: number;
-  auth_cache_unauthorized_ttl_seconds: number;
-  default_access_mode: HostAccessMode;
-  auto_add_whitelist_on_login: boolean;
-  passkey_rp_mode: PasskeyRpMode;
-  passkey_rp_id?: string;
-}
+export type SubdomainModeConfig =
+  ApiContractComponents["schemas"]["SubdomainModeData"];
 
-export interface SSLConfig {
-  id?: string;
-  label?: string;
-  source?: SSLCertificateSource;
-  primary_domain?: string;
-  cert: string;
-  key: string;
-  activate?: boolean;
-}
+export type SSLConfig =
+  ApiContractComponents["schemas"]["SslCertificateSaveBodyData"];
+export type SSLCertInfo =
+  ApiContractComponents["schemas"]["SslCertificateInfoData"];
+export type SSLDeploymentMode =
+  ApiContractComponents["schemas"]["SslDeploymentModeBodyData"]["deployment_mode"];
+export type SSLCertificateSource = NonNullable<SSLConfig["source"]>;
+export type SubdomainCertificateCoverage =
+  ApiContractComponents["schemas"]["SslSubdomainCoverageData"];
+export type SubdomainCertificateLibraryCoverage =
+  ApiContractComponents["schemas"]["SslCertificateLibraryCoverageData"];
+export type SSLCertificateSummary =
+  ApiContractComponents["schemas"]["SslCertificateSummaryData"];
+export type SSLStatus =
+  ApiContractComponents["schemas"]["SslStatusData"];
+export type SharedDataFileEntry =
+  ApiContractComponents["schemas"]["SslSharedFileData"];
+export type SSLSharedFilesPayload =
+  ApiContractComponents["schemas"]["SslSharedFilesData"];
+export type SSLCAStatus =
+  ApiContractComponents["schemas"]["SslCaStatusData"];
 
-export interface SSLCertInfo {
-  issuer: string;
-  subject: string;
-  validFrom: string;
-  validTo: string;
-  dnsNames: string[];
-  serialNumber: string;
-}
+export type FnosShareBypassConfig =
+  ApiContractComponents["schemas"]["FnosShareBypassData"];
 
-export type SSLDeploymentMode = "single_active" | "multi_sni";
-export type SSLCertificateSource = "manual" | "acme" | "ca";
+export type FnosPortIconHijackConfig =
+  ApiContractComponents["schemas"]["FnosPortIconHijackData"];
 
-export interface SubdomainCertificateCoverage {
-  status: "ready" | "partial" | "missing";
-  auth_host?: string;
-  certificate_domains: string[];
-  recommended_domains: string[];
-  covered_recommended_domains: string[];
-  uncovered_recommended_domains: string[];
-  covered_hosts: string[];
-  uncovered_hosts: string[];
-  covers_auth_host: boolean;
-  warnings: string[];
-  summary: string;
-}
-
-export interface SubdomainCertificateLibraryCoverage {
-  status: "ready" | "partial" | "missing";
-  deployment_mode: SSLDeploymentMode;
-  active_certificate_id?: string;
-  fully_covering_certificate_ids: string[];
-  partially_covering_certificate_ids: string[];
-  combined_covering_certificate_ids: string[];
-  suggested_certificate_id?: string;
-  can_auto_activate: boolean;
-  warnings: string[];
-  summary: string;
-}
-
-export interface SSLCertificateSummary {
-  id: string;
-  label: string;
-  source: SSLCertificateSource;
-  primary_domain?: string;
-  created_at: string;
-  updated_at: string;
-  certInfo?: SSLCertInfo;
-  is_active: boolean;
-  coverage?: SubdomainCertificateCoverage;
-}
-
-export interface SSLStatus {
-  enabled: boolean;
-  activeCertId?: string;
-  deploymentMode: SSLDeploymentMode;
-  configuredDeploymentMode?: SSLDeploymentMode;
-  certInfo?: SSLCertInfo;
-  certificates: SSLCertificateSummary[];
-  subdomain_coverage?: SubdomainCertificateCoverage;
-  library_coverage?: SubdomainCertificateLibraryCoverage;
-  gateway_status?: {
-    enabled: boolean;
-    deployment_mode: SSLDeploymentMode;
-    certificates: Array<{
-      id?: string;
-      label?: string;
-      domains?: string[];
-      is_default?: boolean;
-    }>;
-    sync_error?: string;
-  };
-}
-
-export interface SharedDataFileEntry {
-  name: string;
-  relativePath: string;
-  extension: string;
-  size: number;
-  modifiedAt: string;
-}
-
-export interface SSLSharedFilesPayload {
-  shareName: string;
-  available: boolean;
-  files: SharedDataFileEntry[];
-}
-
-export interface FnosShareBypassConfig {
-  enabled: boolean;
-  upstream_timeout_ms: number;
-  validation_cache_ttl_seconds: number;
-  validation_lock_ttl_seconds: number;
-  session_ttl_seconds: number;
-}
-
-export interface FnosPortIconHijackConfig {
-  enabled: boolean;
-  updated_at: string | null;
-}
-
-export interface FnosConnectWafDetails {
-  availability: {
-    available: boolean;
-    reason_code: "standard_fpk_required" | null;
-  };
-  config: {
-    enabled: boolean;
-    updated_at: string | null;
-  };
-  runtime: {
-    effective: boolean;
-    protected: boolean;
-    detected_http_port: number | null;
-    listener_port: number | null;
-    ipv4_redirect_active: boolean;
-    ipv6_redirect_active: boolean;
-    ipv4_relay_redirect_active: boolean;
-    ipv6_relay_redirect_active: boolean;
-    ipv4_direct_redirect_active: boolean;
-    ipv6_direct_redirect_active: boolean;
-    listener_guard_active: boolean;
-    local_networks: {
-      ipv4: string[];
-      ipv6: string[];
-    } | null;
-    waf_active: boolean;
-    waf_mode: string | null;
-    cgroup_path?: string;
-    source: string | null;
-    last_sync_at: string | null;
-    last_error: string | null;
-  };
-}
+export type FnosConnectWafDetails =
+  ApiContractComponents["schemas"]["FnosConnectWafData"];
 
 export type FnosCertificateSyncStatus =
-  | "unmatched"
-  | "up_to_date"
-  | "syncable"
-  | "source_invalid"
-  | "target_invalid"
-  | "protected"
-  | "sync_failed";
+  ApiContractComponents["schemas"]["FnosCertificateSyncItemData"]["status"];
+export type FnosCertificateSyncItem =
+  ApiContractComponents["schemas"]["FnosCertificateSyncItemData"];
+export type FnosCertificateSyncDetails =
+  ApiContractComponents["schemas"]["FnosCertificateSyncDetailsData"];
+export type FnosCertificateSyncSummary =
+  ApiContractComponents["schemas"]["FnosCertificateSyncSummaryData"];
+export type FnosCertificateSyncResponse =
+  ApiContractComponents["schemas"]["FnosCertificateSyncResponseData"];
 
-export interface FnosCertificateSyncItem {
-  target_id: string;
-  domain: string;
-  san: string[];
-  source: string;
-  renewal: boolean;
-  valid_from: number | null;
-  valid_to: number | null;
-  fingerprint: string | null;
-  status: FnosCertificateSyncStatus;
-  reason: string | null;
-  local: {
-    id: string;
-    label: string;
-    valid_from: number | null;
-    valid_to: number | null;
-    fingerprint: string | null;
-  } | null;
-}
+export type FnosNetworkTuningConfig =
+  ApiContractComponents["schemas"]["FnosNetworkTuningConfigData"];
 
-export interface FnosCertificateSyncDetails {
-  availability: { available: boolean; reason: string | null };
-  config: { auto_sync_enabled: boolean };
-  runtime: {
-    running: boolean;
-    last_sync_at: number | null;
-    last_result: FnosCertificateSyncSummary | null;
-    last_error: string | null;
-  };
-  summary: { total: number; syncable: number; up_to_date: number };
-  certificates: FnosCertificateSyncItem[];
-}
+export type FnosNetworkTuningKernelState =
+  ApiContractComponents["schemas"]["FnosNetworkTuningKernelData"];
 
-export interface FnosCertificateSyncSummary {
-  synced: number;
-  skipped: number;
-  failed: number;
-  rolled_back: boolean;
-}
+export type FnosNetworkTuningStatus =
+  ApiContractComponents["schemas"]["FnosNetworkTuningData"];
 
-export interface FnosCertificateSyncResponse {
-  summary: FnosCertificateSyncSummary;
-  details: FnosCertificateSyncDetails;
-}
+export type FnosNetworkTuningUpdatePayload =
+  ApiContractComponents["schemas"]["FnosNetworkTuningUpdateData"];
 
-export interface FnosNetworkTuningConfig {
-  bbr_enabled: boolean;
-  mtu_probing_enabled: boolean;
-  previous_tcp_congestion_control: string | null;
-  previous_default_qdisc: string | null;
-  previous_tcp_mtu_probing: string | null;
-  updated_at: string | null;
-  last_error: string | null;
-}
-
-export interface FnosNetworkTuningKernelState {
-  tcp_congestion_control: string | null;
-  tcp_available_congestion_control: string[];
-  default_qdisc: string | null;
-  tcp_mtu_probing: string | null;
-  mtu_probing_supported: boolean;
-  bbr_module_loaded: boolean;
-  bbr_supported: boolean;
-  bbr_active: boolean;
-  mtu_probing_active: boolean;
-}
-
-export interface FnosNetworkTuningStatus {
-  available: boolean;
-  blocked_reason_code: "deployment" | "platform" | "permission" | null;
-  blocked_reason: string | null;
-  managed_config_path: string;
-  config: FnosNetworkTuningConfig;
-  state: FnosNetworkTuningKernelState;
-  bbr: {
-    desired_enabled: boolean;
-    active: boolean;
-    supported: boolean;
-    module_loaded: boolean;
-    current_congestion_control: string | null;
-    current_default_qdisc: string | null;
-    available_congestion_control: string[];
-  };
-  mtu_probing: {
-    desired_enabled: boolean;
-    active: boolean;
-    supported: boolean;
-    current_value: string | null;
-  };
-  last_error: string | null;
-}
-
-export interface FnosNetworkTuningUpdatePayload {
-  bbr_enabled?: boolean;
-  mtu_probing_enabled?: boolean;
-}
-
-export interface GatewayLoggingConfig {
-  enabled: boolean;
-  record_localhost: boolean;
-  max_days: number;
-  logs_dir: string;
-  dropped_entries?: number;
-  queue_size?: number;
-  queue_depth?: number;
-}
+export type GatewayLoggingConfig =
+  ApiContractComponents["schemas"]["GatewayLoggingConfigData"];
 
 export * from "./types/waf";
 
 export type IpLocationLookupStatus =
-  "idle" | "queued" | "processing" | "success" | "failed" | "skipped";
+  ApiContractComponents["schemas"]["IpLocationSnapshotData"]["status"];
+export type IpLocationSnapshot =
+  ApiContractComponents["schemas"]["IpLocationSnapshotData"];
+export type IpLocationBatchPayload =
+  ApiContractComponents["schemas"]["IpLocationBatchData"];
 
-export interface IpLocationSnapshot {
-  ip: string;
-  normalizedIp: string;
-  status: IpLocationLookupStatus;
-  attempts: number;
-  maxAttempts: number;
-  location: string;
-  error?: string;
-  updatedAt: number;
-}
+export type ProtocolMappingFeatureConfig =
+  ApiContractComponents["schemas"]["ProtocolMappingFeatureData"];
 
-export interface IpLocationBatchPayload {
-  items: IpLocationSnapshot[];
-}
+export type AutoHttpsConfig =
+  ApiContractComponents["schemas"]["AutoHttpsConfigData"];
 
-export interface ProtocolMappingFeatureConfig {
-  enabled: boolean;
-  availability: DailyAvailability | null;
-}
+export type AutoHttpsRuntimeStatus =
+  ApiContractComponents["schemas"]["AutoHttpsRuntimeData"]["status"];
 
-export interface AutoHttpsConfig {
-  enabled: boolean;
-}
+export type AutoHttpsRuntimeState =
+  ApiContractComponents["schemas"]["AutoHttpsRuntimeData"];
 
-export type AutoHttpsRuntimeStatus = "disabled" | "active" | "error";
-
-export interface AutoHttpsRuntimeState {
-  enabled: boolean;
-  active: boolean;
-  status: AutoHttpsRuntimeStatus;
-  listen_host: string;
-  listen_port: number;
-  redirect_scheme: "https";
-  last_error: string | null;
-  last_error_at: string | null;
-  updated_at: string;
-}
-
-export interface AutoHttpsDetails extends AutoHttpsConfig {
-  runtime: AutoHttpsRuntimeState;
-}
+export type AutoHttpsDetails =
+  ApiContractComponents["schemas"]["AutoHttpsDetailsData"];
 
 export type SidebarNavItemId =
-  | "dashboard"
-  | "route_mapping"
-  | "tunnel"
-  | "protocol_mapping"
-  | "sessions"
-  | "ip_whitelist"
-  | "ssl_certificate"
-  | "ddns"
-  | "wol"
-  | "auth"
-  | "ssh_security"
-  | "events"
-  | "gateway_request_logs"
-  | "waf_logs"
-  | "web_terminal"
-  | "system_settings";
+  ApiContractComponents["schemas"]["DashboardDisplayData"]["sidebar_menu_order"][number];
 
-export interface DeepMonitorSession {
-  id: string;
-  host: string;
-  state: string;
-  started_at: string;
-  deadline_at: string;
-  stopped_at: string;
-  stop_reason: string;
-  bytes_stored: number;
-  event_count: number;
-  dropped_events: number;
-  quota_bytes: number;
-  payload_limit_bytes: number;
-}
+export type DeepMonitorSession =
+  ApiContractComponents["schemas"]["DeepMonitorSessionData"];
+export type DeepMonitorEventSummary =
+  ApiContractComponents["schemas"]["DeepMonitorEventSummaryData"];
+export type DeepMonitorPayloadRef =
+  ApiContractComponents["schemas"]["DeepMonitorPayloadRefData"];
+export type DeepMonitorHeader =
+  ApiContractComponents["schemas"]["DeepMonitorHeaderData"];
+export type DeepMonitorTiming =
+  ApiContractComponents["schemas"]["DeepMonitorTimingData"];
+export type DeepMonitorWebSocketFrame =
+  ApiContractComponents["schemas"]["DeepMonitorWebSocketFrameData"];
+export type DeepMonitorEvent =
+  ApiContractComponents["schemas"]["DeepMonitorEventData"];
 
-export interface DeepMonitorEventSummary {
-  id: string;
-  session_id: string;
-  sequence: number;
-  type: string;
-  time: string;
-  exchange_id: string;
-  connection_id: string;
-  host: string;
-  method: string;
-  path: string;
-  status: number;
-  client_ip: string;
-  identity: string;
-  direction: string;
-  payload_bytes: number;
-  truncated: boolean;
-  notice: string;
-}
+export type DashboardDisplayConfig =
+  ApiContractComponents["schemas"]["DashboardDisplayData"];
 
-export interface DeepMonitorPayloadRef {
-  part: string;
-  observed_bytes: number;
-  captured_bytes: number;
-  truncated: boolean;
-  sha256: string;
-  content_type: string;
-}
-
-export interface DeepMonitorHeader {
-  name: string;
-  values: string[];
-}
-
-export interface DeepMonitorEvent {
-  summary: DeepMonitorEventSummary | null;
-  scheme: string;
-  protocol: string;
-  request_uri: string;
-  upstream: string;
-  user_agent: string;
-  referer: string;
-  remote_addr: string;
-  auth_credential_id: string;
-  auth_credential_name: string;
-  auth_credential_method: string;
-  auth_linked_totp_id: string;
-  auth_linked_totp_name: string;
-  auth_decision: string;
-  auth_rule_group_id: string;
-  auth_grant_state: string;
-  route_type: string;
-  route_key: string;
-  tls_version: string;
-  tls_cipher: string;
-  tls_server_name: string;
-  tls_alpn: string;
-  client_request_headers: DeepMonitorHeader[];
-  upstream_request_headers: DeepMonitorHeader[];
-  upstream_response_headers: DeepMonitorHeader[];
-  client_response_headers: DeepMonitorHeader[];
-  payloads: DeepMonitorPayloadRef[];
-  timing: Record<string, number> | null;
-  websocket_frame: Record<string, unknown> | null;
-  websocket_subprotocol: string;
-  websocket_extensions: string;
-  waf_trace_id: string;
-  waf_mode: string;
-  waf_rule_ids: number[];
-  waf_action: string;
-  waf_bundle: string;
-  waf_blocked: boolean;
-  general_blacklist_blocked: boolean;
-  client_ip_source: string;
-  error: string;
-}
-
-export interface DashboardDisplayConfig {
-  show_entry_status_module: boolean;
-  sidebar_menu_order: SidebarNavItemId[];
-  date_time_display_mode: DateTimeDisplayMode;
-}
-
-export interface SmartConnectConfig {
-  enabled: boolean;
-  selected_ipv4: string;
-}
+export type SmartConnectConfig =
+  ApiContractComponents["schemas"]["SmartConnectConfigData"];
 
 export interface ScanDiscoveryConfig {
   custom_cidrs: string[];
   selected_cidrs: string[];
 }
 
-export interface SmartConnectRuntimeState {
-  selected_ipv4: string;
-  synced_domains: string[];
-  managed_rule_count: number;
-  last_sync_at: string | null;
-  last_sync_error: string | null;
-}
+export type SmartConnectRuntimeState =
+  ApiContractComponents["schemas"]["SmartConnectRuntimeData"];
 
 export type DnsmasqInstallStatus =
-  "uninstalled" | "installing" | "installed" | "error";
+  ApiContractComponents["schemas"]["DnsmasqInstallStateData"]["status"];
 
-export interface DnsmasqInstallState {
-  status: DnsmasqInstallStatus;
-  progress: number;
-  message: string;
-}
+export type DnsmasqInstallState =
+  ApiContractComponents["schemas"]["DnsmasqInstallStateData"];
 
-export interface DnsmasqStatus {
-  installed: boolean;
-  service_active: boolean;
-  initialized: boolean;
-  version: string;
-  install_state: DnsmasqInstallState;
-}
+export type DnsmasqStatus =
+  ApiContractComponents["schemas"]["DnsmasqStatusData"];
 
-export interface SmartConnectAvailability {
-  available: boolean;
-  reason: string;
-}
+export type SmartConnectAvailability =
+  ApiContractComponents["schemas"]["SmartConnectAvailabilityData"];
 
-export interface SmartConnectLocalIpOption {
-  label: string;
-  value: string;
-  interface: string;
-}
+export type SmartConnectLocalIpOption =
+  ApiContractComponents["schemas"]["SmartConnectLocalIpData"];
 
-export interface SmartConnectDetails {
-  config: SmartConnectConfig;
-  availability: SmartConnectAvailability;
-  dnsmasq: DnsmasqStatus & {
-    runtime: SmartConnectRuntimeState;
-  };
-  domains: string[];
-  local_ip_options: SmartConnectLocalIpOption[];
-}
+export type SmartConnectDetails =
+  ApiContractComponents["schemas"]["SmartConnectDetailsData"];
 
-export interface AuthCredentialSettings {
-  session_ttl_seconds: number;
-  remember_me_ttl_seconds: number;
-  post_login_ip_grant_mode: PostLoginIpGrantMode;
+export type AuthCredentialSettings = Omit<
+  ApiContractComponents["schemas"]["AuthCredentialSettingsData"],
+  "post_login_ip_grant_ttl_seconds"
+> & {
+  // The normalized server response always includes this key, including null.
   post_login_ip_grant_ttl_seconds: number | null;
-  session_ip_mobility_enabled: boolean;
-  session_ip_mobility_window_seconds: number;
-  passkey_bind_prompt_enabled: boolean;
-}
+};
 
-export interface GatewayLogEntry {
-  time?: string;
-  level?: string;
-  method?: string;
-  scheme?: string;
-  host?: string;
-  path?: string;
-  query?: string;
-  request_uri?: string;
-  protocol?: string;
-  status: number;
-  duration_ms: number;
-  client_ip?: string;
-  remote_ip?: string;
-  remote_addr?: string;
-  user_agent?: string;
-  referer?: string;
-  logged_in: boolean;
-  auth_required: boolean;
-  auth_decision?: string;
-  auth_rule_group_id?: string;
-  auth_grant_state?: string;
-  auth_credential_id?: string;
-  auth_credential_name?: string;
-  auth_credential_method?: string;
-  auth_linked_totp_id?: string;
-  auth_linked_totp_name?: string;
-  access_mode?: string;
-  route_type?: string;
-  route_key?: string;
-  upstream?: string;
-  matched: boolean;
-  bytes_in: number;
-  bytes_out: number;
-  tls: boolean;
-  websocket: boolean;
-  ali_real_client_ip?: string;
-  eo_connecting_ip?: string;
-  x_forwarded_for?: string;
-  x_real_ip?: string;
-  waf_blocked?: boolean;
-  waf_trace_id?: string;
-  waf_mode?: string;
-  waf_rule_ids?: number[];
-  waf_action?: string;
-  waf_bundle?: string;
-  general_blacklist_blocked?: boolean;
-  ipLocation?: string;
-}
+export type GatewayLogEntry =
+  ApiContractComponents["schemas"]["GatewayLogEntryData"] & {
+    // Presentation-only enrichment populated from the shared IP location cache.
+    ipLocation?: string;
+  };
 
-export interface GatewayLogDatesPayload {
-  today: string;
-  logs_dir: string;
-  dates: string[];
-}
+export type GatewayLogDatesPayload =
+  ApiContractComponents["schemas"]["GatewayLogDatesData"];
 
-export interface GatewayLogEntriesPayload {
-  date: string;
-  logs_dir: string;
-  available_dates: string[];
-  pagination: "page" | "cursor";
-  page: number;
-  limit: number;
-  total: number;
-  cursor?: string;
-  next_cursor?: string;
-  has_more: boolean;
+export type GatewayLogEntriesPayload = Omit<
+  ApiContractComponents["schemas"]["GatewayLogEntriesData"],
+  "items"
+> & {
   items: GatewayLogEntry[];
-}
+};
 
-export interface GatewayLogDeletePayload {
-  date: string;
-  logs_dir: string;
-  deleted: boolean;
-  available_dates: string[];
-}
+export type GatewayLogDeletePayload =
+  ApiContractComponents["schemas"]["GatewayLogDeleteData"];
 
-export interface GatewayLogAnalyticsBucket {
-  key: string;
-  count: number;
-  share: number;
-}
+export type GatewayLogAnalyticsBucket =
+  ApiContractComponents["schemas"]["GatewayLogAnalyticsBucketData"];
 
-export interface GatewayLogAnalyticsRegionBucket extends GatewayLogAnalyticsBucket {
-  country_code?: string;
-  province?: string;
-  city?: string;
-}
+export type GatewayLogAnalyticsRegionBucket =
+  ApiContractComponents["schemas"]["GatewayLogAnalyticsRegionBucketData"];
 
-export interface GatewayLogAnalyticsPayload {
-  range: {
-    from: string;
-    to: string;
-    timezone: string;
-    granularity: "hour" | "6h" | "day";
-    available_dates: string[];
-  };
-  summary: {
-    requests: number;
-    unique_clients: number;
-    client_errors: number;
-    server_errors: number;
-    average_duration_ms: number;
-    p95_duration_ms: number;
-    bytes_in: number;
-    bytes_out: number;
-    server_error_rate: number;
-  };
-  series: Array<{
-    bucket_start: string;
-    requests: number;
-    client_errors: number;
-    server_errors: number;
-  }>;
-  dimensions: {
-    paths: GatewayLogAnalyticsBucket[];
-    routes: GatewayLogAnalyticsBucket[];
-    hosts: GatewayLogAnalyticsBucket[];
-    upstreams: GatewayLogAnalyticsBucket[];
-    referrers: GatewayLogAnalyticsBucket[];
-    utm_sources: GatewayLogAnalyticsBucket[];
-    utm_mediums: GatewayLogAnalyticsBucket[];
-    utm_campaigns: GatewayLogAnalyticsBucket[];
-    devices: GatewayLogAnalyticsBucket[];
-    browsers: GatewayLogAnalyticsBucket[];
-    operating_systems: GatewayLogAnalyticsBucket[];
-    statuses: GatewayLogAnalyticsBucket[];
-    methods: GatewayLogAnalyticsBucket[];
-    latency_bands: GatewayLogAnalyticsBucket[];
-    auth_decisions: GatewayLogAnalyticsBucket[];
-    waf_actions: GatewayLogAnalyticsBucket[];
-  };
-  geo: {
-    status: "complete" | "resolving" | "partial";
-    region_status: "complete" | "resolving" | "partial";
-    resolved_clients: number;
-    resolved_region_clients: number;
-    pending_clients: number;
-    total_clients: number;
-    coverage: number;
-    region_coverage: number;
-    refreshing: boolean;
-    items: GatewayLogAnalyticsBucket[];
-    regions: GatewayLogAnalyticsRegionBucket[];
-  };
-  quality: {
-    invalid_entries: number;
-  };
-}
+export type GatewayLogAnalyticsPayload =
+  ApiContractComponents["schemas"]["GatewayLogAnalyticsData"];
 
-export interface FnKnockBackupImportArchiveRequest {
-  filename?: string;
-  archive_base64: string;
-}
+export type FnKnockBackupImportArchiveRequest =
+  ApiContractComponents["schemas"]["ImportBackupBody"];
 
-export interface FnKnockBackupImportResult {
-  cleared_keys: number;
-  imported_keys: number;
-  warnings: string[];
-  synced_steps: string[];
-}
+export type FnKnockBackupImportResult =
+  ApiContractComponents["schemas"]["BackupImportResultData"];
 
 export interface BackupDirectoryFilesPayload {
   shareName: string;
@@ -942,94 +389,36 @@ export interface AutomaticBackupFilesPayload {
   files: SharedDataFileEntry[];
 }
 
-export interface FnKnockBackupExportToDirectoryResult {
-  filename: string;
-  relativePath: string;
-  filePath: string;
-  size: number;
-  exportedAt: string;
-}
+export type FnKnockBackupExportToDirectoryResult =
+  ApiContractComponents["schemas"]["BackupDirectoryExportData"];
 
-export interface TerminalFeatureConfig {
-  enabled: boolean;
-  default_cwd: string;
-  max_sessions: number;
-  idle_timeout_seconds: number;
-  resume_backend: "tmux";
-  allow_mobile_toolbar: boolean;
-  dangerously_run_as_current_user: boolean;
-}
+export type TerminalFeatureConfig =
+  ApiContractComponents["schemas"]["TerminalFeatureData"];
 
-export interface WOLFeatureConfig {
-  enabled: boolean;
-}
+export type WOLFeatureConfig =
+  ApiContractComponents["schemas"]["WolFeatureConfigData"];
 
-export type TerminalTmuxDetectionSource = "env-path" | "absolute-path";
-export type TerminalTmuxInstallStatus =
-  "uninstalled" | "installing" | "installed" | "error";
+export type TerminalTmuxInstallState =
+  ApiContractComponents["schemas"]["TerminalTmuxInstallStateData"];
+export type TerminalTmuxDetectionSource = Exclude<
+  TerminalTmuxInstallState["detectionSource"],
+  null
+>;
+export type TerminalTmuxInstallStatus = TerminalTmuxInstallState["status"];
 
-export interface TerminalTmuxInstallState {
-  status: TerminalTmuxInstallStatus;
-  progress: number;
-  message: string;
-  executablePath: string;
-  detectionSource: TerminalTmuxDetectionSource | null;
-  version: string;
-}
+export type TerminalSessionRecord =
+  ApiContractComponents["schemas"]["TerminalSessionData"];
+export type TerminalSessionStatus = TerminalSessionRecord["status"];
 
-export type TerminalTransport = "http-polling";
-export type TerminalSessionStatus =
-  "created" | "attached" | "detached" | "stopped" | "error";
+export type TerminalAttachmentRecord =
+  ApiContractComponents["schemas"]["TerminalAttachmentData"];
+export type TerminalTransport = TerminalAttachmentRecord["transport"];
 
-export interface TerminalSessionRecord {
-  id: string;
-  title: string;
-  status: TerminalSessionStatus;
-  created_at: string;
-  updated_at: string;
-  last_attached_at: string;
-  last_detached_at: string;
-  last_client_ip: string;
-  shell: string;
-  cwd: string;
-  cols: number;
-  rows: number;
-  resume_backend: "tmux";
-  backend_session_name: string;
-  pane_tty_path: string;
-  input_pipe_path: string;
-  output_log_path: string;
-  expires_at: string;
-  last_frame_revision?: string;
-}
+export type TerminalOutputChunk =
+  ApiContractComponents["schemas"]["TerminalOutputChunkData"];
 
-export interface TerminalAttachmentRecord {
-  id: string;
-  session_id: string;
-  transport: TerminalTransport;
-  created_at: string;
-  updated_at: string;
-  expires_at: string;
-}
-
-export interface TerminalOutputChunk {
-  cursor: number;
-  data_base64: string;
-  reset: boolean;
-  updatedAt: string;
-}
-
-export interface TerminalRuntimeStatus {
-  enabled: boolean;
-  tmuxAvailable: boolean;
-  tmuxExecutablePath: string;
-  tmuxDetectionSource: TerminalTmuxDetectionSource | null;
-  tmuxVersion: string;
-  tmuxInstallState: TerminalTmuxInstallState;
-  httpPollingAvailable: boolean;
-  runningAsRoot: boolean;
-  blockedReason: string;
-}
+export type TerminalRuntimeStatus =
+  ApiContractComponents["schemas"]["TerminalRuntimeStatusData"];
 
 export interface AppConfig {
   run_type: RunType;
@@ -1083,206 +472,88 @@ export interface AppConfig {
   };
 }
 
-export interface FirewallAdditionalPortsDetails {
-  additionalPorts: number[];
-  automaticPorts: number[];
-  effectivePorts: number[];
-  runType: RunType;
-  appliedNow: boolean;
-}
+export type FirewallAdditionalPortsDetails =
+  ApiContractComponents["schemas"]["FirewallAdditionalPortsData"];
 
-export type TOTPAccessScope = "docker_admin_panel";
-export type TOTPSubdomainAccessMode = "all" | "custom";
+export type TOTPAccessScope =
+  ApiContractComponents["schemas"]["AccessScopesUpdateData"]["access_scopes"][number];
+export type TOTPSubdomainAccessMode =
+  ApiContractComponents["schemas"]["TotpSubdomainAccessData"]["mode"];
+export type TOTPStreamAccess =
+  ApiContractComponents["schemas"]["TotpStreamAccessData"];
+export type TOTPSubdomainAccess =
+  ApiContractComponents["schemas"]["TotpSubdomainAccessData"];
+export type TOTPCredential =
+  ApiContractComponents["schemas"]["TotpCredentialData"];
+export type TOTPCredentialImportSummary =
+  ApiContractComponents["schemas"]["CredentialImportSummaryData"];
 
-export type TOTPStreamAccess = {
-  protocol: StreamMappingProtocol;
-  listen_port: number;
-};
+export type AuthLoginMode =
+  ApiContractComponents["schemas"]["AuthLoginModeBody"]["mode"];
 
-export type TOTPSubdomainAccess = {
-  mode: TOTPSubdomainAccessMode;
-  hosts: string[];
-  streams: TOTPStreamAccess[];
-};
-
-export type TOTPCredential = {
-  id: string;
-  secret: string;
-  comment: string;
-  createdAt: string;
-  access_scopes: TOTPAccessScope[];
-  subdomain_access: TOTPSubdomainAccess;
-};
-
-export type TOTPCredentialImportSummary = {
-  kind?: "totp" | "password";
-  login_mode?: AuthLoginMode;
-  imported: number;
-  skipped_existing_id: number;
-  skipped_existing_secret: number;
-  skipped_existing_username?: number;
-  skipped_file_duplicate: number;
-  invalid: number;
-  total: number;
-  password_total?: number;
-  password_imported?: number;
-  password_skipped_existing?: number;
-  password_skipped_missing_account?: number;
-  password_skipped_file_duplicate?: number;
-  password_invalid?: number;
-  totp_total?: number;
-  totp_imported?: number;
-  totp_skipped_existing_id?: number;
-  totp_skipped_existing_secret?: number;
-  totp_skipped_file_duplicate?: number;
-  totp_invalid?: number;
-};
-
-export type AuthLoginMode = "totp" | "password";
-
-export type AuthLoginModeStatus = {
+export type AuthLoginModeStatus = Omit<
+  ApiContractComponents["schemas"]["AuthModeStatusData"],
+  "mode"
+> & {
   mode: AuthLoginMode;
-  totpCount: number;
-  accountCount: number;
-  passwordConfiguredCount: number;
-  passwordMissingCount: number;
 };
 
-export type AuthLoginModePreview = {
+export type AuthLoginModePreview = Omit<
+  ApiContractComponents["schemas"]["AuthModePreviewData"],
+  | "currentMode"
+  | "targetMode"
+  | "passwordRequiredBeforeSwitch"
+  | "missingSourceTotpCount"
+> & {
   currentMode: AuthLoginMode;
   targetMode: AuthLoginMode;
-  totpCount: number;
-  accountCount: number;
-  createAccountCount: number;
-  updateAccountCount: number;
-  passwordConfiguredCount: number;
-  passwordMissingCount: number;
-  blockingIssueCount: number;
   passwordRequiredBeforeSwitch?: boolean;
   missingSourceTotpCount?: number;
 };
 
-export type AuthAccount = {
-  id: string;
-  username: string;
-  displayName: string;
-  sourceTotpId: string;
-  sourceTotpName: string;
-  createdAt: string;
-  updatedAt: string;
-  access_scopes: TOTPAccessScope[];
-  subdomain_access: TOTPSubdomainAccess;
-  passwordConfigured: boolean;
-  totpConfigured: boolean;
-};
+export type AuthAccount = ApiContractComponents["schemas"]["AuthAccountData"];
 
-export type PasskeyCredential = {
-  id: string;
-  totpId: string;
-  publicKey: string;
-  counter: number;
-  transports?: string[];
-  deviceName: string;
-  createdAt: string;
-  lastUsedAt?: string;
-};
+export type PasskeyCredential =
+  ApiContractComponents["schemas"]["PasskeyCredentialData"];
 
 export type ExternalAuthProviderType =
-  "fnknock_qq" | "google" | "microsoft" | "github" | "custom_oidc";
+  ApiContractComponents["schemas"]["OidcProviderCatalogItemData"]["type"];
 
-export type ExternalAuthProtocol = "oidc" | "oauth2_profile";
+export type ExternalAuthProtocol =
+  ApiContractComponents["schemas"]["OidcProviderCatalogItemData"]["protocol"];
 
-export type OIDCProviderCatalogItem = {
-  type: ExternalAuthProviderType;
-  protocol: ExternalAuthProtocol;
-  label: string;
-  description: string;
-  default_name: string;
-  default_scopes: string[];
-  required_fields: string[];
-  optional_fields: string[];
-  supports_pkce: boolean;
-  supports_discovery: boolean;
+export type OIDCProviderCatalogItem =
+  ApiContractComponents["schemas"]["OidcProviderCatalogItemData"];
+
+type GeneratedOIDCProviderView =
+  ApiContractComponents["schemas"]["OidcProviderData"];
+export type OIDCProviderView = Omit<
+  GeneratedOIDCProviderView,
+  "connection_config_masked"
+> & {
+  connection_config_masked: GeneratedOIDCProviderView["connection_config_masked"] &
+    Record<string, unknown>;
 };
 
-export type OIDCProviderView = {
-  id: string;
-  type: ExternalAuthProviderType;
-  protocol: ExternalAuthProtocol;
-  name: string;
-  enabled: boolean;
-  connection_config_masked: Record<string, unknown>;
-  callback_url?: string;
-  created_at: string;
-  updated_at: string;
-  last_test_at?: string;
-  last_test_status?: "idle" | "success" | "failed";
-  last_error?: string | null;
+export type OIDCBinding = ApiContractComponents["schemas"]["OidcBindingData"];
+
+export type LdapProviderType =
+  ApiContractComponents["schemas"]["LdapProviderCatalogItemData"]["type"];
+
+export type LdapProviderCatalogItem =
+  ApiContractComponents["schemas"]["LdapProviderCatalogItemData"];
+
+type GeneratedLdapProviderView =
+  ApiContractComponents["schemas"]["LdapProviderData"];
+export type LdapProviderView = Omit<
+  GeneratedLdapProviderView,
+  "connection_config"
+> & {
+  connection_config: GeneratedLdapProviderView["connection_config"] &
+    Record<string, unknown>;
 };
 
-export type OIDCBinding = {
-  id: string;
-  provider_id: string;
-  provider_type: ExternalAuthProviderType;
-  provider_name?: string;
-  totp_id: string;
-  totp_name?: string;
-  issuer: string;
-  subject: string;
-  display_name?: string;
-  email?: string;
-  email_verified?: boolean;
-  avatar_url?: string;
-  created_at: string;
-  updated_at: string;
-  last_used_at?: string;
-};
-
-export type LdapProviderType = "openldap" | "active_directory" | "custom";
-
-export type LdapProviderCatalogItem = {
-  type: LdapProviderType;
-  label: string;
-  defaults: {
-    transport: "ldaps" | "starttls";
-    bind_mode: "search" | "direct";
-    user_filter: string;
-    subject_attribute: string;
-    username_attribute: string;
-    display_name_attribute: string;
-    email_attribute: string;
-  };
-};
-
-export type LdapProviderView = {
-  id: string;
-  type: LdapProviderType;
-  protocol: "ldap";
-  name: string;
-  enabled: boolean;
-  connection_config: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-  last_test_at?: string;
-  last_test_status?: "idle" | "success" | "failed";
-  last_error?: string | null;
-};
-
-export type LdapBinding = {
-  id: string;
-  provider_id: string;
-  provider_type: LdapProviderType;
-  provider_name?: string;
-  totp_id: string;
-  subject: string;
-  dn: string;
-  username: string;
-  display_name?: string;
-  email?: string;
-  created_at: string;
-  updated_at: string;
-  last_used_at?: string;
-};
+export type LdapBinding = ApiContractComponents["schemas"]["LdapBindingData"];
 
 export type LoginSession = {
   totpId: string;
@@ -1353,303 +624,119 @@ export type SessionRecord = LoginSession & {
   trimMediaAttachments?: SessionTrimMediaAttachmentRecord[];
 };
 
-export type ProxyProtocolForce = {
-  proxy_protocol_force: boolean;
-};
+export type ProxyProtocolForce =
+  ApiContractComponents["schemas"]["ProxyProtocolForceData"];
 
-export type ReverseProxyThrottleConfig = {
-  enabled: boolean;
-  requests_per_second: number;
-  burst: number;
-  block_seconds: number;
-};
+export type ReverseProxyThrottleConfig =
+  ApiContractComponents["schemas"]["GatewayReverseProxyThrottleData"];
 
-export type GatewayVisibilitySelection = {
-  province: string;
-  city: string | null;
-  label: string;
-  value: string;
-  query_city: string | null;
+type GatewayVisibilitySelectionContract =
+  ApiContractComponents["schemas"]["GatewayVisibilitySelectionData"];
+
+export type GatewayVisibilitySelection = Omit<
+  GatewayVisibilitySelectionContract,
+  "operator"
+> & {
   operator?: import("./types/cidr").CidrOperator | null;
-  is_province_wide: boolean;
-  is_municipality: boolean;
 };
 
-export type GatewayVisibilitySummary = {
-  enabled: boolean;
-  selection_count: number;
-  custom_cidr_count: number;
-  cidr_count: number;
-  updated_at: string | null;
-};
+export type GatewayVisibilitySummary =
+  ApiContractComponents["schemas"]["GatewayVisibilitySummaryData"];
 
-export type GatewayVisibilityConfig = {
-  enabled: boolean;
+export type GatewayVisibilityConfig = Omit<
+  ApiContractComponents["schemas"]["GatewayVisibilityConfigData"],
+  "selections"
+> & {
   selections: GatewayVisibilitySelection[];
-  custom_cidrs: string[];
 };
 
-export type GatewayVisibilityDetails = {
+export type GatewayVisibilityDetails = Omit<
+  ApiContractComponents["schemas"]["GatewayVisibilityDetailsData"],
+  "config" | "summary"
+> & {
   config: GatewayVisibilityConfig;
   summary: GatewayVisibilitySummary;
 };
 
-export type SSHSecurityBlockDurationUnit = "minute" | "hour" | "day";
-
-export type SSHSecuritySelection = GatewayVisibilitySelection;
-
-export type SSHSecurityConfig = {
-  enabled: boolean;
-  window_minutes: number;
-  failed_login_threshold: number;
-  block_duration_value: number;
-  block_duration_unit: SSHSecurityBlockDurationUnit;
-  allowed_regions: SSHSecuritySelection[];
-  custom_cidrs: string[];
-  configured_at: string | null;
-  updated_at: string | null;
-};
-
-export type SSHSecuritySummary = {
-  configured: boolean;
-  enabled: boolean;
-  allowed_cidr_count: number;
-  active_block_count: number;
-  ssh_ports: number[];
-  log_source: "journal" | "auth.log" | "unavailable";
-  available: boolean;
-  unavailable_reason: string;
-  updated_at: string | null;
-};
-
-export type SSHSecurityDetails = {
-  config: SSHSecurityConfig;
-  summary: SSHSecuritySummary;
-};
-
-export type SSHLoginLogEntry = {
-  id: string;
-  happened_at: string;
-  outcome: "success" | "failure";
-  username: string;
-  invalid_user: boolean;
-  ip: string;
-  ipLocation?: string;
-  port?: number;
-  related_ports?: number[];
-  repeat_count?: number;
-  auth_method?: string;
-  service: "sshd";
-  source: "journal" | "auth.log";
-  raw: string;
-};
-
-export type SSHLoginLogListPayload = {
-  items: SSHLoginLogEntry[];
-  total: number;
-  page: number;
-  limit: number;
-};
-
+export type SSHSecurityBlockDurationUnit =
+  ApiContractComponents["schemas"]["SshSecurityConfigData"]["block_duration_unit"];
+export type SSHSecuritySelection =
+  ApiContractComponents["schemas"]["SshSecurityConfigData"]["allowed_regions"][number];
+export type SSHSecurityConfig =
+  ApiContractComponents["schemas"]["SshSecurityConfigData"];
+export type SSHSecuritySummary =
+  ApiContractComponents["schemas"]["SshSecuritySummaryData"];
+export type SSHSecurityDetails =
+  ApiContractComponents["schemas"]["SshSecurityDetailsData"];
+export type SSHLoginLogEntry =
+  ApiContractComponents["schemas"]["SshLoginLogEntryData"];
+export type SSHLoginLogListPayload =
+  ApiContractComponents["schemas"]["SshLoginLogListData"];
 export type SSHSecurityBlockReason =
-  "failed_login_threshold" | "cidr_not_allowed";
+  ApiContractComponents["schemas"]["SshSecurityBlockData"]["reason"];
+export type SSHSecurityBlockRecord =
+  ApiContractComponents["schemas"]["SshSecurityBlockData"];
+export type SSHSecurityBlockListPayload =
+  ApiContractComponents["schemas"]["SshSecurityBlockListData"];
+export type SSHSecurityFirewallSyncResult =
+  ApiContractComponents["schemas"]["SshFirewallSyncData"];
+export type SSHSecurityFirewallClearResult =
+  ApiContractComponents["schemas"]["SshFirewallClearData"];
 
-export type SSHSecurityBlockRecord = {
-  ip: string;
-  ipLocation?: string;
-  ports?: number[];
-  blocked_at: string;
-  expires_at: string;
-  reason: SSHSecurityBlockReason;
-  failed_count: number;
-  window_minutes: number;
-  threshold: number;
-  sample_user?: string;
-  sample_auth_method?: string;
-  sample_log_time?: string;
-  applied: boolean;
-  removed_at?: string | null;
-  remove_reason?: "manual" | "expired" | "disabled" | null;
-};
+export type GatewayProxyHeadersConfig =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersConfigData"];
+export type GatewayProxyHeadersItem =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersItemData"];
+export type GatewayProxyHeadersAvailability =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersAvailabilityData"];
+export type GatewayProxyHeadersSummary =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersSummaryData"];
+export type GatewayProxyHeadersDetails =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersDetailsData"];
 
-export type SSHSecurityBlockListPayload = {
-  items: SSHSecurityBlockRecord[];
-  total: number;
-  page: number;
-  limit: number;
-};
+export type GatewayHostResponseConfig =
+  ApiContractComponents["schemas"]["GatewayHostResponseConfigData"];
+export type GatewayHostResponseItem =
+  ApiContractComponents["schemas"]["GatewayHostResponseItemData"];
+export type GatewayHostResponseAvailability =
+  ApiContractComponents["schemas"]["GatewayHostResponseAvailabilityData"];
+export type GatewayHostResponseSummary =
+  ApiContractComponents["schemas"]["GatewayHostResponseSummaryData"];
+export type GatewayHostResponseDetails =
+  ApiContractComponents["schemas"]["GatewayHostResponseDetailsData"];
 
-export type SSHSecurityFirewallSyncResult = {
-  cleared: number;
-  synced: number;
-  active_blocks: number;
-  allowed_cidrs: number;
-  ports: number[];
-};
+export type GatewayPortalConfig =
+  ApiContractComponents["schemas"]["GatewayPortalData"];
+export type GatewayPortalDisplayStyle = GatewayPortalConfig["display_style"];
+export type GatewayPortalIconDragMode = GatewayPortalConfig["icon_drag_mode"];
+export type GatewayPortalVersion = GatewayPortalConfig["version"];
 
-export type SSHSecurityFirewallClearResult = {
-  cleared_blocks: number;
-};
+export type GatewayUnmatchedRouteConfig =
+  ApiContractComponents["schemas"]["GatewayUnmatchedRouteData"];
+export type GatewayUnmatchedRouteBehavior =
+  GatewayUnmatchedRouteConfig["behavior"];
+export type GatewayUpstreamErrorDetail =
+  GatewayUnmatchedRouteConfig["upstream_error_detail"];
 
-export type GatewayProxyHeadersConfig = {
-  disabled_hosts: string[];
-};
+export type GatewayCrawlerBlockerConfig =
+  ApiContractComponents["schemas"]["GatewayCrawlerBlockerData"];
 
-export type GatewayProxyHeadersItem = {
-  host: string;
-  target: string;
-  title: string;
-  send_proxy_headers: boolean;
-};
+export type GatewaySettings =
+  ApiContractComponents["schemas"]["GatewaySettingsData"];
 
-export type GatewayProxyHeadersAvailability = {
-  available: boolean;
-  reason: string;
-};
+export type TrafficStats =
+  ApiContractComponents["schemas"]["DashboardRealtimeData"];
+export type HostTrafficStats =
+  ApiContractComponents["schemas"]["DashboardHostTrafficData"];
+export type HostActiveIp =
+  ApiContractComponents["schemas"]["DashboardActiveIpData"];
+export type HostActiveIpsPayload =
+  ApiContractComponents["schemas"]["DashboardActiveIpsData"];
+export type DashboardStats =
+  ApiContractComponents["schemas"]["DashboardStatsData"];
 
-export type GatewayProxyHeadersSummary = {
-  total_count: number;
-  disabled_count: number;
-  updated_at: string | null;
-};
-
-export type GatewayProxyHeadersDetails = {
-  config: GatewayProxyHeadersConfig;
-  availability: GatewayProxyHeadersAvailability;
-  items: GatewayProxyHeadersItem[];
-  summary: GatewayProxyHeadersSummary;
-};
-
-export type GatewayHostResponseConfig = {
-  disabled_hosts: string[];
-};
-
-export type GatewayHostResponseItem = {
-  host: string;
-  target: string;
-  title: string;
-  preserve_host: boolean;
-};
-
-export type GatewayHostResponseAvailability = {
-  available: boolean;
-  reason: string;
-};
-
-export type GatewayHostResponseSummary = {
-  total_count: number;
-  disabled_count: number;
-  updated_at: string | null;
-};
-
-export type GatewayHostResponseDetails = {
-  config: GatewayHostResponseConfig;
-  availability: GatewayHostResponseAvailability;
-  items: GatewayHostResponseItem[];
-  summary: GatewayHostResponseSummary;
-};
-
-export type GatewayPortalDisplayStyle = "domain" | "title";
-export type GatewayPortalIconDragMode = "corners" | "free";
-export type GatewayPortalVersion = "v1" | "v2";
-
-export type GatewayPortalConfig = {
-  enabled: boolean;
-  display_style: GatewayPortalDisplayStyle;
-  show_app_icon: boolean;
-  show_wol: boolean;
-  icon_drag_mode: GatewayPortalIconDragMode;
-  version: GatewayPortalVersion;
-};
-
-export type GatewayUnmatchedRouteBehavior = "error_page" | "reset_connection";
-export type GatewayUpstreamErrorDetail = "less" | "more" | "reset_connection";
-
-export type GatewayUnmatchedRouteConfig = {
-  behavior: GatewayUnmatchedRouteBehavior;
-  upstream_error_detail: GatewayUpstreamErrorDetail;
-};
-
-export type GatewayCrawlerBlockerConfig = {
-  enabled: boolean;
-  updated_at?: string | null;
-};
-
-export type GatewaySettings = {
-  auth_cache_ttl_seconds: number;
-  auth_cache_unauthorized_ttl_seconds: number;
-  reverse_proxy_throttle: ReverseProxyThrottleConfig;
-  visibility: GatewayVisibilitySummary;
-  proxy_headers: GatewayProxyHeadersSummary;
-  host_response: GatewayHostResponseSummary;
-  crawler_blocker: GatewayCrawlerBlockerConfig;
-  portal: GatewayPortalConfig;
-  unmatched_route: GatewayUnmatchedRouteConfig;
-};
-
-export type TrafficStats = {
-  total_in: number;
-  total_out: number;
-  active_conns: number;
-  error_5xx: number;
-  by_host?: HostTrafficStats[];
-  timestamp: number;
-};
-
-export type HostTrafficStats = {
-  host: string;
-  total_in: number;
-  total_out: number;
-  error_5xx: number;
-  active_ip_count?: number;
-};
-
-export type HostActiveIp = {
-  ip: string;
-  last_seen_at: string;
-  active_conns: number;
-};
-
-export type HostActiveIpsPayload = {
-  host: string;
-  window_seconds: number;
-  items: HostActiveIp[];
-  timestamp?: number;
-};
-
-export type DashboardStats = {
-  rangeSec: number;
-  now: {
-    online: number | null;
-    error5xxTotal: number | null;
-  };
-  totals: {
-    inBytes: number;
-    outBytes: number;
-    error5xx: number;
-  };
-  errors: {
-    error5xx1d: number;
-    error5xx1w: number;
-  };
-  traffic: {
-    echarts: unknown;
-  };
-};
-
-export type ThreatOverview = {
-  rangeSec: number;
-  totals: {
-    failedLogins: number;
-    blockedScanners: number;
-    wafEvents: number;
-  };
-  series: {
-    failedLogins: Array<[number, number]>;
-    blockedScanners: Array<[number, number]>;
-    wafEvents: Array<[number, number]>;
-  };
-};
+export type ThreatOverview =
+  ApiContractComponents["schemas"]["SecurityOverviewData"];
 
 export * from "./types/system-events";
 export * from "./types/runtime-health";

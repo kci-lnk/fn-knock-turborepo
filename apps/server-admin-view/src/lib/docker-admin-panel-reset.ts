@@ -21,6 +21,10 @@ export const linuxAdminPanelResetCommands = {
   reset: "sudo knock reset-panel-password",
 } as const;
 
+export const macosAdminPanelResetCommands = {
+  reset: "sudo knock reset-panel-password",
+} as const;
+
 export const windowsAdminPanelResetCommands = {
   reset:
     '& "$env:ProgramFiles\\Knock 敲门\\fn-knock-service.exe" reset-panel-password',
@@ -85,6 +89,15 @@ const resetGuides = {
       {
         labelKey: "admin.components.dockerAdminGate.resetStepLinux",
         command: linuxAdminPanelResetCommands.reset,
+      },
+    ],
+  },
+  macos: {
+    descriptionKey: "admin.components.dockerAdminGate.resetDescriptionDevice",
+    steps: [
+      {
+        labelKey: "admin.components.dockerAdminGate.resetStepLinux",
+        command: macosAdminPanelResetCommands.reset,
       },
     ],
   },

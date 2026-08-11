@@ -13,6 +13,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
+        "../../scripts/create-precompressed-assets.mjs",
         "../../packages/admin-shared/src/**",
         "../../packages/frontend-core/src/**",
         "../../packages/icons/**",
@@ -26,6 +27,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
+        "../../scripts/create-precompressed-assets.mjs",
         "../../packages/admin-shared/src/**",
         "../../packages/frontend-core/src/**",
         "../../packages/icons/**",
@@ -33,6 +35,30 @@
         "../../packages/ui-vue/src/**"
       ],
       "outputs": ["dist/**"]
+    },
+    "server-admin-rs#build": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../version.json",
+        "../../packages/grpc-contracts/**",
+        "../../packages/wol-protocol-rs/Cargo.toml",
+        "../../packages/wol-protocol-rs/Cargo.lock",
+        "../../packages/wol-protocol-rs/src/**"
+      ],
+      "outputs": []
+    },
+    "fn-knock-desktop#build": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../version.json",
+        "../../packages/grpc-contracts/**",
+        "bundle/windows/runtime/bundle.json"
+      ],
+      "outputs": []
     },
     "lint": {
       "dependsOn": ["^lint"]
@@ -60,6 +86,26 @@
         "../../packages/ui-vue/src/**"
       ]
     },
+    "server-admin-rs#check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../version.json",
+        "../../packages/grpc-contracts/**",
+        "../../packages/wol-protocol-rs/Cargo.toml",
+        "../../packages/wol-protocol-rs/Cargo.lock",
+        "../../packages/wol-protocol-rs/src/**"
+      ]
+    },
+    "fn-knock-desktop#check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../version.json",
+        "../../packages/grpc-contracts/**",
+        "bundle/windows/runtime/bundle.json"
+      ]
+    },
     "test": {
       "dependsOn": ["^test"]
     },
@@ -81,6 +127,17 @@
         "../../packages/frontend-core/src/**",
         "../../packages/i18n/src/**",
         "../../packages/ui-vue/src/**"
+      ]
+    },
+    "server-admin-rs#test": {
+      "dependsOn": ["^test"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../version.json",
+        "../../packages/grpc-contracts/**",
+        "../../packages/wol-protocol-rs/Cargo.toml",
+        "../../packages/wol-protocol-rs/Cargo.lock",
+        "../../packages/wol-protocol-rs/src/**"
       ]
     },
     "dev": {

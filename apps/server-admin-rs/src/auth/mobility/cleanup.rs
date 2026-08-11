@@ -13,7 +13,7 @@ pub async fn revoke_login_session(
     logout_source: &'static str,
 ) -> LoginSessionRevocationOutcome {
     let mut complete = true;
-    let session = match state.store.get_session(session_id).await {
+    let session = match state.storage.store.get_session(session_id).await {
         Ok(session) => session,
         Err(error) => {
             tracing::warn!(%error, %session_id, %logout_source, "failed to load auth session during revocation");
@@ -26,7 +26,7 @@ pub async fn revoke_login_session(
     let config = if let Some(config) = config {
         Some(config)
     } else if session.is_some() {
-        loaded_config = match state.store.get_config().await {
+        loaded_config = match state.storage.store.get_config().await {
             Ok(config) => Some(config),
             Err(error) => {
                 tracing::warn!(%error, %session_id, %logout_source, "failed to load config during session revocation");
@@ -153,7 +153,7 @@ async fn destroy_sessions_matching(
     state: &AppState,
     matches: impl Fn(&LoginSession) -> bool,
 ) -> anyhow::Result<usize> {
-    let sessions = state.store.list_login_sessions().await?;
+    let sessions = state.storage.store.list_login_sessions().await?;
     let mut destroyed = 0usize;
     for (session_id, session) in sessions {
         if !matches(&session) {
@@ -189,19 +189,21 @@ async fn destroy_session_state(state: &AppState, session_id: &str) -> anyhow::Re
         tracing::warn!(%session_id, "still waiting for auth mobility mutation lock during revocation");
     };
     let result = async {
-        // The mutation lease excludes mobility writers. Remove grants and
-        // secondary indexes before the authoritative Session so any failure is
-        // fail-closed but remains discoverable by credential-based retries.
+        // The mutation lease excludes mobility writers. Remove external grants
+        // first, then atomically remove the authoritative session together with
+        // every mobility index owned by it. A failed storage transaction leaves
+        // the complete internal aggregate discoverable for a retry.
         let whitelist_ids = state
+            .storage
             .store
             .list_auth_mobility_session_whitelist_ids(session_id)
             .await?;
         whitelist::remove_whitelist_records_without_runtime_sync(state, &whitelist_ids).await?;
         state
+            .storage
             .store
             .destroy_auth_mobility_session(session_id)
             .await?;
-        state.store.delete_session(session_id).await?;
         Ok(())
     }
     .await;
@@ -260,8 +262,8 @@ pub async fn reconcile_all_stream_access_grants(
     state: &AppState,
     settings_value: &Value,
 ) -> anyhow::Result<bool> {
-    let totps = state.store.get_totps().await?;
-    let accounts = state.store.get_auth_accounts().await?;
+    let totps = state.storage.store.get_totps().await?;
+    let accounts = state.storage.store.get_auth_accounts().await?;
     reconcile_stream_access_grants_for_matching_sessions(
         state,
         |_| true,
@@ -296,11 +298,11 @@ where
     let settings = match settings_value {
         Some(value) => AuthCredentialSettings::from_raw(value),
         None => {
-            let config = state.store.get_config().await?;
+            let config = state.storage.store.get_config().await?;
             AuthCredentialSettings::from_config(&config)
         }
     };
-    let sessions = state.store.list_login_sessions().await?;
+    let sessions = state.storage.store.list_login_sessions().await?;
     let mut changed = false;
     for (session_id, session) in sessions {
         if !matches_session(&session) {
@@ -321,6 +323,7 @@ where
             next_expires_at.map(Value::String).unwrap_or(Value::Null),
         );
         if state
+            .storage
             .store
             .update_session_value(&session_id, updates)
             .await?
@@ -339,7 +342,7 @@ async fn clear_auto_ip_grants_for_matching_sessions<F>(
 where
     F: Fn(&LoginSession) -> bool,
 {
-    let sessions = state.store.list_login_sessions().await?;
+    let sessions = state.storage.store.list_login_sessions().await?;
     let mut changed = false;
     for (session_id, session) in sessions {
         if !matches_session(&session) {
@@ -375,6 +378,7 @@ where
             updates.insert("postLoginIpGrantMode".to_string(), Value::Null);
             updates.insert("postLoginIpGrantRecordId".to_string(), Value::Null);
             state
+                .storage
                 .store
                 .update_session_value(&session_id, updates)
                 .await?;
@@ -392,6 +396,7 @@ pub async fn list_session_whitelist_record_ids(
     session_id: &str,
 ) -> anyhow::Result<Vec<String>> {
     Ok(state
+        .storage
         .store
         .list_auth_mobility_session_whitelist_ids(session_id)
         .await?)
@@ -405,7 +410,7 @@ pub async fn reconcile_session_ip_mobility_policy(
 ) -> anyhow::Result<()> {
     let previous = AuthCredentialSettings::from_raw(previous_settings);
     let next = AuthCredentialSettings::from_raw(next_settings);
-    let sessions = state.store.list_login_sessions().await?;
+    let sessions = state.storage.store.list_login_sessions().await?;
     if !next.session_ip_mobility_enabled {
         for (session_id, session) in sessions {
             cleanup_session_active_ip_state(state, &session_id, &session, true).await?;
@@ -465,7 +470,7 @@ pub(super) async fn cleanup_session_active_ip_state(
         anyhow::bail!("Timed out waiting for auth mobility session mutation lock");
     };
     let result = async {
-        let Some(live_session) = state.store.get_session(session_id).await? else {
+        let Some(live_session) = state.storage.store.get_session(session_id).await? else {
             return Ok(());
         };
         cleanup_session_active_ip_state_locked(
@@ -490,6 +495,7 @@ async fn cleanup_session_active_ip_state_locked(
     preserve_legacy_single_slot: bool,
 ) -> anyhow::Result<()> {
     let details = state
+        .storage
         .store
         .list_auth_mobility_active_ip_details(session_id)
         .await?
@@ -509,7 +515,7 @@ async fn cleanup_session_active_ip_state_locked(
                 .filter(|value| !value.is_empty())
                 .map(ToString::to_string)
                 .or_else(|| current_detail.and_then(|detail| detail.whitelist_record_id.clone()));
-            let config = state.store.get_config().await?;
+            let config = state.storage.store.get_config().await?;
             let auto_comment = normalize_auto_ip_grant_comment(session.comment.as_deref(), &config)
                 .unwrap_or_else(|| auto_ip_grant_comment(&config));
             let record = whitelist::ensure_session_auto_whitelist(
@@ -535,6 +541,7 @@ async fn cleanup_session_active_ip_state_locked(
                     Value::String(record.id.clone()),
                 );
                 state
+                    .storage
                     .store
                     .update_session_value(session_id, updates)
                     .await?;
@@ -543,6 +550,7 @@ async fn cleanup_session_active_ip_state_locked(
     }
 
     state
+        .storage
         .store
         .clear_auth_mobility_active_ip_session(session_id)
         .await?;
@@ -570,6 +578,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         return Ok(false);
     };
     let existing = state
+        .storage
         .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
@@ -583,6 +592,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         Some(whitelist_record_id.to_string()),
     );
     if !state
+        .storage
         .store
         .save_auth_mobility_owned_binding(
             "proxy-session",
@@ -597,6 +607,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         return Ok(false);
     }
     if !state
+        .storage
         .store
         .set_auth_mobility_whitelist_owner(whitelist_record_id, session_id, ttl_seconds)
         .await?

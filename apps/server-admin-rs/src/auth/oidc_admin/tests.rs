@@ -77,7 +77,7 @@ fn masks_provider_secret() {
     let view = mask_provider(provider, Some("https://auth.example.com"));
     assert_eq!(
         view.pointer("/connection_config_masked/client_secret"),
-        Some(&Value::String("ve******".to_string()))
+        Some(&Value::String("********".to_string()))
     );
     assert_eq!(
         view.get("callback_url").and_then(Value::as_str),

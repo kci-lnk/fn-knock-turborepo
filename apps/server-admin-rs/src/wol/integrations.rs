@@ -76,7 +76,8 @@ pub(super) async fn runtime_view(
         return IntegrationRuntimeView::credential_missing();
     }
     state
-        .wol_integration_status
+        .wol
+        .integration_status
         .read()
         .await
         .get(&runtime_key(target_id, provider))
@@ -100,7 +101,7 @@ pub(super) async fn set_runtime(
     error: Option<&str>,
 ) {
     let key = runtime_key(target_id, provider);
-    let mut statuses = state.wol_integration_status.write().await;
+    let mut statuses = state.wol.integration_status.write().await;
     let previous = statuses.get(&key);
     let now = time_utils::now_iso();
     let last_connected_at = if connected {
@@ -151,7 +152,7 @@ fn next_runtime_error(
 }
 
 pub(super) async fn remove_runtime(state: &AppState, target_id: &str) {
-    let mut statuses = state.wol_integration_status.write().await;
+    let mut statuses = state.wol.integration_status.write().await;
     statuses.remove(&runtime_key(target_id, "blinker"));
     statuses.remove(&runtime_key(target_id, "bemfa"));
 }
@@ -189,16 +190,19 @@ fn sanitize_runtime_error(error: &str) -> String {
 }
 
 pub(super) fn start_integration_tasks(state: AppState) {
-    tokio::spawn(async move { integration_supervisor(state).await });
+    let task_state = state.clone();
+    state.spawn_background("wol-integration-supervisor", async move {
+        integration_supervisor(task_state).await;
+    });
 }
 
 async fn integration_supervisor(state: AppState) {
-    let mut reload = state.wol_runtime_reload.subscribe();
+    let mut reload = state.wol.runtime_reload.subscribe();
     loop {
         if state.shutdown.is_cancelled() {
             return;
         }
-        state.wol_integration_status.write().await.clear();
+        state.wol.integration_status.write().await.clear();
         let workers_cancel = state.shutdown.child_token();
         let mut workers = JoinSet::new();
         let retry_configuration = match super::feature_enabled_for_state(&state).await {
@@ -472,7 +476,7 @@ async fn bemfa_session(
         .iter()
         .map(|binding| (binding.topic.as_str(), binding.target_id.as_str()))
         .collect::<HashMap<_, _>>();
-    let mut status_updates = state.wol_status_updates.subscribe();
+    let mut status_updates = state.wol.status_updates.subscribe();
     let mut connected = false;
     loop {
         tokio::select! {

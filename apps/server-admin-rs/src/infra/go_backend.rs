@@ -1756,6 +1756,14 @@ fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
         Value::String(entry.auth_decision),
     );
     object.insert(
+        "auth_rule_group_id".to_string(),
+        Value::String(entry.auth_rule_group_id),
+    );
+    object.insert(
+        "auth_grant_state".to_string(),
+        Value::String(entry.auth_grant_state),
+    );
+    object.insert(
         "auth_credential_id".to_string(),
         Value::String(entry.auth_credential_id),
     );
@@ -2008,6 +2016,18 @@ mod tests {
                 "queue_depth": 7
             })
         );
+    }
+
+    #[test]
+    fn gateway_log_json_preserves_advanced_auth_decision_metadata() {
+        let value = log_entry_to_json(crate::grpc_proto::GatewayLogEntry {
+            auth_rule_group_id: "admins".to_string(),
+            auth_grant_state: "session".to_string(),
+            ..Default::default()
+        });
+
+        assert_eq!(value["auth_rule_group_id"], "admins");
+        assert_eq!(value["auth_grant_state"], "session");
     }
 
     #[test]

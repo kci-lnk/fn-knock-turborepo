@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { HostMapping, HostMappingGroup } from "../src/types";
 import { createDefaultMapping } from "../src/views/subdomain-proxy/model";
 import {
@@ -15,6 +15,7 @@ import {
   resolveHostMappingGroupSaveFeedback,
 } from "../src/views/subdomain-proxy/host-mapping-groups";
 import { useSubdomainMappingGroups } from "../src/views/subdomain-proxy/useSubdomainMappingGroups";
+import { useSubdomainMappingTableState } from "../src/views/subdomain-proxy/useSubdomainMappingTableState";
 
 const groups: HostMappingGroup[] = [
   { id: "11111111-1111-4111-8111-111111111111", name: "Media" },
@@ -133,6 +134,114 @@ test("batch move only updates selected mappings", () => {
   );
   assert.equal(next[0]?.group_id, groups[1].id);
   assert.equal(next[1]?.group_id, groups[0].id);
+});
+
+test("keeps mapping selection scoped to visible rows", async () => {
+  const first = mapping("one.example.test", groups[0].id);
+  const second = mapping("two.example.test", groups[0].id);
+  const filteredMappings = ref([first, second]);
+  const state = useSubdomainMappingTableState({
+    filteredMappings: () => filteredMappings.value,
+    groups: () => groups,
+    isSavingMappings: () => false,
+    searchQuery: () => "",
+    showGroupedView: () => true,
+    ungroupedLabel: () => "Ungrouped",
+    onSaveFlatOrder: () => undefined,
+    onSaveGroupedOrder: () => undefined,
+    collapseStorage: null,
+  });
+
+  state.setSectionSelected(state.groupSections.value[0]!, true);
+  assert.equal(state.selectedCount.value, 2);
+  assert.equal(state.allVisibleSelected.value, true);
+
+  filteredMappings.value = [first];
+  await nextTick();
+  assert.equal(state.selectedCount.value, 1);
+  assert.deepEqual(state.takeSelectedHosts(), [first.host]);
+  assert.equal(state.selectedCount.value, 0);
+});
+
+test("restores canonical mapping order after a save finishes", async () => {
+  const first = mapping("one.example.test", null);
+  const second = mapping("two.example.test", null);
+  const isSaving = ref(true);
+  const savedOrders: HostMapping[][] = [];
+  const state = useSubdomainMappingTableState({
+    filteredMappings: () => [first, second],
+    groups: () => [],
+    isSavingMappings: () => isSaving.value,
+    searchQuery: () => "",
+    showGroupedView: () => false,
+    ungroupedLabel: () => "Ungrouped",
+    onSaveFlatOrder: (mappings) => savedOrders.push(mappings),
+    onSaveGroupedOrder: () => undefined,
+    collapseStorage: null,
+  });
+
+  state.updateSectionMappings(state.groupSections.value[0]!.key, [
+    second,
+    first,
+  ]);
+  await state.handleSortEnd();
+  assert.deepEqual(
+    savedOrders[0]?.map((item) => item.host),
+    [second.host, first.host],
+  );
+
+  isSaving.value = false;
+  await nextTick();
+  assert.deepEqual(
+    state.groupSections.value[0]?.mappings.map((item) => item.host),
+    [first.host, second.host],
+  );
+});
+
+test("persists collapsed groups without failing when storage rejects writes", () => {
+  const first = mapping("one.example.test", groups[0].id);
+  const writes: string[] = [];
+  const state = useSubdomainMappingTableState({
+    filteredMappings: () => [first],
+    groups: () => groups,
+    isSavingMappings: () => false,
+    searchQuery: () => "",
+    showGroupedView: () => true,
+    ungroupedLabel: () => "Ungrouped",
+    onSaveFlatOrder: () => undefined,
+    onSaveGroupedOrder: () => undefined,
+    collapseStorage: {
+      getItem: () => "[]",
+      setItem: (_key, value) => writes.push(value),
+    },
+  });
+
+  const section = state.groupSections.value[0]!;
+  state.toggleSectionCollapsed(section);
+  assert.equal(state.isSectionCollapsed(section), true);
+  assert.deepEqual(JSON.parse(writes[0]!), [section.key]);
+
+  const rejectingState = useSubdomainMappingTableState({
+    filteredMappings: () => [first],
+    groups: () => groups,
+    isSavingMappings: () => false,
+    searchQuery: () => "",
+    showGroupedView: () => true,
+    ungroupedLabel: () => "Ungrouped",
+    onSaveFlatOrder: () => undefined,
+    onSaveGroupedOrder: () => undefined,
+    collapseStorage: {
+      getItem: () => "[]",
+      setItem: () => {
+        throw new Error("quota exceeded");
+      },
+    },
+  });
+  assert.doesNotThrow(() =>
+    rejectingState.toggleSectionCollapsed(
+      rejectingState.groupSections.value[0]!,
+    ),
+  );
 });
 
 test("selects a precise success message for a single group change", () => {
@@ -334,6 +443,13 @@ test("reconciles draggable table rows after a cross-group move", () => {
     ),
     "utf8",
   );
+  const tableState = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/useSubdomainMappingTableState.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.match(groupRows, /:key="draggableRenderKey"/u);
   assert.match(
@@ -345,7 +461,7 @@ test("reconciles draggable table rows after a cross-group move", () => {
     /<TableRow[\s\S]*?:key="mapping\.host"[\s\S]*?:data-host-mapping="mapping\.host"[\s\S]*?class="mapping-row"/u,
   );
   assert.match(
-    card,
+    tableState,
     /\(isSaving, wasSaving\) => \{[\s\S]*?if \(wasSaving && !isSaving\) syncGroupSections\(\);/u,
   );
   assert.doesNotMatch(

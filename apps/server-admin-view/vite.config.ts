@@ -70,7 +70,6 @@ const isCriticalHtmlPreload = (dep: string) => {
     name.startsWith("preload-helper-") ||
     name.startsWith("framework-") ||
     name.startsWith("ui-vendor-") ||
-    name.startsWith("api-") ||
     name.startsWith("config-") ||
     name.startsWith("dockerAdminAuth-")
   );

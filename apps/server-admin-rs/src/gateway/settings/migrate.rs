@@ -12,11 +12,13 @@ pub(crate) async fn migrate_visibility_policies_on_boot(state: &AppState) -> Res
 /// restored data cannot become visible between replacement and migration.
 pub(crate) async fn migrate_visibility_policies_locked(state: &AppState) -> Result<(), String> {
     let previous = state
+        .storage
         .store
         .get_config()
         .await
         .map_err(|error| error.to_string())?;
     let previous_runtime = state
+        .storage
         .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
@@ -44,6 +46,7 @@ pub(crate) async fn migrate_visibility_policies_locked(state: &AppState) -> Resu
 
     if candidate != previous {
         state
+            .storage
             .store
             .compare_and_set_config_migration(&previous, &candidate)
             .await
@@ -53,6 +56,7 @@ pub(crate) async fn migrate_visibility_policies_locked(state: &AppState) -> Resu
             })?;
     }
     state
+        .storage
         .store
         .set_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY, &runtime)
         .await
@@ -536,6 +540,7 @@ mod tests {
         let (_directory, state) = migration_test_state().await;
         let policy = compile_ip_set(["203.0.113.0/25", "203.0.113.128/25"]).unwrap();
         state
+            .storage
             .store
             .set_json_value(
                 "fn_knock:cidr:test-source:cidrs:device-regression",

@@ -1,5 +1,22 @@
 use super::*;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+pub(super) fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(get_cidr_capabilities))
+        .routes(routes!(get_cidr_provinces))
+        .routes(routes!(get_cidr_cities))
+        .routes(routes!(get_cidr_selector))
+        .routes(routes!(get_cidr_cidrs))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/cidr/capabilities",
+    tag = "cidr",
+    operation_id = "get_api_admin_cidr_capabilities",
+    responses((status = 200, description = "Configured CIDR service capabilities"))
+)]
 pub(super) async fn get_cidr_capabilities(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match crate::cidr::probe_configured_capabilities(&state).await {
@@ -11,11 +28,25 @@ pub(super) async fn get_cidr_capabilities(State(state): State<AppState>) -> Resp
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/cidr/provinces",
+    tag = "cidr",
+    operation_id = "get_api_admin_cidr_provinces",
+    responses((status = 200, description = "Available CIDR provinces"))
+)]
 pub(super) async fn get_cidr_provinces(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     cidr_response(crate::cidr::provinces_payload(&state).await, &translator)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/cidr/cities",
+    tag = "cidr",
+    operation_id = "get_api_admin_cidr_cities",
+    responses((status = 200, description = "Available CIDR cities for a province"))
+)]
 pub(super) async fn get_cidr_cities(
     State(state): State<AppState>,
     Query(query): Query<CidrCityQuery>,
@@ -27,6 +58,13 @@ pub(super) async fn get_cidr_cities(
     )
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/cidr/selector",
+    tag = "cidr",
+    operation_id = "get_api_admin_cidr_selector",
+    responses((status = 200, description = "CIDR province and optional city selector"))
+)]
 pub(super) async fn get_cidr_selector(
     State(state): State<AppState>,
     Query(query): Query<CidrProvinceQuery>,
@@ -51,6 +89,13 @@ pub(super) async fn get_cidr_selector(
     cidr_response(result, &translator)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/cidr/cidrs",
+    tag = "cidr",
+    operation_id = "get_api_admin_cidr_cidrs",
+    responses((status = 200, description = "CIDR lookup result"))
+)]
 pub(super) async fn get_cidr_cidrs(
     State(state): State<AppState>,
     Query(query): Query<CidrCityQuery>,

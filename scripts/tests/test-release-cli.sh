@@ -43,6 +43,7 @@ mkdir -p \
   "${FIXTURE}/apps/server-admin-rs" \
   "${FIXTURE}/apps/fn-knock-desktop/native" \
   "${FIXTURE}/apps/fn-knock-desktop" \
+  "${FIXTURE}/packages/api-contract" \
   "${FIXTURE}/packages/grpc-contracts/proto/fnknock/v1" \
   "${FIXTURE}/release-notes" \
   "${FIXTURE}/scripts" \
@@ -55,6 +56,7 @@ for relative_path in \
   apps/server-admin-rs/Cargo.toml \
   apps/server-admin-rs/Cargo.lock \
   apps/fn-knock-desktop/package.json \
+  packages/api-contract/package.json \
   package-lock.json \
   apps/fn-knock-desktop/native/Cargo.toml \
   apps/fn-knock-desktop/native/Cargo.lock \
@@ -88,6 +90,12 @@ git -C "${GO_FIXTURE}" config user.email test@example.invalid
 git -C "${GO_FIXTURE}" config user.name "Release CLI Test"
 git -C "${GO_FIXTURE}" add .
 git -C "${GO_FIXTURE}" commit -qm "chore: current gateway release"
+GATEWAY_FIXTURE_COMMIT="$(git -C "${GO_FIXTURE}" rev-parse HEAD)"
+jq --arg commit "${GATEWAY_FIXTURE_COMMIT}" '.gatewayCommit = $commit' \
+  "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
+mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
+git -C "${FIXTURE}" add version.json
+git -C "${FIXTURE}" commit -qm "chore: pin gateway fixture"
 
 run_cli status >/dev/null
 run_cli gateway-check "${CURRENT_VERSION}" >/dev/null

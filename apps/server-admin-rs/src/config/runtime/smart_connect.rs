@@ -2,8 +2,9 @@ use super::*;
 
 pub(super) async fn load_smart_connect_details(state: &AppState) -> anyhow::Result<Value> {
     let translator = Translator::from_state(state).await;
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let runtime = state
+        .storage
         .store
         .get_json_value(SMART_CONNECT_RUNTIME_KEY)
         .await?
@@ -78,6 +79,7 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
                 "last_sync_error": message,
             });
             let _ = state
+                .storage
                 .store
                 .set_json_value(SMART_CONNECT_RUNTIME_KEY, &runtime)
                 .await;
@@ -86,6 +88,7 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
     };
 
     state
+        .storage
         .store
         .set_json_value(SMART_CONNECT_RUNTIME_KEY, &runtime)
         .await
@@ -130,6 +133,7 @@ pub(super) async fn sync_smart_connect_on_boot(
         "last_sync_error": Value::Null,
     });
     state
+        .storage
         .store
         .set_json_value(SMART_CONNECT_RUNTIME_KEY, &runtime)
         .await
@@ -148,8 +152,9 @@ pub(crate) fn schedule_smart_connect_sync_after_host_mappings_change(
         return;
     }
 
-    tokio::spawn(async move {
-        let latest_config = match state.store.get_config().await {
+    let task_state = state.clone();
+    state.spawn_background("smart-connect-sync", async move {
+        let latest_config = match task_state.storage.store.get_config().await {
             Ok(config) => config,
             Err(error) => {
                 tracing::warn!(
@@ -159,7 +164,7 @@ pub(crate) fn schedule_smart_connect_sync_after_host_mappings_change(
                 config
             }
         };
-        if let Err(message) = sync_smart_connect(&state, &latest_config).await {
+        if let Err(message) = sync_smart_connect(&task_state, &latest_config).await {
             tracing::warn!(
                 %message,
                 "failed to sync smart connect after host mappings change"

@@ -6,7 +6,7 @@ pub(super) async fn bind(
     uri: Uri,
     Query(query): Query<BindQuery>,
 ) -> Response {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -141,7 +141,7 @@ pub(super) async fn start(
     uri: Uri,
     Json(body): Json<StartBody>,
 ) -> Response {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -203,7 +203,7 @@ pub(super) async fn callback(
     Path(provider_id): Path<String>,
     Query(query): Query<CallbackQuery>,
 ) -> Response {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -302,7 +302,12 @@ pub(super) async fn callback(
 
     let client_ip = client_ip_for_headers(&headers);
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    match state.store.get_login_backoff_status(&tracking_ip).await {
+    match state
+        .storage
+        .store
+        .get_login_backoff_status(&tracking_ip)
+        .await
+    {
         Ok(status) if status.blocked => {
             let auth_state = consume_callback_state_for_notice(
                 &state,
@@ -432,6 +437,7 @@ pub(super) async fn callback(
             } else {
                 let detail_message = error;
                 let response_message = match state
+                    .storage
                     .store
                     .register_login_backoff_failure(&tracking_ip)
                     .await

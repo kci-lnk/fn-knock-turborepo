@@ -8,7 +8,7 @@ const WAF_RULE_PATH_PREFIX = "/usr/local/apps/@appdata/fn-knock/waf";
 
 type TranslateParams = Record<string, unknown>;
 
-const ruleFileBasename = (value?: string) => {
+const ruleFileBasename = (value?: string | null) => {
   const normalized = String(value || "")
     .trim()
     .replace(/\\/g, "/");
@@ -30,7 +30,10 @@ const hasRuleDescription = (rule: WAFRuleMatch) =>
 const detailFields = [
   { key: "time", labelKey: "admin.wafLogs.detailFields.time" },
   { key: "trace_id", label: "Trace ID" },
-  { key: "transaction_id", labelKey: "admin.wafLogs.detailFields.transactionId" },
+  {
+    key: "transaction_id",
+    labelKey: "admin.wafLogs.detailFields.transactionId",
+  },
   { key: "action", labelKey: "admin.wafLogs.detailFields.action" },
   { key: "mode", labelKey: "admin.wafLogs.detailFields.mode" },
   { key: "status", labelKey: "admin.wafLogs.detailFields.status" },
@@ -63,7 +66,9 @@ export const useWafLogDisplay = ({
   translate,
 }: {
   activeEvent: Ref<WAFEvent | null>;
-  activeEventWithIpLocation: ComputedRef<(WAFEvent & { ipLocation: string }) | null>;
+  activeEventWithIpLocation: ComputedRef<
+    (WAFEvent & { ipLocation: string }) | null
+  >;
   locale: Ref<string>;
   translate: (key: string, params?: TranslateParams) => string;
 }) => {
@@ -101,13 +106,13 @@ export const useWafLogDisplay = ({
     }
   };
 
-  const routeTypeLabel = (value?: string) =>
-    resolveRouteTypeLabel(value, translate);
+  const routeTypeLabel = (value?: string | null) =>
+    resolveRouteTypeLabel(value ?? undefined, translate);
 
   const formatDate = (value?: string) =>
     formatDateTimeSafe(value, { locale: locale.value });
 
-  const formatRuleIds = (value?: number[]) =>
+  const formatRuleIds = (value?: number[] | null) =>
     value && value.length > 0 ? value.map((id) => `#${id}`).join(", ") : "-";
 
   const getPrimaryRule = (event: WAFEvent): WAFRuleMatch | undefined => {
@@ -156,7 +161,7 @@ export const useWafLogDisplay = ({
     return firstRule.message || firstRule.data || "";
   };
 
-  const formatRuleFilePath = (value?: string) => {
+  const formatRuleFilePath = (value?: string | null) => {
     const normalized = String(value || "")
       .trim()
       .replace(/\\/g, "/");

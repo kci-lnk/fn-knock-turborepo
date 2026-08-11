@@ -9,7 +9,6 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -17,6 +16,7 @@ use tokio::{
     net::lookup_host,
     time::{self, MissedTickBehavior},
 };
+use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
 use crate::{
@@ -116,7 +116,7 @@ fn whitelist_record_for_response(
     record
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct AddWhitelistBody {
     ip: String,
     #[serde(rename = "targetType")]
@@ -129,12 +129,12 @@ struct AddWhitelistBody {
     check_interval_minutes: Option<i64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct CommentBody {
     comment: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct AddWhitelistRegionsBody {
     #[serde(default)]
     regions: Vec<Value>,
@@ -144,33 +144,24 @@ struct AddWhitelistRegionsBody {
 }
 
 pub fn whitelist_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/whitelist",
-            get(list_whitelist).post(add_whitelist),
-        )
-        .route(
-            "/api/admin/whitelist/regions",
-            get(list_whitelist_regions).post(add_whitelist_regions),
-        )
-        .route(
-            "/api/admin/whitelist/regions/{id}",
-            delete(delete_whitelist_region),
-        )
-        .route("/api/admin/whitelist/{id}", delete(delete_whitelist))
-        .route(
-            "/api/admin/whitelist/{id}/comment",
-            patch(update_whitelist_comment),
-        )
-        .route(
-            "/api/admin/whitelist/{id}/refresh",
-            post(refresh_whitelist_cname),
-        )
+    whitelist_openapi_routes().into()
+}
+
+pub(crate) fn whitelist_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_whitelist))
+        .routes(routes!(add_whitelist))
+        .routes(routes!(list_whitelist_regions))
+        .routes(routes!(add_whitelist_regions))
+        .routes(routes!(delete_whitelist_region))
+        .routes(routes!(delete_whitelist))
+        .routes(routes!(update_whitelist_comment))
+        .routes(routes!(refresh_whitelist_cname))
 }
 
 pub fn start_whitelist_tasks(state: AppState) {
     let maintenance_state = state.clone();
-    tokio::spawn(async move {
+    state.spawn_background("whitelist-maintenance", async move {
         let mut ticker = time::interval(std::time::Duration::from_secs(60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
@@ -189,18 +180,19 @@ pub fn start_whitelist_tasks(state: AppState) {
             }
         }
     });
-    tokio::spawn(async move {
+    let trusted_ips_state = state.clone();
+    state.spawn_background("whitelist-trusted-ip-sync", async move {
         let mut ticker = time::interval(std::time::Duration::from_secs(2 * 60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
+                _ = trusted_ips_state.shutdown.cancelled() => break,
                 _ = ticker.tick() => {}
             }
             tokio::select! {
-                _ = state.shutdown.cancelled() => break,
-                _ = sync_reverse_proxy_trusted_ips(&state) => {}
+                _ = trusted_ips_state.shutdown.cancelled() => break,
+                _ = sync_reverse_proxy_trusted_ips(&trusted_ips_state) => {}
             }
         }
     });
@@ -272,6 +264,7 @@ async fn ensure_session_auto_whitelist_deferred(
         + std::time::Duration::from_secs(AUTO_WHITELIST_OWNER_LOCK_WAIT_SECONDS);
     loop {
         if state
+            .storage
             .store
             .set_json_value_nx_ex(
                 &lock_key,
@@ -299,7 +292,11 @@ async fn ensure_session_auto_whitelist_deferred(
         new_record_status,
     )
     .await;
-    let release_result = state.store.delete_lock_if_owned(&lock_key, &lock_id).await;
+    let release_result = state
+        .storage
+        .store
+        .delete_lock_if_owned(&lock_key, &lock_id)
+        .await;
     if let Err(error) = release_result {
         // The lock is leased and expires on its own. Do not turn an already
         // persisted owner result into an error that the caller cannot clean up.
@@ -322,7 +319,11 @@ async fn ensure_session_auto_whitelist_locked(
     let (target, target_type) =
         normalize_target(ip, "auto", Some("ip")).map_err(|message| anyhow::anyhow!(message))?;
     let owner_record_key = whitelist_auto_owner_record_key(owner_key);
-    let owner_record_id = state.store.get_string_value(&owner_record_key).await?;
+    let owner_record_id = state
+        .storage
+        .store
+        .get_string_value(&owner_record_key)
+        .await?;
     let mut candidate_ids = Vec::new();
     for id in [existing_record_id, owner_record_id.as_deref()]
         .into_iter()
@@ -339,7 +340,12 @@ async fn ensure_session_auto_whitelist_locked(
     }
 
     for candidate_id in candidate_ids {
-        let Some(existing) = state.store.get_whitelist_record(&candidate_id).await? else {
+        let Some(existing) = state
+            .storage
+            .store
+            .get_whitelist_record(&candidate_id)
+            .await?
+        else {
             continue;
         };
         if existing.source != "auto" || existing.target_type() != "ip" {
@@ -366,10 +372,12 @@ async fn ensure_session_auto_whitelist_locked(
         }
         next.ip_location = cached_ip_location(state, &target).await;
         state
+            .storage
             .store
             .replace_whitelist_record(&existing, &next)
             .await?;
         state
+            .storage
             .store
             .set_string_value_with_optional_ttl(
                 &owner_record_key,
@@ -404,10 +412,11 @@ async fn ensure_session_auto_whitelist_locked(
         resolve_status: None,
         resolve_message: None,
     };
-    state.store.insert_whitelist_record(&record).await?;
+    state.storage.store.insert_whitelist_record(&record).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", record.id)]).await;
     if let Err(error) = state
+        .storage
         .store
         .set_string_value_with_optional_ttl(
             &owner_record_key,
@@ -416,7 +425,11 @@ async fn ensure_session_auto_whitelist_locked(
         )
         .await
     {
-        let _ = state.store.delete_whitelist_record(&record.id).await;
+        let _ = state
+            .storage
+            .store
+            .delete_whitelist_record(&record.id)
+            .await;
         return Err(error.into());
     }
     Ok(DeferredSessionAutoWhitelist {
@@ -433,6 +446,7 @@ pub(crate) async fn publish_deferred_session_auto_whitelist(
         let previous = deferred.record.clone();
         deferred.record.status = "active".to_string();
         state
+            .storage
             .store
             .replace_whitelist_record(&previous, &deferred.record)
             .await?;
@@ -449,6 +463,7 @@ pub async fn rollback_session_auto_whitelist(
 ) -> anyhow::Result<()> {
     let owner_record_key = whitelist_auto_owner_record_key(owner_key);
     state
+        .storage
         .store
         .delete_key_if_value(&owner_record_key, whitelist_record_id)
         .await?;
@@ -468,7 +483,7 @@ async fn remove_whitelist_record_without_runtime_sync(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<bool> {
-    let Some(record) = state.store.delete_whitelist_record(id).await? else {
+    let Some(record) = state.storage.store.delete_whitelist_record(id).await? else {
         return Ok(false);
     };
     let targets = record.concrete_targets();
@@ -511,7 +526,7 @@ pub async fn remove_whitelist_records_by_source(
     state: &AppState,
     source: &str,
 ) -> anyhow::Result<usize> {
-    let records = state.store.list_whitelist_records().await?;
+    let records = state.storage.store.list_whitelist_records().await?;
     let ids = whitelist_record_ids_by_source(&records, source);
     remove_whitelist_records_and_sync(state, &ids).await
 }
@@ -532,6 +547,7 @@ pub async fn remove_whitelist_records_by_ip(
     }
 
     let records = state
+        .storage
         .store
         .find_whitelist_records_by_target(&target, "ip", source)
         .await?;
@@ -548,7 +564,7 @@ pub async fn move_record_to_ip(
     id: &str,
     new_ip: &str,
 ) -> anyhow::Result<Option<WhitelistRecord>> {
-    let Some(record) = state.store.get_whitelist_record(id).await? else {
+    let Some(record) = state.storage.store.get_whitelist_record(id).await? else {
         return Ok(None);
     };
     if !record.is_active() || record.target_type() != "ip" {
@@ -587,7 +603,11 @@ pub async fn move_record_to_ip(
     if let Some(ip_location) = cached_ip_location(state, &target).await {
         next.ip_location = Some(ip_location);
     }
-    state.store.replace_whitelist_record(&record, &next).await?;
+    state
+        .storage
+        .store
+        .replace_whitelist_record(&record, &next)
+        .await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", next.id)]).await;
     cleanup_removed_targets(state, &previous_targets).await;
@@ -607,10 +627,11 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
     let now = now_seconds();
     let mut changed = false;
 
-    for record in state.store.list_whitelist_records().await? {
+    for record in state.storage.store.list_whitelist_records().await? {
         if record.expire_at.is_some_and(|expire_at| expire_at <= now) {
             let targets = record.concrete_targets();
             if state
+                .storage
                 .store
                 .expire_whitelist_record(&record.id)
                 .await?
@@ -639,10 +660,11 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
         }
     }
 
-    for group in state.store.list_whitelist_region_groups().await? {
+    for group in state.storage.store.list_whitelist_region_groups().await? {
         if group.expire_at.is_some_and(|expire_at| expire_at <= now) {
             let targets = group.concrete_targets();
             if state
+                .storage
                 .store
                 .expire_whitelist_region_group(&group.id)
                 .await?
@@ -673,9 +695,10 @@ fn cname_refresh_due(record: &WhitelistRecord, now: i64) -> bool {
         .is_none_or(|last_checked_at| now - last_checked_at >= interval)
 }
 
+#[utoipa::path(get, path = "/api/admin/whitelist/regions", tag = "whitelist", operation_id = "get_api_admin_whitelist_regions", responses((status = 200, description = "Whitelist region groups")))]
 async fn list_whitelist_regions(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.list_whitelist_region_groups().await {
+    match state.storage.store.list_whitelist_region_groups().await {
         Ok(groups) => response::ok(
             groups
                 .into_iter()
@@ -693,6 +716,7 @@ async fn list_whitelist_regions(State(state): State<AppState>) -> Response {
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/whitelist/regions", tag = "whitelist", operation_id = "post_api_admin_whitelist_regions", request_body = AddWhitelistRegionsBody, responses((status = 200, description = "Created whitelist region group")))]
 async fn add_whitelist_regions(
     State(state): State<AppState>,
     Json(body): Json<AddWhitelistRegionsBody>,
@@ -751,7 +775,12 @@ async fn add_whitelist_regions(
         comment,
     };
 
-    if let Err(error) = state.store.insert_whitelist_region_group(&record).await {
+    if let Err(error) = state
+        .storage
+        .store
+        .insert_whitelist_region_group(&record)
+        .await
+    {
         tracing::warn!(%error, "failed to insert whitelist region group");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -773,12 +802,13 @@ async fn add_whitelist_regions(
     .into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/whitelist/regions/{id}", tag = "whitelist", operation_id = "delete_api_admin_whitelist_regions__id_", params(("id" = String, Path, description = "Whitelist region group identifier")), responses((status = 200, description = "Deleted whitelist region group")))]
 async fn delete_whitelist_region(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.delete_whitelist_region_group(&id).await {
+    match state.storage.store.delete_whitelist_region_group(&id).await {
         Ok(Some(group)) => {
             let targets = group.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
@@ -805,9 +835,10 @@ async fn delete_whitelist_region(
     }
 }
 
+#[utoipa::path(get, path = "/api/admin/whitelist", tag = "whitelist", operation_id = "get_api_admin_whitelist", responses((status = 200, description = "Whitelist records")))]
 async fn list_whitelist(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.store.list_whitelist_records().await {
+    match state.storage.store.list_whitelist_records().await {
         Ok(records) => {
             let mut hydrated = Vec::with_capacity(records.len());
             for record in records {
@@ -852,6 +883,7 @@ async fn hydrate_whitelist_record_ip_location(
     record
 }
 
+#[utoipa::path(post, path = "/api/admin/whitelist", tag = "whitelist", operation_id = "post_api_admin_whitelist", request_body = AddWhitelistBody, responses((status = 200, description = "Created whitelist record")))]
 async fn add_whitelist(
     State(state): State<AppState>,
     Json(body): Json<AddWhitelistBody>,
@@ -870,6 +902,7 @@ async fn add_whitelist(
         };
 
     let existing = match state
+        .storage
         .store
         .find_whitelist_records_by_target(&target, &target_type, Some(&source))
         .await
@@ -885,7 +918,12 @@ async fn add_whitelist(
     };
 
     for record in existing {
-        if let Ok(Some(deleted)) = state.store.delete_whitelist_record(&record.id).await {
+        if let Ok(Some(deleted)) = state
+            .storage
+            .store
+            .delete_whitelist_record(&record.id)
+            .await
+        {
             let targets = deleted.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
         }
@@ -917,7 +955,7 @@ async fn add_whitelist(
         resolve_message: None,
     };
 
-    if let Err(error) = state.store.insert_whitelist_record(&record).await {
+    if let Err(error) = state.storage.store.insert_whitelist_record(&record).await {
         tracing::warn!(%error, "failed to insert whitelist record");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -943,6 +981,7 @@ async fn add_whitelist(
     response::ok(json!({ "id": id })).into_response()
 }
 
+#[utoipa::path(delete, path = "/api/admin/whitelist/{id}", tag = "whitelist", operation_id = "delete_api_admin_whitelist__id_", params(("id" = String, Path, description = "Whitelist record identifier")), responses((status = 200, description = "Deleted whitelist record")))]
 async fn delete_whitelist(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match remove_whitelist_record_by_id(&state, &id).await {
@@ -961,6 +1000,7 @@ async fn delete_whitelist(State(state): State<AppState>, Path(id): Path<String>)
     }
 }
 
+#[utoipa::path(patch, path = "/api/admin/whitelist/{id}/comment", tag = "whitelist", operation_id = "patch_api_admin_whitelist__id__comment", request_body = CommentBody, params(("id" = String, Path, description = "Whitelist record identifier")), responses((status = 200, description = "Updated whitelist comment")))]
 async fn update_whitelist_comment(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -968,6 +1008,7 @@ async fn update_whitelist_comment(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
+        .storage
         .store
         .update_whitelist_comment(&id, body.comment)
         .await
@@ -987,6 +1028,7 @@ async fn update_whitelist_comment(
     }
 }
 
+#[utoipa::path(post, path = "/api/admin/whitelist/{id}/refresh", tag = "whitelist", operation_id = "post_api_admin_whitelist__id__refresh", params(("id" = String, Path, description = "Whitelist record identifier")), responses((status = 200, description = "Refreshed whitelist CNAME")))]
 async fn refresh_whitelist_cname(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -1036,7 +1078,7 @@ async fn refresh_cname_record_without_runtime_sync(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<Option<Value>> {
-    let Some(record) = state.store.get_whitelist_record(id).await? else {
+    let Some(record) = state.storage.store.get_whitelist_record(id).await? else {
         return Ok(None);
     };
     if record.target_type() != "cname" || !record.is_active() {
@@ -1075,7 +1117,11 @@ async fn refresh_cname_record_without_runtime_sync(
                     &[("count", resolved_targets.len().to_string())],
                 )
             });
-            state.store.replace_whitelist_record(&record, &next).await?;
+            state
+                .storage
+                .store
+                .replace_whitelist_record(&record, &next)
+                .await?;
 
             let next_targets = next.concrete_targets();
             let removed = diff_targets(&previous_targets, &next_targets);
@@ -1090,7 +1136,11 @@ async fn refresh_cname_record_without_runtime_sync(
             next.resolved_targets = Some(Vec::new());
             next.resolve_status = Some("error".to_string());
             next.resolve_message = Some(message);
-            state.store.replace_whitelist_record(&record, &next).await?;
+            state
+                .storage
+                .store
+                .replace_whitelist_record(&record, &next)
+                .await?;
             cleanup_removed_targets(state, &previous_targets).await;
             Ok(Some(json!({
                 "record": next,
@@ -1151,6 +1201,7 @@ fn is_node_no_data_lookup_error(error: &io::Error) -> bool {
 
 async fn cleanup_removed_targets(state: &AppState, targets: &[WhitelistConcreteTarget]) {
     match state
+        .storage
         .store
         .cleanup_whitelist_concrete_targets(targets)
         .await
@@ -1176,7 +1227,7 @@ async fn direct_firewall_sync_required(state: &AppState) -> anyhow::Result<bool>
     if !runtime_profile::host_firewall_available(state) {
         return Ok(false);
     }
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
     Ok(run_type == 0
         || config
@@ -1192,6 +1243,7 @@ pub async fn migrate_whitelist_ipsets_on_boot(state: &AppState) -> anyhow::Resul
 
 pub(crate) async fn migrate_whitelist_ipsets_in_storage(state: &AppState) -> anyhow::Result<()> {
     state
+        .storage
         .store
         .migrate_whitelist_region_groups_to_ipsets()
         .await?;
@@ -1205,6 +1257,7 @@ pub fn whitelist_snapshot_contains(
 ) -> bool {
     match sources {
         None => state
+            .security
             .ipsets
             .get(WHITELIST_ALL_IPSET_KEY)
             .is_some_and(|policy| policy.contains(address)),
@@ -1215,6 +1268,7 @@ pub fn whitelist_snapshot_contains(
                 _ => return false,
             };
             state
+                .security
                 .ipsets
                 .get(key)
                 .is_some_and(|policy| policy.contains(address))
@@ -1229,7 +1283,7 @@ pub(crate) async fn rebuild_whitelist_ipset_snapshots(state: &AppState) -> anyho
     let mut manual_cidrs = Vec::new();
     let mut auto_cidrs = Vec::new();
 
-    for record in state.store.list_whitelist_records().await? {
+    for record in state.storage.store.list_whitelist_records().await? {
         if !record.is_active() || record.expire_at.is_some_and(|expire_at| expire_at <= now) {
             continue;
         }
@@ -1246,7 +1300,7 @@ pub(crate) async fn rebuild_whitelist_ipset_snapshots(state: &AppState) -> anyho
             }
         }
     }
-    for group in state.store.list_whitelist_region_groups().await? {
+    for group in state.storage.store.list_whitelist_region_groups().await? {
         if !group.is_active() || group.expire_at.is_some_and(|expire_at| expire_at <= now) {
             continue;
         }
@@ -1268,15 +1322,15 @@ pub(crate) async fn rebuild_whitelist_ipset_snapshots(state: &AppState) -> anyho
     let manual = union_ip_sets(manual_policies.iter());
     let auto = union_ip_sets(auto_policies.iter());
     let all = union_ip_sets([&manual, &auto]);
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         WHITELIST_MANUAL_IPSET_KEY,
         (manual.range_count() > 0).then_some(manual),
     );
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         WHITELIST_AUTO_IPSET_KEY,
         (auto.range_count() > 0).then_some(auto),
     );
-    state.ipsets.publish(
+    state.security.ipsets.publish(
         WHITELIST_ALL_IPSET_KEY,
         (all.range_count() > 0).then_some(all),
     );
@@ -1312,13 +1366,13 @@ async fn sync_reverse_proxy_trusted_ips_for_new_grant(state: &AppState) -> anyho
 }
 
 pub(crate) async fn sync_direct_firewall_whitelist(state: &AppState) -> anyhow::Result<usize> {
-    let _guard = state.whitelist_runtime_sync_lock.lock().await;
+    let _guard = state.security.whitelist_runtime_sync_lock.lock().await;
     rebuild_whitelist_ipset_snapshots(state).await?;
     sync_direct_firewall_whitelist_from_snapshot(state).await
 }
 
 async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Result<()> {
-    let _guard = state.whitelist_runtime_sync_lock.lock().await;
+    let _guard = state.security.whitelist_runtime_sync_lock.lock().await;
     rebuild_whitelist_ipset_snapshots(state).await?;
     let runtime = compile_reverse_proxy_trusted_ips(state).await?;
     let ips = runtime
@@ -1335,10 +1389,12 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
     // revocation and local authorization readers must immediately observe the
     // new generation even while the gateway is reconnecting.
     state
+        .storage
         .store
         .save_reverse_proxy_trusted_ips_runtime(&runtime)
         .await?;
     state
+        .storage
         .store
         .save_gateway_trusted_client_ips_runtime(&runtime)
         .await?;
@@ -1355,7 +1411,8 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
     });
     let value = state
-        .go_backend
+        .gateway
+        .client
         .set_reverse_proxy_throttle_exempt_ips(&gateway_payload)
         .await?;
     ensure_gateway_ip_runtime_applied(
@@ -1374,7 +1431,8 @@ async fn sync_reverse_proxy_trusted_ips_inner(state: &AppState) -> anyhow::Resul
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null)
     });
     let trusted_result = state
-        .go_backend
+        .gateway
+        .client
         .set_gateway_trusted_client_ips(&trusted_payload)
         .await?;
     ensure_gateway_ip_runtime_applied(
@@ -1472,6 +1530,7 @@ async fn sync_direct_firewall_whitelist_from_snapshot(state: &AppState) -> anyho
         return Ok(0);
     }
     let policy = state
+        .security
         .ipsets
         .get(WHITELIST_ALL_IPSET_KEY)
         .map(|policy| (*policy).clone())
@@ -1480,7 +1539,11 @@ async fn sync_direct_firewall_whitelist_from_snapshot(state: &AppState) -> anyho
         "policy_id": policy.id,
         "policy": policy.to_transport_value(),
     });
-    let result = state.go_backend.sync_whitelist_firewall(&payload).await?;
+    let result = state
+        .gateway
+        .client
+        .sync_whitelist_firewall(&payload)
+        .await?;
     crate::go_backend::ensure_response_success(
         &result,
         "Failed to sync direct-mode whitelist firewall",
@@ -1490,7 +1553,7 @@ async fn sync_direct_firewall_whitelist_from_snapshot(state: &AppState) -> anyho
 }
 
 async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.store.get_config().await?;
+    let config = state.storage.store.get_config().await?;
     let enabled = config
         .pointer("/reverse_proxy_throttle/enabled")
         .and_then(Value::as_bool)
@@ -1499,9 +1562,13 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
         .pointer("/auth_credential_settings/session_ip_mobility_enabled")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let sessions = state.store.list_session_values().await?;
-    let whitelist_targets = state.store.list_whitelist_active_concrete_targets().await?;
-    let whitelist_region_groups = state.store.list_whitelist_region_groups().await?;
+    let sessions = state.storage.store.list_session_values().await?;
+    let whitelist_targets = state
+        .storage
+        .store
+        .list_whitelist_active_concrete_targets()
+        .await?;
+    let whitelist_region_groups = state.storage.store.list_whitelist_region_groups().await?;
 
     let mut source_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut session_linked_auto_whitelist_final_ip_by_record_id = BTreeMap::<String, String>::new();
@@ -1631,6 +1698,7 @@ fn add_ip_source(source_map: &mut BTreeMap<String, BTreeSet<String>>, ip: &str, 
 
 async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
     state
+        .storage
         .store
         .get_ip_location_cache(ip)
         .await

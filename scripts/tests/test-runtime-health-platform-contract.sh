@@ -35,7 +35,11 @@ for target in linux darwin windows other; do
   assert_contains "${file}" 'func currentProcessRSSBytes() uint64' "Go ${target} RSS implementation"
 done
 assert_contains "${VIEW}" 'component.rss_bytes != null' 'RSS UI visibility'
-assert_contains "${ROUTES}" 'get(runtime_logs).delete(clear_runtime_logs)' 'clear-log API route'
+# Runtime-health routes are registered through utoipa-axum so the executable
+# router and the generated OpenAPI operation stay coupled.  Keep both methods
+# in the same route declaration: separate registrations of the same path can
+# drift apart while remaining superficially discoverable by a source scan.
+assert_contains "${ROUTES}" 'routes!(runtime_logs, clear_runtime_logs)' 'clear-log API route'
 assert_contains "${API}" 'apiClient.delete' 'clear-log frontend client'
 assert_contains "${TAB}" 'ConfirmDangerPopover' 'clear-log confirmation UI'
 

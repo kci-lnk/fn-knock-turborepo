@@ -125,6 +125,7 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
  {
     let (_directory, state) = gateway_trusted_runtime_test_state("sources", false).await;
     state
+        .storage
         .store
         .add_session(
             "local-session",
@@ -134,6 +135,7 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
         .await
         .expect("store local session");
     state
+        .storage
         .store
         .add_session(
             "public-session",
@@ -171,12 +173,14 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
         },
     ] {
         state
+            .storage
             .store
             .insert_whitelist_record(&record)
             .await
             .expect("store whitelist record");
     }
     state
+        .storage
         .store
         .insert_whitelist_region_group(&WhitelistRegionGroupRecord {
             id: "whitelist-region:test".to_string(),
@@ -227,6 +231,7 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
 
     sync_reverse_proxy_trusted_ips(&state).await;
     let stored = state
+        .storage
         .store
         .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
         .await
@@ -238,6 +243,7 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
     );
 
     state
+        .storage
         .store
         .delete_session("local-session")
         .await
@@ -253,6 +259,7 @@ async fn gateway_trusted_runtime_keeps_primary_and_current_mobility_window_ips()
     let (_directory, state) = gateway_trusted_runtime_test_state("mobility", true).await;
     let session_id = "mobile-session";
     state
+        .storage
         .store
         .add_session(
             session_id,
@@ -270,6 +277,7 @@ async fn gateway_trusted_runtime_keeps_primary_and_current_mobility_window_ips()
     ] {
         assert!(
             state
+                .storage
                 .store
                 .save_auth_mobility_active_ip_detail(
                     session_id,
@@ -297,6 +305,7 @@ async fn gateway_trusted_runtime_keeps_primary_and_current_mobility_window_ips()
     assert!(!ips.contains("203.0.113.32"));
 
     state
+        .storage
         .store
         .delete_session(session_id)
         .await
@@ -315,6 +324,7 @@ async fn gateway_trusted_runtime_excludes_expired_sessions_still_present_in_stor
     let mut expired_session = gateway_trusted_test_session("203.0.113.40");
     expired_session.expires_at = Some(time_utils::iso_after_seconds(-60));
     state
+        .storage
         .store
         .add_session("expired-session", &expired_session, 3600)
         .await
@@ -334,6 +344,7 @@ async fn gateway_trusted_runtime_excludes_expired_sessions_still_present_in_stor
 async fn gateway_trusted_sync_waits_for_the_state_serialization_lock() {
     let (_directory, state) = gateway_trusted_runtime_test_state("serialized", false).await;
     state
+        .storage
         .store
         .add_session(
             "serialized-session",
@@ -343,7 +354,7 @@ async fn gateway_trusted_sync_waits_for_the_state_serialization_lock() {
         .await
         .expect("store session");
 
-    let guard = state.whitelist_runtime_sync_lock.lock().await;
+    let guard = state.security.whitelist_runtime_sync_lock.lock().await;
     let sync_state = state.clone();
     let mut sync_task =
         tokio::spawn(async move { sync_reverse_proxy_trusted_ips(&sync_state).await });
@@ -356,6 +367,7 @@ async fn gateway_trusted_sync_waits_for_the_state_serialization_lock() {
     );
 
     state
+        .storage
         .store
         .delete_session("serialized-session")
         .await
@@ -364,6 +376,7 @@ async fn gateway_trusted_sync_waits_for_the_state_serialization_lock() {
     sync_task.await.expect("queued trusted runtime sync");
 
     let stored = state
+        .storage
         .store
         .get_json_value("fn_knock:gateway:trusted-client-ips:runtime")
         .await
@@ -539,6 +552,7 @@ async fn gateway_trusted_runtime_test_state(
         .await
         .expect("trusted runtime test state");
     state
+        .storage
         .store
         .save_config(&json!({
             "reverse_proxy_throttle": {

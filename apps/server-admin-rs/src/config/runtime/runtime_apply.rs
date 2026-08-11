@@ -41,6 +41,7 @@ pub(crate) async fn apply_run_type_config(
 ) -> Result<(), String> {
     proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
         let current_config = state
+            .storage
             .store
             .get_config()
             .await
@@ -82,7 +83,8 @@ async fn apply_run_type_config_inner(
 
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_auth_config(&build_gateway_auth_config(config))
             .await
             .map_err(|error| error.to_string()),
@@ -99,7 +101,8 @@ async fn apply_run_type_config_inner(
         .unwrap_or(&default_throttle);
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_reverse_proxy_throttle(throttle)
             .await
             .map_err(|error| error.to_string()),
@@ -111,7 +114,8 @@ async fn apply_run_type_config_inner(
         .unwrap_or(&default_crawler);
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_crawler_blocker_config(crawler)
             .await
             .map_err(|error| error.to_string()),
@@ -141,7 +145,8 @@ async fn apply_run_type_config_inner(
     if run_type == 1 {
         log_go_value_result(
             state
-                .go_backend
+                .gateway
+                .client
                 .set_proxy_protocol_force(true)
                 .await
                 .map_err(|error| error.to_string()),
@@ -152,7 +157,8 @@ async fn apply_run_type_config_inner(
         if is_reverse_proxy_subdomain_mode(config) {
             log_go_value_result(
                 state
-                    .go_backend
+                    .gateway
+                    .client
                     .flush_rules()
                     .await
                     .map_err(|error| error.to_string()),
@@ -161,7 +167,8 @@ async fn apply_run_type_config_inner(
             sync_host_rules(state, config, host_rules_lock_held).await?;
             log_go_status_value_result(
                 state
-                    .go_backend
+                    .gateway
+                    .client
                     .set_default_route("/__select__")
                     .await
                     .map_err(|error| error.to_string()),
@@ -178,7 +185,8 @@ async fn apply_run_type_config_inner(
 
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_proxy_protocol_force(false)
             .await
             .map_err(|error| error.to_string()),
@@ -188,7 +196,8 @@ async fn apply_run_type_config_inner(
     if run_type == 3 {
         log_go_value_result(
             state
-                .go_backend
+                .gateway
+                .client
                 .flush_rules()
                 .await
                 .map_err(|error| error.to_string()),
@@ -219,7 +228,8 @@ async fn apply_run_type_config_inner(
 pub(super) async fn sync_path_rules(state: &AppState, config: &Value) {
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_rules(
                 config
                     .get("proxy_mappings")
@@ -259,7 +269,8 @@ pub(super) async fn sync_stream_rules(
     });
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .set_stream_rules(&payload)
             .await
             .map_err(|error| error.to_string())?,
@@ -270,7 +281,8 @@ pub(super) async fn sync_stream_rules(
 pub(super) async fn disable_stream_rules(state: &AppState) -> Result<(), String> {
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .flush_stream_rules()
             .await
             .map_err(|error| error.to_string())?,
@@ -281,7 +293,8 @@ pub(super) async fn disable_stream_rules(state: &AppState) -> Result<(), String>
 pub(super) async fn sync_auth_entry_route(state: &AppState) {
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_rules(&auth_entry_route_payload(state.settings.auth_port))
             .await
             .map_err(|error| error.to_string()),
@@ -289,7 +302,8 @@ pub(super) async fn sync_auth_entry_route(state: &AppState) {
     );
     log_go_status_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_default_route("/auth")
             .await
             .map_err(|error| error.to_string()),
@@ -315,7 +329,8 @@ pub(super) async fn sync_default_route(state: &AppState, config: &Value) {
         .unwrap_or("/__select__");
     log_go_status_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .set_default_route(route)
             .await
             .map_err(|error| error.to_string()),
@@ -339,7 +354,8 @@ pub(super) async fn maybe_apply_host_firewall(
         clear_legacy_gateway_redirects(state, gateway_port(), false).await?;
         log_go_value_result(
             state
-                .go_backend
+                .gateway
+                .client
                 .clean_iptables()
                 .await
                 .map_err(|error| error.to_string()),
@@ -355,7 +371,8 @@ pub(super) async fn maybe_apply_host_firewall(
     if run_type == 3 {
         log_go_value_result(
             state
-                .go_backend
+                .gateway
+                .client
                 .init_iptables(&payload)
                 .await
                 .map_err(|error| error.to_string()),
@@ -369,7 +386,8 @@ pub(super) async fn maybe_apply_host_firewall(
     clear_legacy_gateway_redirects(state, gateway_port(), false).await?;
     log_go_value_result(
         state
-            .go_backend
+            .gateway
+            .client
             .init_iptables(&payload)
             .await
             .map_err(|error| error.to_string()),
@@ -385,7 +403,7 @@ pub(super) async fn rollback_config_protocol_feature_and_runtime(
     previous_protocol_mapping_feature: &Value,
     run_type: i64,
 ) {
-    if let Err(error) = state.store.save_config(previous_config).await {
+    if let Err(error) = state.storage.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback runtime config");
         return;
     }
@@ -426,6 +444,7 @@ pub(super) async fn reset_firewall_for_run_type(
     run_type: i64,
 ) -> Result<Value, String> {
     let config = state
+        .storage
         .store
         .get_config()
         .await
@@ -441,7 +460,8 @@ pub(super) async fn reset_firewall_for_run_type(
     clear_legacy_gateway_redirects(state, gateway_port(), true).await?;
     ensure_go_success(
         state
-            .go_backend
+            .gateway
+            .client
             .clean_iptables()
             .await
             .map_err(|error| error.to_string())?,
@@ -456,7 +476,8 @@ pub(super) async fn reset_firewall_for_run_type(
         });
         ensure_go_success(
             state
-                .go_backend
+                .gateway
+                .client
                 .init_iptables(&payload)
                 .await
                 .map_err(|error| error.to_string())?,
@@ -498,7 +519,8 @@ pub(super) async fn clear_legacy_gateway_redirects(
             ],
         );
         let result = match state
-            .go_backend
+            .gateway
+            .client
             .clear_tcp_redirect(listen_port, target_port)
             .await
         {

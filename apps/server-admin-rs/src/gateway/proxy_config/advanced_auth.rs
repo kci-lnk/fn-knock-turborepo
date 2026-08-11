@@ -37,13 +37,21 @@ fn default_advanced_auth() -> Value {
     })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/host_mappings/{host}/advanced_auth",
+    tag = "configuration",
+    operation_id = "get_api_admin_config_host_mappings_by_host_advanced_auth",
+    params(("host" = String, Path, description = "Host mapping hostname")),
+    responses((status = 200, description = "Advanced authentication configuration"))
+)]
 pub(super) async fn get_advanced_auth(
     State(state): State<AppState>,
     Path(host): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let host = normalize_host_value(&host);
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load advanced authentication configuration");
@@ -69,6 +77,14 @@ pub(super) async fn get_advanced_auth(
     .into_response()
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/admin/config/host_mappings/{host}/advanced_auth",
+    tag = "configuration",
+    operation_id = "put_api_admin_config_host_mappings_by_host_advanced_auth",
+    params(("host" = String, Path, description = "Host mapping hostname")),
+    responses((status = 200, description = "Updated advanced authentication configuration"))
+)]
 pub(super) async fn update_advanced_auth(
     State(state): State<AppState>,
     Path(host): Path<String>,
@@ -94,7 +110,7 @@ pub(super) async fn update_advanced_auth(
         );
     }
 
-    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
         Ok(Some(lease)) => lease,
         Ok(None) => {
@@ -111,7 +127,7 @@ pub(super) async fn update_advanced_auth(
             );
         }
     };
-    let previous_config = match state.store.get_config().await {
+    let previous_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load advanced authentication configuration");
@@ -185,7 +201,7 @@ pub(super) async fn update_advanced_auth(
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        match state.go_backend.verify_bundle_compatibility().await {
+        match state.gateway.client.verify_bundle_compatibility().await {
             Ok(info)
                 if info
                     .pointer("/data/capabilities")
@@ -262,6 +278,7 @@ pub(super) async fn update_advanced_auth(
         }
     }
     match state
+        .storage
         .store
         .compare_and_set_host_mappings_with_visibility_policies(
             &previous_mappings,
@@ -288,6 +305,7 @@ pub(super) async fn update_advanced_auth(
     if let Err(error) = transaction_lease.ensure_owned().await {
         tracing::warn!(%error, "advanced authentication transaction lease was lost");
         let _ = state
+            .storage
             .store
             .compare_and_set_host_mappings_with_visibility_policies(
                 &next_mappings,

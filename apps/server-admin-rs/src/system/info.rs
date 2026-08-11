@@ -1,14 +1,13 @@
 use std::{env, fs, path::PathBuf};
 
 use axum::{
-    Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
 };
 use serde::Serialize;
 use serde_json::Value;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{i18n::Translator, response, state::AppState};
 
@@ -24,12 +23,19 @@ struct AccessEntryInfo {
     is_default: bool,
 }
 
-pub fn system_info_routes() -> Router<AppState> {
-    Router::new().route("/api/admin/system/access-entry", get(access_entry))
+pub fn system_info_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(access_entry))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/admin/system/access-entry",
+    tag = "system",
+    operation_id = "get_api_admin_system_access_entry",
+    responses((status = 200, description = "Resolved public management access entry"))
+)]
 async fn access_entry(State(state): State<AppState>) -> Response {
-    match state.store.get_config().await {
+    match state.storage.store.get_config().await {
         Ok(config) => response::ok(resolve_access_entry_info(&config)).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;

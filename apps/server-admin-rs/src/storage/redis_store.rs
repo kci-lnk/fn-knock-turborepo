@@ -3,7 +3,10 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     str::FromStr,
-    sync::Arc,
+    sync::{
+        Arc, Mutex as StdMutex,
+        atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering},
+    },
 };
 
 use crate::storage::redis_compat as redis;
@@ -17,6 +20,23 @@ use redis::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::storage::typed_config::TypedConfigRepository;
+use crate::storage::typed_docker_admin::TypedDockerAdminRepository;
+use crate::storage::typed_event_dedupe::TypedEventDedupeRepository;
+use crate::storage::typed_events::TypedEventRepository;
+use crate::storage::typed_fnos_share::TypedFnosShareRepository;
+use crate::storage::typed_hmac_nonce::TypedHmacNonceRepository;
+use crate::storage::typed_identity_runtime::TypedIdentityRuntimeRepository;
+use crate::storage::typed_login_backoff::TypedLoginBackoffRepository;
+use crate::storage::typed_mobility::TypedMobilityRepository;
+use crate::storage::typed_notification_runtime::TypedNotificationRuntimeRepository;
+use crate::storage::typed_notifications::TypedNotificationRepository;
+use crate::storage::typed_passkey_runtime::TypedPasskeyRuntimeRepository;
+use crate::storage::typed_subdomain_grant::TypedSubdomainGrantRepository;
+use crate::storage::typed_subdomain_rate_limit::TypedSubdomainRateLimitRepository;
+use crate::storage::typed_whitelist::{TypedWhitelistDocument, TypedWhitelistRepository};
+use crate::storage::typed_whitelist_runtime::TypedWhitelistRuntimeRepository;
+use crate::storage::typed_wol_cooldown::TypedWolCooldownRepository;
 use crate::{
     auth_mobility_keys::{
         active_ip_details_key as auth_mobility_active_ip_details_key,
@@ -38,13 +58,14 @@ mod core;
 mod discovery;
 mod docker_admin;
 mod events;
+mod notifications;
 mod traffic;
 mod types;
 mod waf_logs;
 mod whitelist;
 
 pub use config::default_config;
-pub(crate) use core::{LdapBindingClaim, LdapBindingUpdate};
+pub(crate) use core::{LdapBindingClaim, OidcBindingClaim, OwnedBindingDelete, OwnedBindingUpdate};
 pub use types::*;
 
 const CONFIG_KEY: &str = "fn_knock:config";
@@ -99,6 +120,64 @@ pub struct Store {
     manager: ConnectionManager,
     path: PathBuf,
     config_snapshot: Arc<ArcSwap<Value>>,
+    config_snapshot_revision: Arc<StdMutex<u64>>,
+    typed_config: TypedConfigRepository,
+    typed_config_primary_bootstrapped: Arc<AtomicBool>,
+    typed_config_shadow_healthy: Arc<AtomicBool>,
+    typed_config_shadow_mismatches: Arc<AtomicU64>,
+    typed_docker_admin: TypedDockerAdminRepository,
+    typed_docker_admin_shadow_healthy: Arc<AtomicBool>,
+    typed_docker_admin_shadow_mismatches: Arc<AtomicU64>,
+    typed_event_dedupe: TypedEventDedupeRepository,
+    typed_event_dedupe_shadow_healthy: Arc<AtomicBool>,
+    typed_event_dedupe_shadow_mismatches: Arc<AtomicU64>,
+    typed_events: TypedEventRepository,
+    typed_events_shadow_healthy: Arc<AtomicBool>,
+    typed_events_shadow_mismatches: Arc<AtomicU64>,
+    typed_fnos_share: TypedFnosShareRepository,
+    typed_fnos_share_shadow_healthy: Arc<AtomicBool>,
+    typed_fnos_share_shadow_mismatches: Arc<AtomicU64>,
+    typed_hmac_nonce: TypedHmacNonceRepository,
+    typed_hmac_nonce_shadow_healthy: Arc<AtomicBool>,
+    typed_hmac_nonce_shadow_mismatches: Arc<AtomicU64>,
+    typed_identity_runtime: TypedIdentityRuntimeRepository,
+    typed_identity_runtime_shadow_healthy: Arc<AtomicBool>,
+    typed_identity_runtime_shadow_mismatches: Arc<AtomicU64>,
+    typed_login_backoff: TypedLoginBackoffRepository,
+    typed_login_backoff_shadow_healthy: Arc<AtomicBool>,
+    typed_login_backoff_shadow_mismatches: Arc<AtomicU64>,
+    typed_mobility: TypedMobilityRepository,
+    typed_mobility_shadow_healthy: Arc<AtomicBool>,
+    typed_mobility_shadow_mismatches: Arc<AtomicU64>,
+    typed_notification_runtime: TypedNotificationRuntimeRepository,
+    typed_notification_runtime_shadow_healthy: Arc<AtomicBool>,
+    typed_notification_runtime_shadow_mismatches: Arc<AtomicU64>,
+    typed_notifications: TypedNotificationRepository,
+    typed_passkey_runtime: TypedPasskeyRuntimeRepository,
+    typed_passkey_runtime_shadow_healthy: Arc<AtomicBool>,
+    typed_passkey_runtime_shadow_mismatches: Arc<AtomicU64>,
+    typed_subdomain_grant: TypedSubdomainGrantRepository,
+    typed_subdomain_grant_shadow_healthy: Arc<AtomicBool>,
+    typed_subdomain_grant_shadow_mismatches: Arc<AtomicU64>,
+    typed_subdomain_rate_limit: TypedSubdomainRateLimitRepository,
+    typed_subdomain_rate_limit_shadow_healthy: Arc<AtomicBool>,
+    typed_subdomain_rate_limit_shadow_mismatches: Arc<AtomicU64>,
+    typed_whitelist: TypedWhitelistRepository,
+    typed_whitelist_shadow_healthy: Arc<AtomicBool>,
+    typed_whitelist_shadow_mismatches: Arc<AtomicU64>,
+    typed_whitelist_runtime: TypedWhitelistRuntimeRepository,
+    typed_whitelist_runtime_shadow_healthy: Arc<AtomicBool>,
+    typed_whitelist_runtime_shadow_mismatches: Arc<AtomicU64>,
+    typed_wol_cooldown: TypedWolCooldownRepository,
+    typed_wol_cooldown_shadow_healthy: Arc<AtomicBool>,
+    typed_wol_cooldown_shadow_mismatches: Arc<AtomicU64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct TypedConfigShadowStatus {
+    pub(crate) phase: &'static str,
+    pub(crate) healthy: bool,
+    pub(crate) mismatch_count: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -437,7 +516,7 @@ const REVERSE_PROXY_TRUSTED_IPS_RUNTIME: &str = "fn_knock:reverse-proxy:trusted-
 const EVENTS_STREAM_KEY: &str = "fn_knock:events:stream";
 const EVENTS_INDEX_KEY: &str = "fn_knock:events:index";
 const EVENTS_DATA_PREFIX: &str = "fn_knock:events:data:";
-const EVENTS_DEDUPE_PREFIX: &str = "fn_knock:events:dedupe:";
+const EVENTS_DEDUPE_PREFIX: &str = crate::storage::typed_event_dedupe::DEDUPE_PREFIX;
 const EVENTS_STREAM_ID_PREFIX: &str = "fn_knock:events:stream-id:";
 const NOTIFICATION_RUNTIME_LAST_STREAM_KEY: &str = "fn_knock:notifications:runtime:last-stream-id";
 const NOTIFICATION_RUNTIME_LOCK_PREFIX: &str = "fn_knock:notifications:runtime:lock:";
@@ -466,6 +545,39 @@ const RECENT_AUTH_IPS_TTL_SECONDS: i64 = 30 * 24 * 3600;
 const DOCKER_ADMIN_PASSWORD_KEY: &str = "fn_knock:docker_admin:password:v1";
 const DOCKER_ADMIN_SESSION_PREFIX: &str = "fn_knock:docker_admin:session:v1:";
 const DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX: &str = "fn_knock:docker_admin:login_backoff:v1:";
+const DOCKER_ADMIN_LOGIN_BACKOFF_TTL_SECONDS: i64 = 3_600;
+const DOCKER_ADMIN_LOGIN_BACKOFF_BASE_DELAY_MS: i64 = 2_000;
+const DOCKER_ADMIN_LOGIN_BACKOFF_MAX_DELAY_MS: i64 = 15 * 60 * 1_000;
+const DOCKER_ADMIN_REGISTER_LOGIN_FAILURE_SCRIPT: &str = r#"
+-- fn-knock:eval:docker-admin-login-backoff:v1
+local key = KEYS[1]
+local ip = ARGV[1]
+local now = tonumber(ARGV[2])
+local nowIso = ARGV[3]
+local ttlSeconds = tonumber(ARGV[4])
+local baseDelay = tonumber(ARGV[5])
+local maxDelay = tonumber(ARGV[6])
+
+local attempts = 0
+local raw = redis.call('GET', key)
+if raw then
+  local ok, decoded = pcall(cjson.decode, raw)
+  if ok and type(decoded) == 'table' and tonumber(decoded.attempts) then
+    attempts = tonumber(decoded.attempts)
+  end
+end
+attempts = attempts + 1
+local exponent = math.min(math.max(attempts - 1, 0), 30)
+local backoffMs = math.min(baseDelay * math.pow(2, exponent), maxDelay)
+local blockedUntil = now + backoffMs
+redis.call('SET', key, cjson.encode({
+  ip = ip,
+  attempts = attempts,
+  last_attempt_at = nowIso,
+  blocked_until = blockedUntil,
+}), 'EX', ttlSeconds)
+return { attempts, math.floor((backoffMs + 999) / 1000), blockedUntil }
+"#;
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE: &str = "__builtin_select__";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH: &str = "/__select__";
 const TOTP_SUBDOMAIN_ACCESS_WOL_PAGE: &str = "__builtin_wol__";
@@ -633,11 +745,123 @@ impl Store {
     pub async fn connect(sqlite_path: impl AsRef<Path>) -> crate::storage::StorageResult<Self> {
         let path = sqlite_path.as_ref().to_path_buf();
         let manager = ConnectionManager::open(&path).await?;
+        let typed_config = TypedConfigRepository::new(manager.clone());
+        typed_config.initialize().await?;
+        let typed_docker_admin = TypedDockerAdminRepository::new(manager.clone());
+        typed_docker_admin.initialize().await?;
+        let typed_event_dedupe = TypedEventDedupeRepository::new(manager.clone());
+        typed_event_dedupe.initialize().await?;
+        let typed_events = TypedEventRepository::new(manager.clone());
+        typed_events.initialize().await?;
+        let typed_fnos_share = TypedFnosShareRepository::new(manager.clone());
+        typed_fnos_share.initialize().await?;
+        let typed_hmac_nonce = TypedHmacNonceRepository::new(manager.clone());
+        typed_hmac_nonce.initialize().await?;
+        let typed_identity_runtime = TypedIdentityRuntimeRepository::new(manager.clone());
+        typed_identity_runtime.initialize().await?;
+        let typed_login_backoff = TypedLoginBackoffRepository::new(manager.clone());
+        typed_login_backoff.initialize().await?;
+        let typed_mobility = TypedMobilityRepository::new(manager.clone());
+        typed_mobility.initialize().await?;
+        let typed_notification_runtime = TypedNotificationRuntimeRepository::new(manager.clone());
+        typed_notification_runtime.initialize().await?;
+        let typed_notifications = TypedNotificationRepository::new(manager.clone());
+        typed_notifications.initialize().await?;
+        let typed_passkey_runtime = TypedPasskeyRuntimeRepository::new(manager.clone());
+        typed_passkey_runtime.initialize().await?;
+        let typed_subdomain_grant = TypedSubdomainGrantRepository::new(manager.clone());
+        typed_subdomain_grant.initialize().await?;
+        let typed_subdomain_rate_limit = TypedSubdomainRateLimitRepository::new(manager.clone());
+        typed_subdomain_rate_limit.initialize().await?;
+        let typed_whitelist = TypedWhitelistRepository::new(manager.clone());
+        typed_whitelist.initialize().await?;
+        let typed_whitelist_runtime = TypedWhitelistRuntimeRepository::new(manager.clone());
+        typed_whitelist_runtime.initialize().await?;
+        let typed_wol_cooldown = TypedWolCooldownRepository::new(manager.clone());
+        typed_wol_cooldown.initialize().await?;
         let store = Self {
             manager,
             path,
             config_snapshot: Arc::new(ArcSwap::from_pointee(default_config())),
+            config_snapshot_revision: Arc::new(StdMutex::new(0)),
+            typed_config,
+            typed_config_primary_bootstrapped: Arc::new(AtomicBool::new(false)),
+            typed_config_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_config_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_docker_admin,
+            typed_docker_admin_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_docker_admin_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_event_dedupe,
+            typed_event_dedupe_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_event_dedupe_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_events,
+            typed_events_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_events_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_fnos_share,
+            typed_fnos_share_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_fnos_share_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_hmac_nonce,
+            typed_hmac_nonce_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_hmac_nonce_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_identity_runtime,
+            typed_identity_runtime_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_identity_runtime_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_login_backoff,
+            typed_login_backoff_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_login_backoff_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_mobility,
+            typed_mobility_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_mobility_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_notification_runtime,
+            typed_notification_runtime_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_notification_runtime_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_notifications,
+            typed_passkey_runtime,
+            typed_passkey_runtime_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_passkey_runtime_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_subdomain_grant,
+            typed_subdomain_grant_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_subdomain_grant_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_subdomain_rate_limit,
+            typed_subdomain_rate_limit_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_subdomain_rate_limit_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_whitelist,
+            typed_whitelist_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_whitelist_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_whitelist_runtime,
+            typed_whitelist_runtime_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_whitelist_runtime_shadow_mismatches: Arc::new(AtomicU64::new(0)),
+            typed_wol_cooldown,
+            typed_wol_cooldown_shadow_healthy: Arc::new(AtomicBool::new(true)),
+            typed_wol_cooldown_shadow_mismatches: Arc::new(AtomicU64::new(0)),
         };
+        store.typed_docker_admin.rebuild_from_legacy().await?;
+        store.typed_event_dedupe.rebuild_from_legacy().await?;
+        store.rebuild_typed_system_events_from_legacy().await?;
+        store.typed_fnos_share.rebuild_from_legacy().await?;
+        store.typed_hmac_nonce.rebuild_from_legacy().await?;
+        store.typed_identity_runtime.rebuild_from_legacy().await?;
+        store.typed_login_backoff.rebuild_from_legacy().await?;
+        store.typed_mobility.rebuild_from_legacy().await?;
+        store
+            .typed_notification_runtime
+            .rebuild_from_legacy()
+            .await?;
+        store
+            .rebuild_typed_notification_documents_from_legacy()
+            .await?;
+        store
+            .rebuild_typed_notification_history_from_legacy()
+            .await?;
+        store.typed_passkey_runtime.rebuild_from_legacy().await?;
+        store.typed_subdomain_grant.rebuild_from_legacy().await?;
+        store
+            .typed_subdomain_rate_limit
+            .rebuild_from_legacy()
+            .await?;
+        store.rebuild_typed_whitelist_from_legacy().await?;
+        store.typed_whitelist_runtime.rebuild_from_legacy().await?;
+        store.typed_wol_cooldown.rebuild_from_legacy().await?;
         store.refresh_config_snapshot().await?;
         Ok(store)
     }
@@ -656,13 +880,201 @@ impl Store {
     }
 
     pub async fn refresh_config_snapshot(&self) -> crate::storage::StorageResult<()> {
-        let config = self.get_config().await?;
-        self.publish_config_snapshot(config);
+        let (config, revision) = self.reconcile_typed_config_from_legacy().await?;
+        self.publish_config_snapshot(config, revision);
         Ok(())
     }
 
-    fn publish_config_snapshot(&self, config: Value) {
+    fn publish_config_snapshot(&self, config: Value, revision: u64) {
+        let mut published_revision = self
+            .config_snapshot_revision
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if revision < *published_revision {
+            tracing::debug!(
+                revision,
+                current_revision = *published_revision,
+                "ignored stale config snapshot publication"
+            );
+            return;
+        }
         self.config_snapshot.store(Arc::new(config));
+        *published_revision = revision;
+        self.typed_config_shadow_healthy
+            .store(true, AtomicOrdering::Release);
+    }
+
+    pub(crate) fn typed_config_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "typed_primary",
+            healthy: self
+                .typed_config_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_config_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_mobility_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "dual_write_shadow",
+            healthy: self
+                .typed_mobility_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_mobility_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_login_backoff_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_login_backoff_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_login_backoff_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_docker_admin_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_docker_admin_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_docker_admin_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_event_dedupe_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_event_dedupe_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_event_dedupe_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_identity_runtime_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_identity_runtime_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_identity_runtime_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_fnos_share_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_fnos_share_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_fnos_share_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_hmac_nonce_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_hmac_nonce_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_hmac_nonce_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_subdomain_rate_limit_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_subdomain_rate_limit_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_subdomain_rate_limit_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_subdomain_grant_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_subdomain_grant_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_subdomain_grant_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_wol_cooldown_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_wol_cooldown_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_wol_cooldown_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_whitelist_runtime_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_whitelist_runtime_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_whitelist_runtime_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_notification_runtime_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_notification_runtime_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_notification_runtime_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    pub(crate) fn typed_passkey_runtime_shadow_status(&self) -> TypedConfigShadowStatus {
+        TypedConfigShadowStatus {
+            phase: "legacy_primary_shadow",
+            healthy: self
+                .typed_passkey_runtime_shadow_healthy
+                .load(AtomicOrdering::Acquire),
+            mismatch_count: self
+                .typed_passkey_runtime_shadow_mismatches
+                .load(AtomicOrdering::Acquire),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn typed_config_shadow_mismatch_count(&self) -> u64 {
+        self.typed_config_shadow_status().mismatch_count
     }
 }
 

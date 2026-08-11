@@ -1,112 +1,89 @@
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
+
 import { apiClient } from "./client";
-import type { CidrOperator } from "../../types";
 
-export interface WhiteListRecord {
-  id: string;
-  ip: string;
-  targetType: "ip" | "cidr" | "cname";
-  expireAt: number | null;
-  source: "manual" | "auto";
-  createdAt: number;
-  comment?: string;
-  status: "active" | "expired" | "deleted";
-  ipLocation?: string;
-  resolvedTargets?: string[];
-  checkIntervalMinutes?: number | null;
-  lastCheckedAt?: number | null;
-  lastResolvedAt?: number | null;
-  resolveStatus?: "pending" | "resolved" | "empty" | "error";
-  resolveMessage?: string;
-}
+type WhitelistSchemas = ApiContractComponents["schemas"];
 
-export interface WhitelistRegionInput {
-  province: string;
-  query_city?: string | null;
-  operator?: CidrOperator | null;
-}
+export type WhiteListRecord = WhitelistSchemas["WhitelistRecordData"];
+export type WhitelistRegionInput =
+  WhitelistSchemas["WhitelistRegionInputData"];
+export type WhitelistRegionGroupRecord =
+  WhitelistSchemas["WhitelistRegionGroupData"];
+export type WhitelistRegionAddResult =
+  WhitelistSchemas["WhitelistRegionAddResultData"];
 
-export interface WhitelistRegionGroupRecord {
-  id: string;
-  regions: WhitelistRegionInput[];
-  cidrCount: number;
-  expireAt: number | null;
-  source: "manual";
-  createdAt: number;
-  updatedAt: number;
-  status: "active" | "deleted" | "expired";
-  comment?: string;
-}
+type WhitelistAddBody = WhitelistSchemas["WhitelistAddBodyData"];
+type WhitelistRegionAddBody =
+  WhitelistSchemas["WhitelistRegionAddBodyData"];
+type WhitelistCommentBody =
+  WhitelistSchemas["WhitelistCommentBodyData"];
 
-export interface WhitelistRegionAddResult {
-  total: number;
-  group: WhitelistRegionGroupRecord;
-}
+type WhitelistRecordsResponse =
+  ApiContractOperations["get_api_admin_whitelist"]["responses"][200]["content"]["application/json"];
+type WhitelistAddResponse =
+  ApiContractOperations["post_api_admin_whitelist"]["responses"][200]["content"]["application/json"];
+type WhitelistRegionsResponse =
+  ApiContractOperations["get_api_admin_whitelist_regions"]["responses"][200]["content"]["application/json"];
+type WhitelistRegionAddResponse =
+  ApiContractOperations["post_api_admin_whitelist_regions"]["responses"][200]["content"]["application/json"];
+type WhitelistRegionDeleteResponse =
+  ApiContractOperations["delete_api_admin_whitelist_regions__id_"]["responses"][200]["content"]["application/json"];
+type WhitelistDeleteResponse =
+  ApiContractOperations["delete_api_admin_whitelist__id_"]["responses"][200]["content"]["application/json"];
+type WhitelistCommentResponse =
+  ApiContractOperations["patch_api_admin_whitelist__id__comment"]["responses"][200]["content"]["application/json"];
+type WhitelistRefreshResponse =
+  ApiContractOperations["post_api_admin_whitelist__id__refresh"]["responses"][200]["content"]["application/json"];
 
 export const WhitelistAPI = {
-  async getRecords() {
-    const res = await apiClient.get("/whitelist");
-    return res.data;
+  async getRecords(): Promise<WhitelistRecordsResponse> {
+    const response = await apiClient.get("/whitelist");
+    return response.data;
   },
-  async getRegions(): Promise<{
-    success: boolean;
-    message?: string;
-    data?: WhitelistRegionGroupRecord[];
-  }> {
-    const res = await apiClient.get("/whitelist/regions");
-    return res.data;
+  async getRegions(): Promise<WhitelistRegionsResponse> {
+    const response = await apiClient.get("/whitelist/regions");
+    return response.data;
   },
-  async addRecord(payload: {
-    ip: string;
-    targetType?: "ip" | "cidr" | "cname";
-    expireAt: number | null;
-    source: string;
-    comment?: string;
-    checkIntervalMinutes?: number;
-  }) {
-    const res = await apiClient.post("/whitelist", payload);
-    return res.data;
+  async addRecord(payload: WhitelistAddBody): Promise<WhitelistAddResponse> {
+    const response = await apiClient.post("/whitelist", payload);
+    return response.data;
   },
-  async addRegions(payload: {
-    regions: WhitelistRegionInput[];
-    expireAt: number | null;
-    comment?: string;
-  }): Promise<{
-    success: boolean;
-    message?: string;
-    data?: WhitelistRegionAddResult;
-  }> {
-    const res = await apiClient.post("/whitelist/regions", payload);
-    return res.data;
+  async addRegions(
+    payload: WhitelistRegionAddBody,
+  ): Promise<WhitelistRegionAddResponse> {
+    const response = await apiClient.post("/whitelist/regions", payload);
+    return response.data;
   },
-  async deleteRegion(id: string) {
-    const res = await apiClient.delete(
+  async deleteRegion(id: string): Promise<WhitelistRegionDeleteResponse> {
+    const response = await apiClient.delete(
       `/whitelist/regions/${encodeURIComponent(id)}`,
     );
-    return res.data;
+    return response.data;
   },
-  async deleteRecord(id: string) {
-    const res = await apiClient.delete(`/whitelist/${encodeURIComponent(id)}`);
-    return res.data;
-  },
-  async updateComment(id: string, comment: string) {
-    const res = await apiClient.patch(
-      `/whitelist/${encodeURIComponent(id)}/comment`,
-      { comment },
+  async deleteRecord(id: string): Promise<WhitelistDeleteResponse> {
+    const response = await apiClient.delete(
+      `/whitelist/${encodeURIComponent(id)}`,
     );
-    return res.data;
+    return response.data;
   },
-  async refreshRecord(id: string): Promise<{
-    success: boolean;
-    message?: string;
-    data?: {
-      changed: boolean;
-      skipped: boolean;
-      record: WhiteListRecord;
-    };
-  }> {
-    const res = await apiClient.post(
+  async updateComment(
+    id: string,
+    comment: string,
+  ): Promise<WhitelistCommentResponse> {
+    const payload = { comment } satisfies WhitelistCommentBody;
+    const response = await apiClient.patch(
+      `/whitelist/${encodeURIComponent(id)}/comment`,
+      payload,
+    );
+    return response.data;
+  },
+  async refreshRecord(id: string): Promise<WhitelistRefreshResponse> {
+    const response = await apiClient.post(
       `/whitelist/${encodeURIComponent(id)}/refresh`,
     );
-    return res.data;
+    return response.data;
   },
 };

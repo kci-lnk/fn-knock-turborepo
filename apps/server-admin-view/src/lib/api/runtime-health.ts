@@ -1,27 +1,28 @@
-import type {
-  RuntimeComponentLogs,
-  RuntimeDiagnostics,
-  RuntimeHealthSnapshot,
-  RuntimeLogClearResult,
-  RuntimeLogComponent,
-} from "../../types";
+import type { RuntimeLogComponent } from "../../types";
+import type { operations as ApiContractOperations } from "@fn-knock/api-contract";
 import { apiClient } from "./client";
 
+type RuntimeHealthResponse =
+  ApiContractOperations["get_api_admin_runtime_health"]["responses"][200]["content"]["application/json"];
+type RuntimeDiagnosticsResponse =
+  ApiContractOperations["get_api_admin_runtime_health_diagnostics"]["responses"][200]["content"]["application/json"];
+type RuntimeLogsOperation =
+  ApiContractOperations["get_api_admin_runtime_health_logs__component_"];
+type RuntimeLogsResponse =
+  RuntimeLogsOperation["responses"][200]["content"]["application/json"];
+type RuntimeLogsQuery = NonNullable<
+  RuntimeLogsOperation["parameters"]["query"]
+>;
+type RuntimeLogClearResponse =
+  ApiContractOperations["delete_api_admin_runtime_health_logs__component_"]["responses"][200]["content"]["application/json"];
+
 export const RuntimeHealthAPI = {
-  async getHealth(): Promise<{
-    success: boolean;
-    data: RuntimeHealthSnapshot;
-    message?: string;
-  }> {
+  async getHealth(): Promise<RuntimeHealthResponse> {
     const response = await apiClient.get("/runtime-health");
     return response.data;
   },
 
-  async getDiagnostics(): Promise<{
-    success: boolean;
-    data: RuntimeDiagnostics;
-    message?: string;
-  }> {
+  async getDiagnostics(): Promise<RuntimeDiagnosticsResponse> {
     const response = await apiClient.get("/runtime-health/diagnostics");
     return response.data;
   },
@@ -29,23 +30,18 @@ export const RuntimeHealthAPI = {
   async getLogs(
     component: RuntimeLogComponent,
     limit = 200,
-  ): Promise<{
-    success: boolean;
-    data: RuntimeComponentLogs;
-    message?: string;
-  }> {
+  ): Promise<RuntimeLogsResponse> {
+    const params = { limit } satisfies RuntimeLogsQuery;
     const response = await apiClient.get(
       `/runtime-health/logs/${encodeURIComponent(component)}`,
-      { params: { limit } },
+      { params },
     );
     return response.data;
   },
 
-  async clearLogs(component: RuntimeLogComponent): Promise<{
-    success: boolean;
-    data: RuntimeLogClearResult;
-    message?: string;
-  }> {
+  async clearLogs(
+    component: RuntimeLogComponent,
+  ): Promise<RuntimeLogClearResponse> {
     const response = await apiClient.delete(
       `/runtime-health/logs/${encodeURIComponent(component)}`,
     );

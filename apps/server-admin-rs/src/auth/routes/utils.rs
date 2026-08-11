@@ -37,11 +37,11 @@ pub(super) fn enqueue_auth_ip_location(state: &AppState, ip: &str, context: &'st
     if ip.trim().is_empty() {
         return;
     }
-    let state = state.clone();
+    let task_state = state.clone();
     let ip = ip.to_string();
-    tokio::spawn(async move {
+    state.spawn_background("auth-ip-location-enqueue", async move {
         if let Err(error) =
-            ip_location::ensure_ip_locations_enqueued(&state, vec![ip.clone()]).await
+            ip_location::ensure_ip_locations_enqueued(&task_state, vec![ip.clone()]).await
         {
             tracing::warn!(%error, %ip, %context, "failed to enqueue auth IP location lookup");
         }

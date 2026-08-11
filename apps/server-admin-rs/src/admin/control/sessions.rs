@@ -50,7 +50,12 @@ pub(super) async fn ensure_session_comment(
 
     let mut updates = Map::new();
     updates.insert("comment".to_string(), Value::String(comment.clone()));
-    match state.store.update_session_value(session_id, updates).await {
+    match state
+        .storage
+        .store
+        .update_session_value(session_id, updates)
+        .await
+    {
         Ok(Some(updated)) => updated,
         Ok(None) | Err(_) => {
             if let Some(object) = data.as_object_mut() {
@@ -72,7 +77,7 @@ pub(super) async fn resolve_session_default_comment(
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        && let Some(record) = state.store.get_whitelist_record(record_id).await?
+        && let Some(record) = state.storage.store.get_whitelist_record(record_id).await?
         && record.status == "active"
         && let Some(comment) = record.comment.as_deref()
     {
@@ -86,7 +91,7 @@ pub(super) async fn resolve_session_default_comment(
         .await?
         .into_iter()
         .next()
-        && let Some(record) = state.store.get_whitelist_record(&record_id).await?
+        && let Some(record) = state.storage.store.get_whitelist_record(&record_id).await?
         && record.status == "active"
         && let Some(comment) = record.comment.as_deref()
     {
@@ -120,6 +125,7 @@ pub(super) async fn latest_active_whitelist_record_by_ip(
     let target_ip = ip.parse::<IpAddr>().ok();
     let now = time_utils::now_ms().div_euclid(1000);
     let mut records = state
+        .storage
         .store
         .list_whitelist_records()
         .await?
@@ -163,6 +169,7 @@ pub(super) async fn sync_session_whitelist_comments(
     let mut changed = false;
     for record_id in record_ids {
         changed |= state
+            .storage
             .store
             .update_whitelist_comment(&record_id, comment.to_string())
             .await?
@@ -280,6 +287,7 @@ pub(super) async fn list_session_attachments_inner(
 ) -> anyhow::Result<Vec<Value>> {
     let binding_prefix = format!("fn_knock:auth_mobility:binding:{subject_type}:");
     let attachment_keys = state
+        .storage
         .store
         .list_auth_mobility_session_binding_keys(session_id)
         .await?
@@ -293,7 +301,7 @@ pub(super) async fn list_session_attachments_inner(
     let mut stale_keys = Vec::new();
     let mut attachments = Vec::new();
     for storage_key in attachment_keys {
-        let Some(binding) = state.store.get_json_value(&storage_key).await? else {
+        let Some(binding) = state.storage.store.get_json_value(&storage_key).await? else {
             stale_keys.push(storage_key);
             continue;
         };
@@ -307,6 +315,7 @@ pub(super) async fn list_session_attachments_inner(
     }
     if !stale_keys.is_empty() {
         state
+            .storage
             .store
             .remove_auth_mobility_session_bindings(session_id, &stale_keys)
             .await?;
@@ -359,6 +368,7 @@ pub(super) async fn session_mobility_details_value(
     fallback_session: Option<&Value>,
 ) -> Value {
     let mut events = state
+        .storage
         .store
         .get_json_value(&auth_mobility_timeline_key(session_id))
         .await
@@ -390,6 +400,7 @@ pub(super) async fn session_mobility_details_value(
     }
 
     let stored_summary = state
+        .storage
         .store
         .get_json_value(&auth_mobility_summary_key(session_id))
         .await

@@ -13,6 +13,7 @@ pub(super) async fn bind_profile_and_resolve_login(
         .and_then(Value::as_str)
         .ok_or_else(|| oidc_text(translator, "bindStateInvalid"))?;
     let invite = state
+        .storage
         .store
         .get_json_value(&format!("fn_knock:oidc:invite:{invite_hash}"))
         .await
@@ -28,6 +29,7 @@ pub(super) async fn bind_profile_and_resolve_login(
         .and_then(Value::as_str)
         .ok_or_else(|| oidc_text(translator, "inviteTotpMissing"))?;
     let totps = state
+        .storage
         .store
         .get_totps()
         .await
@@ -43,11 +45,7 @@ pub(super) async fn bind_profile_and_resolve_login(
     {
         return Err(oidc_text(translator, "accountAlreadyBoundOtherTotp"));
     }
-    oidc_consume_invite(state, invite_hash)
-        .await
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| oidc_text(translator, "inviteUsed"))?;
-    if let Some(mut binding) = existing {
+    let binding = if let Some(mut binding) = existing {
         update_binding_profile_fields(&mut binding, &profile);
         if let Some(object) = binding.as_object_mut() {
             object.insert(
@@ -59,38 +57,31 @@ pub(super) async fn bind_profile_and_resolve_login(
                 Value::String(time_utils::now_iso()),
             );
         }
-        oidc_save_binding(state, &binding)
-            .await
-            .map_err(|error| error.to_string())?;
-        return Ok(CallbackResolved {
-            state: auth_state,
-            provider,
-            binding,
-            profile,
-        });
-    }
-    let now = time_utils::now_iso();
-    let binding = json!({
-        "id": create_oidc_id("oidc_binding"),
-        "provider_id": provider.get("id").and_then(Value::as_str).unwrap_or(""),
-        "provider_type": provider.get("type").and_then(Value::as_str).unwrap_or("custom_oidc"),
-        "totp_id": totp_id,
-        "issuer": profile.issuer.clone(),
-        "subject": profile.subject.clone(),
-        "subject_key": subject_key,
-        "display_name": profile.display_name.clone(),
-        "email": profile.email.clone(),
-        "email_verified": profile.email_verified,
-        "avatar_url": profile.avatar_url.clone(),
-        "created_at": now,
-        "updated_at": now,
-        "last_used_at": now
-    });
-    let saved = oidc_save_binding_if_subject_available(state, &binding)
+        binding
+    } else {
+        let now = time_utils::now_iso();
+        json!({
+            "id": create_oidc_id("oidc_binding"),
+            "provider_id": provider.get("id").and_then(Value::as_str).unwrap_or(""),
+            "provider_type": provider.get("type").and_then(Value::as_str).unwrap_or("custom_oidc"),
+            "totp_id": totp_id,
+            "issuer": profile.issuer.clone(),
+            "subject": profile.subject.clone(),
+            "subject_key": subject_key,
+            "display_name": profile.display_name.clone(),
+            "email": profile.email.clone(),
+            "email_verified": profile.email_verified,
+            "avatar_url": profile.avatar_url.clone(),
+            "created_at": now,
+            "updated_at": now,
+            "last_used_at": now
+        })
+    };
+    let saved = oidc_claim_binding_and_consume_invite(state, invite_hash, &binding)
         .await
         .map_err(|error| error.to_string())?;
     if !saved {
-        return Err(oidc_text(translator, "accountAlreadyBoundOtherTotp"));
+        return Err(oidc_text(translator, "inviteUsed"));
     }
     Ok(CallbackResolved {
         state: auth_state,
@@ -127,7 +118,7 @@ pub(super) async fn create_oidc_session_response(
         .get("totp_id")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let totp_credentials = state.store.get_totps().await?;
+    let totp_credentials = state.storage.store.get_totps().await?;
     let totp_credential = totp_credentials
         .iter()
         .find(|totp| totp.id == totp_id)
@@ -166,7 +157,7 @@ pub(super) async fn create_oidc_session_response(
     )
     .await?;
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
+    if let Err(error) = state.storage.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset OIDC login backoff");
     }
     let domain = resolve_cookie_domain(config, headers);

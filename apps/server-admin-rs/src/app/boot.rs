@@ -96,17 +96,18 @@ echo "Cleanup complete!"
 "#;
 
 pub(super) fn start_boot_sync_tasks(state: AppState) {
-    tokio::spawn(async move {
-        if let Err(error) = cleanup_legacy_auth_log_storage(&state).await {
+    let task_state = state.clone();
+    state.spawn_background("boot-sync", async move {
+        if let Err(error) = cleanup_legacy_auth_log_storage(&task_state).await {
             tracing::warn!(%error, "failed to cleanup legacy auth log storage on boot");
         }
-        sync_runtime_config_on_boot(state.clone()).await;
-        sync_gateway_settings_on_boot(state.clone()).await;
-        sync_locale_config_on_boot(&state).await;
-        if let Err(error) = sync_ssl_deployment_to_gateway(&state, None).await {
+        sync_runtime_config_on_boot(task_state.clone()).await;
+        sync_gateway_settings_on_boot(task_state.clone()).await;
+        sync_locale_config_on_boot(&task_state).await;
+        if let Err(error) = sync_ssl_deployment_to_gateway(&task_state, None).await {
             tracing::warn!(%error, "failed to sync SSL deployment on boot");
         }
-        if let Err(error) = init_clean_script_on_boot(&state) {
+        if let Err(error) = init_clean_script_on_boot(&task_state) {
             tracing::warn!(%error, "failed to initialize firewall cleanup script");
         }
     });
@@ -152,10 +153,18 @@ pub(crate) async fn cleanup_legacy_auth_log_storage(state: &AppState) -> anyhow:
     const REF_PREFIX: &str = "fn_knock:ip_location:refs:";
     const LEGACY_REF_PREFIX: &str = "auth-log|";
 
-    if state.store.get_string_value(STATE_KEY).await?.as_deref() == Some("done") {
+    if state
+        .storage
+        .store
+        .get_string_value(STATE_KEY)
+        .await?
+        .as_deref()
+        == Some("done")
+    {
         return Ok(());
     }
     if !state
+        .storage
         .store
         .set_key_if_not_exists_with_ttl(LOCK_KEY, &time_utils::now_ms().to_string(), 3600)
         .await?
@@ -165,37 +174,43 @@ pub(crate) async fn cleanup_legacy_auth_log_storage(state: &AppState) -> anyhow:
 
     let cleanup_result = async {
         state
+            .storage
             .store
             .set_string_value_with_optional_ttl(STATE_KEY, "running", Some(3600))
             .await?;
-        let data_keys = state.store.scan_keys(DATA_PREFIX, 200).await?;
+        let data_keys = state.storage.store.scan_keys(DATA_PREFIX, 200).await?;
         for chunk in data_keys.chunks(200) {
-            state.store.delete_keys(chunk).await?;
+            state.storage.store.delete_keys(chunk).await?;
         }
-        state.store.delete_key(INDEX_KEY).await?;
+        state.storage.store.delete_key(INDEX_KEY).await?;
 
-        let ref_keys = state.store.scan_keys(REF_PREFIX, 200).await?;
+        let ref_keys = state.storage.store.scan_keys(REF_PREFIX, 200).await?;
         for key in ref_keys {
-            let members = state.store.smembers_strings(&key).await?;
+            let members = state.storage.store.smembers_strings(&key).await?;
             let legacy_members = members
                 .into_iter()
                 .filter(|member| member.starts_with(LEGACY_REF_PREFIX))
                 .collect::<Vec<_>>();
             state
+                .storage
                 .store
                 .srem_string_members(&key, &legacy_members)
                 .await?;
         }
-        state.store.set_string_value(STATE_KEY, "done").await
+        state
+            .storage
+            .store
+            .set_string_value(STATE_KEY, "done")
+            .await
     }
     .await;
 
-    let _ = state.store.delete_key(LOCK_KEY).await;
+    let _ = state.storage.store.delete_key(LOCK_KEY).await;
     cleanup_result.map_err(Into::into)
 }
 
 async fn sync_locale_config_on_boot(state: &AppState) {
-    let config = match state.store.get_config().await {
+    let config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for locale boot sync");
@@ -203,7 +218,7 @@ async fn sync_locale_config_on_boot(state: &AppState) {
         }
     };
     let locale = normalize_locale_config(config.get("locale").unwrap_or(&serde_json::Value::Null));
-    match state.go_backend.set_locale_config(&locale).await {
+    match state.gateway.client.set_locale_config(&locale).await {
         Ok((status, value)) if status == reqwest::StatusCode::NOT_FOUND => {
             tracing::debug!(?value, "gateway locale sync endpoint is unavailable");
         }

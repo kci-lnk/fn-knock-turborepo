@@ -144,6 +144,7 @@ pub(crate) async fn wake_target(
         None => None,
     };
     let acquired = state
+        .storage
         .store
         .set_key_if_not_exists_with_ttl(
             &format!("fn_knock:wol:runtime:cooldown:{}", target.id),

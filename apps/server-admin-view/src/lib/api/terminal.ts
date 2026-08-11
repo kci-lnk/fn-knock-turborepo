@@ -1,11 +1,26 @@
 import type {
   TerminalAttachmentRecord,
-  TerminalOutputChunk,
   TerminalRuntimeStatus,
   TerminalSessionRecord,
   TerminalTmuxInstallState,
 } from "../../types";
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 import { apiClient } from "./client";
+
+type TerminalSchemas = ApiContractComponents["schemas"];
+type TerminalCreateSessionBody =
+  TerminalSchemas["TerminalCreateSessionBodyData"];
+type TerminalRenameSessionBody =
+  TerminalSchemas["TerminalRenameSessionBodyData"];
+type TerminalInputBody = TerminalSchemas["TerminalInputBodyData"];
+type TerminalResizeBody = TerminalSchemas["TerminalResizeBodyData"];
+type TerminalPollResult = TerminalSchemas["TerminalPollResultData"];
+type TerminalPollQuery = NonNullable<
+  ApiContractOperations["get_api_admin_terminal_attachments__id__poll"]["parameters"]["query"]
+>;
 
 export type {
   TerminalAttachmentRecord,
@@ -35,13 +50,9 @@ export const TerminalAPI = {
     );
     return res.data.data;
   },
-  async createSession(payload: {
-    title?: string;
-    shell?: string;
-    cwd?: string;
-    cols?: number;
-    rows?: number;
-  }): Promise<TerminalSessionRecord> {
+  async createSession(
+    payload: TerminalCreateSessionBody,
+  ): Promise<TerminalSessionRecord> {
     const res = await apiClient.post("/terminal/sessions", payload);
     return res.data.data;
   },
@@ -49,9 +60,10 @@ export const TerminalAPI = {
     id: string,
     title: string,
   ): Promise<TerminalSessionRecord> {
+    const body = { title } satisfies TerminalRenameSessionBody;
     const res = await apiClient.patch(
       `/terminal/sessions/${encodeURIComponent(id)}`,
-      { title },
+      body,
     );
     return res.data.data;
   },
@@ -66,8 +78,8 @@ export const TerminalAPI = {
   },
   async pollAttachment(
     attachmentId: string,
-    params: { cursor?: number; timeout_ms?: number } = {},
-  ): Promise<{ changed: boolean; chunk: TerminalOutputChunk | null }> {
+    params: TerminalPollQuery = {},
+  ): Promise<TerminalPollResult> {
     const res = await apiClient.get(
       `/terminal/attachments/${encodeURIComponent(attachmentId)}/poll`,
       { params },
@@ -75,9 +87,10 @@ export const TerminalAPI = {
     return res.data.data;
   },
   async sendInput(attachmentId: string, dataBase64: string): Promise<void> {
+    const body = { dataBase64 } satisfies TerminalInputBody;
     await apiClient.post(
       `/terminal/attachments/${encodeURIComponent(attachmentId)}/input`,
-      { dataBase64 },
+      body,
     );
   },
   async resizeAttachment(
@@ -85,9 +98,10 @@ export const TerminalAPI = {
     cols: number,
     rows: number,
   ): Promise<TerminalSessionRecord> {
+    const body = { cols, rows } satisfies TerminalResizeBody;
     const res = await apiClient.post(
       `/terminal/attachments/${encodeURIComponent(attachmentId)}/resize`,
-      { cols, rows },
+      body,
     );
     return res.data.data;
   },

@@ -27,16 +27,16 @@ pub(super) async fn ensure_layout(state: &AppState) -> anyhow::Result<()> {
 
 pub(super) async fn ensure_primary_instance(state: &AppState) -> anyhow::Result<()> {
     ensure_layout(state).await?;
-    let mut ids = read_instance_ids(&state.store).await?;
+    let mut ids = read_instance_ids(&state.storage.store).await?;
     if !ids.iter().any(|id| id == FRPC_PRIMARY_INSTANCE_ID) {
         ids.insert(0, FRPC_PRIMARY_INSTANCE_ID.to_string());
-        write_instance_ids(&state.store, &ids).await?;
+        write_instance_ids(&state.storage.store, &ids).await?;
     }
-    if read_meta(&state.store, state, FRPC_PRIMARY_INSTANCE_ID)
+    if read_meta(&state.storage.store, state, FRPC_PRIMARY_INSTANCE_ID)
         .await?
         .is_none()
     {
-        write_meta(&state.store, &primary_meta(state)).await?;
+        write_meta(&state.storage.store, &primary_meta(state)).await?;
     }
     let config_path = primary_config_path(state);
     if !config_path.exists() {
@@ -308,10 +308,10 @@ pub(super) fn normalize_runtime(value: Value) -> FrpcInstanceRuntime {
 
 pub(super) async fn all_metas(state: &AppState) -> FrpcResult<Vec<FrpcInstanceMeta>> {
     ensure_primary_instance(state).await?;
-    let ids = read_instance_ids(&state.store).await?;
+    let ids = read_instance_ids(&state.storage.store).await?;
     let mut metas = Vec::new();
     for id in ids {
-        if let Some(meta) = read_meta(&state.store, state, &id).await? {
+        if let Some(meta) = read_meta(&state.storage.store, state, &id).await? {
             metas.push(meta);
         }
     }
@@ -328,7 +328,7 @@ pub(super) async fn get_meta_or_error(state: &AppState, id: &str) -> FrpcResult<
         return Err(frpc_not_found(id));
     };
     ensure_primary_instance(state).await?;
-    read_meta(&state.store, state, &safe_id)
+    read_meta(&state.storage.store, state, &safe_id)
         .await?
         .ok_or_else(|| frpc_not_found(id))
 }
@@ -402,7 +402,7 @@ pub(super) async fn save_config_inner(
     verify_frpc_config(state, &meta, &content).await?;
     write_config_for_meta(&meta, &content).await?;
     meta.updated_at = time_utils::now_iso();
-    write_meta(&state.store, &meta).await?;
+    write_meta(&state.storage.store, &meta).await?;
     let handle = ensure_frpc_supervisor(state, &meta).await?;
     if handle.snapshot().desired_running {
         handle.restart().await.map_err(frpc_internal)?;
@@ -435,7 +435,7 @@ pub(super) async fn update_instance_inner(
         config_changed = true;
     }
     meta.updated_at = time_utils::now_iso();
-    write_meta(&state.store, &meta).await?;
+    write_meta(&state.storage.store, &meta).await?;
     if config_changed {
         let handle = ensure_frpc_supervisor(state, &meta).await?;
         if handle.snapshot().desired_running {
@@ -480,11 +480,11 @@ pub(super) async fn create_instance_inner(
         verify_frpc_config(state, &meta, &content).await?;
         fs::create_dir_all(&meta.work_dir).await?;
         write_config_for_meta(&meta, &content).await?;
-        write_meta(&state.store, &meta).await?;
-        write_runtime(&state.store, &meta.id, &default_runtime()).await?;
+        write_meta(&state.storage.store, &meta).await?;
+        write_runtime(&state.storage.store, &meta.id, &default_runtime()).await?;
         let mut ids = metas.iter().map(|meta| meta.id.clone()).collect::<Vec<_>>();
         ids.push(meta.id.clone());
-        write_instance_ids(&state.store, &ids).await?;
+        write_instance_ids(&state.storage.store, &ids).await?;
         append_logs(state, &meta, &["frpc instance created".to_string()]).await?;
         build_status(state, &meta).await
     }
@@ -505,11 +505,13 @@ pub(super) async fn delete_instance_inner(state: &AppState, id: &str) -> FrpcRes
         stop_instance_inner(state, &meta.id).await?;
     }
     state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .remove(&supervisor_key(&meta.id))
         .await
         .map_err(frpc_internal)?;
     state
+        .storage
         .store
         .delete_keys(&[
             instance_key(&meta.id, "meta"),
@@ -518,9 +520,9 @@ pub(super) async fn delete_instance_inner(state: &AppState, id: &str) -> FrpcRes
             format!("{}:seq", log_key(&meta.id)),
         ])
         .await?;
-    let ids = read_instance_ids(&state.store).await?;
+    let ids = read_instance_ids(&state.storage.store).await?;
     write_instance_ids(
-        &state.store,
+        &state.storage.store,
         &ids.into_iter()
             .filter(|item| item != &meta.id)
             .collect::<Vec<_>>(),
@@ -536,6 +538,7 @@ pub(super) async fn cleanup_created_instance(
     previous_metas: &[FrpcInstanceMeta],
 ) {
     let _ = state
+        .storage
         .store
         .delete_keys(&[
             instance_key(&meta.id, "meta"),
@@ -548,10 +551,11 @@ pub(super) async fn cleanup_created_instance(
         .iter()
         .map(|item| item.id.clone())
         .collect::<Vec<_>>();
-    let _ = write_instance_ids(&state.store, &ids).await;
+    let _ = write_instance_ids(&state.storage.store, &ids).await;
     let _ = fs::remove_dir_all(&meta.work_dir).await;
     let _ = state
-        .tunnel_supervisors
+        .tunnel
+        .supervisors
         .remove(&supervisor_key(&meta.id))
         .await;
 }

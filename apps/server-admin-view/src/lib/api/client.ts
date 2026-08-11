@@ -1,6 +1,6 @@
 import { createApiClient } from "@frontend-core/api/createApiClient";
 import { isDockerAdminAuthRequiredResponse } from "../docker-admin-auth-response";
-import { isSynologyCgiApiPath } from "./synology-cgi";
+import { isFnKnockCgiApiPath, isSynologyCgiApiPath } from "./synology-cgi";
 
 export const resolveAppRelativePath = (relativePath: string) => {
   if (typeof window === "undefined") return relativePath;
@@ -18,10 +18,14 @@ export const apiClient = createApiClient({
 });
 
 const isSynologyCgiApi = isSynologyCgiApiPath(adminApiBasePath);
+const isFnKnockCgiApi = isFnKnockCgiApiPath(adminApiBasePath);
 const cgiMethodOverrides = new Set(["put", "patch", "delete"]);
 
 apiClient.interceptors.request.use((config) => {
   const method = config.method?.toLowerCase();
+  if (isFnKnockCgiApi && typeof window !== "undefined") {
+    config.headers.set("X-Fn-Knock-Browser-Origin", window.location.origin);
+  }
   if (isSynologyCgiApi && method && cgiMethodOverrides.has(method)) {
     config.headers.set("X-HTTP-Method-Override", method.toUpperCase());
     config.method = "post";

@@ -41,7 +41,7 @@ pub(super) async fn disable_ssh_security(
             "chain_name": SSH_FIREWALL_CHAIN,
             "parent_chain": ["INPUT", "DOCKER-USER"]
         });
-        if let Err(error) = state.go_backend.clear_ssh_firewall(&payload).await {
+        if let Err(error) = state.gateway.client.clear_ssh_firewall(&payload).await {
             tracing::debug!(%error, "failed to clear disabled SSH firewall policy");
         }
     }
@@ -56,10 +56,14 @@ pub(super) async fn disable_ssh_security(
         let policy = policy_from_runtime(runtime)?;
         let next = compact_runtime(false, &policy, Some(Value::String(time_utils::now_iso())));
         if runtime != &next {
-            state.store.set_json_value(RUNTIME_KEY, &next).await?;
+            state
+                .storage
+                .store
+                .set_json_value(RUNTIME_KEY, &next)
+                .await?;
         }
     }
-    state.ipsets.publish(SSH_ALLOWED_IPSET_KEY, None);
+    state.security.ipsets.publish(SSH_ALLOWED_IPSET_KEY, None);
     Ok(())
 }
 
@@ -109,11 +113,16 @@ pub(super) async fn reconcile_expired_blocks(
 pub(super) async fn expired_active_blocks(
     state: &AppState,
 ) -> crate::storage::StorageResult<Vec<Value>> {
-    let keys = state.store.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
+    let keys = state
+        .storage
+        .store
+        .scan_keys(BLOCK_DATA_PREFIX, 100)
+        .await?;
     let mut records = Vec::new();
     let now = time_utils::now_ms();
     for key in keys {
         if let Some(record) = state
+            .storage
             .store
             .get_json_value(&key)
             .await?
@@ -160,6 +169,7 @@ pub(super) async fn sync_firewall_policy(
     let allowed_policy = if runtime.get("enabled").and_then(Value::as_bool) == Some(true) {
         Some(
             state
+                .security
                 .ipsets
                 .get(SSH_ALLOWED_IPSET_KEY)
                 .map(|policy| (*policy).clone())
@@ -179,7 +189,7 @@ pub(super) async fn sync_firewall_policy(
             "chain_name": SSH_FIREWALL_CHAIN,
             "parent_chain": ["INPUT", "DOCKER-USER"]
         });
-        let value = state.go_backend.clear_ssh_firewall(&payload).await?;
+        let value = state.gateway.client.clear_ssh_firewall(&payload).await?;
         ensure_go_success(value, translator, "clearSshPolicyFailed")?;
         return Ok(FirewallPolicyResult {
             allowed_cidrs: 0,
@@ -203,7 +213,7 @@ pub(super) async fn sync_firewall_policy(
         "blocked_ips": blocked_ips,
         "include_local_cidrs": true
     });
-    let value = state.go_backend.sync_ssh_firewall(&payload).await?;
+    let value = state.gateway.client.sync_ssh_firewall(&payload).await?;
     ensure_go_success(value, translator, "syncSshPolicyFailed")?;
     Ok(FirewallPolicyResult {
         allowed_cidrs: allowed_count,
@@ -444,6 +454,7 @@ pub(super) async fn is_processed(
     id: &str,
 ) -> crate::storage::StorageResult<bool> {
     Ok(state
+        .storage
         .store
         .get_string_value(&format!("{PROCESSED_PREFIX}{id}"))
         .await?
@@ -455,6 +466,7 @@ pub(super) async fn mark_processed(
     id: &str,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .set_string_value_with_optional_ttl(
             &format!("{PROCESSED_PREFIX}{id}"),
@@ -479,6 +491,7 @@ pub(super) async fn add_failure(
     };
     let window_ms = window_minutes.max(1) * 60 * 1000;
     state
+        .storage
         .store
         .zadd_trim_count_expire(
             &format!("{FAILURES_PREFIX}{ip}"),
@@ -495,6 +508,7 @@ pub(super) async fn clear_failures(
     ip: &str,
 ) -> crate::storage::StorageResult<()> {
     state
+        .storage
         .store
         .delete_key(&format!("{FAILURES_PREFIX}{ip}"))
         .await
@@ -522,6 +536,7 @@ pub(super) fn ip_allowed_by_runtime(state: &AppState, runtime: &Value, ip: &str)
         return true;
     };
     state
+        .security
         .ipsets
         .get(SSH_ALLOWED_IPSET_KEY)
         .is_some_and(|policy| policy.contains(ip))

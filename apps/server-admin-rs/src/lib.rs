@@ -62,6 +62,11 @@ pub(crate) use system::{
 pub(crate) use tunnels::{cloudflared, frpc};
 pub(crate) use wol::wol_routes;
 
+/// Build the checked HTTP API contract for code generation and compatibility checks.
+pub fn api_contract_document() -> serde_json::Value {
+    infra::openapi_docs::build_openapi_document()
+}
+
 #[cfg(test)]
 pub(crate) mod test_support {
     use std::{

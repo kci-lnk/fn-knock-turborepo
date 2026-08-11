@@ -1,15 +1,16 @@
 import type {
-  CidrOperator,
-  GatewayVisibilitySelection,
   SSHLoginLogListPayload,
   SSHSecurityBlockListPayload,
   SSHSecurityBlockRecord,
-  SSHSecurityConfig,
   SSHSecurityDetails,
   SSHSecurityFirewallClearResult,
   SSHSecurityFirewallSyncResult,
   ThreatOverview,
 } from "../../types";
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 import { apiClient } from "./client";
 
 export type {
@@ -23,73 +24,56 @@ export type {
   ThreatOverview,
 } from "../../types";
 
-export type ScannerSettings = {
-  enabled: boolean;
-  windowMinutes: number;
-  threshold: number;
-  windowSeconds: number;
-  blacklistTtlSeconds: number;
-  commonLocationExemptEnabled: boolean;
-  cidrExemptions: string[];
-  cidrExemptionRegions: GatewayVisibilitySelection[];
-  cidrExemptionCidrs: string[];
+type SecuritySchemas = ApiContractComponents["schemas"];
+type SshSecurityConfigUpdate = SecuritySchemas["SshSecurityConfigUpdateData"];
+type SshBlocksDeleteBody = SecuritySchemas["SshBlocksDeleteBodyData"];
+type SshLoginLogsQuery = NonNullable<
+  ApiContractOperations["get_api_admin_ssh_security_login_logs"]["parameters"]["query"]
+>;
+type SshBlocksQuery = NonNullable<
+  ApiContractOperations["get_api_admin_ssh_security_blocks"]["parameters"]["query"]
+>;
+type SshLoginLogsParams = {
+  page: NonNullable<SshLoginLogsQuery["page"]>;
+  limit: NonNullable<SshLoginLogsQuery["limit"]>;
+  search?: SshLoginLogsQuery["search"];
+  outcome?: SshLoginLogsQuery["outcome"] | "all";
 };
 
-export type ScannerBlacklistHit = {
-  path: string;
-  createdAt: number;
-};
-
-export type ScannerBlacklistRecord = {
-  ip: string;
-  ipLocation?: string;
-  blockedAt: number;
-  windowMinutes: number;
-  threshold: number;
-  hits: ScannerBlacklistHit[];
-};
-
-export type ScannerBlacklistList = {
-  items: ScannerBlacklistRecord[];
-  total: number;
-};
-
+export type ScannerSettings = SecuritySchemas["ScannerSettingsData"];
+export type ScannerBlacklistHit = SecuritySchemas["ScannerBlacklistHitData"];
+export type ScannerBlacklistRecord =
+  SecuritySchemas["ScannerBlacklistRecordData"];
+export type ScannerBlacklistList = SecuritySchemas["ScannerBlacklistListData"];
 export type GeneralBlacklistSource =
-  | "manual"
-  | "request_log"
-  | "active_ip"
-  | "waf_log";
+  SecuritySchemas["GeneralBlacklistRecordData"]["source"];
+export type GeneralBlacklistRecord =
+  SecuritySchemas["GeneralBlacklistRecordData"];
+export type GeneralBlacklistList =
+  SecuritySchemas["GeneralBlacklistListData"];
+export type GeneralBlacklistMutationResult =
+  SecuritySchemas["GeneralBlacklistMutationData"];
+export type GeneralBlacklistStatus =
+  SecuritySchemas["GeneralBlacklistStatusData"];
 
-export type GeneralBlacklistRecord = {
-  ip: string;
-  source?: GeneralBlacklistSource | string;
-  comment?: string;
-  created_at?: string;
-  updated_at?: string;
-  ipLocation?: string;
-};
-
-export type GeneralBlacklistList = {
-  items: GeneralBlacklistRecord[];
-  total: number;
-};
-
-export type GeneralBlacklistMutationResult = {
-  added: number;
-  updated: number;
-  removed: number;
-  total: number;
-  items: GeneralBlacklistRecord[];
-};
-
-export type GeneralBlacklistStatus = {
-  records: Record<string, GeneralBlacklistRecord>;
-};
+type SecurityOverviewQuery = NonNullable<
+  ApiContractOperations["get_api_admin_security_overview"]["parameters"]["query"]
+>;
+type ScannerSettingsUpdate = SecuritySchemas["ScannerSettingsUpdateData"];
+type IpListBody = SecuritySchemas["IpListBodyData"];
+type GeneralBlacklistAddBody = SecuritySchemas["GeneralBlacklistAddBodyData"];
+type ScannerBlacklistQuery = NonNullable<
+  ApiContractOperations["get_api_admin_scanner_blacklist"]["parameters"]["query"]
+>;
+type GeneralBlacklistQuery = NonNullable<
+  ApiContractOperations["get_api_admin_general_blacklist"]["parameters"]["query"]
+>;
 
 export const SecurityAPI = {
   async getOverview(rangeSec: number): Promise<ThreatOverview> {
+    const params = { rangeSec } satisfies SecurityOverviewQuery;
     const res = await apiClient.get("/security/overview", {
-      params: { rangeSec },
+      params,
     });
     return res.data.data;
   },
@@ -100,19 +84,7 @@ export const ScannerAPI = {
     const res = await apiClient.get("/scanner/settings");
     return res.data.data;
   },
-  async saveSettings(payload: {
-    enabled: boolean;
-    windowMinutes: number;
-    threshold: number;
-    blacklistTtlSeconds: number;
-    commonLocationExemptEnabled?: boolean;
-    cidrExemptions?: string[];
-    cidrExemptionRegions?: Array<{
-      province: string;
-      query_city?: string | null;
-      operator?: CidrOperator | null;
-    }>;
-  }): Promise<ScannerSettings> {
+  async saveSettings(payload: ScannerSettingsUpdate): Promise<ScannerSettings> {
     const res = await apiClient.post("/scanner/settings", payload);
     return res.data.data;
   },
@@ -121,8 +93,9 @@ export const ScannerAPI = {
     limit: string,
     search: string,
   ): Promise<ScannerBlacklistList> {
+    const params = { page, limit, search } satisfies ScannerBlacklistQuery;
     const res = await apiClient.get("/scanner/blacklist", {
-      params: { page, limit, search },
+      params,
     });
     return res.data.data;
   },
@@ -133,7 +106,8 @@ export const ScannerAPI = {
     return res.data.data;
   },
   async deleteBlacklist(ips: string[]): Promise<void> {
-    await apiClient.delete("/scanner/blacklist", { data: { ips } });
+    const body = { ips } satisfies IpListBody;
+    await apiClient.delete("/scanner/blacklist", { data: body });
   },
   async deleteBlacklistByIp(ip: string): Promise<void> {
     await apiClient.delete(`/scanner/blacklist/${encodeURIComponent(ip)}`);
@@ -146,8 +120,9 @@ export const GeneralBlacklistAPI = {
     limit: string,
     search: string,
   ): Promise<GeneralBlacklistList> {
+    const params = { page, limit, search } satisfies GeneralBlacklistQuery;
     const res = await apiClient.get("/general-blacklist", {
-      params: { page, limit, search },
+      params,
     });
     return res.data.data;
   },
@@ -156,19 +131,22 @@ export const GeneralBlacklistAPI = {
     source: GeneralBlacklistSource,
     comment?: string,
   ): Promise<GeneralBlacklistMutationResult> {
-    const res = await apiClient.post("/general-blacklist", {
+    const body = {
       ips,
       source,
       comment,
-    });
+    } satisfies GeneralBlacklistAddBody;
+    const res = await apiClient.post("/general-blacklist", body);
     return res.data.data;
   },
   async getStatus(ips: string[]): Promise<GeneralBlacklistStatus> {
-    const res = await apiClient.post("/general-blacklist/status", { ips });
+    const body = { ips } satisfies IpListBody;
+    const res = await apiClient.post("/general-blacklist/status", body);
     return res.data.data;
   },
   async delete(ips: string[]): Promise<GeneralBlacklistMutationResult> {
-    const res = await apiClient.delete("/general-blacklist", { data: { ips } });
+    const body = { ips } satisfies IpListBody;
+    const res = await apiClient.delete("/general-blacklist", { data: body });
     return res.data.data;
   },
   async deleteByIp(ip: string): Promise<GeneralBlacklistMutationResult> {
@@ -185,13 +163,7 @@ export const SSHSecurityAPI = {
     return res.data.data;
   },
   async updateConfig(
-    payload: Partial<Omit<SSHSecurityConfig, "allowed_regions">> & {
-      allowed_regions?: Array<{
-        province: string;
-        query_city?: string | null;
-        operator?: CidrOperator | null;
-      }>;
-    },
+    payload: SshSecurityConfigUpdate,
   ): Promise<SSHSecurityDetails> {
     const res = await apiClient.post("/ssh-security/config", payload);
     return res.data.data;
@@ -204,22 +176,18 @@ export const SSHSecurityAPI = {
     const res = await apiClient.post("/ssh-security/firewall/clear");
     return res.data.data;
   },
-  async getLoginLogs(params: {
-    page: number;
-    limit: string;
-    search?: string;
-    outcome?: "success" | "failure" | "all";
-  }): Promise<SSHLoginLogListPayload> {
+  async getLoginLogs(params: SshLoginLogsParams): Promise<SSHLoginLogListPayload> {
+    const query = {
+      page: params.page,
+      limit: params.limit,
+      search: params.search || undefined,
+      outcome:
+        params.outcome && params.outcome !== "all"
+          ? params.outcome
+          : undefined,
+    } satisfies SshLoginLogsQuery;
     const res = await apiClient.get("/ssh-security/login-logs", {
-      params: {
-        page: params.page,
-        limit: params.limit,
-        search: params.search || undefined,
-        outcome:
-          params.outcome && params.outcome !== "all"
-            ? params.outcome
-            : undefined,
-      },
+      params: query,
     });
     return res.data.data;
   },
@@ -228,8 +196,9 @@ export const SSHSecurityAPI = {
     limit: string,
     search: string,
   ): Promise<SSHSecurityBlockListPayload> {
+    const params = { page, limit, search } satisfies SshBlocksQuery;
     const res = await apiClient.get("/ssh-security/blocks", {
-      params: { page, limit, search },
+      params,
     });
     return res.data.data;
   },
@@ -243,6 +212,7 @@ export const SSHSecurityAPI = {
     await apiClient.delete(`/ssh-security/blocks/${encodeURIComponent(ip)}`);
   },
   async deleteBlocks(ips: string[]): Promise<void> {
-    await apiClient.delete("/ssh-security/blocks", { data: { ips } });
+    const body = { ips } satisfies SshBlocksDeleteBody;
+    await apiClient.delete("/ssh-security/blocks", { data: body });
   },
 };

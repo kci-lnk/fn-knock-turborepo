@@ -15,6 +15,7 @@ pub(super) fn discover_job_guard(job: &DiscoverJobHandle) -> MutexGuard<'_, Disc
 }
 
 pub(super) fn create_discover_job(
+    state: &AppState,
     scan_cidrs: Vec<String>,
     self_scan_hosts: Vec<String>,
     exclude_ports: Vec<u16>,
@@ -42,7 +43,7 @@ pub(super) fn create_discover_job(
     enforce_discover_job_limits();
 
     let job_for_task = job.clone();
-    tokio::spawn(async move {
+    state.spawn_background("service-discovery-job", async move {
         run_discover_job(
             job_for_task,
             scan_cidrs,

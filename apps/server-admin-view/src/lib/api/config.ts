@@ -1,38 +1,25 @@
-import type { CaptchaSettings } from "@frontend-core/captcha/types";
+import type {
+  components as ApiContractComponents,
+  operations as ApiContractOperations,
+} from "@fn-knock/api-contract";
 
 import type {
   AppConfig,
   AdvancedAuthConfig,
-  AppearanceConfig,
   AuthAccount,
   AuthCredentialSettings,
   AuthLoginMode,
   AuthLoginModePreview,
   AuthLoginModeStatus,
-  AutoHttpsConfig,
-  AutoHttpsDetails,
   BackupDirectoryFilesPayload,
   AutomaticBackupDetails,
   AutomaticBackupFilesPayload,
-  CidrOperator,
-  CidrCapabilitiesPayload,
   DashboardDisplayConfig,
-  DnsmasqInstallState,
-  DnsmasqStatus,
   DockerAdminBootstrapState,
   FnKnockBackupExportToDirectoryResult,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
-  FnosCertificateSyncDetails,
-  FnosCertificateSyncResponse,
-  FnosConnectWafDetails,
-  FnosNetworkTuningStatus,
-  FnosNetworkTuningUpdatePayload,
-  FnosPortIconHijackConfig,
-  FnosShareBypassConfig,
-  FirewallAdditionalPortsDetails,
   GatewayHostResponseDetails,
-  GatewayPortalConfig,
   GatewayProxyHeadersDetails,
   GatewaySettings,
   GatewayVisibilityDetails,
@@ -48,27 +35,18 @@ import type {
   OIDCProviderCatalogItem,
   OIDCProviderView,
   PasskeyCredential,
-  ProtocolMappingFeatureConfig,
   ProxyMapping,
-  ProxyProtocolForce,
-  ReverseProxySubmode,
-  RunType,
   WOLFeatureConfig,
-  SharedDataFileEntry,
-  SmartConnectConfig,
-  SmartConnectDetails,
   SSLConfig,
   SSLSharedFilesPayload,
   SSLStatus,
   StreamMapping,
   SubdomainModeConfig,
-  TerminalFeatureConfig,
   TOTPCredential,
   TOTPCredentialImportSummary,
   TOTPSubdomainAccess,
   TOTPAccessScope,
   UrlMetadataPreview,
-  WelcomeGuideStatus,
 } from "../../types";
 import { apiClient } from "./client";
 import {
@@ -79,6 +57,100 @@ import {
 const HOST_MAPPINGS_REVISION_HEADER = "x-host-mappings-revision";
 const HOST_MAPPING_CATALOG_REVISION_HEADER = "x-host-mapping-catalog-revision";
 export const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE = 40_901;
+
+type AuthCredentialSettingsUpdate =
+  ApiContractComponents["schemas"]["AuthCredentialSettingsUpdateData"];
+type DashboardDisplayUpdate =
+  ApiContractComponents["schemas"]["DashboardDisplayUpdateData"];
+type CaptchaSettings = ApiContractComponents["schemas"]["CaptchaSettingsData"];
+type CaptchaSettingsUpdate =
+  ApiContractComponents["schemas"]["CaptchaSettingsUpdateData"];
+type RunTypeUpdate = ApiContractComponents["schemas"]["RunTypeUpdateData"];
+type AutoManageFirewallUpdate =
+  ApiContractComponents["schemas"]["AutoManageFirewallUpdateData"];
+type AutoManageFirewallData =
+  ApiContractComponents["schemas"]["AutoManageFirewallData"];
+type TerminalFeature = ApiContractComponents["schemas"]["TerminalFeatureData"];
+type TerminalFeatureUpdate =
+  ApiContractComponents["schemas"]["TerminalFeatureUpdateData"];
+type WelcomeGuide = ApiContractComponents["schemas"]["WelcomeGuideData"];
+type AppearanceContract =
+  ApiContractComponents["schemas"]["PanelAppearanceData"];
+type DefaultRouteUpdate =
+  ApiContractComponents["schemas"]["DefaultRouteUpdateData"];
+type DefaultTunnelUpdate =
+  ApiContractComponents["schemas"]["DefaultTunnelUpdateData"];
+type MaintenanceClearBody =
+  ApiContractComponents["schemas"]["MaintenanceClearBodyData"];
+type MaintenanceClearResult =
+  ApiContractComponents["schemas"]["MaintenanceClearData"];
+type SyncRoutesResponse =
+  ApiContractOperations["post_api_admin_sync_routes"]["responses"][200]["content"]["application/json"];
+type ProxyProtocolForceContract =
+  ApiContractComponents["schemas"]["ProxyProtocolForceData"];
+type ProxyMappingsUpdate =
+  ApiContractComponents["schemas"]["ProxyMappingsUpdateData"];
+type StreamMappingsUpdate =
+  ApiContractComponents["schemas"]["StreamMappingsUpdateData"];
+type SubdomainModeUpdate =
+  ApiContractComponents["schemas"]["SubdomainModeUpdateData"];
+type SubdomainModeResponse =
+  ApiContractComponents["schemas"]["SubdomainModeResponseData"];
+type AdvancedAuthUpdate =
+  ApiContractComponents["schemas"]["AdvancedAuthUpdateBodyData"];
+type HostMappingMetadataBody =
+  ApiContractComponents["schemas"]["HostMappingMetadataBodyData"];
+type HostMappingBasicAuthProbeBody =
+  ApiContractComponents["schemas"]["HostMappingBasicAuthProbeBodyData"];
+type WOLFeatureConfigUpdate =
+  ApiContractComponents["schemas"]["WolFeatureConfigUpdateData"];
+type GatewayVisibilityUpdate =
+  ApiContractComponents["schemas"]["GatewayVisibilityUpdateData"];
+type GatewayProxyHeadersUpdate =
+  ApiContractComponents["schemas"]["GatewayProxyHeadersUpdateData"];
+type GatewayHostResponseUpdate =
+  ApiContractComponents["schemas"]["GatewayHostResponseUpdateData"];
+type GatewaySettingsUpdate =
+  ApiContractComponents["schemas"]["GatewaySettingsUpdateData"];
+type AuthAccountCreateRequest =
+  ApiContractComponents["schemas"]["AuthAccountCreateBody"];
+type AuthAccountPatchRequest =
+  ApiContractComponents["schemas"]["AuthAccountPatchBody"];
+type AuthAccountSetupRequest =
+  ApiContractComponents["schemas"]["AuthAccountSetupBody"];
+type OidcProviderCreateRequest =
+  ApiContractComponents["schemas"]["OidcProviderCreateData"];
+type OidcProviderUpdateRequest =
+  ApiContractComponents["schemas"]["OidcProviderUpdateData"];
+type LdapProviderCreateRequest =
+  ApiContractComponents["schemas"]["LdapProviderCreateData"];
+type LdapProviderUpdateRequest =
+  ApiContractComponents["schemas"]["LdapProviderUpdateData"];
+type LdapProviderTestRequest =
+  ApiContractComponents["schemas"]["LdapProviderTestBodyData"];
+type ExternalAuthConnectionTest =
+  ApiContractComponents["schemas"]["ExternalAuthConnectionTestData"];
+type ExternalAuthInvitationRequest =
+  ApiContractComponents["schemas"]["ExternalAuthInvitationBodyData"];
+type ExternalAuthInvitation =
+  ApiContractComponents["schemas"]["ExternalAuthInvitationData"];
+type PanelPasswordRequest =
+  ApiContractComponents["schemas"]["PanelPasswordBodyData"];
+type PanelLoginRequest = ApiContractComponents["schemas"]["PanelLoginBodyData"];
+type SslSharedFileQuery =
+  ApiContractOperations["get_api_admin_ssl_shared_files_content"]["parameters"]["query"];
+type SslSharedFileContent =
+  ApiContractComponents["schemas"]["SslSharedFileContentData"];
+type SslCaStatus = ApiContractComponents["schemas"]["SslCaStatusData"];
+type SslCaHostBody = ApiContractComponents["schemas"]["SslCaHostBodyData"];
+type SslCaHostsDeleteBody =
+  ApiContractComponents["schemas"]["SslCaHostsDeleteBodyData"];
+type SslIssueResponse =
+  ApiContractOperations["post_api_admin_ssl_ca_issue"]["responses"][200]["content"]["application/json"];
+type SslActivateBody =
+  ApiContractComponents["schemas"]["SslCertificateActivateBodyData"];
+type SslDeploymentModeBody =
+  ApiContractComponents["schemas"]["SslDeploymentModeBodyData"];
 
 const hostMappingsRevisionFromHeaders = (
   headers: Record<string, unknown>,
@@ -106,11 +178,8 @@ export interface RevisionedHostMappingCatalog {
   hostMappingsRevision: string | null;
 }
 
-export interface AdvancedAuthDetails {
-  host: string;
-  revision: string | null;
-  advanced_auth: AdvancedAuthConfig;
-}
+export type AdvancedAuthDetails =
+  ApiContractComponents["schemas"]["AdvancedAuthDetailsData"];
 
 export type {
   AppConfig,
@@ -176,11 +245,8 @@ export type {
   WelcomeGuideStatus,
 } from "../../types";
 
-export interface HostMappingBasicAuthProbeResult {
-  requiresBasicAuth: boolean;
-  httpStatus: number | null;
-  error?: string;
-}
+export type HostMappingBasicAuthProbeResult =
+  ApiContractComponents["schemas"]["HostMappingBasicAuthProbeData"];
 
 export const ConfigAPI = {
   async getDockerAdminBootstrap(): Promise<DockerAdminBootstrapState> {
@@ -190,20 +256,23 @@ export const ConfigAPI = {
   async setDockerAdminPassword(
     password: string,
   ): Promise<DockerAdminBootstrapState> {
-    const res = await apiClient.post("/panel/password", { password });
+    const payload = { password } satisfies PanelPasswordRequest;
+    const res = await apiClient.post("/panel/password", payload);
     return res.data.data;
   },
   async changeDockerAdminPassword(
     password: string,
   ): Promise<DockerAdminBootstrapState> {
-    const res = await apiClient.post("/panel/password/change", { password });
+    const payload = { password } satisfies PanelPasswordRequest;
+    const res = await apiClient.post("/panel/password/change", payload);
     return res.data.data;
   },
   async loginDockerAdmin(
     password: string,
     rememberMe = false,
   ): Promise<DockerAdminBootstrapState> {
-    const res = await apiClient.post("/panel/login", { password, rememberMe });
+    const payload = { password, rememberMe } satisfies PanelLoginRequest;
+    const res = await apiClient.post("/panel/login", payload);
     return res.data.data;
   },
   async logoutDockerAdmin(): Promise<DockerAdminBootstrapState> {
@@ -225,13 +294,13 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/locale");
     return res.data.data;
   },
-  async getAppearanceConfig(): Promise<AppearanceConfig> {
+  async getAppearanceConfig(): Promise<AppearanceContract> {
     const res = await apiClient.get("/config/appearance");
     return res.data.data;
   },
   async updateAppearanceConfig(
-    payload: Partial<AppearanceConfig>,
-  ): Promise<AppearanceConfig> {
+    payload: AppearanceContract,
+  ): Promise<AppearanceContract> {
     const res = await apiClient.post("/config/appearance", payload);
     return res.data.data;
   },
@@ -239,29 +308,24 @@ export const ConfigAPI = {
     const res = await apiClient.post("/config/locale", payload);
     return res.data.data;
   },
-  async getWelcomeGuideStatus(): Promise<WelcomeGuideStatus> {
+  async getWelcomeGuideStatus(): Promise<WelcomeGuide> {
     const res = await apiClient.get("/config/welcome_guide");
     return res.data.data;
   },
-  async completeWelcomeGuide(): Promise<WelcomeGuideStatus> {
+  async completeWelcomeGuide(): Promise<WelcomeGuide> {
     const res = await apiClient.post("/config/welcome_guide/complete");
     return res.data.data;
   },
-  async updateRunType(payload: {
-    run_type: RunType;
-    reverse_proxy_submode?: ReverseProxySubmode;
-  }): Promise<void> {
+  async updateRunType(payload: RunTypeUpdate): Promise<void> {
     await apiClient.post("/config/run_type", payload);
   },
-  async updateAutoManageFirewall(payload: {
-    auto_manage_firewall: boolean;
-  }): Promise<{
-    auto_manage_firewall: boolean;
-  }> {
+  async updateAutoManageFirewall(
+    payload: AutoManageFirewallUpdate,
+  ): Promise<AutoManageFirewallData> {
     const res = await apiClient.post("/config/auto_manage_firewall", payload);
     return res.data.data;
   },
-  async getTerminalFeature(): Promise<TerminalFeatureConfig> {
+  async getTerminalFeature(): Promise<TerminalFeature> {
     const res = await apiClient.get("/config/terminal_feature");
     return res.data.data;
   },
@@ -278,13 +342,13 @@ export const ConfigAPI = {
     return res.data.data;
   },
   async updateDashboardDisplayConfig(
-    payload: Partial<DashboardDisplayConfig>,
+    payload: DashboardDisplayUpdate,
   ): Promise<DashboardDisplayConfig> {
     const res = await apiClient.post("/config/dashboard_display", payload);
     return res.data.data;
   },
   async updateAuthCredentialSettings(
-    payload: Partial<AuthCredentialSettings>,
+    payload: AuthCredentialSettingsUpdate,
   ): Promise<AuthCredentialSettings> {
     const res = await apiClient.post(
       "/config/auth_credential_settings",
@@ -293,23 +357,27 @@ export const ConfigAPI = {
     return res.data.data;
   },
   async updateTerminalFeature(
-    payload: Partial<TerminalFeatureConfig>,
-  ): Promise<TerminalFeatureConfig> {
+    payload: TerminalFeatureUpdate,
+  ): Promise<TerminalFeature> {
     const res = await apiClient.post("/config/terminal_feature", payload);
     return res.data.data;
   },
   async updateWOLFeature(
-    payload: Partial<WOLFeatureConfig>,
+    payload: WOLFeatureConfigUpdate,
   ): Promise<WOLFeatureConfig> {
     const res = await apiClient.post("/config/wol_feature", payload);
     return res.data.data;
   },
-  async updateDefaultTunnel(tunnel: "frp" | "cloudflared"): Promise<void> {
-    await apiClient.post("/config/default_tunnel", { tunnel });
+  async updateDefaultTunnel(
+    tunnel: DefaultTunnelUpdate["tunnel"],
+  ): Promise<void> {
+    const body = { tunnel } satisfies DefaultTunnelUpdate;
+    await apiClient.post("/config/default_tunnel", body);
   },
 
   async updateProxyMappings(mappings: ProxyMapping[]): Promise<void> {
-    await apiClient.post("/config/proxy_mappings", { mappings });
+    const payload = { mappings } satisfies ProxyMappingsUpdate;
+    await apiClient.post("/config/proxy_mappings", payload);
   },
   async getHostMappings(): Promise<RevisionedHostMappings> {
     const res = await apiClient.get("/config/host_mappings");
@@ -411,13 +479,14 @@ export const ConfigAPI = {
     advancedAuth: AdvancedAuthConfig,
     acknowledgeBroadRules = false,
   ): Promise<AdvancedAuthDetails> {
+    const payload = {
+      revision: revision || undefined,
+      advanced_auth: advancedAuth,
+      acknowledge_broad_rules: acknowledgeBroadRules,
+    } satisfies AdvancedAuthUpdate;
     const res = await apiClient.put(
       `/config/host_mappings/${encodeURIComponent(host)}/advanced_auth`,
-      {
-        revision: revision || undefined,
-        advanced_auth: advancedAuth,
-        acknowledge_broad_rules: acknowledgeBroadRules,
-      },
+      payload,
     );
     return res.data.data;
   },
@@ -429,20 +498,25 @@ export const ConfigAPI = {
     target: string,
     basicAuth?: HostMappingBasicAuth | null,
   ): Promise<UrlMetadataPreview> {
-    const res = await apiClient.post("/config/host_mappings/metadata", {
+    const payload = {
       target,
       ...(basicAuth
         ? { basic_auth: toHostMappingBasicAuthPayload(basicAuth) }
         : {}),
-    });
+    } satisfies HostMappingMetadataBody;
+    const res = await apiClient.post("/config/host_mappings/metadata", payload);
     return res.data.data;
   },
   async probeHostMappingBasicAuth(
     target: string,
   ): Promise<HostMappingBasicAuthProbeResult> {
-    const res = await apiClient.post("/config/host_mappings/basic_auth_probe", {
+    const payload = {
       target,
-    });
+    } satisfies HostMappingBasicAuthProbeBody;
+    const res = await apiClient.post(
+      "/config/host_mappings/basic_auth_probe",
+      payload,
+    );
     return res.data.data;
   },
   async downloadHostMappingBookmarks(): Promise<Blob> {
@@ -456,22 +530,16 @@ export const ConfigAPI = {
     return res.data.data;
   },
   async updateStreamMappings(mappings: StreamMapping[]): Promise<void> {
-    await apiClient.post("/config/stream_mappings", { mappings });
+    const payload = { mappings } satisfies StreamMappingsUpdate;
+    await apiClient.post("/config/stream_mappings", payload);
   },
   async getSubdomainMode(): Promise<SubdomainModeConfig> {
     const res = await apiClient.get("/config/subdomain_mode");
     return res.data.data;
   },
-  async updateSubdomainMode(config: Partial<SubdomainModeConfig>): Promise<
-    SubdomainModeConfig & {
-      ssl_auto_selection?: {
-        applied: boolean;
-        certificate_id?: string;
-        label?: string;
-        message: string;
-      } | null;
-    }
-  > {
+  async updateSubdomainMode(
+    config: SubdomainModeUpdate,
+  ): Promise<SubdomainModeResponse> {
     const res = await apiClient.post("/config/subdomain_mode", config);
     return res.data.data;
   },
@@ -484,16 +552,15 @@ export const ConfigAPI = {
     const res = await apiClient.get("/ssl/shared-files");
     return res.data.data;
   },
-  async readSSLSharedFile(
-    path: string,
-  ): Promise<{ file: SharedDataFileEntry; content: string }> {
+  async readSSLSharedFile(path: string): Promise<SslSharedFileContent> {
+    const params = { path } satisfies SslSharedFileQuery;
     const res = await apiClient.get("/ssl/shared-files/content", {
-      params: { path },
+      params,
     });
     return res.data.data;
   },
   // CA
-  async getCAStatus(): Promise<{ initialized: boolean; info?: any }> {
+  async getCAStatus(): Promise<SslCaStatus> {
     const res = await apiClient.get("/ssl/ca/status");
     return res.data.data;
   },
@@ -514,17 +581,20 @@ export const ConfigAPI = {
     return res.data.data || [];
   },
   async addCAHost(value: string): Promise<string[]> {
-    const res = await apiClient.post("/ssl/ca/hosts", { value });
+    const payload = { value } satisfies SslCaHostBody;
+    const res = await apiClient.post("/ssl/ca/hosts", payload);
     return res.data.data || [];
   },
   async removeCAHost(value: string): Promise<string[]> {
-    const res = await apiClient.delete("/ssl/ca/hosts", { data: { value } });
+    const data = { value } satisfies SslCaHostsDeleteBody;
+    const res = await apiClient.delete("/ssl/ca/hosts", { data });
     return res.data.data || [];
   },
   async clearCAHosts(): Promise<void> {
-    await apiClient.delete("/ssl/ca/hosts", { data: { all: true } });
+    const data = { all: true } satisfies SslCaHostsDeleteBody;
+    await apiClient.delete("/ssl/ca/hosts", { data });
   },
-  async issueAndInstall(): Promise<{ success: boolean; message?: string }> {
+  async issueAndInstall(): Promise<SslIssueResponse> {
     const res = await apiClient.post("/ssl/ca/issue");
     return res.data;
   },
@@ -541,15 +611,15 @@ export const ConfigAPI = {
     await apiClient.delete("/ssl");
   },
   async updateSSLDeploymentMode(
-    deployment_mode: "single_active" | "multi_sni",
+    deployment_mode: SslDeploymentModeBody["deployment_mode"],
   ): Promise<SSLStatus> {
-    const res = await apiClient.post("/ssl/deployment-mode", {
-      deployment_mode,
-    });
+    const payload = { deployment_mode } satisfies SslDeploymentModeBody;
+    const res = await apiClient.post("/ssl/deployment-mode", payload);
     return res.data.data;
   },
   async activateSSLCertificate(id: string): Promise<void> {
-    await apiClient.post("/ssl/activate", { id });
+    const payload = { id } satisfies SslActivateBody;
+    await apiClient.post("/ssl/activate", payload);
   },
   async deleteSSLCertificate(id: string): Promise<void> {
     await apiClient.delete(`/ssl/certificates/${encodeURIComponent(id)}`);
@@ -558,16 +628,15 @@ export const ConfigAPI = {
     await apiClient.delete("/ssl/certificates");
   },
   async updateDefaultRoute(path: string): Promise<void> {
-    await apiClient.post("/config/default_route", { path });
+    const body = { path } satisfies DefaultRouteUpdate;
+    await apiClient.post("/config/default_route", body);
   },
   async getGatewaySettings(): Promise<GatewaySettings> {
     const res = await apiClient.get("/config/gateway");
     return res.data.data;
   },
   async updateGatewaySettings(
-    payload: Partial<Omit<GatewaySettings, "portal">> & {
-      portal?: Partial<GatewayPortalConfig>;
-    },
+    payload: GatewaySettingsUpdate,
   ): Promise<GatewaySettings> {
     const res = await apiClient.post("/config/gateway", payload);
     return res.data.data;
@@ -576,15 +645,9 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/gateway/visibility");
     return res.data.data;
   },
-  async updateGatewayVisibility(payload: {
-    enabled: boolean;
-    selections: Array<{
-      province: string;
-      query_city?: string | null;
-      operator?: CidrOperator | null;
-    }>;
-    custom_cidrs: string[];
-  }): Promise<GatewayVisibilityDetails> {
+  async updateGatewayVisibility(
+    payload: GatewayVisibilityUpdate,
+  ): Promise<GatewayVisibilityDetails> {
     const res = await apiClient.post("/config/gateway/visibility", payload);
     return res.data.data;
   },
@@ -592,9 +655,9 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/gateway/proxy-headers");
     return res.data.data;
   },
-  async updateGatewayProxyHeaders(payload: {
-    disabled_hosts: string[];
-  }): Promise<GatewayProxyHeadersDetails> {
+  async updateGatewayProxyHeaders(
+    payload: GatewayProxyHeadersUpdate,
+  ): Promise<GatewayProxyHeadersDetails> {
     const res = await apiClient.post("/config/gateway/proxy-headers", payload);
     return res.data.data;
   },
@@ -602,22 +665,23 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/gateway/host-response");
     return res.data.data;
   },
-  async updateGatewayHostResponse(payload: {
-    disabled_hosts: string[];
-  }): Promise<GatewayHostResponseDetails> {
+  async updateGatewayHostResponse(
+    payload: GatewayHostResponseUpdate,
+  ): Promise<GatewayHostResponseDetails> {
     const res = await apiClient.post("/config/gateway/host-response", payload);
     return res.data.data;
   },
-  async getProxyProtocolForce(): Promise<ProxyProtocolForce> {
+  async getProxyProtocolForce(): Promise<ProxyProtocolForceContract> {
     const res = await apiClient.get("/config/proxy_protocol_force");
     return res.data.data;
   },
   async setProxyProtocolForce(
     proxy_protocol_force: boolean,
-  ): Promise<ProxyProtocolForce> {
-    const res = await apiClient.post("/config/proxy_protocol_force", {
+  ): Promise<ProxyProtocolForceContract> {
+    const body = {
       proxy_protocol_force,
-    });
+    } satisfies ProxyProtocolForceContract;
+    const res = await apiClient.post("/config/proxy_protocol_force", body);
     return res.data.data;
   },
   // TOTP
@@ -646,16 +710,15 @@ export const ConfigAPI = {
     const res = await apiClient.get("/auth/accounts");
     return res.data.data.accounts || [];
   },
-  async createAuthAccount(payload: {
-    username: string;
-    password: string;
-  }): Promise<AuthAccount> {
+  async createAuthAccount(
+    payload: AuthAccountCreateRequest,
+  ): Promise<AuthAccount> {
     const res = await apiClient.post("/auth/accounts", payload);
     return res.data.data;
   },
   async updateAuthAccount(
     id: string,
-    payload: { username?: string },
+    payload: AuthAccountPatchRequest,
   ): Promise<AuthAccount> {
     const res = await apiClient.patch(
       `/auth/accounts/${encodeURIComponent(id)}`,
@@ -678,7 +741,7 @@ export const ConfigAPI = {
   },
   async setupAuthAccount(
     id: string,
-    payload: { username: string; password: string },
+    payload: AuthAccountSetupRequest,
   ): Promise<AuthAccount> {
     const res = await apiClient.post(
       `/auth/accounts/${encodeURIComponent(id)}/setup`,
@@ -802,22 +865,15 @@ export const ConfigAPI = {
     const res = await apiClient.get("/auth/oidc/providers");
     return res.data.data.providers;
   },
-  async createOIDCProvider(payload: {
-    name?: string;
-    type: string;
-    enabled?: boolean;
-    connection_config?: Record<string, unknown>;
-  }): Promise<OIDCProviderView> {
+  async createOIDCProvider(
+    payload: OidcProviderCreateRequest,
+  ): Promise<OIDCProviderView> {
     const res = await apiClient.post("/auth/oidc/providers", payload);
     return res.data.data;
   },
   async updateOIDCProvider(
     id: string,
-    payload: {
-      name?: string;
-      enabled?: boolean;
-      connection_config?: Record<string, unknown>;
-    },
+    payload: OidcProviderUpdateRequest,
   ): Promise<OIDCProviderView> {
     const res = await apiClient.patch(
       `/auth/oidc/providers/${encodeURIComponent(id)}`,
@@ -828,9 +884,7 @@ export const ConfigAPI = {
   async deleteOIDCProvider(id: string): Promise<void> {
     await apiClient.delete(`/auth/oidc/providers/${encodeURIComponent(id)}`);
   },
-  async testOIDCProvider(
-    id: string,
-  ): Promise<{ success: boolean; message?: string }> {
+  async testOIDCProvider(id: string): Promise<ExternalAuthConnectionTest> {
     const res = await apiClient.post(
       `/auth/oidc/providers/${encodeURIComponent(id)}/test`,
     );
@@ -845,11 +899,9 @@ export const ConfigAPI = {
   async deleteOIDCBinding(id: string): Promise<void> {
     await apiClient.delete(`/auth/oidc/bindings/${encodeURIComponent(id)}`);
   },
-  async createOIDCInvite(payload: {
-    totp_id: string;
-    provider_id: string;
-    note?: string;
-  }): Promise<{ invite_url: string; expires_at: string }> {
+  async createOIDCInvite(
+    payload: ExternalAuthInvitationRequest,
+  ): Promise<ExternalAuthInvitation> {
     const res = await apiClient.post("/auth/oidc/invitations", payload);
     return res.data.data;
   },
@@ -861,22 +913,15 @@ export const ConfigAPI = {
     const res = await apiClient.get("/auth/ldap/providers");
     return res.data.data.providers;
   },
-  async createLdapProvider(payload: {
-    name?: string;
-    type: string;
-    enabled?: boolean;
-    connection_config?: Record<string, unknown>;
-  }): Promise<LdapProviderView> {
+  async createLdapProvider(
+    payload: LdapProviderCreateRequest,
+  ): Promise<LdapProviderView> {
     const res = await apiClient.post("/auth/ldap/providers", payload);
     return res.data.data;
   },
   async updateLdapProvider(
     id: string,
-    payload: {
-      name?: string;
-      enabled?: boolean;
-      connection_config?: Record<string, unknown>;
-    },
+    payload: LdapProviderUpdateRequest,
   ): Promise<LdapProviderView> {
     const res = await apiClient.patch(
       `/auth/ldap/providers/${encodeURIComponent(id)}`,
@@ -889,8 +934,8 @@ export const ConfigAPI = {
   },
   async testLdapProvider(
     id: string,
-    credentials?: { username: string; password: string },
-  ): Promise<{ success: boolean; message?: string }> {
+    credentials?: LdapProviderTestRequest,
+  ): Promise<ExternalAuthConnectionTest> {
     const res = await apiClient.post(
       `/auth/ldap/providers/${encodeURIComponent(id)}/test`,
       credentials ?? {},
@@ -906,24 +951,14 @@ export const ConfigAPI = {
   async deleteLdapBinding(id: string): Promise<void> {
     await apiClient.delete(`/auth/ldap/bindings/${encodeURIComponent(id)}`);
   },
-  async createLdapInvite(payload: {
-    totp_id: string;
-    provider_id: string;
-    note?: string;
-  }): Promise<{ invite_url: string; expires_at: string }> {
+  async createLdapInvite(
+    payload: ExternalAuthInvitationRequest,
+  ): Promise<ExternalAuthInvitation> {
     const res = await apiClient.post("/auth/ldap/invitations", payload);
     return res.data.data;
   },
   // Sync routes.
-  async syncRoutes(): Promise<{
-    success: boolean;
-    message?: string;
-    data?: {
-      synced_rules: number;
-      synced_host_rules?: number;
-      synced_stream_rules?: number;
-    };
-  }> {
+  async syncRoutes(): Promise<SyncRoutesResponse> {
     const res = await apiClient.post("/sync-routes");
     return res.data;
   },
@@ -934,11 +969,9 @@ export const MaintenanceAPI = {
     const res = await apiClient.get("/maintenance/backup/automatic");
     return res.data.data;
   },
-  async updateAutomaticBackupConfig(payload: {
-    enabled: boolean;
-    interval_hours: number;
-    retention_days: number;
-  }): Promise<AutomaticBackupDetails> {
+  async updateAutomaticBackupConfig(
+    payload: ApiContractComponents["schemas"]["UpdateAutomaticBackupBody"],
+  ): Promise<AutomaticBackupDetails> {
     const res = await apiClient.put("/maintenance/backup/automatic", payload);
     return res.data.data;
   },
@@ -980,316 +1013,67 @@ export const MaintenanceAPI = {
     });
     return res.data.data;
   },
-  async clearAllData(confirmation: string): Promise<{ cleared_keys: number }> {
-    const res = await apiClient.post("/maintenance/data/clear", {
+  async clearAllData(confirmation: string): Promise<MaintenanceClearResult> {
+    const body = {
       confirmation,
-    });
+    } satisfies MaintenanceClearBody;
+    const res = await apiClient.post("/maintenance/data/clear", body);
     return res.data.data;
   },
 };
 
-export type AccessEntryInfo = {
-  env: "GO_REPROXY_PORT" | "FRP_REMOTE_PORT";
-  port: string;
-  isDefault: boolean;
-};
+export {
+  SystemAPI,
+  type AccessEntryInfo,
+  type RunModePromptPreferences,
+  type SystemClockIssue,
+  type SystemClockIssueCode,
+  type SystemClockStatus,
+} from "./system";
 
-export type RunModePromptPreferences = {
-  directToReverseProxy: boolean;
-  reverseProxyToDirect: boolean;
-  switchToSubdomain: boolean;
-  subdomainToReverseProxy: boolean;
-};
+export type UpdateStatusPayload =
+  ApiContractComponents["schemas"]["UpdateStatusData"];
+export type UpdateDownloadStatus = UpdateStatusPayload["download"]["status"];
+export type UpdateLatestPayload =
+  ApiContractComponents["schemas"]["UpdateLatestData"];
+export type UpdateConfirmPayload =
+  ApiContractComponents["schemas"]["UpdateConfirmData"];
 
-export type UpdateDownloadStatus =
-  "idle" | "downloading" | "verifying" | "downloaded" | "installing" | "error";
-
-export type UpdateLatestPayload = {
-  version: string;
-  update_available: boolean;
-  force_update: boolean;
-  download_url: string;
-  sha256: string;
-  download_url_arm64: string;
-  sha256_arm64: string;
-  release_notes: string;
-};
-
-export type UpdateStatusPayload = {
-  githubUrl: string;
-  localVersion: string;
-  latest: UpdateLatestPayload | null;
-  updateEnabled: boolean;
-  hasUpdate: boolean;
-  forceUpdate: boolean;
-  check: {
-    lastCheckedAt: number | null;
-    error: string | null;
-  };
-  download: {
-    status: UpdateDownloadStatus;
-    percent: number;
-    downloadedBytes: number;
-    totalBytes: number | null;
-    error: string | null;
-    targetVersion: string | null;
-  };
-};
-
-export type UpdateConfirmPayload = {
-  version: string;
-  completedAt: string;
-};
-
-export type SystemClockIssueCode = "timezone_mismatch" | "time_mismatch";
-
-export type SystemClockIssue = {
-  code: SystemClockIssueCode;
-  title: string;
-  message: string;
-};
-
-export type SystemClockStatus = {
-  expectedTimeZone: string;
-  systemTimeZone: string | null;
-  checkedAt: string | null;
-  networkSource: string | null;
-  hasRemoteTime: boolean;
-  lastCheckError: string | null;
-  systemTimeMs: number | null;
-  remoteTimeMs: number | null;
-  systemBeijingTime: string | null;
-  remoteBeijingTime: string | null;
-  driftMs: number | null;
-  driftThresholdMs: number;
-  timeMismatch: boolean;
-  timezoneMismatch: boolean;
-  needsAttention: boolean;
-  issues: SystemClockIssue[];
-  checking: boolean;
-  syncInProgress: boolean;
-  lastSyncAt: string | null;
-  lastSyncError: string | null;
-  syncSummary: string | null;
-};
-
-export const SystemAPI = {
-  async getClockStatus(): Promise<SystemClockStatus> {
-    const res = await apiClient.get("/system/clock/status");
-    return res.data.data;
-  },
-  async refreshClockStatus(): Promise<SystemClockStatus> {
-    const res = await apiClient.post("/system/clock/check");
-    return res.data.data;
-  },
-  async syncClock(): Promise<{
-    message: string;
-    data: SystemClockStatus;
-  }> {
-    const res = await apiClient.post("/system/clock/sync");
-    return {
-      message: String(res.data.message || "System time synchronized"),
-      data: res.data.data,
-    };
-  },
-  async getAccessEntry(): Promise<AccessEntryInfo> {
-    const res = await apiClient.get("/system/access-entry");
-    return res.data.data;
-  },
-  async resetFirewallByRunType(run_type: RunType): Promise<{
-    runType: RunType;
-    gatewayPort: number;
-    exemptPorts: string[];
-    whitelistSynced: number;
-  }> {
-    const res = await apiClient.post("/firewall/reset", { run_type });
-    return res.data.data;
-  },
-  async clearFirewall(): Promise<{
-    gatewayPort: number;
-  }> {
-    const res = await apiClient.post("/firewall/clear");
-    return res.data.data;
-  },
-  async getFirewallAdditionalPorts(): Promise<FirewallAdditionalPortsDetails> {
-    const res = await apiClient.get("/config/firewall_additional_ports");
-    return res.data.data;
-  },
-  async updateFirewallAdditionalPorts(
-    ports: number[],
-  ): Promise<FirewallAdditionalPortsDetails> {
-    const res = await apiClient.post("/config/firewall_additional_ports", {
-      ports,
-    });
-    return res.data.data;
-  },
-  async getRunModePromptPreferences(): Promise<RunModePromptPreferences> {
-    const res = await apiClient.get("/config/run_mode_prompt_preferences");
-    return res.data.data;
-  },
-  async updateRunModePromptPreferences(
-    payload: Partial<RunModePromptPreferences>,
-  ): Promise<RunModePromptPreferences> {
-    const res = await apiClient.post(
-      "/config/run_mode_prompt_preferences",
-      payload,
-    );
-    return res.data.data;
-  },
-  async getProtocolMappingFeatureConfig(): Promise<ProtocolMappingFeatureConfig> {
-    const res = await apiClient.get("/config/protocol_mapping_feature");
-    return res.data.data;
-  },
-  async updateProtocolMappingFeatureConfig(
-    payload: Partial<ProtocolMappingFeatureConfig>,
-  ): Promise<ProtocolMappingFeatureConfig> {
-    const res = await apiClient.post(
-      "/config/protocol_mapping_feature",
-      payload,
-    );
-    return res.data.data;
-  },
-  async getAutoHttpsDetails(): Promise<AutoHttpsDetails> {
-    const res = await apiClient.get("/config/auto_https");
-    return res.data.data;
-  },
-  async updateAutoHttps(
-    payload: Partial<AutoHttpsConfig>,
-  ): Promise<AutoHttpsDetails> {
-    const res = await apiClient.post("/config/auto_https", payload);
-    return res.data.data;
-  },
-  async getSmartConnectDetails(): Promise<SmartConnectDetails> {
-    const res = await apiClient.get("/config/smart_connect/details");
-    return res.data.data;
-  },
-  async updateSmartConnect(
-    payload: Partial<SmartConnectConfig>,
-  ): Promise<SmartConnectDetails> {
-    const res = await apiClient.post("/config/smart_connect", payload);
-    return res.data.data;
-  },
-  async getDnsmasqStatus(): Promise<DnsmasqStatus> {
-    const res = await apiClient.get("/system/dnsmasq/status");
-    return res.data.data;
-  },
-  async installDnsmasq(): Promise<DnsmasqInstallState> {
-    const res = await apiClient.post("/system/dnsmasq/install");
-    return res.data.data;
-  },
-  async getFnosShareBypassConfig(): Promise<FnosShareBypassConfig> {
-    const res = await apiClient.get("/config/fnos_share_bypass");
-    return res.data.data;
-  },
-  async updateFnosShareBypassConfig(
-    payload: Partial<FnosShareBypassConfig>,
-  ): Promise<FnosShareBypassConfig> {
-    const res = await apiClient.post("/config/fnos_share_bypass", payload);
-    return res.data.data;
-  },
-  async getFnosPortIconHijackConfig(): Promise<FnosPortIconHijackConfig> {
-    const res = await apiClient.get("/config/fnos_port_icon_hijack");
-    return res.data.data;
-  },
-  async updateFnosPortIconHijackConfig(
-    payload: Partial<FnosPortIconHijackConfig>,
-  ): Promise<FnosPortIconHijackConfig> {
-    const res = await apiClient.post("/config/fnos_port_icon_hijack", payload);
-    return res.data.data;
-  },
-  async getFnosConnectWafDetails(): Promise<FnosConnectWafDetails> {
-    const res = await apiClient.get("/config/fnos_connect_waf");
-    return res.data.data;
-  },
-  async updateFnosConnectWafConfig(
-    enabled: boolean,
-  ): Promise<FnosConnectWafDetails> {
-    const res = await apiClient.post("/config/fnos_connect_waf", { enabled });
-    return res.data.data;
-  },
-  async getFnosNetworkTuningStatus(): Promise<FnosNetworkTuningStatus> {
-    const res = await apiClient.get("/config/fnos_network_tuning");
-    return res.data.data;
-  },
-  async updateFnosNetworkTuningConfig(
-    payload: FnosNetworkTuningUpdatePayload,
-  ): Promise<FnosNetworkTuningStatus> {
-    const res = await apiClient.post("/config/fnos_network_tuning", payload);
-    return res.data.data;
-  },
-  async getFnosCertificateSyncDetails(): Promise<FnosCertificateSyncDetails> {
-    const res = await apiClient.get("/config/fnos_certificate_sync/details");
-    return res.data.data;
-  },
-  async updateFnosCertificateSyncConfig(
-    auto_sync_enabled: boolean,
-  ): Promise<FnosCertificateSyncDetails> {
-    const res = await apiClient.post("/config/fnos_certificate_sync", {
-      auto_sync_enabled,
-    });
-    return res.data.data;
-  },
-  async syncFnosCertificates(
-    target_ids: string[] = [],
-  ): Promise<FnosCertificateSyncResponse> {
-    const res = await apiClient.post("/config/fnos_certificate_sync/sync", {
-      target_ids,
-    });
-    return res.data.data;
-  },
-  async getFrpStatus() {
-    const res = await apiClient.get("/system/frp/status");
-    return res.data;
-  },
-  async startFrpDownload() {
-    const res = await apiClient.post("/system/frp/download");
-    return res.data;
-  },
-  async cancelFrpDownload() {
-    const res = await apiClient.post("/system/frp/cancel");
-    return res.data;
-  },
-  async deleteFrp() {
-    const res = await apiClient.delete("/system/frp");
-    return res.data;
-  },
-  async getCloudflaredStatus() {
-    const res = await apiClient.get("/system/cloudflared/status");
-    return res.data;
-  },
-  async startCloudflaredDownload() {
-    const res = await apiClient.post("/system/cloudflared/download");
-    return res.data;
-  },
-  async cancelCloudflaredDownload() {
-    const res = await apiClient.post("/system/cloudflared/cancel");
-    return res.data;
-  },
-  async deleteCloudflared() {
-    const res = await apiClient.delete("/system/cloudflared");
-    return res.data;
-  },
-};
+type UpdateStatusResponse =
+  ApiContractOperations["get_api_admin_update_status"]["responses"][200]["content"]["application/json"];
+type UpdateCheckResponse =
+  ApiContractOperations["post_api_admin_update_check"]["responses"][200]["content"]["application/json"];
+type UpdateCheckAndDownloadResponse =
+  ApiContractOperations["post_api_admin_update_check_and_download"]["responses"][200]["content"]["application/json"];
+type UpdateDownloadResponse =
+  ApiContractOperations["post_api_admin_update_download"]["responses"][200]["content"]["application/json"];
+type UpdateInstallResponse =
+  ApiContractOperations["post_api_admin_update_install"]["responses"][200]["content"]["application/json"];
+type UpdateConfirmResponse =
+  ApiContractOperations["get_api_admin_update_confirm"]["responses"][200]["content"]["application/json"];
 
 export const CaptchaAPI = {
   async getSettings(): Promise<CaptchaSettings> {
     const res = await apiClient.get("/config/captcha");
     return res.data.data;
   },
-  async updateSettings(payload: CaptchaSettings): Promise<CaptchaSettings> {
+  async updateSettings(
+    payload: CaptchaSettingsUpdate,
+  ): Promise<CaptchaSettings> {
     const res = await apiClient.post("/config/captcha", payload);
     return res.data.data;
   },
 };
 
-export type IpLocationApiMode = "online" | "custom";
-
-export type IpLocationApiConfig = {
-  ip_lookup_mode: IpLocationApiMode;
-  ip_lookup_url: string;
-  cidr_mode: IpLocationApiMode;
-  cidr_url: string;
-};
+export type IpLocationApiConfig =
+  ApiContractComponents["schemas"]["IpLocationApiConfigData"];
+export type IpLocationApiMode = IpLocationApiConfig["ip_lookup_mode"];
+type IpLocationTestUrlBody =
+  ApiContractComponents["schemas"]["IpLocationTestUrlBodyData"];
+type IpLocationTestResponse =
+  ApiContractOperations["post_api_admin_config_ip_location_api_test_ip_lookup"]["responses"][200]["content"]["application/json"];
+type CidrTestResponse =
+  ApiContractOperations["post_api_admin_config_ip_location_api_test_cidr"]["responses"][200]["content"]["application/json"];
 
 export const IpLocationSettingsAPI = {
   async getSettings(): Promise<IpLocationApiConfig> {
@@ -1302,22 +1086,17 @@ export const IpLocationSettingsAPI = {
     const res = await apiClient.post("/config/ip_location_api", payload);
     return res.data.data;
   },
-  async testIpLookup(
-    url: string,
-  ): Promise<{ success: boolean; message: string }> {
-    const res = await apiClient.post("/config/ip_location_api/test-ip-lookup", {
-      url,
-    });
+  async testIpLookup(url: string): Promise<IpLocationTestResponse> {
+    const body = { url } satisfies IpLocationTestUrlBody;
+    const res = await apiClient.post(
+      "/config/ip_location_api/test-ip-lookup",
+      body,
+    );
     return res.data;
   },
-  async testCidr(url: string): Promise<{
-    success: boolean;
-    message: string;
-    capabilities?: CidrCapabilitiesPayload;
-  }> {
-    const res = await apiClient.post("/config/ip_location_api/test-cidr", {
-      url,
-    });
+  async testCidr(url: string): Promise<CidrTestResponse> {
+    const body = { url } satisfies IpLocationTestUrlBody;
+    const res = await apiClient.post("/config/ip_location_api/test-cidr", body);
     return res.data;
   },
 };
@@ -1325,56 +1104,61 @@ export const IpLocationSettingsAPI = {
 export const UpdateAPI = {
   async getStatus(): Promise<UpdateStatusPayload> {
     const res = await apiClient.get("/update/status");
-    return res.data.data;
+    const payload = res.data as UpdateStatusResponse;
+    return payload.data;
   },
   async checkNow(): Promise<UpdateStatusPayload> {
     const res = await apiClient.post("/update/check");
-    return res.data.data;
+    const payload = res.data as UpdateCheckResponse;
+    return payload.data;
   },
-  async checkAndDownload(): Promise<{
-    success: boolean;
-    message?: string;
-    data?: UpdateStatusPayload;
-  }> {
+  async checkAndDownload(): Promise<UpdateCheckAndDownloadResponse> {
     const res = await apiClient.post("/update/check-and-download");
     return res.data;
   },
-  async startDownload(): Promise<{
-    success: boolean;
-    message?: string;
-    data?: UpdateStatusPayload;
-  }> {
+  async startDownload(): Promise<UpdateDownloadResponse> {
     const res = await apiClient.post("/update/download");
     return res.data;
   },
-  async startInstall(): Promise<{ success: boolean; message?: string }> {
+  async startInstall(): Promise<UpdateInstallResponse> {
     const res = await apiClient.post("/update/install");
     return res.data;
   },
   async consumeConfirm(): Promise<UpdateConfirmPayload | null> {
     const res = await apiClient.get("/update/confirm");
-    return res.data.data || null;
+    const payload = res.data as UpdateConfirmResponse;
+    return payload.data;
   },
 };
 
-export type BackoffItem = {
-  ip: string;
-  attempts: number;
-  blocked: boolean;
-  retryAfter?: number;
-  blockedUntil?: number;
-};
+export type BackoffItem = ApiContractComponents["schemas"]["LoginBackoffData"];
+
+type BackoffListResponse =
+  ApiContractOperations["get_api_admin_backoff_list"]["responses"][200]["content"]["application/json"];
+type BackoffStatusOperation =
+  ApiContractOperations["get_api_admin_backoff_status"];
+type BackoffStatusQuery = BackoffStatusOperation["parameters"]["query"];
+type BackoffStatusResponse =
+  BackoffStatusOperation["responses"][200]["content"]["application/json"];
+type BackoffResetOperation =
+  ApiContractOperations["post_api_admin_backoff_reset"];
+type BackoffResetBody =
+  BackoffResetOperation["requestBody"]["content"]["application/json"];
 
 export const BackoffAPI = {
   async list(): Promise<BackoffItem[]> {
     const res = await apiClient.get("/backoff/list");
-    return res.data.data || [];
+    const payload = res.data as BackoffListResponse;
+    return payload.data;
   },
   async status(ip: string): Promise<BackoffItem> {
-    const res = await apiClient.get("/backoff/status", { params: { ip } });
-    return res.data.data;
+    const params = { ip } satisfies BackoffStatusQuery;
+    const res = await apiClient.get("/backoff/status", { params });
+    const payload = res.data as BackoffStatusResponse;
+    return payload.data;
   },
   async reset(ip: string): Promise<void> {
-    await apiClient.post("/backoff/reset", { ip });
+    const body = { ip } satisfies BackoffResetBody;
+    await apiClient.post("/backoff/reset", body);
   },
 };

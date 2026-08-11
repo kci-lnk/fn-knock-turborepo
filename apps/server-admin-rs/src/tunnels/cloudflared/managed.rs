@@ -1,14 +1,14 @@
 use std::{collections::HashSet, time::Duration};
 
 use axum::{
-    Json, Router,
+    Json,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post, put},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{crypto_utils, response, state::AppState, time_utils};
 
@@ -58,25 +58,13 @@ fn default_tunnel_mode() -> String {
     "dedicated".to_string()
 }
 
-pub(super) fn routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/admin/cloudflared/cloudflare/credential",
-            put(save_credential).delete(delete_credential),
-        )
-        .route(
-            "/api/admin/cloudflared/cloudflare/state",
-            get(cloudflare_state),
-        )
-        .route(
-            "/api/admin/cloudflared/reconcile/preview",
-            post(preview_reconcile),
-        )
-        .route(
-            "/api/admin/cloudflared/reconcile/apply",
-            post(apply_reconcile),
-        )
-        .merge(optimization::routes())
+pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(save_credential))
+        .routes(routes!(delete_credential))
+        .routes(routes!(cloudflare_state))
+        .routes(routes!(preview_reconcile))
+        .routes(routes!(apply_reconcile))
 }
 
 pub(super) fn secret_store(state: &AppState) -> CloudflaredSecretStore {
@@ -103,14 +91,16 @@ pub(super) async fn mark_manual_mode(state: &AppState) -> Result<(), String> {
     let mut config = load_managed_config(state).await;
     ensure_object(&mut config).insert("mode".to_string(), json!("manual"));
     state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, &config)
         .await
         .map_err(|error| error.to_string())
 }
 
+#[utoipa::path(put, path = "/api/admin/cloudflared/cloudflare/credential", tag = "cloudflared", operation_id = "put_api_admin_cloudflared_cloudflare_credential", responses((status = 200, description = "Saved Cloudflare credential")))]
 async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let token = body
         .get("apiToken")
         .and_then(Value::as_str)
@@ -119,7 +109,7 @@ async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>)
     if token.is_empty() {
         return response::error(StatusCode::BAD_REQUEST, "Cloudflare API Token is required");
     }
-    let local_config = match state.store.get_config().await {
+    let local_config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load root domain for Cloudflare credential");
@@ -205,6 +195,7 @@ async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>)
         json!(time_utils::now_iso()),
     );
     if let Err(error) = state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, &managed)
         .await
@@ -222,15 +213,16 @@ async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>)
             "Failed to save Cloudflare connection state",
         );
     }
-    state.cloudflared_schedule_notify.notify_one();
+    state.tunnel.cloudflared_schedule_notify.notify_one();
     match build_public_state(&state, true).await {
         Ok(value) => response::ok(value).into_response(),
         Err(error) => cloudflare_error_response(error),
     }
 }
 
+#[utoipa::path(delete, path = "/api/admin/cloudflared/cloudflare/credential", tag = "cloudflared", operation_id = "delete_api_admin_cloudflared_cloudflare_credential", responses((status = 200, description = "Deleted Cloudflare credential")))]
 async fn delete_credential(State(state): State<AppState>) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     if let Err(error) = secret_store(&state).delete(SecretKind::ApiToken) {
         tracing::warn!(%error, "failed to remove Cloudflare API Token");
         return response::error(
@@ -241,6 +233,7 @@ async fn delete_credential(State(state): State<AppState>) -> Response {
     response::success_empty().into_response()
 }
 
+#[utoipa::path(get, path = "/api/admin/cloudflared/cloudflare/state", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_cloudflare_state", responses((status = 200, description = "Cloudflare managed state")))]
 async fn cloudflare_state(State(state): State<AppState>) -> Response {
     match build_public_state(&state, true).await {
         Ok(value) => response::ok(value).into_response(),
@@ -292,7 +285,12 @@ pub(super) async fn build_public_state(
             Err(error) => remote_error = json!(error.to_string()),
         }
     }
-    let local = state.store.get_config().await.unwrap_or_else(|_| json!({}));
+    let local = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .unwrap_or_else(|_| json!({}));
     let configured_root = root_domain(&local).unwrap_or_default();
     let stored_root = managed_root_domain(&managed);
     let drift = !stored_root.is_empty() && !configured_root.eq_ignore_ascii_case(stored_root);
@@ -320,11 +318,12 @@ pub(super) async fn build_public_state(
     }))
 }
 
+#[utoipa::path(post, path = "/api/admin/cloudflared/reconcile/preview", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_reconcile_preview", responses((status = 200, description = "Cloudflare reconcile preview")))]
 async fn preview_reconcile(
     State(state): State<AppState>,
     Json(request): Json<ReconcileRequest>,
 ) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     if request.action != "apply" && request.action != "cleanup" {
         return response::error(StatusCode::BAD_REQUEST, "Unsupported reconcile action");
     }
@@ -346,7 +345,7 @@ async fn preview_reconcile(
     ensure_object(&mut cached).insert("request".to_string(), json!(request));
     ensure_object(&mut cached).insert("createdAtMs".to_string(), json!(now));
     ensure_object(&mut cached).insert("expiresAtMs".to_string(), json!(expires_at));
-    let mut plans = state.cloudflared_plans.lock().await;
+    let mut plans = state.tunnel.cloudflared_plans.lock().await;
     plans.retain(|_, value| {
         value
             .get("expiresAtMs")
@@ -379,12 +378,14 @@ async fn preview_reconcile(
     response::ok(output).into_response()
 }
 
+#[utoipa::path(post, path = "/api/admin/cloudflared/reconcile/apply", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_reconcile_apply", responses((status = 200, description = "Applied Cloudflare reconcile plan")))]
 async fn apply_reconcile(
     State(state): State<AppState>,
     Json(body): Json<ApplyRequest>,
 ) -> Response {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let cached = match state
+        .tunnel
         .cloudflared_plans
         .lock()
         .await
@@ -475,7 +476,7 @@ async fn apply_reconcile(
         tracing::warn!(%error, "failed to apply Cloudflare reconciliation plan");
         return cloudflare_error_response(error);
     }
-    state.cloudflared_schedule_notify.notify_one();
+    state.tunnel.cloudflared_schedule_notify.notify_one();
     match build_public_state(&state, true).await {
         Ok(value) => response::ok(value).into_response(),
         Err(error) => cloudflare_error_response(error),
@@ -487,7 +488,12 @@ async fn build_plan(
     api: &CloudflareApi,
     request: &ReconcileRequest,
 ) -> Result<Value, CloudflareApiError> {
-    let local = state.store.get_config().await.map_err(local_error)?;
+    let local = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .map_err(local_error)?;
     let local_root = root_domain(&local).map_err(bad_request_error)?;
     let managed = load_managed_config(state).await;
     let ownership = load_managed_state(state).await;
@@ -717,7 +723,12 @@ async fn apply_setup(
     request: &ReconcileRequest,
     takeover: &HashSet<String>,
 ) -> Result<(), CloudflareApiError> {
-    let local = state.store.get_config().await.map_err(local_error)?;
+    let local = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .map_err(local_error)?;
     let root = root_domain(&local).map_err(bad_request_error)?;
     let zone = api.find_zone(&root).await?;
     let zone_id = string_field(&zone, "id");
@@ -782,6 +793,7 @@ async fn apply_setup(
         );
     }
     state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, &managed)
         .await
@@ -870,6 +882,7 @@ async fn apply_setup(
     );
     object.insert("lastAppliedAt".to_string(), json!(time_utils::now_iso()));
     state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, &managed)
         .await
@@ -887,6 +900,7 @@ async fn apply_setup(
         handle.start().await.map_err(local_message_error)?;
     }
     state
+        .storage
         .store
         .set_config_top_level_value("default_tunnel", json!("cloudflared"))
         .await
@@ -906,6 +920,7 @@ async fn apply_setup(
         optimization::fallback_to_wildcard(state, api, &managed, &mut ownership).await?;
     }
     state
+        .storage
         .store
         .set_json_value(MANAGED_STATE_KEY, &ownership)
         .await
@@ -969,6 +984,7 @@ async fn apply_cleanup(
         .delete(SecretKind::TunnelToken)
         .map_err(local_message_error)?;
     state
+        .storage
         .store
         .delete_key(MANAGED_STATE_KEY)
         .await
@@ -979,6 +995,7 @@ async fn apply_cleanup(
     object.insert("optimizationEnabled".to_string(), json!(false));
     object.insert("lastCleanupAt".to_string(), json!(time_utils::now_iso()));
     state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, &next_managed)
         .await
@@ -987,7 +1004,7 @@ async fn apply_cleanup(
 }
 
 pub(super) async fn cleanup_before_data_clear(state: &AppState) -> Result<(), CloudflareApiError> {
-    let _guard = state.cloudflared_manage_lock.lock().await;
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     let managed = load_managed_config(state).await;
     let ownership = load_managed_state(state).await;
     let secrets = secret_store(state);
@@ -1614,6 +1631,7 @@ pub(super) async fn api_for_background(
 
 pub(super) async fn load_managed_config(state: &AppState) -> Value {
     state
+        .storage
         .store
         .get_json_value(MANAGED_CONFIG_KEY)
         .await
@@ -1627,6 +1645,7 @@ pub(super) async fn save_managed_config(
     value: &Value,
 ) -> Result<(), CloudflareApiError> {
     state
+        .storage
         .store
         .set_json_value(MANAGED_CONFIG_KEY, value)
         .await
@@ -1635,6 +1654,7 @@ pub(super) async fn save_managed_config(
 
 pub(super) async fn load_managed_state(state: &AppState) -> Value {
     state
+        .storage
         .store
         .get_json_value(MANAGED_STATE_KEY)
         .await
@@ -1655,6 +1675,7 @@ pub(super) async fn save_managed_state(
     value: &Value,
 ) -> Result<(), CloudflareApiError> {
     state
+        .storage
         .store
         .set_json_value(MANAGED_STATE_KEY, value)
         .await

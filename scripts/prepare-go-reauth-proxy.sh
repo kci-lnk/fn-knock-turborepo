@@ -17,7 +17,6 @@ SKIP_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_SKIP_BUILD:-0}"
 FORCE_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD:-0}"
 BUNDLE_VERSION="$(fn_knock_app_version "${ROOT_DIR}")"
 BUNDLE_COMMIT=""
-EXPECTED_BUNDLE_COMMIT=""
 
 log() {
   echo "[fn-knock] $*"
@@ -76,18 +75,10 @@ needs_build() {
   fail "missing Go-Reauth-Proxy checkout: ${GO_REAUTH_PROXY_DIR}. Set FN_KNOCK_GO_REAUTH_PROXY_DIR to override."
 bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REAUTH_PROXY_DIR}"
 
-EXPECTED_BUNDLE_COMMIT="$(
-  sed -nE 's/^[[:space:]]*"gatewayCommit"[[:space:]]*:[[:space:]]*"([0-9a-f]+)".*/\1/p' \
-    "${ROOT_DIR}/version.json" | head -n1
-)"
-[[ "${EXPECTED_BUNDLE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
-  fail "version.json gatewayCommit must be a 40-character lowercase Git commit"
 BUNDLE_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse HEAD 2>/dev/null)" || \
   fail "unable to resolve Go gateway commit from ${GO_REAUTH_PROXY_DIR}"
 [[ "${BUNDLE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
   fail "Go gateway commit must be a 40-character lowercase Git commit: ${BUNDLE_COMMIT:-<empty>}"
-[ "${BUNDLE_COMMIT}" = "${EXPECTED_BUNDLE_COMMIT}" ] || \
-  fail "Go gateway checkout commit mismatch: expected ${EXPECTED_BUNDLE_COMMIT}, got ${BUNDLE_COMMIT}"
 
 if needs_build; then
   if [ "${SKIP_BUILD}" = "1" ]; then

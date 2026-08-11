@@ -7,7 +7,7 @@ source "${ROOT_DIR}/scripts/version.sh"
 GO_REPOSITORY="${1:-${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}}"
 OUTPUT_DIR="${2:-${FN_KNOCK_GO_RELEASE_OUTPUT_DIR:-${ROOT_DIR}/dist/fn-knock-go-release}}"
 VERSION="${FN_KNOCK_VERSION:-$(fn_knock_app_version "${ROOT_DIR}")}"
-COMMIT="${FN_KNOCK_GO_SOURCE_COMMIT:-}"
+COMMIT=""
 READELF_BIN=""
 
 log() {
@@ -111,14 +111,8 @@ elif command -v greadelf >/dev/null 2>&1; then
 fi
 
 ACTUAL_COMMIT="$(git -C "${GO_REPOSITORY}" rev-parse HEAD)"
-if [ -z "${COMMIT}" ]; then
-  COMMIT="${ACTUAL_COMMIT}"
-fi
+COMMIT="${ACTUAL_COMMIT}"
 printf '%s\n' "${COMMIT}" | grep -Eq '^[0-9a-fA-F]{40}$' || fail "invalid Go commit: ${COMMIT}"
-ACTUAL_COMMIT_LOWER="$(printf '%s' "${ACTUAL_COMMIT}" | tr '[:upper:]' '[:lower:]')"
-COMMIT_LOWER="$(printf '%s' "${COMMIT}" | tr '[:upper:]' '[:lower:]')"
-[ "${ACTUAL_COMMIT_LOWER}" = "${COMMIT_LOWER}" ] || \
-  fail "Go checkout ${ACTUAL_COMMIT} does not match ${COMMIT}"
 bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REPOSITORY}"
 
 mkdir -p "${OUTPUT_DIR}"

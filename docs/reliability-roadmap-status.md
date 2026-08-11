@@ -6,7 +6,7 @@
 
 - P0：统一 `npm run quality:check`，并将发布/跨平台契约测试纳入同一入口；主仓 PR/push CI；Go 仓库 vet/test CI 与每日 race；每日完整可访问性检查；严格 Clippy、panic guard、安全审计、gRPC 生成检查。
 - P0：Turbo 的 Rust/proto/路径依赖/Windows bundle identity 输入契约；原生 build 禁用 Turbo 制品缓存；dry-run 哈希断言。
-- P0：`version.json.gatewayCommit` 成为必填发布字段；Release、macOS、Windows 和主仓 CI 均固定检出该提交；Rust `build.rs` 直接把该值编入所有制品，浏览器运行时夹具校验 Go 仓 HEAD，CI/夹具构建 Go 网关时写入同一版本与提交，避免普通 `cargo build --release` 产出缺少供应链身份的 macOS/Windows 二进制。
+- P0：各平台从实际检出的 Go 仓 HEAD 生成制品，并把该提交写入 Go、Rust 及发布清单元数据；`version.json.gatewayCommit` 仅保留作历史兼容字段，不再控制本地、CI 或 Release checkout。
 - P0：管理 API 仅同源浏览器写入；管理端与认证端统一防嵌入、`nosniff` 和 no-referrer 响应头。
 - P1：提交 OpenAPI 3.1 与生成的 TypeScript 类型；410 个 path/method operation 全部具备完整 schema，其中 248 个由请求 DTO 的 `ToSchema` 与领域响应 schema 生成，健康检查、系统访问入口、安全概览、系统时钟域 3 个操作、仪表盘 5 个操作、自更新域 6 个操作、CIDR 域 5 个操作、IP 定位域 5 个操作、登录退避域 3 个操作、系统事件域 4 个操作、运行时健康域 5 个操作、通用黑名单域 5 个操作、扫描器域 6 个操作、网关设置域 8 个操作、fnOS 证书同步域 3 个操作、fnOS 端口图标劫持域 2 个操作、fnOS 网络调优域 2 个操作、FN Connect WAF 域 2 个操作、fnOS Share Bypass 域 2 个操作、Smart Connect 域 2 个操作、终端功能开关域 2 个操作、欢迎引导域 2 个操作、运行模式提示域 2 个操作、协议映射开关域 2 个操作、Auto HTTPS 域 2 个操作、默认路由/隧道域 3 个操作、CAPTCHA 域 2 个操作、运行模式域 1 个操作、Wake-on-LAN 开关域 2 个操作、防火墙配置/维护域 5 个操作、全量路由同步 1 个操作、面板语言/外观配置域 4 个操作、认证登录模式与账户生命周期域 13 个操作、认证凭据设置域 2 个操作、面板会话域 5 个操作、会话管理与移动性域 5 个操作、备份导入导出与自动任务域 9 个操作、受确认保护的数据清除 1 个操作、Host 映射目录、元数据、认证与书签导出域 10 个操作、代理映射、流映射与子域模式域 5 个操作以及完整 TOTP/Passkey 生命周期、转移与凭据变更域 11 个操作已直接由 `utoipa-axum` 的实际路由注册生成；`scanner-fallback` 与 `build.rs` 路由字符串解析器均已删除，生成器拒绝未知契约来源或 operation 数量漂移。
 - P1：测试环境使用真实 Axum Router 逐一探测 410 个 OpenAPI operation，并在全能力配置下断言其匹配的 Axum 路径模板，防止已发布契约指向不存在或方法不一致的路由。
@@ -84,4 +84,4 @@
 
 ## 发布顺序
 
-发生 gRPC 不兼容变化时，先递增 `CONTROL_API_VERSION_CURRENT` 并合并 Go 仓库，再把主仓 `version.json.gatewayCommit` 更新为已合并的 40 位提交。任何平台打包均不得临时解析 Go `main`。
+发生 gRPC 不兼容变化时，先递增 `CONTROL_API_VERSION_CURRENT` 并同步生成 Go stub。所有本地、CI 与 Release 构建使用实际检出的 Go 仓 HEAD；兼容性由共享 control API 版本与生成代码校验保证。

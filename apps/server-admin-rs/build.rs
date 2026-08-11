@@ -26,6 +26,7 @@ fn main() {
     let proto_root = manifest_dir.join("../../packages/grpc-contracts/proto");
     println!("cargo:rerun-if-changed={}", version_file.display());
     println!("cargo:rerun-if-changed={}", proto_file.display());
+    println!("cargo:rerun-if-env-changed=FN_KNOCK_GATEWAY_COMMIT");
 
     let protoc = protoc_bin_vendored::protoc_bin_path().expect("resolve vendored protoc");
     // SAFETY: build scripts run single-threaded here before tonic_build reads
@@ -38,7 +39,12 @@ fn main() {
         .compile_protos(&[proto_file], &[proto_root])
         .expect("compile fn-knock grpc proto");
 
-    let metadata = load_app_metadata(&version_file);
+    let mut metadata = load_app_metadata(&version_file);
+    if let Ok(commit) = env::var("FN_KNOCK_GATEWAY_COMMIT")
+        && !commit.trim().is_empty()
+    {
+        metadata.gateway_commit = validate_gateway_commit(commit.trim());
+    }
     println!(
         "cargo:rustc-env=FN_KNOCK_GATEWAY_COMMIT={}",
         metadata.gateway_commit
@@ -72,15 +78,18 @@ fn load_app_metadata(path: &Path) -> AppMetadata {
 }
 
 fn required_gateway_commit(value: Option<&Value>) -> String {
-    let commit = required_string(value, "gatewayCommit");
+    validate_gateway_commit(&required_string(value, "gatewayCommit"))
+}
+
+fn validate_gateway_commit(commit: &str) -> String {
     if commit.len() != 40
         || !commit
             .bytes()
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
     {
-        panic!("version.json gatewayCommit must be a 40-character lowercase Git commit");
+        panic!("gateway commit must be a 40-character lowercase Git commit");
     }
-    commit
+    commit.to_string()
 }
 
 fn required_string(value: Option<&Value>, key: &str) -> String {

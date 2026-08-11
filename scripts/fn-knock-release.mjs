@@ -16,7 +16,6 @@ const GO_REPOSITORY = path.resolve(
     path.join(ROOT_DIR, "..", "Go-Reauth-Proxy"),
 );
 const VERSION_EXPRESSION = /^[0-9]+\.[0-9]+\.[0-9]+$/;
-const COMMIT_EXPRESSION = /^[0-9a-f]{40}$/;
 const CONTROL_API_CONTRACT = path.join(
   ROOT_DIR,
   "packages/grpc-contracts/proto/fnknock/v1/gateway.proto",
@@ -408,32 +407,6 @@ function assertGatewayVersionsAligned(files, expectedVersion) {
   }
 }
 
-async function loadGatewayCommit() {
-  const manifestPath = path.join(ROOT_DIR, "version.json");
-  let manifest;
-  try {
-    manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  } catch (error) {
-    fail(`version.json: invalid JSON: ${error.message}`);
-  }
-  if (!COMMIT_EXPRESSION.test(manifest.gatewayCommit ?? "")) {
-    fail(
-      "version.json gatewayCommit must be a 40-character lowercase Git commit",
-    );
-  }
-  return manifest.gatewayCommit;
-}
-
-function assertGatewayCommit(expectedCommit) {
-  const actualCommit = gatewayGit(["rev-parse", "HEAD"]).stdout.toLowerCase();
-  if (actualCommit !== expectedCommit) {
-    fail(
-      `Go gateway HEAD ${actualCommit} does not match version.json gatewayCommit ${expectedCommit}; merge Go first, then update the release manifest`,
-    );
-  }
-  return actualCommit;
-}
-
 function readSinglePositiveInteger(content, expression, label) {
   const matches = [...content.matchAll(expression)];
   if (matches.length !== 1) {
@@ -590,7 +563,6 @@ async function showStatus() {
   const files = await loadVersionFiles();
   const gatewayFiles = await loadGatewayVersionFiles();
   const controlApiContract = await loadControlApiContract();
-  const gatewayCommit = await loadGatewayCommit();
   const current = files.find(
     (file) => file.relativePath === "version.json",
   )?.version;
@@ -612,9 +584,7 @@ async function showStatus() {
   );
   console.log(`  Go gateway: ${GO_REPOSITORY}`);
   const gatewayHead = gatewayGit(["rev-parse", "HEAD"]).stdout.toLowerCase();
-  console.log(
-    `  [${gatewayHead === gatewayCommit ? "ok" : "mismatch"}] gateway commit: manifest=${gatewayCommit}, HEAD=${gatewayHead}`,
-  );
+  console.log(`  gateway commit: HEAD=${gatewayHead}`);
   for (const file of gatewayFiles) {
     const marker = file.version === current ? "ok" : "mismatch";
     console.log(
@@ -630,7 +600,6 @@ async function showStatus() {
   assertVersionsAligned(files);
   assertGatewayVersionsAligned(gatewayFiles, current);
   assertControlApiContract(controlApiContract);
-  assertGatewayCommit(gatewayCommit);
 }
 
 async function checkRelease(versionArgument) {
@@ -644,7 +613,6 @@ async function checkRelease(versionArgument) {
     fail(`check version ${version} does not match version.json ${current}`);
   }
   assertGatewayVersionsAligned(gatewayFiles, version);
-  assertGatewayCommit(await loadGatewayCommit());
   const controlApiVersion = assertControlApiContract(
     await loadControlApiContract(),
   );
@@ -669,7 +637,6 @@ async function checkGateway(versionArgument) {
   }
   parseVersion(version, "expected Go gateway version");
   assertGatewayVersionsAligned(gatewayFiles, version);
-  assertGatewayCommit(await loadGatewayCommit());
   const controlApiVersion = assertControlApiContract(
     await loadControlApiContract(),
   );

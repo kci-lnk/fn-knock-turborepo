@@ -145,6 +145,7 @@ case "${MODE}" in
     log "building ${TARGET} with ${IMAGE}"
     docker run --rm \
       -e CARGO_TARGET_DIR="${TARGET_DIR}" \
+      -e FN_KNOCK_GATEWAY_COMMIT="${FN_KNOCK_GATEWAY_COMMIT:-}" \
       -e FN_KNOCK_RUST_TARGET="${TARGET}" \
       -e FN_KNOCK_RUST_OUT="${CONTAINER_OUTPUT}" \
       -v "${ROOT_DIR}:/workspace" \
@@ -158,6 +159,9 @@ case "${MODE}" in
 esac
 
 [ -x "${OUTPUT}" ] || chmod 755 "${OUTPUT}"
+if [ -n "${FN_KNOCK_GATEWAY_COMMIT:-}" ]; then
+  printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${OUTPUT}.gateway-commit"
+fi
 validate_arch
 validate_glibc_ceiling
 log "built ${OUTPUT}"

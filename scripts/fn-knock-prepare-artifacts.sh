@@ -15,6 +15,7 @@ DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${ROOT_DIR}/deploy/
 MANIFEST_FILE="${FPK_PACKAGE_DIR}/manifest"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
 PREBUILT_ONLY="${FN_KNOCK_PREBUILT_ONLY:-0}"
+GO_REPOSITORY="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}"
 
 NEED_RUNTIME=0
 NEED_FPK_RUST=0
@@ -232,9 +233,14 @@ validate_elf_arch() {
 
 rust_backend_is_fresh() {
   local bin="$1"
+  local commit_file="${bin}.gateway-commit"
 
   [ "${FN_KNOCK_FORCE_ARTIFACT_REBUILD:-0}" != "1" ] || return 1
   [ -f "${bin}" ] || return 1
+  if [ -n "${FN_KNOCK_GATEWAY_COMMIT:-}" ]; then
+    [ -f "${commit_file}" ] || return 1
+    [ "$(tr -d '\r\n' < "${commit_file}")" = "${FN_KNOCK_GATEWAY_COMMIT}" ] || return 1
+  fi
   if find "${ROOT_DIR}/apps/server-admin-rs" \
     \( -path "${ROOT_DIR}/apps/server-admin-rs/target" -o -path "${ROOT_DIR}/apps/server-admin-rs/target/*" \) -prune \
     -o \( -name '*.rs' -o -name '*.proto' -o -name 'Cargo.toml' -o -name 'Cargo.lock' -o -name 'build.rs' -o -name 'server_i18n.json' \) \
@@ -268,6 +274,7 @@ copy_existing_rust_backend() {
     mkdir -p "$(dirname "${out_bin}")"
     if [ "${candidate}" != "${out_bin}" ]; then
       cp "${candidate}" "${out_bin}"
+      cp "${candidate}.gateway-commit" "${out_bin}.gateway-commit"
       chmod 755 "${out_bin}"
     fi
     validate_elf_arch "${out_bin}" "${arch}" "${label}"
@@ -282,6 +289,17 @@ copy_existing_rust_backend() {
 sync_versions() {
   fn_knock_sync_manifest_version "${ROOT_DIR}" "${MANIFEST_FILE}" "[fn-knock-artifacts]"
   fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-artifacts]"
+}
+
+resolve_gateway_commit() {
+  [ "${PREBUILT_ONLY}" != "1" ] || return 0
+  [ -d "${GO_REPOSITORY}" ] || fail "missing Go-Reauth-Proxy checkout: ${GO_REPOSITORY}"
+  FN_KNOCK_GATEWAY_COMMIT="$(git -C "${GO_REPOSITORY}" rev-parse HEAD 2>/dev/null)" || \
+    fail "unable to resolve Go gateway commit from ${GO_REPOSITORY}"
+  [[ "${FN_KNOCK_GATEWAY_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
+    fail "Go gateway commit must be a 40-character lowercase Git commit"
+  export FN_KNOCK_GATEWAY_COMMIT
+  log "Using Go gateway HEAD ${FN_KNOCK_GATEWAY_COMMIT}"
 }
 
 build_runtime() {
@@ -345,6 +363,7 @@ build_fpk_rust_backend_with_docker() {
   local docker_env_args=(
     -e CARGO_HOME=/workspace/dist/cargo-home
     -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/fpk-${arch}"
+    -e FN_KNOCK_GATEWAY_COMMIT="${FN_KNOCK_GATEWAY_COMMIT}"
     -e FN_KNOCK_RUST_OUT="/workspace/${out_bin#${ROOT_DIR}/}"
   )
 
@@ -373,6 +392,7 @@ build_fpk_rust_backend_with_docker() {
     bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
+  printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
   validate_elf_arch "${out_bin}" "${arch}" "FPK Rust backend ${arch}"
   log_binary_size "${out_bin}" "FPK Rust backend ${arch}"
 }
@@ -404,6 +424,7 @@ build_fpk_rust_backend_with_zig() {
   [ -n "${built_bin}" ] || fail "cargo-zigbuild finished but server-admin-rs was not found under ${target_dir}"
   cp "${built_bin}" "${out_bin}"
   chmod 755 "${out_bin}"
+  printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
   validate_elf_arch "${out_bin}" "${arch}" "FPK Rust backend ${arch}"
   log_binary_size "${out_bin}" "FPK Rust backend ${arch}"
 }
@@ -514,6 +535,7 @@ build_musl_rust_backend() {
   log "Building musl Rust backend ${arch} with ${image} (${target})"
   docker run --rm \
     -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/musl-${arch}" \
+    -e FN_KNOCK_GATEWAY_COMMIT="${FN_KNOCK_GATEWAY_COMMIT}" \
     -e FN_KNOCK_RUST_TARGET="${target}" \
     -e FN_KNOCK_RUST_OUT="/workspace/${out_bin#${ROOT_DIR}/}" \
     -v "${ROOT_DIR}/dist/cargo-registry-musl:/root/.cargo/registry" \
@@ -524,6 +546,7 @@ build_musl_rust_backend() {
     sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
+  printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
   validate_elf_arch "${out_bin}" "${arch}" "musl Rust backend ${arch}"
   log_binary_size "${out_bin}" "musl Rust backend ${arch}"
 }
@@ -772,6 +795,7 @@ read_arch_list "${FN_KNOCK_RUNTIME_GATEWAY_ARCHES:-amd64 arm64 arm}" normalize_g
 [ "${#RUNTIME_GATEWAY_ARCHES[@]}" -gt 0 ] || fail "runtime gateway architecture list is empty"
 
 sync_versions
+resolve_gateway_commit
 build_runtime
 build_fpk_rust_backends
 build_musl_rust_backends

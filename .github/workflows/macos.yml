@@ -52,11 +52,18 @@ jobs:
         shell: bash
         run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
-      - name: Read pinned Go gateway commit
+      - name: Checkout Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          persist-credentials: false
+
+      - name: Freeze checked-out Go gateway commit
         id: gateway
         shell: bash
         run: |
-          sha="$(jq -er '.gatewayCommit | strings | select(test("^[0-9a-f]{40}$"))' version.json)"
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
           printf '%s\n' "${sha}" | grep -Eq '^[0-9a-f]{40}$'
           printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
 
@@ -141,6 +148,7 @@ jobs:
             protoc_sha256: 193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2
     runs-on: ${{ matrix.runner }}
     env:
+      FN_KNOCK_GATEWAY_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
       FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}

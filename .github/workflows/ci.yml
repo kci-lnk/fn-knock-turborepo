@@ -17,8 +17,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Last gateway revision used before version.json started pinning this repository.
-  GATEWAY_COMMIT_BEFORE_MANIFEST_PIN: "a0e9ff7e34d4ae683b47011cda43578885bd75a3"
   NODE_VERSION: "22.22.3"
   NPM_VERSION: "10.8.2"
   PROTOC_VERSION: "35.1"
@@ -42,20 +40,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Read pinned Go gateway commit
-        id: gateway
-        shell: bash
-        run: |
-          sha="$(jq -er '.gatewayCommit | strings | select(test("^[0-9a-f]{40}$"))' version.json)"
-          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout pinned Go gateway
+      - name: Checkout Go gateway
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ steps.gateway.outputs.sha }}
           persist-credentials: false
+
+      - name: Record Go gateway commit
+        shell: bash
+        run: printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "$(git -C Go-Reauth-Proxy rev-parse HEAD)" >> "${GITHUB_ENV}"
 
       - name: Checkout frozen RustSec advisory database
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -146,19 +140,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Read pinned Go gateway commit
-        id: gateway
-        shell: bash
-        run: printf 'sha=%s\n' "$(jq -er .gatewayCommit version.json)" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout pinned Go gateway
+      - name: Checkout Go gateway
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ steps.gateway.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Record Go gateway commit
+        id: gateway
+        shell: bash
+        run: |
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${sha}" >> "${GITHUB_ENV}"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -208,18 +204,7 @@ jobs:
           base_sha="${{ github.event.pull_request.base.sha }}"
           git fetch --no-tags origin "${base_sha}"
           git worktree add --detach "${base_root}" "${base_sha}"
-          base_gateway_commit="$(jq -er '
-            if has("gatewayCommit") then
-              (.gatewayCommit | strings | select(test("^[0-9a-f]{40}$")))
-            else
-              "__before_manifest_pin__"
-            end
-          ' "${base_root}/version.json")"
-          if [ "${base_gateway_commit}" = "__before_manifest_pin__" ]; then
-            base_gateway_commit="${GATEWAY_COMMIT_BEFORE_MANIFEST_PIN}"
-            echo "Base manifest predates gatewayCommit; using ${base_gateway_commit}"
-          fi
-          git -C Go-Reauth-Proxy fetch --no-tags origin "${base_gateway_commit}"
+          base_gateway_commit="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
           git -C Go-Reauth-Proxy worktree add --detach "${base_gateway}" "${base_gateway_commit}"
           printf 'root=%s\n' "${base_root}" >> "${GITHUB_OUTPUT}"
           printf 'gateway=%s\n' "${base_gateway}" >> "${GITHUB_OUTPUT}"
@@ -303,18 +288,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read pinned Go gateway commit
-        id: gateway
-        shell: bash
-        run: printf 'sha=%s\n' "$(jq -er .gatewayCommit version.json)" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout pinned Go gateway
+      - name: Checkout Go gateway
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ steps.gateway.outputs.sha }}
           persist-credentials: false
+
+      - name: Record Go gateway commit
+        id: gateway
+        shell: bash
+        run: |
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${sha}" >> "${GITHUB_ENV}"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0

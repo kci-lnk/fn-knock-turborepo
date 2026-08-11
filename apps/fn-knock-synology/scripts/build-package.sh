@@ -11,7 +11,6 @@ MUSL_RUST_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-
 PACKAGE_NAME="fn-knock-synology"
 PRODUCT_VERSION="$(jq -er '.version' "${ROOT_DIR}/version.json")"
 RELEASE_CHANNEL="$(jq -er '.releaseChannel // "stable"' "${ROOT_DIR}/version.json")"
-EXPECTED_GATEWAY_COMMIT="$(jq -er '.gatewayCommit' "${ROOT_DIR}/version.json")"
 BUILD_NUMBER="${FN_KNOCK_SYNOLOGY_BUILD_NUMBER:-0017}"
 PACKAGE_VERSION="${PRODUCT_VERSION}-${BUILD_NUMBER}"
 PACKAGE_BETA="no"
@@ -99,14 +98,10 @@ build_gateway_artifact() {
 
   [ -d "${gateway_dir}" ] || fail "missing Go-Reauth-Proxy checkout: ${gateway_dir}"
   bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${gateway_dir}"
-  [[ "${EXPECTED_GATEWAY_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
-    fail "version.json gatewayCommit must be a 40-character lowercase Git commit"
   commit="$(git -C "${gateway_dir}" rev-parse HEAD 2>/dev/null)" || \
     fail "unable to resolve Go gateway commit from ${gateway_dir}"
   [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || \
     fail "Go gateway commit must be a 40-character lowercase Git commit: ${commit:-<empty>}"
-  [ "${commit}" = "${EXPECTED_GATEWAY_COMMIT}" ] || \
-    fail "Go gateway checkout commit mismatch: expected ${EXPECTED_GATEWAY_COMMIT}, got ${commit}"
 
   log "building Synology gateway ${PRODUCT_VERSION} (${commit})"
   mkdir -p "$(dirname "${GATEWAY_ARTIFACT}")"

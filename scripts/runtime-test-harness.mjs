@@ -61,7 +61,7 @@ const ensureRuntimeArtifacts = async (serverBinary) => {
   }
 };
 
-const buildPinnedGateway = async (output) => {
+const buildGateway = async (output) => {
   const gatewayDir = path.join(rootDir, "..", "Go-Reauth-Proxy");
   await access(path.join(gatewayDir, ".git"));
   const manifest = JSON.parse(
@@ -71,12 +71,6 @@ const buildPinnedGateway = async (output) => {
     cwd: gatewayDir,
   });
   const actualCommit = stdout.trim().toLowerCase();
-  if (actualCommit !== manifest.gatewayCommit) {
-    throw new Error(
-      `Go gateway HEAD ${actualCommit} does not match version.json ` +
-        `gatewayCommit ${manifest.gatewayCommit}`,
-    );
-  }
   await execFileAsync(
     "go",
     [
@@ -84,7 +78,7 @@ const buildPinnedGateway = async (output) => {
       "-trimpath",
       "-ldflags",
       `-s -w -X go-reauth-proxy/pkg/version.Version=${manifest.version} ` +
-        `-X go-reauth-proxy/pkg/version.Commit=${manifest.gatewayCommit}`,
+        `-X go-reauth-proxy/pkg/version.Commit=${actualCommit}`,
       "-o",
       output,
       "./cmd/server",
@@ -101,7 +95,7 @@ const buildPinnedGateway = async (output) => {
 const resolveGatewayBinary = async (explicitBinary, tempDir) => {
   if (!explicitBinary) {
     try {
-      return await buildPinnedGateway(path.join(tempDir, "go-reauth-proxy"));
+      return await buildGateway(path.join(tempDir, "go-reauth-proxy"));
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
     }

@@ -36,7 +36,7 @@ jobs:
       prerelease: ${{ steps.contract.outputs.prerelease }}
       control_api_version: ${{ steps.contract.outputs.control_api_version }}
       source_sha: ${{ steps.source.outputs.sha }}
-      go_sha: ${{ steps.contract.outputs.gateway_commit }}
+      go_sha: ${{ steps.gateway.outputs.sha }}
 
     steps:
       - name: Checkout fn-knock
@@ -81,11 +81,24 @@ jobs:
           sha="$(git rev-parse HEAD)"
           printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
 
+      - name: Checkout Go gateway
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          persist-credentials: false
+
+      - name: Freeze checked-out Go gateway commit
+        id: gateway
+        shell: bash
+        run: printf 'sha=%s\n' "$(git -C Go-Reauth-Proxy rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
   quality:
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
+      FN_KNOCK_GATEWAY_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
       FN_KNOCK_RUSTSEC_ADVISORY_DB: ${{ github.workspace }}/rustsec-advisory-db
@@ -248,6 +261,8 @@ jobs:
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      FN_KNOCK_GATEWAY_COMMIT: ${{ needs.preflight.outputs.go_sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -301,6 +316,8 @@ jobs:
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      FN_KNOCK_GATEWAY_COMMIT: ${{ needs.preflight.outputs.go_sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -432,6 +449,7 @@ jobs:
             protoc_sha256: 193289af0470c6a1aada357d4fba0bbf8d78bfaac8b5e42ca30af2ef75583de2
     runs-on: ${{ matrix.runner }}
     env:
+      FN_KNOCK_GATEWAY_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
       FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
       FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}

@@ -64,11 +64,6 @@ write_fixture
 run_preflight "${TAG}" >/dev/null
 
 write_fixture
-jq '.gatewayCommit = "main"' "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
-mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
-expect_failure "gatewayCommit must be a 40-character lowercase Git commit" run_preflight "${TAG}"
-
-write_fixture
 jq '.releaseChannel = "beta"' "${FIXTURE}/version.json" > "${FIXTURE}/version.json.tmp"
 mv "${FIXTURE}/version.json.tmp" "${FIXTURE}/version.json"
 GITHUB_OUTPUT="${WORK_DIR}/preflight-output.txt" run_preflight "${TAG}" >/dev/null
@@ -108,20 +103,5 @@ jq '.packages["packages/api-contract"].version = "0.0.0"' \
   "${FIXTURE}/package-lock.json" > "${FIXTURE}/package-lock.json.tmp"
 mv "${FIXTURE}/package-lock.json.tmp" "${FIXTURE}/package-lock.json"
 expect_failure "API contract package-lock version mismatch" run_preflight "${TAG}"
-
-GO_FIXTURE="${WORK_DIR}/go-repository"
-mkdir -p "${GO_FIXTURE}"
-git -C "${GO_FIXTURE}" init -q
-git -C "${GO_FIXTURE}" config user.email test@example.invalid
-git -C "${GO_FIXTURE}" config user.name "Release Test"
-printf 'module example.invalid/release-test\n\ngo 1.22\n' > "${GO_FIXTURE}/go.mod"
-git -C "${GO_FIXTURE}" add go.mod
-git -C "${GO_FIXTURE}" commit -qm fixture
-expect_failure \
-  "does not match" \
-  env \
-    FN_KNOCK_GO_SOURCE_COMMIT=0000000000000000000000000000000000000000 \
-    FN_KNOCK_GO_SKIP_TESTS=1 \
-    bash "${ROOT_DIR}/scripts/build-go-release.sh" "${GO_FIXTURE}" "${WORK_DIR}/go-output"
 
 printf '[test-release-preflight] all contract tests passed\n'

@@ -20,32 +20,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read pinned Go gateway commit
-        id: gateway
-        shell: pwsh
-        run: |
-          $commit = (Get-Content version.json -Raw | ConvertFrom-Json).gatewayCommit
-          if ($commit -notmatch '^[0-9a-f]{40}$') {
-            throw "version.json gatewayCommit must be a 40-character lowercase Git commit"
-          }
-          "sha=$commit" >> $env:GITHUB_OUTPUT
-          "FN_KNOCK_GO_SOURCE_COMMIT=$commit" >> $env:GITHUB_ENV
-
-      - name: Checkout pinned Go gateway
+      - name: Checkout Go gateway
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ steps.gateway.outputs.sha }}
           persist-credentials: false
 
-      - name: Verify pinned Go commit
+      - name: Record Go gateway commit
         shell: pwsh
         run: |
           $commit = (git -C Go-Reauth-Proxy rev-parse HEAD).Trim()
-          if ($commit -ne $env:FN_KNOCK_GO_SOURCE_COMMIT) {
-            throw "Go-Reauth-Proxy HEAD does not match version.json gatewayCommit"
-          }
+          "FN_KNOCK_GO_SOURCE_COMMIT=$commit" >> $env:GITHUB_ENV
+          "FN_KNOCK_GATEWAY_COMMIT=$commit" >> $env:GITHUB_ENV
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0

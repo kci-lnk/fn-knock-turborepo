@@ -19,10 +19,8 @@ fail() {
   exit 1
 }
 
-EXPECTED_COMMIT="$(jq -er '.gatewayCommit' "${ROOT_DIR}/version.json")"
-[[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "fixture gateway commit is invalid"
-[ "$(git -C "${GO_REPOSITORY}" rev-parse HEAD)" = "${EXPECTED_COMMIT}" ] || \
-  fail "Go checkout does not match version.json"
+EXPECTED_COMMIT="$(git -C "${GO_REPOSITORY}" rev-parse HEAD)"
+[[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "Go checkout commit is invalid"
 
 mkdir -p "${FAKE_BIN}" "${BUILD_DIR}" "${OUTPUT_DIR}"
 cat > "${FAKE_BIN}/task" <<'EOF'
@@ -50,6 +48,14 @@ FN_KNOCK_TEST_COMMIT_CAPTURE="${CAPTURE_FILE}" \
   fail "shared builder did not persist full commit cache metadata"
 [ -x "${OUTPUT_DIR}/go-reauth-proxy-linux-amd64" ] || \
   fail "shared builder did not prepare the gateway binary"
+
+if grep -Fq 'gatewayCommit' "${ROOT_DIR}/scripts/prepare-go-reauth-proxy.sh"; then
+  fail "shared builder still pins the gateway checkout to version.json"
+fi
+if grep -Fq 'EXPECTED_GATEWAY_COMMIT' \
+  "${ROOT_DIR}/apps/fn-knock-synology/scripts/build-package.sh"; then
+  fail "Synology builder still pins the gateway checkout to version.json"
+fi
 
 if grep -En 'rev-parse[[:space:]]+--short' \
   "${ROOT_DIR}/scripts/prepare-go-reauth-proxy.sh" \

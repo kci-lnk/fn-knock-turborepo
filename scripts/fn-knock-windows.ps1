@@ -20,11 +20,8 @@ if (-not $GoRepository) {
 }
 $GoRepository = (Resolve-Path $GoRepository).Path
 $GoCommit = (git -C $GoRepository rev-parse HEAD).Trim()
-if ($env:FN_KNOCK_GO_SOURCE_COMMIT) {
-  $ExpectedGoCommit = $env:FN_KNOCK_GO_SOURCE_COMMIT.Trim().ToLowerInvariant()
-  if ($ExpectedGoCommit -notmatch '^[0-9a-f]{40}$' -or $GoCommit.ToLowerInvariant() -ne $ExpectedGoCommit) {
-    throw "Go source checkout $GoCommit does not match locked commit $ExpectedGoCommit"
-  }
+if ($GoCommit -notmatch '^[0-9a-f]{40}$') {
+  throw "Invalid Go source checkout commit: $GoCommit"
 }
 $VersionDocument = Get-Content -Raw (Join-Path $Root "version.json") | ConvertFrom-Json
 $Version = [string]$VersionDocument.version

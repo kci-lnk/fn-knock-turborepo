@@ -680,8 +680,7 @@ async fn build_plan(
         "optimizationRemote": optimization_remote,
         "managed": ownership,
     });
-    let fingerprint =
-        crypto_utils::sha256_hex_bytes(serde_json::to_vec(&snapshot).unwrap_or_default());
+    let fingerprint = reconcile_plan_fingerprint(&snapshot, &operations, &conflicts);
     let can_apply = conflicts
         .iter()
         .all(|conflict| conflict.get("takeoverAllowed").and_then(Value::as_bool) == Some(true));
@@ -1460,16 +1459,31 @@ pub(super) async fn upsert_managed_dns(
                 .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
         })
         .or_else(|| {
-            matching
-                .clone()
-                .find(|record| is_fn_knock_dns(record, request.instance_id))
-        })
-        .or_else(|| {
             matching.clone().find(|record| {
-                record.get("type").and_then(Value::as_str) == Some(request.record_type)
+                is_fn_knock_dns(record, request.instance_id)
+                    && (request.record_type != "TXT"
+                        || (record.get("type").and_then(Value::as_str) == Some("TXT")
+                            && dns_content_matches(record, "TXT", request.content)))
             })
         })
-        .or_else(|| matching.into_iter().next());
+        .or_else(|| {
+            // DNS permits multiple TXT records with the same owner name. In
+            // particular, Cloudflare Custom Hostnames can require ownership
+            // and certificate validation tokens at the same
+            // `_acme-challenge` name. Never claim or overwrite an unrelated
+            // TXT record merely because its name matches; create an additive,
+            // instance-marked record for each distinct validation value.
+            if request.record_type != "TXT" {
+                matching
+                    .clone()
+                    .find(|record| {
+                        record.get("type").and_then(Value::as_str) == Some(request.record_type)
+                    })
+                    .or_else(|| matching.into_iter().next())
+            } else {
+                None
+            }
+        });
     let mut body = json!({
         "type": request.record_type,
         "name": request.name,
@@ -1804,6 +1818,199 @@ fn value_fingerprint(value: &Value) -> String {
     crypto_utils::sha256_hex_bytes(serde_json::to_vec(value).unwrap_or_default())
 }
 
+fn reconcile_plan_fingerprint(
+    snapshot: &Value,
+    operations: &[Value],
+    conflicts: &[Value],
+) -> String {
+    let mut desired_hosts = snapshot
+        .get("desiredHosts")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    sort_json_values(&mut desired_hosts);
+
+    let mut stable_operations = operations
+        .iter()
+        .map(|value| canonical_json(value, false))
+        .collect::<Vec<_>>();
+    sort_json_values(&mut stable_operations);
+    let mut stable_conflicts = conflicts
+        .iter()
+        .map(|value| canonical_json(value, false))
+        .collect::<Vec<_>>();
+    sort_json_values(&mut stable_conflicts);
+
+    let tunnel_config = snapshot
+        .pointer("/tunnelConfig/config")
+        .or_else(|| snapshot.get("tunnelConfig"))
+        .map(|value| canonical_json(value, false))
+        .unwrap_or(Value::Null);
+    let managed = snapshot
+        .get("managed")
+        .map(|value| canonical_json(value, true))
+        .unwrap_or(Value::Null);
+
+    value_fingerprint(&json!({
+        "accountId": snapshot.get("accountId").cloned().unwrap_or(Value::Null),
+        "zoneId": snapshot.get("zoneId").cloned().unwrap_or(Value::Null),
+        "zoneName": snapshot.get("zoneName").cloned().unwrap_or(Value::Null),
+        "root": snapshot.get("root").cloned().unwrap_or(Value::Null),
+        "selectedTunnelId": snapshot
+            .get("selectedTunnelId")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "desiredHosts": desired_hosts,
+        "desiredService": snapshot
+            .get("desiredService")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "tunnelConfig": tunnel_config,
+        "wildcardDns": stable_dns_records(
+            snapshot.get("wildcardDns").unwrap_or(&Value::Null)
+        ),
+        "optimizationRemote": stable_optimization_remote(
+            snapshot.get("optimizationRemote").unwrap_or(&Value::Null)
+        ),
+        "managed": managed,
+        "operations": stable_operations,
+        "conflicts": stable_conflicts,
+    }))
+}
+
+fn stable_optimization_remote(value: &Value) -> Value {
+    let mut entries = value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|entry| {
+            let Some(object) = entry.as_object() else {
+                return canonical_json(entry, true);
+            };
+            let mut stable = Map::new();
+            for key in ["name", "hostname"] {
+                if let Some(value) = object.get(key) {
+                    stable.insert(key.to_string(), value.clone());
+                }
+            }
+            if let Some(records) = object.get("dnsRecords") {
+                stable.insert("dnsRecords".to_string(), stable_dns_records(records));
+            }
+            if let Some(hostnames) = object.get("customHostnames") {
+                stable.insert(
+                    "customHostnames".to_string(),
+                    stable_custom_hostnames(hostnames),
+                );
+            }
+            if let Some(fallback) = object.get("fallbackOrigin") {
+                stable.insert(
+                    "fallbackOrigin".to_string(),
+                    fallback.get("origin").cloned().unwrap_or(Value::Null),
+                );
+            }
+            Value::Object(stable)
+        })
+        .collect::<Vec<_>>();
+    sort_json_values(&mut entries);
+    Value::Array(entries)
+}
+
+fn stable_dns_records(value: &Value) -> Value {
+    let mut records = value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|record| {
+            let mut tags = record
+                .get("tags")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            sort_json_values(&mut tags);
+            json!({
+                "id": record.get("id").cloned().unwrap_or(Value::Null),
+                "name": record.get("name").cloned().unwrap_or(Value::Null),
+                "type": record.get("type").cloned().unwrap_or(Value::Null),
+                "content": record.get("content").cloned().unwrap_or(Value::Null),
+                "proxied": record.get("proxied").cloned().unwrap_or(Value::Null),
+                "comment": record.get("comment").cloned().unwrap_or(Value::Null),
+                "tags": tags,
+            })
+        })
+        .collect::<Vec<_>>();
+    sort_json_values(&mut records);
+    Value::Array(records)
+}
+
+fn stable_custom_hostnames(value: &Value) -> Value {
+    let mut hostnames = value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|hostname| {
+            json!({
+                "id": hostname.get("id").cloned().unwrap_or(Value::Null),
+                "hostname": hostname
+                    .get("hostname")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+                "customOriginServer": hostname
+                    .get("custom_origin_server")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            })
+        })
+        .collect::<Vec<_>>();
+    sort_json_values(&mut hostnames);
+    Value::Array(hostnames)
+}
+
+fn canonical_json(value: &Value, remove_volatile_fields: bool) -> Value {
+    match value {
+        Value::Object(object) => {
+            let mut keys = object.keys().collect::<Vec<_>>();
+            keys.sort_unstable();
+            let mut canonical = Map::new();
+            for key in keys {
+                if remove_volatile_fields && volatile_reconcile_field(key) {
+                    continue;
+                }
+                canonical.insert(
+                    key.clone(),
+                    canonical_json(&object[key], remove_volatile_fields),
+                );
+            }
+            Value::Object(canonical)
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| canonical_json(item, remove_volatile_fields))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
+fn volatile_reconcile_field(key: &str) -> bool {
+    matches!(
+        key,
+        "status"
+            | "hostnameStatus"
+            | "sslStatus"
+            | "errors"
+            | "created_at"
+            | "updated_at"
+            | "created_on"
+            | "modified_on"
+    ) || key.ends_with("At")
+        || key.ends_with("AtMs")
+}
+
+fn sort_json_values(values: &mut [Value]) {
+    values.sort_by_key(|value| serde_json::to_string(value).unwrap_or_default());
+}
+
 fn is_fn_knock_dns(record: &Value, instance_id: &str) -> bool {
     let expected_comment = format!("{DNS_COMMENT_PREFIX} ({instance_id})");
     let expected_tag = format!("fn-knock-instance:{instance_id}");
@@ -1986,6 +2193,195 @@ mod tests {
     #[test]
     fn managed_tunnel_uses_dedicated_loopback_ingress() {
         assert_eq!(local_gateway_service(), "http://127.0.0.1:17999");
+    }
+
+    #[test]
+    fn reconcile_fingerprint_ignores_cloudflare_status_churn_and_collection_order() {
+        let operations = vec![operation(
+            "custom-hostname:auth.example.com",
+            "custom-hostname",
+            "recover",
+            "auth.example.com",
+            true,
+        )];
+        let conflicts = vec![json!({
+            "id": "custom-hostname:app.example.com",
+            "kind": "custom-hostname",
+            "target": "app.example.com",
+            "messageCode": "unownedCustomHostname",
+            "takeoverAllowed": true,
+        })];
+        let first = json!({
+            "accountId": "account-id",
+            "zoneId": "zone-id",
+            "zoneName": "example.com",
+            "root": "example.com",
+            "selectedTunnelId": "tunnel-id",
+            "desiredHosts": ["app.example.com", "auth.example.com"],
+            "desiredService": "http://127.0.0.1:17999",
+            "tunnelConfig": {
+                "version": 10,
+                "config": { "ingress": [
+                    { "hostname": "*.example.com", "service": "http://127.0.0.1:17999" },
+                    { "service": "http_status:404" }
+                ] }
+            },
+            "wildcardDns": [{
+                "id": "wildcard-id",
+                "name": "*.example.com",
+                "type": "CNAME",
+                "content": "tunnel-id.cfargotunnel.com",
+                "proxied": true,
+                "comment": "Managed by fn-knock (instance)",
+                "tags": ["fn-knock:managed", "fn-knock-instance:instance"],
+                "modified_on": "2026-08-12T00:00:00Z"
+            }],
+            "optimizationRemote": [
+                { "customHostnames": [
+                    {
+                        "id": "custom-app",
+                        "hostname": "app.example.com",
+                        "custom_origin_server": "fnknock-origin-instance.example.com",
+                        "status": "pending",
+                        "ssl": { "status": "pending_validation" },
+                        "created_at": "2026-08-12T00:00:00Z"
+                    },
+                    {
+                        "id": "custom-auth",
+                        "hostname": "auth.example.com",
+                        "custom_origin_server": "fnknock-origin-instance.example.com",
+                        "status": "active",
+                        "ssl": { "status": "active" }
+                    }
+                ] },
+                { "fallbackOrigin": {
+                    "origin": "fnknock-origin-instance.example.com",
+                    "status": "pending_deployment",
+                    "updated_at": "2026-08-12T00:00:00Z"
+                } },
+                { "hostname": "auth.example.com", "dnsRecords": [{
+                    "id": "auth-dns",
+                    "name": "auth.example.com",
+                    "type": "CNAME",
+                    "content": "fnknock-edge-instance.example.com",
+                    "proxied": false,
+                    "comment": "Managed by fn-knock (instance)",
+                    "tags": ["fn-knock-instance:instance", "fn-knock:managed"],
+                    "modified_on": "2026-08-12T00:00:00Z"
+                }] }
+            ],
+            "managed": { "optimization": {
+                "selected": { "ip": "104.16.1.1", "selectedAt": "2026-08-12T00:00:00Z" },
+                "customHostnames": { "auth.example.com": {
+                    "id": "custom-auth",
+                    "status": "pending",
+                    "hostnameStatus": "pending",
+                    "sslStatus": "pending_validation",
+                    "updatedAt": "2026-08-12T00:00:00Z"
+                } }
+            } }
+        });
+        let mut second = first.clone();
+        second["desiredHosts"] = json!(["auth.example.com", "app.example.com"]);
+        second["tunnelConfig"]["version"] = json!(11);
+        second["wildcardDns"][0]["tags"] =
+            json!(["fn-knock-instance:instance", "fn-knock:managed"]);
+        second["wildcardDns"][0]["modified_on"] = json!("2026-08-12T00:01:00Z");
+        second["optimizationRemote"][0]["customHostnames"]
+            .as_array_mut()
+            .expect("custom hostnames")
+            .reverse();
+        second["optimizationRemote"][0]["customHostnames"][0]["status"] = json!("active");
+        second["optimizationRemote"][0]["customHostnames"][0]["ssl"] =
+            json!({ "status": "active" });
+        second["optimizationRemote"][1]["fallbackOrigin"]["status"] = json!("active");
+        second["optimizationRemote"][1]["fallbackOrigin"]["updated_at"] =
+            json!("2026-08-12T00:01:00Z");
+        second["optimizationRemote"][2]["dnsRecords"][0]["modified_on"] =
+            json!("2026-08-12T00:01:00Z");
+        second["managed"]["optimization"]["customHostnames"]["auth.example.com"]["status"] =
+            json!("active");
+        second["managed"]["optimization"]["customHostnames"]["auth.example.com"]["hostnameStatus"] =
+            json!("active");
+        second["managed"]["optimization"]["customHostnames"]["auth.example.com"]["sslStatus"] =
+            json!("active");
+        second["managed"]["optimization"]["customHostnames"]["auth.example.com"]["updatedAt"] =
+            json!("2026-08-12T00:01:00Z");
+
+        assert_eq!(
+            reconcile_plan_fingerprint(&first, &operations, &conflicts),
+            reconcile_plan_fingerprint(&second, &operations, &conflicts)
+        );
+    }
+
+    #[test]
+    fn reconcile_fingerprint_retains_security_relevant_changes() {
+        let operations = vec![operation(
+            "dns:wildcard-dns",
+            "dns",
+            "update",
+            "*.example.com",
+            true,
+        )];
+        let snapshot = json!({
+            "accountId": "account-id",
+            "zoneId": "zone-id",
+            "zoneName": "example.com",
+            "root": "example.com",
+            "selectedTunnelId": "tunnel-id",
+            "desiredHosts": ["auth.example.com"],
+            "desiredService": "http://127.0.0.1:17999",
+            "tunnelConfig": { "config": { "ingress": [
+                { "hostname": "*.example.com", "service": "http://127.0.0.1:17999" },
+                { "service": "http_status:404" }
+            ] } },
+            "wildcardDns": [{
+                "id": "wildcard-id",
+                "name": "*.example.com",
+                "type": "CNAME",
+                "content": "tunnel-id.cfargotunnel.com",
+                "proxied": true,
+                "comment": "Managed by fn-knock (instance)",
+                "tags": ["fn-knock-instance:instance"]
+            }],
+            "optimizationRemote": [{ "customHostnames": [{
+                "id": "custom-auth",
+                "hostname": "auth.example.com",
+                "custom_origin_server": "fnknock-origin-instance.example.com"
+            }] }],
+            "managed": { "optimization": { "selected": { "ip": "104.16.1.1" } } }
+        });
+        let original = reconcile_plan_fingerprint(&snapshot, &operations, &[]);
+
+        for changed in [
+            {
+                let mut value = snapshot.clone();
+                value["tunnelConfig"]["config"]["ingress"][0]["service"] =
+                    json!("http://127.0.0.1:18000");
+                value
+            },
+            {
+                let mut value = snapshot.clone();
+                value["wildcardDns"][0]["content"] = json!("other.cfargotunnel.com");
+                value
+            },
+            {
+                let mut value = snapshot.clone();
+                value["optimizationRemote"][0]["customHostnames"][0]["custom_origin_server"] =
+                    json!("third-party.example.net");
+                value
+            },
+            {
+                let mut value = snapshot.clone();
+                value["managed"]["optimization"]["selected"]["ip"] = json!("104.16.2.2");
+                value
+            },
+        ] {
+            assert_ne!(
+                original,
+                reconcile_plan_fingerprint(&changed, &operations, &[])
+            );
+        }
     }
 
     #[test]
@@ -2385,6 +2781,87 @@ mod tests {
         .await
         .expect("retry DNS creation without unsupported tags");
         assert_eq!(record["id"], json!("record-id"));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn validation_txt_is_created_without_overwriting_same_name_records() {
+        async fn list_records() -> Json<Value> {
+            Json(json!({
+                "success": true,
+                "result": [
+                    {
+                        "id": "third-party-record",
+                        "name": "_acme-challenge.app.example.com",
+                        "type": "TXT",
+                        "content": "third-party-token",
+                        "proxied": false
+                    },
+                    {
+                        "id": "existing-managed-token",
+                        "name": "_acme-challenge.app.example.com",
+                        "type": "TXT",
+                        "content": "first-cloudflare-token",
+                        "proxied": false,
+                        "comment": "Managed by fn-knock (test)"
+                    }
+                ],
+                "result_info": { "total_pages": 1 }
+            }))
+        }
+
+        async fn create_record(Json(body): Json<Value>) -> Json<Value> {
+            assert_eq!(body["type"], json!("TXT"));
+            assert_eq!(body["content"], json!("second-cloudflare-token"));
+            assert_eq!(body["proxied"], json!(false));
+            Json(json!({
+                "success": true,
+                "result": {
+                    "id": "new-managed-token",
+                    "name": "_acme-challenge.app.example.com",
+                    "type": "TXT",
+                    "content": "second-cloudflare-token",
+                    "proxied": false,
+                    "ttl": 60,
+                    "comment": "Managed by fn-knock (test)"
+                }
+            }))
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock Cloudflare API");
+        let address = listener.local_addr().expect("mock API address");
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    "/zones/zone-id/dns_records",
+                    get(list_records).post(create_record),
+                ),
+            )
+            .await
+            .expect("serve mock Cloudflare API");
+        });
+        let api =
+            CloudflareApi::with_base_url(Client::new(), "test-token", format!("http://{address}"));
+
+        let record = upsert_managed_dns(
+            &api,
+            ManagedDnsRequest {
+                zone_id: "zone-id",
+                name: "_acme-challenge.app.example.com",
+                record_type: "TXT",
+                content: "second-cloudflare-token",
+                proxied: false,
+                owned_id: None,
+                takeover: false,
+                instance_id: "test",
+            },
+        )
+        .await
+        .expect("create a distinct validation TXT record");
+        assert_eq!(record["id"], json!("new-managed-token"));
         server.abort();
     }
 

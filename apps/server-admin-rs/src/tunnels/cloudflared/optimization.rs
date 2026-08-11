@@ -1360,6 +1360,7 @@ pub(super) async fn reconcile_resources(
 
         let validation_records = extract_validation_records(&custom);
         let mut validation_ids = Vec::new();
+        let mut used_validation_dns_ids = HashSet::new();
         let mut activation_conflict = false;
         for (name, value) in validation_records {
             let existing_id = host_state
@@ -1368,6 +1369,11 @@ pub(super) async fn reconcile_resources(
                 .and_then(|records| {
                     records.iter().find(|record| {
                         record.get("name").and_then(Value::as_str) == Some(name.as_str())
+                            && record.get("content").and_then(Value::as_str) == Some(value.as_str())
+                            && record
+                                .get("id")
+                                .and_then(Value::as_str)
+                                .is_some_and(|id| !used_validation_dns_ids.contains(id))
                     })
                 })
                 .and_then(|record| record.get("id"))
@@ -1388,6 +1394,9 @@ pub(super) async fn reconcile_resources(
             .await
             {
                 Ok(record) => {
+                    if let Some(id) = record.get("id").and_then(Value::as_str) {
+                        used_validation_dns_ids.insert(id.to_string());
+                    }
                     validation_ids.push(record);
                     ensure_object(&mut host_state)
                         .insert("validationDns".to_string(), json!(validation_ids));

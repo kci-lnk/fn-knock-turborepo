@@ -24,13 +24,17 @@ is_positive_integer() {
     esac
 }
 
-pid_is_running() {
+pid_exists() {
     [ -r "${PID_FILE}" ] || return 1
     PID="$(cat "${PID_FILE}" 2>/dev/null)"
     case "${PID}" in
         ''|*[!0-9]*) return 1 ;;
     esac
-    kill -0 "${PID}" 2>/dev/null || return 1
+    kill -0 "${PID}" 2>/dev/null
+}
+
+pid_is_running() {
+    pid_exists || return 1
     [ -r "/proc/${PID}/cmdline" ] || return 0
     tr '\000' ' ' < "/proc/${PID}/cmdline" | grep -q 'fn-knock-entrypoint'
 }
@@ -188,14 +192,24 @@ start_service() {
     started_at="$(date '+%s')"
     deadline=$((started_at + START_TIMEOUT_SECONDS))
     while [ "$(date '+%s')" -lt "${deadline}" ]; do
-        if ! pid_is_running; then
+        # Immediately after the background fork, Linux may briefly expose the
+        # parent shell command line before nohup/setsid execs the entrypoint.
+        # Treat the recorded PID as starting while it still exists, then
+        # require the expected entrypoint once readiness succeeds.
+        if ! pid_exists; then
             rm -f "${PID_FILE}"
             printf 'fn-knock exited during startup; see %s\n' "${LOG_FILE}" \
                 > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             return 1
         fi
         if curl -fsS --max-time 5 "${READINESS_URL}" >/dev/null 2>&1; then
-            return 0
+            if pid_is_running; then
+                return 0
+            fi
+            stop_service || true
+            printf 'fn-knock readiness responded but the supervisor process was invalid; see %s\n' \
+                "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            return 1
         fi
         sleep 1
     done

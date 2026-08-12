@@ -75,6 +75,9 @@ describe("FPK Lite runtime behavior", () => {
         "",
         "# fn-knock 2.1.6",
         "",
+        "> [!IMPORTANT]",
+        "> **这是一个紧急修复版本。** 建议尽快升级。",
+        "",
         "- 修复 <安全>",
         "- 查看 [文档](https://docs.fnknock.cn/)",
         "",
@@ -83,6 +86,19 @@ describe("FPK Lite runtime behavior", () => {
       "暂无日志",
     );
     assert.match(releaseNotes, /<h4>fn-knock 2\.1\.6<\/h4>/u);
+    assert.match(
+      releaseNotes,
+      /<aside class="release-note-alert release-note-alert--important" aria-label="Important">/u,
+    );
+    assert.match(
+      releaseNotes,
+      /<p class="release-note-alert__title">Important<\/p>/u,
+    );
+    assert.match(
+      releaseNotes,
+      /<p><strong>这是一个紧急修复版本。<\/strong> 建议尽快升级。<\/p>/u,
+    );
+    assert.doesNotMatch(releaseNotes, /&gt; \[!IMPORTANT\]/u);
     assert.match(releaseNotes, /<ul><li>修复 &lt;安全&gt;<\/li>/u);
     assert.match(releaseNotes, /<hr>/u);
     assert.match(

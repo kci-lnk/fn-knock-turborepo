@@ -11,6 +11,19 @@ const renderStrongText = (value: string): string =>
 
 const LINK_PATTERN = /(?<!!)\[([^\]\n]+)\]\((https?:\/\/[^\s<>"')]+)\)/gu;
 
+const ALERT_PATTERN =
+  /^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/iu;
+
+const ALERT_LABELS = {
+  note: "Note",
+  tip: "Tip",
+  important: "Important",
+  warning: "Warning",
+  caution: "Caution",
+} as const;
+
+type AlertKind = keyof typeof ALERT_LABELS;
+
 const renderInline = (source: string): string => {
   let html = "";
   let cursor = 0;
@@ -42,6 +55,10 @@ export const renderReleaseNotesHtml = (
   fallback: string,
 ): string => {
   const source = (releaseNotes || fallback).trim().replace(/\r\n?/gu, "\n");
+  return renderBlocks(source.split("\n"));
+};
+
+const renderBlocks = (lines: string[]): string => {
   const html: string[] = [];
   let paragraph: string[] = [];
   let listItems: string[] = [];
@@ -60,11 +77,36 @@ export const renderReleaseNotesHtml = (
     listItems = [];
   };
 
-  for (const line of source.split("\n")) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? "";
     const trimmed = line.trim();
     if (!trimmed) {
       flushParagraph();
       flushList();
+      continue;
+    }
+
+    const alert = trimmed.match(ALERT_PATTERN);
+    if (alert) {
+      flushParagraph();
+      flushList();
+
+      const alertLines: string[] = [];
+      while (lineIndex + 1 < lines.length) {
+        const quotedLine = (lines[lineIndex + 1] ?? "").match(/^\s*>\s?(.*)$/u);
+        if (!quotedLine) break;
+        alertLines.push(quotedLine[1] ?? "");
+        lineIndex += 1;
+      }
+
+      const kind = (alert[1] ?? "note").toLowerCase() as AlertKind;
+      const label = ALERT_LABELS[kind];
+      html.push(
+        `<aside class="release-note-alert release-note-alert--${kind}" aria-label="${label}">` +
+          `<p class="release-note-alert__title">${label}</p>` +
+          `<div class="release-note-alert__body">${renderBlocks(alertLines)}</div>` +
+          "</aside>",
+      );
       continue;
     }
 

@@ -40,6 +40,65 @@ const html = computed(() =>
   margin-block: 0.75rem;
 }
 
+.release-notes-markdown :deep(.release-note-alert) {
+  --release-note-alert-color: #0969da;
+
+  margin-block: 1rem;
+  padding: 0.8rem 0.9rem;
+  border-left: 0.25rem solid var(--release-note-alert-color);
+  border-radius: 0.35rem;
+  background: color-mix(
+    in oklch,
+    var(--release-note-alert-color) 9%,
+    transparent
+  );
+}
+
+.release-notes-markdown :deep(.release-note-alert--tip) {
+  --release-note-alert-color: #1a7f37;
+}
+
+.release-notes-markdown :deep(.release-note-alert--important) {
+  --release-note-alert-color: #8250df;
+}
+
+.release-notes-markdown :deep(.release-note-alert--warning) {
+  --release-note-alert-color: #9a6700;
+}
+
+.release-notes-markdown :deep(.release-note-alert--caution) {
+  --release-note-alert-color: #d1242f;
+}
+
+.release-notes-markdown :deep(.release-note-alert__title) {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-block: 0 0.4rem;
+  color: var(--release-note-alert-color);
+  font-weight: 650;
+}
+
+.release-notes-markdown :deep(.release-note-alert__title::before) {
+  display: inline-grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  border: 1.5px solid currentcolor;
+  border-radius: 999px;
+  content: "!";
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.release-notes-markdown :deep(.release-note-alert__body > :first-child) {
+  margin-top: 0;
+}
+
+.release-notes-markdown :deep(.release-note-alert__body > :last-child) {
+  margin-bottom: 0;
+}
+
 .release-notes-markdown :deep(ul) {
   margin-block: 0.75rem;
   padding-inline-start: 1.4rem;

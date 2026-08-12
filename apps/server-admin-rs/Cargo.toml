@@ -1,7 +1,7 @@
 [package]
 name = "server-admin-rs"
 # Crate metadata only. The fn-knock product version is defined in ../../version.json.
-version = "2.2.3"
+version = "2.2.5"
 edition = "2024"
 
 [profile.release]

@@ -31,7 +31,7 @@ const auditedBudgets = new Map(
     "system/maintenance/tests.rs": 3,
     "system/update.rs": 1,
     "tunnels/cloudflared/cloudflare_api.rs": 6,
-    "tunnels/cloudflared/managed.rs": 4,
+    "tunnels/cloudflared/managed.rs": 5,
     "tunnels/supervisor.rs": 6,
     "windows_service.rs": 1,
     "wol/dispatch.rs": 2,

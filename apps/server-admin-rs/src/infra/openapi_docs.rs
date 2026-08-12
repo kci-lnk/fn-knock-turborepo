@@ -4256,6 +4256,7 @@ mod tests {
         assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/swagger-ui-bundle.js"));
         assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/swagger-ui-standalone-preset.js"));
         assert!(OPENAPI_DOCS_INDEX.contains("layout: \"StandaloneLayout\""));
+        assert!(OPENAPI_DOCS_INDEX.contains("validatorUrl: null"));
         assert!(OPENAPI_DOCS_INDEX.contains("SwaggerUIStandalonePreset"));
         assert!(!OPENAPI_DOCS_INDEX.contains("fn-knock API Explorer"));
         assert!(!OPENAPI_DOCS_INDEX.contains("docs-hero"));
@@ -5420,6 +5421,18 @@ mod tests {
         );
         assert_eq!(
             document.pointer(
+                "/paths/~1api~1admin~1notifications~1providers~1{id}~1test/post/parameters/0"
+            ),
+            Some(&json!({
+                "description": "Notification provider identifier",
+                "in": "path",
+                "name": "id",
+                "required": true,
+                "schema": { "type": "string" }
+            }))
+        );
+        assert_eq!(
+            document.pointer(
                 "/components/schemas/NotificationRuleCreateBodyData/properties/targets/minItems"
             ),
             Some(&json!(1))
@@ -6390,11 +6403,44 @@ mod tests {
     #[test]
     fn path_parameters_are_declared() {
         let document = document_value();
-        let parameters = document
-            .pointer("/paths/~1api~1admin~1notifications~1providers~1{id}/delete/parameters")
-            .and_then(Value::as_array)
-            .expect("provider id parameters");
-        assert!(parameters.iter().any(|parameter| parameter["name"] == "id"));
+        let paths = document["paths"].as_object().expect("OpenAPI paths");
+        for (path, path_item) in paths {
+            let expected = path_parameters(path);
+            if expected.is_empty() {
+                continue;
+            }
+            let path_item = path_item.as_object().expect("OpenAPI path item");
+            let path_level = path_item
+                .get("parameters")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten();
+            for method in [
+                "get", "put", "post", "delete", "options", "head", "patch", "trace",
+            ] {
+                let Some(operation) = path_item.get(method).and_then(Value::as_object) else {
+                    continue;
+                };
+                let operation_level = operation
+                    .get("parameters")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten();
+                let declared = path_level
+                    .clone()
+                    .chain(operation_level)
+                    .filter(|parameter| parameter["in"] == "path")
+                    .filter_map(|parameter| parameter["name"].as_str())
+                    .collect::<BTreeSet<_>>();
+                for parameter in &expected {
+                    let name = parameter["name"].as_str().expect("path parameter name");
+                    assert!(
+                        declared.contains(name),
+                        "{method} {path} must declare path parameter {name}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

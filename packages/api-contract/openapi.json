@@ -37272,6 +37272,17 @@
     "/api/admin/notifications/providers/{id}/test": {
       "post": {
         "operationId": "post_api_admin_notifications_providers_id_test",
+        "parameters": [
+          {
+            "description": "Notification provider identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

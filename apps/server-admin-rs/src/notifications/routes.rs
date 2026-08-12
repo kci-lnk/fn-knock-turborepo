@@ -323,7 +323,7 @@ async fn delete_provider(State(state): State<AppState>, Path(id): Path<String>) 
     }
 }
 
-#[utoipa::path(post, path = "/api/admin/notifications/providers/{id}/test", tag = "notifications", operation_id = "post_api_admin_notifications_providers_id_test", responses((status = 200, description = "Notification provider test result")))]
+#[utoipa::path(post, path = "/api/admin/notifications/providers/{id}/test", tag = "notifications", operation_id = "post_api_admin_notifications_providers_id_test", params(("id" = String, Path, description = "Notification provider identifier")), responses((status = 200, description = "Notification provider test result")))]
 async fn test_provider(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
     match load_provider(&state, &id).await {

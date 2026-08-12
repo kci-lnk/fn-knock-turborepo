@@ -5,6 +5,7 @@
 
 use std::{
     env, fs,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
 };
 
@@ -55,6 +56,44 @@ fn main() {
         app_version_source(&metadata),
     )
     .expect("write generated app version");
+    write_swagger_ui_assets(&out_dir);
+}
+
+fn write_swagger_ui_assets(out_dir: &Path) {
+    const ASSETS: [(&str, &str); 6] = [
+        ("/dist/swagger-ui.css", "swagger-ui.css"),
+        ("/dist/index.css", "index.css"),
+        ("/dist/swagger-ui-bundle.js", "swagger-ui-bundle.js"),
+        (
+            "/dist/swagger-ui-standalone-preset.js",
+            "swagger-ui-standalone-preset.js",
+        ),
+        ("/dist/favicon-16x16.png", "favicon-16x16.png"),
+        ("/dist/favicon-32x32.png", "favicon-32x32.png"),
+    ];
+
+    let reader = Cursor::new(utoipa_swagger_ui_vendored::SWAGGER_UI_VENDORED);
+    let mut archive = zip::ZipArchive::new(reader).expect("open vendored Swagger UI archive");
+
+    for (source_suffix, output_name) in ASSETS {
+        let index = (0..archive.len())
+            .find(|index| {
+                archive
+                    .by_index(*index)
+                    .map(|file| file.name().ends_with(source_suffix))
+                    .unwrap_or(false)
+            })
+            .unwrap_or_else(|| panic!("vendored Swagger UI is missing {source_suffix}"));
+        let mut source = archive
+            .by_index(index)
+            .unwrap_or_else(|_| panic!("read vendored Swagger UI asset {source_suffix}"));
+        let mut bytes = Vec::with_capacity(source.size() as usize);
+        source
+            .read_to_end(&mut bytes)
+            .unwrap_or_else(|_| panic!("extract vendored Swagger UI asset {source_suffix}"));
+        fs::write(out_dir.join(output_name), bytes)
+            .unwrap_or_else(|_| panic!("write vendored Swagger UI asset {output_name}"));
+    }
 }
 
 fn load_app_metadata(path: &Path) -> AppMetadata {

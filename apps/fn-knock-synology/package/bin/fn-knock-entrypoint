@@ -24,7 +24,9 @@ GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
 MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
 
 write_pid_file() {
-  local path="$1" pid="$2" temp="${path}.tmp-$$"
+  local path="$1"
+  local pid="$2"
+  local temp="${path}.tmp-$$"
   mkdir -p "${RUNTIME_PID_DIR}"
   chmod 700 "${DATA_DIR}/runtime" "${RUNTIME_PID_DIR}" 2>/dev/null || true
   printf '%s\n' "${pid}" > "${temp}"
@@ -64,8 +66,8 @@ supervisor_log() {
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
   chmod 600 "${hint_tmp}" 2>/dev/null || true
   mv -f "${hint_tmp}" "${hint_path}"
-  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \\; 2>/dev/null || true
-  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \\; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \; 2>/dev/null || true
   local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
   while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
   local temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp)

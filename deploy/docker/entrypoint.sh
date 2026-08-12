@@ -49,8 +49,8 @@ supervisor_log() {
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${level}" "${component}" "${event}" "${reason}" "${exit_code}" "${signal}" > "${hint_tmp}"
   chmod 600 "${hint_tmp}" 2>/dev/null || true
   mv -f "${hint_tmp}" "${hint_path}"
-  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \\; 2>/dev/null || true
-  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \\; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \; 2>/dev/null || true
+  find "${SUPERVISOR_EVENTS_DIR}" -type f -name '.hint-*.tmp' -mtime +1 -exec rm -f {} \; 2>/dev/null || true
   local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
   while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
   local temp_hints=("${SUPERVISOR_EVENTS_DIR}"/.hint-*.tmp)

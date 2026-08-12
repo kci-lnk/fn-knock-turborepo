@@ -77,7 +77,6 @@ url = "2.5"
 uuid = { version = "1.19", features = ["v4"] }
 utoipa = "5.4.0"
 utoipa-axum = "0.2.0"
-utoipa-swagger-ui = { version = "9.0.2", default-features = false, features = ["axum", "vendored"] }
 webauthn-rs = { version = "0.6.1-dev", features = ["danger-allow-state-serialisation", "danger-credential-internals", "workaround-google-passkey-specific-issues"] }
 webauthn-rs-core = "0.6.1-dev"
 x509-parser = "0.18"
@@ -108,3 +107,5 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring"]
 protoc-bin-vendored = "3"
 serde_json = "1.0"
 tonic-build = "0.12"
+utoipa-swagger-ui-vendored = "0.1.2"
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }

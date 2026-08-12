@@ -1,10 +1,16 @@
 use std::collections::BTreeSet;
 
-use axum::Router;
+use axum::{
+    Extension, Router,
+    body::Bytes,
+    extract::Path,
+    http::{StatusCode, header},
+    response::{Html, IntoResponse},
+    routing::get,
+};
 use serde_json::{Map, Value, json};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
-use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{app_version::APP_LOCAL_VERSION, state::AppState};
 
@@ -24,10 +30,54 @@ struct ApiErrorEnvelope {
 #[openapi(components(schemas(ApiErrorEnvelope)))]
 struct ContractSchemas;
 
+const OPENAPI_DOCS_INDEX: &str = include_str!("openapi_docs/index.html");
+const SWAGGER_UI_STYLESHEET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/swagger-ui.css"));
+const SWAGGER_UI_INDEX_STYLESHEET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/index.css"));
+const SWAGGER_UI_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/swagger-ui-bundle.js"));
+const SWAGGER_UI_STANDALONE_PRESET: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/swagger-ui-standalone-preset.js"));
+const SWAGGER_UI_FAVICON_16: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/favicon-16x16.png"));
+const SWAGGER_UI_FAVICON_32: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/favicon-32x32.png"));
+
 pub fn openapi_docs_routes() -> Router<AppState> {
-    let swagger =
-        SwaggerUi::new("/docs").external_url_unchecked("/docs/json", build_openapi_document());
-    Router::new().merge(swagger)
+    let document = Bytes::from(
+        serde_json::to_vec(&build_openapi_document())
+            .expect("generated OpenAPI document must serialize"),
+    );
+
+    Router::new()
+        .route("/docs", get(openapi_docs_index))
+        .route("/docs/", get(openapi_docs_index))
+        .route("/docs/json", get(openapi_docs_json))
+        .route("/docs/assets/{asset}", get(swagger_ui_asset))
+        .layer(Extension(document))
+}
+
+async fn openapi_docs_index() -> Html<&'static str> {
+    Html(OPENAPI_DOCS_INDEX)
+}
+
+async fn openapi_docs_json(Extension(document): Extension<Bytes>) -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+        document,
+    )
+}
+
+async fn swagger_ui_asset(Path(asset): Path<String>) -> impl IntoResponse {
+    let (content_type, bytes) = match asset.as_str() {
+        "swagger-ui.css" => ("text/css; charset=utf-8", SWAGGER_UI_STYLESHEET),
+        "index.css" => ("text/css; charset=utf-8", SWAGGER_UI_INDEX_STYLESHEET),
+        "swagger-ui-bundle.js" => ("application/javascript; charset=utf-8", SWAGGER_UI_BUNDLE),
+        "swagger-ui-standalone-preset.js" => (
+            "application/javascript; charset=utf-8",
+            SWAGGER_UI_STANDALONE_PRESET,
+        ),
+        "favicon-16x16.png" => ("image/png", SWAGGER_UI_FAVICON_16),
+        "favicon-32x32.png" => ("image/png", SWAGGER_UI_FAVICON_32),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    ([(header::CONTENT_TYPE, content_type)], bytes).into_response()
 }
 
 pub(crate) fn build_openapi_document() -> Value {
@@ -4196,6 +4246,26 @@ mod tests {
 
     fn document_value() -> Value {
         build_openapi_document()
+    }
+
+    #[test]
+    fn docs_ui_preserves_swagger_defaults_with_local_assets() {
+        assert!(OPENAPI_DOCS_INDEX.contains("<title>Swagger UI</title>"));
+        assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/swagger-ui.css"));
+        assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/index.css"));
+        assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/swagger-ui-bundle.js"));
+        assert!(OPENAPI_DOCS_INDEX.contains("/docs/assets/swagger-ui-standalone-preset.js"));
+        assert!(OPENAPI_DOCS_INDEX.contains("layout: \"StandaloneLayout\""));
+        assert!(OPENAPI_DOCS_INDEX.contains("SwaggerUIStandalonePreset"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("fn-knock API Explorer"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("docs-hero"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("filter: true"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("docExpansion"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("cdn.jsdelivr.net"));
+        assert!(!OPENAPI_DOCS_INDEX.contains("unpkg.com"));
+        assert!(SWAGGER_UI_STYLESHEET.len() > 100_000);
+        assert!(SWAGGER_UI_BUNDLE.len() > 1_000_000);
+        assert!(SWAGGER_UI_STANDALONE_PRESET.len() > 200_000);
     }
 
     #[test]

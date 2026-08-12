@@ -61,7 +61,11 @@ printf 'appname=fn-knock\nversion=%s\nplatform=x86\n' "${VERSION}" > "${SOURCE_D
 printf '#!/bin/sh\nexit 0\n' > "${SOURCE_DIR}/cmd/main"
 printf '#!/bin/sh\nexit 0\n' > "${SOURCE_DIR}/app/ui/index.cgi"
 printf '<html>admin</html>\n' > "${RUNTIME_DIR}/ui/www/index.html"
+printf 'admin-gzip\n' > "${RUNTIME_DIR}/ui/www/index.html.gz"
+printf 'admin-brotli\n' > "${RUNTIME_DIR}/ui/www/index.html.br"
 printf '<html>auth</html>\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html"
+printf 'auth-gzip\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html.gz"
+printf 'auth-brotli\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html.br"
 printf 'fixture\n' > "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip"
 chmod 755 "${SOURCE_DIR}/cmd/main" "${SOURCE_DIR}/app/ui/index.cgi"
 
@@ -105,6 +109,17 @@ run_fpk_with_extra_gateway() {
 run_fpk >/dev/null
 [ -s "${ARTIFACTS_DIR}/fpk/fn-knock-${VERSION}-fnos-amd64.fpk" ] || fail "amd64 FPK is missing"
 [ -s "${ARTIFACTS_DIR}/fpk/fn-knock-${VERSION}-fnos-arm64.fpk" ] || fail "arm64 FPK is missing"
+payload_listing="$({
+  tar -xOzf "${ARTIFACTS_DIR}/fpk/fn-knock-${VERSION}-fnos-amd64.fpk" app.tgz |
+    tar -tzf -
+})"
+printf '%s\n' "${payload_listing}" | grep -Eq '(^|/)ui/www/index\.html\.br$' || \
+  fail "amd64 FPK is missing the admin Brotli sidecar"
+printf '%s\n' "${payload_listing}" | grep -Eq '(^|/)server-auth-view/dist/index\.html\.br$' || \
+  fail "amd64 FPK is missing the auth Brotli sidecar"
+if printf '%s\n' "${payload_listing}" | grep -Eq '\.gz$'; then
+  fail "FPK must omit redundant gzip web sidecars"
+fi
 
 expect_failure "unexpected FPK platform" run_fpk_wrong_platform
 expect_failure \

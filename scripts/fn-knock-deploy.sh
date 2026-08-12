@@ -259,6 +259,13 @@ rm -rf "${build_dir}"
 mkdir -p "${build_dir}"
 rsync -a --delete "${source_dir}/" "${build_dir}/"
 
+# fnpack wraps app/ in a gzip archive, so gzip sidecars barely compress again.
+# Retain Brotli sidecars plus the original files for transparent fallback.
+find \
+  "${build_dir}/app/ui/www" \
+  "${build_dir}/app/server-auth-view/dist" \
+  -type f -name '*.gz' -delete
+
 for bin in "${gateway_bins[@]}"; do
   if [ "${bin}" != "${keep_bin}" ]; then
     rm -f "${build_dir}/app/server/${bin}"

@@ -121,8 +121,13 @@ build_arch() {
     "${stage}/app/server-auth-view/dist" \
     "${stage}/app/server/server-admin/resources" \
     "${stage}/app/server"
-  rsync -a "${RUNTIME_DIR}/ui/www/" "${stage}/app/ui/www/"
-  rsync -a "${RUNTIME_DIR}/server-auth-view/dist/" "${stage}/app/server-auth-view/dist/"
+  # The FPK payload is already gzip-compressed as app.tgz. Shipping raw,
+  # Brotli, and gzip copies of every web asset adds a third largely
+  # incompressible copy. Keep Brotli for modern clients and the raw file as
+  # the universal fallback; omit only the redundant gzip sidecars from FPKs.
+  rsync -a --exclude '*.gz' "${RUNTIME_DIR}/ui/www/" "${stage}/app/ui/www/"
+  rsync -a --exclude '*.gz' \
+    "${RUNTIME_DIR}/server-auth-view/dist/" "${stage}/app/server-auth-view/dist/"
   cp "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip" \
     "${stage}/app/server/server-admin/resources/acmesh.zip"
   cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-${arch}" \

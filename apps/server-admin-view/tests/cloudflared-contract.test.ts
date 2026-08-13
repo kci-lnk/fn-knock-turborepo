@@ -23,6 +23,7 @@ type Schema = {
 type Operation = {
   "x-fn-knock-contract-source"?: string;
   parameters?: Array<{ name?: string; schema?: Schema }>;
+  requestBody?: { required?: boolean };
 };
 
 const contract = JSON.parse(
@@ -128,8 +129,20 @@ describe("Cloudflared API contract", () => {
       "multi-doh",
       "official-ranges",
       "current-candidate",
+      "preferred-ip",
       "unavailable",
     ]);
+    const scanBody =
+      contract.components.schemas.CloudflareOptimizationScanBodyData;
+    assert.equal(
+      contract.paths["/api/admin/cloudflared/optimization/scans"].post
+        .requestBody?.required,
+      false,
+    );
+    assert.equal(scanBody.properties?.preferredIp?.format, "ipv4");
+    assert.equal(scan.properties?.preferredIp?.format, "ipv4");
+    assert.ok(scan.required?.includes("preferredIp"));
+    assert.ok(scan.required?.includes("preferredIpValidated"));
     const reconcileJob =
       contract.components.schemas.CloudflareReconcileJobData;
     assert.equal(reconcileJob.properties?.progress?.minimum, 0);
@@ -168,6 +181,7 @@ describe("Cloudflared API contract", () => {
       "CloudflaredConfigUpdateData",
       "CloudflareCredentialBodyData",
       "CloudflareReconcileRequestData",
+      "CloudflareOptimizationScanBodyData",
       "CloudflareOptimizationSourceSettingsBodyData",
     ]) {
       assert.match(api, new RegExp(`\\["${schema}"\\]`, "u"), schema);

@@ -65,6 +65,8 @@ type CloudflareReconcileRequest =
   TunnelSchemas["CloudflareReconcileRequestData"];
 type CloudflareReconcileApplyBody =
   TunnelSchemas["CloudflareReconcileApplyBodyData"];
+type CloudflareOptimizationScanBody =
+  TunnelSchemas["CloudflareOptimizationScanBodyData"];
 type CloudflareOptimizationSourceSettingsBody =
   TunnelSchemas["CloudflareOptimizationSourceSettingsBodyData"];
 type CloudflareOptimizationDomainBody =
@@ -289,8 +291,13 @@ export const CloudflaredAPI = {
     );
     return res.data.data;
   },
-  async startOptimizationScan(): Promise<CloudflareOptimizationScan> {
-    const res = await apiClient.post("/cloudflared/optimization/scans");
+  async startOptimizationScan(
+    payload: CloudflareOptimizationScanBody = {},
+  ): Promise<CloudflareOptimizationScan> {
+    const res = await apiClient.post(
+      "/cloudflared/optimization/scans",
+      payload,
+    );
     return res.data.data;
   },
   async saveOptimizationSourceSettings(

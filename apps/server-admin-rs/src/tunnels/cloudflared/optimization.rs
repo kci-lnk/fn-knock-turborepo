@@ -194,6 +194,13 @@ struct OptimizationDomainSettings {
     external_hostnames: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartOptimizationScanRequest {
+    #[serde(default)]
+    preferred_ip: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateOptimizationDomainRequest {
@@ -2643,10 +2650,12 @@ async fn relinquish_optimization_host(
 async fn run_scan(
     state: &AppState,
     job_id: Option<&str>,
+    preferred_ip: Option<Ipv4Addr>,
 ) -> Result<OptimizationScanResult, CloudflareApiError> {
     let settings = load_source_settings(state).await?;
     let source_fingerprint = source_settings_fingerprint(&settings);
     let prefixes = load_cloudflare_prefixes(state).await;
+    let preferred_ip = preferred_ip.filter(|ip| candidate_ip_is_cloudflare(*ip, &prefixes));
     let ownership = load_managed_state(state).await;
     let current_ip = ownership
         .pointer("/optimization/selected/ip")
@@ -2659,7 +2668,13 @@ async fn run_scan(
         if seeds.is_empty() {
             resolution_path = "current-candidate".to_string();
         }
-        merge_current_candidate_seed(&mut seeds, ip);
+        merge_priority_candidate_seed(&mut seeds, ip, "current");
+    }
+    if let Some(ip) = preferred_ip {
+        if seeds.is_empty() {
+            resolution_path = "preferred-ip".to_string();
+        }
+        merge_priority_candidate_seed(&mut seeds, ip, "preferred-ip");
     }
     if seeds.is_empty() {
         let mut runtime = load_runtime(state).await;
@@ -2775,18 +2790,14 @@ async fn run_scan(
             .partial_cmp(&right.median_latency_ms)
             .unwrap_or(Ordering::Equal)
     });
-    if let Some(current_ip) = current_ip.map(|ip| ip.to_string())
-        && let Some(position) = results
-            .iter()
-            .position(|candidate| candidate.ip == current_ip)
-        && position >= DOWNLOAD_SHORTLIST
-    {
-        let current = results.remove(position);
-        results.truncate(DOWNLOAD_SHORTLIST.saturating_sub(1));
-        results.push(current);
-    } else {
-        results.truncate(DOWNLOAD_SHORTLIST);
-    }
+    retain_shortlist_with_priority(
+        &mut results,
+        &[preferred_ip, current_ip]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        DOWNLOAD_SHORTLIST,
+    );
     if let Some(job_id) = job_id {
         update_job(
             state,
@@ -3010,21 +3021,84 @@ fn merge_candidate_seed(
     });
 }
 
-fn merge_current_candidate_seed(seeds: &mut Vec<CandidateSeed>, ip: Ipv4Addr) {
+fn merge_priority_candidate_seed(seeds: &mut Vec<CandidateSeed>, ip: Ipv4Addr, source_type: &str) {
     if let Some(seed) = seeds.iter_mut().find(|seed| seed.ip == ip) {
-        if !seed.source_types.iter().any(|value| value == "current") {
-            seed.source_types.push("current".to_string());
+        if !seed.source_types.iter().any(|value| value == source_type) {
+            seed.source_types.push(source_type.to_string());
         }
         return;
     }
     if seeds.len() >= MAX_CANDIDATES {
-        seeds.pop();
+        let Some(position) = seeds.iter().rposition(|seed| {
+            !seed
+                .source_types
+                .iter()
+                .any(|source_type| matches!(source_type.as_str(), "current" | "preferred-ip"))
+        }) else {
+            return;
+        };
+        seeds.remove(position);
     }
     seeds.push(CandidateSeed {
         ip,
-        source_types: vec!["current".to_string()],
+        source_types: vec![source_type.to_string()],
         source_hostnames: Vec::new(),
     });
+}
+
+fn retain_shortlist_with_priority(
+    candidates: &mut Vec<OptimizationCandidate>,
+    priority_ips: &[Ipv4Addr],
+    limit: usize,
+) {
+    let mut priorities = Vec::new();
+    for ip in priority_ips {
+        let ip = ip.to_string();
+        if priorities
+            .iter()
+            .any(|candidate: &OptimizationCandidate| candidate.ip == ip)
+        {
+            continue;
+        }
+        if let Some(position) = candidates.iter().position(|candidate| candidate.ip == ip) {
+            priorities.push(candidates.remove(position));
+        }
+    }
+    priorities.truncate(limit);
+    candidates.truncate(limit.saturating_sub(priorities.len()));
+    candidates.extend(priorities);
+}
+
+fn normalize_preferred_ip(
+    value: Option<&str>,
+    prefixes: &[Ipv4Net],
+) -> Result<Option<Ipv4Addr>, String> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    let ip = value
+        .parse::<Ipv4Addr>()
+        .map_err(|_| "Preferred IP must be a valid IPv4 address".to_string())?;
+    if !candidate_ip_is_cloudflare(ip, prefixes) {
+        return Err("Preferred IP must belong to an official Cloudflare IPv4 range".to_string());
+    }
+    Ok(Some(ip))
+}
+
+fn select_recommended_candidate(
+    candidates: &[OptimizationCandidate],
+    preferred_ip: Option<Ipv4Addr>,
+) -> (Option<String>, Option<bool>) {
+    let Some(preferred_ip) = preferred_ip.map(|ip| ip.to_string()) else {
+        return (
+            candidates.first().map(|candidate| candidate.ip.clone()),
+            None,
+        );
+    };
+    let validated = candidates
+        .iter()
+        .any(|candidate| candidate.ip == preferred_ip && candidate.business_validated);
+    (validated.then_some(preferred_ip), Some(validated))
 }
 
 async fn probe_local_vantage(state: &AppState) -> Value {
@@ -3589,12 +3663,138 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let current = Ipv4Addr::new(104, 17, 1, 1);
-        merge_current_candidate_seed(&mut seeds, current);
+        merge_priority_candidate_seed(&mut seeds, current, "current");
         assert_eq!(seeds.len(), MAX_CANDIDATES);
         assert!(
             seeds
                 .iter()
                 .any(|seed| seed.ip == current && seed.source_types == vec!["current"])
+        );
+    }
+
+    #[test]
+    fn current_and_preferred_seeds_survive_the_global_seed_limit() {
+        let mut seeds = (0..MAX_CANDIDATES)
+            .map(|index| CandidateSeed {
+                ip: Ipv4Addr::new(104, 16, (index / 256) as u8, index as u8),
+                source_types: vec!["official-range".to_string()],
+                source_hostnames: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let current = Ipv4Addr::new(104, 17, 1, 1);
+        let preferred = Ipv4Addr::new(104, 17, 1, 2);
+
+        merge_priority_candidate_seed(&mut seeds, current, "current");
+        merge_priority_candidate_seed(&mut seeds, preferred, "preferred-ip");
+
+        assert_eq!(seeds.len(), MAX_CANDIDATES);
+        assert!(seeds.iter().any(|seed| seed.ip == current));
+        assert!(seeds.iter().any(|seed| seed.ip == preferred));
+    }
+
+    #[test]
+    fn preferred_ip_must_be_a_cloudflare_ipv4_address() {
+        let prefixes = parse_prefixes(&CLOUDFLARE_IPV4_FALLBACK.join("\n"));
+        assert_eq!(
+            normalize_preferred_ip(Some(" 104.18.26.94 "), &prefixes),
+            Ok(Some("104.18.26.94".parse().expect("valid Cloudflare IP")))
+        );
+        assert_eq!(normalize_preferred_ip(Some("  "), &prefixes), Ok(None));
+        assert!(
+            normalize_preferred_ip(Some("192.0.2.1"), &prefixes)
+                .expect_err("non-Cloudflare IP must be rejected")
+                .contains("official Cloudflare IPv4 range")
+        );
+        assert!(
+            normalize_preferred_ip(Some("not-an-ip"), &prefixes)
+                .expect_err("invalid IPv4 must be rejected")
+                .contains("valid IPv4")
+        );
+    }
+
+    #[test]
+    fn current_and_preferred_ips_are_kept_in_the_download_shortlist() {
+        let candidate = |index: u8| OptimizationCandidate {
+            ip: Ipv4Addr::new(104, 16, 0, index).to_string(),
+            median_latency_ms: f64::from(index),
+            jitter_ms: 0.0,
+            loss_ratio: 0.0,
+            download_mbps: 0.0,
+            score: f64::MAX,
+            verified_at: None,
+            source_types: Vec::new(),
+            source_hostnames: Vec::new(),
+            colo: None,
+            cf_ray: None,
+            business_hostname: None,
+            business_status: None,
+            business_colo: None,
+            business_cf_ray: None,
+            business_validated: false,
+        };
+        let mut candidates = (0..12).map(candidate).collect::<Vec<_>>();
+        let current = Ipv4Addr::new(104, 16, 0, 10);
+        let preferred = Ipv4Addr::new(104, 16, 0, 11);
+
+        retain_shortlist_with_priority(&mut candidates, &[current, preferred], DOWNLOAD_SHORTLIST);
+
+        assert_eq!(candidates.len(), DOWNLOAD_SHORTLIST);
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| candidate.ip == current.to_string())
+        );
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| candidate.ip == preferred.to_string())
+        );
+
+        let mut one_slot = vec![candidate(0), candidate(11)];
+        retain_shortlist_with_priority(&mut one_slot, &[preferred, current], 1);
+        assert_eq!(one_slot[0].ip, preferred.to_string());
+    }
+
+    #[test]
+    fn a_preferred_ip_is_recommended_only_after_business_validation() {
+        let candidate = |ip: &str, business_validated: bool| OptimizationCandidate {
+            ip: ip.to_string(),
+            median_latency_ms: 10.0,
+            jitter_ms: 0.0,
+            loss_ratio: 0.0,
+            download_mbps: 100.0,
+            score: 1.0,
+            verified_at: None,
+            source_types: Vec::new(),
+            source_hostnames: Vec::new(),
+            colo: None,
+            cf_ray: None,
+            business_hostname: None,
+            business_status: None,
+            business_colo: None,
+            business_cf_ray: None,
+            business_validated,
+        };
+        let preferred = Ipv4Addr::new(104, 16, 0, 2);
+        let automatic = candidate("104.16.0.1", true);
+
+        assert_eq!(
+            select_recommended_candidate(
+                &[automatic.clone(), candidate("104.16.0.2", true)],
+                Some(preferred),
+            ),
+            (Some("104.16.0.2".to_string()), Some(true))
+        );
+        assert_eq!(
+            select_recommended_candidate(
+                &[automatic.clone(), candidate("104.16.0.2", false)],
+                Some(preferred),
+            ),
+            (None, Some(false))
+        );
+        assert_eq!(
+            select_recommended_candidate(&[automatic], None),
+            (Some("104.16.0.1".to_string()), None)
         );
     }
 

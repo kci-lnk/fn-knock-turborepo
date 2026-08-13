@@ -6119,6 +6119,10 @@ export interface components {
             status: "healthy" | "degraded" | "unavailable";
             successCount: number;
         };
+        CloudflareOptimizationScanBodyData: {
+            /** Format: ipv4 */
+            preferredIp?: string | null;
+        };
         CloudflareOptimizationScanData: {
             businessValidationHostname?: string | null;
             cancelRequested: boolean;
@@ -6134,11 +6138,14 @@ export interface components {
             errorCode: string | null;
             id: string;
             phase: string;
+            /** Format: ipv4 */
+            preferredIp: string | null;
+            preferredIpValidated: boolean | null;
             /** Format: int64 */
             progress: number;
             recommendedIp: string | null;
             /** @enum {string|null} */
-            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "unavailable" | null;
+            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "preferred-ip" | "unavailable" | null;
             resolverDiagnostics: components["schemas"]["CloudflareOptimizationResolverDiagnosticData"][];
             sourceFingerprint: string | null;
             sourceWarnings: string[];
@@ -6190,7 +6197,7 @@ export interface components {
             originHostname: string | null;
             publishSuppressed: boolean;
             /** @enum {string|null} */
-            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "unavailable" | null;
+            resolutionPath: "multi-doh" | "official-ranges" | "current-candidate" | "preferred-ip" | "unavailable" | null;
             resolverDiagnostics: components["schemas"]["CloudflareOptimizationResolverDiagnosticData"][];
             scanReadinessErrorCode: string | null;
             scanReady: boolean;
@@ -7916,6 +7923,7 @@ export interface components {
             service_role: string;
             suppress_toolbar: boolean;
             target: string;
+            target_path_mode: string;
             title: string;
             title_override: string;
             use_auth: boolean;
@@ -13386,7 +13394,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CloudflareOptimizationScanBodyData"];
+            };
+        };
         responses: {
             /** @description Successful response */
             200: {

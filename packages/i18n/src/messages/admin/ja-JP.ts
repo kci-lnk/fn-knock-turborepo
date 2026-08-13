@@ -2715,6 +2715,7 @@ export const jaJPAdmin = {
           "Cloudflare 公式レンジと海外の公共・インフラサイトの DNS 結果を組み合わせます。ソース名はアドレスの手掛かりであり、国やデータセンターを固定するものではありません。",
         officialRanges: "Cloudflare 公式 IPv4 レンジ",
         officialRangesShort: "公式レンジ",
+        preferredIpShort: "カスタム優先 IP",
         officialRangesDescription:
           "公開済み公式レンジから決定的にサンプリングします。有効のままにすることを推奨します。",
         builtinTitle: "組み込みの海外公共・インフラサイト",
@@ -2730,6 +2731,8 @@ export const jaJPAdmin = {
           "すべての DoH が利用できなかったため、Cloudflare 公式 IPv4 範囲のサンプリングへ自動的にフォールバックしました。",
         resolverPathCurrentCandidate:
           "すべての DoH が利用できなかったため、現在公開中の Cloudflare 候補のみを保持して再検証しました。",
+        resolverPathPreferredIp:
+          "自動候補ソースをすべて利用できなかったため、ユーザー指定の Cloudflare IP のみを検証しました。",
         resolverPathUnavailable:
           "すべての DoH が利用できず、Cloudflare 公式 IPv4 範囲のソースも無効です。",
         resolvers: {
@@ -2790,6 +2793,17 @@ export const jaJPAdmin = {
       nextScan: "次回の完全スキャン",
       optimizedDomains: "最適化ドメイン",
       lastSwitchReason: "直近の切り替え理由",
+      preferredIpLabel: "カスタム優先 IP（任意）",
+      preferredIpPlaceholder: "例：104.16.0.1",
+      preferredIpDescription:
+        "Cloudflare 公式 IPv4 レンジ内のアドレスのみ指定できます。速度テストの候補に必ず含まれますが、ダウンロード、業務ホスト名の TLS、SNI、Ray ID 検証には合格する必要があります。空欄の場合は自動選択します。",
+      preferredIpInvalid: "有効な IPv4 アドレスを入力してください。",
+      preferredIpOutsideCloudflare:
+        "このアドレスは Cloudflare 公式 IPv4 レンジ外のため、最適化候補として使用できません。",
+      preferredIpValidated:
+        "カスタム IP {ip} はすべての検証に合格し、今回の推奨候補に設定されました。",
+      preferredIpRejected:
+        "カスタム IP {ip} は Cloudflare レンジの再確認、遅延、ダウンロード、または業務ホスト名の検証に合格しなかったため、自動選択されませんでした。下の検証済み候補は手動で選択できます。",
       startScan: "速度テスト開始",
       cancelScan: "スキャンをキャンセル",
       fallback: "今すぐフォールバック",
@@ -3474,6 +3488,15 @@ export const jaJPAdmin = {
     finalHost: "最終アドレス: {host}",
     notFilled: "未記入",
     targetLabel: "転送先",
+    targetHint:
+      "左側でプロトコルを選び、右側に IP、ポート、任意のパスを入力します。ポートを省略するとプロトコルの既定値が補完されます。",
+    targetPathMode: "転送先パスの扱い",
+    targetPathModeEntry: "入口としてのみ使用（互換モード）",
+    targetPathModeEntryDescription:
+      "公開ルートへのアクセス時だけ転送先パスを使用し、それ以外のリクエストパスは維持します。ログインや静的ファイルがオリジンのルートにある Web アプリ向けです。",
+    targetPathModePrefix: "固定プレフィックス（ディレクトリマウント）",
+    targetPathModePrefixDescription:
+      "すべての上流リクエストに転送先パスを追加します。たとえば /floccus/a は /webdav/floccus/a に転送され、WebDAV などに適しています。",
     dockerTargetPlaceholder: "ホストLAN_IP:ポート",
     dockerTargetCandidatesLoading:
       "Docker ホストの LAN アドレスを検出しています...",

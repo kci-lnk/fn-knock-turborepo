@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,6 +74,7 @@ const {
   optimizationReadinessErrorCode,
   optimizationScan,
   optimizationScanReady,
+  preferredCandidateIp,
   saveOptimizationSources,
   setOptimizationDomainMode,
   selectedCandidateIp,
@@ -547,6 +549,31 @@ const scanErrorMessage = computed(() => {
           </div>
         </div>
 
+        <div class="grid gap-2 rounded-md border bg-muted/20 p-3 sm:max-w-xl">
+          <Label for="optimization-preferred-ip">
+            {{ t("admin.cloudflareTunnel.optimization.preferredIpLabel") }}
+          </Label>
+          <Input
+            id="optimization-preferred-ip"
+            v-model="preferredCandidateIp"
+            aria-describedby="optimization-preferred-ip-description"
+            inputmode="decimal"
+            autocomplete="off"
+            :disabled="isScanningOptimization"
+            :placeholder="
+              t('admin.cloudflareTunnel.optimization.preferredIpPlaceholder')
+            "
+          />
+          <div
+            id="optimization-preferred-ip-description"
+            class="text-xs text-muted-foreground"
+          >
+            {{
+              t("admin.cloudflareTunnel.optimization.preferredIpDescription")
+            }}
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-2">
           <Button
             :disabled="
@@ -633,6 +660,40 @@ const scanErrorMessage = computed(() => {
             <span>{{ optimizationScan.progress }}%</span>
           </div>
           <Progress :model-value="optimizationScan.progress" />
+          <Alert
+            v-if="
+              optimizationScan.status === 'completed' &&
+              optimizationScan.preferredIp &&
+              optimizationScan.preferredIpValidated === true
+            "
+            class="items-start"
+          >
+            <ShieldCheck class="size-4" />
+            <AlertDescription>
+              {{
+                t("admin.cloudflareTunnel.optimization.preferredIpValidated", {
+                  ip: optimizationScan.preferredIp,
+                })
+              }}
+            </AlertDescription>
+          </Alert>
+          <Alert
+            v-else-if="
+              optimizationScan.status === 'completed' &&
+              optimizationScan.preferredIp &&
+              optimizationScan.preferredIpValidated === false
+            "
+            class="items-start"
+          >
+            <TriangleAlert class="size-4" />
+            <AlertDescription>
+              {{
+                t("admin.cloudflareTunnel.optimization.preferredIpRejected", {
+                  ip: optimizationScan.preferredIp,
+                })
+              }}
+            </AlertDescription>
+          </Alert>
           <div
             v-if="optimizationScan.vantage"
             class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"

@@ -1083,6 +1083,7 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                 .map(|item| HostRule {
                     host: string_field(item, "host"),
                     target: string_field(item, "target"),
+                    target_path_mode: string_field(item, "target_path_mode"),
                     use_auth: bool_field(item, "use_auth", true),
                     access_mode: string_field(item, "access_mode"),
                     suppress_toolbar: bool_field(item, "suppress_toolbar", false),
@@ -1401,6 +1402,7 @@ fn host_rules_to_json(bundle: HostRules) -> Value {
                 json!({
                     "host": item.host,
                     "target": item.target,
+                    "target_path_mode": item.target_path_mode,
                     "use_auth": item.use_auth,
                     "access_mode": item.access_mode,
                     "suppress_toolbar": item.suppress_toolbar,
@@ -2146,11 +2148,13 @@ mod tests {
     fn flat_host_rule_payload_explicitly_clears_group_metadata() {
         let rules = parse_host_rules(&json!([{
             "host": "app.example.test",
-            "target": "http://127.0.0.1:8080",
+            "target": "http://127.0.0.1:8080/base",
+            "target_path_mode": "prefix",
             "group_id": "",
             "group_name": ""
         }]));
         assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].target_path_mode, "prefix");
         assert_eq!(rules[0].group_id.as_deref(), Some(""));
         assert_eq!(rules[0].group_name.as_deref(), Some(""));
     }

@@ -559,6 +559,17 @@ pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str
             &[("host", host.to_string())],
         );
     }
+    if let Some(host) = extract_between(
+        message,
+        "Host mapping ",
+        " target path mode must be entry or prefix",
+    ) {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.targetPathModeInvalid",
+            &[("host", host.to_string())],
+        );
+    }
     if let Some(rest) = message.strip_prefix("Go backend did not apply HTTPS protocol mode ")
         && let Some((mode, host_and_reported)) = rest.split_once(" for ")
         && let Some((host, _)) = host_and_reported.split_once(" (reported ")
@@ -566,6 +577,16 @@ pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str
         return admin_config_text_params(
             translator,
             "hostMappings.backendProtocolUnsupported",
+            &[("host", host.to_string()), ("mode", mode.to_string())],
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Go backend did not apply target path mode ")
+        && let Some((mode, host_and_reported)) = rest.split_once(" for ")
+        && let Some((host, _)) = host_and_reported.split_once(" (reported ")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.backendTargetPathModeUnsupported",
             &[("host", host.to_string()), ("mode", mode.to_string())],
         );
     }

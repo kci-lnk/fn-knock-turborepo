@@ -293,6 +293,24 @@ pub(super) fn normalize_protocol_mode(value: Option<&Value>) -> String {
     }
 }
 
+pub(super) fn normalize_target_path_mode(value: Option<&Value>) -> String {
+    match value.and_then(Value::as_str).map(str::trim) {
+        Some(value) if value.eq_ignore_ascii_case("prefix") => "prefix".to_string(),
+        _ => "entry".to_string(),
+    }
+}
+
+pub(super) fn parse_explicit_target_path_mode(value: Option<&Value>) -> Option<String> {
+    let value = value?.as_str()?.trim();
+    if value.eq_ignore_ascii_case("entry") {
+        Some("entry".to_string())
+    } else if value.eq_ignore_ascii_case("prefix") {
+        Some("prefix".to_string())
+    } else {
+        None
+    }
+}
+
 pub(super) fn parse_explicit_protocol_mode(value: Option<&Value>) -> Option<String> {
     let value = value?.as_str()?.trim();
     if value.eq_ignore_ascii_case("auto") {

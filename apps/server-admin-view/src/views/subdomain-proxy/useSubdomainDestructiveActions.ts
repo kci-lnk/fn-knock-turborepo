@@ -124,6 +124,7 @@ export const useSubdomainDestructiveActions = ({
           host,
           group_id: null,
           target,
+          target_path_mode: "entry",
           waf_enabled: true,
           use_auth: false,
           access_mode: DEFAULT_ACCESS_MODE,

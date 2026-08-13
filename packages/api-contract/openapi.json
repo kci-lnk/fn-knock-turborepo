@@ -4123,6 +4123,18 @@
         ],
         "type": "object"
       },
+      "CloudflareOptimizationScanBodyData": {
+        "properties": {
+          "preferredIp": {
+            "format": "ipv4",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "CloudflareOptimizationScanData": {
         "properties": {
           "businessValidationHostname": {
@@ -4183,6 +4195,19 @@
           "phase": {
             "type": "string"
           },
+          "preferredIp": {
+            "format": "ipv4",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferredIpValidated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "progress": {
             "format": "int64",
             "maximum": 100,
@@ -4200,6 +4225,7 @@
               "multi-doh",
               "official-ranges",
               "current-candidate",
+              "preferred-ip",
               "unavailable"
             ],
             "type": [
@@ -4265,6 +4291,8 @@
           "cancelRequested",
           "candidates",
           "recommendedIp",
+          "preferredIp",
+          "preferredIpValidated",
           "vantage",
           "sourceWarnings",
           "resolverDiagnostics",
@@ -4434,6 +4462,7 @@
               "multi-doh",
               "official-ranges",
               "current-candidate",
+              "preferred-ip",
               "unavailable"
             ],
             "type": [
@@ -11742,6 +11771,9 @@
           "target": {
             "type": "string"
           },
+          "target_path_mode": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -11759,6 +11791,7 @@
         "required": [
           "host",
           "target",
+          "target_path_mode",
           "waf_enabled",
           "use_auth",
           "access_mode",
@@ -27160,6 +27193,16 @@
       "post": {
         "operationId": "post_api_admin_cloudflared_optimization_scans",
         "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudflareOptimizationScanBodyData"
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "content": {

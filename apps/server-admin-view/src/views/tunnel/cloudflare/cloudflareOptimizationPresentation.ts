@@ -177,12 +177,32 @@ export const optimizationCandidateSourceLabel = (
   candidate: { sourceHostnames: string[]; sourceTypes: string[] },
   t: Translate,
 ) => {
+  if (candidate.sourceTypes.includes("preferred-ip")) {
+    return t("admin.cloudflareTunnel.optimization.sources.preferredIpShort");
+  }
   if (candidate.sourceHostnames.length) {
     return candidate.sourceHostnames.join(", ");
   }
   return candidate.sourceTypes.includes("official-range")
     ? t("admin.cloudflareTunnel.optimization.sources.officialRangesShort")
     : "-";
+};
+
+export const optimizationPreferredIpErrorLabel = (
+  message: string,
+  t: Translate,
+) => {
+  if (message === "Preferred IP must be a valid IPv4 address") {
+    return t("admin.cloudflareTunnel.optimization.preferredIpInvalid");
+  }
+  if (
+    message === "Preferred IP must belong to an official Cloudflare IPv4 range"
+  ) {
+    return t(
+      "admin.cloudflareTunnel.optimization.preferredIpOutsideCloudflare",
+    );
+  }
+  return message;
 };
 
 export const optimizationSourceSettingsErrorLabel = (
@@ -250,6 +270,11 @@ export const optimizationResolverPathLabel = (
   if (path === "current-candidate") {
     return t(
       "admin.cloudflareTunnel.optimization.sources.resolverPathCurrentCandidate",
+    );
+  }
+  if (path === "preferred-ip") {
+    return t(
+      "admin.cloudflareTunnel.optimization.sources.resolverPathPreferredIp",
     );
   }
   if (!path && availableProviders.length) {

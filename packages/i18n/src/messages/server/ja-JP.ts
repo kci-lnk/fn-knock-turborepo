@@ -441,6 +441,10 @@ export const jaJPServer = {
         "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
       backendProtocolUnsupported:
         "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
+      targetPathModeInvalid:
+        "Host マッピング {host} の転送先パスモードは entry または prefix である必要があります",
+      backendTargetPathModeUnsupported:
+        "ゲートウェイバックエンドが {host} の転送先パスモード {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
       visibilityInvalid:
         "Host マッピング {host} の公開範囲設定が無効です: {message}",
       backendVisibilityUnsupported:

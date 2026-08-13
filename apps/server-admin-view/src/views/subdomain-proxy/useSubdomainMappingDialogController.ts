@@ -323,6 +323,7 @@ export const useSubdomainMappingDialogController = ({
     Object.assign(mappingForm, {
       ...mapping,
       favicon_override: mapping.favicon_override ?? "",
+      target_path_mode: mapping.target_path_mode || "entry",
       protocol_mode: mapping.protocol_mode || DEFAULT_PROTOCOL_MODE,
       basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
       visibility: normalizeMappingVisibility(mapping.visibility),

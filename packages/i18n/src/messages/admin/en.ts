@@ -2718,6 +2718,7 @@ export const enAdmin = {
           "Combines Cloudflare's official ranges with DNS results from overseas public and infrastructure sites. A source hostname is only an address hint, not a fixed country or data center.",
         officialRanges: "Official Cloudflare IPv4 ranges",
         officialRangesShort: "Official range",
+        preferredIpShort: "Custom preferred IP",
         officialRangesDescription:
           "Uses deterministic samples from Cloudflare's published ranges. Keeping this enabled is recommended.",
         builtinTitle: "Built-in overseas public and infrastructure sites",
@@ -2735,6 +2736,8 @@ export const enAdmin = {
           "All DoH resolvers were unavailable, so this scan automatically fell back to sampling Cloudflare's official IPv4 ranges.",
         resolverPathCurrentCandidate:
           "All DoH resolvers were unavailable, so this scan only retained and revalidated the currently published Cloudflare candidate.",
+        resolverPathPreferredIp:
+          "All automatic candidate sources were unavailable, so this scan only validated the user-specified Cloudflare IP.",
         resolverPathUnavailable:
           "All DoH resolvers were unavailable and the Cloudflare official IPv4 range source was disabled.",
         resolvers: {
@@ -2797,6 +2800,17 @@ export const enAdmin = {
       nextScan: "Next full scan",
       optimizedDomains: "Optimized domains",
       lastSwitchReason: "Last switch reason",
+      preferredIpLabel: "Custom preferred IP (optional)",
+      preferredIpPlaceholder: "For example: 104.16.0.1",
+      preferredIpDescription:
+        "Only addresses in Cloudflare's official IPv4 ranges are accepted. The address is forced into the speed-test shortlist, but must still pass download, business-hostname TLS, SNI, and Ray ID validation. Leave blank for automatic selection.",
+      preferredIpInvalid: "Enter a valid IPv4 address.",
+      preferredIpOutsideCloudflare:
+        "This address is outside Cloudflare's official IPv4 ranges and cannot be used as an optimization candidate.",
+      preferredIpValidated:
+        "Custom IP {ip} passed all checks and is the recommended candidate for this scan.",
+      preferredIpRejected:
+        "Custom IP {ip} failed Cloudflare range revalidation, latency, download, or business-hostname validation and was not selected automatically. You can still choose a verified candidate below.",
       startScan: "Start speed test",
       cancelScan: "Cancel scan",
       fallback: "Fall back now",
@@ -3484,6 +3498,15 @@ export const enAdmin = {
     finalHost: "Final address: {host}",
     notFilled: "Not filled",
     targetLabel: "Target",
+    targetHint:
+      "Choose a protocol, then enter an IP, port, and optional path. An omitted port is filled from the protocol default.",
+    targetPathMode: "Target path behavior",
+    targetPathModeEntry: "Entry path only (compatible)",
+    targetPathModeEntryDescription:
+      "Use the target path only for requests to the public root. Other request paths remain unchanged, which supports web apps whose login or assets live at the origin root.",
+    targetPathModePrefix: "Fixed prefix (directory mount)",
+    targetPathModePrefixDescription:
+      "Prepend the target path to every upstream request. For example, /floccus/a becomes /webdav/floccus/a. This suits WebDAV and similar services.",
     dockerTargetPlaceholder: "HOST_LAN_IP:PORT",
     dockerTargetCandidatesLoading: "Detecting Docker host LAN addresses...",
     dockerTargetCandidatesHint:

@@ -360,6 +360,10 @@ export const zhCNServer = {
         "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
       backendProtocolUnsupported:
         "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
+      targetPathModeInvalid:
+        "Host 映射 {host} 的目标路径模式必须是 entry 或 prefix",
+      backendTargetPathModeUnsupported:
+        "网关后端未应用 {host} 的目标路径模式 {mode}，请升级网关后端",
       visibilityInvalid: "Host 映射 {host} 的可见性配置无效：{message}",
       backendVisibilityUnsupported:
         "网关后端未应用 {host} 的可见性规则，请升级网关后端",

@@ -360,6 +360,10 @@ export const zhHantServer = {
         "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
       backendProtocolUnsupported:
         "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
+      targetPathModeInvalid:
+        "Host 映射 {host} 的目標路徑模式必須是 entry 或 prefix",
+      backendTargetPathModeUnsupported:
+        "閘道後端未套用 {host} 的目標路徑模式 {mode}，請升級閘道後端",
       visibilityInvalid: "Host 對應 {host} 的可見性設定無效：{message}",
       backendVisibilityUnsupported:
         "閘道後端未套用 {host} 的可見性規則，請升級閘道後端",

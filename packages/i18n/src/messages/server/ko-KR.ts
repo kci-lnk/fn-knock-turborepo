@@ -424,6 +424,10 @@ export const koKRServer = {
         "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
       backendProtocolUnsupported:
         "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}(을)를 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
+      targetPathModeInvalid:
+        "호스트 매핑 {host}의 대상 경로 모드는 entry 또는 prefix여야 합니다.",
+      backendTargetPathModeUnsupported:
+        "게이트웨이 백엔드가 {host}의 대상 경로 모드 {mode}(을)를 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
       visibilityInvalid:
         "호스트 매핑 {host}의 접근 범위 설정이 잘못되었습니다: {message}",
       backendVisibilityUnsupported:

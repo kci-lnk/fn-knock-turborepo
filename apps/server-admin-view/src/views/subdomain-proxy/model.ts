@@ -33,6 +33,8 @@ export type EdgeClientIpProvider = "aliyun_esa" | "tencent_edgeone";
 export const DEFAULT_AUTH_SUBDOMAIN = "auth";
 export const DEFAULT_ACCESS_MODE: HostMapping["access_mode"] = "login_first";
 export const DEFAULT_PROTOCOL_MODE: HostMapping["protocol_mode"] = "auto";
+export const DEFAULT_TARGET_PATH_MODE: HostMapping["target_path_mode"] =
+  "entry";
 export const HOME_ASSISTANT_TARGET_PORT = 8123;
 
 export type DeleteDialogState =
@@ -303,6 +305,7 @@ export const buildDiscoveredServiceMappings = ({
     host: composeHostFromSubdomain(service.suggestedSubdomain, rootDomain),
     group_id: null,
     target: `http://${resolveDiscoveredServiceHost(service, fallbackHost)}:${service.port}/`,
+    target_path_mode: DEFAULT_TARGET_PATH_MODE,
     waf_enabled: true,
     use_auth: service.detail.rule.use_auth,
     access_mode: DEFAULT_ACCESS_MODE,
@@ -630,6 +633,7 @@ export const createDefaultMapping = (): HostMapping => ({
   host: "",
   group_id: null,
   target: "",
+  target_path_mode: DEFAULT_TARGET_PATH_MODE,
   waf_enabled: true,
   use_auth: true,
   access_mode: DEFAULT_ACCESS_MODE,
@@ -769,6 +773,10 @@ export const normalizeMappingForm = (
     host,
     group_id: serviceRole === "auth" ? null : input.group_id || null,
     target: normalizedTarget,
+    target_path_mode:
+      serviceRole !== "auth" && input.target_path_mode === "prefix"
+        ? "prefix"
+        : DEFAULT_TARGET_PATH_MODE,
     waf_enabled: serviceRole === "auth" ? true : input.waf_enabled !== false,
     use_auth: serviceRole === "auth" ? false : input.use_auth,
     access_mode:

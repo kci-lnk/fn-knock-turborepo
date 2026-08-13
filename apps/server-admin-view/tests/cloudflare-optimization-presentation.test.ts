@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   formatOptimizationDate,
   formatOptimizationNumber,
+  optimizationCandidateSourceLabel,
   optimizationDomainMessageLabel,
+  optimizationPreferredIpErrorLabel,
   optimizationResolverProviderLabel,
   optimizationResolverPathLabel,
   optimizationResolverStatusLabel,
@@ -75,6 +77,16 @@ describe("Cloudflare optimization presentation", () => {
 
   it("preserves candidate-source warning details", () => {
     assert.equal(
+      optimizationCandidateSourceLabel(
+        {
+          sourceHostnames: ["www.example.org"],
+          sourceTypes: ["official-range", "preferred-ip"],
+        },
+        translate,
+      ),
+      "admin.cloudflareTunnel.optimization.sources.preferredIpShort",
+    );
+    assert.equal(
       optimizationSourceWarningLabel(
         "edge.example.com (custom) did not resolve to a verified Cloudflare IPv4 address",
         translate,
@@ -87,6 +99,13 @@ describe("Cloudflare optimization presentation", () => {
         translate,
       ),
       "admin.cloudflareTunnel.optimization.sources.resolveFailed:DNS timeout",
+    );
+    assert.equal(
+      optimizationPreferredIpErrorLabel(
+        "Preferred IP must be a valid IPv4 address",
+        translate,
+      ),
+      "admin.cloudflareTunnel.optimization.preferredIpInvalid",
     );
   });
 
@@ -110,6 +129,10 @@ describe("Cloudflare optimization presentation", () => {
     assert.equal(
       optimizationResolverPathLabel("current-candidate", [], translate),
       "admin.cloudflareTunnel.optimization.sources.resolverPathCurrentCandidate",
+    );
+    assert.equal(
+      optimizationResolverPathLabel("preferred-ip", [], translate),
+      "admin.cloudflareTunnel.optimization.sources.resolverPathPreferredIp",
     );
     assert.equal(
       optimizationResolverPathLabel("unavailable", [], translate),

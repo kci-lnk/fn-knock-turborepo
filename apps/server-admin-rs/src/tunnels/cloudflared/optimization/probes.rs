@@ -26,10 +26,14 @@ pub(super) async fn load_cloudflare_prefixes(state: &AppState) -> Vec<Ipv4Net> {
     };
     let parsed = parse_prefixes(text.as_deref().unwrap_or(""));
     if parsed.is_empty() {
-        parse_prefixes(&CLOUDFLARE_IPV4_FALLBACK.join("\n"))
+        bundled_cloudflare_prefixes()
     } else {
         parsed
     }
+}
+
+pub(super) fn bundled_cloudflare_prefixes() -> Vec<Ipv4Net> {
+    parse_prefixes(&CLOUDFLARE_IPV4_FALLBACK.join("\n"))
 }
 
 pub(super) fn parse_prefixes(value: &str) -> Vec<Ipv4Net> {

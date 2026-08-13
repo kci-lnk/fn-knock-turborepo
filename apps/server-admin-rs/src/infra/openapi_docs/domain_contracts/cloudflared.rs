@@ -274,6 +274,10 @@ pub(super) struct CloudflareOptimizationScanData {
     #[schema(required = true)]
     recommended_ip: Option<String>,
     #[schema(required = true)]
+    preferred_ip: Option<String>,
+    #[schema(required = true)]
+    preferred_ip_validated: Option<bool>,
+    #[schema(required = true)]
     vantage: Option<CloudflareOptimizationVantageData>,
     source_warnings: Vec<String>,
     resolver_diagnostics: Vec<CloudflareOptimizationResolverDiagnosticData>,
@@ -525,6 +529,12 @@ pub(super) struct CloudflareReconcilePlanData {
     warnings: Vec<String>,
     warning_codes: Vec<String>,
     can_apply: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct CloudflareOptimizationScanBodyData {
+    preferred_ip: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]

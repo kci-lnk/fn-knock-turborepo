@@ -2468,6 +2468,7 @@ export const zhHantAdmin = {
           "組合 Cloudflare 官方網段與海外公共站點的解析結果。公共站點只作為候選位址線索，不代表固定國家或固定機房。",
         officialRanges: "Cloudflare 官方 IPv4 網段",
         officialRangesShort: "官方網段",
+        preferredIpShort: "自訂優選 IP",
         officialRangesDescription:
           "按官方公布網段進行確定性抽樣，建議保持啟用。",
         builtinTitle: "內建海外公共與基礎設施站點",
@@ -2483,6 +2484,8 @@ export const zhHantAdmin = {
           "所有 DoH 均不可用，本次掃描已自動回退至 Cloudflare 官方 IPv4 網段取樣。",
         resolverPathCurrentCandidate:
           "所有 DoH 均不可用，本次掃描僅保留並重新驗證目前已發佈的 Cloudflare 候選。",
+        resolverPathPreferredIp:
+          "所有自動候選來源均不可用，本次掃描僅驗證使用者指定的 Cloudflare IP。",
         resolverPathUnavailable:
           "所有 DoH 均不可用，且 Cloudflare 官方 IPv4 網段來源未啟用。",
         resolvers: {
@@ -2541,6 +2544,16 @@ export const zhHantAdmin = {
       nextScan: "下次完整掃描",
       optimizedDomains: "優選網域",
       lastSwitchReason: "最近切換原因",
+      preferredIpLabel: "自訂優選 IP（選填）",
+      preferredIpPlaceholder: "例如：104.16.0.1",
+      preferredIpDescription:
+        "僅接受 Cloudflare 官方 IPv4 網段內的位址。該位址會強制進入測速候選清單，但仍須通過下載、業務網域 TLS、SNI 與 Ray ID 驗證。留空則自動推薦。",
+      preferredIpInvalid: "請輸入有效的 IPv4 位址。",
+      preferredIpOutsideCloudflare:
+        "該位址不屬於 Cloudflare 官方 IPv4 網段，不能作為優選候選。",
+      preferredIpValidated: "自訂 IP {ip} 已通過全部驗證，並設為本次建議候選。",
+      preferredIpRejected:
+        "自訂 IP {ip} 未通過 Cloudflare 網段複核、延遲、下載或業務網域驗證，因此未自動選取。你仍可從下方已驗證候選中手動選擇。",
       startScan: "開始測速",
       cancelScan: "取消掃描",
       fallback: "立即回退",
@@ -3178,6 +3191,15 @@ export const zhHantAdmin = {
     finalHost: "最終地址：{host}",
     notFilled: "未填寫",
     targetLabel: "目標",
+    targetHint:
+      "左側選擇協議，右側填寫 IP、連接埠和可選路徑；未填寫連接埠時會按協議預設值自動補齊。",
+    targetPathMode: "目標路徑用法",
+    targetPathModeEntry: "僅作為入口（相容模式）",
+    targetPathModeEntryDescription:
+      "僅存取網域根路徑時使用目標中的路徑；其他請求路徑保持不變，適合登入或靜態資源位於來源站根目錄的 Web 應用程式。",
+    targetPathModePrefix: "固定前綴（目錄掛載）",
+    targetPathModePrefixDescription:
+      "將目標中的路徑加入每個上游請求。例如 /floccus/a 會轉送到 /webdav/floccus/a，適合 WebDAV 等服務。",
     dockerTargetPlaceholder: "宿主機區域網路 IP:連接埠",
     dockerTargetCandidatesLoading: "正在推導 Docker 宿主機區域網路地址...",
     dockerTargetCandidatesHint:

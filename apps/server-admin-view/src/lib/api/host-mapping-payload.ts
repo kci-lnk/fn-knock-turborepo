@@ -10,6 +10,7 @@ type HostMappingUpdatePayload = Pick<
   | "host"
   | "group_id"
   | "target"
+  | "target_path_mode"
   | "waf_enabled"
   | "use_auth"
   | "access_mode"
@@ -76,6 +77,8 @@ export const toHostMappingUpdatePayload = (
   host: mapping.host,
   group_id: mapping.group_id || null,
   target: mapping.target,
+  target_path_mode:
+    mapping.target_path_mode === "prefix" ? "prefix" : "entry",
   waf_enabled: mapping.waf_enabled !== false,
   use_auth: mapping.use_auth,
   access_mode: mapping.access_mode,

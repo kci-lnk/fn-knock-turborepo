@@ -64,6 +64,7 @@ export type DockerAdminBootstrapState =
 export type HostAccessMode =
   ApiContractComponents["schemas"]["SubdomainModeData"]["default_access_mode"];
 export type HostProtocolMode = "auto" | "http1" | "http2";
+export type HostTargetPathMode = "entry" | "prefix";
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol =
   ApiContractComponents["schemas"]["StreamMappingData"]["protocol"];
@@ -141,6 +142,7 @@ export interface HostMapping {
   host: string;
   group_id: string | null;
   target: string;
+  target_path_mode: HostTargetPathMode;
   waf_enabled: boolean;
   use_auth: boolean;
   access_mode: HostAccessMode;

@@ -228,6 +228,7 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(resolverPresentation, /resolverPathAvailable/u);
     assert.match(resolverPresentation, /resolverPathOfficialRanges/u);
     assert.match(resolverPresentation, /resolverPathCurrentCandidate/u);
+    assert.match(resolverPresentation, /resolverPathPreferredIp/u);
     assert.match(resolverDiagnostics, /lastErrorCode/u);
 
     for (const locale of ["zh-CN", "zh-Hant", "en", "ja-JP", "ko-KR"]) {
@@ -248,6 +249,7 @@ describe("managed Cloudflare Tunnel", () => {
       assert.match(messages, /resolverDiagnosticsTitle/u);
       assert.match(messages, /resolverPathOfficialRanges/u);
       assert.match(messages, /resolverPathCurrentCandidate/u);
+      assert.match(messages, /resolverPathPreferredIp/u);
       assert.match(messages, /candidateResolutionUnavailableTitle/u);
     }
   });
@@ -266,6 +268,33 @@ describe("managed Cloudflare Tunnel", () => {
     );
     assert.match(optimization, /!optimizationApplied/u);
     assert.match(optimization, /reconcileRequiredDescription/u);
+  });
+
+  it("validates a user-specified preferred IP before recommending it", () => {
+    const controller = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+    );
+    const card = readSource(
+      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
+    );
+    const backend = [
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+      ),
+      readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
+      ),
+    ].join("\n");
+
+    assert.match(controller, /preferredCandidateIp/u);
+    assert.match(controller, /startOptimizationScan\(/u);
+    assert.match(card, /preferredIpValidated === true/u);
+    assert.match(card, /preferredIpValidated === false/u);
+    assert.match(card, /aria-describedby="optimization-preferred-ip-description"/u);
+    assert.match(backend, /normalize_preferred_ip/u);
+    assert.match(backend, /bundled_cloudflare_prefixes/u);
+    assert.match(backend, /retain_shortlist_with_priority/u);
+    assert.match(backend, /candidate\.business_validated/u);
   });
 
   it("distinguishes Cloudflare for SaaS setup from validation readiness", () => {

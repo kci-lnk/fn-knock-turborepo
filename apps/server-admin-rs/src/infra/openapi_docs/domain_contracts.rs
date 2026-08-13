@@ -289,6 +289,7 @@ struct HostMappingData {
     host: String,
     group_id: Option<String>,
     target: String,
+    target_path_mode: String,
     waf_enabled: bool,
     use_auth: bool,
     access_mode: String,
@@ -913,6 +914,7 @@ struct BackupImportResultData {
     CloudflareReconcileConflictDetailsData,
     CloudflareReconcileConflictData,
     CloudflareReconcilePlanData,
+    CloudflareOptimizationScanBodyData,
     CloudflareOptimizationSourceSettingsBodyData,
     CloudflareOptimizationDomainBodyData,
     CloudflareOptimizationDomainUpdateData,
@@ -2514,9 +2516,16 @@ pub(super) fn components() -> Map<String, Value> {
                 "multi-doh",
                 "official-ranges",
                 "current-candidate",
+                "preferred-ip",
                 "unavailable",
             ],
         );
+    }
+    for (schema, property) in [
+        ("CloudflareOptimizationScanBodyData", "preferredIp"),
+        ("CloudflareOptimizationScanData", "preferredIp"),
+    ] {
+        set_property_metadata(&mut schemas, schema, property, "format", json!("ipv4"));
     }
     set_property_metadata(
         &mut schemas,
@@ -4378,7 +4387,7 @@ const OPERATIONS: &[DomainOperation] = &[
     DomainOperation {
         method: "post",
         path: "/api/admin/cloudflared/optimization/scans",
-        request: None,
+        request: Some("?CloudflareOptimizationScanBodyData"),
         response: ResponseSchema::Ref("CloudflareOptimizationScanData"),
     },
     DomainOperation {

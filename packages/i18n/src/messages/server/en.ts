@@ -426,6 +426,10 @@ export const enServer = {
         "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
       backendProtocolUnsupported:
         "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
+      targetPathModeInvalid:
+        "Host mapping {host} target path mode must be entry or prefix",
+      backendTargetPathModeUnsupported:
+        "The gateway backend did not apply target path mode {mode} for {host}; upgrade the gateway backend",
       visibilityInvalid:
         "Host mapping {host} has invalid visibility settings: {message}",
       backendVisibilityUnsupported:

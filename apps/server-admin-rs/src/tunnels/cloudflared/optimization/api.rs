@@ -186,7 +186,10 @@ pub(super) fn public_source_settings(settings: &OptimizationSourceSettings) -> V
     })
 }
 #[utoipa::path(post, path = "/api/admin/cloudflared/optimization/scans", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_optimization_scans", responses((status = 200, description = "Started optimization scan")))]
-async fn start_scan(State(state): State<AppState>) -> Response {
+async fn start_scan(
+    State(state): State<AppState>,
+    body: Option<Json<StartOptimizationScanRequest>>,
+) -> Response {
     let managed = load_managed_config(&state).await;
     if !optimization_is_enabled(&managed) {
         return response::error(
@@ -194,6 +197,18 @@ async fn start_scan(State(state): State<AppState>) -> Response {
             "Enable optimization by previewing and applying a Cloudflare reconcile plan before starting a speed test",
         );
     }
+    let requested_preferred_ip = body.as_ref().and_then(|body| body.preferred_ip.as_deref());
+    let preferred_ip = if requested_preferred_ip.is_some() {
+        // Keep task creation independent of Cloudflare's availability. The
+        // background scan fetches the current list and revalidates this IP.
+        let prefixes = bundled_cloudflare_prefixes();
+        match normalize_preferred_ip(requested_preferred_ip, &prefixes) {
+            Ok(value) => value,
+            Err(error) => return response::error(StatusCode::BAD_REQUEST, error),
+        }
+    } else {
+        None
+    };
     let id = uuid::Uuid::new_v4().to_string();
     let job = json!({
         "id": id,
@@ -207,6 +222,8 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         "cancelRequested": false,
         "candidates": [],
         "recommendedIp": Value::Null,
+        "preferredIp": preferred_ip.map(|ip| ip.to_string()),
+        "preferredIpValidated": Value::Null,
         "vantage": Value::Null,
         "sourceWarnings": [],
         "resolverDiagnostics": [],
@@ -261,7 +278,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
         .await;
         let result = time::timeout(
             Duration::from_secs(180),
-            run_scan(&scan_state, Some(&scan_id)),
+            run_scan(&scan_state, Some(&scan_id), preferred_ip),
         )
         .await;
         match result {
@@ -279,10 +296,8 @@ async fn start_scan(State(state): State<AppState>) -> Response {
             }
             Ok(Ok(result)) => {
                 let completed_at_ms = time_utils::now_ms();
-                let recommended = result
-                    .candidates
-                    .first()
-                    .map(|candidate| candidate.ip.clone());
+                let (recommended, preferred_ip_validated) =
+                    select_recommended_candidate(&result.candidates, preferred_ip);
                 let mut runtime = load_runtime(&scan_state).await;
                 let runtime_object = ensure_object(&mut runtime);
                 runtime_object.insert("lastVantage".to_string(), result.vantage.clone());
@@ -314,6 +329,7 @@ async fn start_scan(State(state): State<AppState>) -> Response {
                         "completedAtMs": completed_at_ms,
                         "candidates": result.candidates,
                         "recommendedIp": recommended,
+                        "preferredIpValidated": preferred_ip_validated,
                         "vantage": result.vantage,
                         "sourceWarnings": result.source_warnings,
                         "resolverDiagnostics": result.resolver_diagnostics,

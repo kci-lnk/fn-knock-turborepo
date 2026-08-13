@@ -112,6 +112,10 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         .ok_or_else(|| "Go backend host-rules response is missing data".to_string())?;
     let requested_modes = host_protocol_modes_by_host(requested, "Host-rules request")?;
     let echoed_modes = host_protocol_modes_by_host(echoed_payload, "Go backend response")?;
+    let requested_target_path_modes =
+        host_target_path_modes_by_host(requested, "Host-rules request")?;
+    let echoed_target_path_modes =
+        host_target_path_modes_by_host(echoed_payload, "Go backend response")?;
     let requested_visibilities = host_visibilities_by_host(requested)?;
     let echoed_visibilities = host_visibilities_by_host(echoed_payload)?;
     let requested_advanced_auth = host_advanced_auth_by_host(requested)?;
@@ -127,6 +131,17 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         if echoed_mode != requested_mode {
             return Err(format!(
                 "Go backend did not apply HTTPS protocol mode {requested_mode} for {host} (reported {echoed_mode}); upgrade the gateway backend"
+            ));
+        }
+        let requested_target_path_mode = requested_target_path_modes
+            .get(host)
+            .expect("target path mode map follows the validated host map");
+        let echoed_target_path_mode = echoed_target_path_modes
+            .get(host)
+            .expect("target path mode map follows the validated host map");
+        if echoed_target_path_mode != requested_target_path_mode {
+            return Err(format!(
+                "Go backend did not apply target path mode {requested_target_path_mode} for {host} (reported {echoed_target_path_mode}); upgrade the gateway backend"
             ));
         }
         if echoed_groups.get(host) != requested_groups.get(host) {
@@ -325,6 +340,28 @@ fn host_protocol_modes_by_host(
             return Err(format!("{context} contains a host rule without a host"));
         }
         let mode = normalize_protocol_mode(item.get("protocol_mode"));
+        if modes.insert(host.clone(), mode).is_some() {
+            return Err(format!(
+                "{context} contains duplicate canonical host mapping {host}"
+            ));
+        }
+    }
+    Ok(modes)
+}
+
+fn host_target_path_modes_by_host(
+    value: &Value,
+    context: &str,
+) -> Result<HashMap<String, String>, String> {
+    let items = host_rule_items(value)
+        .ok_or_else(|| format!("{context} host-rules payload must be an array"))?;
+    let mut modes = HashMap::with_capacity(items.len());
+    for item in items {
+        let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
+        if host.is_empty() {
+            return Err(format!("{context} contains a host rule without a host"));
+        }
+        let mode = normalize_target_path_mode(item.get("target_path_mode"));
         if modes.insert(host.clone(), mode).is_some() {
             return Err(format!(
                 "{context} contains duplicate canonical host mapping {host}"

@@ -128,7 +128,10 @@ function validateContract(openapiPath) {
     ["get /api/admin/cloudflared/reconcile/jobs/active", null],
     ["get /api/admin/cloudflared/reconcile/jobs/{id}", null],
     ["get /api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}", null],
-    ["post /api/admin/cloudflared/optimization/scans", null],
+    [
+      "post /api/admin/cloudflared/optimization/scans",
+      "CloudflareOptimizationScanBodyData",
+    ],
     ["get /api/admin/cloudflared/optimization/scans/{id}", null],
     ["delete /api/admin/cloudflared/optimization/scans/{id}", null],
     [

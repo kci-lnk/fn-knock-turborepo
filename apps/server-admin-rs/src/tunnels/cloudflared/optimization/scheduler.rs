@@ -102,7 +102,7 @@ pub(super) async fn scheduled_tick(state: &AppState) -> Result<(), CloudflareApi
 }
 async fn run_scheduled_scan(state: &AppState) -> Result<(), CloudflareApiError> {
     let _scan_guard = state.tunnel.cloudflared_scan_lock.lock().await;
-    let scan = time::timeout(Duration::from_secs(180), run_scan(state, None))
+    let scan = time::timeout(Duration::from_secs(180), run_scan(state, None, None))
         .await
         .map_err(|_| local_error("Optimization scan exceeded the three-minute limit"))??;
 

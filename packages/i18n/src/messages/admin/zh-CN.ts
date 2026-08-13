@@ -2514,6 +2514,7 @@ export const zhCNAdmin = {
           "组合 Cloudflare 官方网段与海外公共站点的解析结果。公共站点只是候选地址线索，不代表固定国家或固定机房。",
         officialRanges: "Cloudflare 官方 IPv4 网段",
         officialRangesShort: "官方网段",
+        preferredIpShort: "自定义优选 IP",
         officialRangesDescription:
           "按官方公布网段进行确定性抽样，建议始终保留。",
         builtinTitle: "内置海外公共与基础设施站点",
@@ -2530,6 +2531,8 @@ export const zhCNAdmin = {
           "所有 DoH 均不可用，本次扫描已自动回退到 Cloudflare 官方 IPv4 网段抽样。",
         resolverPathCurrentCandidate:
           "所有 DoH 均不可用，本次扫描仅保留并复核当前已发布的 Cloudflare 候选。",
+        resolverPathPreferredIp:
+          "所有自动候选来源均不可用，本次扫描仅验证用户指定的 Cloudflare IP。",
         resolverPathUnavailable:
           "所有 DoH 均不可用，且 Cloudflare 官方 IPv4 网段来源未启用。",
         resolvers: {
@@ -2588,6 +2591,17 @@ export const zhCNAdmin = {
       nextScan: "下次完整扫描",
       optimizedDomains: "优选域名",
       lastSwitchReason: "最近切换原因",
+      preferredIpLabel: "自定义优选 IP（可选）",
+      preferredIpPlaceholder: "例如：104.16.0.1",
+      preferredIpDescription:
+        "仅接受 Cloudflare 官方 IPv4 网段内的地址。该地址会强制进入测速短名单，但仍须通过下载、业务域名 TLS、SNI 与 Ray ID 验证。留空则自动推荐。",
+      preferredIpInvalid: "请输入有效的 IPv4 地址。",
+      preferredIpOutsideCloudflare:
+        "该地址不属于 Cloudflare 官方 IPv4 网段，不能作为优选候选。",
+      preferredIpValidated:
+        "自定义 IP {ip} 已通过全部验证，并已设为本次推荐候选。",
+      preferredIpRejected:
+        "自定义 IP {ip} 未通过 Cloudflare 网段复核、延迟、下载或业务域名验证，因此未自动选择。你仍可从下方已验证候选中手动选择。",
       startScan: "开始测速",
       cancelScan: "取消测速",
       fallback: "一键回退",
@@ -3225,6 +3239,15 @@ export const zhCNAdmin = {
     finalHost: "最终地址：{host}",
     notFilled: "未填写",
     targetLabel: "目标",
+    targetHint:
+      "左侧选择协议，右侧填写 IP、端口和可选路径；未填写端口时会按协议默认端口自动补齐。",
+    targetPathMode: "目标路径用法",
+    targetPathModeEntry: "仅作为入口（兼容模式）",
+    targetPathModeEntryDescription:
+      "仅访问域名根路径时使用目标中的路径；其他请求路径保持不变，适合登录或静态资源位于源站根目录的 Web 应用。",
+    targetPathModePrefix: "固定前缀（目录挂载）",
+    targetPathModePrefixDescription:
+      "将目标中的路径添加到每个上游请求。例如 /floccus/a 会转发到 /webdav/floccus/a，适合 WebDAV 等服务。",
     dockerTargetPlaceholder: "宿主机局域网 IP:端口",
     dockerTargetCandidatesLoading: "正在推导 Docker 宿主机局域网地址...",
     dockerTargetCandidatesHint:

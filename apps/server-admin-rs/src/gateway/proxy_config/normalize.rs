@@ -329,6 +329,15 @@ pub(super) fn normalize_host_mappings_for_catalog(
                         disappeared.next().is_none().then_some(candidate)
                     })
             });
+        let target_path_mode = if service_role == "auth" {
+            "entry".to_string()
+        } else if object.contains_key("target_path_mode") {
+            parse_explicit_target_path_mode(object.get("target_path_mode")).ok_or_else(|| {
+                format!("Host mapping {host} target path mode must be entry or prefix")
+            })?
+        } else {
+            normalize_target_path_mode(previous.and_then(|value| value.get("target_path_mode")))
+        };
         let requested_group_id = object
             .contains_key("group_id")
             .then(|| object.get("group_id"))
@@ -401,6 +410,10 @@ pub(super) fn normalize_host_mappings_for_catalog(
 
         object.insert("host".to_string(), Value::String(host.clone()));
         object.insert("target".to_string(), Value::String(target));
+        object.insert(
+            "target_path_mode".to_string(),
+            Value::String(target_path_mode),
+        );
         object.insert(
             "waf_enabled".to_string(),
             Value::Bool(

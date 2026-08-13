@@ -28,6 +28,7 @@ import {
   analyzeCloudflaredLogs,
   type CloudflaredLogAnalysis,
 } from "./cloudflaredLogAnalysis";
+import { optimizationPreferredIpErrorLabel } from "./cloudflareOptimizationPresentation";
 
 type CloudflaredProtocolOption = {
   value: CloudflaredProtocol;
@@ -79,6 +80,7 @@ export const useCloudflareTunnelController = () => {
   const reconcileAttentionToken = ref(0);
   const optimizationScan = ref<CloudflareOptimizationScan | null>(null);
   const selectedCandidateIp = ref("");
+  const preferredCandidateIp = ref("");
   const optimizationOfficialRanges = ref(true);
   const optimizationBuiltinIds = ref<string[]>([]);
   const optimizationCustomHostnames = ref("");
@@ -334,6 +336,7 @@ export const useCloudflareTunnelController = () => {
       const latestScan = next.optimization.scans[0];
       if (latestScan && !optimizationScan.value) {
         optimizationScan.value = latestScan;
+        preferredCandidateIp.value = latestScan.preferredIp || "";
       }
     } catch (error) {
       if (!options?.silent) {
@@ -676,16 +679,20 @@ export const useCloudflareTunnelController = () => {
     }
     isScanningOptimization.value = true;
     try {
-      const scan = await CloudflaredAPI.startOptimizationScan();
+      const preferredIp = preferredCandidateIp.value.trim();
+      const scan = await CloudflaredAPI.startOptimizationScan(
+        preferredIp ? { preferredIp } : {},
+      );
       optimizationScan.value = scan;
       await pollOptimizationScan(scan.id);
     } catch (error) {
       isScanningOptimization.value = false;
+      const message = extractErrorMessage(
+        error,
+        t("admin.cloudflareTunnel.optimization.scanFailed"),
+      );
       toast.error(t("admin.cloudflareTunnel.optimization.scanFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.cloudflareTunnel.optimization.scanFailed"),
-        ),
+        description: optimizationPreferredIpErrorLabel(message, t),
       });
     }
   };
@@ -1004,6 +1011,7 @@ export const useCloudflareTunnelController = () => {
     optimizationScan,
     optimizationScanReady,
     protocol,
+    preferredCandidateIp,
     publicWildcardHostname,
     reconcileHasUnconfirmedConflicts,
     reconcileAttentionToken,

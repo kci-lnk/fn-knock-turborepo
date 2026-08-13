@@ -674,6 +674,79 @@ fn rejects_explicit_invalid_host_protocol_mode() {
 }
 
 #[test]
+fn rejects_explicit_invalid_host_target_path_mode() {
+    for target_path_mode in [Value::Null, json!("replace"), json!(1)] {
+        let error = normalize_host_mappings_for_route(
+            vec![json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8080/base",
+                "target_path_mode": target_path_mode,
+            })],
+            &json!({}),
+        )
+        .unwrap_err();
+        assert!(error.contains("target path mode must be entry or prefix"));
+    }
+}
+
+#[test]
+fn defaults_missing_host_target_path_mode_to_entry() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080/base",
+        })],
+        &json!({}),
+    )
+    .unwrap();
+    assert_eq!(
+        mappings[0].get("target_path_mode").and_then(Value::as_str),
+        Some("entry")
+    );
+}
+
+#[test]
+fn normalizes_host_target_path_mode_case_and_whitespace() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "dav.example.com",
+            "target": "http://127.0.0.1:8080/webdav",
+            "target_path_mode": " PREFIX ",
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0].get("target_path_mode").and_then(Value::as_str),
+        Some("prefix")
+    );
+    assert_eq!(
+        build_host_rules_payload(&mappings)
+            .pointer("/0/target_path_mode")
+            .and_then(Value::as_str),
+        Some("prefix")
+    );
+}
+
+#[test]
+fn auth_host_mapping_forces_entry_target_path_mode() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "auth.example.com",
+            "target": "http://127.0.0.1:7997/auth",
+            "service_role": "auth",
+            "target_path_mode": "prefix",
+            "use_auth": false,
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(mappings[0]["target_path_mode"], json!("entry"));
+}
+
+#[test]
 fn defaults_missing_host_protocol_mode_to_auto() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({
@@ -731,6 +804,29 @@ fn preserves_previous_host_protocol_mode_when_legacy_request_omits_it() {
 }
 
 #[test]
+fn preserves_previous_host_target_path_mode_when_legacy_request_omits_it() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "dav.example.com",
+            "target": "http://127.0.0.1:8080/webdav",
+        })],
+        &json!({
+            "host_mappings": [{
+                "host": "dav.example.com",
+                "target": "http://127.0.0.1:8080/webdav",
+                "target_path_mode": "prefix",
+            }]
+        }),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0].get("target_path_mode").and_then(Value::as_str),
+        Some("prefix")
+    );
+}
+
+#[test]
 fn canonicalizes_host_ports_and_rejects_duplicates() {
     assert_eq!(
         normalize_host_value("HTTPS://Video.Example.com:443/path"),
@@ -777,6 +873,38 @@ fn validates_go_backend_echoed_protocol_modes() {
         "protocol_mode": "auto"
     }]);
     ensure_go_host_protocol_modes_applied(&automatic, &old_backend).unwrap();
+}
+
+#[test]
+fn validates_go_backend_echoed_target_path_modes() {
+    let requested = json!([{
+        "host": "dav.example.com",
+        "protocol_mode": "auto",
+        "target_path_mode": "prefix"
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{
+            "host": "dav.example.com",
+            "protocol_mode": "auto",
+            "target_path_mode": "prefix"
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let old_backend = json!({
+        "success": true,
+        "data": [{"host": "dav.example.com", "protocol_mode": "auto"}]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply target path mode prefix"));
+
+    let entry = json!([{
+        "host": "dav.example.com",
+        "protocol_mode": "auto",
+        "target_path_mode": "entry"
+    }]);
+    ensure_go_host_protocol_modes_applied(&entry, &old_backend).unwrap();
 }
 
 #[test]

@@ -2693,6 +2693,7 @@ export const koKRAdmin = {
           "Cloudflare 공식 대역과 해외 공공·인프라 사이트의 DNS 결과를 결합합니다. 소스 호스트 이름은 주소 단서일 뿐 국가나 데이터 센터를 고정하지 않습니다.",
         officialRanges: "Cloudflare 공식 IPv4 대역",
         officialRangesShort: "공식 대역",
+        preferredIpShort: "사용자 지정 우선 IP",
         officialRangesDescription:
           "Cloudflare 공개 대역에서 결정적으로 샘플링합니다. 계속 활성화하는 것을 권장합니다.",
         builtinTitle: "내장 해외 공공·인프라 사이트",
@@ -2709,6 +2710,8 @@ export const koKRAdmin = {
           "모든 DoH를 사용할 수 없어 Cloudflare 공식 IPv4 대역 샘플링으로 자동 전환했습니다.",
         resolverPathCurrentCandidate:
           "모든 DoH를 사용할 수 없어 현재 게시된 Cloudflare 후보만 유지하고 다시 검증했습니다.",
+        resolverPathPreferredIp:
+          "모든 자동 후보 소스를 사용할 수 없어 사용자가 지정한 Cloudflare IP만 검증했습니다.",
         resolverPathUnavailable:
           "모든 DoH를 사용할 수 없고 Cloudflare 공식 IPv4 대역 소스도 비활성화되어 있습니다.",
         resolvers: {
@@ -2769,6 +2772,17 @@ export const koKRAdmin = {
       nextScan: "다음 전체 스캔",
       optimizedDomains: "최적화 도메인",
       lastSwitchReason: "최근 전환 이유",
+      preferredIpLabel: "사용자 지정 우선 IP(선택 사항)",
+      preferredIpPlaceholder: "예: 104.16.0.1",
+      preferredIpDescription:
+        "Cloudflare 공식 IPv4 대역의 주소만 허용됩니다. 이 주소는 속도 테스트 후보 목록에 반드시 포함되지만 다운로드, 서비스 호스트 이름 TLS, SNI 및 Ray ID 검증을 통과해야 합니다. 비워 두면 자동 선택합니다.",
+      preferredIpInvalid: "유효한 IPv4 주소를 입력하세요.",
+      preferredIpOutsideCloudflare:
+        "이 주소는 Cloudflare 공식 IPv4 대역에 속하지 않아 최적화 후보로 사용할 수 없습니다.",
+      preferredIpValidated:
+        "사용자 지정 IP {ip}가 모든 검증을 통과하여 이번 스캔의 권장 후보로 설정되었습니다.",
+      preferredIpRejected:
+        "사용자 지정 IP {ip}가 Cloudflare 대역 재확인, 지연 시간, 다운로드 또는 서비스 호스트 이름 검증을 통과하지 못해 자동 선택되지 않았습니다. 아래의 검증된 후보는 직접 선택할 수 있습니다.",
       startScan: "속도 테스트 시작",
       cancelScan: "스캔 취소",
       fallback: "즉시 폴백",
@@ -3451,6 +3465,15 @@ export const koKRAdmin = {
     finalHost: "최종 주소: {host}",
     notFilled: "채워지지 않음",
     targetLabel: "대상",
+    targetHint:
+      "왼쪽에서 프로토콜을 선택하고 오른쪽에 IP, 포트 및 선택적 경로를 입력하세요. 포트를 생략하면 프로토콜 기본값이 자동으로 채워집니다.",
+    targetPathMode: "대상 경로 동작",
+    targetPathModeEntry: "진입 경로로만 사용(호환 모드)",
+    targetPathModeEntryDescription:
+      "공개 루트 요청에만 대상 경로를 사용하고 다른 요청 경로는 유지합니다. 로그인이나 정적 리소스가 원본 루트에 있는 웹 앱에 적합합니다.",
+    targetPathModePrefix: "고정 접두사(디렉터리 마운트)",
+    targetPathModePrefixDescription:
+      "모든 업스트림 요청 앞에 대상 경로를 추가합니다. 예를 들어 /floccus/a는 /webdav/floccus/a로 전달되며 WebDAV 등에 적합합니다.",
     dockerTargetPlaceholder: "호스트_LAN_IP:포트",
     dockerTargetCandidatesLoading: "Docker 호스트 LAN 주소를 검색하는 중...",
     dockerTargetCandidatesHint:

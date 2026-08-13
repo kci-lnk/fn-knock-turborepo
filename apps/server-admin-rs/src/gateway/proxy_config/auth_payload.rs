@@ -83,6 +83,7 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                 json!({
                     "host": object.get("host").cloned().unwrap_or(Value::String(String::new())),
                     "target": object.get("target").cloned().unwrap_or(Value::String(String::new())),
+                    "target_path_mode": normalize_target_path_mode(object.get("target_path_mode")),
                     "use_auth": object.get("use_auth").cloned().unwrap_or(Value::Bool(true)),
                     "access_mode": object.get("access_mode").cloned().unwrap_or(Value::String("login_first".to_string())),
                     "suppress_toolbar": object.get("suppress_toolbar").cloned().unwrap_or(Value::Bool(false)),

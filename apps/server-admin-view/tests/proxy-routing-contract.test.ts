@@ -78,6 +78,13 @@ describe("proxy and subdomain routing API contract", () => {
     );
   });
 
+  it("exposes the explicit host target path mode contract", () => {
+    const hostMapping = contract.components.schemas.HostMappingData;
+
+    assert.ok(hostMapping.required?.includes("target_path_mode"));
+    assert.ok(hostMapping.properties?.target_path_mode);
+  });
+
   it("derives stream and subdomain frontend boundaries from OpenAPI", () => {
     const types = readSource("../src/types.ts");
     const configApi = readSource("../src/lib/api/config.ts");

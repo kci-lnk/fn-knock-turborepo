@@ -136,9 +136,11 @@ describe("dashboard and update API contract", () => {
   });
 
   it("derives frontend dashboard and update models from generated types", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const dashboardApi = readSource("../src/lib/api/dashboard.ts");
-    const configApi = readSource("../src/lib/api/config.ts");
+    const configApi =
+      readSource("../src/lib/api/config.ts") +
+      readSource("../src/lib/api/config-core-api.ts");
 
     assert.match(types, /\["DashboardRealtimeData"\]/u);
     assert.match(types, /\["DashboardStatsData"\]/u);
@@ -225,7 +227,9 @@ describe("firewall, route sync, and maintenance API contract", () => {
   });
 
   it("derives frontend mutation requests and responses from generated types", () => {
-    const configApi = readSource("../src/lib/api/config.ts");
+    const configApi =
+      readSource("../src/lib/api/config.ts") +
+      readSource("../src/lib/api/config-core-api.ts");
     const systemApi = readSource("../src/lib/api/system.ts");
     const mappingActions = readSource(
       "../src/views/subdomain-proxy/useSubdomainMappingListActions.ts",
@@ -397,7 +401,7 @@ describe("system-managed binary and dnsmasq API contract", () => {
   });
 
   it("derives frontend binary and dnsmasq models from generated schemas", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const systemApi = readSource("../src/lib/api/system.ts");
     const binarySettings = readSource(
       "../src/views/system-settings/BinaryResourceSettings.vue",

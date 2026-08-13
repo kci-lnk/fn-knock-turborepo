@@ -145,7 +145,7 @@ describe("deep monitor API contract", () => {
   });
 
   it("derives frontend session, event, timing, and request models", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const api = readSource("../src/lib/api/deep-monitor.ts");
     for (const schema of [
       "DeepMonitorSessionData",

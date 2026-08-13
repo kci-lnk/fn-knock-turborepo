@@ -15,6 +15,20 @@ const captchaSettingsSource = readFileSync(
   new URL("../src/views/system-settings/CaptchaSettings.vue", import.meta.url),
   "utf8",
 );
+const powSettingsSource = readFileSync(
+  new URL(
+    "../src/views/system-settings/captcha/PowCaptchaSettingsFields.vue",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const fieldSource = readFileSync(
+  new URL(
+    "../src/views/system-settings/captcha/CaptchaConfigField.vue",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("captcha settings", () => {
   it("validates both PoW difficulty tiers and their ordering", () => {
@@ -42,22 +56,21 @@ describe("captcha settings", () => {
   });
 
   it("renders difficulty selects and hides the uncommon tier when disabled", () => {
-    assert.match(captchaSettingsSource, /v-model="baseDifficultySelection"/);
-    assert.match(captchaSettingsSource, /v-model="uncommonDifficultySelection"/);
+    assert.match(captchaSettingsSource, /PowCaptchaSettingsFields/);
+    assert.match(captchaSettingsSource, /v-model="form\.pow"/);
+    assert.match(powSettingsSource, /v-model="baseDifficultySelection"/);
+    assert.match(powSettingsSource, /v-model="uncommonDifficultySelection"/);
+    assert.match(powSettingsSource, /model\.uncommon_location\.enabled/);
     assert.match(
-      captchaSettingsSource,
-      /form\.pow\.uncommon_location\.enabled/,
+      powSettingsSource,
+      /v-if="model\.uncommon_location\.enabled"/,
     );
-    assert.match(
-      captchaSettingsSource,
-      /v-if="form\.pow\.uncommon_location\.enabled"/,
-    );
-    assert.match(captchaSettingsSource, /captcha-difficulty-select-wrap/);
-    assert.match(captchaSettingsSource, /width: min\(100%, 300px\)/);
-    assert.doesNotMatch(captchaSettingsSource, /\(\{\{ POW_DIFFICULTY_/);
+    assert.match(powSettingsSource, /control-class="md:w-\[300px\]"/);
+    assert.match(fieldSource, /md:grid-cols-\[320px_minmax\(0,1fr\)\]/);
+    assert.doesNotMatch(powSettingsSource, /\(\{\{ POW_DIFFICULTY_/);
     assert.doesNotMatch(
-      captchaSettingsSource,
-      /v-model\.number="form\.pow\.(?:base_max_number|uncommon_location\.max_number)"/,
+      powSettingsSource,
+      /v-model\.number="model\.(?:base_max_number|uncommon_location\.max_number)"/,
     );
   });
 });

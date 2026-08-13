@@ -349,10 +349,11 @@ const runAfterFirstPaint = (callback: () => void) => {
     window.setTimeout(callback, 250);
   });
 };
-
+let isDisposed = false;
 onMounted(() => {
   void configStore.loadConfig().finally(() => {
     runAfterFirstPaint(() => {
+      if (isDisposed) return;
       if (configStore.canSyncSystemClock) {
         void systemClockStore.initialize();
       }
@@ -364,6 +365,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  isDisposed = true;
   systemClockStore.stopPolling();
   updateStore.stopPolling();
 });

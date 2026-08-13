@@ -65,7 +65,7 @@ describe("FN Connect WAF visibility", () => {
     );
     assert.match(
       source,
-      /<FnosConnectWafSetting v-if="configStore\.canUseFnosConnectWaf" \/>/u,
+      /<FnosConnectWafSetting v-if="canUseFnosConnectWaf" \/>/u,
     );
   });
 });

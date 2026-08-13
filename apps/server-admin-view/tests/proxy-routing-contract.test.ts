@@ -91,8 +91,8 @@ describe("proxy and subdomain routing API contract", () => {
   });
 
   it("derives stream and subdomain frontend boundaries from OpenAPI", () => {
-    const types = readSource("../src/types.ts");
-    const configApi = readSource("../src/lib/api/config.ts");
+    const types = readSource("../src/types/core.ts");
+    const configApi = readSource("../src/lib/api/config-proxy-api.ts");
 
     assert.match(types, /\["StreamMappingData"\]/u);
     assert.match(types, /\["SubdomainModeData"\]/u);

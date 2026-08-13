@@ -76,7 +76,7 @@ describe("SSH security API contract", () => {
   });
 
   it("derives frontend models, requests, and queries from the contract", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/gateway.ts");
     const api = readSource("../src/lib/api/security.ts");
 
     assert.match(types, /SshSecurityConfigData"\]/u);

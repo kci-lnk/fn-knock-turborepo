@@ -24,6 +24,7 @@ export function useAcmeJobPolling({
   const job = ref<AcmeJobData | null>(null);
   const logs = ref<string[]>([]);
   const analysis = ref<AcmeLogAnalysis | null>(null);
+  let isDisposed = false;
 
   const { isPending: isRefreshingLogs, run: runRefreshLogs } = useAsyncAction({
     onError: (error) => {
@@ -63,6 +64,7 @@ export function useAcmeJobPolling({
   };
 
   const startPolling = (jobId: string) => {
+    if (isDisposed) return;
     selectedJobId.value = jobId;
     jobPoller.start();
     jobPoller.sync();
@@ -147,7 +149,10 @@ export function useAcmeJobPolling({
     analysis.value = null;
   };
 
-  onUnmounted(stopPolling);
+  onUnmounted(() => {
+    isDisposed = true;
+    stopPolling();
+  });
 
   return {
     analysis,

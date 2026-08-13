@@ -4,6 +4,7 @@ import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { browserT } from "@fn-knock/i18n/vue/admin";
 import { SystemAPI, type SystemClockStatus } from "@/lib/api/system";
+import { createPollingLifecycle } from "@/lib/pollingLifecycle";
 
 const POLL_HEALTHY_MS = 10 * 60 * 1000;
 const POLL_ATTENTION_MS = 30 * 1000;
@@ -11,7 +12,6 @@ const POLL_ATTENTION_MS = 30 * 1000;
 export const useSystemClockStore = defineStore("system-clock", () => {
   const status = ref<SystemClockStatus | null>(null);
   const isLoading = ref(false);
-  const hasInitialized = ref(false);
   const isRefreshingLocal = ref(false);
   const isSyncingLocal = ref(false);
   let pollTimer: number | null = null;
@@ -118,16 +118,18 @@ export const useSystemClockStore = defineStore("system-clock", () => {
     }
   }
 
+  const pollingLifecycle = createPollingLifecycle({
+    initialize: async () => {
+      const current = await loadStatus(true);
+      if (!current?.checkedAt || current.lastCheckError) {
+        await refresh(false);
+      }
+    },
+    start: startPolling,
+  });
+
   async function initialize() {
-    if (hasInitialized.value) return;
-    hasInitialized.value = true;
-
-    const current = await loadStatus(true);
-    if (!current?.checkedAt || current.lastCheckError) {
-      await refresh(false);
-    }
-
-    startPolling();
+    await pollingLifecycle.activate();
   }
 
   function startPolling() {
@@ -137,6 +139,7 @@ export const useSystemClockStore = defineStore("system-clock", () => {
   }
 
   function stopPolling() {
+    pollingLifecycle.deactivate();
     pollingStarted = false;
     clearTimer();
   }

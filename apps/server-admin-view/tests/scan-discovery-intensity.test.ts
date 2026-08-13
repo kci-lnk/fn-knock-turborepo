@@ -19,7 +19,12 @@ const zhCnAdminSource = readSource(
 );
 const scanApiSource = readSource("../src/lib/api/scan.ts");
 const reverseProxySource = readSource("../src/views/ReverseProxy.vue");
-const subdomainProxySource = readSource("../src/views/SubdomainProxy.vue");
+const reverseProxyCardSource = readSource(
+  "../src/views/reverse-proxy/ReverseProxyMappingsCard.vue",
+);
+const subdomainProxySource = readSource(
+  "../src/views/subdomain-proxy/SubdomainProxyOverview.vue",
+);
 const subdomainCardSource = readSource(
   "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
 );
@@ -127,7 +132,7 @@ describe("scan discovery intensity", () => {
 
   it("wires both discovery dropdowns to the shared dialog", () => {
     assert.match(reverseProxySource, /<ScanDiscoveryIntensityDialog/u);
-    assert.match(reverseProxySource, /admin\.scanIntensity\.title/u);
+    assert.match(reverseProxyCardSource, /admin\.scanIntensity\.title/u);
     assert.match(subdomainProxySource, /<ScanDiscoveryIntensityDialog/u);
     assert.match(subdomainProxySource, /@open-discover-settings/u);
     assert.match(subdomainCardSource, /emit\('open-discover-settings'\)/u);

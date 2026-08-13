@@ -138,6 +138,34 @@ test("request analytics tabs expose real panels while retaining component state"
     ),
     "utf8",
   );
+  const analyticsActionsSource = readFileSync(
+    new URL(
+      "../src/views/request-analysis/RequestAnalyticsActions.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const analyticsOverviewSource = readFileSync(
+    new URL(
+      "../src/views/request-analysis/RequestAnalyticsOverview.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const analyticsBreakdownsSource = readFileSync(
+    new URL(
+      "../src/views/request-analysis/RequestAnalyticsBreakdowns.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const analyticsControllerSource = readFileSync(
+    new URL(
+      "../src/views/request-analysis/useRequestAnalyticsPage.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const logsSource = readFileSync(
     new URL("../src/views/GatewayRequestLogs.vue", import.meta.url),
     "utf8",
@@ -145,6 +173,13 @@ test("request analytics tabs expose real panels while retaining component state"
   const logsTableSource = readFileSync(
     new URL(
       "../src/views/gateway-request-logs/GatewayRequestLogsTable.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const logsFiltersSource = readFileSync(
+    new URL(
+      "../src/views/gateway-request-logs/GatewayRequestLogsFilters.vue",
       import.meta.url,
     ),
     "utf8",
@@ -172,27 +207,33 @@ test("request analytics tabs expose real panels while retaining component state"
     cardSource,
     /\{\{ formatAnalyticsPercent\(item\.share, String\(locale\)\) \}\}/u,
   );
-  assert.match(analyticsSource, /<TabsList/u);
-  assert.match(analyticsSource, /<TabsTrigger/u);
-  assert.match(analyticsSource, /grid-cols-3/u);
+  assert.match(analyticsSource, /RequestAnalyticsActions/u);
+  assert.match(analyticsSource, /RequestAnalyticsOverview/u);
+  assert.match(analyticsSource, /RequestAnalyticsBreakdowns/u);
+  assert.match(analyticsActionsSource, /<TabsList/u);
+  assert.match(analyticsActionsSource, /<TabsTrigger/u);
+  assert.match(analyticsActionsSource, /grid-cols-3/u);
   assert.doesNotMatch(analyticsSource, /rangeKey === 'custom'/u);
-  assert.match(analyticsSource, /refreshGeo/u);
+  assert.match(analyticsBreakdownsSource, /refreshGeo/u);
   assert.match(
-    analyticsSource,
+    analyticsActionsSource,
     /<Teleport defer to="#request-analysis-analytics-actions">/u,
   );
   assert.match(logsSource, /#request-analysis-logs-actions/u);
   assert.doesNotMatch(analyticsSource, /rangeText/u);
   assert.doesNotMatch(analyticsSource, /requestAnalysis\.rangeTimezone/u);
-  assert.match(analyticsSource, /analyticsRegionLabel/u);
+  assert.match(analyticsControllerSource, /analyticsRegionLabel/u);
   assert.doesNotMatch(analyticsSource, /metric\.hint/u);
   assert.doesNotMatch(analyticsSource, /metric\.tone/u);
   assert.doesNotMatch(analyticsSource, /averageDuration/u);
   assert.match(cardSource, /bg-foreground\/\[0\.08\]/u);
   assert.match(pageSource, /grid-cols-2 sm:flex sm:w-auto/u);
-  assert.match(analyticsSource, /grid-cols-\[minmax\(0,1fr\)_auto\]/u);
-  assert.match(analyticsSource, /col-span-2 lg:col-span-1/u);
-  assert.match(logsSource, /grid-cols-2 items-center/u);
+  assert.match(
+    analyticsActionsSource,
+    /grid-cols-\[minmax\(0,1fr\)_auto\]/u,
+  );
+  assert.match(analyticsOverviewSource, /col-span-2 lg:col-span-1/u);
+  assert.match(logsFiltersSource, /grid-cols-2 items-center/u);
   assert.match(logsTableSource, /class="divide-y md:hidden"/u);
   assert.match(logsTableSource, /hidden min-w-\[1060px\] md:table/u);
 });

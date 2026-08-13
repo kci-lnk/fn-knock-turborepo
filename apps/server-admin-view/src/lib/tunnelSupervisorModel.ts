@@ -1,4 +1,4 @@
-import { type TunnelSupervisorStatus } from "@/lib/api/tunnel";
+import type { TunnelSupervisorStatus } from "@/lib/api/tunnel";
 
 export type TunnelSupervisorTone = "success" | "info" | "warning" | "muted";
 

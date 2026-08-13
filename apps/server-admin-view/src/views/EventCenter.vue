@@ -1,11 +1,19 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
-import EventsTab from "./event-center/EventsTab.vue";
-import NotificationsTab from "./event-center/NotificationsTab.vue";
-import RuntimeTab from "./event-center/RuntimeTab.vue";
+
+const EventsTab = defineAsyncComponent(
+  () => import("./event-center/EventsTab.vue"),
+);
+const NotificationsTab = defineAsyncComponent(
+  () => import("./event-center/NotificationsTab.vue"),
+);
+const RuntimeTab = defineAsyncComponent(
+  () => import("./event-center/RuntimeTab.vue"),
+);
 
 const { t } = useI18n();
 const router = useRouter();

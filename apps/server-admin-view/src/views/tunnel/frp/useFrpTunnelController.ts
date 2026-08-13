@@ -37,6 +37,7 @@ export const useFrpTunnelController = () => {
   const router = useRouter();
   const configStore = useConfigStore();
   const { t } = useI18n();
+  let isDisposed = false;
   const overview = ref<FrpcInstancesOverview | null>(null);
   const primaryConfig = ref("");
   const primaryLogs = ref<string[]>([]);
@@ -388,9 +389,14 @@ export const useFrpTunnelController = () => {
   onMounted(async () => {
     await loadStatus();
     await loadConfig();
+    if (isDisposed) return;
+
     frpcPolling.start();
   });
-  onUnmounted(() => frpcPolling.stop());
+  onUnmounted(() => {
+    isDisposed = true;
+    frpcPolling.stop();
+  });
 
   return {
     canStart,

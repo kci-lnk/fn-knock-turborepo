@@ -143,7 +143,7 @@ describe("FNOS and Smart Connect API contract", () => {
   });
 
   it("derives the frontend FNOS and Smart Connect models from OpenAPI", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const systemApi = readSource("../src/lib/api/system.ts");
     const smartViewModel = readSource(
       "../src/views/system-settings/smart-connect/useSmartConnectViewModel.ts",

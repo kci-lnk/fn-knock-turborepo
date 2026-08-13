@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   extractErrorMessage,
@@ -28,6 +28,8 @@ import {
 export const useGatewayRequestLogsResource = () => {
   const configStore = useConfigStore();
   const { t } = useI18n();
+  let isDisposed = false;
+  let entriesRequestId = 0;
   const entries = ref<GatewayLogEntry[]>([]);
   const logsDir = ref("");
   const availableDates = ref<string[]>([]);
@@ -162,6 +164,7 @@ export const useGatewayRequestLogsResource = () => {
 
   const fetchDates = async (preferred?: string) => {
     const data = await GatewayLogsAPI.getDates();
+    if (isDisposed) return;
     logsDir.value = data.logs_dir || "";
     applyDates(data.dates || [], preferred || data.today || selectedDate.value);
   };
@@ -169,33 +172,39 @@ export const useGatewayRequestLogsResource = () => {
   const fetchCredentialOptions = async () => {
     try {
       const data = await ConfigAPI.getTOTPStatus();
+      if (isDisposed) return;
       credentialOptions.value = data.credentials || [];
     } catch {
+      if (isDisposed) return;
       credentialOptions.value = [];
     }
   };
 
   const fetchEntries = async () => {
+    const currentRequestId = ++entriesRequestId;
+    const params = {
+      date: selectedDate.value,
+      pagination: "cursor" as const,
+      limit: limit.value,
+      cursor: currentCursor.value || undefined,
+      search: searchQuery.value || undefined,
+      status: normalizedStatusQuery.value || undefined,
+      logged_in: normalizedLoggedInQuery.value || undefined,
+      credential: normalizedCredentialQuery.value || undefined,
+      waf_status: normalizedWAFStatusQuery.value || undefined,
+    };
     loading.value = true;
     try {
-      const data = await GatewayLogsAPI.getEntries({
-        date: selectedDate.value,
-        pagination: "cursor",
-        limit: limit.value,
-        cursor: currentCursor.value || undefined,
-        search: searchQuery.value || undefined,
-        status: normalizedStatusQuery.value || undefined,
-        logged_in: normalizedLoggedInQuery.value || undefined,
-        credential: normalizedCredentialQuery.value || undefined,
-        waf_status: normalizedWAFStatusQuery.value || undefined,
-      });
+      const data = await GatewayLogsAPI.getEntries(params);
+      if (isDisposed || currentRequestId !== entriesRequestId) return;
       logsDir.value = data.logs_dir || "";
       entries.value = data.items || [];
       selectedLogEntryKeys.value = new Set();
       trackIps(entries.value.map(getEntryClientIp));
       nextCursor.value = data.next_cursor || "";
-      applyDates(data.available_dates || [], data.date || selectedDate.value);
+      applyDates(data.available_dates || [], data.date || params.date);
     } catch (error) {
+      if (isDisposed || currentRequestId !== entriesRequestId) return;
       entries.value = [];
       trackIps([]);
       nextCursor.value = "";
@@ -206,7 +215,7 @@ export const useGatewayRequestLogsResource = () => {
         ),
       });
     } finally {
-      loading.value = false;
+      if (currentRequestId === entriesRequestId) loading.value = false;
     }
   };
 
@@ -305,7 +314,13 @@ export const useGatewayRequestLogsResource = () => {
       fetchDates(selectedDate.value),
       fetchCredentialOptions(),
     ]);
+    if (isDisposed) return;
     await fetchEntries();
+  });
+
+  onBeforeUnmount(() => {
+    isDisposed = true;
+    entriesRequestId += 1;
   });
 
   return {

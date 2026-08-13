@@ -97,3 +97,21 @@ export type SubdomainMappingsCardEmits = {
   "update:draggableMappings": [mappings: HostMapping[]];
   "update:searchQuery": [value: string];
 };
+
+export interface SubdomainMappingsTableActions {
+  clearDefault: (mapping: HostMapping) => void;
+  copyHost: (mapping: HostMapping) => void;
+  deleteMapping: (host: string) => void;
+  edit: (mapping: HostMapping) => void;
+  manageGroups: () => void;
+  moveMappings: (hosts: string[], groupId: string | null) => void;
+  openAdvancedAuth: (host: string) => void;
+  openAvailability: (mapping: HostMapping) => void;
+  openCreate: (groupId?: string | null) => void;
+  openDeepMonitor: (host: string) => void;
+  openGatewayLocations: (host: string) => void;
+  saveFlatOrder: (mappings: HostMapping[]) => void;
+  saveGroupedOrder: (sections: HostMappingGroupSection[]) => void;
+  setDefault: (mapping: HostMapping) => void;
+  toggleEnabled: (mapping: HostMapping) => void;
+}

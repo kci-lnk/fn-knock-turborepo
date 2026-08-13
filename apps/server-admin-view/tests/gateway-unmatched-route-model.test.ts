@@ -84,14 +84,17 @@ test("gateway settings keeps unmatched-route selection inline and in unified sav
 });
 
 test("only the default-domain indicator receives the unavailable visual state", () => {
-  const source = readSource(
-    "../src/views/subdomain-proxy/SubdomainMappingStatusIndicators.vue",
+  const availabilitySource = readSource(
+    "../src/views/subdomain-proxy/SubdomainMappingAvailabilityIndicators.vue",
   );
-  const scheduledOpenBlock = source.match(
-    /<TooltipProvider v-else-if="availabilityState === 'scheduled_open'">[\s\S]*?<\/TooltipProvider>/u,
+  const accessSource = readSource(
+    "../src/views/subdomain-proxy/SubdomainMappingAccessIndicators.vue",
+  );
+  const scheduledOpenBlock = availabilitySource.match(
+    /<SubdomainMappingStatusTooltip\s+v-else-if="model\.availabilityState === 'scheduled_open'"[\s\S]*?<\/SubdomainMappingStatusTooltip>/u,
   )?.[0];
-  const defaultDomainBlock = source.match(
-    /<TooltipProvider v-if="mapping\.is_default">[\s\S]*?<\/TooltipProvider>/u,
+  const defaultDomainBlock = accessSource.match(
+    /<SubdomainMappingStatusTooltip\s+v-if="model\.mapping\.is_default"[\s\S]*?<\/SubdomainMappingStatusTooltip>/u,
   )?.[0];
 
   assert.ok(scheduledOpenBlock);

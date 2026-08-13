@@ -45,7 +45,7 @@ import {
   supervisorAllowsStart,
   supervisorAllowsStop,
   supervisorTone,
-} from "../src/views/tunnel/tunnelSupervisorModel";
+} from "../src/lib/tunnelSupervisorModel";
 import {
   buildIpLocationSettingsPayload,
   isHttpUrl,

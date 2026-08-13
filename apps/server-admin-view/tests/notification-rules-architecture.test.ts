@@ -8,6 +8,12 @@ const readSource = (path: string) =>
 const rulesTabSource = readSource(
   "../src/views/event-center/notifications/RulesTab.vue",
 );
+const ruleEditorDialogSource = readSource(
+  "../src/views/event-center/notifications/NotificationRuleEditorDialog.vue",
+);
+const ruleTargetsSource = readSource(
+  "../src/views/event-center/notifications/NotificationRuleTargets.vue",
+);
 const controllerSource = readSource(
   "../src/views/event-center/notifications/useNotificationRules.ts",
 );
@@ -22,7 +28,13 @@ describe("notification rules architecture", () => {
   it("keeps the SFC focused on presentation and existing child components", () => {
     assert.match(rulesTabSource, /useNotificationRules/u);
     assert.match(rulesTabSource, /<RulesListTable/u);
-    assert.match(rulesTabSource, /<SchemaFieldsEditor/u);
+    assert.match(rulesTabSource, /<NotificationRuleEditorDialog/u);
+    assert.match(ruleEditorDialogSource, /<NotificationRuleDialogHeader/u);
+    assert.match(ruleEditorDialogSource, /<NotificationRuleEventTypes/u);
+    assert.match(ruleEditorDialogSource, /<NotificationRuleConditions/u);
+    assert.match(ruleEditorDialogSource, /<NotificationRuleTargets/u);
+    assert.doesNotMatch(ruleEditorDialogSource, /<SchemaFieldsEditor/u);
+    assert.match(ruleTargetsSource, /<SchemaFieldsEditor/u);
     assert.doesNotMatch(rulesTabSource, /EventCenterAPI\./u);
     assert.doesNotMatch(rulesTabSource, /buildRulePayload/u);
   });

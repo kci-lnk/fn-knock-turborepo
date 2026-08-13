@@ -29,26 +29,39 @@ test("gateway portal version builds a partial immediate-save patch", () => {
 });
 
 test("gateway portal settings exposes v1 and v2 state and rolls back failed saves", () => {
-  const source = readSource(
+  const pageSource = readSource(
     "../src/views/system-settings/GatewayPortalSettings.vue",
   );
+  const panelSource = readSource(
+    "../src/views/system-settings/gateway-portal/GatewayPortalSettingsPanel.vue",
+  );
+  const choiceSource = readSource(
+    "../src/views/system-settings/gateway-portal/GatewayPortalChoiceSetting.vue",
+  );
+  const controllerSource = readSource(
+    "../src/views/system-settings/gateway-portal/useGatewayPortalSettings.ts",
+  );
 
-  assert.match(source, /:aria-pressed="form\.version === 'v1'"/u);
-  assert.match(source, /:aria-pressed="form\.version === 'v2'"/u);
+  assert.match(pageSource, /useGatewayPortalSettings/u);
+  assert.match(pageSource, /GatewayPortalSettingsPanel/u);
+  assert.doesNotMatch(pageSource, /ConfigAPI/u);
+  assert.match(panelSource, /value: "v1"/u);
+  assert.match(panelSource, /value: "v2"/u);
+  assert.match(choiceSource, /:aria-pressed="modelValue === option\.value"/u);
   assert.match(
-    source,
+    choiceSource,
     /bg-foreground text-background hover:bg-foreground\/90 hover:text-background/u,
   );
   assert.match(
-    source,
+    controllerSource,
     /ConfigAPI\.updateGatewaySettings\(buildGatewayPortalVersionPatch\(version\)\)/u,
   );
   assert.match(
-    source,
-    /if \(!\(await applySavedSettings\(data\)\)\) \{\s*applyPortal\(previous\);\s*\}/u,
+    controllerSource,
+    /if \(!\(await applySavedSettings\(data\)\)\) applyPortal\(previous\);/u,
   );
   assert.match(
-    source,
+    controllerSource,
     /const data = await ConfigAPI\.getGatewaySettings\(\);\s*applyPortal\(data\.portal\);/u,
   );
 });

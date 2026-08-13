@@ -22,10 +22,10 @@ const selectorPath = "components/CidrRegionSelector.vue";
 const selectorStatePath = "components/cidr-region-selector-state.ts";
 const selectorConsumers = [
   "views/ip-whitelist/WhitelistAddDialog.vue",
-  "views/SSHSecurity.vue",
+  "views/ssh-security/SSHSecurityFormFields.vue",
   "views/subdomain-proxy/SubdomainMappingVisibilityPanel.vue",
   "views/system-settings/GatewayVisibilitySettings.vue",
-  "views/system-settings/ScannerFirewallSettings.vue",
+  "views/system-settings/scanner-firewall/ScannerFirewallExemptions.vue",
 ];
 
 const listSourceFiles = async (directory: string): Promise<string[]> => {

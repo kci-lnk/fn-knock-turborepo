@@ -126,8 +126,8 @@ describe("SSL certificate API contract", () => {
   });
 
   it("derives frontend SSL models, requests, and queries from OpenAPI", () => {
-    const types = readSource("../src/types.ts");
-    const api = readSource("../src/lib/api/config.ts");
+    const types = readSource("../src/types/core.ts");
+    const api = readSource("../src/lib/api/config-proxy-api.ts");
     for (const schema of [
       "SslCertificateSaveBodyData",
       "SslCertificateInfoData",

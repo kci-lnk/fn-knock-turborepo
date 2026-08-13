@@ -56,7 +56,7 @@ describe("interactive affordance contract", () => {
         [/copyAddressAria/u, /@click="copyIpAddress/u],
       ],
       [
-        "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+        "../src/views/subdomain-proxy/SubdomainMappingTitleCell.vue",
         [/data-affordance="edit"/u, /<Pencil/u],
       ],
       [
@@ -81,7 +81,7 @@ describe("interactive affordance contract", () => {
     }
 
     const subdomainMappingsSource = readSource(
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingTableRow.vue",
     );
     assert.doesNotMatch(
       subdomainMappingsSource,
@@ -92,7 +92,7 @@ describe("interactive affordance contract", () => {
 
   it("keeps inline copy values iconless", () => {
     for (const relativePath of [
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingTableRow.vue",
       "../src/views/ddns-management/DDNSStatusCard.vue",
       "../src/views/ddns-management/DDNSExtraTargetsCard.vue",
       "../src/views/OIDCProviderSettings.vue",
@@ -125,7 +125,7 @@ describe("interactive affordance contract", () => {
     );
 
     const mappingSource = readSource(
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingTitleCell.vue",
     );
     assert.match(mappingSource, /class="group\/edit inline-flex/u);
     assert.match(
@@ -149,7 +149,7 @@ describe("interactive affordance contract", () => {
     );
 
     for (const relativePath of [
-      "../src/views/gateway-request-logs/GatewayRequestLogsTable.vue",
+      "../src/views/gateway-request-logs/GatewayRequestLogDesktopRow.vue",
       "../src/views/waf-logs/WAFLogsTable.vue",
       "../src/views/event-center/EventsTab.vue",
     ]) {
@@ -170,7 +170,7 @@ describe("interactive affordance contract", () => {
     ];
     const approved = new Set([
       new URL(
-        "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+        "../src/views/subdomain-proxy/SubdomainMappingTitleCell.vue",
         import.meta.url,
       ).pathname,
       new URL(

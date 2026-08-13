@@ -26,8 +26,11 @@ describe("Wake-on-LAN management", () => {
     const navigation = readSource("../src/views/layout/useLayoutNavigation.ts");
     const runtimeAccess = readSource("../src/router/runtime-access.ts");
     const router = readSource("../src/router/index.ts");
-    const gatewayPortal = readSource(
-      "../src/views/system-settings/GatewayPortalSettings.vue",
+    const gatewayPortalPanel = readSource(
+      "../src/views/system-settings/gateway-portal/GatewayPortalSettingsPanel.vue",
+    );
+    const gatewayPortalController = readSource(
+      "../src/views/system-settings/gateway-portal/useGatewayPortalSettings.ts",
     );
     const permissions = readSource(
       "../src/views/auth-settings/useAuthSubdomainAccess.ts",
@@ -41,7 +44,11 @@ describe("Wake-on-LAN management", () => {
       router,
       /if \(to\.path !== "\/wol"\) \{\s*return "\/whitelist"/u,
     );
-    assert.match(gatewayPortal, /v-if="configStore\.config\?\.wol_feature/u);
+    assert.match(gatewayPortalPanel, /v-if="model\.wolFeatureEnabled"/u);
+    assert.match(
+      gatewayPortalController,
+      /configStore\.config\?\.wol_feature\?\.enabled === true/u,
+    );
     assert.match(permissions, /__builtin_wol__/u);
     assert.match(permissions, /if \(wolFeatureEnabled\.value\)/u);
   });
@@ -112,20 +119,42 @@ describe("Wake-on-LAN management", () => {
   });
 
   it("keeps wake/probe feedback scoped and treats acknowledgement timeout as unknown", () => {
-    const page = readSource("../src/views/WOLManagement.vue");
-    assert.match(page, /wakingTargetIds = ref\(new Set<string>\(\)\)/u);
-    assert.match(page, /probingRelayIds = ref\(new Set<string>\(\)\)/u);
-    assert.match(page, /status === 504/u);
-    assert.match(page, /toast\.warning\(t\("admin\.wol\.wakeUnknown"\)/u);
-    assert.match(page, /!relay\.enabled/u);
+    const targets = readSource(
+      "../src/views/wol-management/WolTargetsTab.vue",
+    );
+    const targetManagement = readSource(
+      "../src/views/wol-management/useWolTargetManagement.ts",
+    );
+    const relayManagement = readSource(
+      "../src/views/wol-management/useWolRelayManagement.ts",
+    );
+    assert.match(
+      targetManagement,
+      /wakingTargetIds = ref\(new Set<string>\(\)\)/u,
+    );
+    assert.match(
+      relayManagement,
+      /probingRelayIds = ref\(new Set<string>\(\)\)/u,
+    );
+    assert.match(targetManagement, /status === 504/u);
+    assert.match(
+      targetManagement,
+      /toast\.warning\(t\("admin\.wol\.wakeUnknown"\)/u,
+    );
+    assert.match(targets, /!target\.relay\?\.enabled/u);
   });
 
   it("prioritizes target names over technical wake details", () => {
-    const page = readSource("../src/views/WOLManagement.vue");
+    const targets = readSource(
+      "../src/views/wol-management/WolTargetsTab.vue",
+    );
+    const dialogs = readSource(
+      "../src/views/wol-management/WolManagementDialogs.vue",
+    );
     const portalSettings = readSource(
       "../src/views/wol-management/WOLPortalSettingsDialog.vue",
     );
-    const template = page.slice(page.indexOf("<template>"));
+    const template = targets.slice(targets.indexOf("<template>"));
     const primaryIndex = template.indexOf('data-testid="wol-target-primary"');
     const technicalIndex = template.indexOf(
       'data-testid="wol-target-technical"',
@@ -149,13 +178,21 @@ describe("Wake-on-LAN management", () => {
       template,
       /target\.status\.observedIp \|\| target\.ipAddress/u,
     );
-    assert.match(template, /WOLPortalSettingsDialog/u);
+    assert.match(dialogs, /WOLPortalSettingsDialog/u);
     assert.match(portalSettings, /admin\.wol\.portal\.showShortcut/u);
   });
 
   it("streams LAN discovery, generates editable names, and hides redundant wake paths", () => {
     const api = readSource("../src/lib/api/wol.ts");
-    const page = readSource("../src/views/WOLManagement.vue");
+    const targets = readSource(
+      "../src/views/wol-management/WolTargetsTab.vue",
+    );
+    const discovery = readSource(
+      "../src/views/wol-management/useWolDiscovery.ts",
+    );
+    const targetManagement = readSource(
+      "../src/views/wol-management/useWolTargetManagement.ts",
+    );
     const targetName = readSource("../src/lib/wolTargetName.ts");
     const targetDialog = readSource(
       "../src/views/wol-management/WOLTargetDialog.vue",
@@ -168,24 +205,27 @@ describe("Wake-on-LAN management", () => {
     assert.match(api, /params: \{ cursor \}/u);
     assert.match(api, /type: "device"/u);
     assert.match(api, /targetCidrs/u);
-    assert.match(page, /relayId: null/u);
-    assert.match(page, /broadcastAddress: device\.broadcastAddress/u);
-    assert.match(page, /name: device\.name/u);
-    assert.match(page, /createRandomTargetName/u);
+    assert.match(discovery, /relayId: null/u);
+    assert.match(discovery, /broadcastAddress: device\.broadcastAddress/u);
+    assert.match(discovery, /name: device\.name/u);
+    assert.match(targetManagement, /createRandomTargetName/u);
     assert.match(targetName, /crypto\.getRandomValues/u);
     assert.match(targetName, /Uint8Array\(5\)/u);
     assert.doesNotMatch(api, /\bnote:/u);
-    assert.doesNotMatch(page, /target\.note|device\.note/u);
-    assert.match(page, /DropdownMenuTrigger/u);
-    assert.match(page, /wol-device-actions-menu-trigger/u);
-    assert.match(page, /<DropdownMenuItem @select="openCreateTarget">/u);
+    assert.doesNotMatch(targets, /target\.note|device\.note/u);
+    assert.match(targets, /DropdownMenuTrigger/u);
+    assert.match(targets, /wol-device-actions-menu-trigger/u);
+    assert.match(targets, /<DropdownMenuItem @select="openCreateTarget">/u);
     assert.match(targetDialog, /localDeliveryValue/u);
     assert.match(
       targetDialog,
       /<div v-if="relays\.length" class="space-y-2">[\s\S]*admin\.wol\.deliveryPath/u,
     );
     assert.doesNotMatch(targetDialog, /model\.note|admin\.wol\.note/u);
-    assert.match(page, /v-if="relays\.length"[\s\S]*admin\.wol\.deliveryPath/u);
+    assert.match(
+      targets,
+      /v-if="relays\.length"[\s\S]*admin\.wol\.deliveryPath/u,
+    );
     assert.match(discoveryDialog, /selectedDevices/u);
     assert.match(discoveryDialog, /existing\.has\(device\.mac\)/u);
     assert.match(discoveryDialog, /customCidrs/u);
@@ -202,7 +242,9 @@ describe("Wake-on-LAN management", () => {
 
   it("uses one provider select and shows write-only settings only while editing", () => {
     const api = readSource("../src/lib/api/wol.ts");
-    const page = readSource("../src/views/WOLManagement.vue");
+    const targetManagement = readSource(
+      "../src/views/wol-management/useWolTargetManagement.ts",
+    );
     const model = readSource(
       "../src/views/wol-management/wol-management-model.ts",
     );
@@ -270,14 +312,39 @@ describe("Wake-on-LAN management", () => {
     );
     assert.equal((model.match(/skipTlsVerify: true/gu) ?? []).length, 2);
     assert.match(
-      page,
+      targetManagement,
       /const \{ integrations: _integrations, \.\.\.createPayload \}/u,
     );
     assert.match(api, /async getTarget\(id: string, signal\?: AbortSignal\)/u);
-    assert.match(page, /refreshEditingTargetRuntime/u);
-    assert.match(page, /createVisibilityPoller/u);
-    assert.match(page, /targetRuntimePoller\.sync\(\)/u);
-    assert.match(page, /targetRuntimePoller\.stop\(\)/u);
-    assert.doesNotMatch(page, /setInterval/u);
+    assert.match(targetManagement, /refreshEditingTargetRuntime/u);
+    assert.match(targetManagement, /createVisibilityPoller/u);
+    assert.match(targetManagement, /targetRuntimePoller\.sync\(\)/u);
+    assert.match(targetManagement, /stopPolling: targetRuntimePoller\.stop/u);
+    assert.doesNotMatch(targetManagement, /setInterval/u);
+  });
+
+  it("keeps the page as a composition root instead of an API controller", () => {
+    const page = readSource("../src/views/WOLManagement.vue");
+    const controller = readSource(
+      "../src/views/wol-management/useWolManagementPage.ts",
+    );
+    assert.match(page, /useWolManagementPage/u);
+    assert.match(page, /WolTargetsTab/u);
+    assert.match(page, /WolRelaysTab/u);
+    assert.match(page, /WolManagementDialogs/u);
+    for (const composable of [
+      "useWolDiscovery",
+      "useWolLocalRelay",
+      "useWolPortalSettings",
+      "useWolRelayManagement",
+      "useWolResources",
+      "useWolTargetManagement",
+    ]) {
+      assert.match(controller, new RegExp(`from "\\./${composable}"`));
+    }
+    assert.doesNotMatch(
+      page + controller,
+      /WOLAPI|ConfigAPI|createVisibilityPoller|AbortController/u,
+    );
   });
 });

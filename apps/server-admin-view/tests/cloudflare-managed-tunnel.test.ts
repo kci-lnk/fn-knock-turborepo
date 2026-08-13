@@ -5,6 +5,28 @@ import { describe, it } from "node:test";
 const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
+const readOptimizationUi = () =>
+  [
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationOverview.vue",
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationDomains.vue",
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationTechnicalStatus.vue",
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationSourceSettings.vue",
+    "../src/views/tunnel/cloudflare/CloudflareOptimizationScanResults.vue",
+    "../src/views/tunnel/cloudflare/useCloudflareOptimizationCardPresentation.ts",
+  ]
+    .map(readSource)
+    .join("\n");
+
+const readManagedUi = () =>
+  [
+    "../src/views/tunnel/cloudflare/CloudflareManagedTunnelCard.vue",
+    "../src/views/tunnel/cloudflare/CloudflareReconcilePlan.vue",
+    "../src/views/tunnel/cloudflare/cloudflareManagedPresentation.ts",
+  ]
+    .map(readSource)
+    .join("\n");
+
 type ContractSchema = {
   enum?: string[];
   properties?: Record<string, ContractSchema>;
@@ -18,6 +40,25 @@ const readContract = () =>
   };
 
 describe("managed Cloudflare Tunnel", () => {
+  it("keeps runtime, managed reconciliation, and optimization lifecycles isolated", () => {
+    const controller = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+    );
+    const presentation = readSource(
+      "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
+    );
+    for (const composable of [
+      "useCloudflaredRuntime",
+      "useCloudflareManagedTunnel",
+      "useCloudflareOptimization",
+    ]) {
+      assert.match(controller, new RegExp(composable, "u"));
+    }
+    assert.doesNotMatch(controller, /CloudflaredAPI/u);
+    assert.doesNotMatch(presentation, /useCloudflareTunnelController/u);
+    assert.match(presentation, /CloudflareTranslate/u);
+  });
+
   it("exposes the credential, reconcile, scan, apply, and fallback contracts", () => {
     const source = readSource("../src/lib/api/tunnel.ts");
     for (const route of [
@@ -42,7 +83,7 @@ describe("managed Cloudflare Tunnel", () => {
   it("runs reconcile apply as an idempotent polled job", () => {
     const api = readSource("../src/lib/api/tunnel.ts");
     const controller = readSource(
-      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+      "../src/views/tunnel/cloudflare/useCloudflareManagedTunnel.ts",
     );
     assert.match(api, /getReconcileJob\(/u);
     assert.match(api, /getReconcileJobByPlan\(/u);
@@ -77,11 +118,15 @@ describe("managed Cloudflare Tunnel", () => {
       true,
     );
 
-    const controller = readSource(
-      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+    const runtime = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflaredRuntime.ts",
     );
-    assert.match(controller, /token\.value = ""/u);
-    assert.doesNotMatch(controller, /token\.value\s*=\s*config\.token/u);
+    const managed = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflareManagedTunnel.ts",
+    );
+    assert.match(runtime, /token\.value = ""/u);
+    assert.match(managed, /apiToken\.value = ""/u);
+    assert.doesNotMatch(runtime, /token\.value\s*=\s*config\.token/u);
   });
 
   it("keeps automation, takeover preview, capability probe, and fallback visible", () => {
@@ -96,9 +141,7 @@ describe("managed Cloudflare Tunnel", () => {
     );
     assert.match(page, /:configured="false"/u);
 
-    const managed = readSource(
-      "../src/views/tunnel/cloudflare/CloudflareManagedTunnelCard.vue",
-    );
+    const managed = readManagedUi();
     assert.match(managed, /ConfigCollapsibleCard/u);
     assert.match(managed, /reconcilePlan\.operations/u);
     assert.match(managed, /toggleTakeover/u);
@@ -113,14 +156,12 @@ describe("managed Cloudflare Tunnel", () => {
       managed,
       /isPreviewingReconcile\s*\|\|\s*isApplyingReconcile/u,
     );
-    assert.match(managed, /operationTargetLabel/u);
+    assert.match(managed, /managedOperationTargetLabel/u);
     assert.match(managed, /keepDeleted/u);
-    assert.match(managed, /toLocaleString\(locale\.value\)/u);
+    assert.match(managed, /toLocaleString\(locale\)/u);
     assert.doesNotMatch(managed, /text-muted-foreground">Tunnel</u);
 
-    const optimization = readSource(
-      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
-    );
+    const optimization = readOptimizationUi();
     const optimizationPresentation = readSource(
       "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
     );
@@ -259,27 +300,23 @@ describe("managed Cloudflare Tunnel", () => {
 
   it("gates scans and candidate publishing on the applied managed state", () => {
     const controller = readSource(
-      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+      "../src/views/tunnel/cloudflare/useCloudflareOptimization.ts",
     );
     assert.match(controller, /optimization\.value\?\.enabled === true/u);
     assert.match(controller, /if \(!optimizationApplied\.value\)/u);
     assert.match(controller, /optimization\.value\?\.scanReady === true/u);
     assert.match(controller, /if \(!optimizationScanReady\.value\)/u);
 
-    const optimization = readSource(
-      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
-    );
+    const optimization = readOptimizationUi();
     assert.match(optimization, /!optimizationApplied/u);
     assert.match(optimization, /reconcileRequiredDescription/u);
   });
 
   it("validates a user-specified preferred IP before recommending it", () => {
     const controller = readSource(
-      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+      "../src/views/tunnel/cloudflare/useCloudflareOptimization.ts",
     );
-    const card = readSource(
-      "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
-    );
+    const card = readOptimizationUi();
     const backend = [
       readSource(
         "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
@@ -305,9 +342,7 @@ describe("managed Cloudflare Tunnel", () => {
 
   it("distinguishes Cloudflare for SaaS setup from validation readiness", () => {
     const optimization = [
-      readSource(
-        "../src/views/tunnel/cloudflare/CloudflareOptimizationCard.vue",
-      ),
+      readOptimizationUi(),
       readSource(
         "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",
       ),
@@ -323,7 +358,8 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(optimization, /!optimizationScanReady/u);
     assert.match(optimization, /probe\.status === "pending"/u);
     assert.ok(
-      optimization.match(/\{\{ capabilityProbeMessage \}\}/gu)?.length === 2,
+      optimization.match(/presentation\.capabilityProbeMessage/gu)?.length ===
+        2,
       "the capability alert and technical status should use the same localized message",
     );
 

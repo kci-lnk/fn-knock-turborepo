@@ -36,6 +36,7 @@ const now = ref(Date.now());
 const logViewport = ref<HTMLElement | null>(null);
 let source: EventSource | null = null;
 let clock: number | undefined;
+let isDisposed = false;
 
 const normalizeHost = (value: string) =>
   value.trim().toLowerCase().replace(/\.+$/, "");
@@ -276,10 +277,13 @@ watch(host, () => sessionPoller.sync());
 onMounted(async () => {
   clock = window.setInterval(() => (now.value = Date.now()), 1000);
   await refreshSession(true);
+  if (isDisposed) return;
+
   sessionPoller.start();
 });
 
 onUnmounted(() => {
+  isDisposed = true;
   closeLive();
   if (clock) window.clearInterval(clock);
   sessionPoller.stop();

@@ -45,17 +45,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import CertConfig from "./ssl-settings/CertConfig.vue";
-import SelfSignedCA from "./ssl-settings/SelfSignedCA.vue";
-import AcmeCert from "./ssl-settings/AcmeCert.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { docsUrls } from "../lib/docs";
 import { useConfigStore } from "../store/config";
+
+const CertConfig = defineAsyncComponent(
+  () => import("./ssl-settings/CertConfig.vue"),
+);
+const SelfSignedCA = defineAsyncComponent(
+  () => import("./ssl-settings/SelfSignedCA.vue"),
+);
+const AcmeCert = defineAsyncComponent(
+  () => import("./ssl-settings/AcmeCert.vue"),
+);
 
 const router = useRouter();
 const route = useRoute();

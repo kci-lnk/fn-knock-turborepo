@@ -96,7 +96,7 @@ describe("CIDR and IP location API contract", () => {
 
   it("derives frontend location models and requests from generated types", () => {
     const cidrTypes = readSource("../src/types/cidr.ts");
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const gatewayApi = readSource("../src/lib/api/gateway.ts");
     const configApi = readSource("../src/lib/api/config.ts");
     const settings = readSource(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Info, Settings } from "lucide-vue-next";
@@ -8,8 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfigStore } from "@/store/config";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
-import GatewayRequestLogs from "./GatewayRequestLogs.vue";
-import RequestAnalyticsTab from "./request-analysis/RequestAnalyticsTab.vue";
+
+const GatewayRequestLogs = defineAsyncComponent(
+  () => import("./GatewayRequestLogs.vue"),
+);
+const RequestAnalyticsTab = defineAsyncComponent(
+  () => import("./request-analysis/RequestAnalyticsTab.vue"),
+);
 
 const { t } = useI18n();
 const route = useRoute();

@@ -2,32 +2,9 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import {
-  Ban,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  Settings,
-  ShieldAlert,
-  Trash2,
-  Unlock,
-} from "lucide-vue-next";
-import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import RefreshButton from "@/components/RefreshButton.vue";
-import SearchInput from "@admin-shared/components/SearchInput.vue";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { WAFEvent } from "../types";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
-import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { normalizeIpKey } from "../composables/useIpLocationBatch";
 import { useWafLogIpSelection } from "./waf-logs/useWafLogIpSelection";
 import { useWafLogDisplay } from "./waf-logs/useWafLogDisplay";
@@ -36,8 +13,10 @@ import {
   useWafLogsResource,
 } from "./waf-logs/useWafLogsResource";
 import WAFLogsTable from "./waf-logs/WAFLogsTable.vue";
-
-const LIMIT_OPTIONS = ["20", "50", "100", "200"] as const;
+import WAFLogsDisabledNotice from "./waf-logs/WAFLogsDisabledNotice.vue";
+import WAFLogsFilters from "./waf-logs/WAFLogsFilters.vue";
+import WAFLogsHeader from "./waf-logs/WAFLogsHeader.vue";
+import WAFLogsPagination from "./waf-logs/WAFLogsPagination.vue";
 
 const router = useRouter();
 const { t, locale } = useI18n();
@@ -178,182 +157,39 @@ const {
 
 <template>
   <div class="flex h-full flex-col gap-3">
-    <div
-      class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-    >
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
-          <h2 class="text-lg font-semibold tracking-tight">
-            {{ t("admin.wafLogs.title") }}
-          </h2>
-          <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground">
-          {{ t("admin.wafLogs.description") }}
-        </p>
-      </div>
+    <WAFLogsHeader
+      :is-blocking-ips="isBlockingIps"
+      :is-deleting="isDeleting"
+      :is-mutating-blacklist-ips="isMutatingBlacklistIps"
+      :is-releasing-ips="isReleasingIps"
+      :loading="loading"
+      :selected-blocked-count="selectedBlockedWafIps.length"
+      :selected-date="selectedDate"
+      :selected-unblocked-count="selectedUnblockedWafIps.length"
+      @block-selected="blockIpsFromWafLogs(selectedUnblockedWafIps)"
+      @delete-date="deleteSelectedDate"
+      @refresh="refreshAll"
+      @release-selected="releaseIpsFromWafLogs(selectedBlockedWafIps)"
+    />
 
-      <div class="flex flex-wrap items-center gap-2">
-        <RefreshButton
-          :loading="loading"
-          :disabled="loading"
-          @click="refreshAll"
-        />
-        <ConfirmDangerPopover
-          v-if="selectedUnblockedWafIps.length > 0"
-          :title="
-            t('admin.wafLogs.blacklistSelectedTitle', {
-              count: selectedUnblockedWafIps.length,
-            })
-          "
-          :description="t('admin.wafLogs.blacklistDescription')"
-          :loading="isBlockingIps"
-          :disabled="
-            selectedUnblockedWafIps.length === 0 || isMutatingBlacklistIps
-          "
-          :on-confirm="() => blockIpsFromWafLogs(selectedUnblockedWafIps)"
-        >
-          <template #trigger>
-            <Button
-              variant="outline"
-              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              :disabled="
-                selectedUnblockedWafIps.length === 0 || isMutatingBlacklistIps
-              "
-            >
-              <Ban class="mr-2 h-4 w-4" />
-              {{
-                t("admin.wafLogs.blacklistSelected", {
-                  count: selectedUnblockedWafIps.length,
-                })
-              }}
-            </Button>
-          </template>
-        </ConfirmDangerPopover>
-        <ConfirmDangerPopover
-          v-if="selectedBlockedWafIps.length > 0"
-          :title="
-            t('admin.wafLogs.unblacklistSelectedTitle', {
-              count: selectedBlockedWafIps.length,
-            })
-          "
-          :description="t('admin.wafLogs.unblacklistDescription')"
-          :loading="isReleasingIps"
-          :disabled="
-            selectedBlockedWafIps.length === 0 || isMutatingBlacklistIps
-          "
-          :on-confirm="() => releaseIpsFromWafLogs(selectedBlockedWafIps)"
-        >
-          <template #trigger>
-            <Button
-              variant="outline"
-              class="text-foreground"
-              :disabled="
-                selectedBlockedWafIps.length === 0 || isMutatingBlacklistIps
-              "
-            >
-              <Unlock class="mr-2 h-4 w-4" />
-              {{
-                t("admin.wafLogs.unblacklistSelected", {
-                  count: selectedBlockedWafIps.length,
-                })
-              }}
-            </Button>
-          </template>
-        </ConfirmDangerPopover>
-        <ConfirmDangerPopover
-          :title="t('admin.wafLogs.deleteDateTitle', { date: selectedDate })"
-          :description="t('admin.wafLogs.deleteDateDescription')"
-          :loading="isDeleting"
-          :disabled="isDeleting"
-          :on-confirm="deleteSelectedDate"
-        >
-          <template #trigger>
-            <Button
-              variant="outline"
-              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              :disabled="isDeleting"
-            >
-              <Trash2 class="mr-2 h-4 w-4" />
-              {{ t("admin.wafLogs.deleteDateAction") }}
-            </Button>
-          </template>
-        </ConfirmDangerPopover>
-      </div>
-    </div>
-
-    <Alert
+    <WAFLogsDisabledNotice
       v-if="!isWAFEnabled"
-      class="flex items-center gap-3 rounded-lg border-dashed bg-muted/20 px-4 py-3 text-foreground shadow-none"
-    >
-      <ShieldAlert class="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div
-        class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p class="text-sm text-muted-foreground">
-          {{ t("admin.wafLogs.disabledNotice") }}
-        </p>
-        <Button variant="ghost" class="shrink-0" @click="goToSettings">
-          <Settings class="mr-2 h-4 w-4" />
-          {{ t("admin.wafLogs.goSettings") }}
-        </Button>
-      </div>
-    </Alert>
+      @open-settings="goToSettings"
+    />
 
     <div
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"
     >
-      <div class="border-b px-4 py-3">
-        <div class="flex flex-col gap-2 md:flex-row md:items-center">
-          <SearchInput
-            v-model="searchQuery"
-            :placeholder="t('admin.wafLogs.searchPlaceholder')"
-            class="w-full md:w-[320px] md:max-w-[320px]"
-            @search="handleSearch"
-          />
-
-          <div class="flex flex-wrap items-center gap-2">
-            <Select
-              :model-value="selectedDate"
-              @update:model-value="handleDateChange"
-            >
-              <div class="w-[148px]">
-                <SelectTrigger :aria-label="t('admin.wafLogs.datePlaceholder')">
-                  <SelectValue
-                    :placeholder="t('admin.wafLogs.datePlaceholder')"
-                  />
-                </SelectTrigger>
-              </div>
-              <SelectContent>
-                <SelectItem
-                  v-for="date in availableDates"
-                  :key="date"
-                  :value="date"
-                >
-                  {{ date }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div
-          class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
-        >
-          <span>
-            {{ cursorPageLabel }} ·
-            {{ t("admin.wafLogs.rowsCount", { count: entries.length }) }}
-          </span>
-          <span v-if="traceFilter.trim()" class="font-mono">{{
-            t("admin.wafLogs.traceFilter", { trace: traceFilter.trim() })
-          }}</span>
-          <span v-if="searchQuery.trim()">{{
-            t("admin.wafLogs.keywordFilter", {
-              keyword: searchQuery.trim(),
-            })
-          }}</span>
-        </div>
-      </div>
+      <WAFLogsFilters
+        v-model:search-query="searchQuery"
+        :available-dates="availableDates"
+        :cursor-page-label="cursorPageLabel"
+        :entry-count="entries.length"
+        :selected-date="selectedDate"
+        :trace-filter="traceFilter"
+        @date-change="handleDateChange"
+        @search="handleSearch"
+      />
 
       <WAFLogsTable
         v-model:is-all-displayed-rows-selected="isAllDisplayedRowsSelected"
@@ -378,152 +214,18 @@ const {
         :view-details="viewDetails"
       />
 
-      <FloatingActionDock
-        :active="shouldFloatPagination"
-        :keep-visible="loading && shouldFloatPagination"
-        :keep-visible-release-delay="600"
-        align="center"
-        variant="surface"
-        :visible-threshold="0.4"
-        :aria-label="t('admin.wafLogs.title')"
-        floating-class="min-w-0 max-w-[calc(100vw-2rem)] rounded-[1.25rem] p-2"
-      >
-        <template #inline>
-          <div class="border-t px-4 py-3">
-            <div
-              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
-              >
-                <span>{{ cursorPageLabel }}</span>
-                <span>{{
-                  canLoadOlder
-                    ? t("admin.wafLogs.canLoadOlder")
-                    : t("admin.wafLogs.lastPage")
-                }}</span>
-              </div>
-
-              <div class="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  class="h-8 px-3"
-                  :disabled="loading || !canLoadNewer"
-                  @click="handleLoadFirst"
-                >
-                  <ChevronsLeft class="mr-1.5 h-4 w-4" />
-                  {{ t("admin.wafLogs.firstPage") }}
-                </Button>
-                <Button
-                  variant="outline"
-                  class="h-8 px-3"
-                  :disabled="loading || !canLoadNewer"
-                  @click="handleLoadNewer"
-                >
-                  <ChevronLeft class="mr-1.5 h-4 w-4" />
-                  {{ t("admin.wafLogs.previousPage") }}
-                </Button>
-                <Button
-                  class="h-8 px-3"
-                  :disabled="loading || !canLoadOlder"
-                  @click="handleLoadOlder"
-                >
-                  {{ t("admin.wafLogs.nextPage") }}
-                  <ChevronRight class="ml-1.5 h-4 w-4" />
-                </Button>
-
-                <div
-                  class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <span>{{ t("admin.wafLogs.pageSize") }}</span>
-                  <Select
-                    :model-value="limit"
-                    @update:model-value="handleLimitChange"
-                  >
-                    <div class="w-[96px]">
-                      <SelectTrigger :aria-label="t('admin.wafLogs.pageSize')">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </div>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="option in LIMIT_OPTIONS"
-                        :key="option"
-                        :value="option"
-                      >
-                        {{
-                          t("admin.wafLogs.pageSizeOption", {
-                            count: option,
-                          })
-                        }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <template #floating>
-          <div class="floating-cursor-pagination">
-            <div class="floating-cursor-pagination__controls">
-              <Button
-                variant="ghost"
-                class="floating-cursor-pagination__button"
-                :disabled="loading || !canLoadNewer"
-                @click="handleLoadFirst"
-              >
-                <ChevronsLeft class="h-4 w-4" />
-                <span class="hidden sm:inline">
-                  {{ t("admin.wafLogs.firstPage") }}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                class="floating-cursor-pagination__button"
-                :disabled="loading || !canLoadNewer"
-                @click="handleLoadNewer"
-              >
-                <ChevronLeft class="h-4 w-4" />
-                <span class="hidden sm:inline">
-                  {{ t("admin.wafLogs.previousPage") }}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                class="floating-cursor-pagination__button is-primary"
-                :disabled="loading || !canLoadOlder"
-                @click="handleLoadOlder"
-              >
-                <span>{{ t("admin.wafLogs.nextPage") }}</span>
-                <ChevronRight class="h-4 w-4" />
-              </Button>
-
-              <Select
-                :model-value="limit"
-                @update:model-value="handleLimitChange"
-              >
-                <SelectTrigger
-                  :aria-label="t('admin.wafLogs.pageSize')"
-                  class="h-9 w-[84px] rounded-xl border-white/10 bg-white/10 text-white shadow-none hover:bg-white/15 focus-visible:border-white/30 focus-visible:ring-white/20 [&_svg]:text-white"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="option in LIMIT_OPTIONS"
-                    :key="option"
-                    :value="option"
-                  >
-                    {{ t("admin.wafLogs.pageSizeOption", { count: option }) }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </template>
-      </FloatingActionDock>
+      <WAFLogsPagination
+        :can-load-newer="canLoadNewer"
+        :can-load-older="canLoadOlder"
+        :cursor-page-label="cursorPageLabel"
+        :handle-limit-change="handleLimitChange"
+        :handle-load-first="handleLoadFirst"
+        :handle-load-newer="handleLoadNewer"
+        :handle-load-older="handleLoadOlder"
+        :limit="limit"
+        :loading="loading"
+        :should-float="shouldFloatPagination"
+      />
     </div>
 
     <DetailDialog
@@ -540,52 +242,3 @@ const {
     </DetailDialog>
   </div>
 </template>
-
-<style scoped>
-.floating-cursor-pagination {
-  display: flex;
-  max-width: calc(100vw - 3rem);
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem 0.8rem;
-}
-
-.floating-cursor-pagination__controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-}
-
-:deep(.floating-cursor-pagination__button) {
-  height: 2.25rem;
-  min-width: 2.25rem;
-  border-color: transparent;
-  border-radius: 0.8rem;
-  background: transparent;
-  padding-inline: 0.7rem;
-  color: rgb(255 255 255 / 82%);
-  box-shadow: none;
-}
-
-:deep(.floating-cursor-pagination__button:hover) {
-  background: rgb(255 255 255 / 12%);
-  color: #fff;
-}
-
-:deep(.floating-cursor-pagination__button.is-primary) {
-  background: #fff;
-  color: #09090b;
-}
-
-:deep(.floating-cursor-pagination__button.is-primary:hover) {
-  background: rgb(255 255 255 / 92%);
-  color: #09090b;
-}
-
-:deep(.floating-cursor-pagination__button:disabled) {
-  opacity: 0.46;
-}
-</style>

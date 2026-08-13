@@ -86,7 +86,7 @@ describe("fnOS certificate synchronization API contract", () => {
   });
 
   it("derives frontend models and write payloads from OpenAPI", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const systemApi = readSource("../src/lib/api/system.ts");
 
     for (const schema of [

@@ -4,6 +4,7 @@ import { UpdateAPI, type UpdateStatusPayload } from "@/lib/api/config";
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { browserT } from "@fn-knock/i18n/vue/admin";
+import { createPollingLifecycle } from "@/lib/pollingLifecycle";
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;
@@ -17,7 +18,6 @@ export const useUpdateStore = defineStore("update", () => {
   const isTriggeringInstall = ref(false);
   const isPreparingInstall = ref(false);
   const shouldAutoInstallAfterDownload = ref(false);
-  const hasInitialized = ref(false);
   let pollTimer: number | null = null;
   let pollingStarted = false;
 
@@ -231,11 +231,15 @@ export const useUpdateStore = defineStore("update", () => {
     }
   }
 
+  const pollingLifecycle = createPollingLifecycle({
+    initialize: async () => {
+      await Promise.all([loadStatus(true), consumeConfirm()]);
+    },
+    start: startPolling,
+  });
+
   async function initialize() {
-    if (hasInitialized.value) return;
-    hasInitialized.value = true;
-    await Promise.all([loadStatus(true), consumeConfirm()]);
-    startPolling();
+    await pollingLifecycle.activate();
   }
 
   function startPolling() {
@@ -245,6 +249,7 @@ export const useUpdateStore = defineStore("update", () => {
   }
 
   function stopPolling() {
+    pollingLifecycle.deactivate();
     pollingStarted = false;
     clearTimer();
   }

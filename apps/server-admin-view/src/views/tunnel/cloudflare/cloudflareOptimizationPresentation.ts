@@ -4,9 +4,7 @@ import {
   type CloudflareOptimizationScan,
   type CloudflareOptimizationVantage,
 } from "@/lib/api/tunnel";
-import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
-
-type Translate = CloudflareTunnelController["t"];
+import type { CloudflareTranslate as Translate } from "./cloudflareTunnelTypes";
 
 const phaseKeys: Record<string, string> = {
   queued: "queued",

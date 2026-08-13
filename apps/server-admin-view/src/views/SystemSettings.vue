@@ -1,27 +1,60 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import RunModeSettings from "./system-settings/RunModeSettings.vue";
-import FrpSettings from "./system-settings/FrpSettings.vue";
-import CloudflaredSettings from "./system-settings/CloudflaredSettings.vue";
-import AcmeSSL from "./system-settings/AcmeSSL.vue";
-import IpLocationSettings from "./system-settings/IpLocationSettings.vue";
-import ScannerFirewallSettings from "./system-settings/ScannerFirewallSettings.vue";
-import FeaturesSettings from "./system-settings/FeaturesSettings.vue";
-import FnosSettings from "./system-settings/FnosSettings.vue";
-import CaptchaSettings from "./system-settings/CaptchaSettings.vue";
-import GatewayLoggingSettings from "./system-settings/GatewayLoggingSettings.vue";
-import GatewaySettings from "./system-settings/GatewaySettings.vue";
-import WAFSettings from "./system-settings/WAFSettings.vue";
-import TerminalSettings from "./system-settings/TerminalSettings.vue";
-import SessionSettings from "./system-settings/SessionSettings.vue";
-import MaintenanceSettings from "./system-settings/MaintenanceSettings.vue";
-import PanelSettings from "./system-settings/PanelSettings.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { useConfigStore } from "../store/config";
 import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
+
+const RunModeSettings = defineAsyncComponent(
+  () => import("./system-settings/RunModeSettings.vue"),
+);
+const FrpSettings = defineAsyncComponent(
+  () => import("./system-settings/FrpSettings.vue"),
+);
+const CloudflaredSettings = defineAsyncComponent(
+  () => import("./system-settings/CloudflaredSettings.vue"),
+);
+const AcmeSSL = defineAsyncComponent(
+  () => import("./system-settings/AcmeSSL.vue"),
+);
+const IpLocationSettings = defineAsyncComponent(
+  () => import("./system-settings/IpLocationSettings.vue"),
+);
+const ScannerFirewallSettings = defineAsyncComponent(
+  () => import("./system-settings/ScannerFirewallSettings.vue"),
+);
+const FeaturesSettings = defineAsyncComponent(
+  () => import("./system-settings/FeaturesSettings.vue"),
+);
+const FnosSettings = defineAsyncComponent(
+  () => import("./system-settings/FnosSettings.vue"),
+);
+const CaptchaSettings = defineAsyncComponent(
+  () => import("./system-settings/CaptchaSettings.vue"),
+);
+const GatewayLoggingSettings = defineAsyncComponent(
+  () => import("./system-settings/GatewayLoggingSettings.vue"),
+);
+const GatewaySettings = defineAsyncComponent(
+  () => import("./system-settings/GatewaySettings.vue"),
+);
+const WAFSettings = defineAsyncComponent(
+  () => import("./system-settings/WAFSettings.vue"),
+);
+const TerminalSettings = defineAsyncComponent(
+  () => import("./system-settings/TerminalSettings.vue"),
+);
+const SessionSettings = defineAsyncComponent(
+  () => import("./system-settings/SessionSettings.vue"),
+);
+const MaintenanceSettings = defineAsyncComponent(
+  () => import("./system-settings/MaintenanceSettings.vue"),
+);
+const PanelSettings = defineAsyncComponent(
+  () => import("./system-settings/PanelSettings.vue"),
+);
 
 const router = useRouter();
 const route = useRoute();

@@ -87,11 +87,26 @@ describe("host mapping utility API contract", () => {
   });
 
   it("derives frontend models and normalizes the advanced-auth form boundary", () => {
-    const types = readSource("../src/types.ts");
-    const configApi = readSource("../src/lib/api/config.ts");
+    const types = readSource("../src/types/core.ts");
+    const configApi = readSource("../src/lib/api/config-proxy-api.ts");
     const advancedAuthView = readSource(
       "../src/views/subdomain-proxy/SubdomainAdvancedAuth.vue",
     );
+    const advancedAuthEditor = readSource(
+      "../src/views/subdomain-proxy/SubdomainAdvancedAuthEditor.vue",
+    );
+    const advancedAuthPage = readSource(
+      "../src/views/subdomain-proxy/useSubdomainAdvancedAuthPage.ts",
+    );
+    const advancedAuthRuleGroups = [
+      readSource("../src/views/subdomain-proxy/AdvancedAuthRuleGroups.vue"),
+      readSource(
+        "../src/views/subdomain-proxy/AdvancedAuthRuleGroupCard.vue",
+      ),
+      readSource(
+        "../src/views/subdomain-proxy/AdvancedAuthConditionEditor.vue",
+      ),
+    ].join("\n");
     const advancedAuthForm = readSource(
       "../src/views/subdomain-proxy/advanced-auth-form.ts",
     );
@@ -110,6 +125,14 @@ describe("host mapping utility API contract", () => {
     assert.match(configApi, /satisfies HostMappingBasicAuthProbeBody/u);
     assert.match(advancedAuthForm, /name: ""/u);
     assert.match(advancedAuthForm, /condition\.selections \?\? \[\]/u);
-    assert.match(advancedAuthView, /cloneAdvancedAuthConfig/u);
+    assert.match(advancedAuthView, /useSubdomainAdvancedAuthPage/u);
+    assert.match(advancedAuthView, /SubdomainAdvancedAuthEditor/u);
+    assert.doesNotMatch(advancedAuthView, /ConfigAPI|cloneAdvancedAuthConfig/u);
+    assert.match(advancedAuthPage, /cloneAdvancedAuthConfig/u);
+    assert.match(advancedAuthEditor, /AdvancedAuthRuleGroups/u);
+    assert.match(advancedAuthEditor, /AdvancedAuthDurationSettings/u);
+    assert.match(advancedAuthRuleGroups, /advanced-auth-target-\$\{condition\.id\}/u);
+    assert.match(advancedAuthRuleGroups, /advanced-auth-operator-\$\{condition\.id\}/u);
+    assert.match(advancedAuthRuleGroups, /advanced-auth-value-\$\{condition\.id\}/u);
   });
 });

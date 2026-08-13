@@ -30,6 +30,8 @@ export const useWafLogsResource = () => {
   const route = useRoute();
   const configStore = useConfigStore();
   const { t } = useI18n();
+  let isDisposed = false;
+  let entriesRequestId = 0;
   const entries = ref<WAFEvent[]>([]);
   const availableDates = ref<string[]>([getTodayString()]);
   const selectedDate = ref(getTodayString());
@@ -103,30 +105,32 @@ export const useWafLogsResource = () => {
   const fetchEntries = async (
     options: { silent?: boolean; drain?: boolean; signal?: AbortSignal } = {},
   ) => {
-    if (loading.value) return;
+    const currentRequestId = ++entriesRequestId;
+    const params = {
+      date: selectedDate.value,
+      trace_id: traceFilter.value.trim() || undefined,
+      search: searchQuery.value.trim() || undefined,
+      cursor: currentCursor.value || undefined,
+      limit: limit.value,
+    };
+    const isCurrentRequest = () =>
+      !isDisposed &&
+      !options.signal?.aborted &&
+      currentRequestId === entriesRequestId;
     loading.value = true;
     try {
       if (options.drain) {
         await drainEvents(options.silent !== false, options.signal);
       }
-      if (options.signal?.aborted) return;
-      const data = await WAFAPI.getLogs(
-        {
-          date: selectedDate.value,
-          trace_id: traceFilter.value.trim() || undefined,
-          search: searchQuery.value.trim() || undefined,
-          cursor: currentCursor.value || undefined,
-          limit: limit.value,
-        },
-        options.signal,
-      );
-      if (options.signal?.aborted) return;
+      if (!isCurrentRequest()) return;
+      const data = await WAFAPI.getLogs(params, options.signal);
+      if (!isCurrentRequest()) return;
       entries.value = data.items || [];
       trackIps(entries.value.map(getWafEventSourceIp));
       nextCursor.value = data.next_cursor || "";
-      applyDates(data.available_dates || [], data.date || selectedDate.value);
+      applyDates(data.available_dates || [], data.date || params.date);
     } catch (error) {
-      if (options.signal?.aborted) return;
+      if (!isCurrentRequest()) return;
       trackIps([]);
       if (!options.silent) {
         entries.value = [];
@@ -139,7 +143,7 @@ export const useWafLogsResource = () => {
         });
       }
     } finally {
-      loading.value = false;
+      if (currentRequestId === entriesRequestId) loading.value = false;
     }
   };
 
@@ -220,9 +224,15 @@ export const useWafLogsResource = () => {
   onMounted(async () => {
     if (!configStore.config) await configStore.loadConfig();
     await fetchEntries({ drain: true });
+    if (isDisposed) return;
+
     autoRefreshPoller.start();
   });
-  onBeforeUnmount(autoRefreshPoller.stop);
+  onBeforeUnmount(() => {
+    isDisposed = true;
+    entriesRequestId += 1;
+    autoRefreshPoller.stop();
+  });
 
   return {
     availableDates,

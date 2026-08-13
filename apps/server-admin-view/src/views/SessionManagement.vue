@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import SessionsTab from "./session-management/SessionsTab.vue";
-import LoginBackoffTab from "./session-management/LoginBackoffTab.vue";
-import IpBlacklistTab from "./session-management/IpBlacklistTab.vue";
-import GeneralBlacklistTab from "./session-management/GeneralBlacklistTab.vue";
 import { useConfigStore } from "../store/config";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { docsUrls } from "../lib/docs";
+
+const SessionsTab = defineAsyncComponent(
+  () => import("./session-management/SessionsTab.vue"),
+);
+const LoginBackoffTab = defineAsyncComponent(
+  () => import("./session-management/LoginBackoffTab.vue"),
+);
+const IpBlacklistTab = defineAsyncComponent(
+  () => import("./session-management/IpBlacklistTab.vue"),
+);
+const GeneralBlacklistTab = defineAsyncComponent(
+  () => import("./session-management/GeneralBlacklistTab.vue"),
+);
 
 const router = useRouter();
 const route = useRoute();

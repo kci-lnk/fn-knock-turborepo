@@ -91,7 +91,7 @@ describe("core security API contract", () => {
 
   it("derives frontend models and request boundaries from generated types", () => {
     const api = readSource("../src/lib/api/security.ts");
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/gateway.ts");
     const generalView = readSource(
       "../src/views/session-management/GeneralBlacklistTab.vue",
     );

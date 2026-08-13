@@ -137,7 +137,7 @@ describe("terminal API contract", () => {
   });
 
   it("derives frontend terminal models, requests, and queries", () => {
-    const types = readSource("../src/types.ts");
+    const types = readSource("../src/types/core.ts");
     const api = readSource("../src/lib/api/terminal.ts");
     for (const schema of [
       "TerminalTmuxInstallStateData",

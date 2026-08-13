@@ -141,8 +141,10 @@ describe("runtime settings API contract", () => {
   });
 
   it("derives frontend settings models and write payloads from the contract", () => {
-    const types = readSource("../src/types.ts");
-    const configApi = readSource("../src/lib/api/config.ts");
+    const types =
+      readSource("../src/types/core.ts") +
+      readSource("../src/types/gateway.ts");
+    const configApi = readSource("../src/lib/api/config-core-api.ts");
     const systemApi = readSource("../src/lib/api/system.ts");
     const configStore = readSource("../src/store/config.ts");
 

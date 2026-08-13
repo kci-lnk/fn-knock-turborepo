@@ -11,8 +11,12 @@ describe("runtime health view", () => {
     const cardSource = readSource(
       "../src/views/event-center/RuntimeComponentCard.vue",
     );
+    const controllerSource = readSource(
+      "../src/views/event-center/useRuntimeHealth.ts",
+    );
 
-    assert.match(viewSource, /process_state !== "not_applicable"/u);
+    assert.match(viewSource, /useRuntimeHealth/u);
+    assert.match(controllerSource, /process_state !== "not_applicable"/u);
     assert.match(viewSource, /xl:grid-cols-3/u);
     assert.match(viewSource, /xl:col-span-2/u);
     assert.match(viewSource, /sm:grid-cols-2 xl:auto-rows-fr xl:grid-cols-1/u);
@@ -26,9 +30,12 @@ describe("runtime health view", () => {
       "../src/views/event-center/RuntimeComponentCard.vue",
     );
     const apiSource = readSource("../src/lib/api/runtime-health.ts");
+    const controllerSource = readSource(
+      "../src/views/event-center/useRuntimeHealth.ts",
+    );
 
     assert.match(
-      viewSource,
+      controllerSource,
       /component\.id === "management" \|\| component\.id === "gateway_process"/u,
     );
     assert.match(cardSource, /admin\.eventCenter\.runtime\.viewLogs/u);
@@ -36,6 +43,7 @@ describe("runtime health view", () => {
     assert.match(apiSource, /apiClient\.delete/u);
     assert.match(viewSource, /ConfirmDangerPopover/u);
     assert.match(viewSource, /admin\.eventCenter\.runtime\.clearLogs/u);
+    assert.doesNotMatch(viewSource, /RuntimeHealthAPI|EventCenterAPI/u);
   });
 
   it("opens Go memory controls from the gateway process card", () => {

@@ -15,16 +15,26 @@ describe("unified external login management", () => {
   });
 
   it("loads and renders both OIDC and LDAP provider settings", () => {
-    const configApi = readSource("../src/lib/api/config.ts");
+    const configApi = readSource("../src/lib/api/config-auth-api.ts");
     const page = readSource("../src/views/OIDCProviderSettings.vue");
     const ldapCard = readSource(
       "../src/views/oidc-provider-settings/LDAPProviderSettingsCard.vue",
     );
+    const ldapManagement = readSource(
+      "../src/views/oidc-provider-settings/useLdapProviderManagement.ts",
+    );
+    const ldapCredentials = readSource(
+      "../src/views/oidc-provider-settings/LDAPTestCredentialsDialog.vue",
+    );
     assert.match(page, /LDAPProviderSettingsCard/);
-    assert.match(ldapCard, /ConfigAPI\.getLdapProviders/);
-    assert.match(ldapCard, /ConfigAPI\.testLdapProvider/);
-    assert.match(ldapCard, /testCredentialsDescription/);
-    assert.match(ldapCard, /password:\s*testPassword\.value/);
+    assert.match(ldapCard, /useLdapProviderManagement/);
+    assert.match(ldapCard, /LDAPProviderEditorDialog/);
+    assert.match(ldapCard, /LDAPTestCredentialsDialog/);
+    assert.match(ldapManagement, /ConfigAPI\.getLdapProviders/);
+    assert.match(ldapManagement, /ConfigAPI\.testLdapProvider/);
+    assert.match(ldapCredentials, /testCredentialsDescription/);
+    assert.match(ldapManagement, /password:\s*testPassword\.value/);
+    assert.match(ldapManagement, /form\.serviceBindPassword = ""/);
     assert.match(
       configApi,
       /\/auth\/ldap\/providers\/\$\{encodeURIComponent\(id\)\}\/test`[\s\S]*credentials \?\? \{\}/,

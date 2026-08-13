@@ -279,6 +279,10 @@ export const createAdvancedAuthRuleEditor = (
   };
 };
 
+export type AdvancedAuthRuleEditor = ReturnType<
+  typeof createAdvancedAuthRuleEditor
+>;
+
 export const secondsToAdvancedAuthHourInput = (seconds: number) => {
   const hours = seconds / SECONDS_PER_HOUR;
   return Number.isInteger(hours) ? hours : Number(hours.toFixed(2));

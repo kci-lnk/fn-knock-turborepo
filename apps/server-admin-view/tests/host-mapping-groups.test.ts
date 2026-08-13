@@ -341,7 +341,14 @@ test("provides success toasts for every persisted group operation", () => {
 test("keeps mobile actions on one row and group headings visible while scrolling", () => {
   const card = readFileSync(
     new URL(
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingGroupHeaderRow.vue",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const header = readFileSync(
+    new URL(
+      "../src/views/subdomain-proxy/SubdomainMappingsCardHeader.vue",
       import.meta.url,
     ),
     "utf8",
@@ -352,18 +359,18 @@ test("keeps mobile actions on one row and group headings visible while scrolling
   );
 
   assert.match(
-    card,
+    header,
     /grid w-full grid-cols-\[auto_auto_minmax\(0,1fr\)\] items-center gap-2 sm:flex/u,
   );
   assert.match(
-    card,
+    header,
     /class="hidden sm:inline-flex"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,
   );
   assert.match(
-    card,
-    /v-if="isGroupedViewActive"[\s\S]*?data-testid="mobile-manage-groups-menu-item"[\s\S]*?class="sm:hidden"[\s\S]*?@select="isGroupManagerOpen = true"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,
+    header,
+    /v-if="groupedView"[\s\S]*?data-testid="mobile-manage-groups-menu-item"[\s\S]*?class="sm:hidden"[\s\S]*?@select="emit\('manage-groups'\)"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,
   );
-  assert.match(card, /class="col-span-3 w-full sm:w-auto"/u);
+  assert.match(header, /class="col-span-3 w-full sm:w-auto"/u);
   assert.match(card, /mapping-group-header-row/u);
   assert.match(card, /class="mapping-group-header-layout"/u);
   assert.match(card, /mapping-group-header-sticky/u);
@@ -393,7 +400,7 @@ test("keeps mobile actions on one row and group headings visible while scrolling
 test("animates grouped rows and the disclosure chevron", () => {
   const card = readFileSync(
     new URL(
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingGroupHeaderRow.vue",
       import.meta.url,
     ),
     "utf8",
@@ -413,7 +420,7 @@ test("animates grouped rows and the disclosure chevron", () => {
   assert.match(groupRows, /isBodyVisuallyCollapsed/u);
   assert.match(groupRows, /@transitionend="handleBodyTransitionEnd"/u);
   assert.match(card, /transition-transform duration-200/u);
-  assert.match(card, /'rotate-90': !isSectionCollapsed\(section\)/u);
+  assert.match(card, /'rotate-90': !collapsed/u);
   assert.match(
     styles,
     /\.mapping-group-collapse-body \{[\s\S]*?clip-path 220ms/u,
@@ -431,7 +438,7 @@ test("animates grouped rows and the disclosure chevron", () => {
 test("reconciles draggable table rows after a cross-group move", () => {
   const card = readFileSync(
     new URL(
-      "../src/views/subdomain-proxy/SubdomainMappingsCard.vue",
+      "../src/views/subdomain-proxy/SubdomainMappingTableRow.vue",
       import.meta.url,
     ),
     "utf8",

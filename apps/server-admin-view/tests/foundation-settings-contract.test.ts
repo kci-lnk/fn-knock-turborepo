@@ -305,8 +305,10 @@ describe("foundation settings API contract", () => {
   });
 
   it("derives frontend models and requests from the generated contract", () => {
-    const types = readSource("../src/types.ts");
-    const configApi = readSource("../src/lib/api/config.ts");
+    const types = readSource("../src/types/core.ts");
+    const configApi =
+      readSource("../src/lib/api/config.ts") +
+      readSource("../src/lib/api/config-core-api.ts");
 
     assert.match(types, /\["RunTypeUpdateData"\]\["run_type"\]/u);
     assert.match(types, /\["WelcomeGuideData"\]/u);

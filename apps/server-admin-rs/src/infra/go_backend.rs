@@ -17,12 +17,12 @@ use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
     BoolValue, CommonLocationExemptionsRuntime, ControlApiVersion, CrawlerBlockerConfig,
     FnosConnectIngressConfig, FnosConnectIngressStatus, FnosPortIconHijackConfig,
-    GatewayListenerConfig, GatewayPortalConfig, GatewayTrustedClientIpsRuntime,
-    GatewayUnmatchedRouteConfig, GatewayVisibilityConfig, HostActiveIpStats, HostLocation,
-    HostLocationResponse, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules,
-    LocaleConfig, LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
-    ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig, SslDeployedCertificate,
-    StreamAvailability, StreamRule, StreamRules, StringValue, WafConfig,
+    GatewayListenerConfig, GatewayMemoryConfig, GatewayPortalConfig,
+    GatewayTrustedClientIpsRuntime, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
+    HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
+    HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
+    SslDeployedCertificate, StreamAvailability, StreamRule, StreamRules, StringValue, WafConfig,
     deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
@@ -152,6 +152,32 @@ impl GoBackendClient {
             "heap_alloc_bytes": info.heap_alloc_bytes,
             "heap_sys_bytes": info.heap_sys_bytes,
             "rss_bytes": info.rss_bytes,
+            "gc_percent": info.gc_percent,
+        }))
+    }
+
+    pub async fn set_gateway_memory_config(&self, gc_percent: i32) -> anyhow::Result<i32> {
+        let mut client = self.control.clone();
+        let response = client
+            .set_gateway_memory_config(self.request(GatewayMemoryConfig { gc_percent }))
+            .await
+            .context("set Go gateway memory config")?
+            .into_inner();
+        Ok(response.gc_percent)
+    }
+
+    pub async fn reclaim_gateway_memory(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let info = client
+            .reclaim_gateway_memory(self.request(()))
+            .await
+            .context("reclaim Go gateway memory")?
+            .into_inner();
+        Ok(json!({
+            "heap_alloc_bytes": info.heap_alloc_bytes,
+            "heap_sys_bytes": info.heap_sys_bytes,
+            "rss_bytes": info.rss_bytes,
+            "gc_percent": info.gc_percent,
         }))
     }
 
@@ -199,6 +225,7 @@ impl GoBackendClient {
             "deep_monitor_v1",
             "lifecycle",
             "runtime_info_v1",
+            "memory_control_v1",
             "host_rule_groups_v1",
             "compiled_visibility_ipset_v1",
             "trusted_client_ip_bypass_v1",

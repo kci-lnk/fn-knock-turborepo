@@ -317,6 +317,15 @@ function validateContract(openapiPath) {
       "IpLocationTestUrlBodyData",
     ],
     ["get /api/admin/runtime-health", null],
+    ["get /api/admin/runtime-health/gateway-memory", null],
+    [
+      "put /api/admin/runtime-health/gateway-memory",
+      "GatewayMemoryConfigUpdateData",
+    ],
+    [
+      "post /api/admin/runtime-health/gateway-memory/reclaim",
+      "GatewayMemoryReclaimBodyData",
+    ],
     ["get /api/admin/runtime-health/logs/{component}", null],
     ["delete /api/admin/runtime-health/logs/{component}", null],
     ["get /api/admin/runtime-health/diagnostics", null],

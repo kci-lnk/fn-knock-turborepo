@@ -1663,6 +1663,7 @@ export const enServer = {
       directModeWhitelist: "Direct-mode whitelist",
       trustedClientIps: "Gateway trusted client IPs",
       gatewayLogging: "Request log configuration",
+      gatewayMemory: "Go gateway memory configuration",
       wafRuntime: "WAF configuration and runtime",
       sslDeployment: "SSL certificate deployment",
       autoHttps: "Automatic HTTPS redirect",

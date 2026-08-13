@@ -26,6 +26,9 @@ const GATEWAY_PORTAL_TITLE_HOST_RULES_PATCH_FLAG_KEY: &str =
 const GATEWAY_PORTAL_ICON_HOST_RULES_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:gateway-portal-icon-host-rules:v1";
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
+pub(crate) const DEFAULT_GATEWAY_GC_PERCENT: i32 = 100;
+pub(crate) const MIN_GATEWAY_GC_PERCENT: i32 = 25;
+pub(crate) const MAX_GATEWAY_GC_PERCENT: i32 = 500;
 
 fn gateway_route_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.admin.gatewaySettingsRoutes.{key}"))
@@ -69,6 +72,19 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     if let Err(error) = sync_gateway_runtime(&state, &config).await {
         tracing::warn!(%error, "failed to sync gateway base runtime on boot");
     }
+
+    let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
+    match state.storage.store.get_config().await {
+        Ok(current_config) => {
+            if let Err(error) = sync_gateway_memory_runtime(&state, &current_config).await {
+                tracing::warn!(%error, "failed to sync gateway memory runtime on boot");
+            }
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to refresh config for gateway memory boot sync");
+        }
+    }
+    drop(_memory_update_guard);
 
     let visibility_runtime = match state
         .storage
@@ -122,6 +138,33 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     {
         tracing::warn!(%error, "failed to sync gateway host response runtime on boot");
     }
+}
+
+pub(crate) fn gateway_memory_gc_percent(config: &Value) -> i32 {
+    config
+        .pointer("/gateway_memory/gc_percent")
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok())
+        .filter(|value| (MIN_GATEWAY_GC_PERCENT..=MAX_GATEWAY_GC_PERCENT).contains(value))
+        .unwrap_or(DEFAULT_GATEWAY_GC_PERCENT)
+}
+
+pub(crate) async fn sync_gateway_memory_runtime(
+    state: &AppState,
+    config: &Value,
+) -> anyhow::Result<i32> {
+    let expected = gateway_memory_gc_percent(config);
+    let applied = state
+        .gateway
+        .client
+        .set_gateway_memory_config(expected)
+        .await?;
+    if applied != expected {
+        anyhow::bail!(
+            "Go gateway reported an unexpected GC percent: expected={expected}, applied={applied}"
+        );
+    }
+    Ok(applied)
 }
 
 struct CompiledGatewayVisibility {

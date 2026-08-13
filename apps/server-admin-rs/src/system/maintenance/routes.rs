@@ -282,6 +282,7 @@ where
         );
     }
 
+    let _gateway_memory_guard = state.gateway.memory_update_lock.lock().await;
     if let Err(error) = reset_gateway().await {
         tracing::error!(%error, "failed to clear Go gateway data");
         return response::error(

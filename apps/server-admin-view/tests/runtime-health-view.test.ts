@@ -37,4 +37,27 @@ describe("runtime health view", () => {
     assert.match(viewSource, /ConfirmDangerPopover/u);
     assert.match(viewSource, /admin\.eventCenter\.runtime\.clearLogs/u);
   });
+
+  it("opens Go memory controls from the gateway process card", () => {
+    const viewSource = readSource("../src/views/event-center/RuntimeTab.vue");
+    const cardSource = readSource(
+      "../src/views/event-center/RuntimeComponentCard.vue",
+    );
+    const dialogSource = readSource(
+      "../src/views/event-center/GatewayMemoryDialog.vue",
+    );
+    const apiSource = readSource("../src/lib/api/runtime-health.ts");
+
+    assert.match(viewSource, /component\.id === 'gateway_process'/u);
+    assert.match(viewSource, /GatewayMemoryDialog/u);
+    assert.match(cardSource, /MemoryStick/u);
+    assert.match(cardSource, /manageMemory/u);
+    assert.match(dialogSource, /updateGatewayMemoryConfig/u);
+    assert.match(dialogSource, /reclaimGatewayMemory/u);
+    assert.match(dialogSource, /!loaded\.value \|\| !validDraft\.value/u);
+    assert.match(dialogSource, /MIN_GC_PERCENT = 25/u);
+    assert.match(dialogSource, /MAX_GC_PERCENT = 500/u);
+    assert.match(dialogSource, /saving\.value \|\| reclaiming\.value/u);
+    assert.match(apiSource, /runtime-health\/gateway-memory\/reclaim/u);
+  });
 });

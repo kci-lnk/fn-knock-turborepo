@@ -43,6 +43,9 @@ describe("runtime health API contract", () => {
   it("keeps all runtime health operations typed", () => {
     for (const [method, path] of [
       ["get", "/api/admin/runtime-health"],
+      ["get", "/api/admin/runtime-health/gateway-memory"],
+      ["put", "/api/admin/runtime-health/gateway-memory"],
+      ["post", "/api/admin/runtime-health/gateway-memory/reclaim"],
       ["get", "/api/admin/runtime-health/logs/{component}"],
       ["delete", "/api/admin/runtime-health/logs/{component}"],
       ["get", "/api/admin/runtime-health/diagnostics"],
@@ -55,6 +58,18 @@ describe("runtime health API contract", () => {
         `${method.toUpperCase()} ${path}`,
       );
     }
+  });
+
+  it("bounds the Go GC percentage contract", () => {
+    const config = contract.components.schemas.GatewayMemoryConfigUpdateData
+      .properties?.gc_percent as
+      { minimum?: number; maximum?: number } | undefined;
+    assert.equal(config?.minimum, 25);
+    assert.equal(config?.maximum, 500);
+    assert.ok(
+      contract.components.schemas.GatewayMemoryReclaimData.properties
+        ?.rss_bytes,
+    );
   });
 
   it("preserves the log boundary and ZIP response", () => {
@@ -95,8 +110,7 @@ describe("runtime health API contract", () => {
       assert.ok(component.includes(field), field);
     }
     assert.ok(
-      contract.components.schemas.RuntimeDiagnosticsData.properties
-        ?.collection,
+      contract.components.schemas.RuntimeDiagnosticsData.properties?.collection,
     );
 
     const types = readSource("../src/types/runtime-health.ts");

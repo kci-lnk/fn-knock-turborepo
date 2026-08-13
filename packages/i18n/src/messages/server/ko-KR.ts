@@ -1677,6 +1677,7 @@ export const koKRServer = {
       directModeWhitelist: "직접 연결 모드 허용 목록",
       trustedClientIps: "게이트웨이 신뢰 클라이언트 IP",
       gatewayLogging: "요청 로그 설정",
+      gatewayMemory: "Go 게이트웨이 메모리 설정",
       wafRuntime: "WAF 설정 및 실행 상태",
       sslDeployment: "SSL 인증서 배포",
       autoHttps: "자동 HTTPS 리디렉션",

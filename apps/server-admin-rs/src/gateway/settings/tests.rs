@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn gateway_memory_gc_percent_uses_safe_default_and_valid_range() {
+    assert_eq!(
+        gateway_memory_gc_percent(&json!({})),
+        DEFAULT_GATEWAY_GC_PERCENT
+    );
+    assert_eq!(
+        gateway_memory_gc_percent(&json!({ "gateway_memory": { "gc_percent": 50 } })),
+        50
+    );
+    for invalid in [24, 501] {
+        assert_eq!(
+            gateway_memory_gc_percent(&json!({ "gateway_memory": { "gc_percent": invalid } })),
+            DEFAULT_GATEWAY_GC_PERCENT
+        );
+    }
+}
+
+#[test]
 fn visibility_selection_deduplication_includes_operator() {
     let selections = dedupe_visibility_selection_inputs(Some(&json!([
         { "province": "浙江", "query_city": "杭州", "operator": "移动" },

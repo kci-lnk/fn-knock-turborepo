@@ -1466,6 +1466,7 @@ export const zhCNServer = {
       directModeWhitelist: "直连模式白名单",
       trustedClientIps: "网关可信客户端 IP",
       gatewayLogging: "请求日志配置",
+      gatewayMemory: "Go 网关内存配置",
       wafRuntime: "WAF 配置与运行状态",
       sslDeployment: "SSL 证书部署",
       autoHttps: "自动 HTTPS 跳转",

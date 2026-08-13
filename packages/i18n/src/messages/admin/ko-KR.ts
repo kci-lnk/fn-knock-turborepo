@@ -5643,6 +5643,41 @@ export const koKRAdmin = {
       directory: "로그 디렉터리",
       recentEvents: "최근 실행 이벤트 20개",
       noEvents: "실행 이벤트가 없습니다",
+      memory: {
+        open: "Go 메모리 관리",
+        title: "Go 게이트웨이 메모리",
+        description:
+          "가비지 컬렉션 강도를 조정하거나 Go 게이트웨이에 즉시 메모리 회수를 요청합니다.",
+        strength: "회수 강도",
+        placeholder: "회수 강도 선택",
+        customDescription: "사용자 지정 회수 강도를 사용합니다.",
+        rangeError: "25에서 500 사이의 정수를 입력하세요.",
+        retry: "다시 시도",
+        hint: "GOGC가 낮을수록 더 자주 회수하여 일반적으로 메모리를 덜 사용하지만 CPU 부하는 늘어납니다. 즉시 회수 시 잠깐 멈출 수 있습니다.",
+        levels: {
+          "50": {
+            label: "적극적",
+            description: "메모리가 부족한 장치에서 더 자주 회수합니다.",
+          },
+          "100": {
+            label: "균형",
+            description:
+              "Go 기본값으로 메모리 사용량과 CPU 부하의 균형을 맞춥니다.",
+          },
+          "200": {
+            label: "완화",
+            description:
+              "메모리가 충분하고 처리량이 더 중요할 때 회수 빈도를 낮춥니다.",
+          },
+        },
+        loadFailed: "Go 메모리 설정을 불러오지 못했습니다",
+        saveSuccess: "Go 메모리 회수 강도를 업데이트했습니다",
+        saveFailed: "Go 메모리 설정을 저장하지 못했습니다",
+        reclaim: "지금 회수",
+        reclaimSuccess: "Go 메모리 회수를 완료했습니다",
+        reclaimSuccessDescription: "회수 후: Go Heap {heap}, RSS {rss}",
+        reclaimFailed: "Go 메모리 회수에 실패했습니다",
+      },
       status: {
         healthy: "정상",
         degraded: "저하",

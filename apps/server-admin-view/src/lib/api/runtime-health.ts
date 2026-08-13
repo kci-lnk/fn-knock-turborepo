@@ -15,6 +15,14 @@ type RuntimeLogsQuery = NonNullable<
 >;
 type RuntimeLogClearResponse =
   ApiContractOperations["delete_api_admin_runtime_health_logs__component_"]["responses"][200]["content"]["application/json"];
+type GatewayMemoryConfigOperation =
+  ApiContractOperations["put_api_admin_runtime_health_gateway_memory"];
+type GatewayMemoryConfigResponse =
+  ApiContractOperations["get_api_admin_runtime_health_gateway_memory"]["responses"][200]["content"]["application/json"];
+type GatewayMemoryConfigUpdate =
+  GatewayMemoryConfigOperation["requestBody"]["content"]["application/json"];
+type GatewayMemoryReclaimResponse =
+  ApiContractOperations["post_api_admin_runtime_health_gateway_memory_reclaim"]["responses"][200]["content"]["application/json"];
 
 export const RuntimeHealthAPI = {
   async getHealth(): Promise<RuntimeHealthResponse> {
@@ -44,6 +52,29 @@ export const RuntimeHealthAPI = {
   ): Promise<RuntimeLogClearResponse> {
     const response = await apiClient.delete(
       `/runtime-health/logs/${encodeURIComponent(component)}`,
+    );
+    return response.data;
+  },
+
+  async getGatewayMemoryConfig(): Promise<GatewayMemoryConfigResponse> {
+    const response = await apiClient.get("/runtime-health/gateway-memory");
+    return response.data;
+  },
+
+  async updateGatewayMemoryConfig(
+    payload: GatewayMemoryConfigUpdate,
+  ): Promise<GatewayMemoryConfigResponse> {
+    const response = await apiClient.put(
+      "/runtime-health/gateway-memory",
+      payload,
+    );
+    return response.data;
+  },
+
+  async reclaimGatewayMemory(): Promise<GatewayMemoryReclaimResponse> {
+    const response = await apiClient.post(
+      "/runtime-health/gateway-memory/reclaim",
+      {},
     );
     return response.data;
   },

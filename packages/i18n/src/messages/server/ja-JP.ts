@@ -1737,6 +1737,7 @@ export const jaJPServer = {
       directModeWhitelist: "ダイレクトモードのホワイトリスト",
       trustedClientIps: "ゲートウェイの信頼済みクライアント IP",
       gatewayLogging: "ログ設定のリクエスト",
+      gatewayMemory: "Go ゲートウェイのメモリ設定",
       wafRuntime: "WAF 設定と実行状態",
       sslDeployment: "SSL 証明書の展開",
       autoHttps: "HTTPS 自動リダイレクト",

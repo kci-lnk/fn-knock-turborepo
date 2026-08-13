@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText } from "lucide-vue-next";
+import { FileText, MemoryStick } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,14 @@ const props = withDefaults(
     component: RuntimeComponentHealth;
     variant: "process" | "service";
     showLogAction?: boolean;
+    showMemoryAction?: boolean;
   }>(),
-  { showLogAction: false },
+  { showLogAction: false, showMemoryAction: false },
 );
 
 const emit = defineEmits<{
   viewLogs: [component: RuntimeComponentHealth];
+  manageMemory: [component: RuntimeComponentHealth];
 }>();
 
 const { t } = useI18n();
@@ -138,14 +140,28 @@ const statusClass = (status: RuntimeHealthStatus) => {
       <dd class="shrink-0 tabular-nums">{{ component.latency_ms }} ms</dd>
     </dl>
 
-    <div v-if="showLogAction" class="mt-auto pt-4">
+    <div
+      v-if="showLogAction || showMemoryAction"
+      class="mt-auto flex items-center gap-2 pt-4"
+    >
       <Button
+        v-if="showLogAction"
         variant="outline"
         size="sm"
         @click="emit('viewLogs', props.component)"
       >
         <FileText class="mr-2 h-4 w-4" />
         {{ t("admin.eventCenter.runtime.viewLogs") }}
+      </Button>
+      <Button
+        v-if="showMemoryAction"
+        variant="outline"
+        size="icon-sm"
+        :title="t('admin.eventCenter.runtime.memory.open')"
+        :aria-label="t('admin.eventCenter.runtime.memory.open')"
+        @click="emit('manageMemory', props.component)"
+      >
+        <MemoryStick class="h-4 w-4" />
       </Button>
     </div>
   </article>

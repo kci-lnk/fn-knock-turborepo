@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 10;
+  CONTROL_API_VERSION_CURRENT = 11;
 }
 
 message RpcStatus {
@@ -792,6 +792,13 @@ message GatewayRuntimeInfo {
   uint64 heap_alloc_bytes = 7;
   uint64 heap_sys_bytes = 8;
   uint64 rss_bytes = 9;
+  int32 gc_percent = 10;
+}
+
+// Go runtime garbage-collector target. Lower percentages collect more often
+// and trade CPU time for a smaller heap. The control plane accepts 25..500.
+message GatewayMemoryConfig {
+  int32 gc_percent = 1;
 }
 
 message GatewayListenerConfig {
@@ -1048,6 +1055,8 @@ message FnosConnectIngressStatus {
 service GatewayControlService {
   rpc GetServerInfo(google.protobuf.Empty) returns (ServerInfo);
   rpc GetRuntimeInfo(google.protobuf.Empty) returns (GatewayRuntimeInfo);
+  rpc SetGatewayMemoryConfig(GatewayMemoryConfig) returns (GatewayMemoryConfig);
+  rpc ReclaimGatewayMemory(google.protobuf.Empty) returns (GatewayRuntimeInfo);
   rpc GetGatewayListenerConfig(google.protobuf.Empty) returns (GatewayListenerConfig);
   rpc SetGatewayListenerConfig(GatewayListenerConfig) returns (GatewayListenerConfig);
   // Resets all user-managed gateway configuration and volatile runtime data

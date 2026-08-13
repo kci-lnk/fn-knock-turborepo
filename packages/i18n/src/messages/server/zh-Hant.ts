@@ -1466,6 +1466,7 @@ export const zhHantServer = {
       directModeWhitelist: "直連模式白名單",
       trustedClientIps: "網關可信用戶端 IP",
       gatewayLogging: "請求日誌配置",
+      gatewayMemory: "Go 網關記憶體配置",
       wafRuntime: "WAF 配置與運行狀態",
       sslDeployment: "SSL 證書部署",
       autoHttps: "自動 HTTPS 跳轉",

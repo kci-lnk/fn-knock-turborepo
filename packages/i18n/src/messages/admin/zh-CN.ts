@@ -5300,6 +5300,38 @@ export const zhCNAdmin = {
       directory: "日志目录",
       recentEvents: "最近 20 条运行事件",
       noEvents: "暂无运行事件",
+      memory: {
+        open: "管理 Go 内存",
+        title: "Go 网关内存",
+        description: "调整垃圾回收强度，或立即让 Go 网关执行一次内存回收。",
+        strength: "回收强度",
+        placeholder: "选择回收强度",
+        customDescription: "使用自定义回收强度。",
+        rangeError: "请输入 25 到 500 之间的整数。",
+        retry: "重试",
+        hint: "GOGC 越低，回收越频繁、内存占用通常越低，但会消耗更多 CPU；立即回收可能带来短暂暂停。",
+        levels: {
+          "50": {
+            label: "积极",
+            description: "更频繁地回收，适合内存紧张的设备。",
+          },
+          "100": {
+            label: "均衡",
+            description: "Go 默认策略，在内存占用和 CPU 开销之间保持平衡。",
+          },
+          "200": {
+            label: "宽松",
+            description: "降低回收频率，适合内存充足且更重视吞吐量的设备。",
+          },
+        },
+        loadFailed: "加载 Go 内存设置失败",
+        saveSuccess: "Go 内存回收强度已更新",
+        saveFailed: "保存 Go 内存设置失败",
+        reclaim: "立即回收",
+        reclaimSuccess: "Go 内存回收已完成",
+        reclaimSuccessDescription: "回收后 Go Heap {heap}，RSS {rss}",
+        reclaimFailed: "Go 内存回收失败",
+      },
       status: {
         healthy: "健康",
         degraded: "降级",

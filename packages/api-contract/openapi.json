@@ -10693,6 +10693,69 @@
         ],
         "type": "object"
       },
+      "GatewayMemoryConfigData": {
+        "properties": {
+          "gc_percent": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 25,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gc_percent"
+        ],
+        "type": "object"
+      },
+      "GatewayMemoryConfigUpdateData": {
+        "properties": {
+          "gc_percent": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 25,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gc_percent"
+        ],
+        "type": "object"
+      },
+      "GatewayMemoryReclaimBodyData": {
+        "type": "object"
+      },
+      "GatewayMemoryReclaimData": {
+        "properties": {
+          "gc_percent": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 25,
+            "type": "integer"
+          },
+          "heap_alloc_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "heap_sys_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "heap_alloc_bytes",
+          "heap_sys_bytes",
+          "rss_bytes",
+          "gc_percent"
+        ],
+        "type": "object"
+      },
       "GatewayPortalData": {
         "properties": {
           "display_style": {
@@ -38105,6 +38168,177 @@
               }
             },
             "description": "Binary attachment"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/runtime-health/gateway-memory": {
+      "get": {
+        "operationId": "get_api_admin_runtime_health_gateway_memory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GatewayMemoryConfigData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "put": {
+        "operationId": "put_api_admin_runtime_health_gateway_memory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayMemoryConfigUpdateData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GatewayMemoryConfigData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "tags": [
+          "runtime-health"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/runtime-health/gateway-memory/reclaim": {
+      "post": {
+        "operationId": "post_api_admin_runtime_health_gateway_memory_reclaim",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayMemoryReclaimBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/GatewayMemoryReclaimData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
           },
           "default": {
             "content": {

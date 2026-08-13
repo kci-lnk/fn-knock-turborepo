@@ -5222,6 +5222,38 @@ export const zhHantAdmin = {
       dropped: "丟棄的 INFO",
       recentEvents: "最近 20 筆執行事件",
       noEvents: "暫無執行事件",
+      memory: {
+        open: "管理 Go 記憶體",
+        title: "Go 閘道記憶體",
+        description: "調整垃圾回收強度，或立即讓 Go 閘道執行一次記憶體回收。",
+        strength: "回收強度",
+        placeholder: "選擇回收強度",
+        customDescription: "使用自訂回收強度。",
+        rangeError: "請輸入 25 到 500 之間的整數。",
+        retry: "重試",
+        hint: "GOGC 越低，回收越頻繁、記憶體使用量通常越低，但會消耗更多 CPU；立即回收可能造成短暫暫停。",
+        levels: {
+          "50": {
+            label: "積極",
+            description: "更頻繁地回收，適合記憶體吃緊的裝置。",
+          },
+          "100": {
+            label: "均衡",
+            description: "Go 預設策略，在記憶體使用量和 CPU 開銷之間保持平衡。",
+          },
+          "200": {
+            label: "寬鬆",
+            description: "降低回收頻率，適合記憶體充足且更重視吞吐量的裝置。",
+          },
+        },
+        loadFailed: "載入 Go 記憶體設定失敗",
+        saveSuccess: "Go 記憶體回收強度已更新",
+        saveFailed: "儲存 Go 記憶體設定失敗",
+        reclaim: "立即回收",
+        reclaimSuccess: "Go 記憶體回收已完成",
+        reclaimSuccessDescription: "回收後 Go Heap {heap}，RSS {rss}",
+        reclaimFailed: "Go 記憶體回收失敗",
+      },
       status: {
         healthy: "健康",
         degraded: "降級",

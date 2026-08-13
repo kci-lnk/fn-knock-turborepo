@@ -883,7 +883,7 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 410, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 413, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

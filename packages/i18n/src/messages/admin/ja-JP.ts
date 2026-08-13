@@ -5684,6 +5684,41 @@ export const jaJPAdmin = {
       directory: "ログディレクトリ",
       recentEvents: "直近 20 件の稼働イベント",
       noEvents: "稼働イベントはありません",
+      memory: {
+        open: "Go メモリを管理",
+        title: "Go ゲートウェイのメモリ",
+        description:
+          "ガベージコレクションの強度を調整するか、Go ゲートウェイに即時メモリ解放を要求します。",
+        strength: "回収強度",
+        placeholder: "回収強度を選択",
+        customDescription: "カスタムの回収強度を使用します。",
+        rangeError: "25 から 500 までの整数を入力してください。",
+        retry: "再試行",
+        hint: "GOGC が低いほど回収頻度が上がり、通常はメモリ使用量が減りますが、CPU 負荷が増えます。即時回収では短時間停止する場合があります。",
+        levels: {
+          "50": {
+            label: "積極的",
+            description: "メモリに余裕がない端末向けに、より頻繁に回収します。",
+          },
+          "100": {
+            label: "バランス",
+            description:
+              "Go の既定値で、メモリ使用量と CPU 負荷のバランスを取ります。",
+          },
+          "200": {
+            label: "緩やか",
+            description:
+              "メモリに余裕があり、スループットを優先する場合に回収頻度を下げます。",
+          },
+        },
+        loadFailed: "Go メモリ設定を読み込めませんでした",
+        saveSuccess: "Go の回収強度を更新しました",
+        saveFailed: "Go メモリ設定を保存できませんでした",
+        reclaim: "今すぐ回収",
+        reclaimSuccess: "Go メモリを回収しました",
+        reclaimSuccessDescription: "回収後: Go Heap {heap}、RSS {rss}",
+        reclaimFailed: "Go メモリを回収できませんでした",
+      },
       status: {
         healthy: "正常",
         degraded: "低下",

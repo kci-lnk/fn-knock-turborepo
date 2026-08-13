@@ -3357,6 +3357,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/runtime-health/gateway-memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_api_admin_runtime_health_gateway_memory"];
+        put: operations["put_api_admin_runtime_health_gateway_memory"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/runtime-health/gateway-memory/reclaim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["post_api_admin_runtime_health_gateway_memory_reclaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/runtime-health/logs/{component}": {
         parameters: {
             query?: never;
@@ -7575,6 +7607,25 @@ export interface components {
             /** Format: int64 */
             max_days: number;
             record_localhost?: boolean | null;
+        };
+        GatewayMemoryConfigData: {
+            /** Format: int32 */
+            gc_percent: number;
+        };
+        GatewayMemoryConfigUpdateData: {
+            /** Format: int32 */
+            gc_percent: number;
+        };
+        GatewayMemoryReclaimBodyData: Record<string, never>;
+        GatewayMemoryReclaimData: {
+            /** Format: int32 */
+            gc_percent: number;
+            /** Format: int64 */
+            heap_alloc_bytes: number;
+            /** Format: int64 */
+            heap_sys_bytes: number;
+            /** Format: int64 */
+            rss_bytes: number;
         };
         GatewayPortalData: {
             /** @enum {string} */
@@ -20464,6 +20515,122 @@ export interface operations {
                 };
                 content: {
                     "application/zip": string;
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_runtime_health_gateway_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["GatewayMemoryConfigData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    put_api_admin_runtime_health_gateway_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayMemoryConfigUpdateData"];
+            };
+        };
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["GatewayMemoryConfigData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_runtime_health_gateway_memory_reclaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayMemoryReclaimBodyData"];
+            };
+        };
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["GatewayMemoryReclaimData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Standard fn-knock error response */

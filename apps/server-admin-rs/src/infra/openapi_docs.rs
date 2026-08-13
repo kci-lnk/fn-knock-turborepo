@@ -2289,6 +2289,33 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_runtime_health,
+        "/api/admin/runtime-health/gateway-memory",
+        "get",
+        "GatewayMemoryConfigData",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_runtime_health,
+        "/api/admin/runtime-health/gateway-memory",
+        "put",
+        "GatewayMemoryConfigData",
+        None,
+        Some("GatewayMemoryConfigUpdateData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_runtime_health,
+        "/api/admin/runtime-health/gateway-memory/reclaim",
+        "post",
+        "GatewayMemoryReclaimData",
+        None,
+        Some("GatewayMemoryReclaimBodyData"),
+    );
     let runtime_log_parameters = json!([
         { "name": "component", "in": "path", "required": true, "schema": { "type": "string", "enum": ["management", "gateway_process"] } },
         { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
@@ -4324,6 +4351,9 @@ mod tests {
             ("/api/admin/events", "delete"),
             ("/api/admin/events/clear", "delete"),
             ("/api/admin/runtime-health", "get"),
+            ("/api/admin/runtime-health/gateway-memory", "get"),
+            ("/api/admin/runtime-health/gateway-memory", "put"),
+            ("/api/admin/runtime-health/gateway-memory/reclaim", "post"),
             ("/api/admin/runtime-health/logs/{component}", "get"),
             ("/api/admin/runtime-health/logs/{component}", "delete"),
             ("/api/admin/runtime-health/diagnostics", "get"),
@@ -4946,7 +4976,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 410);
+        assert_eq!(operations.len(), 413);
         assert!(
             operations
                 .iter()
@@ -6364,6 +6394,10 @@ mod tests {
             "RuntimeHealthSnapshotData",
             "RuntimeComponentLogsData",
             "RuntimeLogClearData",
+            "GatewayMemoryConfigData",
+            "GatewayMemoryConfigUpdateData",
+            "GatewayMemoryReclaimBodyData",
+            "GatewayMemoryReclaimData",
             "RuntimeDiagnosticsData",
             "RuntimeDiagnosticsCollectionData",
             "CidrCapabilitiesData",

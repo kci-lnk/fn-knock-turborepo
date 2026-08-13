@@ -84,6 +84,30 @@ pub(super) struct RuntimeLogClearData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct GatewayMemoryConfigData {
+    #[schema(minimum = 25, maximum = 500)]
+    gc_percent: i32,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayMemoryConfigUpdateData {
+    #[schema(minimum = 25, maximum = 500)]
+    gc_percent: i32,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayMemoryReclaimBodyData {}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayMemoryReclaimData {
+    heap_alloc_bytes: u64,
+    heap_sys_bytes: u64,
+    rss_bytes: u64,
+    #[schema(minimum = 25, maximum = 500)]
+    gc_percent: i32,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct RuntimeSystemEventSubjectData {
     kind: String,
     id: String,

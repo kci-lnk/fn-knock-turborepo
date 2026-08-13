@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { EventCenterAPI, RuntimeHealthAPI } from "@/lib/api";
 import RuntimeComponentCard from "./RuntimeComponentCard.vue";
+import GatewayMemoryDialog from "./GatewayMemoryDialog.vue";
 import type {
   RuntimeComponentHealth,
   RuntimeLogComponent,
@@ -39,6 +40,7 @@ const logEntries = ref<RuntimeOperationalLogEntry[]>([]);
 const logGeneratedAt = ref<string | null>(null);
 const logsLoading = ref(false);
 const logsClearing = ref(false);
+const gatewayMemoryDialogOpen = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let logRequestId = 0;
 
@@ -179,6 +181,11 @@ const openRuntimeLogs = (component: RuntimeComponentHealth) => {
   logGeneratedAt.value = null;
   logDialogOpen.value = true;
   void loadRuntimeLogs();
+};
+
+const openGatewayMemoryDialog = (component: RuntimeComponentHealth) => {
+  if (component.id !== "gateway_process") return;
+  gatewayMemoryDialogOpen.value = true;
 };
 
 const clearRuntimeLogs = async () => {
@@ -326,7 +333,9 @@ onUnmounted(() => {
             :component="component"
             variant="process"
             show-log-action
+            :show-memory-action="component.id === 'gateway_process'"
             @view-logs="openRuntimeLogs"
+            @manage-memory="openGatewayMemoryDialog"
           />
         </div>
       </section>
@@ -507,5 +516,10 @@ onUnmounted(() => {
         </div>
       </DialogContent>
     </Dialog>
+
+    <GatewayMemoryDialog
+      v-model:open="gatewayMemoryDialogOpen"
+      @updated="fetchRuntime(false)"
+    />
   </div>
 </template>

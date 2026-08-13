@@ -79,6 +79,19 @@ pub(super) async fn sync_runtime_after_import(
         Err(error) => warnings.push(format!("{gateway_logging_label}: {error}")),
     }
 
+    let gateway_memory_label = maintenance_backup_text(translator, "syncSteps.gatewayMemory");
+    let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
+    match state.storage.store.get_config().await {
+        Ok(current_config) => {
+            match gateway_settings::sync_gateway_memory_runtime(state, &current_config).await {
+                Ok(_) => synced_steps.push(gateway_memory_label),
+                Err(error) => warnings.push(format!("{gateway_memory_label}: {error}")),
+            }
+        }
+        Err(error) => warnings.push(format!("{gateway_memory_label}: {error}")),
+    }
+    drop(_memory_update_guard);
+
     if !restore_waf_early {
         record_waf_restore_result(
             waf::restore_waf_runtime_after_import(state, &config).await,

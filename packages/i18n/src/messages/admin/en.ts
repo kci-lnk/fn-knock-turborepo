@@ -5686,6 +5686,42 @@ export const enAdmin = {
       directory: "Log directory",
       recentEvents: "Latest 20 runtime events",
       noEvents: "No runtime events",
+      memory: {
+        open: "Manage Go memory",
+        title: "Go gateway memory",
+        description:
+          "Adjust garbage collection intensity or ask the Go gateway to reclaim memory immediately.",
+        strength: "Collection intensity",
+        placeholder: "Select collection intensity",
+        customDescription: "Uses a custom collection intensity.",
+        rangeError: "Enter an integer from 25 to 500.",
+        retry: "Retry",
+        hint: "A lower GOGC collects more often and usually uses less memory, at the cost of more CPU. An immediate reclaim may cause a brief pause.",
+        levels: {
+          "50": {
+            label: "Aggressive",
+            description:
+              "Collects more often for devices under memory pressure.",
+          },
+          "100": {
+            label: "Balanced",
+            description:
+              "The Go default, balancing memory use and CPU overhead.",
+          },
+          "200": {
+            label: "Relaxed",
+            description:
+              "Collects less often when memory is plentiful and throughput matters more.",
+          },
+        },
+        loadFailed: "Failed to load Go memory settings",
+        saveSuccess: "Go collection intensity updated",
+        saveFailed: "Failed to save Go memory settings",
+        reclaim: "Reclaim now",
+        reclaimSuccess: "Go memory reclaimed",
+        reclaimSuccessDescription: "After reclaim: Go Heap {heap}, RSS {rss}",
+        reclaimFailed: "Failed to reclaim Go memory",
+      },
       status: {
         healthy: "Healthy",
         degraded: "Degraded",

@@ -6,18 +6,22 @@ use std::{
 };
 
 use axum::{
+    Json,
     body::Body,
     extract::{Path as AxumPath, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
+use crate::gateway_settings::{
+    MAX_GATEWAY_GC_PERCENT, MIN_GATEWAY_GC_PERCENT, gateway_memory_gc_percent,
+};
 use crate::{app_version::APP_LOCAL_VERSION, response, state::AppState, time_utils};
 
 const MAX_ARCHIVE_BYTES: usize = 4 * 1024 * 1024;
@@ -32,9 +36,20 @@ struct RuntimeLogQuery {
     limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+struct GatewayMemoryConfigBody {
+    #[schema(minimum = 25, maximum = 500)]
+    gc_percent: i32,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+struct GatewayMemoryReclaimBody {}
+
 pub(crate) fn runtime_health_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(runtime_health))
+        .routes(routes!(gateway_memory_config, update_gateway_memory_config))
+        .routes(routes!(reclaim_gateway_memory))
         .routes(routes!(runtime_logs, clear_runtime_logs))
         .routes(routes!(diagnostics))
         .routes(routes!(diagnostics_archive))
@@ -49,6 +64,142 @@ pub(crate) fn runtime_health_routes() -> OpenApiRouter<AppState> {
 )]
 async fn runtime_health(State(state): State<AppState>) -> Response {
     response::ok(state.runtime_health.snapshot().await).into_response()
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/runtime-health/gateway-memory",
+    tag = "runtime-health",
+    operation_id = "get_api_admin_runtime_health_gateway_memory",
+    responses((status = 200, description = "Go gateway memory configuration"))
+)]
+async fn gateway_memory_config(State(state): State<AppState>) -> Response {
+    let _read_guard = state.gateway.memory_update_lock.lock().await;
+    match state.storage.store.get_config().await {
+        Ok(config) => response::ok(json!({
+            "gc_percent": gateway_memory_gc_percent(&config),
+        }))
+        .into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load gateway memory config");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to load gateway memory configuration",
+            )
+        }
+    }
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/admin/runtime-health/gateway-memory",
+    tag = "runtime-health",
+    operation_id = "put_api_admin_runtime_health_gateway_memory",
+    request_body = GatewayMemoryConfigBody,
+    responses((status = 200, description = "Updated Go gateway memory configuration"))
+)]
+async fn update_gateway_memory_config(
+    State(state): State<AppState>,
+    Json(body): Json<GatewayMemoryConfigBody>,
+) -> Response {
+    if !(MIN_GATEWAY_GC_PERCENT..=MAX_GATEWAY_GC_PERCENT).contains(&body.gc_percent) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            format!(
+                "GC percent must be between {MIN_GATEWAY_GC_PERCENT} and {MAX_GATEWAY_GC_PERCENT}"
+            ),
+        );
+    }
+    let _update_guard = state.gateway.memory_update_lock.lock().await;
+    let previous = match state.storage.store.get_config().await {
+        Ok(config) => gateway_memory_gc_percent(&config),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load gateway memory config before update");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to load gateway memory configuration",
+            );
+        }
+    };
+    match state
+        .gateway
+        .client
+        .set_gateway_memory_config(body.gc_percent)
+        .await
+    {
+        Ok(applied) if applied == body.gc_percent => {}
+        Ok(applied) => {
+            tracing::warn!(
+                expected = body.gc_percent,
+                applied,
+                "gateway returned unexpected GC percent"
+            );
+            if let Err(rollback_error) = state
+                .gateway
+                .client
+                .set_gateway_memory_config(previous)
+                .await
+            {
+                tracing::warn!(%rollback_error, previous, "failed to rollback unexpected gateway memory runtime");
+            }
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                "Go gateway did not apply the requested memory configuration",
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to apply gateway memory config");
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                "Failed to apply Go gateway memory configuration",
+            );
+        }
+    }
+    if let Err(error) = state
+        .storage
+        .store
+        .set_config_top_level_value("gateway_memory", json!({ "gc_percent": body.gc_percent }))
+        .await
+    {
+        tracing::warn!(%error, "failed to persist gateway memory config");
+        if let Err(rollback_error) = state
+            .gateway
+            .client
+            .set_gateway_memory_config(previous)
+            .await
+        {
+            tracing::warn!(%rollback_error, previous, "failed to rollback gateway memory runtime");
+        }
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to save gateway memory configuration",
+        );
+    }
+    response::ok(json!({ "gc_percent": body.gc_percent })).into_response()
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/runtime-health/gateway-memory/reclaim",
+    tag = "runtime-health",
+    operation_id = "post_api_admin_runtime_health_gateway_memory_reclaim",
+    request_body = GatewayMemoryReclaimBody,
+    responses((status = 200, description = "Go gateway memory reclaimed"))
+)]
+async fn reclaim_gateway_memory(
+    State(state): State<AppState>,
+    Json(_body): Json<GatewayMemoryReclaimBody>,
+) -> Response {
+    match state.gateway.client.reclaim_gateway_memory().await {
+        Ok(runtime) => response::ok(runtime).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to reclaim gateway memory");
+            response::error(
+                StatusCode::BAD_GATEWAY,
+                "Failed to reclaim Go gateway memory",
+            )
+        }
+    }
 }
 
 #[utoipa::path(

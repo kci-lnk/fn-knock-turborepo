@@ -6,6 +6,7 @@ const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
 type Schema = {
+  enum?: string[];
   properties?: Record<
     string,
     {
@@ -83,6 +84,10 @@ describe("proxy and subdomain routing API contract", () => {
 
     assert.ok(hostMapping.required?.includes("target_path_mode"));
     assert.ok(hostMapping.properties?.target_path_mode);
+    assert.deepEqual(
+      contract.components.schemas.HostTargetPathModeData.enum,
+      ["entry", "prefix"],
+    );
   });
 
   it("derives stream and subdomain frontend boundaries from OpenAPI", () => {
@@ -91,6 +96,7 @@ describe("proxy and subdomain routing API contract", () => {
 
     assert.match(types, /\["StreamMappingData"\]/u);
     assert.match(types, /\["SubdomainModeData"\]/u);
+    assert.match(types, /\["HostTargetPathModeData"\]/u);
     assert.match(configApi, /satisfies ProxyMappingsUpdate/u);
     assert.match(configApi, /satisfies StreamMappingsUpdate/u);
     assert.match(configApi, /config: SubdomainModeUpdate/u);

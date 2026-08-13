@@ -335,14 +335,10 @@ const mappingWafEnabledModel = computed({
             </div>
 
             <SubdomainMappingTargetField
-              :model-value="mappingForm.target"
-              :target-path-mode="mappingForm.target_path_mode"
+              v-model="mappingForm.target"
+              v-model:target-path-mode="mappingForm.target_path_mode"
               :allow-target-path-mode="!isMappingAuthService"
               :open="open"
-              @update:model-value="updateMappingForm({ target: $event })"
-              @update:target-path-mode="
-                updateMappingForm({ target_path_mode: $event })
-              "
             />
 
             <SubdomainMappingGroupField

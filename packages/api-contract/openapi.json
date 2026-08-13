@@ -11772,7 +11772,7 @@
             "type": "string"
           },
           "target_path_mode": {
-            "type": "string"
+            "$ref": "#/components/schemas/HostTargetPathModeData"
           },
           "title": {
             "type": "string"
@@ -11950,6 +11950,13 @@
           "results"
         ],
         "type": "object"
+      },
+      "HostTargetPathModeData": {
+        "enum": [
+          "entry",
+          "prefix"
+        ],
+        "type": "string"
       },
       "ImportBackupBody": {
         "properties": {

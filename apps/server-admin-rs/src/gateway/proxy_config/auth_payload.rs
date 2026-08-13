@@ -52,6 +52,15 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     .unwrap_or("");
                 let group_name = group_names.get(group_id).map(String::as_str).unwrap_or("");
                 let title = resolve_host_rule_title(object);
+                let target = object
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let target_path_mode = if is_auth_service_target(target) {
+                    "entry".to_string()
+                } else {
+                    normalize_target_path_mode(object.get("target_path_mode"))
+                };
                 let favicon = object
                     .get("favicon_override")
                     .and_then(Value::as_str)
@@ -83,7 +92,7 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                 json!({
                     "host": object.get("host").cloned().unwrap_or(Value::String(String::new())),
                     "target": object.get("target").cloned().unwrap_or(Value::String(String::new())),
-                    "target_path_mode": normalize_target_path_mode(object.get("target_path_mode")),
+                    "target_path_mode": target_path_mode,
                     "use_auth": object.get("use_auth").cloned().unwrap_or(Value::Bool(true)),
                     "access_mode": object.get("access_mode").cloned().unwrap_or(Value::String("login_first".to_string())),
                     "suppress_toolbar": object.get("suppress_toolbar").cloned().unwrap_or(Value::Bool(false)),

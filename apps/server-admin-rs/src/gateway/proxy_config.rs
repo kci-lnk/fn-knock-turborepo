@@ -1104,7 +1104,16 @@ pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
                     "cidrs": [],
                 })
             });
+        let target_path_mode = if is_auth {
+            "entry".to_string()
+        } else {
+            normalize_target_path_mode(object.get("target_path_mode"))
+        };
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
+        object.insert(
+            "target_path_mode".to_string(),
+            Value::String(target_path_mode),
+        );
         object.insert("visibility".to_string(), visibility);
         if is_auth || !object.get("group_id").is_some_and(Value::is_string) {
             object.insert("group_id".to_string(), Value::Null);

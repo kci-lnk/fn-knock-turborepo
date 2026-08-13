@@ -632,6 +632,7 @@ fn host_mapping_responses_backfill_legacy_defaults() {
         json!({"host": "legacy-auth.example.com", "target": "http://localhost:7997", "waf_enabled": false}),
         json!({
             "host": "custom.example.com",
+            "target_path_mode": "prefix",
             "visibility": {
                 "mode": "custom",
                 "selections": [],
@@ -646,6 +647,10 @@ fn host_mapping_responses_backfill_legacy_defaults() {
     assert_eq!(mappings[0]["waf_enabled"], json!(true));
     assert_eq!(mappings[1]["waf_enabled"], json!(true));
     assert_eq!(mappings[2]["waf_enabled"], json!(true));
+    assert_eq!(mappings[0]["target_path_mode"], json!("entry"));
+    assert_eq!(mappings[1]["target_path_mode"], json!("entry"));
+    assert_eq!(mappings[2]["target_path_mode"], json!("entry"));
+    assert_eq!(mappings[3]["target_path_mode"], json!("prefix"));
     assert_eq!(mappings[0]["visibility"]["mode"], json!("inherit"));
     assert_eq!(mappings[1]["visibility"]["mode"], json!("inherit"));
     assert_eq!(mappings[2]["visibility"]["mode"], json!("inherit"));
@@ -744,6 +749,17 @@ fn auth_host_mapping_forces_entry_target_path_mode() {
     .unwrap();
 
     assert_eq!(mappings[0]["target_path_mode"], json!("entry"));
+
+    let stale_persisted_payload = build_host_rules_payload(&[json!({
+        "host": "auth.example.com",
+        "target": "http://127.0.0.1:7997/auth",
+        "target_path_mode": "prefix",
+        "use_auth": false,
+    })]);
+    assert_eq!(
+        stale_persisted_payload[0]["target_path_mode"],
+        json!("entry")
+    );
 }
 
 #[test]
@@ -3234,6 +3250,20 @@ fn localizes_proxy_config_route_errors() {
             "Go backend did not apply HTTPS protocol mode http1 for video.example.com (reported auto); upgrade the gateway backend"
         ),
         "网关后端未应用 video.example.com 的 HTTPS 协议 http1，请升级网关后端"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping dav.example.com target path mode must be entry or prefix"
+        ),
+        "Host 映射 dav.example.com 的目标路径模式必须是 entry 或 prefix"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Go backend did not apply target path mode prefix for dav.example.com (reported entry); upgrade the gateway backend"
+        ),
+        "网关后端未应用 dav.example.com 的目标路径模式 prefix，请升级网关后端"
     );
     assert_eq!(
         localize_proxy_config_error(

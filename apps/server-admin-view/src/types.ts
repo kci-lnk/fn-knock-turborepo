@@ -64,7 +64,8 @@ export type DockerAdminBootstrapState =
 export type HostAccessMode =
   ApiContractComponents["schemas"]["SubdomainModeData"]["default_access_mode"];
 export type HostProtocolMode = "auto" | "http1" | "http2";
-export type HostTargetPathMode = "entry" | "prefix";
+export type HostTargetPathMode =
+  ApiContractComponents["schemas"]["HostTargetPathModeData"];
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol =
   ApiContractComponents["schemas"]["StreamMappingData"]["protocol"];

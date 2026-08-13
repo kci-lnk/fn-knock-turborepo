@@ -7923,7 +7923,7 @@ export interface components {
             service_role: string;
             suppress_toolbar: boolean;
             target: string;
-            target_path_mode: string;
+            target_path_mode: components["schemas"]["HostTargetPathModeData"];
             title: string;
             title_override: string;
             use_auth: boolean;
@@ -7968,6 +7968,8 @@ export interface components {
         HostMappingsProbeData: {
             results: components["schemas"]["HostMappingProbeResultData"][];
         };
+        /** @enum {string} */
+        HostTargetPathModeData: "entry" | "prefix";
         ImportBackupBody: {
             archive_base64: string;
             filename?: string | null;

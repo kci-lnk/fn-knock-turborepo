@@ -285,11 +285,18 @@ struct ApplicationConfigData {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+enum HostTargetPathModeData {
+    Entry,
+    Prefix,
+}
+
+#[derive(Serialize, ToSchema)]
 struct HostMappingData {
     host: String,
     group_id: Option<String>,
     target: String,
-    target_path_mode: String,
+    target_path_mode: HostTargetPathModeData,
     waf_enabled: bool,
     use_auth: bool,
     access_mode: String,

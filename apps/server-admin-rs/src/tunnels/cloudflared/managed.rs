@@ -2,7 +2,7 @@ use std::{collections::HashSet, time::Duration};
 
 use axum::{
     Json,
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
@@ -21,6 +21,8 @@ use super::{
 const MANAGED_CONFIG_KEY: &str = "fn_knock:cloudflared:managed:config:v1";
 const MANAGED_STATE_KEY: &str = "fn_knock:cloudflared:managed:state:v1";
 const PLAN_TTL_MS: i64 = 10 * 60 * 1000;
+const HTTP_MANAGE_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
+const RECONCILE_JOB_START_DELAY: Duration = Duration::from_millis(250);
 const DNS_COMMENT_PREFIX: &str = "Managed by fn-knock";
 // The Go gateway listens on this dedicated loopback destination so it can
 // distinguish managed Cloudflare Tunnel traffic from FRP and other local
@@ -42,7 +44,7 @@ struct ReconcileRequest {
     delete_dedicated_tunnel: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ApplyRequest {
     plan_id: String,
@@ -65,6 +67,38 @@ pub(super) fn openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(cloudflare_state))
         .routes(routes!(preview_reconcile))
         .routes(routes!(apply_reconcile))
+        .routes(routes!(get_active_reconcile_job))
+        .routes(routes!(get_reconcile_job))
+        .routes(routes!(get_reconcile_job_by_plan))
+}
+
+pub(super) async fn acquire_http_manage_lock(
+    state: &AppState,
+) -> Result<tokio::sync::MutexGuard<'_, ()>, Response> {
+    if state
+        .tunnel
+        .cloudflared_reconcile_jobs
+        .read()
+        .await
+        .values()
+        .any(reconcile_job_active)
+    {
+        return Err(response::error(
+            StatusCode::CONFLICT,
+            "A Cloudflare reconcile job is still running; wait for it to finish and retry",
+        ));
+    }
+    tokio::time::timeout(
+        HTTP_MANAGE_LOCK_TIMEOUT,
+        state.tunnel.cloudflared_manage_lock.lock(),
+    )
+    .await
+    .map_err(|_| {
+        response::error(
+            StatusCode::CONFLICT,
+            "Another Cloudflare management operation is still running; wait for it to finish and retry",
+        )
+    })
 }
 
 pub(super) fn secret_store(state: &AppState) -> CloudflaredSecretStore {
@@ -100,7 +134,10 @@ pub(super) async fn mark_manual_mode(state: &AppState) -> Result<(), String> {
 
 #[utoipa::path(put, path = "/api/admin/cloudflared/cloudflare/credential", tag = "cloudflared", operation_id = "put_api_admin_cloudflared_cloudflare_credential", responses((status = 200, description = "Saved Cloudflare credential")))]
 async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     let token = body
         .get("apiToken")
         .and_then(Value::as_str)
@@ -222,7 +259,10 @@ async fn save_credential(State(state): State<AppState>, Json(body): Json<Value>)
 
 #[utoipa::path(delete, path = "/api/admin/cloudflared/cloudflare/credential", tag = "cloudflared", operation_id = "delete_api_admin_cloudflared_cloudflare_credential", responses((status = 200, description = "Deleted Cloudflare credential")))]
 async fn delete_credential(State(state): State<AppState>) -> Response {
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     if let Err(error) = secret_store(&state).delete(SecretKind::ApiToken) {
         tracing::warn!(%error, "failed to remove Cloudflare API Token");
         return response::error(
@@ -323,13 +363,16 @@ async fn preview_reconcile(
     State(state): State<AppState>,
     Json(request): Json<ReconcileRequest>,
 ) -> Response {
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
     if request.action != "apply" && request.action != "cleanup" {
         return response::error(StatusCode::BAD_REQUEST, "Unsupported reconcile action");
     }
     if request.tunnel_mode != "dedicated" && request.tunnel_mode != "existing" {
         return response::error(StatusCode::BAD_REQUEST, "Unsupported Tunnel selection mode");
     }
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     let api = match cloudflare_api(&state).await {
         Ok(api) => api,
         Err(error) => return cloudflare_error_response(error),
@@ -378,26 +421,41 @@ async fn preview_reconcile(
     response::ok(output).into_response()
 }
 
-#[utoipa::path(post, path = "/api/admin/cloudflared/reconcile/apply", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_reconcile_apply", responses((status = 200, description = "Applied Cloudflare reconcile plan")))]
+#[utoipa::path(post, path = "/api/admin/cloudflared/reconcile/apply", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_reconcile_apply", responses((status = 200, description = "Accepted Cloudflare reconcile job")))]
 async fn apply_reconcile(
     State(state): State<AppState>,
-    Json(body): Json<ApplyRequest>,
+    Json(mut body): Json<ApplyRequest>,
 ) -> Response {
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
-    let cached = match state
-        .tunnel
-        .cloudflared_plans
-        .lock()
-        .await
-        .remove(body.plan_id.trim())
+    body.plan_id = body.plan_id.trim().to_string();
+    body.takeover_resource_ids = normalized_takeover_ids(&body.takeover_resource_ids);
+    if body.plan_id.is_empty() {
+        return response::error(StatusCode::BAD_REQUEST, "Reconcile plan ID is required");
+    }
+
+    let confirmation_fingerprint = confirmation_fingerprint(&body.takeover_resource_ids);
+    let mut jobs = state.tunnel.cloudflared_reconcile_jobs.write().await;
+    if let Some(existing) = jobs
+        .values()
+        .filter(|job| job.get("planId").and_then(Value::as_str) == Some(body.plan_id.as_str()))
+        .max_by_key(|job| job.get("createdAtMs").and_then(Value::as_i64).unwrap_or(0))
+        .cloned()
     {
-        Some(plan) => plan,
-        None => {
-            return response::error(
-                StatusCode::CONFLICT,
-                "Reconcile plan is missing or has already been applied",
-            );
+        if existing
+            .get("confirmationFingerprint")
+            .and_then(Value::as_str)
+            == Some(confirmation_fingerprint.as_str())
+        {
+            return response::ok(public_reconcile_job(&existing)).into_response();
         }
+        return response::error(
+            StatusCode::CONFLICT,
+            "This reconcile plan was already submitted with different takeover confirmations",
+        );
+    }
+    let mut plans = state.tunnel.cloudflared_plans.lock().await;
+    let cached = match plans.get(&body.plan_id).cloned() {
+        Some(plan) => plan,
+        None => return response::error(StatusCode::CONFLICT, "Reconcile plan is missing"),
     };
     if cached
         .get("expiresAtMs")
@@ -406,80 +464,366 @@ async fn apply_reconcile(
     {
         return response::error(StatusCode::CONFLICT, "Reconcile plan has expired");
     }
-    let request = match serde_json::from_value::<ReconcileRequest>(
-        cached.get("request").cloned().unwrap_or(Value::Null),
-    ) {
-        Ok(request) => request,
-        Err(_) => return response::error(StatusCode::CONFLICT, "Reconcile plan is invalid"),
-    };
-    let api = match cloudflare_api(&state).await {
-        Ok(api) => api,
-        Err(error) => return cloudflare_error_response(error),
-    };
-    let latest = match build_plan(&state, &api, &request).await {
-        Ok(plan) => plan,
-        Err(error) => return cloudflare_error_response(error),
-    };
-    if latest.get("remoteFingerprint") != cached.get("remoteFingerprint") {
+    let takeover = body
+        .takeover_resource_ids
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    if let Err(error) = validate_takeover_confirmations(&cached, &takeover) {
+        return cloudflare_error_response(error);
+    }
+    if cached.get("applyJobId").and_then(Value::as_str).is_some() {
         return response::error(
             StatusCode::CONFLICT,
-            "Cloudflare state changed after preview; create a new preview before applying",
+            "This reconcile plan was already submitted; create a new preview",
         );
+    }
+    if let Some(active) = jobs.values().find(|job| reconcile_job_active(job)) {
+        return response::error(
+            StatusCode::CONFLICT,
+            format!(
+                "Cloudflare reconcile job {} is already running",
+                active.get("id").and_then(Value::as_str).unwrap_or("")
+            ),
+        );
+    }
+    if jobs.len() >= 20 {
+        let oldest = jobs
+            .iter()
+            .filter(|(_, job)| !reconcile_job_active(job))
+            .min_by_key(|(_, job)| {
+                job.get("createdAtMs")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(i64::MIN)
+            })
+            .map(|(id, _)| id.clone());
+        if let Some(oldest) = oldest {
+            jobs.remove(&oldest);
+        }
+    }
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let created_at_ms = time_utils::now_ms();
+    let job = json!({
+        "id": job_id.clone(),
+        "planId": body.plan_id.clone(),
+        "status": "queued",
+        "phase": "queued",
+        "progress": 0,
+        "confirmationFingerprint": confirmation_fingerprint.clone(),
+        "createdAt": time_utils::iso_from_ms(created_at_ms),
+        "createdAtMs": created_at_ms,
+        "startedAt": Value::Null,
+        "completedAt": Value::Null,
+        "completedAtMs": Value::Null,
+        "errorCode": Value::Null,
+        "error": Value::Null,
+    });
+    if let Some(plan) = plans.get_mut(&body.plan_id) {
+        let object = ensure_object(plan);
+        object.insert("applyJobId".to_string(), json!(job_id));
+    }
+    jobs.insert(job_id.clone(), job.clone());
+    drop(jobs);
+    drop(plans);
+
+    let task_state = state.clone();
+    let task_job_id = job_id.clone();
+    let spawned = state.spawn_abortable_background("cloudflare-reconcile-apply", async move {
+        // The mutation may reconfigure the Tunnel carrying this very response.
+        // Leave one event-loop window for the accepted job response to flush first.
+        tokio::time::sleep(RECONCILE_JOB_START_DELAY).await;
+        run_reconcile_job(task_state, task_job_id, cached, body).await;
+    });
+    if spawned.is_none() {
+        update_reconcile_job(
+            &state,
+            &job_id,
+            json!({
+                "status": "failed",
+                "phase": "failed",
+                "completedAt": time_utils::now_iso(),
+                "completedAtMs": time_utils::now_ms(),
+                "errorCode": "shutdown",
+                "error": "Server is shutting down",
+            }),
+        )
+        .await;
+        return response::error(StatusCode::SERVICE_UNAVAILABLE, "Server is shutting down");
+    }
+
+    response::ok(public_reconcile_job(&job)).into_response()
+}
+
+#[utoipa::path(get, path = "/api/admin/cloudflared/reconcile/jobs/active", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_reconcile_jobs_active", responses((status = 200, description = "Active Cloudflare reconcile job")))]
+async fn get_active_reconcile_job(State(state): State<AppState>) -> Response {
+    let jobs = state.tunnel.cloudflared_reconcile_jobs.read().await;
+    match jobs
+        .values()
+        .filter(|job| reconcile_job_active(job))
+        .max_by_key(|job| job.get("createdAtMs").and_then(Value::as_i64).unwrap_or(0))
+        .cloned()
+    {
+        Some(job) => response::ok(public_reconcile_job(&job)).into_response(),
+        None => response::error(
+            StatusCode::NOT_FOUND,
+            "No reconcile job is currently active",
+        ),
+    }
+}
+
+#[utoipa::path(get, path = "/api/admin/cloudflared/reconcile/jobs/{id}", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_reconcile_jobs_id", params(("id" = String, Path, description = "Reconcile job identifier")), responses((status = 200, description = "Cloudflare reconcile job")))]
+async fn get_reconcile_job(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    match state
+        .tunnel
+        .cloudflared_reconcile_jobs
+        .read()
+        .await
+        .get(id.trim())
+        .cloned()
+    {
+        Some(job) => response::ok(public_reconcile_job(&job)).into_response(),
+        None => response::error(StatusCode::NOT_FOUND, "Reconcile job was not found"),
+    }
+}
+
+#[utoipa::path(get, path = "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}", tag = "cloudflared", operation_id = "get_api_admin_cloudflared_reconcile_jobs_by_plan_plan_id", params(("plan_id" = String, Path, description = "Reconcile plan identifier")), responses((status = 200, description = "Cloudflare reconcile job for a plan")))]
+async fn get_reconcile_job_by_plan(
+    State(state): State<AppState>,
+    Path(plan_id): Path<String>,
+) -> Response {
+    let jobs = state.tunnel.cloudflared_reconcile_jobs.read().await;
+    match jobs
+        .values()
+        .filter(|job| job.get("planId").and_then(Value::as_str) == Some(plan_id.trim()))
+        .max_by_key(|job| job.get("createdAtMs").and_then(Value::as_i64).unwrap_or(0))
+        .cloned()
+    {
+        Some(job) => response::ok(public_reconcile_job(&job)).into_response(),
+        None => response::error(
+            StatusCode::NOT_FOUND,
+            "Reconcile job for this plan was not found",
+        ),
+    }
+}
+
+async fn run_reconcile_job(state: AppState, job_id: String, cached: Value, body: ApplyRequest) {
+    update_reconcile_job(
+        &state,
+        &job_id,
+        json!({
+            "status": "running",
+            "phase": "waiting-for-lock",
+            "progress": 1,
+            "startedAt": time_utils::now_iso(),
+        }),
+    )
+    .await;
+
+    let result = execute_reconcile_job(&state, &job_id, &cached, &body).await;
+    match result {
+        Ok(()) => {
+            state.tunnel.cloudflared_schedule_notify.notify_one();
+            update_reconcile_job(
+                &state,
+                &job_id,
+                json!({
+                    "status": "succeeded",
+                    "phase": "completed",
+                    "progress": 100,
+                    "completedAt": time_utils::now_iso(),
+                    "completedAtMs": time_utils::now_ms(),
+                    "errorCode": Value::Null,
+                    "error": Value::Null,
+                }),
+            )
+            .await;
+        }
+        Err(error) => {
+            tracing::warn!(%error, reconcile_job_id = job_id, "failed to apply Cloudflare reconciliation job");
+            update_reconcile_job(
+                &state,
+                &job_id,
+                json!({
+                    "status": "failed",
+                    "phase": "failed",
+                    "completedAt": time_utils::now_iso(),
+                    "completedAtMs": time_utils::now_ms(),
+                    "errorCode": reconcile_job_error_code(&error),
+                    "error": error.to_string(),
+                }),
+            )
+            .await;
+        }
+    }
+}
+
+async fn execute_reconcile_job(
+    state: &AppState,
+    job_id: &str,
+    cached: &Value,
+    body: &ApplyRequest,
+) -> Result<(), CloudflareApiError> {
+    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    update_reconcile_job(
+        state,
+        job_id,
+        json!({ "phase": "revalidating", "progress": 5 }),
+    )
+    .await;
+    let request = serde_json::from_value::<ReconcileRequest>(
+        cached.get("request").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|_| CloudflareApiError {
+        status: Some(StatusCode::CONFLICT),
+        message: "Reconcile plan is invalid".to_string(),
+    })?;
+    let api = cloudflare_api(state).await?;
+    let latest = build_plan(state, &api, &request).await?;
+    if latest.get("remoteFingerprint") != cached.get("remoteFingerprint") {
+        return Err(CloudflareApiError {
+            status: Some(StatusCode::CONFLICT),
+            message: "Cloudflare state changed after preview; create a new preview before applying"
+                .to_string(),
+        });
     }
     let takeover = body
         .takeover_resource_ids
         .iter()
-        .map(|value| value.trim().to_string())
+        .cloned()
         .collect::<HashSet<_>>();
-    let blocking_conflicts = latest
+    validate_takeover_confirmations(&latest, &takeover)?;
+    update_reconcile_job(
+        state,
+        job_id,
+        json!({ "phase": "applying", "progress": 20 }),
+    )
+    .await;
+
+    if request.action == "cleanup" {
+        apply_cleanup(state, &api, &request, &takeover).await
+    } else {
+        apply_setup(state, &api, &request, &takeover).await
+    }
+}
+
+fn normalized_takeover_ids(values: &[String]) -> Vec<String> {
+    let mut values = values
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn confirmation_fingerprint(values: &[String]) -> String {
+    crypto_utils::sha256_hex_bytes(serde_json::to_vec(values).unwrap_or_default())
+}
+
+fn validate_takeover_confirmations(
+    plan: &Value,
+    takeover: &HashSet<String>,
+) -> Result<(), CloudflareApiError> {
+    let conflicts = plan
         .get("conflicts")
         .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let blocking_conflicts = conflicts
+        .iter()
         .filter(|conflict| conflict.get("takeoverAllowed").and_then(Value::as_bool) != Some(true))
         .filter_map(|conflict| conflict.get("id").and_then(Value::as_str))
         .collect::<Vec<_>>();
     if !blocking_conflicts.is_empty() {
-        return response::error(
-            StatusCode::CONFLICT,
-            format!(
+        return Err(CloudflareApiError {
+            status: Some(StatusCode::CONFLICT),
+            message: format!(
                 "Reconcile plan contains non-takeover conflicts: {}",
                 blocking_conflicts.join(", ")
             ),
-        );
+        });
     }
-    let missing_confirmations = latest
-        .get("conflicts")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    let allowed_confirmations = conflicts
+        .iter()
+        .filter(|conflict| conflict.get("takeoverAllowed").and_then(Value::as_bool) == Some(true))
+        .filter_map(|conflict| conflict.get("id").and_then(Value::as_str))
+        .collect::<HashSet<_>>();
+    let mut unexpected_confirmations = takeover
+        .iter()
+        .filter(|id| !allowed_confirmations.contains(id.as_str()))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    unexpected_confirmations.sort_unstable();
+    if !unexpected_confirmations.is_empty() {
+        return Err(CloudflareApiError {
+            status: Some(StatusCode::CONFLICT),
+            message: format!(
+                "Takeover confirmation was not present in the preview: {}",
+                unexpected_confirmations.join(", ")
+            ),
+        });
+    }
+    let missing_confirmations = conflicts
+        .iter()
         .filter(|conflict| conflict.get("takeoverAllowed").and_then(Value::as_bool) == Some(true))
         .filter_map(|conflict| conflict.get("id").and_then(Value::as_str))
         .filter(|id| !takeover.contains(*id))
         .collect::<Vec<_>>();
-    if !missing_confirmations.is_empty() {
-        return response::error(
-            StatusCode::CONFLICT,
-            format!(
-                "Explicit takeover confirmation is required for: {}",
-                missing_confirmations.join(", ")
-            ),
-        );
+    if missing_confirmations.is_empty() {
+        return Ok(());
     }
+    Err(CloudflareApiError {
+        status: Some(StatusCode::CONFLICT),
+        message: format!(
+            "Explicit takeover confirmation is required for: {}",
+            missing_confirmations.join(", ")
+        ),
+    })
+}
 
-    let result = if request.action == "cleanup" {
-        apply_cleanup(&state, &api, &request, &takeover).await
-    } else {
-        apply_setup(&state, &api, &request, &takeover).await
+fn reconcile_job_active(job: &Value) -> bool {
+    matches!(
+        job.get("status").and_then(Value::as_str),
+        Some("queued" | "running")
+    )
+}
+
+fn public_reconcile_job(job: &Value) -> Value {
+    let mut job = job.clone();
+    let object = ensure_object(&mut job);
+    object.remove("confirmationFingerprint");
+    object.remove("createdAtMs");
+    object.remove("completedAtMs");
+    job
+}
+
+async fn update_reconcile_job(state: &AppState, id: &str, patch: Value) {
+    let mut jobs = state.tunnel.cloudflared_reconcile_jobs.write().await;
+    let Some(job) = jobs.get_mut(id) else {
+        return;
     };
-    if let Err(error) = result {
-        tracing::warn!(%error, "failed to apply Cloudflare reconciliation plan");
-        return cloudflare_error_response(error);
+    let Some(patch) = patch.as_object() else {
+        return;
+    };
+    let object = ensure_object(job);
+    for (key, value) in patch {
+        object.insert(key.clone(), value.clone());
     }
-    state.tunnel.cloudflared_schedule_notify.notify_one();
-    match build_public_state(&state, true).await {
-        Ok(value) => response::ok(value).into_response(),
-        Err(error) => cloudflare_error_response(error),
+}
+
+fn reconcile_job_error_code(error: &CloudflareApiError) -> &'static str {
+    if error.message.contains("state changed after preview") {
+        "stale-plan"
+    } else if error.message.contains("takeover confirmation") {
+        "confirmation-required"
+    } else if error.status == Some(StatusCode::CONFLICT) {
+        "conflict"
+    } else if error.status.is_some() {
+        "cloudflare-api"
+    } else {
+        "internal"
     }
 }
 
@@ -778,7 +1122,12 @@ async fn apply_setup(
         tunnel_name = name;
         tunnel_ownership = "dedicated";
     }
-    let tunnel_id = tunnel_id.expect("Tunnel ID is present after creation");
+    let Some(tunnel_id) = tunnel_id else {
+        return Err(CloudflareApiError {
+            status: None,
+            message: "Cloudflare Tunnel selection completed without a Tunnel ID".to_string(),
+        });
+    };
     {
         let object = ensure_object(&mut managed);
         object.insert("mode".to_string(), json!("managed"));
@@ -3002,5 +3351,94 @@ mod tests {
             Some(&json!("capability:cloudflare-for-saas"))
         );
         assert_eq!(conflict.get("kind"), Some(&json!("capability")));
+    }
+
+    #[test]
+    fn takeover_confirmation_fingerprint_is_stable_after_normalization() {
+        let first = normalized_takeover_ids(&[
+            " custom-hostname:app.example.com ".to_string(),
+            "dns:app.example.com".to_string(),
+            "custom-hostname:app.example.com".to_string(),
+        ]);
+        let second = normalized_takeover_ids(&[
+            "dns:app.example.com".to_string(),
+            "custom-hostname:app.example.com".to_string(),
+        ]);
+        assert_eq!(first, second);
+        assert_eq!(
+            confirmation_fingerprint(&first),
+            confirmation_fingerprint(&second)
+        );
+    }
+
+    #[test]
+    fn takeover_validation_requires_every_allowed_conflict() {
+        let plan = json!({
+            "conflicts": [{
+                "id": "custom-hostname:app.example.com",
+                "takeoverAllowed": true
+            }]
+        });
+        let empty = HashSet::new();
+        let error = validate_takeover_confirmations(&plan, &empty)
+            .expect_err("missing confirmation must be rejected");
+        assert_eq!(error.status, Some(StatusCode::CONFLICT));
+
+        let confirmed = HashSet::from(["custom-hostname:app.example.com".to_string()]);
+        validate_takeover_confirmations(&plan, &confirmed)
+            .expect("matching takeover confirmation should be accepted");
+    }
+
+    #[test]
+    fn non_takeover_conflicts_remain_blocking() {
+        let plan = json!({
+            "conflicts": [{
+                "id": "capability:cloudflare-for-saas",
+                "takeoverAllowed": false
+            }]
+        });
+        let error = validate_takeover_confirmations(&plan, &HashSet::new())
+            .expect_err("non-takeover conflict must remain blocking");
+        assert!(error.message.contains("non-takeover conflicts"));
+    }
+
+    #[test]
+    fn takeover_validation_rejects_ids_not_present_in_the_preview() {
+        let plan = json!({
+            "conflicts": [{
+                "id": "dns:wildcard-dns",
+                "takeoverAllowed": true
+            }]
+        });
+        let confirmations = HashSet::from([
+            "dns:wildcard-dns".to_string(),
+            "ingress:unpreviewed.example.com".to_string(),
+        ]);
+        let error = validate_takeover_confirmations(&plan, &confirmations)
+            .expect_err("unpreviewed takeover IDs must be rejected");
+        assert!(error.message.contains("not present in the preview"));
+        assert!(error.message.contains("ingress:unpreviewed.example.com"));
+    }
+
+    #[test]
+    fn reconcile_job_activity_is_limited_to_queued_and_running() {
+        assert!(reconcile_job_active(&json!({ "status": "queued" })));
+        assert!(reconcile_job_active(&json!({ "status": "running" })));
+        assert!(!reconcile_job_active(&json!({ "status": "succeeded" })));
+        assert!(!reconcile_job_active(&json!({ "status": "failed" })));
+    }
+
+    #[test]
+    fn public_reconcile_job_hides_internal_idempotency_metadata() {
+        let job = public_reconcile_job(&json!({
+            "id": "job-1",
+            "confirmationFingerprint": "secret-internal-hash",
+            "createdAtMs": 1,
+            "completedAtMs": 2
+        }));
+        assert_eq!(job.get("id"), Some(&json!("job-1")));
+        assert!(job.get("confirmationFingerprint").is_none());
+        assert!(job.get("createdAtMs").is_none());
+        assert!(job.get("completedAtMs").is_none());
     }
 }

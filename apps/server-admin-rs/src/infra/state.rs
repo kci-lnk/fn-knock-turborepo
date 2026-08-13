@@ -214,6 +214,10 @@ pub struct TunnelState {
     /// In-memory preview cache. Plans intentionally do not survive a restart;
     /// every apply must be based on recently observed Cloudflare state.
     pub cloudflared_plans: Mutex<HashMap<String, Value>>,
+    /// Bounded, non-secret reconciliation job state exposed to the admin UI.
+    /// Jobs make long Cloudflare mutations independent of the request connection
+    /// and provide idempotent recovery when a client misses the initial response.
+    pub cloudflared_reconcile_jobs: RwLock<HashMap<String, Value>>,
     /// Bounded, non-secret optimization scan state exposed to the admin UI.
     pub cloudflared_scan_jobs: RwLock<HashMap<String, Value>>,
     /// Serializes manual and scheduled optimization scans so their combined
@@ -230,6 +234,7 @@ impl Default for TunnelState {
             runtime_update_lock: Mutex::new(()),
             cloudflared_manage_lock: Mutex::new(()),
             cloudflared_plans: Mutex::new(HashMap::new()),
+            cloudflared_reconcile_jobs: RwLock::new(HashMap::new()),
             cloudflared_scan_jobs: RwLock::new(HashMap::new()),
             cloudflared_scan_lock: Mutex::new(()),
             cloudflared_schedule_notify: Notify::new(),

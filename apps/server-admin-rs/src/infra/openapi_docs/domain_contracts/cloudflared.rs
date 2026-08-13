@@ -422,6 +422,25 @@ pub(super) struct CloudflareReconcileApplyBodyData {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct CloudflareReconcileJobData {
+    id: String,
+    plan_id: String,
+    status: String,
+    phase: String,
+    progress: i64,
+    created_at: String,
+    #[schema(required = true)]
+    started_at: Option<String>,
+    #[schema(required = true)]
+    completed_at: Option<String>,
+    #[schema(required = true)]
+    error_code: Option<String>,
+    #[schema(required = true)]
+    error: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct CloudflareReconcileCapabilityData {
     required: bool,
     #[schema(required = true)]

@@ -25,6 +25,7 @@ describe("managed Cloudflare Tunnel", () => {
       "/cloudflared/cloudflare/state",
       "/cloudflared/reconcile/preview",
       "/cloudflared/reconcile/apply",
+      "/cloudflared/reconcile/jobs/",
       "/cloudflared/optimization/scans",
       "/cloudflared/optimization/settings",
       "/cloudflared/optimization/domains/",
@@ -36,6 +37,25 @@ describe("managed Cloudflare Tunnel", () => {
         new RegExp(route.replaceAll("/", String.raw`\/`), "u"),
       );
     }
+  });
+
+  it("runs reconcile apply as an idempotent polled job", () => {
+    const api = readSource("../src/lib/api/tunnel.ts");
+    const controller = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflareTunnelController.ts",
+    );
+    assert.match(api, /getReconcileJob\(/u);
+    assert.match(api, /getReconcileJobByPlan\(/u);
+    assert.match(api, /getActiveReconcileJob\(/u);
+    assert.match(controller, /pollReconcileJob/u);
+    assert.match(controller, /getReconcileJobByPlan\(planId\)/u);
+    assert.match(controller, /recoverActiveReconcileJob/u);
+    assert.match(controller, /\["queued", "running"\]/u);
+    assert.match(controller, /reconcilePollSequence/u);
+    assert.doesNotMatch(
+      controller,
+      /managedState\.value\s*=\s*await CloudflaredAPI\.applyReconcile/u,
+    );
   });
 
   it("keeps Tunnel and API tokens write-only in the frontend contract", () => {
@@ -88,6 +108,11 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(managed, /conflict\.details\.records/u);
     assert.match(managed, /dnsOwnerLabel/u);
     assert.match(managed, /reconcileAttentionToken/u);
+    assert.match(managed, /reconcileJob\.progress/u);
+    assert.match(
+      managed,
+      /isPreviewingReconcile\s*\|\|\s*isApplyingReconcile/u,
+    );
     assert.match(managed, /operationTargetLabel/u);
     assert.match(managed, /keepDeleted/u);
     assert.match(managed, /toLocaleString\(locale\.value\)/u);

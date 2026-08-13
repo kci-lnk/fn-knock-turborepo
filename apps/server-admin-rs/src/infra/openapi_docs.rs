@@ -3515,6 +3515,12 @@ pub(crate) fn build_openapi_document() -> Value {
             ("/api/admin/cloudflared/cloudflare/state", "get"),
             ("/api/admin/cloudflared/reconcile/preview", "post"),
             ("/api/admin/cloudflared/reconcile/apply", "post"),
+            ("/api/admin/cloudflared/reconcile/jobs/active", "get"),
+            ("/api/admin/cloudflared/reconcile/jobs/{id}", "get"),
+            (
+                "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}",
+                "get",
+            ),
             ("/api/admin/cloudflared/optimization/scans", "post"),
             ("/api/admin/cloudflared/optimization/scans/{id}", "get"),
             ("/api/admin/cloudflared/optimization/scans/{id}", "delete"),
@@ -4976,13 +4982,13 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 413);
+        assert_eq!(operations.len(), 416);
         assert!(
             operations
                 .iter()
                 .all(|operation| { operation["x-fn-knock-contract-source"] == json!("utoipa") })
         );
-        assert_eq!(domain_contracts::expected_operation_count(), 73);
+        assert_eq!(domain_contracts::expected_operation_count(), 76);
 
         assert_eq!(
             document.pointer(

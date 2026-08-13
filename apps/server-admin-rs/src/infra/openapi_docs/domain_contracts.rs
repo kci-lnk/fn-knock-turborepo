@@ -904,6 +904,7 @@ struct BackupImportResultData {
     CloudflareManagedStateData,
     CloudflareReconcileRequestData,
     CloudflareReconcileApplyBodyData,
+    CloudflareReconcileJobData,
     CloudflareReconcileCapabilityData,
     CloudflareReconcileCapabilitiesData,
     CloudflareReconcileOperationData,
@@ -2460,6 +2461,9 @@ pub(super) fn components() -> Map<String, Value> {
         ("CloudflareOptimizationScanData", "createdAt"),
         ("CloudflareOptimizationScanData", "startedAt"),
         ("CloudflareOptimizationScanData", "completedAt"),
+        ("CloudflareReconcileJobData", "createdAt"),
+        ("CloudflareReconcileJobData", "startedAt"),
+        ("CloudflareReconcileJobData", "completedAt"),
         ("CloudflareOptimizationFallbackOriginData", "updatedAt"),
         ("CloudflareOptimizationCapabilityProbeData", "testedAt"),
         ("CloudflareOptimizationScheduleData", "nextFullScanAt"),
@@ -2558,6 +2562,26 @@ pub(super) fn components() -> Map<String, Value> {
     set_property_metadata(
         &mut schemas,
         "CloudflareOptimizationScanData",
+        "progress",
+        "maximum",
+        json!(100),
+    );
+    set_property_enum(
+        &mut schemas,
+        "CloudflareReconcileJobData",
+        "status",
+        &["queued", "running", "succeeded", "failed", "interrupted"],
+    );
+    set_property_metadata(
+        &mut schemas,
+        "CloudflareReconcileJobData",
+        "progress",
+        "minimum",
+        json!(0),
+    );
+    set_property_metadata(
+        &mut schemas,
+        "CloudflareReconcileJobData",
         "progress",
         "maximum",
         json!(100),
@@ -4331,7 +4355,25 @@ const OPERATIONS: &[DomainOperation] = &[
         method: "post",
         path: "/api/admin/cloudflared/reconcile/apply",
         request: Some("CloudflareReconcileApplyBodyData"),
-        response: ResponseSchema::Ref("CloudflareManagedStateData"),
+        response: ResponseSchema::Ref("CloudflareReconcileJobData"),
+    },
+    DomainOperation {
+        method: "get",
+        path: "/api/admin/cloudflared/reconcile/jobs/active",
+        request: None,
+        response: ResponseSchema::Ref("CloudflareReconcileJobData"),
+    },
+    DomainOperation {
+        method: "get",
+        path: "/api/admin/cloudflared/reconcile/jobs/{id}",
+        request: None,
+        response: ResponseSchema::Ref("CloudflareReconcileJobData"),
+    },
+    DomainOperation {
+        method: "get",
+        path: "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}",
+        request: None,
+        response: ResponseSchema::Ref("CloudflareReconcileJobData"),
     },
     DomainOperation {
         method: "post",

@@ -63,7 +63,10 @@ async fn update_domain_mode(
         );
     }
 
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     let local = match state.storage.store.get_config().await {
         Ok(value) => value,
         Err(error) => {
@@ -441,7 +444,10 @@ async fn apply_optimization(
             "The selected candidate has not passed business hostname TLS and SNI validation",
         );
     }
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     let mut managed = load_managed_config(&state).await;
     if !optimization_is_enabled(&managed) {
         return response::error(
@@ -529,7 +535,10 @@ async fn apply_optimization(
 
 #[utoipa::path(post, path = "/api/admin/cloudflared/optimization/fallback", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_optimization_fallback", responses((status = 200, description = "Restored fallback origin")))]
 async fn fallback_optimization(State(state): State<AppState>) -> Response {
-    let _guard = state.tunnel.cloudflared_manage_lock.lock().await;
+    let _guard = match acquire_http_manage_lock(&state).await {
+        Ok(guard) => guard,
+        Err(response) => return response,
+    };
     let managed = load_managed_config(&state).await;
     let api = match api_for_background(&state).await {
         Ok(Some(api)) => api,

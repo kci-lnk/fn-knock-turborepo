@@ -48,6 +48,12 @@ describe("Cloudflared API contract", () => {
       ["get", "/api/admin/cloudflared/cloudflare/state"],
       ["post", "/api/admin/cloudflared/reconcile/preview"],
       ["post", "/api/admin/cloudflared/reconcile/apply"],
+      ["get", "/api/admin/cloudflared/reconcile/jobs/active"],
+      ["get", "/api/admin/cloudflared/reconcile/jobs/{id}"],
+      [
+        "get",
+        "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}",
+      ],
       ["post", "/api/admin/cloudflared/optimization/scans"],
       ["get", "/api/admin/cloudflared/optimization/scans/{id}"],
       ["delete", "/api/admin/cloudflared/optimization/scans/{id}"],
@@ -124,6 +130,17 @@ describe("Cloudflared API contract", () => {
       "current-candidate",
       "unavailable",
     ]);
+    const reconcileJob =
+      contract.components.schemas.CloudflareReconcileJobData;
+    assert.equal(reconcileJob.properties?.progress?.minimum, 0);
+    assert.equal(reconcileJob.properties?.progress?.maximum, 100);
+    assert.deepEqual(reconcileJob.properties?.status?.enum, [
+      "queued",
+      "running",
+      "succeeded",
+      "failed",
+      "interrupted",
+    ]);
     const diagnostics =
       contract.components.schemas.CloudflareOptimizationResolverDiagnosticData;
     assert.deepEqual(diagnostics.properties?.provider?.enum, [
@@ -146,6 +163,7 @@ describe("Cloudflared API contract", () => {
       "CloudflaredSupervisorData",
       "CloudflareManagedStateData",
       "CloudflareOptimizationScanData",
+      "CloudflareReconcileJobData",
       "CloudflareReconcilePlanData",
       "CloudflaredConfigUpdateData",
       "CloudflareCredentialBodyData",

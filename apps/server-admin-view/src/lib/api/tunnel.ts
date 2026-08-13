@@ -52,6 +52,8 @@ export type CloudflareReconcileConflict =
   TunnelSchemas["CloudflareReconcileConflictData"];
 export type CloudflareReconcilePlan =
   TunnelSchemas["CloudflareReconcilePlanData"];
+export type CloudflareReconcileJob =
+  TunnelSchemas["CloudflareReconcileJobData"];
 export type CloudflaredStatusPayload =
   TunnelSchemas["CloudflaredRuntimeStatusData"];
 export type CloudflaredPollPayload = TunnelSchemas["CloudflaredPollData"];
@@ -265,8 +267,26 @@ export const CloudflaredAPI = {
   },
   async applyReconcile(
     payload: CloudflareReconcileApplyBody,
-  ): Promise<CloudflareManagedState> {
+  ): Promise<CloudflareReconcileJob> {
     const res = await apiClient.post("/cloudflared/reconcile/apply", payload);
+    return res.data.data;
+  },
+  async getReconcileJob(id: string): Promise<CloudflareReconcileJob> {
+    const res = await apiClient.get(
+      `/cloudflared/reconcile/jobs/${encodeURIComponent(id)}`,
+    );
+    return res.data.data;
+  },
+  async getActiveReconcileJob(): Promise<CloudflareReconcileJob> {
+    const res = await apiClient.get("/cloudflared/reconcile/jobs/active");
+    return res.data.data;
+  },
+  async getReconcileJobByPlan(
+    planId: string,
+  ): Promise<CloudflareReconcileJob> {
+    const res = await apiClient.get(
+      `/cloudflared/reconcile/jobs/by-plan/${encodeURIComponent(planId)}`,
+    );
     return res.data.data;
   },
   async startOptimizationScan(): Promise<CloudflareOptimizationScan> {

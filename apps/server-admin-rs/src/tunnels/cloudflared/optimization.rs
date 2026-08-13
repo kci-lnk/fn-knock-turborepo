@@ -23,9 +23,9 @@ use crate::{response, state::AppState, time_utils};
 use super::{
     cloudflare_api::{CloudflareApi, CloudflareApiError},
     managed::{
-        ManagedDnsRequest, api_for_background, configured_hosts, dns_record_owned_for_update,
-        load_managed_config, load_managed_state, managed_instance_id, managed_root_domain,
-        save_managed_config, save_managed_state, upsert_managed_dns,
+        ManagedDnsRequest, acquire_http_manage_lock, api_for_background, configured_hosts,
+        dns_record_owned_for_update, load_managed_config, load_managed_state, managed_instance_id,
+        managed_root_domain, save_managed_config, save_managed_state, upsert_managed_dns,
     },
 };
 

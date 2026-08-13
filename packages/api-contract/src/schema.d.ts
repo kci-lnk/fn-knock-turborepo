@@ -1187,6 +1187,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/cloudflared/reconcile/jobs/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/admin/cloudflared/reconcile/jobs/active */
+        get: operations["get_api_admin_cloudflared_reconcile_jobs_active"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id} */
+        get: operations["get_api_admin_cloudflared_reconcile_jobs_by_plan_plan_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/cloudflared/reconcile/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/admin/cloudflared/reconcile/jobs/{id} */
+        get: operations["get_api_admin_cloudflared_reconcile_jobs_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/cloudflared/reconcile/preview": {
         parameters: {
             query?: never;
@@ -6197,6 +6248,23 @@ export interface components {
             ownerKind: "current-instance" | "other-fn-knock-instance" | "external";
             proxied: boolean | null;
             type: string | null;
+        };
+        CloudflareReconcileJobData: {
+            /** Format: date-time */
+            completedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            error: string | null;
+            errorCode: string | null;
+            id: string;
+            phase: string;
+            planId: string;
+            /** Format: int64 */
+            progress: number;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed" | "interrupted";
         };
         CloudflareReconcileOperationData: {
             /** @enum {string} */
@@ -13514,7 +13582,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["CloudflareManagedStateData"];
+                        data: components["schemas"]["CloudflareReconcileJobData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_cloudflared_reconcile_jobs_active: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CloudflareReconcileJobData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_cloudflared_reconcile_jobs_by_plan_plan_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CloudflareReconcileJobData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Standard fn-knock error response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_cloudflared_reconcile_jobs_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CloudflareReconcileJobData"];
                         message?: string | null;
                         /** @constant */
                         success: true;

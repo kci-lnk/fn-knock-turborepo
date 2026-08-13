@@ -4742,6 +4742,78 @@
         ],
         "type": "object"
       },
+      "CloudflareReconcileJobData": {
+        "properties": {
+          "completedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "progress": {
+            "format": "int64",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "interrupted"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "planId",
+          "status",
+          "phase",
+          "progress",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "errorCode",
+          "error"
+        ],
+        "type": "object"
+      },
       "CloudflareReconcileOperationData": {
         "properties": {
           "action": {
@@ -27398,7 +27470,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/CloudflareManagedStateData"
+                      "$ref": "#/components/schemas/CloudflareReconcileJobData"
                     },
                     "message": {
                       "type": [
@@ -27433,6 +27505,183 @@
           }
         },
         "summary": "POST /api/admin/cloudflared/reconcile/apply",
+        "tags": [
+          "cloudflared"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/cloudflared/reconcile/jobs/active": {
+      "get": {
+        "operationId": "get_api_admin_cloudflared_reconcile_jobs_active",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CloudflareReconcileJobData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "summary": "GET /api/admin/cloudflared/reconcile/jobs/active",
+        "tags": [
+          "cloudflared"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}": {
+      "get": {
+        "operationId": "get_api_admin_cloudflared_reconcile_jobs_by_plan_plan_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CloudflareReconcileJobData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "summary": "GET /api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}",
+        "tags": [
+          "cloudflared"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/cloudflared/reconcile/jobs/{id}": {
+      "get": {
+        "operationId": "get_api_admin_cloudflared_reconcile_jobs_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CloudflareReconcileJobData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Standard fn-knock error response"
+          }
+        },
+        "summary": "GET /api/admin/cloudflared/reconcile/jobs/{id}",
         "tags": [
           "cloudflared"
         ],

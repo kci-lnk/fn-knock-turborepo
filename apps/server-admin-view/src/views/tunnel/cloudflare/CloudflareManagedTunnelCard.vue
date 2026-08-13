@@ -43,6 +43,7 @@ const {
   publicWildcardHostname,
   reconcileHasUnconfirmedConflicts,
   reconcileAttentionToken,
+  reconcileJob,
   reconcilePlan,
   selectedTunnelId,
   setOptimizationDomainMode,
@@ -406,6 +407,7 @@ const planWarningLabel = (warning: string, index: number) => {
           <Button
             :disabled="
               isPreviewingReconcile ||
+              isApplyingReconcile ||
               (tunnelMode === 'existing' && !selectedTunnelId)
             "
             @click="previewReconcile"
@@ -416,6 +418,18 @@ const planWarningLabel = (warning: string, index: number) => {
             />
             {{ t("admin.cloudflareTunnel.managed.preview") }}
           </Button>
+        </div>
+
+        <div
+          v-if="isApplyingReconcile && reconcileJob"
+          class="flex items-center justify-end gap-2 text-sm text-muted-foreground"
+          role="status"
+        >
+          <LoaderCircle class="size-4 animate-spin" />
+          <span>
+            {{ t("admin.cloudflareTunnel.managed.apply") }} ·
+            {{ reconcileJob.progress }}%
+          </span>
         </div>
 
         <div v-if="reconcilePlan" class="space-y-4 rounded-xl border p-4">
@@ -649,7 +663,7 @@ const planWarningLabel = (warning: string, index: number) => {
             </div>
             <Button
               variant="outline"
-              :disabled="isPreviewingReconcile"
+              :disabled="isPreviewingReconcile || isApplyingReconcile"
               @click="previewCleanup"
             >
               {{ t("admin.cloudflareTunnel.managed.previewCleanup") }}

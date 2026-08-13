@@ -214,7 +214,7 @@ fn backend_router_with_capabilities(
         .merge(api)
         .merge(admin_static_routes())
         .fallback(static_files::admin_fallback)
-        .layer(CompressionLayer::new())
+        .layer(response_compression_layer())
         .layer(TraceLayer::new_for_http())
         .layer(middleware::from_fn(browser_security_headers_middleware));
 
@@ -270,10 +270,16 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .merge(api)
         .merge(auth_static_routes())
         .fallback(static_files::auth_fallback)
-        .layer(CompressionLayer::new())
+        .layer(response_compression_layer())
         .layer(TraceLayer::new_for_http())
         .layer(middleware::from_fn(browser_security_headers_middleware))
         .with_state(state)
+}
+
+fn response_compression_layer() -> CompressionLayer {
+    // Brotli wins equal-quality negotiation in tower-http, while gzip remains
+    // available for older clients and explicit client preference.
+    CompressionLayer::new().br(true).gzip(true)
 }
 
 async fn browser_security_headers_middleware(req: Request<Body>, next: Next) -> AxumResponse {
@@ -432,6 +438,45 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
+
+    #[tokio::test]
+    async fn dynamic_responses_prefer_brotli_and_keep_gzip_fallback() {
+        let app = Router::new()
+            .route(
+                "/compression-probe",
+                axum::routing::get(|| async { "compression-probe".repeat(256) }),
+            )
+            .layer(response_compression_layer());
+
+        let brotli = app
+            .clone()
+            .oneshot(
+                Request::get("/compression-probe")
+                    .header(header::ACCEPT_ENCODING, "gzip, br")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            brotli.headers().get(header::CONTENT_ENCODING).unwrap(),
+            "br"
+        );
+
+        let gzip = app
+            .oneshot(
+                Request::get("/compression-probe")
+                    .header(header::ACCEPT_ENCODING, "br;q=0.2, gzip;q=0.9")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            gzip.headers().get(header::CONTENT_ENCODING).unwrap(),
+            "gzip"
+        );
+    }
 
     async fn openwrt_test_state() -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().expect("temporary OpenWrt router database");

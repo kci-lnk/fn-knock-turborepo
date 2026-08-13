@@ -124,6 +124,8 @@ set -- -s
 [ -n "$HTTP_X_SIGNATURE" ]      && set -- "$@" -H "x-signature: $HTTP_X_SIGNATURE"
 [ -n "$HTTP_X_REQUESTED_WITH" ] && set -- "$@" -H "x-requested-with: $HTTP_X_REQUESTED_WITH"
 [ -n "$HTTP_ACCEPT" ]           && set -- "$@" -H "accept: $HTTP_ACCEPT"
+[ -n "${HTTP_ACCEPT_ENCODING:-}" ] && \
+    set -- "$@" -H "accept-encoding: $HTTP_ACCEPT_ENCODING"
 [ -n "$HTTP_ACCEPT_LANGUAGE" ]  && set -- "$@" -H "accept-language: $HTTP_ACCEPT_LANGUAGE"
 [ -n "$HTTP_USER_AGENT" ]       && set -- "$@" -H "user-agent: $HTTP_USER_AGENT"
 [ -n "$HTTP_ORIGIN" ]           && set -- "$@" -H "origin: $HTTP_ORIGIN"
@@ -175,14 +177,6 @@ if [ $CURL_EXIT -ne 0 ]; then
     exit 0
 fi
 
-if [ "$REL_PATH" = "/" ] || [ "$REL_PATH" = "/index.html" ]; then
-    printf "Content-Type: text/html; charset=utf-8\r\n"
-    emit_upstream_cache_headers
-    printf "\r\n"
-    sed -e 's|src="/|src="./|g' -e 's|href="/|href="./|g' "$BODY_FILE"
-    exit 0
-fi
-
 STATUS_LINE=$(grep '^HTTP/' "$HEADER_FILE" | tail -1 | tr -d '\r')
 STATUS_CODE=$(echo "$STATUS_LINE" | awk '{print $2}')
 STATUS_TEXT=$(echo "$STATUS_LINE" | awk '{$1=""; $2=""; sub("^[ \t]+", ""); print}')
@@ -200,6 +194,10 @@ else
 fi
 
 emit_upstream_cache_headers
+emit_upstream_header "Content-Encoding"
+emit_upstream_header "Content-Length"
 emit_upstream_header "Content-Disposition"
 printf "\r\n"
+# Frontend assets use relative URLs, so preserve negotiated br/gzip bytes
+# exactly as received. Rewriting an encoded body would corrupt it.
 cat "$BODY_FILE"

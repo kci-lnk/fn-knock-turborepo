@@ -71,7 +71,7 @@ tonic-health = "0.12"
 prost = "0.13"
 totp-rs = { version = "5.7.2", features = ["gen_secret"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.7.0", features = ["compression-gzip", "trace"] }
+tower-http = { version = "0.7.0", features = ["compression-br", "compression-gzip", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.5"

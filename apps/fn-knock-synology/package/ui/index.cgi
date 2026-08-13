@@ -180,6 +180,8 @@ set -- -sS -D "${HEADER_FILE}" -o "${BODY_FILE}" -X "${UPSTREAM_METHOD}"
 [ -n "${HTTP_X_SIGNATURE:-}" ] && set -- "$@" -H "x-signature: ${HTTP_X_SIGNATURE}"
 [ -n "${HTTP_X_REQUESTED_WITH:-}" ] && set -- "$@" -H "x-requested-with: ${HTTP_X_REQUESTED_WITH}"
 [ -n "${HTTP_ACCEPT:-}" ] && set -- "$@" -H "accept: ${HTTP_ACCEPT}"
+[ -n "${HTTP_ACCEPT_ENCODING:-}" ] && \
+    set -- "$@" -H "accept-encoding: ${HTTP_ACCEPT_ENCODING}"
 [ -n "${HTTP_ACCEPT_LANGUAGE:-}" ] && set -- "$@" -H "accept-language: ${HTTP_ACCEPT_LANGUAGE}"
 [ -n "${HTTP_USER_AGENT:-}" ] && set -- "$@" -H "user-agent: ${HTTP_USER_AGENT}"
 [ -n "${HTTP_ORIGIN:-}" ] && set -- "$@" -H "origin: ${HTTP_ORIGIN}"
@@ -254,14 +256,12 @@ else
         /|/index.html) printf 'Cache-Control: no-cache, no-store, must-revalidate\r\n' ;;
     esac
 fi
-for HEADER_NAME in Expires Pragma ETag Last-Modified Vary Content-Disposition; do
+for HEADER_NAME in Expires Pragma ETag Last-Modified Vary Content-Encoding Content-Length Content-Disposition; do
     HEADER_LINE="$(grep -i "^${HEADER_NAME}:" "${HEADER_FILE}" | tail -1 | tr -d '\r')"
     [ -z "${HEADER_LINE}" ] || printf '%s\r\n' "${HEADER_LINE}"
 done
 printf '\r\n'
 
-if [ "${REL_PATH}" = "/" ] || [ "${REL_PATH}" = "/index.html" ]; then
-    sed -e 's|src="/|src="./|g' -e 's|href="/|href="./|g' "${BODY_FILE}"
-else
-    cat "${BODY_FILE}"
-fi
+# Frontend assets use relative URLs, so preserve negotiated br/gzip bytes
+# exactly as received. Rewriting an encoded body would corrupt it.
+cat "${BODY_FILE}"

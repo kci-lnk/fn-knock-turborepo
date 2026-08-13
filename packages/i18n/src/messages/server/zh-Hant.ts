@@ -190,6 +190,8 @@ export const zhHantServer = {
     runType: {
       switchFailed: "切換運行模式失敗",
       switchFailedRolledBack: "切換運行模式失敗，已回滾配置",
+      smartConnectDisabled:
+        "運行模式已切換，但智能連接同步失敗，已自動關閉智能連接。請檢查本機 IP 與 dnsmasq 配置後再重新開啟。",
     },
     firewall: {
       whitelistSynced: "，並同步 {count} 條白名單 IP",

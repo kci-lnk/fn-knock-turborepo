@@ -409,16 +409,41 @@ pub(super) async fn update_run_type(
         }
     }
 
-    let runtime_result = async {
-        sync_smart_connect(&state, &next_config).await?;
-        apply_run_type_config(&state, &next_config, run_type).await
-    }
-    .await;
+    let smart_connect_disabled = match reconcile_smart_connect_for_run_type_change(
+        &state,
+        &mut next_config,
+        |state, config| async move { sync_smart_connect(&state, &config).await.map(|_| ()) },
+    )
+    .await
+    {
+        Ok(disabled) => disabled,
+        Err(error) => {
+            tracing::warn!(%error, "failed to persist smart connect fallback during run_type update");
+            rollback_config_protocol_feature_and_runtime(
+                &state,
+                &previous_config,
+                &previous_protocol_mapping_feature,
+                previous_run_type,
+            )
+            .await;
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_text(&translator, "runType.switchFailed"),
+            );
+        }
+    };
+
+    let runtime_result = apply_run_type_config(&state, &next_config, run_type).await;
 
     match runtime_result {
         Ok(()) => {
             cleanup_auto_whitelist_after_direct_mode(&state, run_type).await;
-            response::success_empty().into_response()
+            if smart_connect_disabled {
+                response::success_message(admin_text(&translator, "runType.smartConnectDisabled"))
+                    .into_response()
+            } else {
+                response::success_empty().into_response()
+            }
         }
         Err(error) => {
             tracing::warn!(%error, "failed to apply run_type runtime");

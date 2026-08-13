@@ -230,6 +230,8 @@ export const jaJPServer = {
       switchFailed: "動作モードの切り替えに失敗しました",
       switchFailedRolledBack:
         "動作モードの切り替えに失敗しました。設定はロールバックされました",
+      smartConnectDisabled:
+        "動作モードは切り替わりましたが、Smart Connect の同期に失敗したため自動的に無効化しました。ローカル IP と dnsmasq の設定を確認してから、再度有効にしてください。",
     },
     firewall: {
       whitelistSynced: "、ホワイトリストの IP {count} 件を同期",

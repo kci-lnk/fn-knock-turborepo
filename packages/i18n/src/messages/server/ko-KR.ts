@@ -220,6 +220,8 @@ export const koKRServer = {
       switchFailed: "실행 모드를 전환하지 못했습니다.",
       switchFailedRolledBack:
         "실행 모드를 전환하지 못했습니다. 설정이 롤백되었습니다.",
+      smartConnectDisabled:
+        "실행 모드는 전환되었지만 Smart Connect 동기화에 실패하여 자동으로 비활성화했습니다. 로컬 IP와 dnsmasq 설정을 확인한 후 다시 활성화하세요.",
     },
     firewall: {
       whitelistSynced: ", 허용 목록 IP {count}개 동기화",

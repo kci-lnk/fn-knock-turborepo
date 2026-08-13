@@ -411,11 +411,9 @@ pub(super) async fn rollback_config_protocol_feature_and_runtime(
         save_protocol_mapping_feature(state, previous_protocol_mapping_feature).await
     {
         tracing::warn!(%error, "failed to rollback protocol mapping feature");
-        return;
     }
     if let Err(error) = sync_smart_connect(state, previous_config).await {
         tracing::warn!(%error, "failed to rollback smart connect runtime");
-        return;
     }
     if let Err(error) = apply_run_type_config(state, previous_config, run_type).await {
         tracing::warn!(%error, "failed to rollback runtime state");

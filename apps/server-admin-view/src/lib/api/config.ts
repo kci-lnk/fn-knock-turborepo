@@ -316,8 +316,9 @@ export const ConfigAPI = {
     const res = await apiClient.post("/config/welcome_guide/complete");
     return res.data.data;
   },
-  async updateRunType(payload: RunTypeUpdate): Promise<void> {
-    await apiClient.post("/config/run_type", payload);
+  async updateRunType(payload: RunTypeUpdate): Promise<string | null> {
+    const res = await apiClient.post("/config/run_type", payload);
+    return typeof res.data.message === "string" ? res.data.message : null;
   },
   async updateAutoManageFirewall(
     payload: AutoManageFirewallUpdate,

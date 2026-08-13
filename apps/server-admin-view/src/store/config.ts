@@ -269,7 +269,7 @@ export const useConfigStore = defineStore("config", () => {
     type: RunType,
     reverseProxySubmode?: ReverseProxySubmode,
   ) {
-    await ConfigAPI.updateRunType({
+    const warning = await ConfigAPI.updateRunType({
       run_type: type,
       reverse_proxy_submode: reverseProxySubmode,
     });
@@ -280,6 +280,7 @@ export const useConfigStore = defineStore("config", () => {
       }
     }
     await loadConfig({ force: true }); // refresh to be safe
+    return warning;
   }
 
   async function saveAutoManageFirewall(enabled: boolean) {

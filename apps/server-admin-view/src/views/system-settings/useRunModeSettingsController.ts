@@ -275,10 +275,14 @@ export const useRunModeSettingsController = () => {
             [options.promptPreferenceKey]: true,
           });
       }
-      await configStore.setRunType(nextMode, nextSubmode ?? undefined);
+      const warning = await configStore.setRunType(
+        nextMode,
+        nextSubmode ?? undefined,
+      );
       options?.onSuccess?.();
-      toast.success(t("admin.runModeSettings.updated"), {
-        description: successDescription,
+      const notify = warning ? toast.warning : toast.success;
+      notify(t("admin.runModeSettings.updated"), {
+        description: warning ?? successDescription,
       });
     });
   };

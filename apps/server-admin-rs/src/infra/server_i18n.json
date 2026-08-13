@@ -186,7 +186,8 @@
       },
       "runType": {
         "switchFailed": "切换运行模式失败",
-        "switchFailedRolledBack": "切换运行模式失败，已回滚配置"
+        "switchFailedRolledBack": "切换运行模式失败，已回滚配置",
+        "smartConnectDisabled": "运行模式已切换，但智能连接同步失败，已自动关闭智能连接。请检查本机 IP 与 dnsmasq 配置后再重新开启。"
       },
       "firewall": {
         "whitelistSynced": "，并同步 {count} 条白名单 IP",
@@ -3390,7 +3391,8 @@
       },
       "runType": {
         "switchFailed": "切換運行模式失敗",
-        "switchFailedRolledBack": "切換運行模式失敗，已回滾配置"
+        "switchFailedRolledBack": "切換運行模式失敗，已回滾配置",
+        "smartConnectDisabled": "運行模式已切換，但智能連接同步失敗，已自動關閉智能連接。請檢查本機 IP 與 dnsmasq 配置後再重新開啟。"
       },
       "firewall": {
         "whitelistSynced": "，並同步 {count} 條白名單 IP",
@@ -6594,7 +6596,8 @@
       },
       "runType": {
         "switchFailed": "Failed to switch run mode",
-        "switchFailedRolledBack": "Failed to switch run mode; configuration was rolled back"
+        "switchFailedRolledBack": "Failed to switch run mode; configuration was rolled back",
+        "smartConnectDisabled": "The run mode was switched, but Smart Connect sync failed, so Smart Connect was disabled automatically. Check the local IP and dnsmasq configuration before enabling it again."
       },
       "firewall": {
         "whitelistSynced": ", synced {count} whitelist IPs",
@@ -9798,7 +9801,8 @@
       },
       "runType": {
         "switchFailed": "실행 모드를 전환하지 못했습니다.",
-        "switchFailedRolledBack": "실행 모드를 전환하지 못했습니다. 설정이 롤백되었습니다."
+        "switchFailedRolledBack": "실행 모드를 전환하지 못했습니다. 설정이 롤백되었습니다.",
+        "smartConnectDisabled": "실행 모드는 전환되었지만 Smart Connect 동기화에 실패하여 자동으로 비활성화했습니다. 로컬 IP와 dnsmasq 설정을 확인한 후 다시 활성화하세요."
       },
       "firewall": {
         "whitelistSynced": ", 허용 목록 IP {count}개 동기화",
@@ -13002,7 +13006,8 @@
       },
       "runType": {
         "switchFailed": "動作モードの切り替えに失敗しました",
-        "switchFailedRolledBack": "動作モードの切り替えに失敗しました。設定はロールバックされました"
+        "switchFailedRolledBack": "動作モードの切り替えに失敗しました。設定はロールバックされました",
+        "smartConnectDisabled": "動作モードは切り替わりましたが、Smart Connect の同期に失敗したため自動的に無効化しました。ローカル IP と dnsmasq の設定を確認してから、再度有効にしてください。"
       },
       "firewall": {
         "whitelistSynced": "、ホワイトリストの IP {count} 件を同期",

@@ -101,6 +101,45 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
     ))
 }
 
+pub(super) async fn reconcile_smart_connect_for_run_type_change<Sync, SyncFuture>(
+    state: &AppState,
+    next_config: &mut Value,
+    sync_runtime: Sync,
+) -> Result<bool, String>
+where
+    Sync: Fn(AppState, Value) -> SyncFuture,
+    SyncFuture: std::future::Future<Output = Result<(), String>>,
+{
+    let sync_error = match sync_runtime(state.clone(), next_config.clone()).await {
+        Ok(()) => return Ok(false),
+        Err(error) => error,
+    };
+    tracing::warn!(
+        error = %sync_error,
+        "failed to sync smart connect before run type change"
+    );
+
+    let mut smart = normalize_smart_connect_config(next_config.get("smart_connect"));
+    if smart.get("enabled").and_then(Value::as_bool) != Some(true) {
+        return Ok(false);
+    }
+    ensure_config_object(&mut smart).insert("enabled".to_string(), Value::Bool(false));
+    *next_config = state
+        .storage
+        .store
+        .set_config_top_level_value("smart_connect", smart)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if let Err(error) = sync_runtime(state.clone(), next_config.clone()).await {
+        tracing::warn!(
+            %error,
+            "failed to clear smart connect runtime after disabling it during run type change"
+        );
+    }
+    Ok(true)
+}
+
 pub(super) async fn sync_smart_connect_on_boot(
     state: &AppState,
     config: &Value,

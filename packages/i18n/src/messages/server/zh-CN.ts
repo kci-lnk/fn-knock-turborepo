@@ -190,6 +190,8 @@ export const zhCNServer = {
     runType: {
       switchFailed: "切换运行模式失败",
       switchFailedRolledBack: "切换运行模式失败，已回滚配置",
+      smartConnectDisabled:
+        "运行模式已切换，但智能连接同步失败，已自动关闭智能连接。请检查本机 IP 与 dnsmasq 配置后再重新开启。",
     },
     firewall: {
       whitelistSynced: "，并同步 {count} 条白名单 IP",

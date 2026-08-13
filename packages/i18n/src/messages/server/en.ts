@@ -227,6 +227,8 @@ export const enServer = {
       switchFailed: "Failed to switch run mode",
       switchFailedRolledBack:
         "Failed to switch run mode; configuration was rolled back",
+      smartConnectDisabled:
+        "The run mode was switched, but Smart Connect sync failed, so Smart Connect was disabled automatically. Check the local IP and dnsmasq configuration before enabling it again.",
     },
     firewall: {
       whitelistSynced: ", synced {count} whitelist IPs",

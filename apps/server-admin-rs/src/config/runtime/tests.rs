@@ -189,6 +189,124 @@ async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
 }
 
 #[tokio::test]
+async fn smart_connect_sync_failure_disables_feature_before_run_type_apply() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["smart_connect"] = json!({
+        "enabled": true,
+        "selected_ipv4": "192.168.1.20"
+    });
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save target run type config");
+    let attempts = std::sync::atomic::AtomicUsize::new(0);
+
+    let disabled = reconcile_smart_connect_for_run_type_change(&state, &mut config, |state, _| {
+        let attempt = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        async move {
+            if attempt == 0 {
+                state
+                    .storage
+                    .store
+                    .set_config_top_level_value("default_route", json!("/concurrent"))
+                    .await
+                    .map_err(|error| error.to_string())?;
+                Err("smart connect sync failed".to_string())
+            } else {
+                Ok(())
+            }
+        }
+    })
+    .await
+    .expect("degrade smart connect without blocking the mode change");
+
+    assert!(disabled);
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(config["smart_connect"]["enabled"], json!(false));
+    assert_eq!(config["default_route"], json!("/concurrent"));
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_config()
+            .await
+            .expect("reload degraded config")["smart_connect"]["enabled"],
+        json!(false)
+    );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_config()
+            .await
+            .expect("reload concurrent config")["default_route"],
+        json!("/concurrent")
+    );
+}
+
+#[tokio::test]
+async fn successful_smart_connect_sync_preserves_enabled_feature() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["smart_connect"] = json!({
+        "enabled": true,
+        "selected_ipv4": "192.168.1.20"
+    });
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save target run type config");
+    let attempts = std::sync::atomic::AtomicUsize::new(0);
+
+    let disabled = reconcile_smart_connect_for_run_type_change(&state, &mut config, |_, _| {
+        attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        async { Ok(()) }
+    })
+    .await
+    .expect("sync smart connect");
+
+    assert!(!disabled);
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(config["smart_connect"]["enabled"], json!(true));
+}
+
+#[tokio::test]
+async fn failed_smart_connect_cleanup_does_not_rewrite_disabled_feature() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["smart_connect"] = json!({
+        "enabled": false,
+        "selected_ipv4": "192.168.1.20"
+    });
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save target run type config");
+    let attempts = std::sync::atomic::AtomicUsize::new(0);
+
+    let disabled = reconcile_smart_connect_for_run_type_change(&state, &mut config, |_, _| {
+        attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        async { Err("smart connect cleanup failed".to_string()) }
+    })
+    .await
+    .expect("keep the disabled feature non-blocking");
+
+    assert!(!disabled);
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(config["smart_connect"]["enabled"], json!(false));
+}
+
+#[tokio::test]
 async fn protocol_mapping_feature_update_never_mutates_mapping_config() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
     let mappings = json!([{

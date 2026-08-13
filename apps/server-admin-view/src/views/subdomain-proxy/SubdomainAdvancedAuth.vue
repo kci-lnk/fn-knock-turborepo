@@ -35,7 +35,7 @@ import FloatingActionDock from "@admin-shared/components/common/FloatingActionDo
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { useConfirmationDialog } from "@admin-shared/composables/useConfirmationDialog";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI, type AdvancedAuthDetails } from "../../lib/api";
+import { ConfigAPI, type AdvancedAuthDetails } from "@/lib/api/config";
 import { isHttpTargetUrl, normalizeHostLike } from "./model";
 import { useConfigStore } from "../../store/config";
 import AdvancedAuthHeaderNameField from "./AdvancedAuthHeaderNameField.vue";

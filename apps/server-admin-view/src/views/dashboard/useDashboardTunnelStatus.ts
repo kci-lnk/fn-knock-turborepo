@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from "vue";
-import { CloudflaredAPI, FrpcAPI } from "@/lib/api";
+import { CloudflaredAPI, FrpcAPI } from "@/lib/api/tunnel";
 import { isCloudflaredTunnelAvailable } from "@/lib/reverse-proxy-submode";
 import type { AppConfig } from "@/types";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";

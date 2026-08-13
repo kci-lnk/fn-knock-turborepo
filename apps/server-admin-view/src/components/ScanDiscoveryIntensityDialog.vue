@@ -125,7 +125,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { ScanDiscoverySettings } from "@/lib/api";
+import { type ScanDiscoverySettings } from "@/lib/api/scan";
 import { useScanDiscoveryIntensitySettings } from "@/composables/useScanDiscoveryIntensitySettings";
 import { useScanIntensityMatrix } from "@/composables/useScanIntensityMatrix";
 

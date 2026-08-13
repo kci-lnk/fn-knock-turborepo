@@ -67,14 +67,17 @@ export type {
 } from "../../types";
 
 export const EventCenterAPI = {
-  async getEvents(params: {
-    page: number;
-    limit: string;
-    search: string;
-    type?: SystemEventType | "all";
-    level?: SystemEventLevel | "all";
-    source?: SystemEventSource | "all";
-  }): Promise<GetEventsResponse> {
+  async getEvents(
+    params: {
+      page: number;
+      limit: string;
+      search: string;
+      type?: SystemEventType | "all";
+      level?: SystemEventLevel | "all";
+      source?: SystemEventSource | "all";
+    },
+    signal?: AbortSignal,
+  ): Promise<GetEventsResponse> {
     const query = {
       page: params.page,
       limit: params.limit,
@@ -86,6 +89,7 @@ export const EventCenterAPI = {
     } satisfies GetEventsQuery;
     const res = await apiClient.get("/events", {
       params: query,
+      signal,
     });
     return res.data;
   },

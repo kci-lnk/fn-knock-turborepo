@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import {
   buildGatewayPortalVersionPatch,
   normalizeGatewayPortalConfig,

@@ -3,15 +3,15 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   CloudflaredAPI,
-  ConfigAPI,
-  SystemAPI,
   type CloudflareManagedState,
   type CloudflareOptimizationScan,
   type CloudflareReconcileJob,
   type CloudflareReconcilePlan,
   type CloudflaredProtocol,
   type TunnelSupervisorStatus,
-} from "@/lib/api";
+} from "@/lib/api/tunnel";
+import { ConfigAPI } from "@/lib/api/config";
+import { SystemAPI } from "@/lib/api/system";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -23,6 +23,7 @@ import {
 } from "@admin-shared/utils/log-window";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useTargetPolling } from "@/composables/useTargetPolling";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import { useConfigStore } from "@/store/config";
 import {
   analyzeCloudflaredLogs,
@@ -98,7 +99,6 @@ export const useCloudflareTunnelController = () => {
   let reconcilePollTimer: number | undefined;
   let reconcilePollSequence = 0;
   let scanPollTimer: number | undefined;
-  let managedStatePollTimer: number | undefined;
   const protocol = ref<CloudflaredProtocol>("auto");
   const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort({
     onError: (error) => {
@@ -498,17 +498,13 @@ export const useCloudflareTunnelController = () => {
     isApplyingReconcile.value = false;
     reconcilePlan.value = null;
     takeoverResourceIds.value = [];
-    await Promise.all([
-      loadManagedState({ silent: true }),
-      loadConfig(),
-    ]);
+    await Promise.all([loadManagedState({ silent: true }), loadConfig()]);
     if (job.status === "succeeded") {
       toast.success(t("admin.cloudflareTunnel.managed.applied"));
       return;
     }
     toast.error(t("admin.cloudflareTunnel.managed.applyFailed"), {
-      description:
-        job.error || t("admin.cloudflareTunnel.managed.applyFailed"),
+      description: job.error || t("admin.cloudflareTunnel.managed.applyFailed"),
     });
   };
 
@@ -549,10 +545,7 @@ export const useCloudflareTunnelController = () => {
         reconcileJob.value = null;
         reconcilePlan.value = null;
         takeoverResourceIds.value = [];
-        await Promise.all([
-          loadManagedState({ silent: true }),
-          loadConfig(),
-        ]);
+        await Promise.all([loadManagedState({ silent: true }), loadConfig()]);
       }
       toast.error(t("admin.cloudflareTunnel.managed.applyFailed"), {
         description: extractErrorMessage(
@@ -936,6 +929,13 @@ export const useCloudflareTunnelController = () => {
     void router.push({ path: "/system", query: { tab: "cloudflared" } });
   };
 
+  const managedStatePoller = createVisibilityPoller({
+    intervalMs: 60_000,
+    immediate: false,
+    enabled: () => apiTokenConfigured.value,
+    task: () => loadManagedState({ silent: true }),
+  });
+
   onMounted(async () => {
     await Promise.all([
       recoverActiveReconcileJob(),
@@ -946,18 +946,14 @@ export const useCloudflareTunnelController = () => {
       loadManagedState({ silent: true }),
     ]);
     cloudflaredPolling.start();
-    managedStatePollTimer = window.setInterval(() => {
-      if (apiTokenConfigured.value) {
-        void loadManagedState({ silent: true });
-      }
-    }, 60_000);
+    managedStatePoller.start();
   });
   onUnmounted(() => {
     cloudflaredPolling.stop();
     reconcilePollSequence += 1;
     if (reconcilePollTimer) window.clearTimeout(reconcilePollTimer);
     if (scanPollTimer) window.clearTimeout(scanPollTimer);
-    if (managedStatePollTimer) window.clearInterval(managedStatePollTimer);
+    managedStatePoller.stop();
   });
 
   return {

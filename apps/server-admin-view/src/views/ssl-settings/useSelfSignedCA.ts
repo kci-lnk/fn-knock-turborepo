@@ -6,7 +6,7 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 
 type Translate = (
   key: string,
@@ -213,8 +213,7 @@ export const useSelfSignedCA = ({
           return;
         }
         toast.error(translate("admin.selfSignedCA.issueFailed"), {
-          description:
-            message || translate("admin.selfSignedCA.unknownError"),
+          description: message || translate("admin.selfSignedCA.unknownError"),
         });
       },
       onError: (error) => {

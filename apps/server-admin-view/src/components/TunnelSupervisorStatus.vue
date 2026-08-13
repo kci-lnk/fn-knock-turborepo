@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import type { TunnelSupervisorStatus } from "@/lib/api";
+import { type TunnelSupervisorStatus } from "@/lib/api/tunnel";
 import { supervisorTone } from "@/views/tunnel/tunnelSupervisorModel";
 
 const props = withDefaults(
@@ -59,10 +59,7 @@ const colorClass = computed(() => {
         v-if="supervisor.lastFailure"
         class="break-words text-xs text-muted-foreground"
       >
-        {{
-          supervisor.lastFailure.diagnosis ||
-          supervisor.lastFailure.reason
-        }}
+        {{ supervisor.lastFailure.diagnosis || supervisor.lastFailure.reason }}
       </p>
     </template>
   </div>

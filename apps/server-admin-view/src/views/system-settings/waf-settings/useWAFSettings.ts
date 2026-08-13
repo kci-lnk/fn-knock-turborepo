@@ -6,7 +6,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { WAFAPI } from "../../../lib/api";
+import { WAFAPI } from "@/lib/api/gateway";
 import type { WAFDetails } from "../../../types";
 import { useConfigStore } from "../../../store/config";
 import { useWAFRuleManagement } from "./useWAFRuleManagement";
@@ -149,8 +149,7 @@ export function useWAFSettings() {
           enabled: form.enabled,
           system_rules_auto_update_enabled:
             form.system_rules_auto_update_enabled,
-          common_location_exempt_enabled:
-            form.common_location_exempt_enabled,
+          common_location_exempt_enabled: form.common_location_exempt_enabled,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         }),
@@ -185,8 +184,7 @@ export function useWAFSettings() {
           enabled,
           system_rules_auto_update_enabled:
             form.system_rules_auto_update_enabled,
-          common_location_exempt_enabled:
-            form.common_location_exempt_enabled,
+          common_location_exempt_enabled: form.common_location_exempt_enabled,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         });

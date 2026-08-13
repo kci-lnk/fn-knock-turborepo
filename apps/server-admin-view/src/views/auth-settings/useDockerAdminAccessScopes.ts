@@ -1,12 +1,8 @@
 import { ref, type Ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../../lib/api";
-import type {
-  AuthAccount,
-  TOTPCredential,
-  TOTPAccessScope,
-} from "../../types";
+import { ConfigAPI } from "@/lib/api/config";
+import type { AuthAccount, TOTPCredential, TOTPAccessScope } from "../../types";
 
 const DOCKER_ADMIN_PANEL_ACCESS_SCOPE: TOTPAccessScope = "docker_admin_panel";
 
@@ -31,7 +27,9 @@ export function useDockerAdminAccessScopes({
   const updatingAccessScopeIds = ref<Set<string>>(new Set());
 
   function hasDockerAdminPanelAccess(record: AccessScopeRecord) {
-    return (record.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+    return (record.access_scopes || []).includes(
+      DOCKER_ADMIN_PANEL_ACCESS_SCOPE,
+    );
   }
 
   function isAccessScopeUpdating(id: string) {

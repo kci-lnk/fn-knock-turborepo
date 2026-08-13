@@ -95,7 +95,8 @@ fi
 echo "Cleanup complete!"
 "#;
 
-pub(super) fn start_boot_sync_tasks(state: AppState) {
+pub(super) fn start_boot_sync_tasks(state: AppState) -> tokio::sync::oneshot::Receiver<()> {
+    let (completed_tx, completed_rx) = tokio::sync::oneshot::channel();
     let task_state = state.clone();
     state.spawn_background("boot-sync", async move {
         if let Err(error) = cleanup_legacy_auth_log_storage(&task_state).await {
@@ -110,7 +111,9 @@ pub(super) fn start_boot_sync_tasks(state: AppState) {
         if let Err(error) = init_clean_script_on_boot(&task_state) {
             tracing::warn!(%error, "failed to initialize firewall cleanup script");
         }
+        let _ = completed_tx.send(());
     });
+    completed_rx
 }
 
 fn init_clean_script_on_boot(state: &AppState) -> anyhow::Result<()> {

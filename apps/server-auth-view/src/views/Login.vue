@@ -46,7 +46,8 @@
             !isCaptchaVerified &&
             activeCaptchaProvider === 'pow' &&
             isCaptchaProviderAvailable &&
-            canUseNativePow
+            canUseNativePow &&
+            isNativePowModuleReady
           "
           class="w-full flex justify-center mt-2"
         >
@@ -403,8 +404,7 @@ import { useLoginRedirect } from "@/composables/useLoginRedirect";
 import { useCredentialLogin } from "@/composables/useCredentialLogin";
 import { useLoginBootstrap } from "@/composables/useLoginBootstrap";
 import { useOidcLogin } from "@/composables/useOidcLogin";
-
-import "altcha";
+import { useNativePowModule } from "@/composables/useNativePowModule";
 
 const i18n = useI18n();
 const { t } = i18n;
@@ -479,6 +479,7 @@ const {
 // Vue assigns string template refs at runtime; keep them visible to TypeScript.
 void powWidgetRef;
 void turnstileWidgetRef;
+const isNativePowModuleReady = useNativePowModule(activeCaptchaProvider, canUseNativePow);
 const {
   isCoolingDown: isLoginCoolingDown,
   remainingSeconds: loginCooldownSeconds,

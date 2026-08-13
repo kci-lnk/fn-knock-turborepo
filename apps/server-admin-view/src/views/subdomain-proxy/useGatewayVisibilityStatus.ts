@@ -1,5 +1,5 @@
 import { onUnmounted, ref } from "vue";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 
 export const useGatewayVisibilityStatus = () => {
   const globalVisibilityEnabled = ref(false);

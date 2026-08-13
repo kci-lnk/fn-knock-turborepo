@@ -324,7 +324,7 @@ import {
 } from "@/components/ui/table";
 import type { DiscoveredHostResponse, DiscoveredHostService } from "./model";
 import { resolveDiscoveredServiceHost } from "./model";
-import type { ScanDiscoverProgress } from "@/lib/api";
+import { type ScanDiscoverProgress } from "@/lib/api/scan";
 import type { HostMappingGroup } from "@/types";
 
 const props = defineProps<{

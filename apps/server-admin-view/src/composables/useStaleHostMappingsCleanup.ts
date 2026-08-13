@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { ScanAPI, type HostMappingProbeResult } from "../lib/api";
+import { ScanAPI, type HostMappingProbeResult } from "@/lib/api/scan";
 import type { HostMapping } from "../types";
 
 type MappingsSource = Ref<HostMapping[]> | ComputedRef<HostMapping[]>;

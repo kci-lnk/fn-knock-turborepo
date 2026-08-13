@@ -5331,6 +5331,14 @@ export const zhCNAdmin = {
         placeholder: "选择回收强度",
         customDescription: "使用自定义回收强度。",
         rangeError: "请输入 25 到 500 之间的整数。",
+        limitTitle: "Go 运行时内存上限",
+        limitDescription:
+          "限制 Go 运行时管理的内存；它是软上限，不等同于进程 RSS。",
+        auto: "自动（推荐）",
+        manual: "手动",
+        manualHint: "手动上限不能超过设备有效内存的 50%。",
+        manualRangeError: "请输入 64 到 4096 之间的整数。",
+        effectiveLimit: "当前有效上限：{limit}",
         retry: "重试",
         hint: "GOGC 越低，回收越频繁、内存占用通常越低，但会消耗更多 CPU；立即回收可能带来短暂暂停。",
         levels: {

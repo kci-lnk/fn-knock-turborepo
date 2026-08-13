@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import type { DDNSNetworkInterfacePayload } from "@/lib/api";
+import { type DDNSNetworkInterfacePayload } from "@/lib/api/ddns";
 import {
   INTERFACE_IPV4_INDEX_KEY,
   INTERFACE_IPV4_SELECTOR_KEY,

@@ -60,15 +60,28 @@ describe("runtime health API contract", () => {
     }
   });
 
-  it("bounds the Go GC percentage contract", () => {
+  it("bounds the Go runtime memory contract", () => {
     const config = contract.components.schemas.GatewayMemoryConfigUpdateData
       .properties?.gc_percent as
       { minimum?: number; maximum?: number } | undefined;
     assert.equal(config?.minimum, 25);
     assert.equal(config?.maximum, 500);
+    const memoryLimit = contract.components.schemas
+      .GatewayMemoryConfigUpdateData.properties?.memory_limit_mib as
+      { minimum?: number; maximum?: number } | undefined;
+    assert.equal(memoryLimit?.minimum, 64);
+    assert.equal(memoryLimit?.maximum, 4096);
+    assert.ok(
+      contract.components.schemas.GatewayMemoryConfigData.properties
+        ?.effective_memory_limit_bytes,
+    );
     assert.ok(
       contract.components.schemas.GatewayMemoryReclaimData.properties
         ?.rss_bytes,
+    );
+    assert.ok(
+      contract.components.schemas.GatewayMemoryReclaimData.properties
+        ?.managed_memory_bytes,
     );
   });
 

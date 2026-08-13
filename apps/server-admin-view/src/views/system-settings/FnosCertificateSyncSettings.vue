@@ -24,7 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import RefreshButton from "@/components/RefreshButton.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
-import { SystemAPI } from "../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import type {
   FnosCertificateSyncDetails,
   FnosCertificateSyncItem,

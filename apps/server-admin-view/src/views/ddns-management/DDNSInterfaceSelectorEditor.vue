@@ -16,7 +16,7 @@ import {
   type DDNSInterfaceSelector,
   type DDNSInterfaceSelectorPreviewPayload,
   type DDNSNetworkInterfacePayload,
-} from "@/lib/api";
+} from "@/lib/api/ddns";
 import {
   createDefaultInterfaceSelector,
   buildInterfaceAddressCandidates,

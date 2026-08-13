@@ -520,6 +520,7 @@ async fn update_locale(State(state): State<AppState>, Json(body): Json<Value>) -
     let next = normalize_locale_config(&body);
     match save_config_section(&state, "locale", next.clone()).await {
         Ok(()) => {
+            state.set_browser_locale(&next).await;
             if let Err(error) = state.gateway.client.set_locale_config(&next).await {
                 tracing::warn!(%error, "failed to sync locale config to Go backend");
             }

@@ -21,7 +21,7 @@ import {
   ScannerAPI,
   SecurityAPI,
   type ScannerBlacklistRecord,
-} from "../../lib/api";
+} from "@/lib/api/security";
 import {
   DEFAULT_THREAT_RANGES,
   useThreatOverview,

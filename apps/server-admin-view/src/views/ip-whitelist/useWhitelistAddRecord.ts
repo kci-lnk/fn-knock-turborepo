@@ -5,7 +5,8 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { isValidCIDR } from "@admin-shared/utils/cidr";
 import { toast } from "@admin-shared/utils/toast";
-import { WhitelistAPI, type GatewayVisibilitySelection } from "../../lib/api";
+import { WhitelistAPI } from "@/lib/api/whitelist";
+import { type GatewayVisibilitySelection } from "@/types";
 
 type Translate = (
   key: string,

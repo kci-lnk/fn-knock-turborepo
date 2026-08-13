@@ -28,13 +28,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import type {
-  DDNSHttpTransport,
-  DDNSPublicDnsProvider,
-  DDNSPublicCheckFamily,
-  DDNSPublicCheckSourcesPayload,
-  DDNSPublicCheckTestResultPayload,
-} from "@/lib/api";
+import {
+  type DDNSHttpTransport,
+  type DDNSPublicDnsProvider,
+  type DDNSPublicCheckFamily,
+  type DDNSPublicCheckSourcesPayload,
+  type DDNSPublicCheckTestResultPayload,
+} from "@/lib/api/ddns";
 import {
   HTTP_TRANSPORT_OPTIONS,
   PUBLIC_DNS_PROVIDER_OPTIONS,

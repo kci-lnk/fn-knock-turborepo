@@ -19,7 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TerminalSquare } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI, TerminalAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
+import { TerminalAPI } from "@/lib/api/terminal";
 import type {
   TerminalFeatureConfig,
   TerminalRuntimeStatus,
@@ -133,8 +134,9 @@ const terminalDescription = computed(() =>
 
 const { isInitializing: isInitializingStatus, refresh: refreshStatus } =
   usePollingResourceStatus<TerminalRuntimeStatus | null>({
-    fetcher: async () => {
-      const data = await runFetchStatus(() => TerminalAPI.getStatus());
+    fetcher: async (signal) => {
+      const data = await runFetchStatus(() => TerminalAPI.getStatus(signal));
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       return data ?? runtimeStatus.value;
     },
     onData: (data) => {

@@ -18,7 +18,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import { resolveAdminPanelResetGuide } from "../../lib/docker-admin-panel-reset";
 import {
   dockerAdminPasswordValidationMessageKeys,

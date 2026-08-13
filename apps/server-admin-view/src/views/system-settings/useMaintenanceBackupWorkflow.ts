@@ -11,7 +11,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { MaintenanceAPI } from "@/lib/api";
+import { MaintenanceAPI } from "@/lib/api/config";
 import { supportsSharedBackupForRuntime } from "@/lib/maintenance-runtime";
 import {
   automaticBackupSourceIsAvailable,

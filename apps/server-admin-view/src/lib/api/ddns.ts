@@ -9,19 +9,15 @@ type DdnsSchemas = ApiContractComponents["schemas"];
 export type DDNSLogEntry = DdnsSchemas["DdnsLogEntryData"];
 export type DDNSStatusPayload = DdnsSchemas["DdnsStatusData"];
 export type DDNSSettingsPayload = DdnsSchemas["DdnsSettingsData"];
-export type DDNSSettingsUpdatePayload =
-  DdnsSchemas["DdnsSettingsUpdateData"];
-export type DDNSTargetSummaryPayload =
-  DdnsSchemas["DdnsTargetSummaryData"];
-export type DDNSTargetDetailPayload =
-  DdnsSchemas["DdnsTargetDetailData"];
+export type DDNSSettingsUpdatePayload = DdnsSchemas["DdnsSettingsUpdateData"];
+export type DDNSTargetSummaryPayload = DdnsSchemas["DdnsTargetSummaryData"];
+export type DDNSTargetDetailPayload = DdnsSchemas["DdnsTargetDetailData"];
 export type DDNSTargetListPayload = DdnsSchemas["DdnsTargetListData"];
 export type DDNSNetworkInterfaceAddress =
   DdnsSchemas["DdnsNetworkInterfaceAddressData"];
 export type DDNSNetworkInterfacePayload =
   DdnsSchemas["DdnsNetworkInterfaceData"];
-export type DDNSInterfaceSelector =
-  DdnsSchemas["DdnsInterfaceSelectorData"];
+export type DDNSInterfaceSelector = DdnsSchemas["DdnsInterfaceSelectorData"];
 export type DDNSInterfaceSelectorPreviewPayload =
   DdnsSchemas["DdnsInterfaceSelectorPreviewData"];
 export type DDNSPollPayload = DdnsSchemas["DdnsPollData"];
@@ -34,15 +30,11 @@ export type DDNSPublicCheckTestResultPayload =
 export type DDNSIpSource = DDNSStatusPayload["ipSource"];
 export type DDNSUpdateScope = DDNSStatusPayload["updateScope"];
 export type DDNSHttpTransport = DDNSSettingsPayload["httpTransport"];
-export type DDNSPublicDnsProvider =
-  DDNSSettingsPayload["publicDnsProvider"];
-export type DDNSPublicCheckFamily =
-  DDNSPublicCheckTestResultPayload["family"];
+export type DDNSPublicDnsProvider = DDNSSettingsPayload["publicDnsProvider"];
+export type DDNSPublicCheckFamily = DDNSPublicCheckTestResultPayload["family"];
 
-type DdnsPublicCheckTestBody =
-  DdnsSchemas["DdnsPublicCheckTestBodyData"];
-type DdnsPublicCheckTestResults =
-  DdnsSchemas["DdnsPublicCheckTestResultsData"];
+type DdnsPublicCheckTestBody = DdnsSchemas["DdnsPublicCheckTestBodyData"];
+type DdnsPublicCheckTestResults = DdnsSchemas["DdnsPublicCheckTestResultsData"];
 type DdnsProvider = DdnsSchemas["DdnsProviderData"];
 type DdnsInterfaceSelectorPreviewBody =
   DdnsSchemas["DdnsInterfaceSelectorPreviewBodyData"];
@@ -205,12 +197,13 @@ export const DDNSAPI = {
   async clearLogs(): Promise<void> {
     await apiClient.delete("/ddns/logs");
   },
-  async poll(cursor?: number): Promise<DDNSPollPayload> {
+  async poll(cursor?: number, signal?: AbortSignal): Promise<DDNSPollPayload> {
     const params = (
       typeof cursor === "number" ? { cursor } : undefined
     ) satisfies DdnsPollQuery | undefined;
     const res = await apiClient.get("/ddns/poll", {
       params,
+      signal,
     });
     return res.data.data;
   },

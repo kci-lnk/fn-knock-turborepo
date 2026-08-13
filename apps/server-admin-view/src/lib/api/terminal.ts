@@ -32,8 +32,8 @@ export type {
 } from "../../types";
 
 export const TerminalAPI = {
-  async getStatus(): Promise<TerminalRuntimeStatus> {
-    const res = await apiClient.get("/terminal/status");
+  async getStatus(signal?: AbortSignal): Promise<TerminalRuntimeStatus> {
+    const res = await apiClient.get("/terminal/status", { signal });
     return res.data.data;
   },
   async installTmux(): Promise<TerminalTmuxInstallState> {

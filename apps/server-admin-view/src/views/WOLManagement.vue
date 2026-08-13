@@ -29,8 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
+import { ConfigAPI } from "@/lib/api/config";
 import {
-  ConfigAPI,
   WOLAPI,
   type WOLDiscoveredDevice,
   type WOLDiscoveryPollEvent,
@@ -43,9 +43,10 @@ import {
   type WOLRelayInput,
   type WOLTarget,
   type WOLTargetInput,
-} from "@/lib/api";
+} from "@/lib/api/wol";
 import { normalizeGatewayPortalConfig } from "@/lib/gatewayPortal";
 import { createRandomTargetName } from "@/lib/wolTargetName";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import { useConfigStore } from "@/store/config";
 import WOLBootstrapDialog from "./wol-management/WOLBootstrapDialog.vue";
 import WOLDiscoveryDialog from "./wol-management/WOLDiscoveryDialog.vue";
@@ -95,15 +96,10 @@ const settingsOpen = ref(false);
 const showWolInPortal = ref(true);
 const savingPortalSetting = ref(false);
 let discoveryAbortController: AbortController | null = null;
-let targetRuntimePollTimer: ReturnType<typeof globalThis.setInterval> | null =
-  null;
-let targetRuntimeAbortController: AbortController | null = null;
 
 const relayForm = reactive<WOLRelayInput>(createWolRelayInput());
 const targetForm = reactive<WOLTargetInput>(createWolTargetInput());
-const localRelayForm = reactive<WOLLocalRelayInput>(
-  createWolLocalRelayInput(),
-);
+const localRelayForm = reactive<WOLLocalRelayInput>(createWolLocalRelayInput());
 
 const applyLocalRelay = (result: WOLLocalRelay) => {
   localRelay.value = result;
@@ -303,48 +299,30 @@ const openEditTarget = (target: WOLTarget) => {
   targetDialogOpen.value = true;
 };
 
-const stopTargetRuntimePolling = () => {
-  targetRuntimeAbortController?.abort();
-  targetRuntimeAbortController = null;
-  if (targetRuntimePollTimer !== null) {
-    globalThis.clearInterval(targetRuntimePollTimer);
-    targetRuntimePollTimer = null;
-  }
-};
-
-const refreshEditingTargetRuntime = async () => {
+const refreshEditingTargetRuntime = async (signal: AbortSignal) => {
   const id = editingTargetId.value;
-  if (
-    !targetDialogOpen.value ||
-    targetMode.value !== "edit" ||
-    !id ||
-    targetRuntimeAbortController
-  )
-    return;
-  const controller = new AbortController();
-  targetRuntimeAbortController = controller;
+  if (!targetDialogOpen.value || targetMode.value !== "edit" || !id) return;
   try {
-    const refreshed = await WOLAPI.getTarget(id, controller.signal);
+    const refreshed = await WOLAPI.getTarget(id, signal);
     if (!targetDialogOpen.value || editingTargetId.value !== id) return;
     const index = targets.value.findIndex((target) => target.id === id);
     if (index >= 0) targets.value.splice(index, 1, refreshed);
   } catch {
     // Runtime polling must not replace a save error or close the editor.
-  } finally {
-    if (targetRuntimeAbortController === controller) {
-      targetRuntimeAbortController = null;
-    }
   }
 };
 
-watch(targetDialogOpen, (open) => {
-  stopTargetRuntimePolling();
-  if (!open || targetMode.value !== "edit") return;
-  void refreshEditingTargetRuntime();
-  targetRuntimePollTimer = globalThis.setInterval(
-    () => void refreshEditingTargetRuntime(),
-    2_000,
-  );
+const targetRuntimePoller = createVisibilityPoller({
+  intervalMs: 2_000,
+  enabled: () =>
+    targetDialogOpen.value &&
+    targetMode.value === "edit" &&
+    Boolean(editingTargetId.value),
+  task: refreshEditingTargetRuntime,
+});
+
+watch([targetDialogOpen, targetMode, editingTargetId], () => {
+  targetRuntimePoller.sync();
 });
 
 const saveTarget = async () => {
@@ -564,10 +542,13 @@ const copyBootstrap = async (value: string) => {
   }
 };
 
-onMounted(load);
+onMounted(() => {
+  targetRuntimePoller.start();
+  void load();
+});
 onBeforeUnmount(() => {
   discoveryAbortController?.abort();
-  stopTargetRuntimePolling();
+  targetRuntimePoller.stop();
 });
 </script>
 

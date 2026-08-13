@@ -7,7 +7,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   ExternalAuthProviderType,
   OIDCProviderCatalogItem,

@@ -19,6 +19,30 @@ fn gateway_memory_gc_percent_uses_safe_default_and_valid_range() {
 }
 
 #[test]
+fn gateway_memory_settings_default_to_auto_and_bound_the_limit() {
+    assert_eq!(
+        gateway_memory_settings(&json!({})),
+        GatewayMemorySettings {
+            gc_percent: DEFAULT_GATEWAY_GC_PERCENT,
+            memory_limit_mib: None,
+        }
+    );
+    assert_eq!(auto_gateway_memory_limit_mib(None), 256);
+    assert_eq!(auto_gateway_memory_limit_mib(Some(512 * MIB)), 128);
+    assert_eq!(auto_gateway_memory_limit_mib(Some(1024 * MIB)), 256);
+    assert_eq!(auto_gateway_memory_limit_mib(Some(16 * 1024 * MIB)), 512);
+    assert_eq!(
+        gateway_memory_settings(&json!({
+            "gateway_memory": { "gc_percent": 75, "memory_limit_mib": 384 }
+        })),
+        GatewayMemorySettings {
+            gc_percent: 75,
+            memory_limit_mib: Some(384),
+        }
+    );
+}
+
+#[test]
 fn visibility_selection_deduplication_includes_operator() {
     let selections = dedupe_visibility_selection_inputs(Some(&json!([
         { "province": "浙江", "query_city": "杭州", "operator": "移动" },

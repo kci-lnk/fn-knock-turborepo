@@ -1,9 +1,12 @@
 import { createI18n } from "vue-i18n";
 import {
   DEFAULT_LOCALE,
+  LOCALE_COOKIE_NAME,
+  LOCALE_STORAGE_KEY,
   type LocaleCode,
   type MessageParams,
   normalizeLocale,
+  resolveLocale,
 } from "./core";
 import {
   ensureScopedLocaleReady,
@@ -41,7 +44,29 @@ const getLocaleMessageTarget = (i18n: unknown): LocaleMessageTarget => {
   return maybeGlobal ?? (i18n as LocaleMessageTarget);
 };
 
-export const hasBrowserLocalePreference = (): boolean => false;
+const browserLocaleInputs = () => {
+  if (typeof document === "undefined") {
+    return { cookieHeader: null, storageLocale: null };
+  }
+  let storageLocale: string | null = null;
+  try {
+    storageLocale =
+      globalThis.localStorage?.getItem(LOCALE_STORAGE_KEY) ?? null;
+  } catch {
+    storageLocale = null;
+  }
+  return { cookieHeader: document.cookie, storageLocale };
+};
+
+export const hasBrowserLocalePreference = (): boolean => {
+  const { cookieHeader, storageLocale } = browserLocaleInputs();
+  return Boolean(
+    resolveLocale({ cookieHeader, storageLocale, defaultLocale: "" }) !==
+      DEFAULT_LOCALE ||
+    normalizeLocale(storageLocale) ||
+    String(cookieHeader ?? "").includes(`${LOCALE_COOKIE_NAME}=`),
+  );
+};
 
 export const applyDocumentLocale = (locale: LocaleCode) => {
   if (typeof document !== "undefined") {
@@ -51,10 +76,21 @@ export const applyDocumentLocale = (locale: LocaleCode) => {
 
 export const detectBrowserLocale = (
   defaultLocale: string | null | undefined = DEFAULT_LOCALE,
-): LocaleCode => normalizeLocale(defaultLocale) ?? DEFAULT_LOCALE;
+): LocaleCode => {
+  const { cookieHeader, storageLocale } = browserLocaleInputs();
+  return resolveLocale({ cookieHeader, storageLocale, defaultLocale });
+};
 
 export const persistBrowserLocale = (locale: LocaleCode) => {
   applyDocumentLocale(locale);
+  if (typeof document === "undefined") return;
+  document.cookie = `${LOCALE_COOKIE_NAME}=${encodeURIComponent(locale)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  try {
+    globalThis.localStorage?.setItem(LOCALE_STORAGE_KEY, locale);
+  } catch {
+    // Storage can be disabled in hardened or private browser contexts. The
+    // first-party cookie remains the cross-load preference.
+  }
 };
 
 export const createScopedFnKnockI18n = async (
@@ -68,7 +104,7 @@ export const createScopedFnKnockI18n = async (
   return createI18n({
     legacy: false,
     locale,
-    fallbackLocale: DEFAULT_LOCALE,
+    fallbackLocale: false,
     messages: toVueLocaleMessages(getScopedLocaleMessages(scope, locale)),
   });
 };
@@ -82,12 +118,8 @@ export const setFnKnockLocale = async (
   await ensureScopedLocaleReady(scope, locale);
 
   const target = getLocaleMessageTarget(i18n);
-  const defaultMessages = await loadScopedLocaleMessages(scope, DEFAULT_LOCALE);
-  target.setLocaleMessage(DEFAULT_LOCALE, toVueLocaleMessage(defaultMessages));
-  if (locale !== DEFAULT_LOCALE) {
-    const messages = await loadScopedLocaleMessages(scope, locale);
-    target.setLocaleMessage(locale, toVueLocaleMessage(messages));
-  }
+  const messages = await loadScopedLocaleMessages(scope, locale);
+  target.setLocaleMessage(locale, toVueLocaleMessage(messages));
 
   target.locale.value = locale;
   setActiveBrowserLocale(scope, locale);

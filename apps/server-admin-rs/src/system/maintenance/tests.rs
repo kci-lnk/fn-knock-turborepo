@@ -41,6 +41,7 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
             confirmation: "wrong phrase".to_string(),
         },
         || async { Ok(()) },
+        |_| async { Ok(()) },
     )
     .await;
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
@@ -56,12 +57,18 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     );
 
     let translator = Translator::from_state(&state).await;
+    let applied_memory = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let applied_memory_for_call = applied_memory.clone();
     let accepted = clear_all_data_with_gateway_reset(
         state.clone(),
         ClearAllDataBody {
             confirmation: maintenance_clear_text(&translator, "confirmPhrase"),
         },
         || async { Ok(()) },
+        move |settings| {
+            applied_memory_for_call.lock().unwrap().push(settings);
+            async { Ok(()) }
+        },
     )
     .await;
     assert_eq!(accepted.status(), StatusCode::OK);
@@ -78,6 +85,13 @@ async fn clear_all_data_requires_the_localized_confirmation_phrase() {
     assert_eq!(
         load_automatic_backup_config(&state).await.unwrap()["enabled"],
         json!(false)
+    );
+    assert_eq!(
+        *applied_memory.lock().unwrap(),
+        vec![gateway_settings::GatewayMemorySettings {
+            gc_percent: gateway_settings::DEFAULT_GATEWAY_GC_PERCENT,
+            memory_limit_mib: None,
+        }]
     );
 }
 
@@ -98,6 +112,7 @@ async fn clear_all_data_keeps_storage_when_gateway_reset_fails() {
             confirmation: maintenance_clear_text(&translator, "confirmPhrase"),
         },
         || async { anyhow::bail!("gateway reset failed") },
+        |_| async { panic!("memory settings must not be applied when gateway reset fails") },
     )
     .await;
 

@@ -4,7 +4,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   AuthLoginMode,
   AuthLoginModePreview,

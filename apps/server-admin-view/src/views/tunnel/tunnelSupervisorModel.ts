@@ -1,12 +1,6 @@
-import type {
-  TunnelSupervisorStatus,
-} from "@/lib/api";
+import { type TunnelSupervisorStatus } from "@/lib/api/tunnel";
 
-export type TunnelSupervisorTone =
-  | "success"
-  | "info"
-  | "warning"
-  | "muted";
+export type TunnelSupervisorTone = "success" | "info" | "warning" | "muted";
 
 export const supervisorTone = (
   supervisor: Pick<TunnelSupervisorStatus, "state">,

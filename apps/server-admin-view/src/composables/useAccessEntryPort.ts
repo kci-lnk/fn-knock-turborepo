@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { SystemAPI } from "@/lib/api";
+import { SystemAPI } from "@/lib/api/system";
 
 interface UseAccessEntryPortOptions {
   fallbackPort?: string;

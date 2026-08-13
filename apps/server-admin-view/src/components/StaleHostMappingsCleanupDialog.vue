@@ -315,10 +315,10 @@ import {
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { useStaleHostMappingsCleanup } from "../composables/useStaleHostMappingsCleanup";
-import type {
-  HostMappingProbeResult,
-  HostMappingProbeStatus,
-} from "../lib/api";
+import {
+  type HostMappingProbeResult,
+  type HostMappingProbeStatus,
+} from "@/lib/api/scan";
 import type { HostMapping } from "../types";
 
 const props = defineProps<{

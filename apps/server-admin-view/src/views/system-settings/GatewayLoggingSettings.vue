@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
-import { GatewayLogsAPI } from "../../lib/api";
+import { GatewayLogsAPI } from "@/lib/api/gateway";
 import { docsUrls } from "../../lib/docs";
 import type { GatewayLoggingConfig } from "../../types";
 import {

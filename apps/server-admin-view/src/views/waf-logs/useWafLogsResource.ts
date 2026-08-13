@@ -8,7 +8,8 @@ import {
 import { toast } from "@admin-shared/utils/toast";
 import { useCursorPagination } from "@/composables/useCursorPagination";
 import { useIpLocationBatch } from "@/composables/useIpLocationBatch";
-import { WAFAPI } from "@/lib/api";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
+import { WAFAPI } from "@/lib/api/gateway";
 import { useConfigStore } from "@/store/config";
 import type { WAFEvent } from "@/types";
 
@@ -49,7 +50,6 @@ export const useWafLogsResource = () => {
     reset: resetCursorPagination,
   } = useCursorPagination({ loading });
   const { trackIps, getSnapshot } = useIpLocationBatch();
-  let autoRefreshTimer: number | null = null;
 
   const isWAFEnabled = computed(
     () => configStore.config?.waf?.enabled ?? false,
@@ -84,10 +84,11 @@ export const useWafLogsResource = () => {
     }
   };
 
-  const drainEvents = async (silent = true) => {
+  const drainEvents = async (silent = true, signal?: AbortSignal) => {
     try {
-      await WAFAPI.drainEvents();
+      await WAFAPI.drainEvents(signal);
     } catch (error) {
+      if (signal?.aborted) return;
       if (!silent) {
         toast.error(t("admin.wafLogs.drainFailed"), {
           description: extractErrorMessage(
@@ -100,24 +101,32 @@ export const useWafLogsResource = () => {
   };
 
   const fetchEntries = async (
-    options: { silent?: boolean; drain?: boolean } = {},
+    options: { silent?: boolean; drain?: boolean; signal?: AbortSignal } = {},
   ) => {
     if (loading.value) return;
     loading.value = true;
     try {
-      if (options.drain) await drainEvents(options.silent !== false);
-      const data = await WAFAPI.getLogs({
-        date: selectedDate.value,
-        trace_id: traceFilter.value.trim() || undefined,
-        search: searchQuery.value.trim() || undefined,
-        cursor: currentCursor.value || undefined,
-        limit: limit.value,
-      });
+      if (options.drain) {
+        await drainEvents(options.silent !== false, options.signal);
+      }
+      if (options.signal?.aborted) return;
+      const data = await WAFAPI.getLogs(
+        {
+          date: selectedDate.value,
+          trace_id: traceFilter.value.trim() || undefined,
+          search: searchQuery.value.trim() || undefined,
+          cursor: currentCursor.value || undefined,
+          limit: limit.value,
+        },
+        options.signal,
+      );
+      if (options.signal?.aborted) return;
       entries.value = data.items || [];
       trackIps(entries.value.map(getWafEventSourceIp));
       nextCursor.value = data.next_cursor || "";
       applyDates(data.available_dates || [], data.date || selectedDate.value);
     } catch (error) {
+      if (options.signal?.aborted) return;
       trackIps([]);
       if (!options.silent) {
         entries.value = [];
@@ -187,20 +196,15 @@ export const useWafLogsResource = () => {
     });
   };
 
-  const stopAutoRefresh = () => {
-    if (autoRefreshTimer === null) return;
-    window.clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  };
-
-  const startAutoRefresh = () => {
-    stopAutoRefresh();
-    autoRefreshTimer = window.setInterval(() => {
+  const autoRefreshPoller = createVisibilityPoller({
+    intervalMs: AUTO_REFRESH_MS,
+    immediate: false,
+    task: async (signal) => {
       if (currentCursor.value || cursorHistory.value.length > 0) return;
       if (searchQuery.value.trim() || traceFilter.value.trim()) return;
-      void fetchEntries({ silent: true });
-    }, AUTO_REFRESH_MS);
-  };
+      await fetchEntries({ silent: true, signal });
+    },
+  });
 
   watch(
     () => route.query.trace_id,
@@ -216,9 +220,9 @@ export const useWafLogsResource = () => {
   onMounted(async () => {
     if (!configStore.config) await configStore.loadConfig();
     await fetchEntries({ drain: true });
-    startAutoRefresh();
+    autoRefreshPoller.start();
   });
-  onBeforeUnmount(stopAutoRefresh);
+  onBeforeUnmount(autoRefreshPoller.stop);
 
   return {
     availableDates,

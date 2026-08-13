@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import RefreshButton from "@/components/RefreshButton.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
-import { SystemAPI } from "../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import type { SmartConnectConfig, SmartConnectDetails } from "../../types";
 import {
   extractErrorMessage,
@@ -121,8 +121,8 @@ const { isPending: isStartingInstall, run: runStartInstall } = useAsyncAction({
 
 const { isInitializing, refresh: refreshDetails } =
   usePollingResourceStatus<SmartConnectDetails>({
-    fetcher: async () => {
-      const data = await SystemAPI.getSmartConnectDetails();
+    fetcher: async (signal) => {
+      const data = await SystemAPI.getSmartConnectDetails(signal);
       return data;
     },
     onData: (value) => {

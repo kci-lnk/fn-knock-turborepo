@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import type { DDNSNetworkInterfacePayload } from "@/lib/api";
+import { type DDNSNetworkInterfacePayload } from "@/lib/api/ddns";
 import type { DnsCredentialTransferSuggestion } from "@/lib/dns-credential-bridge";
 import type {
   DDNSAddressOption,

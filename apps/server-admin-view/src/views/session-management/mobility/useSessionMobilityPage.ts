@@ -1,7 +1,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import { SessionAPI } from "@/lib/api";
+import { SessionAPI } from "@/lib/api/sessions";
 import type { SessionMobilityDetails, SessionRecord } from "@/types";
 import {
   extractErrorMessage,
@@ -86,8 +86,7 @@ export const useSessionMobilityPage = () => {
   );
   const lastEvent = computed(
     () =>
-      chronologicalEntries.value[chronologicalEntries.value.length - 1] ??
-      null,
+      chronologicalEntries.value[chronologicalEntries.value.length - 1] ?? null,
   );
   const lastEventTimeLabel = computed(() => {
     if (!lastEvent.value) return t("admin.sessions.mobilityPage.noRecord");

@@ -1,14 +1,14 @@
-import type {
-  DDNSIpSource,
-  DDNSHttpTransport,
-  DDNSInterfaceSelector,
-  DDNSNetworkInterfacePayload,
-  DDNSProviderCapabilities,
-  DDNSPublicDnsProvider,
-  DDNSPublicCheckSourcesPayload,
-  DDNSTargetSummaryPayload,
-  DDNSUpdateScope,
-} from "@/lib/api";
+import {
+  type DDNSIpSource,
+  type DDNSHttpTransport,
+  type DDNSInterfaceSelector,
+  type DDNSNetworkInterfacePayload,
+  type DDNSProviderCapabilities,
+  type DDNSPublicDnsProvider,
+  type DDNSPublicCheckSourcesPayload,
+  type DDNSTargetSummaryPayload,
+  type DDNSUpdateScope,
+} from "@/lib/api/ddns";
 import {
   validateDDNSDomainTargets,
   type DDNSDomainTargetErrorCode,
@@ -19,7 +19,7 @@ export type {
   DDNSIpSource,
   DDNSPublicDnsProvider,
   DDNSUpdateScope,
-} from "@/lib/api";
+} from "@/lib/api/ddns";
 
 export interface ProviderField {
   key: string;
@@ -194,9 +194,8 @@ export const normalizeConfigBoolean = (
 ): "true" | "false" =>
   value?.trim().toLowerCase() === "true" ? "true" : "false";
 
-export const allowsPrivateAddresses = (
-  config: Record<string, string>,
-) => normalizeConfigBoolean(config[ALLOW_PRIVATE_ADDRESSES_KEY]) === "true";
+export const allowsPrivateAddresses = (config: Record<string, string>) =>
+  normalizeConfigBoolean(config[ALLOW_PRIVATE_ADDRESSES_KEY]) === "true";
 
 export const normalizeInterfaceAddressIndex = (
   value: string | null | undefined,
@@ -338,9 +337,7 @@ export const buildInterfaceSelectorFromLegacyIndex = (
   const candidates = buildInterfaceAddressCandidates(
     option,
     allowPrivateAddresses,
-  ).filter(
-    (item) => item.family === family,
-  );
+  ).filter((item) => item.family === family);
   const usable = candidates.filter(
     (item) => !item.tentative && !item.dadFailed && !item.deprecated,
   );

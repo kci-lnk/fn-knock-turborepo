@@ -12,12 +12,9 @@ import {
   TriangleAlert,
   Wifi,
 } from "lucide-vue-next";
-import type {
-  DashboardStats,
-  DDNSStatusPayload,
-  ThreatOverview,
-  TrafficStats,
-} from "@/lib/api";
+import { type DashboardStats, type TrafficStats } from "@/lib/api/dashboard";
+import { type DDNSStatusPayload } from "@/lib/api/ddns";
+import { type ThreatOverview } from "@/types";
 import type { TimeSeriesChartSeries } from "@/components/charts/TimeSeriesChart.vue";
 import { buildDDNSTimestampTooltipLines } from "@/lib/ddns-time";
 import { isCloudflaredTunnelAvailable } from "@/lib/reverse-proxy-submode";

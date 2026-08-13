@@ -1,13 +1,13 @@
-import type {
-  WOLDiscoveryPollEvent,
-  WOLDiscoveryProgress,
-  WOLDiscoveryResult,
-  WOLLocalRelay,
-  WOLLocalRelayInput,
-  WOLRelayInput,
-  WOLTarget,
-  WOLTargetInput,
-} from "@/lib/api";
+import {
+  type WOLDiscoveryPollEvent,
+  type WOLDiscoveryProgress,
+  type WOLDiscoveryResult,
+  type WOLLocalRelay,
+  type WOLLocalRelayInput,
+  type WOLRelayInput,
+  type WOLTarget,
+  type WOLTargetInput,
+} from "@/lib/api/wol";
 
 export const createWolRelayInput = (): WOLRelayInput => ({
   name: "",

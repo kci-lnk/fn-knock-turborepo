@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
-import { EventCenterAPI } from "../../../lib/api";
+import { EventCenterAPI } from "@/lib/api/events";
 import type {
   NotificationGroupBy,
   NotificationProviderDefinition,

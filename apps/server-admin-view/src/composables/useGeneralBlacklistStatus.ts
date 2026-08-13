@@ -2,7 +2,7 @@ import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import {
   GeneralBlacklistAPI,
   type GeneralBlacklistRecord,
-} from "../lib/api";
+} from "@/lib/api/security";
 import { normalizeIpKey } from "./useIpLocationBatch";
 
 type MaybeIpListRef = Ref<string[]> | ComputedRef<string[]>;
@@ -15,9 +15,7 @@ const normalizeTrackedIp = (ip?: string | null) => {
 const uniqueIps = (ips: string[]) =>
   Array.from(
     new Set(
-      ips
-        .map((ip) => normalizeTrackedIp(ip))
-        .filter((ip) => Boolean(ip)),
+      ips.map((ip) => normalizeTrackedIp(ip)).filter((ip) => Boolean(ip)),
     ),
   );
 

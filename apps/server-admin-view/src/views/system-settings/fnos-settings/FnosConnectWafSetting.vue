@@ -8,7 +8,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { SystemAPI } from "../../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import type { FnosConnectWafDetails } from "../../../types";
 
 const a11yId = useId();

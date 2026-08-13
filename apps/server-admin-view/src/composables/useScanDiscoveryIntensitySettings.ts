@@ -11,7 +11,7 @@ import {
   ScanAPI,
   type ScanDiscoverySettings,
   type ScanIntensityLevel,
-} from "@/lib/api";
+} from "@/lib/api/scan";
 
 type UseScanDiscoveryIntensitySettingsOptions = {
   disabled: MaybeRefOrGetter<boolean>;

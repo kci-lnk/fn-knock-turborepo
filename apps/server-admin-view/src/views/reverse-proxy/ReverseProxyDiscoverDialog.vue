@@ -22,7 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { DiscoveredServiceInfo, ScanDiscoverResponse } from "@/lib/api";
+import {
+  type DiscoveredServiceInfo,
+  type ScanDiscoverResponse,
+} from "@/lib/api/scan";
 
 const props = defineProps<{
   discoveredData: ScanDiscoverResponse | null;

@@ -1,10 +1,10 @@
 import { computed, nextTick, ref, type ComputedRef, type Ref } from "vue";
-import { ScanAPI } from "@/lib/api";
-import type {
-  DiscoveredServiceInfo,
-  ScanDiscoverPollEvent,
-  ScanDiscoverResponse,
-} from "@/lib/api";
+import { ScanAPI } from "@/lib/api/scan";
+import {
+  type DiscoveredServiceInfo,
+  type ScanDiscoverPollEvent,
+  type ScanDiscoverResponse,
+} from "@/lib/api/scan";
 import type { ProxyMapping } from "@/types";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";

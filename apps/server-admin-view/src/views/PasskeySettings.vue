@@ -242,7 +242,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { PasskeyCredential } from "../types";
 import OidcInviteDialog from "./passkey-settings/OidcInviteDialog.vue";
 import { useOidcBindingWorkflow } from "./passkey-settings/useOidcBindingWorkflow";

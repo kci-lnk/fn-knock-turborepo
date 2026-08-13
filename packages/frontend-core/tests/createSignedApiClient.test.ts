@@ -7,11 +7,11 @@ import CryptoJS from "crypto-js";
 import { buildRequestSignature } from "../src/api/createSignedApiClient";
 
 describe("signed API requests", () => {
-  it("binds the method, normalized URI and body digest", () => {
+  it("binds the method, normalized URI and body digest", async () => {
     const originalNow = Date.now;
     Date.now = () => 1_700_000_000_000;
     try {
-      const signed = buildRequestSignature(
+      const signed = await buildRequestSignature(
         "server-only-secret",
         "post",
         "https://auth.example.com/api/auth/wol/targets/device-1/wake?audit=1",
@@ -38,29 +38,35 @@ describe("signed API requests", () => {
 
       assert.notEqual(
         signed.signature,
-        buildRequestSignature(
-          "server-only-secret",
-          "get",
-          "https://auth.example.com/api/auth/wol/targets/device-1/wake?audit=1",
-          '{"target":"device-1"}',
+        (
+          await buildRequestSignature(
+            "server-only-secret",
+            "get",
+            "https://auth.example.com/api/auth/wol/targets/device-1/wake?audit=1",
+            '{"target":"device-1"}',
+          )
         ).signature,
       );
       assert.notEqual(
         signed.signature,
-        buildRequestSignature(
-          "server-only-secret",
-          "post",
-          "https://auth.example.com/api/auth/wol/targets/device-2/wake?audit=1",
-          '{"target":"device-1"}',
+        (
+          await buildRequestSignature(
+            "server-only-secret",
+            "post",
+            "https://auth.example.com/api/auth/wol/targets/device-2/wake?audit=1",
+            '{"target":"device-1"}',
+          )
         ).signature,
       );
       assert.notEqual(
         signed.signature,
-        buildRequestSignature(
-          "server-only-secret",
-          "post",
-          "https://auth.example.com/api/auth/wol/targets/device-1/wake?audit=1",
-          '{"target":"device-2"}',
+        (
+          await buildRequestSignature(
+            "server-only-secret",
+            "post",
+            "https://auth.example.com/api/auth/wol/targets/device-1/wake?audit=1",
+            '{"target":"device-2"}',
+          )
         ).signature,
       );
     } finally {

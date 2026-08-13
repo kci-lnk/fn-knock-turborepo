@@ -1,4 +1,12 @@
-import { computed, ref, toValue, type MaybeRefOrGetter } from "vue";
+import {
+  computed,
+  getCurrentScope,
+  onScopeDispose,
+  ref,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+} from "vue";
 
 import type {
   CaptchaPublicSettings,
@@ -21,7 +29,7 @@ interface UseLoginCaptchaOptions {
   translate: (key: string) => string;
   onError: (message: string) => void;
   onVerified?: () => void;
-  resolvePowSubmission?: () => Promise<CaptchaSubmission>;
+  resolvePowSubmission?: (signal?: AbortSignal) => Promise<CaptchaSubmission>;
 }
 
 type PowStateChangeEvent = CustomEvent<{
@@ -29,10 +37,15 @@ type PowStateChangeEvent = CustomEvent<{
   payload?: string;
 }>;
 
-const resolveDefaultPowSubmission = async (): Promise<CaptchaSubmission> => {
+const resolveDefaultPowSubmission = async (
+  signal?: AbortSignal,
+): Promise<CaptchaSubmission> => {
   const { CaptchaAPI } = await import("@/lib/api");
-  const challenge = normalizePowChallenge(await CaptchaAPI.getPowChallenge());
-  const number = await solvePowChallenge(challenge);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  const challenge = normalizePowChallenge(
+    await CaptchaAPI.getPowChallenge(signal),
+  );
+  const number = await solvePowChallenge(challenge, signal);
   return buildPowSubmission(challenge, number);
 };
 
@@ -44,6 +57,7 @@ export const useLoginCaptcha = (options: UseLoginCaptchaOptions) => {
   const captchaSubmission = ref<CaptchaSubmission | null>(null);
   const isPowFallbackLoading = ref(false);
   const isCaptchaConfigLoading = ref(true);
+  let powFallbackController: AbortController | null = null;
 
   const activeCaptchaProvider = computed(
     () => captchaConfig.value?.provider ?? null,
@@ -75,6 +89,9 @@ export const useLoginCaptcha = (options: UseLoginCaptchaOptions) => {
   };
 
   const resetCaptchaWidgets = () => {
+    powFallbackController?.abort();
+    powFallbackController = null;
+    isPowFallbackLoading.value = false;
     resetCaptcha();
     if (
       activeCaptchaProvider.value === "pow" &&
@@ -111,12 +128,16 @@ export const useLoginCaptcha = (options: UseLoginCaptchaOptions) => {
 
   const handlePowFallbackVerify = async () => {
     if (isPowFallbackLoading.value) return;
+    const controller = new AbortController();
+    powFallbackController = controller;
     isPowFallbackLoading.value = true;
     try {
       const resolveSubmission =
         options.resolvePowSubmission ?? resolveDefaultPowSubmission;
-      setVerifiedSubmission(await resolveSubmission());
+      const submission = await resolveSubmission(controller.signal);
+      if (!controller.signal.aborted) setVerifiedSubmission(submission);
     } catch (error) {
+      if (controller.signal.aborted) return;
       resetCaptcha();
       options.onError(
         error instanceof CaptchaError
@@ -124,9 +145,22 @@ export const useLoginCaptcha = (options: UseLoginCaptchaOptions) => {
           : extractErrorMessage(error, options.translate("auth.captchaFailed")),
       );
     } finally {
-      isPowFallbackLoading.value = false;
+      if (powFallbackController === controller) {
+        powFallbackController = null;
+        isPowFallbackLoading.value = false;
+      }
     }
   };
+
+  watch(activeCaptchaProvider, () => {
+    powFallbackController?.abort();
+    powFallbackController = null;
+    isPowFallbackLoading.value = false;
+    resetCaptcha();
+  });
+  if (getCurrentScope()) {
+    onScopeDispose(() => powFallbackController?.abort());
+  }
 
   const handleTurnstileVerified = (token: string) => {
     setVerifiedSubmission({ provider: "turnstile", token });

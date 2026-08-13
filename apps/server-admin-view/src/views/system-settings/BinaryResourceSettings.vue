@@ -27,7 +27,9 @@ const props = withDefaults(
     allowManagePlatforms?: string[];
     cancelDownload: () => Promise<ResourceApiResponse>;
     deleteResource: () => Promise<ResourceApiResponse>;
-    fetchStatus: () => Promise<ResourceApiResponse<ResourceStatusPayload>>;
+    fetchStatus: (
+      signal?: AbortSignal,
+    ) => Promise<ResourceApiResponse<ResourceStatusPayload>>;
     messageKeyPrefix: string;
     startDownload: () => Promise<ResourceApiResponse>;
   }>(),

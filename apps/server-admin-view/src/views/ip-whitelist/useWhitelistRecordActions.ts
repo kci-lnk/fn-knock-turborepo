@@ -4,7 +4,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { WhitelistAPI, type WhiteListRecord } from "../../lib/api";
+import { WhitelistAPI, type WhiteListRecord } from "@/lib/api/whitelist";
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
@@ -73,7 +73,9 @@ export function useWhitelistRecordActions({
       async () => {
         const response = await WhitelistAPI.deleteRegion(id);
         if (response.success) {
-          toast.success(translate("admin.ipWhitelist.regionGroupDeleteSuccess"));
+          toast.success(
+            translate("admin.ipWhitelist.regionGroupDeleteSuccess"),
+          );
           await fetchRecords();
         } else {
           toast.error(translate("admin.ipWhitelist.regionGroupDeleteFailed"), {

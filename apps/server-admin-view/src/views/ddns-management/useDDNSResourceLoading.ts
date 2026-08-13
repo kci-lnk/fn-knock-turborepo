@@ -9,7 +9,7 @@ import {
   DDNSAPI,
   type DDNSNetworkInterfacePayload,
   type DDNSStatusPayload,
-} from "@/lib/api";
+} from "@/lib/api/ddns";
 import {
   extractCommonTargetConfig,
   type Provider,

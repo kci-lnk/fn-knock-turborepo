@@ -21,7 +21,11 @@ pub(crate) fn trim_allocated_memory() -> bool {
 
 pub(crate) async fn trim_allocated_memory_after(delay: Duration) {
     tokio::time::sleep(delay).await;
+    let started = std::time::Instant::now();
     if trim_allocated_memory() {
-        tracing::debug!("trimmed allocator memory after startup");
+        tracing::info!(
+            elapsed_ms = started.elapsed().as_millis(),
+            "trimmed allocator memory after startup synchronization"
+        );
     }
 }

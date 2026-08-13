@@ -1,5 +1,5 @@
 import { computed, onUnmounted, ref, watch, type Ref } from "vue";
-import type { HostMappingBasicAuthProbeResult } from "@/lib/api";
+import { type HostMappingBasicAuthProbeResult } from "@/lib/api/config";
 import { normalizeBasicAuthProbeTarget } from "./model";
 
 export const useBasicAuthProbe = ({

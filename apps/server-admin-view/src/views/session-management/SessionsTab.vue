@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
 import type { SessionRecord } from "../../types";
-import { SessionAPI } from "../../lib/api";
+import { SessionAPI } from "@/lib/api/sessions";
 import { Eye, GitBranch, Trash2 } from "lucide-vue-next";
 import RefreshButton from "@/components/RefreshButton.vue";
 import {

@@ -5,7 +5,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { AuthAccount, TOTPCredential } from "../../types";
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
@@ -59,8 +59,13 @@ export function useTotpSetupWorkflow({
     },
   });
 
-  const setupSecretDisplay = computed(() =>
-    setupData.value?.secret.replace(/\s+/g, "").toUpperCase().match(/.{1,4}/g)?.join(" ") || "",
+  const setupSecretDisplay = computed(
+    () =>
+      setupData.value?.secret
+        .replace(/\s+/g, "")
+        .toUpperCase()
+        .match(/.{1,4}/g)
+        ?.join(" ") || "",
   );
   const setupDialogTitle = computed(() =>
     bindingTotpAccount.value

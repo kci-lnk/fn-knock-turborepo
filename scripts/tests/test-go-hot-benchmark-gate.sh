@@ -35,7 +35,7 @@ assert_contains "${WORKFLOW}" 'github.event.pull_request.base.sha' 'PR baseline 
 assert_contains "${WORKFLOW}" 'git worktree add --detach' 'isolated baseline worktree'
 assert_contains "${WORKFLOW}" '-count=5' 'multiple benchmark samples'
 assert_contains "${WORKFLOW}" '-benchmem' 'allocation benchmark metrics'
-assert_contains "${WORKFLOW}" '--max-latency-regression 0.20' 'latency tolerance'
+assert_contains "${WORKFLOW}" '--max-latency-regression 0.05' 'latency tolerance'
 assert_contains "${WORKFLOW}" '--max-bytes-regression 0.05' 'memory tolerance'
 assert_contains "${WORKFLOW}" '--max-allocs-regression 0.05' 'allocation tolerance'
 assert_contains "${WORKFLOW}" '--max-allocs-absolute-regression 1' 'allocation rounding tolerance'

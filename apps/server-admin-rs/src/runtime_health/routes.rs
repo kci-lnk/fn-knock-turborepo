@@ -20,7 +20,8 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 use crate::gateway_settings::{
-    MAX_GATEWAY_GC_PERCENT, MIN_GATEWAY_GC_PERCENT, gateway_memory_gc_percent,
+    GatewayMemorySettings, gateway_memory_settings, resolve_gateway_memory_limit_bytes,
+    validate_gateway_memory_settings,
 };
 use crate::{app_version::APP_LOCAL_VERSION, response, state::AppState, time_utils};
 
@@ -36,10 +37,50 @@ struct RuntimeLogQuery {
     limit: Option<usize>,
 }
 
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[allow(dead_code)]
 struct GatewayMemoryConfigBody {
-    #[schema(minimum = 25, maximum = 500)]
-    gc_percent: i32,
+    #[schema(required = false, minimum = 25, maximum = 500)]
+    gc_percent: Option<i32>,
+    #[schema(required = false, minimum = 64, maximum = 4096)]
+    memory_limit_mib: Option<u64>,
+}
+
+fn gateway_memory_config_value(settings: GatewayMemorySettings) -> Value {
+    json!({
+        "gc_percent": settings.gc_percent,
+        "memory_limit_mib": settings.memory_limit_mib,
+        "effective_memory_limit_bytes": resolve_gateway_memory_limit_bytes(settings),
+    })
+}
+
+fn parse_gateway_memory_patch(
+    value: &Value,
+    previous: GatewayMemorySettings,
+) -> Result<GatewayMemorySettings, &'static str> {
+    let object = value
+        .as_object()
+        .ok_or("Gateway memory configuration must be an object")?;
+    let gc_percent = match object.get("gc_percent") {
+        None => previous.gc_percent,
+        Some(value) => value
+            .as_i64()
+            .and_then(|value| i32::try_from(value).ok())
+            .ok_or("gc_percent must be an integer")?,
+    };
+    let memory_limit_mib = match object.get("memory_limit_mib") {
+        None => previous.memory_limit_mib,
+        Some(Value::Null) => None,
+        Some(value) => Some(
+            value
+                .as_u64()
+                .ok_or("memory_limit_mib must be null or a positive integer")?,
+        ),
+    };
+    Ok(GatewayMemorySettings {
+        gc_percent,
+        memory_limit_mib,
+    })
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -76,9 +117,9 @@ async fn runtime_health(State(state): State<AppState>) -> Response {
 async fn gateway_memory_config(State(state): State<AppState>) -> Response {
     let _read_guard = state.gateway.memory_update_lock.lock().await;
     match state.storage.store.get_config().await {
-        Ok(config) => response::ok(json!({
-            "gc_percent": gateway_memory_gc_percent(&config),
-        }))
+        Ok(config) => response::ok(gateway_memory_config_value(gateway_memory_settings(
+            &config,
+        )))
         .into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to load gateway memory config");
@@ -100,19 +141,11 @@ async fn gateway_memory_config(State(state): State<AppState>) -> Response {
 )]
 async fn update_gateway_memory_config(
     State(state): State<AppState>,
-    Json(body): Json<GatewayMemoryConfigBody>,
+    Json(body): Json<Value>,
 ) -> Response {
-    if !(MIN_GATEWAY_GC_PERCENT..=MAX_GATEWAY_GC_PERCENT).contains(&body.gc_percent) {
-        return response::error(
-            StatusCode::BAD_REQUEST,
-            format!(
-                "GC percent must be between {MIN_GATEWAY_GC_PERCENT} and {MAX_GATEWAY_GC_PERCENT}"
-            ),
-        );
-    }
     let _update_guard = state.gateway.memory_update_lock.lock().await;
     let previous = match state.storage.store.get_config().await {
-        Ok(config) => gateway_memory_gc_percent(&config),
+        Ok(config) => gateway_memory_settings(&config),
         Err(error) => {
             tracing::warn!(%error, "failed to load gateway memory config before update");
             return response::error(
@@ -121,26 +154,45 @@ async fn update_gateway_memory_config(
             );
         }
     };
+    let requested = match parse_gateway_memory_patch(&body, previous) {
+        Ok(settings) => settings,
+        Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
+    };
+    if let Err(error) = validate_gateway_memory_settings(requested) {
+        return response::error(StatusCode::BAD_REQUEST, error.to_string());
+    }
+    let requested_memory_limit_bytes = resolve_gateway_memory_limit_bytes(requested);
+    let previous_memory_limit_bytes = resolve_gateway_memory_limit_bytes(previous);
     match state
         .gateway
         .client
-        .set_gateway_memory_config(body.gc_percent)
+        .set_gateway_memory_config(
+            requested.gc_percent,
+            i64::try_from(requested_memory_limit_bytes).unwrap_or(i64::MAX),
+        )
         .await
     {
-        Ok(applied) if applied == body.gc_percent => {}
-        Ok(applied) => {
+        Ok((applied_gc, applied_limit))
+            if applied_gc == requested.gc_percent
+                && u64::try_from(applied_limit).ok() == Some(requested_memory_limit_bytes) => {}
+        Ok((applied_gc, applied_limit)) => {
             tracing::warn!(
-                expected = body.gc_percent,
-                applied,
-                "gateway returned unexpected GC percent"
+                expected_gc = requested.gc_percent,
+                applied_gc,
+                expected_limit = requested_memory_limit_bytes,
+                applied_limit,
+                "gateway returned unexpected memory configuration"
             );
             if let Err(rollback_error) = state
                 .gateway
                 .client
-                .set_gateway_memory_config(previous)
+                .set_gateway_memory_config(
+                    previous.gc_percent,
+                    i64::try_from(previous_memory_limit_bytes).unwrap_or(i64::MAX),
+                )
                 .await
             {
-                tracing::warn!(%rollback_error, previous, "failed to rollback unexpected gateway memory runtime");
+                tracing::warn!(%rollback_error, "failed to rollback unexpected gateway memory runtime");
             }
             return response::error(
                 StatusCode::BAD_GATEWAY,
@@ -149,6 +201,20 @@ async fn update_gateway_memory_config(
         }
         Err(error) => {
             tracing::warn!(%error, "failed to apply gateway memory config");
+            // The RPC may have reached Go even when its response was lost. A
+            // best-effort replay of the previous pair prevents GOGC and the
+            // soft memory limit from being left at an indeterminate setting.
+            if let Err(rollback_error) = state
+                .gateway
+                .client
+                .set_gateway_memory_config(
+                    previous.gc_percent,
+                    i64::try_from(previous_memory_limit_bytes).unwrap_or(i64::MAX),
+                )
+                .await
+            {
+                tracing::warn!(%rollback_error, "failed to rollback errored gateway memory RPC");
+            }
             return response::error(
                 StatusCode::BAD_GATEWAY,
                 "Failed to apply Go gateway memory configuration",
@@ -158,24 +224,33 @@ async fn update_gateway_memory_config(
     if let Err(error) = state
         .storage
         .store
-        .set_config_top_level_value("gateway_memory", json!({ "gc_percent": body.gc_percent }))
+        .set_config_top_level_value(
+            "gateway_memory",
+            json!({
+                "gc_percent": requested.gc_percent,
+                "memory_limit_mib": requested.memory_limit_mib,
+            }),
+        )
         .await
     {
         tracing::warn!(%error, "failed to persist gateway memory config");
         if let Err(rollback_error) = state
             .gateway
             .client
-            .set_gateway_memory_config(previous)
+            .set_gateway_memory_config(
+                previous.gc_percent,
+                i64::try_from(previous_memory_limit_bytes).unwrap_or(i64::MAX),
+            )
             .await
         {
-            tracing::warn!(%rollback_error, previous, "failed to rollback gateway memory runtime");
+            tracing::warn!(%rollback_error, "failed to rollback gateway memory runtime");
         }
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             "Failed to save gateway memory configuration",
         );
     }
-    response::ok(json!({ "gc_percent": body.gc_percent })).into_response()
+    response::ok(gateway_memory_config_value(requested)).into_response()
 }
 
 #[utoipa::path(
@@ -730,6 +805,39 @@ fn absolute_path_regex() -> &'static Regex {
 mod tests {
     use super::*;
     use std::io::Read;
+
+    #[test]
+    fn gateway_memory_patch_distinguishes_omitted_null_and_manual_limits() {
+        let previous = GatewayMemorySettings {
+            gc_percent: 75,
+            memory_limit_mib: Some(256),
+        };
+        assert_eq!(
+            parse_gateway_memory_patch(&json!({ "gc_percent": 100 }), previous).unwrap(),
+            GatewayMemorySettings {
+                gc_percent: 100,
+                memory_limit_mib: Some(256),
+            }
+        );
+        assert_eq!(
+            parse_gateway_memory_patch(&json!({ "memory_limit_mib": null }), previous).unwrap(),
+            GatewayMemorySettings {
+                gc_percent: 75,
+                memory_limit_mib: None,
+            }
+        );
+        assert_eq!(
+            parse_gateway_memory_patch(&json!({ "memory_limit_mib": 512 }), previous).unwrap(),
+            GatewayMemorySettings {
+                gc_percent: 75,
+                memory_limit_mib: Some(512),
+            }
+        );
+        assert!(parse_gateway_memory_patch(&json!([]), previous).is_err());
+        assert!(
+            parse_gateway_memory_patch(&json!({ "memory_limit_mib": "512" }), previous).is_err()
+        );
+    }
 
     async fn diagnostics_test_state() -> (tempfile::TempDir, AppState) {
         let directory = tempfile::tempdir().unwrap();

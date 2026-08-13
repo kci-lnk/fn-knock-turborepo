@@ -5718,6 +5718,15 @@ export const enAdmin = {
         placeholder: "Select collection intensity",
         customDescription: "Uses a custom collection intensity.",
         rangeError: "Enter an integer from 25 to 500.",
+        limitTitle: "Go runtime memory limit",
+        limitDescription:
+          "Limits memory managed by the Go runtime. This is a soft limit, not a process RSS limit.",
+        auto: "Auto (recommended)",
+        manual: "Manual",
+        manualHint:
+          "A manual limit cannot exceed 50% of effective device memory.",
+        manualRangeError: "Enter an integer from 64 to 4096.",
+        effectiveLimit: "Current effective limit: {limit}",
         retry: "Retry",
         hint: "A lower GOGC collects more often and usually uses less memory, at the cost of more CPU. An immediate reclaim may cause a brief pause.",
         levels: {

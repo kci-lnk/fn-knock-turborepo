@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@admin-shared/utils/toast";
-import { BackoffAPI, type BackoffItem } from "../../lib/api";
+import { BackoffAPI, type BackoffItem } from "@/lib/api/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import {
   extractErrorMessage,

@@ -16,8 +16,8 @@ import type {
 import {
   ConfigAPI,
   STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE,
-  SystemAPI,
-} from "../lib/api";
+} from "@/lib/api/config";
+import { SystemAPI } from "@/lib/api/system";
 import { createSerialTaskQueue } from "../lib/serialTaskQueue";
 import {
   getEffectiveRuntimeCapabilities,

@@ -1,8 +1,8 @@
-import type {
-  FrpcInstanceStatus,
-  FrpcInstanceSummary,
-  FrpcInstancesOverview,
-} from "@/lib/api";
+import {
+  type FrpcInstanceStatus,
+  type FrpcInstanceSummary,
+  type FrpcInstancesOverview,
+} from "@/lib/api/tunnel";
 import { extractVisualFieldsFromToml } from "../../../lib/frpc-config-editor";
 
 export const summarizeFrpcContent = (
@@ -38,9 +38,7 @@ export const replaceFrpcOverviewItem = (
   runningCount: overview.items.reduce(
     (count, current) =>
       count +
-      (current.id === item.id
-        ? Number(item.running)
-        : Number(current.running)),
+      (current.id === item.id ? Number(item.running) : Number(current.running)),
     0,
   ),
 });

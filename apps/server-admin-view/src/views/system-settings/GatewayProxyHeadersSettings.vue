@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import GatewayHostToggleSettings from "./GatewayHostToggleSettings.vue";
 </script>
 

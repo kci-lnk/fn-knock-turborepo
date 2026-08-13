@@ -31,6 +31,7 @@ struct ApiErrorEnvelope {
 struct ContractSchemas;
 
 const OPENAPI_DOCS_INDEX: &str = include_str!("openapi_docs/index.html");
+const OPENAPI_DOCUMENT: &[u8] = include_bytes!("../../../../packages/api-contract/openapi.json");
 const SWAGGER_UI_STYLESHEET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/swagger-ui.css"));
 const SWAGGER_UI_INDEX_STYLESHEET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/index.css"));
 const SWAGGER_UI_BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/swagger-ui-bundle.js"));
@@ -40,10 +41,7 @@ const SWAGGER_UI_FAVICON_16: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/f
 const SWAGGER_UI_FAVICON_32: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/favicon-32x32.png"));
 
 pub fn openapi_docs_routes() -> Router<AppState> {
-    let document = Bytes::from(
-        serde_json::to_vec(&build_openapi_document())
-            .expect("generated OpenAPI document must serialize"),
-    );
+    let document = Bytes::from_static(OPENAPI_DOCUMENT);
 
     Router::new()
         .route("/docs", get(openapi_docs_index))
@@ -4279,6 +4277,13 @@ mod tests {
 
     fn document_value() -> Value {
         build_openapi_document()
+    }
+
+    #[test]
+    fn embedded_openapi_matches_exported_contract_byte_for_byte() {
+        let mut generated = serde_json::to_string_pretty(&document_value()).unwrap();
+        generated.push('\n');
+        assert_eq!(OPENAPI_DOCUMENT, generated.as_bytes());
     }
 
     #[test]

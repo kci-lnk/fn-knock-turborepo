@@ -8,7 +8,7 @@ const parseArguments = (args) => {
     const value = args[index + 1];
     if (!key?.startsWith("--") || value === undefined) {
       throw new Error(
-        "usage: check-runtime-performance.mjs --base result.json --current result.json [--max-readiness-regression fraction] [--max-rss-regression fraction]",
+        "usage: check-runtime-performance.mjs --base result.json --current result.json [--max-readiness-regression fraction] [--max-rss-regression fraction] [--max-throughput-regression fraction] [--min-load-rss-improvement fraction]",
       );
     }
     values.set(key, value);
@@ -29,7 +29,7 @@ const parseTolerance = (raw, label, fallback) => {
 
 const readResult = async (path) => {
   const value = JSON.parse(await readFile(path, "utf8"));
-  if (value?.schema_version !== 1 || !value.summary) {
+  if (![1, 2].includes(value?.schema_version) || !value.summary) {
     throw new Error(`${path} is not a runtime performance result`);
   }
   return value.summary;
@@ -46,6 +46,16 @@ const tolerances = {
     args.get("--max-rss-regression"),
     "--max-rss-regression",
     0.05,
+  ),
+  throughput: parseTolerance(
+    args.get("--max-throughput-regression"),
+    "--max-throughput-regression",
+    0.05,
+  ),
+  loadRssImprovement: parseTolerance(
+    args.get("--min-load-rss-improvement"),
+    "--min-load-rss-improvement",
+    0.2,
   ),
 };
 const [base, current] = await Promise.all([

@@ -11,7 +11,7 @@ import {
   type DDNSPublicCheckSourcesPayload,
   type DDNSPublicCheckTestResultPayload,
   type DDNSPublicDnsProvider,
-} from "@/lib/api";
+} from "@/lib/api/ddns";
 import {
   DEFAULT_DDNS_HTTP_TRANSPORT,
   DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,

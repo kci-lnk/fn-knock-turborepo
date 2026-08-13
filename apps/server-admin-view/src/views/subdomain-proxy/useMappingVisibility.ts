@@ -1,7 +1,7 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { GatewayVisibilitySelection, HostMapping } from "@/types";
 import type { TranslationParams } from "./model";
 
@@ -9,9 +9,7 @@ export type MappingDialogView = "basic" | "icon" | "visibility";
 export type MappingDialogMotionDirection = "forward" | "back";
 
 export type MappingVisibilityValidationIssue =
-  | { kind: "invalid_cidrs"; invalid: string[] }
-  | { kind: "empty" }
-  | null;
+  { kind: "invalid_cidrs"; invalid: string[] } | { kind: "empty" } | null;
 
 export const shouldBlockMappingSaveForVisibility = ({
   isAuthService,

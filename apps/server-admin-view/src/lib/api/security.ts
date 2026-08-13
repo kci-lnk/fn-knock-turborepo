@@ -49,8 +49,7 @@ export type GeneralBlacklistSource =
   SecuritySchemas["GeneralBlacklistRecordData"]["source"];
 export type GeneralBlacklistRecord =
   SecuritySchemas["GeneralBlacklistRecordData"];
-export type GeneralBlacklistList =
-  SecuritySchemas["GeneralBlacklistListData"];
+export type GeneralBlacklistList = SecuritySchemas["GeneralBlacklistListData"];
 export type GeneralBlacklistMutationResult =
   SecuritySchemas["GeneralBlacklistMutationData"];
 export type GeneralBlacklistStatus =
@@ -70,10 +69,14 @@ type GeneralBlacklistQuery = NonNullable<
 >;
 
 export const SecurityAPI = {
-  async getOverview(rangeSec: number): Promise<ThreatOverview> {
+  async getOverview(
+    rangeSec: number,
+    signal?: AbortSignal,
+  ): Promise<ThreatOverview> {
     const params = { rangeSec } satisfies SecurityOverviewQuery;
     const res = await apiClient.get("/security/overview", {
       params,
+      signal,
     });
     return res.data.data;
   },
@@ -176,15 +179,15 @@ export const SSHSecurityAPI = {
     const res = await apiClient.post("/ssh-security/firewall/clear");
     return res.data.data;
   },
-  async getLoginLogs(params: SshLoginLogsParams): Promise<SSHLoginLogListPayload> {
+  async getLoginLogs(
+    params: SshLoginLogsParams,
+  ): Promise<SSHLoginLogListPayload> {
     const query = {
       page: params.page,
       limit: params.limit,
       search: params.search || undefined,
       outcome:
-        params.outcome && params.outcome !== "all"
-          ? params.outcome
-          : undefined,
+        params.outcome && params.outcome !== "all" ? params.outcome : undefined,
     } satisfies SshLoginLogsQuery;
     const res = await apiClient.get("/ssh-security/login-logs", {
       params: query,

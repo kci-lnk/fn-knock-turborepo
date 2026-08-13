@@ -14,6 +14,151 @@ pub(crate) fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
     (read_kib("MemTotal:"), read_kib("MemAvailable:"))
 }
 
+pub(crate) fn effective_memory_bytes() -> (Option<u64>, Option<u64>) {
+    let (host_total, host_available) = host_memory_bytes();
+    #[cfg(target_os = "linux")]
+    {
+        if let Some((limit, cgroup_available)) = linux_cgroup_memory_bytes() {
+            return (
+                Some(host_total.map_or(limit, |value| value.min(limit))),
+                Some(host_available.map_or(cgroup_available, |value| value.min(cgroup_available))),
+            );
+        }
+    }
+    (host_total, host_available)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_cgroup_memory_bytes() -> Option<(u64, u64)> {
+    let cgroup = std::fs::read_to_string("/proc/self/cgroup").ok()?;
+    let mountinfo = std::fs::read_to_string("/proc/self/mountinfo").ok()?;
+    for layout in cgroup_memory_layouts(&cgroup, &mountinfo) {
+        if let Some(sample) = read_cgroup_memory_layout(&layout) {
+            return Some(sample);
+        }
+    }
+    None
+}
+
+#[cfg(any(target_os = "linux", test))]
+#[derive(Debug, PartialEq, Eq)]
+struct CgroupMemoryLayout {
+    mount_point: std::path::PathBuf,
+    leaf: std::path::PathBuf,
+    limit_file: &'static str,
+    usage_file: &'static str,
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn cgroup_memory_layouts(cgroup: &str, mountinfo: &str) -> Vec<CgroupMemoryLayout> {
+    let groups = cgroup.lines().filter_map(|line| {
+        let mut fields = line.splitn(3, ':');
+        let _hierarchy = fields.next()?;
+        let controllers = fields.next()?;
+        let path = fields.next()?;
+        Some((controllers, std::path::PathBuf::from(path)))
+    });
+    let groups = groups.collect::<Vec<_>>();
+    let mut layouts = Vec::new();
+    for line in mountinfo.lines() {
+        let Some((mount_fields, fs_fields)) = line.split_once(" - ") else {
+            continue;
+        };
+        let mount_fields = mount_fields.split_whitespace().collect::<Vec<_>>();
+        let fs_fields = fs_fields.split_whitespace().collect::<Vec<_>>();
+        if mount_fields.len() < 5 || fs_fields.len() < 3 {
+            continue;
+        }
+        let fs_type = fs_fields[0];
+        let is_v2 = fs_type == "cgroup2";
+        let is_v1_memory = fs_type == "cgroup"
+            && fs_fields[2]
+                .split(',')
+                .any(|controller| controller == "memory");
+        if !is_v2 && !is_v1_memory {
+            continue;
+        }
+        let group_path = groups.iter().find_map(|(controllers, path)| {
+            if (is_v2 && controllers.is_empty())
+                || (is_v1_memory
+                    && controllers
+                        .split(',')
+                        .any(|controller| controller == "memory"))
+            {
+                Some(path)
+            } else {
+                None
+            }
+        });
+        let Some(group_path) = group_path else {
+            continue;
+        };
+        let mount_root = std::path::Path::new(mount_fields[3]);
+        let mount_point = std::path::PathBuf::from(mount_fields[4]);
+        let relative = group_path
+            .strip_prefix(mount_root)
+            .unwrap_or_else(|_| group_path.strip_prefix("/").unwrap_or(group_path));
+        layouts.push(CgroupMemoryLayout {
+            leaf: mount_point.join(relative),
+            mount_point,
+            limit_file: if is_v2 {
+                "memory.max"
+            } else {
+                "memory.limit_in_bytes"
+            },
+            usage_file: if is_v2 {
+                "memory.current"
+            } else {
+                "memory.usage_in_bytes"
+            },
+        });
+    }
+    layouts
+}
+
+#[cfg(target_os = "linux")]
+fn read_cgroup_memory_layout(layout: &CgroupMemoryLayout) -> Option<(u64, u64)> {
+    if !layout.leaf.starts_with(&layout.mount_point) {
+        return None;
+    }
+    let mut directory = Some(layout.leaf.as_path());
+    let mut effective_limit: Option<u64> = None;
+    let mut effective_available: Option<u64> = None;
+    while let Some(path) = directory {
+        if !path.starts_with(&layout.mount_point) {
+            break;
+        }
+        let limit = read_finite_cgroup_value(&path.join(layout.limit_file));
+        let usage = read_cgroup_value(&path.join(layout.usage_file));
+        if let Some(limit) = limit {
+            effective_limit = Some(effective_limit.map_or(limit, |value| value.min(limit)));
+            if let Some(usage) = usage {
+                let available = limit.saturating_sub(usage);
+                effective_available =
+                    Some(effective_available.map_or(available, |value| value.min(available)));
+            }
+        }
+        if path == layout.mount_point {
+            break;
+        }
+        directory = path.parent();
+    }
+    let limit = effective_limit?;
+    Some((limit, effective_available.unwrap_or(limit)))
+}
+
+#[cfg(target_os = "linux")]
+fn read_cgroup_value(path: &std::path::Path) -> Option<u64> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+}
+
+#[cfg(target_os = "linux")]
+fn read_finite_cgroup_value(path: &std::path::Path) -> Option<u64> {
+    read_cgroup_value(path).filter(|value| *value < (1_u64 << 60))
+}
+
 #[cfg(windows)]
 pub(crate) fn host_memory_bytes() -> (Option<u64>, Option<u64>) {
     use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
@@ -109,4 +254,49 @@ pub(crate) fn process_file_descriptor_limit() -> Option<u64> {
 #[cfg(not(unix))]
 pub(crate) fn process_file_descriptor_limit() -> Option<u64> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_nested_cgroup_v2_mount_path() {
+        let layouts = cgroup_memory_layouts(
+            "0::/user.slice/fn-knock.service\n",
+            "29 23 0:26 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw\n",
+        );
+        assert_eq!(
+            layouts,
+            vec![CgroupMemoryLayout {
+                mount_point: "/sys/fs/cgroup".into(),
+                leaf: "/sys/fs/cgroup/user.slice/fn-knock.service".into(),
+                limit_file: "memory.max",
+                usage_file: "memory.current",
+            }]
+        );
+    }
+
+    #[test]
+    fn maps_namespaced_cgroup_mount_roots_and_v1_memory_controller() {
+        let v2 = cgroup_memory_layouts(
+            "0::/docker/abc/workload\n",
+            "29 23 0:26 /docker/abc /sys/fs/cgroup rw - cgroup2 cgroup rw\n",
+        );
+        assert_eq!(v2[0].leaf, std::path::Path::new("/sys/fs/cgroup/workload"));
+
+        let v1 = cgroup_memory_layouts(
+            "5:cpu,cpuacct:/docker/abc\n6:memory:/docker/abc\n",
+            "31 23 0:28 / /sys/fs/cgroup/memory rw - cgroup cgroup rw,memory\n",
+        );
+        assert_eq!(
+            v1,
+            vec![CgroupMemoryLayout {
+                mount_point: "/sys/fs/cgroup/memory".into(),
+                leaf: "/sys/fs/cgroup/memory/docker/abc".into(),
+                limit_file: "memory.limit_in_bytes",
+                usage_file: "memory.usage_in_bytes",
+            }]
+        );
+    }
 }

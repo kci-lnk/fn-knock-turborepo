@@ -5,7 +5,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   AuthAccount,
   AuthLoginMode,
@@ -96,7 +96,10 @@ export function useAuthCredentialTransfer({
   }
 
   function openExportDialog() {
-    if (exportableCredentialCount.value === 0 || isCredentialTransferBusy.value) {
+    if (
+      exportableCredentialCount.value === 0 ||
+      isCredentialTransferBusy.value
+    ) {
       return;
     }
     showExportDialog.value = true;
@@ -144,12 +147,15 @@ export function useAuthCredentialTransfer({
     }
 
     if (file.size > MAX_IMPORT_FILE_SIZE) {
-      toast.error(translate("admin.authSettings.importCredentialsFileTooLarge"), {
-        description: translate(
-          "admin.authSettings.importCredentialsFileTooLargeDetail",
-          { size: Math.floor(MAX_IMPORT_FILE_SIZE / 1024) },
-        ),
-      });
+      toast.error(
+        translate("admin.authSettings.importCredentialsFileTooLarge"),
+        {
+          description: translate(
+            "admin.authSettings.importCredentialsFileTooLargeDetail",
+            { size: Math.floor(MAX_IMPORT_FILE_SIZE / 1024) },
+          ),
+        },
+      );
       resetCredentialImportInput();
       return;
     }
@@ -204,7 +210,9 @@ export function useAuthCredentialTransfer({
   async function handleImportCredentials() {
     const payload = pendingCredentialImportPayload.value;
     if (!payload) {
-      toast.error(translate("admin.authSettings.importCredentialsChooseFileFirst"));
+      toast.error(
+        translate("admin.authSettings.importCredentialsChooseFileFirst"),
+      );
       return;
     }
 
@@ -213,9 +221,12 @@ export function useAuthCredentialTransfer({
       showImportDialog.value = false;
       resetPendingCredentialImport();
       await refreshStatus();
-      toast.success(translate("admin.authSettings.importCredentialsCompleted"), {
-        description: buildImportSummaryDescription(summary),
-      });
+      toast.success(
+        translate("admin.authSettings.importCredentialsCompleted"),
+        {
+          description: buildImportSummaryDescription(summary),
+        },
+      );
     });
   }
 

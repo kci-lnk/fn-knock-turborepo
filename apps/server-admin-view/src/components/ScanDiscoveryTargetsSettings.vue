@@ -180,7 +180,7 @@ import {
   type ScanDiscoveryTarget,
   type ScanDiscoveryTargetSource,
   type ScanDiscoveryTargetsResponse,
-} from "../lib/api";
+} from "@/lib/api/scan";
 
 const { t } = useI18n();
 

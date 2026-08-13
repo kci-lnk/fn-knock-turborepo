@@ -1,5 +1,4 @@
 import type { InternalAxiosRequestConfig } from "axios";
-import CryptoJS from "crypto-js";
 import { createApiClient } from "./createApiClient";
 
 export interface SignedApiClientOptions {
@@ -28,7 +27,49 @@ function secureNonce() {
   );
 }
 
-export function buildRequestSignature(
+const bytesToHex = (bytes: ArrayBuffer) =>
+  Array.from(new Uint8Array(bytes), (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+
+const sha256Hex = async (value: string, encoder: TextEncoder) => {
+  if (globalThis.crypto?.subtle) {
+    return bytesToHex(
+      await globalThis.crypto.subtle.digest("SHA-256", encoder.encode(value)),
+    );
+  }
+  const [{ default: sha256 }, { default: hex }] = await Promise.all([
+    import("crypto-js/sha256"),
+    import("crypto-js/enc-hex"),
+  ]);
+  return sha256(value).toString(hex);
+};
+
+const hmacSha256Hex = async (
+  message: string,
+  secret: string,
+  encoder: TextEncoder,
+) => {
+  if (globalThis.crypto?.subtle) {
+    const key = await globalThis.crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    return bytesToHex(
+      await globalThis.crypto.subtle.sign("HMAC", key, encoder.encode(message)),
+    );
+  }
+  const [{ default: hmacSha256 }, { default: hex }] = await Promise.all([
+    import("crypto-js/hmac-sha256"),
+    import("crypto-js/enc-hex"),
+  ]);
+  return hmacSha256(message, secret).toString(hex);
+};
+
+export async function buildRequestSignature(
   hmacSecret: string,
   method: string,
   requestUri: string,
@@ -36,7 +77,8 @@ export function buildRequestSignature(
 ) {
   const timestamp = Date.now().toString();
   const nonce = secureNonce();
-  const bodyDigest = CryptoJS.SHA256(body).toString(CryptoJS.enc.Hex);
+  const encoder = new TextEncoder();
+  const bodyDigest = await sha256Hex(body, encoder);
   const message = [
     "fn-knock-v1",
     method.toUpperCase(),
@@ -45,9 +87,7 @@ export function buildRequestSignature(
     timestamp,
     nonce,
   ].join("\n");
-  const signature = CryptoJS.HmacSHA256(message, hmacSecret).toString(
-    CryptoJS.enc.Hex,
-  );
+  const signature = await hmacSha256Hex(message, hmacSecret, encoder);
 
   return { timestamp, nonce, signature };
 }
@@ -73,7 +113,7 @@ export function createSignedApiClient(options: SignedApiClientOptions) {
       if (config.data !== undefined && typeof config.data !== "string") {
         config.data = body;
       }
-      const { timestamp, nonce, signature } = buildRequestSignature(
+      const { timestamp, nonce, signature } = await buildRequestSignature(
         cachedSecret,
         config.method || "GET",
         apiClient.getUri(config),

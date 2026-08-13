@@ -1,11 +1,16 @@
 import { onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { AcmeAPI, type AcmeJobData, type AcmeLogAnalysis } from "@/lib/api";
+import {
+  AcmeAPI,
+  type AcmeJobData,
+  type AcmeLogAnalysis,
+} from "@/lib/api/acme";
 import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 type UseAcmeJobPollingOptions = {
   refreshOverview: () => Promise<void>;
@@ -19,7 +24,6 @@ export function useAcmeJobPolling({
   const job = ref<AcmeJobData | null>(null);
   const logs = ref<string[]>([]);
   const analysis = ref<AcmeLogAnalysis | null>(null);
-  let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
   const { isPending: isRefreshingLogs, run: runRefreshLogs } = useAsyncAction({
     onError: (error) => {
@@ -36,14 +40,14 @@ export function useAcmeJobPolling({
     },
   });
 
-  const stopPolling = () => {
-    if (!pollingTimer) return;
-    clearInterval(pollingTimer);
-    pollingTimer = null;
-  };
+  const pollJobOnce = async (jobId: string, signal?: AbortSignal) => {
+    const data = await AcmeAPI.poll(jobId, {
+      limit: 500,
+      order: "desc",
+      signal,
+    });
+    if (signal?.aborted || selectedJobId.value !== jobId) return;
 
-  const pollJobOnce = async (jobId: string) => {
-    const data = await AcmeAPI.poll(jobId, { limit: 500, order: "desc" });
     job.value = data.job;
     logs.value = data.logs;
     analysis.value = data.analysis ?? null;
@@ -59,18 +63,28 @@ export function useAcmeJobPolling({
   };
 
   const startPolling = (jobId: string) => {
-    stopPolling();
-    pollingTimer = setInterval(async () => {
+    selectedJobId.value = jobId;
+    jobPoller.start();
+    jobPoller.sync();
+  };
+
+  const jobPoller = createVisibilityPoller({
+    intervalMs: 2_000,
+    task: async (signal) => {
+      if (!selectedJobId.value) return;
       try {
-        await pollJobOnce(jobId);
+        await pollJobOnce(selectedJobId.value, signal);
       } catch {
         // Keep the last visible state and retry on the next interval.
       }
-    }, 2000);
-  };
+    },
+  });
+
+  const stopPolling = jobPoller.stop;
 
   const selectJob = async (jobId: string, autoPoll: boolean) => {
     if (!jobId) return;
+    stopPolling();
     selectedJobId.value = jobId;
     await pollJobOnce(jobId);
     if (

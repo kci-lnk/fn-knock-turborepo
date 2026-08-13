@@ -25,8 +25,8 @@ type GatewayMemoryReclaimResponse =
   ApiContractOperations["post_api_admin_runtime_health_gateway_memory_reclaim"]["responses"][200]["content"]["application/json"];
 
 export const RuntimeHealthAPI = {
-  async getHealth(): Promise<RuntimeHealthResponse> {
-    const response = await apiClient.get("/runtime-health");
+  async getHealth(signal?: AbortSignal): Promise<RuntimeHealthResponse> {
+    const response = await apiClient.get("/runtime-health", { signal });
     return response.data;
   },
 

@@ -24,6 +24,7 @@ export const DashboardAPI = {
   async getStats(
     rangeSec: number,
     userIdOrOptions?: string | { userId?: string; host?: string },
+    signal?: AbortSignal,
   ): Promise<DashboardStats> {
     const options =
       typeof userIdOrOptions === "string"
@@ -32,11 +33,12 @@ export const DashboardAPI = {
     const params = { rangeSec, ...options } satisfies DashboardStatsQuery;
     const res = await apiClient.get("/dashboard/stats", {
       params,
+      signal,
     });
     return res.data.data;
   },
-  async getRealtime(): Promise<TrafficStats> {
-    const res = await apiClient.get("/dashboard/realtime");
+  async getRealtime(signal?: AbortSignal): Promise<TrafficStats> {
+    const res = await apiClient.get("/dashboard/realtime", { signal });
     return res.data.data;
   },
   async getHostActiveIps(host: string): Promise<HostActiveIpsPayload> {

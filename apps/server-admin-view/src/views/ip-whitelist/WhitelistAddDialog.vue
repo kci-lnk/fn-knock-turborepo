@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
-import type { GatewayVisibilitySelection } from "@/lib/api";
+import { type GatewayVisibilitySelection } from "@/types";
 import type { WhitelistNewRecord } from "./useWhitelistAddRecord";
 
 defineProps<{

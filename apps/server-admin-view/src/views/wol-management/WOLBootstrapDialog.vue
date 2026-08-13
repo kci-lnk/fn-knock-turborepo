@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { WOLRelayCredentialResult } from "@/lib/api";
+import { type WOLRelayCredentialResult } from "@/lib/api/wol";
 
 defineProps<{
   open: boolean;

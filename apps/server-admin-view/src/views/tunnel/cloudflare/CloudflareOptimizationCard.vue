@@ -26,20 +26,18 @@ import {
   TriangleAlert,
   Zap,
 } from "lucide-vue-next";
-import type { CloudflareOptimizationDomain } from "@/lib/api";
+import { type CloudflareOptimizationDomain } from "@/lib/api/tunnel";
 import {
-  candidateResolutionUnavailableErrorCode,
   capabilityStatusKeys,
   cloudflareResourceConflictErrorCode,
   cloudflareSaasValidationPendingErrorCode,
   formatOptimizationDate,
   formatOptimizationNumber,
-  legacyOptimizationNotReadyErrorMarkers,
   optimizationBuiltinLabel,
   optimizationCandidateSourceLabel,
   optimizationDomainMessageLabel,
   optimizationDomainStatusLabel,
-  optimizationNotReadyErrorCode,
+  optimizationScanErrorPresentation,
   optimizationScanPhaseLabel,
   optimizationSourceSettingsErrorLabel,
   optimizationSourceWarningLabel,
@@ -198,84 +196,13 @@ const capabilityProbeMessage = computed(() => {
     ? t(`admin.cloudflareTunnel.optimization.capability.${key}`)
     : probe.message || probe.status;
 });
-const scanRequiresCloudflareSaas = computed(() =>
-  requiresCloudflareSaasSetup(
+const scanError = computed(() =>
+  optimizationScanErrorPresentation(
     optimizationScan.value?.errorCode,
     optimizationScan.value?.error,
+    t,
   ),
 );
-const scanValidationPending = computed(
-  () =>
-    optimizationScan.value?.errorCode ===
-    cloudflareSaasValidationPendingErrorCode,
-);
-const scanResourceConflict = computed(
-  () =>
-    optimizationScan.value?.errorCode === cloudflareResourceConflictErrorCode,
-);
-const scanOptimizationNotReady = computed(() => {
-  if (optimizationScan.value?.errorCode === optimizationNotReadyErrorCode) {
-    return true;
-  }
-  const normalized = optimizationScan.value?.error?.toLowerCase();
-  return (
-    normalized !== undefined &&
-    legacyOptimizationNotReadyErrorMarkers.some((marker) =>
-      normalized.includes(marker),
-    )
-  );
-});
-const scanCandidateResolutionUnavailable = computed(
-  () =>
-    optimizationScan.value?.errorCode ===
-    candidateResolutionUnavailableErrorCode,
-);
-const scanErrorTitle = computed(() => {
-  if (scanRequiresCloudflareSaas.value) {
-    return t("admin.cloudflareTunnel.optimization.cloudflareSaasRequiredTitle");
-  }
-  if (scanValidationPending.value) {
-    return t(
-      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
-    );
-  }
-  if (scanResourceConflict.value) {
-    return t("admin.cloudflareTunnel.optimization.resourceConflictTitle");
-  }
-  if (scanOptimizationNotReady.value) {
-    return t("admin.cloudflareTunnel.optimization.notReadyTitle");
-  }
-  if (scanCandidateResolutionUnavailable.value) {
-    return t(
-      "admin.cloudflareTunnel.optimization.candidateResolutionUnavailableTitle",
-    );
-  }
-  return "";
-});
-const scanErrorMessage = computed(() => {
-  if (scanRequiresCloudflareSaas.value) {
-    return t(
-      "admin.cloudflareTunnel.optimization.cloudflareSaasRequiredDescription",
-    );
-  }
-  if (scanValidationPending.value) {
-    return t(
-      "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
-    );
-  }
-  if (scanResourceConflict.value) {
-    return t("admin.cloudflareTunnel.optimization.resourceConflictDescription");
-  }
-  if (scanOptimizationNotReady.value) {
-    return t("admin.cloudflareTunnel.optimization.notReadyDescription");
-  }
-  if (scanCandidateResolutionUnavailable.value) {
-    return t(
-      "admin.cloudflareTunnel.optimization.candidateResolutionUnavailableDescription",
-    );
-  }
-  return optimizationScan.value?.error || "";
-});
 </script>
 
 <template>
@@ -727,16 +654,14 @@ const scanErrorMessage = computed(() => {
           </Alert>
           <Alert
             v-if="optimizationScan.error"
-            :variant="
-              scanValidationPending || scanOptimizationNotReady
-                ? 'default'
-                : 'destructive'
-            "
+            :variant="scanError.neutral ? 'default' : 'destructive'"
             class="items-start"
           >
             <TriangleAlert class="size-4" />
-            <AlertTitle v-if="scanErrorTitle">{{ scanErrorTitle }}</AlertTitle>
-            <AlertDescription>{{ scanErrorMessage }}</AlertDescription>
+            <AlertTitle v-if="scanError.title">{{
+              scanError.title
+            }}</AlertTitle>
+            <AlertDescription>{{ scanError.message }}</AlertDescription>
           </Alert>
 
           <div

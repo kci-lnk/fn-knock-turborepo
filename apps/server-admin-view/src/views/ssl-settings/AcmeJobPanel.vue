@@ -143,7 +143,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { TriangleAlert, Info } from "lucide-vue-next";
-import type { AcmeJobData, AcmeLogAnalysis } from "@/lib/api";
+import { type AcmeJobData, type AcmeLogAnalysis } from "@/lib/api/acme";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

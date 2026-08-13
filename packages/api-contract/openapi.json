@@ -10796,15 +10796,31 @@
       },
       "GatewayMemoryConfigData": {
         "properties": {
+          "effective_memory_limit_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "gc_percent": {
             "format": "int32",
             "maximum": 500,
             "minimum": 25,
             "type": "integer"
+          },
+          "memory_limit_mib": {
+            "format": "int64",
+            "maximum": 4096,
+            "minimum": 64,
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
-          "gc_percent"
+          "gc_percent",
+          "memory_limit_mib",
+          "effective_memory_limit_bytes"
         ],
         "type": "object"
       },
@@ -10814,12 +10830,21 @@
             "format": "int32",
             "maximum": 500,
             "minimum": 25,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "memory_limit_mib": {
+            "format": "int64",
+            "maximum": 4096,
+            "minimum": 64,
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
-        "required": [
-          "gc_percent"
-        ],
         "type": "object"
       },
       "GatewayMemoryReclaimBodyData": {
@@ -10827,6 +10852,16 @@
       },
       "GatewayMemoryReclaimData": {
         "properties": {
+          "active_client_connections": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "active_proxy_requests": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "gc_percent": {
             "format": "int32",
             "maximum": 500,
@@ -10843,7 +10878,51 @@
             "minimum": 0,
             "type": "integer"
           },
+          "idle_client_connections": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "managed_memory_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memory_limit_bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "num_gc": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "open_upstream_connections": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "rss_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "udp_queue_drops": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "udp_queued_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "udp_queued_bytes_peak": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "udp_sessions": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -10853,7 +10932,18 @@
           "heap_alloc_bytes",
           "heap_sys_bytes",
           "rss_bytes",
-          "gc_percent"
+          "gc_percent",
+          "memory_limit_bytes",
+          "managed_memory_bytes",
+          "num_gc",
+          "active_proxy_requests",
+          "active_client_connections",
+          "idle_client_connections",
+          "open_upstream_connections",
+          "udp_sessions",
+          "udp_queued_bytes",
+          "udp_queued_bytes_peak",
+          "udp_queue_drops"
         ],
         "type": "object"
       },
@@ -15333,6 +15423,22 @@
       },
       "RuntimeComponentHealthData": {
         "properties": {
+          "active_client_connections": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "active_proxy_requests": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "commit": {
             "type": [
               "string",
@@ -15392,6 +15498,14 @@
             ],
             "type": "string"
           },
+          "idle_client_connections": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "instance_id": {
             "type": [
               "string",
@@ -15413,6 +15527,37 @@
             ]
           },
           "latency_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "managed_memory_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "memory_limit_bytes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "num_gc": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "open_upstream_connections": {
             "format": "int64",
             "minimum": 0,
             "type": [
@@ -15467,6 +15612,38 @@
               "blocked"
             ],
             "type": "string"
+          },
+          "udp_queue_drops": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "udp_queued_bytes": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "udp_queued_bytes_peak": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "udp_sessions": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "uptime_ms": {
             "format": "int64",

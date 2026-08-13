@@ -4,7 +4,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { DDNSAPI } from "../../lib/api";
+import { DDNSAPI } from "@/lib/api/ddns";
 
 type Translate = (key: string) => string;
 

@@ -1,14 +1,14 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { ConfigAPI } from "@/lib/api/config";
 import {
-  ConfigAPI,
   FrpcAPI,
-  SystemAPI,
   type FrpcInstanceStatus,
   type FrpcInstanceSummary,
   type FrpcInstancesOverview,
-} from "@/lib/api";
+} from "@/lib/api/tunnel";
+import { SystemAPI } from "@/lib/api/system";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -58,10 +58,11 @@ export const useFrpTunnelController = () => {
   const defaults = computed(
     () => overview.value?.defaults ?? { local_port: "7999" },
   );
-  const primaryInstance = computed(() =>
-    overview.value?.items.find(
-      (item) => item.id === overview.value?.primaryInstanceId,
-    ) ?? null,
+  const primaryInstance = computed(
+    () =>
+      overview.value?.items.find(
+        (item) => item.id === overview.value?.primaryInstanceId,
+      ) ?? null,
   );
   const extraInstances = computed(
     () => overview.value?.items.filter((item) => !item.isPrimary) ?? [],

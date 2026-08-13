@@ -19,6 +19,7 @@ use crate::{
     go_backend::GoBackendClient,
     runtime_health::RuntimeHealth,
     settings::Settings,
+    static_files::StaticFileCatalogs,
     storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
     store::Store,
     tunnels::supervisor::TunnelSupervisorRegistry,
@@ -45,6 +46,11 @@ pub struct AppStateInner {
     /// Security policy snapshots and mutation locks.
     pub security: SecurityState,
     pub runtime_health: RuntimeHealth,
+    pub static_files: StaticFileCatalogs,
+    /// Cached server-authoritative locale used by index responses. Keeping it
+    /// in memory avoids a typed/legacy storage reconciliation on every SPA
+    /// navigation while locale writes and restore syncs update it explicitly.
+    pub(crate) browser_locale: RwLock<String>,
     pub fallback_client: reqwest::Client,
     pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
@@ -341,6 +347,25 @@ impl AppState {
             .no_gzip()
             .build()
             .context("build asset download http client")?;
+        let static_files =
+            StaticFileCatalogs::build(&settings.admin_static_path, &settings.auth_static_path);
+        let browser_locale = store
+            .locale()
+            .await
+            .ok()
+            .and_then(|locale| {
+                locale
+                    .get("default_locale")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .filter(|locale| {
+                matches!(
+                    locale.as_str(),
+                    "zh-CN" | "zh-Hant" | "en" | "ko-KR" | "ja-JP"
+                )
+            })
+            .unwrap_or_else(|| "zh-CN".to_string());
 
         Ok(Self {
             inner: Arc::new(AppStateInner {
@@ -351,6 +376,8 @@ impl AppState {
                 gateway: GatewayState::new(go_backend),
                 security: SecurityState::default(),
                 runtime_health,
+                static_files,
+                browser_locale: RwLock::new(browser_locale),
                 fallback_client,
                 asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),
@@ -432,5 +459,14 @@ impl AppState {
 
     pub(crate) fn gateway_config_synced(&self) -> bool {
         self.gateway.config_synced.load(Ordering::Acquire)
+    }
+
+    pub(crate) async fn set_browser_locale(&self, value: &Value) {
+        let locale = value
+            .get("default_locale")
+            .and_then(Value::as_str)
+            .filter(|locale| matches!(*locale, "zh-CN" | "zh-Hant" | "en" | "ko-KR" | "ja-JP"))
+            .unwrap_or("zh-CN");
+        *self.browser_locale.write().await = locale.to_string();
     }
 }

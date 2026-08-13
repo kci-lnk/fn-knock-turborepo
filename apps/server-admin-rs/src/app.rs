@@ -26,7 +26,7 @@ use crate::{
     ddns_status::start_ddns_tasks,
     fnos_certificate_sync::start_fnos_certificate_sync_tasks,
     frpc::start_frpc_tasks,
-    gateway_settings::migrate_visibility_policies_on_boot,
+    gateway_settings::{migrate_visibility_policies_on_boot, sync_gateway_memory_on_boot},
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
     maintenance::start_automatic_backup_tasks,
@@ -120,8 +120,11 @@ pub(crate) async fn run_with_settings(
     // without masquerading as an external service stop in the supervisor.
     let runtime_shutdown = shutdown.child_token();
     let state = AppState::new_with_shutdown(settings.clone(), runtime_shutdown.clone()).await?;
-    start_runtime_monitor(state.clone()).await?;
     wait_for_gateway_control_plane(&state, &runtime_shutdown, Duration::from_secs(60)).await?;
+    // Apply the restored GOGC/memory-limit pair before expensive migrations,
+    // listener readiness, or production traffic can create a startup spike.
+    sync_gateway_memory_on_boot(&state).await?;
+    start_runtime_monitor(state.clone()).await?;
     let migrated_cidr_caches = migrate_cidr_query_caches_on_boot(&state).await?;
     if migrated_cidr_caches > 0 {
         tracing::info!(
@@ -144,7 +147,7 @@ pub(crate) async fn run_with_settings(
     migrate_whitelist_ipsets_on_boot(&state).await?;
     migrate_ssh_ipset_on_boot(&state).await?;
     sync_auto_https_on_boot(state.clone()).await;
-    boot::start_boot_sync_tasks(state.clone());
+    let boot_sync_completed = boot::start_boot_sync_tasks(state.clone());
     start_traffic_tasks(state.clone());
     start_ip_location_worker(state.clone());
     start_notification_tasks(state.clone());
@@ -176,11 +179,6 @@ pub(crate) async fn run_with_settings(
     if capabilities.ssh_security_available {
         start_ssh_security_tasks(state.clone());
     }
-    state.spawn_background(
-        "startup-allocator-memory-trim",
-        memory::trim_allocated_memory_after(Duration::from_secs(45)),
-    );
-
     let backend_addr = settings.backend_addr()?;
     let auth_addr = settings.auth_addr()?;
     let protected_admin_runtime = runtime_profile::admin_panel_protected_runtime(&state);
@@ -292,6 +290,10 @@ pub(crate) async fn run_with_settings(
     if let Some(path) = &readiness_marker {
         tokio::fs::write(path, b"ready\n").await?;
     }
+    state.spawn_background("startup-memory-trim", async move {
+        let _ = boot_sync_completed.await;
+        memory::trim_allocated_memory_after(Duration::from_secs(5)).await;
+    });
     if let Some(ready) = ready {
         let _ = ready.send(());
     }

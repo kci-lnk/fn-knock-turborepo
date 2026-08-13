@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import OverflowTooltipText from "@admin-shared/components/common/OverflowTooltipText.vue";
-import type { DDNSNetworkInterfacePayload } from "@/lib/api";
+import { type DDNSNetworkInterfacePayload } from "@/lib/api/ddns";
 import {
   DEFAULT_DDNS_IP_SOURCE,
   DEFAULT_DDNS_UPDATE_SCOPE,

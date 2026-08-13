@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import RefreshButton from "@/components/RefreshButton.vue";
 import { Loader2, Trash2 } from "lucide-vue-next";
-import { SSHSecurityAPI } from "../../lib/api";
+import { SSHSecurityAPI } from "@/lib/api/security";
 import type { SSHSecurityBlockRecord } from "../../types";
 
 const props = defineProps<{

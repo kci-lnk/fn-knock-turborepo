@@ -43,11 +43,17 @@ jobs:
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Record Go gateway commit
+      - name: Check out and record locked Go gateway commit
         shell: bash
-        run: printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "$(git -C Go-Reauth-Proxy rev-parse HEAD)" >> "${GITHUB_ENV}"
+        run: |
+          locked_commit="$(jq -er .gatewayCommit version.json)"
+          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
+          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
+          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${locked_commit}" >> "${GITHUB_ENV}"
 
       - name: Checkout frozen RustSec advisory database
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -146,6 +152,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Check out locked Go gateway commit
+        shell: bash
+        run: |
+          locked_commit="$(jq -er .gatewayCommit version.json)"
+          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
+          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
+          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
+
       - name: Record Go gateway commit
         id: gateway
         shell: bash
@@ -191,6 +205,7 @@ jobs:
             go build -trimpath \
               -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=${version} -X go-reauth-proxy/pkg/version.Commit=${{ steps.gateway.outputs.sha }}" \
               -o "${RUNNER_TEMP}/go-reauth-proxy-current" ./cmd/server
+            go test -c -o "${RUNNER_TEMP}/go-stream-tests" ./pkg/stream
           )
 
       - name: Check out base runtime sources
@@ -202,7 +217,8 @@ jobs:
           base_sha="${{ github.event.pull_request.base.sha }}"
           git fetch --no-tags origin "${base_sha}"
           git worktree add --detach "${base_root}" "${base_sha}"
-          base_gateway_commit="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          base_gateway_commit="$(jq -er .gatewayCommit "${base_root}/version.json")"
+          git -C Go-Reauth-Proxy fetch --no-tags origin "${base_gateway_commit}"
           git -C Go-Reauth-Proxy worktree add --detach "${base_gateway}" "${base_gateway_commit}"
           printf 'root=%s\n' "${base_root}" >> "${GITHUB_OUTPUT}"
           printf 'gateway=%s\n' "${base_gateway}" >> "${GITHUB_OUTPUT}"
@@ -233,6 +249,35 @@ jobs:
               -o "${RUNNER_TEMP}/go-reauth-proxy-base" ./cmd/server
           )
 
+      - name: Exercise current runtime in a 512 MiB cgroup
+        shell: bash
+        run: |
+          docker run --rm \
+            --memory=512m --memory-swap=512m --pids-limit=4096 \
+            -v "${RUNNER_TEMP}:/artifacts" \
+            node:22-trixie \
+            /artifacts/go-stream-tests -test.v
+          docker run --rm \
+            --memory=512m --memory-swap=512m --pids-limit=4096 \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${RUNNER_TEMP}:/artifacts" \
+            -w /workspace \
+            -e FN_KNOCK_RUNTIME_PERF_RUNS=1 \
+            -e FN_KNOCK_RUNTIME_PERF_LOAD_RUNS=1 \
+            -e FN_KNOCK_RUNTIME_PERF_LOAD_SECONDS=30 \
+            -e FN_KNOCK_RUNTIME_PERF_REJECT_MEMORY_LIMIT_MIB=257 \
+            -e FN_KNOCK_RUNTIME_SERVER_BIN=/workspace/apps/server-admin-rs/target/runtime-test/server-admin-rs \
+            -e FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN=/artifacts/go-reauth-proxy-current \
+            node:22-trixie \
+            node scripts/runtime-performance.mjs \
+            > "${RUNNER_TEMP}/runtime-performance-cgroup-512m.json"
+          jq -e '
+            .schema_version == 2 and
+            .load_sample_count == 1 and
+            .samples[0].checkpoints.stable_10s.gateway_memory_limit_bytes == 134217728 and
+            (.samples[0].loads | length) == 3
+          ' "${RUNNER_TEMP}/runtime-performance-cgroup-512m.json" >/dev/null
+
       - name: Measure base and current runtime performance
         shell: bash
         env:
@@ -247,6 +292,10 @@ jobs:
           # comparison isolates Rust/Go runtime startup and idle-memory changes.
           FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
           FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
+          FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR="${{ steps.baseline.outputs.gateway }}" \
+          FN_KNOCK_RUNTIME_VERSION_MANIFEST="${{ steps.baseline.outputs.root }}/version.json" \
+          FN_KNOCK_RUNTIME_PERF_EXERCISE_MEMORY_CONFIG="0" \
+          FN_KNOCK_RUNTIME_PERF_VERIFY_STATIC="0" \
             node scripts/runtime-performance.mjs > "${base}"
           node scripts/check-runtime-performance.mjs \
             --base "${base}" --current "${current}" \
@@ -254,6 +303,51 @@ jobs:
           {
             echo '### Runtime performance PR gate'
             echo 'Base and current use the same freshly-built frontend assets; only Rust/Go runtime binaries differ.'
+            echo '#### Base'
+            echo '```json'
+            cat "${base}"
+            echo '```'
+            echo '#### Current'
+            echo '```json'
+            cat "${current}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Build base frontend artifacts
+        shell: bash
+        run: |
+          (
+            cd "${{ steps.baseline.outputs.root }}"
+            npm ci
+            npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          )
+
+      - name: Install Chromium for frontend performance
+        run: npx playwright install --with-deps chromium
+
+      - name: Measure base and current frontend performance
+        shell: bash
+        env:
+          FN_KNOCK_FRONTEND_PERF_RUNS: "5"
+        run: |
+          current="${RUNNER_TEMP}/frontend-performance-current.json"
+          base="${RUNNER_TEMP}/frontend-performance-base.json"
+          FN_KNOCK_RUNTIME_SERVER_BIN="${GITHUB_WORKSPACE}/apps/server-admin-rs/target/runtime-test/server-admin-rs" \
+          FN_KNOCK_FRONTEND_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-current" \
+            node scripts/frontend-performance.mjs > "${current}"
+          FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
+          FN_KNOCK_FRONTEND_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
+          FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR="${{ steps.baseline.outputs.gateway }}" \
+          FN_KNOCK_RUNTIME_VERSION_MANIFEST="${{ steps.baseline.outputs.root }}/version.json" \
+          FN_KNOCK_RUNTIME_ADMIN_STATIC_PATH="${{ steps.baseline.outputs.root }}/apps/server-admin-view/dist" \
+          FN_KNOCK_RUNTIME_AUTH_STATIC_PATH="${{ steps.baseline.outputs.root }}/apps/server-auth-view/dist" \
+          FN_KNOCK_FRONTEND_PERF_ENFORCE_RESOURCES="0" \
+            node scripts/frontend-performance.mjs > "${base}"
+          node scripts/check-frontend-performance.mjs \
+            --base "${base}" --current "${current}" --max-regression 0.10
+          {
+            echo '### Frontend performance PR gate'
+            echo 'Cold cache, 4× CPU throttle, Fast 3G, five runs per route/provider.'
             echo '#### Base'
             echo '```json'
             cat "${base}"
@@ -272,6 +366,9 @@ jobs:
           path: |
             ${{ runner.temp }}/runtime-performance-base.json
             ${{ runner.temp }}/runtime-performance-current.json
+            ${{ runner.temp }}/runtime-performance-cgroup-512m.json
+            ${{ runner.temp }}/frontend-performance-base.json
+            ${{ runner.temp }}/frontend-performance-current.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -291,15 +388,19 @@ jobs:
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Record Go gateway commit
+      - name: Check out and record locked Go gateway commit
         id: gateway
         shell: bash
         run: |
-          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
-          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
-          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${sha}" >> "${GITHUB_ENV}"
+          locked_commit="$(jq -er .gatewayCommit version.json)"
+          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
+          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
+          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
+          printf 'sha=%s\n' "${locked_commit}" >> "${GITHUB_OUTPUT}"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${locked_commit}" >> "${GITHUB_ENV}"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0

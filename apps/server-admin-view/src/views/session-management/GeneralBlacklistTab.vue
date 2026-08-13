@@ -41,7 +41,7 @@ import {
   GeneralBlacklistAPI,
   type GeneralBlacklistRecord,
   type GeneralBlacklistSource,
-} from "../../lib/api";
+} from "@/lib/api/security";
 
 const { t, locale } = useI18n();
 const addDialogOpen = ref(false);

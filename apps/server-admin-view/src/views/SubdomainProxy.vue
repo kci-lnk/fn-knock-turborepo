@@ -262,7 +262,8 @@ import SubdomainModeConfigCard from "./subdomain-proxy/SubdomainModeConfigCard.v
 import { toast } from "@admin-shared/utils/toast";
 import { useConfigStore } from "../store/config";
 import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
-import { ConfigAPI, DashboardAPI } from "../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
+import { DashboardAPI } from "@/lib/api/dashboard";
 import { docsUrls } from "../lib/docs";
 import { isDefaultDomainAvailableForBehavior } from "../lib/gatewayUnmatchedRoute";
 import type { HostMapping } from "../types";

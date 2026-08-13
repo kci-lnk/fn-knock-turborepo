@@ -1,20 +1,12 @@
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  watch,
-} from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import {
-  DashboardAPI,
-  DDNSAPI,
-  SecurityAPI,
-  type DDNSStatusPayload,
-} from "../../lib/api";
+import { DashboardAPI } from "../../lib/api/dashboard";
+import { DDNSAPI, type DDNSStatusPayload } from "../../lib/api/ddns";
+import { SecurityAPI } from "../../lib/api/security";
 import type { DashboardStats, ThreatOverview } from "../../types";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 export const dashboardRanges = [
   {
@@ -65,10 +57,8 @@ export function useDashboardData({
   const lastUpdatedAt = ref<Date | null>(null);
   const ddnsStatus = ref<DDNSStatusPayload | null>(null);
   const isDdnsInitializing = ref(true);
-  const { isPending: isDdnsPending, run: runLoadDdnsStatus } =
-    useAsyncAction();
+  const { isPending: isDdnsPending, run: runLoadDdnsStatus } = useAsyncAction();
   const ddnsError = ref("");
-  let refreshTimer: number | null = null;
   let ddnsLoadTimer: number | null = null;
   let disposed = false;
 
@@ -102,14 +92,15 @@ export function useDashboardData({
     });
   };
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     await runLoadDashboard(
       async () => {
         errorMessage.value = "";
         const [statsResult, threatResult] = await Promise.allSettled([
-          DashboardAPI.getStats(activeRange.value.sec),
-          SecurityAPI.getOverview(activeRange.value.sec),
+          DashboardAPI.getStats(activeRange.value.sec, undefined, signal),
+          SecurityAPI.getOverview(activeRange.value.sec, signal),
         ]);
+        if (signal?.aborted) return;
         if (statsResult.status === "fulfilled") {
           stats.value = statsResult.value;
           lastUpdatedAt.value = new Date();
@@ -143,7 +134,7 @@ export function useDashboardData({
         },
       },
     );
-    if (disposed) return;
+    if (disposed || signal?.aborted) return;
     scheduleTunnelStatusLoad();
     if (ddnsLoadTimer !== null) window.clearTimeout(ddnsLoadTimer);
     ddnsLoadTimer = window.setTimeout(() => {
@@ -153,34 +144,28 @@ export function useDashboardData({
   };
 
   const refreshAll = () => void load();
-  const startAutoRefresh = () => {
-    if (refreshTimer !== null) window.clearInterval(refreshTimer);
-    refreshTimer = window.setInterval(() => {
-      if (isAutoRefresh.value) refreshAll();
-    }, 15000);
-  };
+  const autoRefreshPoller = createVisibilityPoller({
+    intervalMs: 15_000,
+    immediate: false,
+    enabled: () => isAutoRefresh.value,
+    task: (signal) => load(signal),
+  });
 
   watch(rangeKey, () => void load());
   watch(isAutoRefresh, () => {
-    if (isAutoRefresh.value) {
-      startAutoRefresh();
-    } else if (refreshTimer !== null) {
-      window.clearInterval(refreshTimer);
-      refreshTimer = null;
-    }
+    autoRefreshPoller.sync();
   });
 
   onMounted(() => {
     refreshAll();
     startRealtimePolling();
-    if (isAutoRefresh.value) startAutoRefresh();
+    autoRefreshPoller.start();
   });
   onUnmounted(() => {
     disposed = true;
-    if (refreshTimer !== null) window.clearInterval(refreshTimer);
     if (ddnsLoadTimer !== null) window.clearTimeout(ddnsLoadTimer);
-    refreshTimer = null;
     ddnsLoadTimer = null;
+    autoRefreshPoller.stop();
     disposeTunnelStatus();
     stopRealtimePolling();
   });

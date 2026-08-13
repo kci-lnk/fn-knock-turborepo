@@ -1,4 +1,4 @@
-import type { IpLocationApiConfig } from "@/lib/api";
+import { type IpLocationApiConfig } from "@/lib/api/config";
 
 export const OFFICIAL_IP_LOOKUP_URL = "https://ipaddress.fnknock.cn/api/v1";
 export const OFFICIAL_CIDR_URL = "https://cidr.fnknock.cn/api/v1";

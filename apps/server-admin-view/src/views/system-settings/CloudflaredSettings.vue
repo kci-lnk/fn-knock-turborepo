@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { SystemAPI } from "../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import BinaryResourceSettings from "./BinaryResourceSettings.vue";
 </script>
 

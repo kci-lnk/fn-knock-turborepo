@@ -217,7 +217,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { SSLStatus } from "../../types";
 import { toast } from "@admin-shared/utils/toast";
 import ActiveCertificateDetailsCard from "./ActiveCertificateDetailsCard.vue";

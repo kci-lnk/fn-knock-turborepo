@@ -29,7 +29,7 @@ import {
   TagsInputItemDelete,
   TagsInputItemText,
 } from "@/components/ui/tags-input";
-import { CidrAPI } from "@/lib/api";
+import { CidrAPI } from "@/lib/api/gateway";
 import type { CidrOperator, GatewayVisibilitySelection } from "@/types";
 import {
   getCidrRegionSelectionKey,

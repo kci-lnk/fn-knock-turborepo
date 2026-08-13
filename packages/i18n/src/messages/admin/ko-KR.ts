@@ -5675,6 +5675,14 @@ export const koKRAdmin = {
         placeholder: "회수 강도 선택",
         customDescription: "사용자 지정 회수 강도를 사용합니다.",
         rangeError: "25에서 500 사이의 정수를 입력하세요.",
+        limitTitle: "Go 런타임 메모리 제한",
+        limitDescription:
+          "Go 런타임이 관리하는 메모리를 제한합니다. 프로세스 RSS 제한이 아닌 소프트 제한입니다.",
+        auto: "자동(권장)",
+        manual: "수동",
+        manualHint: "수동 제한은 장치 유효 메모리의 50%를 초과할 수 없습니다.",
+        manualRangeError: "64에서 4096 사이의 정수를 입력하세요.",
+        effectiveLimit: "현재 유효 제한: {limit}",
         retry: "다시 시도",
         hint: "GOGC가 낮을수록 더 자주 회수하여 일반적으로 메모리를 덜 사용하지만 CPU 부하는 늘어납니다. 즉시 회수 시 잠깐 멈출 수 있습니다.",
         levels: {

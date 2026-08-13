@@ -1,5 +1,5 @@
 import { onBeforeUnmount, ref } from "vue";
-import { IpLocationAPI } from "../lib/api";
+import { IpLocationAPI } from "@/lib/api/gateway";
 import type { IpLocationLookupStatus, IpLocationSnapshot } from "../types";
 
 const POLL_INTERVAL_MS = 2000;

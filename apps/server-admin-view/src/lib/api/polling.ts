@@ -22,16 +22,20 @@ export const PollingAPI = {
   async poll<T extends PollTarget>(
     target: T,
     cursor?: number,
+    signal?: AbortSignal,
   ): Promise<PollingPayloadMap[T]> {
     switch (target) {
       case "dashboard":
-        return (await DashboardAPI.getRealtime()) as PollingPayloadMap[T];
+        return (await DashboardAPI.getRealtime(signal)) as PollingPayloadMap[T];
       case "ddns":
-        return (await DDNSAPI.poll(cursor)) as PollingPayloadMap[T];
+        return (await DDNSAPI.poll(cursor, signal)) as PollingPayloadMap[T];
       case "frpc":
-        return (await FrpcAPI.poll(cursor)) as PollingPayloadMap[T];
+        return (await FrpcAPI.poll(cursor, signal)) as PollingPayloadMap[T];
       case "cloudflared":
-        return (await CloudflaredAPI.poll(cursor)) as PollingPayloadMap[T];
+        return (await CloudflaredAPI.poll(
+          cursor,
+          signal,
+        )) as PollingPayloadMap[T];
       default:
         throw new Error(`Unsupported poll target: ${String(target)}`);
     }

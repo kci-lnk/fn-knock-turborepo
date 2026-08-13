@@ -2,10 +2,10 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
-import type {
-  CloudflareOptimizationResolverDiagnostic,
-  CloudflareOptimizationScan,
-} from "@/lib/api";
+import {
+  type CloudflareOptimizationResolverDiagnostic,
+  type CloudflareOptimizationScan,
+} from "@/lib/api/tunnel";
 import {
   optimizationResolverProviderLabel,
   optimizationResolverPathLabel,

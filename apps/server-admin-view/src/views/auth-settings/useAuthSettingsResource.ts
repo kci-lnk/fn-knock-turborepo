@@ -5,7 +5,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   AuthAccount,
   AuthLoginMode,
@@ -48,7 +48,10 @@ export function useAuthSettingsResource({
   const { isPending: isDeleting, run: runDeleteCredential } = useAsyncAction({
     onError: (error) => {
       toast.error(
-        extractErrorMessage(error, translate("admin.authSettings.deleteFailed")),
+        extractErrorMessage(
+          error,
+          translate("admin.authSettings.deleteFailed"),
+        ),
       );
     },
   });
@@ -91,7 +94,10 @@ export function useAuthSettingsResource({
       },
       onError: (error) => {
         throw new Error(
-          extractErrorMessage(error, translate("admin.authSettings.renameError")),
+          extractErrorMessage(
+            error,
+            translate("admin.authSettings.renameError"),
+          ),
         );
       },
     });

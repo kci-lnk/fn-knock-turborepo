@@ -250,20 +250,34 @@ pub(super) async fn clear_all_data(
     Json(body): Json<ClearAllDataBody>,
 ) -> Response {
     let go_backend = state.gateway.client.clone();
-    clear_all_data_with_gateway_reset(state, body, move || async move {
-        go_backend.reset_all_data().await
-    })
+    let memory_state = state.clone();
+    clear_all_data_with_gateway_reset(
+        state,
+        body,
+        move || async move { go_backend.reset_all_data().await },
+        move |settings| {
+            let state = memory_state.clone();
+            async move {
+                gateway_settings::apply_gateway_memory_settings(&state, settings)
+                    .await
+                    .map(|_| ())
+            }
+        },
+    )
     .await
 }
 
-pub(super) async fn clear_all_data_with_gateway_reset<F, Fut>(
+pub(super) async fn clear_all_data_with_gateway_reset<F, Fut, M, MFut>(
     state: AppState,
     body: ClearAllDataBody,
     reset_gateway: F,
+    mut apply_gateway_memory: M,
 ) -> Response
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = anyhow::Result<()>>,
+    M: FnMut(gateway_settings::GatewayMemorySettings) -> MFut,
+    MFut: Future<Output = anyhow::Result<()>>,
 {
     let translator = Translator::from_state(&state).await;
     let _automatic_backup_guard = state.maintenance.automatic_backup_lock.lock().await;
@@ -283,6 +297,16 @@ where
     }
 
     let _gateway_memory_guard = state.gateway.memory_update_lock.lock().await;
+    let previous_memory_settings = match state.storage.store.get_config().await {
+        Ok(config) => gateway_settings::gateway_memory_settings(&config),
+        Err(error) => {
+            tracing::error!(%error, "failed to load gateway memory settings before clearing data");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                maintenance_clear_text(&translator, "clearFailed"),
+            );
+        }
+    };
     if let Err(error) = reset_gateway().await {
         tracing::error!(%error, "failed to clear Go gateway data");
         return response::error(
@@ -293,6 +317,17 @@ where
 
     match state.storage.store.clear_all_keys().await {
         Ok(cleared_keys) => {
+            let default_memory_settings = gateway_settings::GatewayMemorySettings {
+                gc_percent: gateway_settings::DEFAULT_GATEWAY_GC_PERCENT,
+                memory_limit_mib: None,
+            };
+            if let Err(error) = apply_gateway_memory(default_memory_settings).await {
+                tracing::error!(%error, "failed to apply default gateway memory settings after clearing data");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    maintenance_clear_text(&translator, "clearFailed"),
+                );
+            }
             if let Err(error) = wol::clear_secrets_after_backup_restore(&state).await {
                 tracing::error!(%error, "failed to clear WoL relay credentials after clearing data");
                 return response::error(
@@ -309,6 +344,12 @@ where
         }
         Err(error) => {
             tracing::error!(%error, "failed to clear all stored data");
+            if let Err(rollback_error) = apply_gateway_memory(previous_memory_settings).await {
+                tracing::error!(
+                    %rollback_error,
+                    "failed to roll back gateway memory settings after storage clear failure"
+                );
+            }
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 maintenance_clear_text(&translator, "clearFailed"),

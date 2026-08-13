@@ -6,7 +6,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { WAFAPI } from "@/lib/api";
+import { WAFAPI } from "@/lib/api/gateway";
 import type {
   WAFDetails,
   WAFRuleFile,

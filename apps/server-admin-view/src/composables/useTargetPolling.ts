@@ -1,5 +1,10 @@
-import { ref } from 'vue';
-import { PollingAPI, type PollTarget, type PollingPayloadMap } from '../lib/api';
+import { ref } from "vue";
+import {
+  PollingAPI,
+  type PollTarget,
+  type PollingPayloadMap,
+} from "@/lib/api/polling";
+import { createVisibilityPoller } from "./useVisibilityPolling";
 
 interface UseTargetPollingOptions<T extends PollTarget> {
   target: T;
@@ -13,64 +18,56 @@ export function useTargetPolling<T extends PollTarget>(
   options: UseTargetPollingOptions<T>,
 ) {
   const isRunning = ref(false);
-  let timer: number | null = null;
   let cursor: number | undefined;
-  let inFlight = false;
   let runToken = 0;
-
-  const clearTimer = () => {
-    if (timer !== null) {
-      window.clearInterval(timer);
-      timer = null;
-    }
-  };
 
   const resetCursor = () => {
     cursor = undefined;
   };
 
-  const refresh = async () => {
-    if (inFlight) return;
+  const fetchOnce = async (signal: AbortSignal) => {
     const token = runToken;
-    inFlight = true;
     try {
-      const payload = await PollingAPI.poll(options.target, cursor);
-      if (token !== runToken) return;
+      const payload = await PollingAPI.poll(options.target, cursor, signal);
+      if (token !== runToken || signal.aborted) return;
       const nextCursor = (payload as { cursor?: unknown }).cursor;
-      if (typeof nextCursor === 'number' && Number.isFinite(nextCursor) && nextCursor >= 0) {
+      if (
+        typeof nextCursor === "number" &&
+        Number.isFinite(nextCursor) &&
+        nextCursor >= 0
+      ) {
         cursor = nextCursor;
       }
       options.onData(payload);
     } catch (error) {
-      options.onError?.(error);
-    } finally {
-      inFlight = false;
+      if (!signal.aborted) options.onError?.(error);
     }
   };
 
+  const poller = createVisibilityPoller({
+    intervalMs: options.intervalMs ?? 2000,
+    immediate: options.immediate,
+    task: fetchOnce,
+  });
+
   const start = () => {
-    if (timer !== null) return;
+    if (isRunning.value) return;
     runToken += 1;
     isRunning.value = true;
-    if (options.immediate !== false) {
-      void refresh();
-    }
-    timer = window.setInterval(() => {
-      void refresh();
-    }, options.intervalMs ?? 2000);
+    poller.start();
   };
 
   const stop = () => {
     runToken += 1;
     isRunning.value = false;
-    clearTimer();
+    poller.stop();
   };
 
   return {
     isRunning,
     start,
     stop,
-    refresh,
+    refresh: poller.refresh,
     resetCursor,
   };
 }

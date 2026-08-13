@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from "vue";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   AppConfig,
   GatewayHostResponseDetails,
@@ -40,10 +40,12 @@ export const useMappingGatewayAdvanced = ({
   translate: Translate;
   visibleMappings: Ref<HostMapping[]>;
 }) => {
-  const gatewayProxyHeadersDetails =
-    ref<GatewayProxyHeadersDetails | null>(null);
-  const gatewayHostResponseDetails =
-    ref<GatewayHostResponseDetails | null>(null);
+  const gatewayProxyHeadersDetails = ref<GatewayProxyHeadersDetails | null>(
+    null,
+  );
+  const gatewayHostResponseDetails = ref<GatewayHostResponseDetails | null>(
+    null,
+  );
   const isLoadingGatewayProxyHeaders = ref(false);
   const isLoadingGatewayHostResponse = ref(false);
   const gatewayProxyHeadersLoadError = ref("");
@@ -398,9 +400,7 @@ export const useMappingGatewayAdvanced = ({
     }
   };
 
-  const shouldShowProtocolHeadersWarning = (
-    mapping: HostMapping,
-  ): boolean => {
+  const shouldShowProtocolHeadersWarning = (mapping: HostMapping): boolean => {
     const target = mapping.target.trim();
     if (!target || parseTargetPort(target) !== HOME_ASSISTANT_TARGET_PORT) {
       return false;

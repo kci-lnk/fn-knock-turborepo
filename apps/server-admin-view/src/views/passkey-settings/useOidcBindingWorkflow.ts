@@ -6,13 +6,14 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   LdapBinding,
   LdapProviderView,
   OIDCBinding,
   OIDCProviderView,
 } from "@/types";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 export type ExternalProviderOption =
   (OIDCProviderView & { kind: "oidc" }) | (LdapProviderView & { kind: "ldap" });
@@ -33,7 +34,6 @@ export const useOidcBindingWorkflow = (options: {
   const inviteUrl = ref("");
   const inviteExpiresAt = ref("");
   const isOidcBindingsRefreshing = ref(false);
-  let autoRefreshTimer: ReturnType<typeof window.setInterval> | null = null;
 
   const { isPending: isInviteCreating, run: runCreateInvite } = useAsyncAction({
     onError: (error) => {
@@ -168,18 +168,12 @@ export const useOidcBindingWorkflow = (options: {
     });
   };
 
-  const stopAutoRefresh = () => {
-    if (autoRefreshTimer === null) return;
-    window.clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  };
-
-  const startAutoRefresh = () => {
-    stopAutoRefresh();
-    autoRefreshTimer = window.setInterval(() => {
-      void refreshOidcBindings({ notifyOnAdded: true });
-    }, AUTO_REFRESH_INTERVAL_MS);
-  };
+  const invitePoller = createVisibilityPoller({
+    intervalMs: AUTO_REFRESH_INTERVAL_MS,
+    enabled: () => showInviteDialog.value,
+    task: () => refreshOidcBindings({ notifyOnAdded: true }),
+  });
+  invitePoller.start();
 
   const openInviteDialog = () => {
     inviteProviderId.value = providers.value[0]?.id || "";
@@ -260,11 +254,10 @@ export const useOidcBindingWorkflow = (options: {
     });
   };
 
-  watch(showInviteDialog, (isOpen) => {
-    if (isOpen) startAutoRefresh();
-    else stopAutoRefresh();
+  watch(showInviteDialog, () => {
+    invitePoller.sync();
   });
-  onBeforeUnmount(stopAutoRefresh);
+  onBeforeUnmount(invitePoller.stop);
 
   return {
     copyInviteUrl,

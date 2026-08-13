@@ -10,6 +10,7 @@ import {
   optimizationResolverProviderLabel,
   optimizationResolverPathLabel,
   optimizationResolverStatusLabel,
+  optimizationScanErrorPresentation,
   optimizationSourceWarningLabel,
   requiresCloudflareSaasSetup,
 } from "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation";
@@ -51,6 +52,27 @@ describe("Cloudflare optimization presentation", () => {
         "No active business or capability hostname is ready",
       ),
       false,
+    );
+  });
+
+  it("keeps scan error severity and localization in one presentation model", () => {
+    assert.deepEqual(
+      optimizationScanErrorPresentation(
+        "cloudflare-saas-validation-pending",
+        "pending",
+        translate,
+      ),
+      {
+        message:
+          "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingDescription",
+        neutral: true,
+        title:
+          "admin.cloudflareTunnel.optimization.cloudflareSaasValidationPendingTitle",
+      },
+    );
+    assert.deepEqual(
+      optimizationScanErrorPresentation(null, "unexpected failure", translate),
+      { message: "unexpected failure", neutral: false, title: "" },
     );
   });
 

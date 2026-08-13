@@ -2,7 +2,7 @@ import { computed, type Ref } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { buildDDNSTimestampTooltipLines } from "../../lib/ddns-time";
-import type { DDNSTargetSummaryPayload } from "../../lib/api";
+import { type DDNSTargetSummaryPayload } from "@/lib/api/ddns";
 import type { LastCheck, LastIP } from "./model";
 
 type Translate = (
@@ -31,9 +31,7 @@ export function useDDNSStatusPresentation({
     never: translate("admin.ddns.never"),
   });
 
-  const getTargetLastCheckTooltipLines = (
-    target: DDNSTargetSummaryPayload,
-  ) =>
+  const getTargetLastCheckTooltipLines = (target: DDNSTargetSummaryPayload) =>
     buildDDNSTimestampTooltipLines({
       updatedAt: target.lastIP.updated_at,
       checkedAt: target.lastCheck.checked_at,

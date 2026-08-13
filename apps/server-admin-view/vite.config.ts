@@ -5,31 +5,6 @@ import path from "path";
 
 const isFpkLiteBuild = process.env.FN_KNOCK_FRONTEND_TARGET === "fpk-lite";
 
-const createChunkMatcher = (patterns: string[]) => (id: string) =>
-  patterns.some((pattern) => id.includes(pattern));
-
-const isFrameworkChunk = createChunkMatcher([
-  "node_modules/vue/",
-  "node_modules/@vue/",
-  "node_modules/vue-router/",
-  "node_modules/pinia/",
-  "node_modules/@vueuse/",
-]);
-
-const isUiChunk = createChunkMatcher([
-  "node_modules/lucide-vue-next/",
-  "node_modules/reka-ui/",
-  "node_modules/@floating-ui/",
-  "node_modules/@tanstack/",
-  "node_modules/class-variance-authority/",
-  "node_modules/clsx/",
-  "node_modules/tailwind-merge/",
-  "node_modules/vue-sonner/",
-  "node_modules/nprogress/",
-]);
-
-const isChartChunk = createChunkMatcher(["node_modules/uplot/"]);
-
 const createGhosttyExternalWasmPlugin = (): Plugin => ({
   name: "fn-knock:ghostty-external-wasm",
   enforce: "pre",
@@ -62,19 +37,6 @@ const createGhosttyExternalWasmPlugin = (): Plugin => ({
   },
 });
 
-const isCriticalHtmlPreload = (dep: string) => {
-  const name = path.basename(dep);
-  return (
-    name.startsWith("_plugin-vue_export-helper-") ||
-    name.startsWith("rolldown-runtime-") ||
-    name.startsWith("preload-helper-") ||
-    name.startsWith("framework-") ||
-    name.startsWith("ui-vendor-") ||
-    name.startsWith("config-") ||
-    name.startsWith("dockerAdminAuth-")
-  );
-};
-
 export default defineConfig({
   base: "./",
   publicDir: path.resolve(__dirname, "../../packages/icons"),
@@ -89,29 +51,9 @@ export default defineConfig({
     exclude: ["qrcode.vue"],
   },
   build: {
+    manifest: true,
     target: "chrome109",
     cssMinify: "esbuild",
-    modulePreload: {
-      resolveDependencies(_filename, deps, context) {
-        if (context.hostType !== "html") return deps;
-        return deps.filter(isCriticalHtmlPreload);
-      },
-    },
-    rolldownOptions: {
-      output: {
-        manualChunks(id) {
-          if (isFrameworkChunk(id)) {
-            return "framework";
-          }
-          if (isUiChunk(id)) {
-            return "ui-vendor";
-          }
-          if (isChartChunk(id)) {
-            return "chart-vendor";
-          }
-        },
-      },
-    },
   },
   resolve: {
     alias: {

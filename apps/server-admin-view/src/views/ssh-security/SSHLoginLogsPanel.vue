@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import RefreshButton from "@/components/RefreshButton.vue";
 import { Loader2 } from "lucide-vue-next";
-import { SSHSecurityAPI } from "../../lib/api";
+import { SSHSecurityAPI } from "@/lib/api/security";
 import { useSSHLoginLogs } from "./useSSHLoginLogs";
 
 const { t } = useI18n();

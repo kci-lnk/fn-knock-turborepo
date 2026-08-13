@@ -189,12 +189,17 @@ export const WAFAPI = {
     );
     return res.data.data;
   },
-  async drainEvents(): Promise<WAFDrainResult> {
-    const res = await apiClient.post("/waf/events/drain");
+  async drainEvents(signal?: AbortSignal): Promise<WAFDrainResult> {
+    const res = await apiClient.post("/waf/events/drain", undefined, {
+      signal,
+    });
     return res.data.data;
   },
-  async getLogs(params: WafLogQuery): Promise<WAFLogEntriesPayload> {
-    const res = await apiClient.get("/waf/logs", { params });
+  async getLogs(
+    params: WafLogQuery,
+    signal?: AbortSignal,
+  ): Promise<WAFLogEntriesPayload> {
+    const res = await apiClient.get("/waf/logs", { params, signal });
     return res.data.data;
   },
   async getLog(

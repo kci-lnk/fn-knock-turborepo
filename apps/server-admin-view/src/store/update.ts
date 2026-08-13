@@ -1,15 +1,15 @@
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
-import { UpdateAPI, type UpdateStatusPayload } from '../lib/api';
-import { toast } from '@admin-shared/utils/toast';
-import { extractErrorMessage } from '@admin-shared/composables/useAsyncAction';
-import { browserT } from '@fn-knock/i18n/vue/admin';
+import { defineStore } from "pinia";
+import { computed, ref } from "vue";
+import { UpdateAPI, type UpdateStatusPayload } from "@/lib/api/config";
+import { toast } from "@admin-shared/utils/toast";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;
 const INSTALL_PREPARE_MS = 4_000;
 
-export const useUpdateStore = defineStore('update', () => {
+export const useUpdateStore = defineStore("update", () => {
   const status = ref<UpdateStatusPayload | null>(null);
   const isLoading = ref(false);
   const isChecking = ref(false);
@@ -21,17 +21,25 @@ export const useUpdateStore = defineStore('update', () => {
   let pollTimer: number | null = null;
   let pollingStarted = false;
 
-  const downloadStatus = computed(() => status.value?.download.status ?? 'idle');
-  const isDownloadBusy = computed(() =>
-    downloadStatus.value === 'downloading'
-    || downloadStatus.value === 'verifying'
-    || downloadStatus.value === 'installing',
+  const downloadStatus = computed(
+    () => status.value?.download.status ?? "idle",
+  );
+  const isDownloadBusy = computed(
+    () =>
+      downloadStatus.value === "downloading" ||
+      downloadStatus.value === "verifying" ||
+      downloadStatus.value === "installing",
   );
   const canInstall = computed(() => {
-    return status.value?.hasUpdate === true && status.value.download.status === 'downloaded';
+    return (
+      status.value?.hasUpdate === true &&
+      status.value.download.status === "downloaded"
+    );
   });
   const shouldShowBanner = computed(() => status.value?.hasUpdate === true);
-  const isForceUpdate = computed(() => status.value?.forceUpdate === true && shouldShowBanner.value);
+  const isForceUpdate = computed(
+    () => status.value?.forceUpdate === true && shouldShowBanner.value,
+  );
 
   const clearTimer = () => {
     if (pollTimer !== null) {
@@ -43,13 +51,16 @@ export const useUpdateStore = defineStore('update', () => {
   const schedulePoll = () => {
     clearTimer();
     if (!pollingStarted) return;
-    pollTimer = window.setTimeout(async () => {
-      if (!isPreparingInstall.value) {
-        await loadStatus(true);
-        await maybeAutoInstall();
-      }
-      schedulePoll();
-    }, isDownloadBusy.value ? POLL_BUSY_MS : POLL_IDLE_MS);
+    pollTimer = window.setTimeout(
+      async () => {
+        if (!isPreparingInstall.value) {
+          await loadStatus(true);
+          await maybeAutoInstall();
+        }
+        schedulePoll();
+      },
+      isDownloadBusy.value ? POLL_BUSY_MS : POLL_IDLE_MS,
+    );
   };
 
   async function maybeAutoInstall() {
@@ -66,8 +77,8 @@ export const useUpdateStore = defineStore('update', () => {
       status.value = await UpdateAPI.getStatus();
     } catch (error) {
       if (!silent) {
-        toast.error(browserT('admin.update.loadStatusFailed'), {
-          description: extractErrorMessage(error, browserT('common.tryLater')),
+        toast.error(browserT("admin.update.loadStatusFailed"), {
+          description: extractErrorMessage(error, browserT("common.tryLater")),
         });
       }
     } finally {
@@ -83,21 +94,21 @@ export const useUpdateStore = defineStore('update', () => {
       if (showToast) {
         if (status.value.hasUpdate) {
           toast.success(
-            browserT('admin.update.newVersionDetected', {
-              version: status.value.latest?.version || '',
+            browserT("admin.update.newVersionDetected", {
+              version: status.value.latest?.version || "",
             }),
           );
         } else if (status.value.updateEnabled) {
-          toast.success(browserT('admin.update.alreadyLatest'));
+          toast.success(browserT("admin.update.alreadyLatest"));
         } else {
-          toast.info(browserT('admin.update.disabled'));
+          toast.info(browserT("admin.update.disabled"));
         }
       }
       return true;
     } catch (error) {
       if (showToast) {
-        toast.error(browserT('admin.update.checkFailed'), {
-          description: extractErrorMessage(error, browserT('common.tryLater')),
+        toast.error(browserT("admin.update.checkFailed"), {
+          description: extractErrorMessage(error, browserT("common.tryLater")),
         });
       }
       return false;
@@ -114,8 +125,8 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const res = await UpdateAPI.checkAndDownload();
       if (!res.success) {
-        toast.error(browserT('admin.update.startUpdateFailed'), {
-          description: res.message || browserT('common.tryLater'),
+        toast.error(browserT("admin.update.startUpdateFailed"), {
+          description: res.message || browserT("common.tryLater"),
         });
         return false;
       }
@@ -128,11 +139,11 @@ export const useUpdateStore = defineStore('update', () => {
         shouldAutoInstallAfterDownload.value = true;
         await maybeAutoInstall();
       }
-      toast.success(res.message || browserT('admin.update.downloadStarted'));
+      toast.success(res.message || browserT("admin.update.downloadStarted"));
       return true;
     } catch (error) {
-      toast.error(browserT('admin.update.startUpdateFailed'), {
-        description: extractErrorMessage(error, browserT('common.tryLater')),
+      toast.error(browserT("admin.update.startUpdateFailed"), {
+        description: extractErrorMessage(error, browserT("common.tryLater")),
       });
       return false;
     } finally {
@@ -146,8 +157,8 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const res = await UpdateAPI.startDownload();
       if (!res.success) {
-        toast.error(browserT('admin.update.startDownloadFailed'), {
-          description: res.message || browserT('common.tryLater'),
+        toast.error(browserT("admin.update.startDownloadFailed"), {
+          description: res.message || browserT("common.tryLater"),
         });
         return false;
       }
@@ -156,11 +167,11 @@ export const useUpdateStore = defineStore('update', () => {
       }
       await loadStatus(true);
       schedulePoll();
-      toast.success(res.message || browserT('admin.update.downloadStarted'));
+      toast.success(res.message || browserT("admin.update.downloadStarted"));
       return true;
     } catch (error) {
-      toast.error(browserT('admin.update.startDownloadFailed'), {
-        description: extractErrorMessage(error, browserT('common.tryLater')),
+      toast.error(browserT("admin.update.startDownloadFailed"), {
+        description: extractErrorMessage(error, browserT("common.tryLater")),
       });
       return false;
     } finally {
@@ -175,16 +186,18 @@ export const useUpdateStore = defineStore('update', () => {
     isPreparingInstall.value = true;
     try {
       if (status.value) {
-        status.value.download.status = 'installing';
+        status.value.download.status = "installing";
         status.value.download.error = null;
       }
       schedulePoll();
-      await new Promise((resolve) => window.setTimeout(resolve, INSTALL_PREPARE_MS));
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, INSTALL_PREPARE_MS),
+      );
 
       const res = await UpdateAPI.startInstall();
       if (!res.success) {
-        toast.error(browserT('admin.update.startInstallFailed'), {
-          description: res.message || browserT('common.tryLater'),
+        toast.error(browserT("admin.update.startInstallFailed"), {
+          description: res.message || browserT("common.tryLater"),
         });
         await loadStatus(true);
         schedulePoll();
@@ -194,8 +207,8 @@ export const useUpdateStore = defineStore('update', () => {
       schedulePoll();
       return true;
     } catch (error) {
-      toast.error(browserT('admin.update.startInstallFailed'), {
-        description: extractErrorMessage(error, browserT('common.tryLater')),
+      toast.error(browserT("admin.update.startInstallFailed"), {
+        description: extractErrorMessage(error, browserT("common.tryLater")),
       });
       await loadStatus(true);
       schedulePoll();
@@ -211,7 +224,7 @@ export const useUpdateStore = defineStore('update', () => {
       const confirm = await UpdateAPI.consumeConfirm();
       if (!confirm?.version) return;
       toast.success(
-        browserT('admin.update.completed', { version: confirm.version }),
+        browserT("admin.update.completed", { version: confirm.version }),
       );
     } catch {
       // ignore confirm errors

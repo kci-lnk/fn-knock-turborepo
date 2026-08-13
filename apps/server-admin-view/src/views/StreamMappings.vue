@@ -157,7 +157,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import { useConfigStore } from "../store/config";
 import type { StreamMapping } from "../types";
 import StreamMappingDisabledAlert from "./stream-mappings/StreamMappingDisabledAlert.vue";

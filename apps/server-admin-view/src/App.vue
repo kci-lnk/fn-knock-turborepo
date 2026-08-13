@@ -2,20 +2,35 @@
 import { Toaster } from "@/components/ui/sonner";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import "vue-sonner/style.css";
 import { useThemeMode } from "@/components/ui/theme-toggle";
-import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
-import DockerAdminAccessGate from "./components/DockerAdminAccessGate.vue";
-import WelcomeScreen from "./components/WelcomeScreen.vue";
 import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@frontend-core/appearance";
-import { ConfigAPI } from "./lib/api";
+import { ConfigAPI } from "./lib/api/config";
 import { useAppearanceState } from "@admin-shared/composables/useAppearanceState";
 import { useDockerAdminAuthStore } from "./store/dockerAdminAuth";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 
 const WELCOME_GUIDE_STORAGE_KEY = "fn_knock:welcome-guide:completed";
+const DockerAdminAccessGate = defineAsyncComponent(
+  () => import("./components/DockerAdminAccessGate.vue"),
+);
+const WelcomeScreen = defineAsyncComponent(
+  () => import("./components/WelcomeScreen.vue"),
+);
+const DynamicWhiteBackground = defineAsyncComponent(
+  () =>
+    import("@admin-shared/components/appearance/DynamicWhiteBackground.vue"),
+);
 const dockerAdminAuthStore = useDockerAdminAuthStore();
 const { activeThemeColorPreset } = useAppearanceState();
 const { resolvedMode } = useThemeMode();
@@ -249,7 +264,7 @@ watch(
 </script>
 
 <template>
-  <DynamicWhiteBackground :active="isDynamicWhiteActive" />
+  <DynamicWhiteBackground v-if="isDynamicWhiteActive" :active="true" />
   <div
     v-if="shouldRenderRouter"
     class="contents"

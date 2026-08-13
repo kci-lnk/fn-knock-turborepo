@@ -1,7 +1,10 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useConfigStore } from "../../store/config";
-import type { AccessEntryInfo, RunModePromptPreferences } from "../../lib/api";
+import {
+  type AccessEntryInfo,
+  type RunModePromptPreferences,
+} from "@/lib/api/system";
 import type { ReverseProxySubmode } from "../../types";
 
 type RunMode = 0 | 1 | 3;

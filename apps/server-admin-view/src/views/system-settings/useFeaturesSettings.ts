@@ -11,7 +11,9 @@ import {
   applyDateTimeDisplayMode,
   normalizeDateTimeDisplayMode,
 } from "@admin-shared/composables/useDateTimeDisplayState";
-import { ConfigAPI, SSHSecurityAPI, SystemAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
+import { SSHSecurityAPI } from "@/lib/api/security";
+import { SystemAPI } from "@/lib/api/system";
 import type {
   AuthCredentialSettings,
   AutoHttpsDetails,

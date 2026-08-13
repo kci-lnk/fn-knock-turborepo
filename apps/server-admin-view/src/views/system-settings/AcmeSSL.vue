@@ -316,7 +316,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@admin-shared/utils/toast";
-import { AcmeAPI } from "../../lib/api";
+import { AcmeAPI } from "@/lib/api/acme";
 import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import {
@@ -422,8 +422,9 @@ const statusBadgeVariant = computed(() => {
 
 const { isInitializing, refresh: fetchStatus } =
   usePollingResourceStatus<AcmeState | null>({
-    fetcher: async () => {
-      const data = await runFetchStatus(() => AcmeAPI.status());
+    fetcher: async (signal) => {
+      const data = await runFetchStatus(() => AcmeAPI.status(signal));
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       return data ?? state.value;
     },
     onData: (data) => {

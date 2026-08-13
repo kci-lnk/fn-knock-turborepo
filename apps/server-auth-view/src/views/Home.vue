@@ -80,6 +80,7 @@
   </AuthShell>
 
   <Dialog
+    v-if="showLogoutConfirmDialog"
     :open="showLogoutConfirmDialog"
     @update:open="showLogoutConfirmDialog = $event"
   >
@@ -115,19 +116,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import type { AuthAccessState, AuthGrantType } from "@frontend-core/auth/types";
 import { apiClient, AuthAPI } from "@/lib/api";
 import { useClientIpLocation } from "@/lib/client-ip-location";
@@ -146,6 +145,26 @@ import {
   passkeyBindingCopyKeys,
   shouldOfferPasskeyBinding,
 } from "@/lib/passkey-bind-offer";
+
+const loadDialogComponents = () => import("@/components/ui/dialog");
+const Dialog = defineAsyncComponent(
+  async () => (await loadDialogComponents()).Dialog,
+);
+const DialogContent = defineAsyncComponent(
+  async () => (await loadDialogComponents()).DialogContent,
+);
+const DialogDescription = defineAsyncComponent(
+  async () => (await loadDialogComponents()).DialogDescription,
+);
+const DialogFooter = defineAsyncComponent(
+  async () => (await loadDialogComponents()).DialogFooter,
+);
+const DialogHeader = defineAsyncComponent(
+  async () => (await loadDialogComponents()).DialogHeader,
+);
+const DialogTitle = defineAsyncComponent(
+  async () => (await loadDialogComponents()).DialogTitle,
+);
 
 const router = useRouter();
 const i18n = useI18n();

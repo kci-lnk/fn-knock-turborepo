@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import type { TrafficStats } from "@/types";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 export const useTrafficRealtime = ({
   intervalMs = 1000,
@@ -11,34 +12,26 @@ export const useTrafficRealtime = ({
   onError?: (error: unknown) => void;
 }) => {
   const trafficRealtimeStats = ref<TrafficStats | null>(null);
-  let trafficRealtimeTimer: number | null = null;
-  let isTrafficRealtimeLoading = false;
 
   const loadTrafficRealtime = async () => {
-    if (isTrafficRealtimeLoading) return;
-    isTrafficRealtimeLoading = true;
     try {
       trafficRealtimeStats.value = await load();
     } catch (error) {
       onError?.(error);
-    } finally {
-      isTrafficRealtimeLoading = false;
     }
   };
 
+  const poller = createVisibilityPoller({
+    intervalMs,
+    task: loadTrafficRealtime,
+  });
+
   const stopTrafficRealtimePolling = () => {
-    if (trafficRealtimeTimer !== null) {
-      window.clearInterval(trafficRealtimeTimer);
-      trafficRealtimeTimer = null;
-    }
+    poller.stop();
   };
 
   const startTrafficRealtimePolling = () => {
-    stopTrafficRealtimePolling();
-    void loadTrafficRealtime();
-    trafficRealtimeTimer = window.setInterval(() => {
-      void loadTrafficRealtime();
-    }, intervalMs);
+    poller.start();
   };
 
   return {

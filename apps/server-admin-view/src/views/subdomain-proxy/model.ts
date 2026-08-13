@@ -3,7 +3,10 @@ import {
   isHttpProxyTargetProtocol,
   isSupportedProxyTargetUrl,
 } from "@admin-shared/utils/proxyTargetInput";
-import type { DiscoveredServiceInfo, ScanDiscoverResponse } from "@/lib/api";
+import {
+  type DiscoveredServiceInfo,
+  type ScanDiscoverResponse,
+} from "@/lib/api/scan";
 import { normalizeHostMappingAvailability } from "@/lib/host-mapping-availability";
 import type { HostMapping, SubdomainModeConfig } from "@/types";
 export {

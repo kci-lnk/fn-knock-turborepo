@@ -1,6 +1,7 @@
 use std::{collections::HashSet, net::IpAddr};
 
 use crate::{crypto_utils, state::AppState};
+use serde_json::{Value, json};
 
 use super::{
     BUILTIN_CANDIDATE_SOURCES, CloudflareApiError, MAX_CUSTOM_SOURCE_HOSTNAMES,
@@ -17,6 +18,27 @@ pub(super) fn default_builtin_source_ids() -> Vec<String> {
         .iter()
         .map(|source| source.id.to_string())
         .collect()
+}
+
+pub(super) fn public_source_settings(settings: &OptimizationSourceSettings) -> Value {
+    let enabled = settings
+        .builtin_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    json!({
+        "officialRanges": settings.official_ranges,
+        "builtins": BUILTIN_CANDIDATE_SOURCES.iter().map(|source| json!({
+            "id": source.id,
+            "hostname": source.hostname,
+            "category": source.category,
+            "enabled": enabled.contains(source.id),
+        })).collect::<Vec<_>>(),
+        "customHostnames": settings.custom_hostnames,
+        "maxCustomHostnames": MAX_CUSTOM_SOURCE_HOSTNAMES,
+        "resolutionPolicy": "verified-multi-doh-fallback-v1",
+        "publishPolicy": "extract-ip-only",
+    })
 }
 
 pub(super) async fn load_source_settings(

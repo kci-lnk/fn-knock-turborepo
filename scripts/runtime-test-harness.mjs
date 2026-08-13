@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const execFileAsync = promisify(execFile);
 const idleMeasurementDelayMs = 1_000;
 const gatewayMetricTimeoutMs = 7_000;
+const runtimeMetricPollMs = 100;
 
 export const rootDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -42,11 +44,15 @@ export const waitForHttp = async (url, timeoutMs = 60_000) => {
   throw lastError || new Error(`Timed out waiting for ${url}`);
 };
 
-const ensureRuntimeArtifacts = async (serverBinary) => {
+const ensureRuntimeArtifacts = async (
+  serverBinary,
+  adminStaticPath,
+  authStaticPath,
+) => {
   const required = [
     serverBinary,
-    path.join(rootDir, "apps/server-admin-view/dist/index.html"),
-    path.join(rootDir, "apps/server-auth-view/dist/index.html"),
+    path.join(adminStaticPath, "index.html"),
+    path.join(authStaticPath, "index.html"),
   ];
   for (const artifactPath of required) {
     try {
@@ -71,6 +77,12 @@ const buildGateway = async (output) => {
     cwd: gatewayDir,
   });
   const actualCommit = stdout.trim().toLowerCase();
+  const expectedCommit = String(manifest.gatewayCommit ?? "").toLowerCase();
+  if (actualCommit !== expectedCommit) {
+    throw new Error(
+      `Go checkout ${actualCommit} does not match version.json gatewayCommit ${expectedCommit}`,
+    );
+  }
   await execFileAsync(
     "go",
     [
@@ -90,6 +102,43 @@ const buildGateway = async (output) => {
     },
   );
   return output;
+};
+
+const validateGatewayCheckoutVersion = async ({
+  gatewayDir = process.env.FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR,
+  manifestPath = process.env.FN_KNOCK_RUNTIME_VERSION_MANIFEST ??
+    path.join(rootDir, "version.json"),
+} = {}) => {
+  if (!gatewayDir) {
+    for (const candidate of [
+      path.join(rootDir, "..", "Go-Reauth-Proxy"),
+      path.join(rootDir, "Go-Reauth-Proxy"),
+    ]) {
+      try {
+        await access(path.join(candidate, ".git"));
+        gatewayDir = candidate;
+        break;
+      } catch {
+        // Continue to the other supported checkout layout.
+      }
+    }
+  }
+  if (!gatewayDir) {
+    throw new Error("Unable to locate the Go-Reauth-Proxy checkout");
+  }
+  const manifest = JSON.parse(
+    await readFile(path.resolve(rootDir, manifestPath), "utf8"),
+  );
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    cwd: gatewayDir,
+  });
+  const actualCommit = stdout.trim().toLowerCase();
+  const expectedCommit = String(manifest.gatewayCommit ?? "").toLowerCase();
+  if (actualCommit !== expectedCommit) {
+    throw new Error(
+      `Go checkout ${actualCommit} does not match version.json gatewayCommit ${expectedCommit}`,
+    );
+  }
 };
 
 const resolveGatewayBinary = async (explicitBinary, tempDir) => {
@@ -168,30 +217,169 @@ const numberOrNull = (value) =>
     ? Math.round(value)
     : null;
 
-const collectRuntimeRSS = async (backendUrl) => {
-  await new Promise((resolve) => setTimeout(resolve, idleMeasurementDelayMs));
+const countProcessFDs = async (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  if (process.platform === "linux") {
+    try {
+      return (await readdir(`/proc/${pid}/fd`)).length;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-a", "-p", String(pid), "-Fn"]);
+    return stdout.split("\n").filter((line) => /^f\d+$/u.test(line)).length;
+  } catch {
+    return null;
+  }
+};
+
+const runtimeCheckpointFromPayload = async (payload, managementPid, gatewayPid) => {
+  const components = payload?.data?.components;
+  const management = components?.management;
+  const gateway = components?.gateway_process;
+  const managementRSS = numberOrNull(management?.rss_bytes);
+  const gatewayRSS = numberOrNull(gateway?.rss_bytes);
+  if (managementRSS === null || gatewayRSS === null) return null;
+  const [managementFDs, gatewayFDs] = await Promise.all([
+    countProcessFDs(managementPid),
+    countProcessFDs(gatewayPid),
+  ]);
+  return {
+    captured_at: new Date().toISOString(),
+    management_rss_bytes: managementRSS,
+    gateway_rss_bytes: gatewayRSS,
+    gateway_heap_alloc_bytes: numberOrNull(gateway?.heap_alloc_bytes),
+    gateway_heap_sys_bytes: numberOrNull(gateway?.heap_sys_bytes),
+    gateway_managed_memory_bytes: numberOrNull(gateway?.managed_memory_bytes),
+    gateway_memory_limit_bytes: numberOrNull(gateway?.memory_limit_bytes),
+    gateway_num_gc: numberOrNull(gateway?.num_gc),
+    gateway_goroutines: numberOrNull(gateway?.goroutines),
+    management_unix_fds: managementFDs,
+    gateway_unix_fds: gatewayFDs,
+    active_proxy_requests: numberOrNull(gateway?.active_proxy_requests),
+    active_client_connections: numberOrNull(
+      gateway?.active_client_connections,
+    ),
+    idle_client_connections: numberOrNull(gateway?.idle_client_connections),
+    open_upstream_connections: numberOrNull(
+      gateway?.open_upstream_connections,
+    ),
+    udp_sessions: numberOrNull(gateway?.udp_sessions),
+    udp_queued_bytes: numberOrNull(gateway?.udp_queued_bytes),
+    udp_queued_bytes_peak: numberOrNull(gateway?.udp_queued_bytes_peak),
+    udp_queue_drops: numberOrNull(gateway?.udp_queue_drops),
+  };
+};
+
+const collectRuntimeCheckpoint = async (
+  backendUrl,
+  managementPid,
+  gatewayPid,
+) => {
   const deadline = Date.now() + gatewayMetricTimeoutMs;
   let lastStatus = "no response";
   while (Date.now() < deadline) {
-    const response = await fetch(`${backendUrl}/api/admin/runtime-health`);
-    if (!response.ok) {
-      lastStatus = `HTTP ${response.status}`;
-    } else {
-      const payload = await response.json();
-      const components = payload?.data?.components;
-      const managementRSS = numberOrNull(components?.management?.rss_bytes);
-      const gatewayRSS = numberOrNull(components?.gateway_process?.rss_bytes);
-      if (managementRSS !== null && gatewayRSS !== null) {
-        return {
-          management_rss_bytes: managementRSS,
-          gateway_rss_bytes: gatewayRSS,
-        };
+    try {
+      const response = await fetch(`${backendUrl}/api/admin/runtime-health`);
+      if (response.ok) {
+        const checkpoint = await runtimeCheckpointFromPayload(
+          await response.json(),
+          managementPid,
+          gatewayPid,
+        );
+        if (checkpoint) return checkpoint;
+        lastStatus = "RSS fields are not ready";
+      } else {
+        lastStatus = `HTTP ${response.status}`;
       }
-      lastStatus = `management RSS ${managementRSS ?? "missing"}, gateway RSS ${gatewayRSS ?? "missing"}`;
+    } catch (error) {
+      lastStatus = error?.message ?? String(error);
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, runtimeMetricPollMs));
   }
   throw new Error(`Runtime health metrics did not stabilize: ${lastStatus}`);
+};
+
+const collectRuntimeRSS = async (backendUrl, managementPid, gatewayPid) => {
+  await new Promise((resolve) => setTimeout(resolve, idleMeasurementDelayMs));
+  const checkpoint = await collectRuntimeCheckpoint(
+    backendUrl,
+    managementPid,
+    gatewayPid,
+  );
+  const managementRSS = checkpoint.management_rss_bytes;
+  const gatewayRSS = checkpoint.gateway_rss_bytes;
+  return {
+    management_rss_bytes: managementRSS,
+    gateway_rss_bytes: gatewayRSS,
+  };
+};
+
+const createLoadUpstream = async () => {
+  const fixedBody = Buffer.alloc(2 * 1024 * 1024, 0x61);
+  const streamChunk = Buffer.alloc(32 * 1024, 0x62);
+  const wafBody = Buffer.alloc(1024, 0x63);
+  const server = http.createServer((request, response) => {
+    if (request.url?.startsWith("/stream")) {
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      for (let index = 0; index < 64; index += 1) response.write(streamChunk);
+      response.end();
+      return;
+    }
+    const body = request.url?.startsWith("/waf") ? wafBody : fixedBody;
+    response.writeHead(200, {
+      "content-length": String(body.length),
+      "content-type": "application/octet-stream",
+    });
+    response.end(body);
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    stop: async () => {
+      server.closeAllConnections?.();
+      await new Promise((resolve) => server.close(resolve));
+    },
+  };
+};
+
+const configurePerformanceRoute = async (backendUrl, upstreamUrl) => {
+  const modeResponse = await fetch(`${backendUrl}/api/admin/config/run_type`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ run_type: 1, reverse_proxy_submode: "path" }),
+  });
+  if (!modeResponse.ok) {
+    throw new Error(
+      `failed to configure reverse-proxy runtime mode: HTTP ${modeResponse.status} ${await modeResponse.text()}`,
+    );
+  }
+  const response = await fetch(`${backendUrl}/api/admin/config/proxy_mappings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      mappings: [
+        {
+          path: "/perf",
+          target: upstreamUrl,
+          rewrite_html: false,
+          use_auth: false,
+          use_root_mode: false,
+          strip_path: true,
+        },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `failed to configure performance proxy route: HTTP ${response.status} ${await response.text()}`,
+    );
+  }
 };
 
 export const startRuntime = async ({
@@ -201,6 +389,8 @@ export const startRuntime = async ({
   serverBinary = process.env.FN_KNOCK_RUNTIME_SERVER_BIN,
   protectedAdmin = false,
   collectMetrics = !protectedAdmin,
+  adminStaticPath = process.env.FN_KNOCK_RUNTIME_ADMIN_STATIC_PATH,
+  authStaticPath = process.env.FN_KNOCK_RUNTIME_AUTH_STATIC_PATH,
   runtimeTarget = protectedAdmin ? "docker" : "fpk-lite",
   tempPrefix = "fn-knock-runtime-audit-",
 } = {}) => {
@@ -232,12 +422,27 @@ export const startRuntime = async ({
         "server-admin-rs",
       ),
   );
-  await ensureRuntimeArtifacts(resolvedServerBinary);
+  const resolvedAdminStaticPath = path.resolve(
+    rootDir,
+    adminStaticPath ?? "apps/server-admin-view/dist",
+  );
+  const resolvedAuthStaticPath = path.resolve(
+    rootDir,
+    authStaticPath ?? "apps/server-auth-view/dist",
+  );
+  await validateGatewayCheckoutVersion();
+  await ensureRuntimeArtifacts(
+    resolvedServerBinary,
+    resolvedAdminStaticPath,
+    resolvedAuthStaticPath,
+  );
   const tempDir = await mkdtemp(path.join(os.tmpdir(), tempPrefix));
+  const loadUpstream = await createLoadUpstream();
   let resolvedGatewayBinary;
   try {
     resolvedGatewayBinary = await resolveGatewayBinary(gatewayBinary, tempDir);
   } catch (error) {
+    await loadUpstream.stop();
     await rm(tempDir, { recursive: true, force: true });
     throw error;
   }
@@ -247,6 +452,7 @@ export const startRuntime = async ({
   const [backendPort, authPort, goBackendPort, goProxyPort, adminViewPort] =
     selectedPorts;
   const gatewayConfigDir = path.join(tempDir, "gateway");
+  await mkdir(gatewayConfigDir, { recursive: true });
   const sharedEnv = {
     ...process.env,
     BACKEND_PORT: String(backendPort),
@@ -257,7 +463,7 @@ export const startRuntime = async ({
     resolvedGatewayBinary,
     [
       "-c",
-      gatewayConfigDir,
+      path.join(gatewayConfigDir, "config.json"),
       "-admin-port",
       String(goBackendPort),
       "-proxy-port",
@@ -273,7 +479,7 @@ export const startRuntime = async ({
     cwd: rootDir,
     env: {
       ...sharedEnv,
-      ADMIN_STATIC_PATH: path.join(rootDir, "apps/server-admin-view/dist"),
+      ADMIN_STATIC_PATH: resolvedAdminStaticPath,
       ...(protectedAdmin
         ? {
             ADMIN_VIEW_HOST: "127.0.0.1",
@@ -282,7 +488,7 @@ export const startRuntime = async ({
         : {}),
       AUTH_HOST: "127.0.0.1",
       AUTH_PORT: String(authPort),
-      AUTH_STATIC_PATH: path.join(rootDir, "apps/server-auth-view/dist"),
+      AUTH_STATIC_PATH: resolvedAuthStaticPath,
       BACKEND_HOST: "127.0.0.1",
       BACKEND_PORT: String(backendPort),
       EXPOSE_RUNTIME_HMAC_SECRET: "1",
@@ -318,22 +524,44 @@ export const startRuntime = async ({
       waitForHttp(authUrl),
     ]);
     const readinessMs = Math.round(performance.now() - startedAt);
+    if (collectMetrics) {
+      await configurePerformanceRoute(backendUrl, loadUpstream.url);
+    }
     const metrics = collectMetrics
-      ? { readiness_ms: readinessMs, ...(await collectRuntimeRSS(backendUrl)) }
+      ? {
+          readiness_ms: readinessMs,
+          ...(await collectRuntimeRSS(backendUrl, child.pid, gateway.pid)),
+        }
       : undefined;
 
     return {
       adminUrl,
       authUrl,
       backendUrl,
+      gatewayProxyUrl: `http://127.0.0.1:${goProxyPort}`,
       metrics,
+      readinessMs,
+      collectCheckpoint: () =>
+        collectRuntimeCheckpoint(backendUrl, child.pid, gateway.pid),
+      reclaimGatewayMemory: async () => {
+        const response = await fetch(
+          `${backendUrl}/api/admin/runtime-health/gateway-memory/reclaim`,
+          { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+        );
+        if (!response.ok) {
+          throw new Error(`gateway memory reclaim failed: HTTP ${response.status}`);
+        }
+        return response.json();
+      },
       stop: async () => {
         await Promise.all([stopChild(child), stopChild(gateway)]);
+        await loadUpstream.stop();
         await rm(tempDir, { recursive: true, force: true });
       },
     };
   } catch (error) {
     await Promise.all([stopChild(child), stopChild(gateway)]);
+    await loadUpstream.stop();
     await rm(tempDir, { recursive: true, force: true });
     throw new Error(`${error.message}\n${output}`);
   }

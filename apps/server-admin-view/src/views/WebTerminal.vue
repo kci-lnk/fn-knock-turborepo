@@ -12,7 +12,7 @@ import { useRouter } from "vue-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoaderCircle } from "lucide-vue-next";
-import { TerminalAPI } from "../lib/api";
+import { TerminalAPI } from "@/lib/api/terminal";
 import type {
   TerminalAttachmentRecord,
   TerminalRuntimeStatus,

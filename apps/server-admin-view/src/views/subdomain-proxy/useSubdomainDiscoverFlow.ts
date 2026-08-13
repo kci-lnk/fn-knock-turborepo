@@ -11,13 +11,13 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ScanAPI } from "@/lib/api";
-import type {
-  DiscoveredServiceInfo,
-  ScanDiscoverPollEvent,
-  ScanDiscoverProgress,
-  ScanDiscoverResponse,
-} from "@/lib/api";
+import { ScanAPI } from "@/lib/api/scan";
+import {
+  type DiscoveredServiceInfo,
+  type ScanDiscoverPollEvent,
+  type ScanDiscoverProgress,
+  type ScanDiscoverResponse,
+} from "@/lib/api/scan";
 import type { HostMapping } from "@/types";
 import {
   buildDiscoveredHostResponse,

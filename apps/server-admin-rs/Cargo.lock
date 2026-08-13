@@ -3469,6 +3469,7 @@ dependencies = [
  "hmac 0.12.1",
  "http",
  "http-body-util",
+ "httpdate",
  "idna",
  "if-addrs",
  "ipnet",

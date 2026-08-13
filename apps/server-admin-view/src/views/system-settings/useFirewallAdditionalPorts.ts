@@ -5,7 +5,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { SystemAPI } from "@/lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import { useConfigStore } from "@/store/config";
 import type { FirewallAdditionalPortsDetails, RunType } from "@/types";
 import { resolveFirewallAdditionalPortsSuccessMessageKey } from "./firewallAdditionalPortsModel";
@@ -29,7 +29,10 @@ type FirewallAdditionalPortsControllerDependencies = {
 };
 
 export const createFirewallAdditionalPortsController = (
-  { canManageHostFirewall, hasUnsavedModeChanges }: UseFirewallAdditionalPortsOptions,
+  {
+    canManageHostFirewall,
+    hasUnsavedModeChanges,
+  }: UseFirewallAdditionalPortsOptions,
   dependencies: FirewallAdditionalPortsControllerDependencies,
 ) => {
   const open = ref(false);
@@ -144,20 +147,14 @@ export const useFirewallAdditionalPorts = ({
             autoManageFirewallEnabled.value,
           );
         const baseDescription = result.appliedNow
-          ? t(
-              `admin.runModeSettings.additionalPorts.${successMessageKey}`,
-              {
-                count: result.additionalPorts.length,
-                mode: modeLabel(result.runType),
-                ports: formatPorts(result.effectivePorts),
-              },
-            )
-          : t(
-              `admin.runModeSettings.additionalPorts.${successMessageKey}`,
-              {
-                count: result.additionalPorts.length,
-              },
-            );
+          ? t(`admin.runModeSettings.additionalPorts.${successMessageKey}`, {
+              count: result.additionalPorts.length,
+              mode: modeLabel(result.runType),
+              ports: formatPorts(result.effectivePorts),
+            })
+          : t(`admin.runModeSettings.additionalPorts.${successMessageKey}`, {
+              count: result.additionalPorts.length,
+            });
         toast.success(t("admin.runModeSettings.additionalPorts.saved"), {
           description: showUnsavedModeNotice
             ? `${baseDescription} ${t("admin.runModeSettings.additionalPorts.savedModeNotice")}`

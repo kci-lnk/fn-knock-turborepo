@@ -1,9 +1,9 @@
-import type {
-  CloudflareOptimizationDomain,
-  CloudflareOptimizationResolverDiagnostic,
-  CloudflareOptimizationScan,
-  CloudflareOptimizationVantage,
-} from "@/lib/api";
+import {
+  type CloudflareOptimizationDomain,
+  type CloudflareOptimizationResolverDiagnostic,
+  type CloudflareOptimizationScan,
+  type CloudflareOptimizationVantage,
+} from "@/lib/api/tunnel";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
 
 type Translate = CloudflareTunnelController["t"];
@@ -124,6 +124,54 @@ export const requiresCloudflareSaasSetup = (
       normalized.includes(marker),
     )
   );
+};
+
+export const optimizationScanErrorPresentation = (
+  errorCode: string | null | undefined,
+  message: string | null | undefined,
+  t: Translate,
+) => {
+  const requiresSaas = requiresCloudflareSaasSetup(errorCode, message);
+  const validationPending =
+    errorCode === cloudflareSaasValidationPendingErrorCode;
+  const resourceConflict = errorCode === cloudflareResourceConflictErrorCode;
+  const normalized = message?.toLowerCase();
+  const optimizationNotReady =
+    errorCode === optimizationNotReadyErrorCode ||
+    (normalized !== undefined &&
+      legacyOptimizationNotReadyErrorMarkers.some((marker) =>
+        normalized.includes(marker),
+      ));
+  const resolutionUnavailable =
+    errorCode === candidateResolutionUnavailableErrorCode;
+
+  let titleKey = "";
+  let descriptionKey = "";
+  if (requiresSaas) {
+    titleKey = "cloudflareSaasRequiredTitle";
+    descriptionKey = "cloudflareSaasRequiredDescription";
+  } else if (validationPending) {
+    titleKey = "cloudflareSaasValidationPendingTitle";
+    descriptionKey = "cloudflareSaasValidationPendingDescription";
+  } else if (resourceConflict) {
+    titleKey = "resourceConflictTitle";
+    descriptionKey = "resourceConflictDescription";
+  } else if (optimizationNotReady) {
+    titleKey = "notReadyTitle";
+    descriptionKey = "notReadyDescription";
+  } else if (resolutionUnavailable) {
+    titleKey = "candidateResolutionUnavailableTitle";
+    descriptionKey = "candidateResolutionUnavailableDescription";
+  }
+
+  const keyPrefix = "admin.cloudflareTunnel.optimization";
+  return {
+    message: descriptionKey
+      ? t(`${keyPrefix}.${descriptionKey}`)
+      : message || "",
+    neutral: validationPending || optimizationNotReady,
+    title: titleKey ? t(`${keyPrefix}.${titleKey}`) : "",
+  };
 };
 
 export const optimizationScanPhaseLabel = (phase: string, t: Translate) => {

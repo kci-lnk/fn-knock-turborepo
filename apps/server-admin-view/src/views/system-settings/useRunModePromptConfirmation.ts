@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { SystemAPI, type RunModePromptPreferences } from "@/lib/api";
+import { SystemAPI, type RunModePromptPreferences } from "@/lib/api/system";
 import type { ReverseProxySubmode } from "@/types";
 
 type RunMode = 0 | 1 | 3;

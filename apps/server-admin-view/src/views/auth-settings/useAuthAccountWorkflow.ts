@@ -5,7 +5,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { AuthAccount, TOTPSubdomainAccess } from "@/types";
 
 export const useAuthAccountWorkflow = ({

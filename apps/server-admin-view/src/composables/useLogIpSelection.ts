@@ -4,7 +4,10 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { GeneralBlacklistAPI, type GeneralBlacklistSource } from "@/lib/api";
+import {
+  GeneralBlacklistAPI,
+  type GeneralBlacklistSource,
+} from "@/lib/api/security";
 import { useGeneralBlacklistStatus } from "@/composables/useGeneralBlacklistStatus";
 
 type TranslateParams = Record<string, unknown>;

@@ -8,7 +8,8 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { toast } from "@admin-shared/utils/toast";
 import { useCursorPagination } from "@/composables/useCursorPagination";
 import { useIpLocationBatch } from "@/composables/useIpLocationBatch";
-import { ConfigAPI, GatewayLogsAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
+import { GatewayLogsAPI } from "@/lib/api/gateway";
 import { useConfigStore } from "@/store/config";
 import type { GatewayLogEntry, TOTPCredential } from "@/types";
 import {

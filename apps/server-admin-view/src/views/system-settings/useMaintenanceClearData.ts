@@ -5,7 +5,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { MaintenanceAPI } from "@/lib/api";
+import { MaintenanceAPI } from "@/lib/api/config";
 
 export const useMaintenanceClearData = () => {
   const { t } = useI18n();

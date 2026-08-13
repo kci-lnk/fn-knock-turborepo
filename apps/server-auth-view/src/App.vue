@@ -2,7 +2,7 @@
   <div
     class="theme-grid-background fixed inset-0 -z-20 h-screen w-screen"
   ></div>
-  <DynamicWhiteBackground :active="isDynamicWhiteActive" />
+  <DynamicWhiteBackground v-if="isDynamicWhiteActive" :active="true" />
   <div
     class="fixed right-[calc(env(safe-area-inset-right)+1rem)] top-[calc(env(safe-area-inset-top)+1rem)] z-30"
   >
@@ -12,15 +12,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watchEffect } from "vue";
+import { computed, defineAsyncComponent, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { ThemeModeToggle, useThemeMode } from "@/components/ui/theme-toggle";
-import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
 import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@frontend-core/appearance";
 import { useAppearanceState } from "@admin-shared/composables/useAppearanceState";
 
 const { activeThemeColorPreset } = useAppearanceState();
+const DynamicWhiteBackground = defineAsyncComponent(
+  () =>
+    import("@admin-shared/components/appearance/DynamicWhiteBackground.vue"),
+);
 const { resolvedMode } = useThemeMode();
 const route = useRoute();
 const { t } = useI18n();

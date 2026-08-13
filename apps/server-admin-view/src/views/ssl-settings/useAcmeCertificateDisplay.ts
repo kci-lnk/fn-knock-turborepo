@@ -1,12 +1,8 @@
 import { useI18n } from "vue-i18n";
-import type { AcmeApplicationOverviewItem } from "@/lib/api";
+import { type AcmeApplicationOverviewItem } from "@/lib/api/acme";
 
 type CertificateStatusKey =
-  | "none"
-  | "invalid"
-  | "expired"
-  | "expiring"
-  | "valid";
+  "none" | "invalid" | "expired" | "expiring" | "valid";
 
 type UseAcmeCertificateDisplayOptions = {
   isActionBlocked: () => boolean;

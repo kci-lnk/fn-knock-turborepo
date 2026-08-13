@@ -1,6 +1,7 @@
 use super::*;
+#[cfg(test)]
 pub(super) use crate::infra::system_resources::host_memory_bytes;
-use crate::infra::system_resources::process_file_descriptor_limit;
+use crate::infra::system_resources::{effective_memory_bytes, process_file_descriptor_limit};
 
 const MIB: u64 = 1024 * 1024;
 const GIB: u64 = 1024 * MIB;
@@ -411,37 +412,4 @@ fn linux_cgroup_cpu_cores() -> Option<usize> {
     } else {
         usize::try_from((quota as u64).div_ceil(period)).ok()
     }
-}
-
-fn effective_memory_bytes() -> (Option<u64>, Option<u64>) {
-    let (host_total, host_available) = host_memory_bytes();
-    #[cfg(target_os = "linux")]
-    {
-        if let Some((limit, usage)) = linux_cgroup_memory_bytes() {
-            let cgroup_available = limit.saturating_sub(usage);
-            return (
-                Some(host_total.map_or(limit, |value| value.min(limit))),
-                Some(host_available.map_or(cgroup_available, |value| value.min(cgroup_available))),
-            );
-        }
-    }
-    (host_total, host_available)
-}
-
-#[cfg(target_os = "linux")]
-fn linux_cgroup_memory_bytes() -> Option<(u64, u64)> {
-    let parse = |path: &str| {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|value| value.trim().parse::<u64>().ok())
-    };
-    if let (Some(limit), Some(usage)) = (
-        parse("/sys/fs/cgroup/memory.max"),
-        parse("/sys/fs/cgroup/memory.current"),
-    ) {
-        return Some((limit, usage));
-    }
-    let limit = parse("/sys/fs/cgroup/memory/memory.limit_in_bytes")?;
-    let usage = parse("/sys/fs/cgroup/memory/memory.usage_in_bytes")?;
-    (limit < (1_u64 << 60)).then_some((limit, usage))
 }

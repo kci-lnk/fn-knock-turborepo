@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(process.argv[2] ?? "dist");
@@ -24,10 +24,7 @@ function filesIn(directory) {
 
 let generated = 0;
 for (const file of filesIn(root)) {
-  if (
-    !compressibleExtensions.has(path.extname(file)) ||
-    statSync(file).size < 1024
-  ) {
+  if (!compressibleExtensions.has(path.extname(file))) {
     continue;
   }
   const source = readFileSync(file);
@@ -38,14 +35,9 @@ for (const file of filesIn(root)) {
       [constants.BROTLI_PARAM_MODE]: constants.BROTLI_MODE_TEXT,
     },
   });
-  if (gzip.byteLength < source.byteLength) {
-    writeFileSync(`${file}.gz`, gzip);
-    generated += 1;
-  }
-  if (brotli.byteLength < source.byteLength) {
-    writeFileSync(`${file}.br`, brotli);
-    generated += 1;
-  }
+  writeFileSync(`${file}.gz`, gzip);
+  writeFileSync(`${file}.br`, brotli);
+  generated += 2;
 }
 
 console.log(

@@ -165,26 +165,6 @@ async fn update_domain_mode(
     .into_response()
 }
 
-pub(super) fn public_source_settings(settings: &OptimizationSourceSettings) -> Value {
-    let enabled = settings
-        .builtin_ids
-        .iter()
-        .map(String::as_str)
-        .collect::<HashSet<_>>();
-    json!({
-        "officialRanges": settings.official_ranges,
-        "builtins": BUILTIN_CANDIDATE_SOURCES.iter().map(|source| json!({
-            "id": source.id,
-            "hostname": source.hostname,
-            "category": source.category,
-            "enabled": enabled.contains(source.id),
-        })).collect::<Vec<_>>(),
-        "customHostnames": settings.custom_hostnames,
-        "maxCustomHostnames": MAX_CUSTOM_SOURCE_HOSTNAMES,
-        "resolutionPolicy": "verified-multi-doh-fallback-v1",
-        "publishPolicy": "extract-ip-only",
-    })
-}
 #[utoipa::path(post, path = "/api/admin/cloudflared/optimization/scans", tag = "cloudflared", operation_id = "post_api_admin_cloudflared_optimization_scans", responses((status = 200, description = "Started optimization scan")))]
 async fn start_scan(
     State(state): State<AppState>,

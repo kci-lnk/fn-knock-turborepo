@@ -8,7 +8,7 @@ import {
   isAvailabilityWindowOpen,
   normalizeDailyAvailability,
 } from "../../lib/daily-availability";
-import { SystemAPI } from "../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import { useConfigStore } from "../../store/config";
 import { useSystemClockStore } from "../../store/systemClock";
 import type { DailyAvailability } from "../../types";

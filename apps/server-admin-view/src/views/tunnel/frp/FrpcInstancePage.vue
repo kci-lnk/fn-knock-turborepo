@@ -2,12 +2,12 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
+import { ConfigAPI } from "@/lib/api/config";
 import {
-  ConfigAPI,
   FrpcAPI,
   type FrpcInstanceStatus,
   type FrpcInstanceSummary,
-} from "../../../lib/api";
+} from "@/lib/api/tunnel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Breadcrumb,
@@ -33,6 +33,7 @@ import { useConfigStore } from "../../../store/config";
 import TunnelSupervisorStatus from "../../../components/TunnelSupervisorStatus.vue";
 import FrpcInstanceEditor from "./FrpcInstanceEditor.vue";
 import { summarizeFrpcContent } from "./frpcInstanceModel";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 type FrpcEditorExpose = {
   getContent: () => string;
@@ -64,8 +65,6 @@ const isSaving = ref(false);
 const isStarting = ref(false);
 const isStopping = ref(false);
 const isClearingLogs = ref(false);
-
-let pollTimer: number | null = null;
 
 const summary = computed(
   () =>
@@ -281,20 +280,20 @@ async function pollLogs() {
   }
 }
 
+const logsPoller = createVisibilityPoller({
+  intervalMs: 2_000,
+  enabled: () => !isCreateMode.value && instance.value !== null,
+  task: pollLogs,
+});
+
 function startPolling() {
-  stopPolling();
   cursor.value = undefined;
-  void pollLogs();
-  pollTimer = window.setInterval(() => {
-    void pollLogs();
-  }, 2000);
+  logsPoller.start();
+  logsPoller.sync();
 }
 
 function stopPolling() {
-  if (pollTimer !== null) {
-    window.clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  logsPoller.stop();
 }
 
 onMounted(() => {

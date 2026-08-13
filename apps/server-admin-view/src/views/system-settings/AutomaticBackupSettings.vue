@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { DatabaseBackup, Loader2, RotateCcw, Save } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
-import { MaintenanceAPI } from "@/lib/api";
+import { MaintenanceAPI } from "@/lib/api/config";
 import {
   AUTOMATIC_BACKUP_INTERVAL_RANGE,
   AUTOMATIC_BACKUP_RESULT_POLL_LIMIT,

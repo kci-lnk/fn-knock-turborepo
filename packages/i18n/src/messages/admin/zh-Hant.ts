@@ -5252,6 +5252,14 @@ export const zhHantAdmin = {
         placeholder: "選擇回收強度",
         customDescription: "使用自訂回收強度。",
         rangeError: "請輸入 25 到 500 之間的整數。",
+        limitTitle: "Go 執行階段記憶體上限",
+        limitDescription:
+          "限制 Go 執行階段管理的記憶體；這是軟上限，不等同於程序 RSS。",
+        auto: "自動（建議）",
+        manual: "手動",
+        manualHint: "手動上限不可超過裝置有效記憶體的 50%。",
+        manualRangeError: "請輸入 64 到 4096 之間的整數。",
+        effectiveLimit: "目前有效上限：{limit}",
         retry: "重試",
         hint: "GOGC 越低，回收越頻繁、記憶體使用量通常越低，但會消耗更多 CPU；立即回收可能造成短暫暫停。",
         levels: {

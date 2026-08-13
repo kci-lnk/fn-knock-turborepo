@@ -16,11 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createRandomTargetName } from "@/lib/wolTargetName";
-import type {
-  WOLDiscoveredDevice,
-  WOLDiscoveryProgress,
-  WOLDiscoveryResult,
-} from "@/lib/api";
+import {
+  type WOLDiscoveredDevice,
+  type WOLDiscoveryProgress,
+  type WOLDiscoveryResult,
+} from "@/lib/api/wol";
 
 type DiscoveredSelection = WOLDiscoveredDevice & {
   name: string;

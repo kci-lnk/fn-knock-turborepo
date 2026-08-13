@@ -19,8 +19,8 @@ const sessionPath = (sessionId: string) =>
   `/deep-monitor/sessions/${encodeURIComponent(sessionId)}`;
 
 export const DeepMonitorAPI = {
-  async list(): Promise<DeepMonitorSession[]> {
-    const res = await apiClient.get("/deep-monitor/sessions");
+  async list(signal?: AbortSignal): Promise<DeepMonitorSession[]> {
+    const res = await apiClient.get("/deep-monitor/sessions", { signal });
     return res.data.data.items || [];
   },
   async get(sessionId: string): Promise<DeepMonitorSession> {
@@ -50,9 +50,11 @@ export const DeepMonitorAPI = {
   async events(
     sessionId: string,
     params: DeepMonitorEventsQuery = {},
+    signal?: AbortSignal,
   ): Promise<DeepMonitorEventList> {
     const res = await apiClient.get(`${sessionPath(sessionId)}/events`, {
       params,
+      signal,
     });
     return res.data.data;
   },

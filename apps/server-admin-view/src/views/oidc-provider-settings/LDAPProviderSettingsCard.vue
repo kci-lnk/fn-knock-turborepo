@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@frontend-core/errors/extractErrorMessage";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   LdapProviderCatalogItem,
   LdapProviderType,
@@ -402,7 +402,9 @@ onMounted(load);
             :disabled="!!editingId"
             @update:model-value="applyPreset($event as LdapProviderType)"
           >
-            <SelectTrigger id="ldap-provider-type"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="ldap-provider-type"
+              ><SelectValue
+            /></SelectTrigger>
             <SelectContent
               ><SelectItem
                 v-for="item in catalog"
@@ -435,7 +437,8 @@ onMounted(load);
             t("admin.ldapProviders.transport")
           }}</Label
           ><Select v-model="form.transport"
-            ><SelectTrigger id="ldap-provider-transport"><SelectValue /></SelectTrigger
+            ><SelectTrigger id="ldap-provider-transport"
+              ><SelectValue /></SelectTrigger
             ><SelectContent
               ><SelectItem value="ldaps">LDAPS</SelectItem
               ><SelectItem value="starttls">StartTLS</SelectItem></SelectContent
@@ -447,7 +450,8 @@ onMounted(load);
             t("admin.ldapProviders.bindMode")
           }}</Label
           ><Select v-model="form.bindMode"
-            ><SelectTrigger id="ldap-provider-bind-mode"><SelectValue /></SelectTrigger
+            ><SelectTrigger id="ldap-provider-bind-mode"
+              ><SelectValue /></SelectTrigger
             ><SelectContent
               ><SelectItem value="search">{{
                 t("admin.ldapProviders.searchBind")

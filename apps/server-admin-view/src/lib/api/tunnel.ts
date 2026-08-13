@@ -149,13 +149,14 @@ export const FrpcAPI = {
   async clearLogs(): Promise<void> {
     await apiClient.delete("/frpc/logs");
   },
-  async poll(cursor?: number): Promise<FrpcPollPayload> {
+  async poll(cursor?: number, signal?: AbortSignal): Promise<FrpcPollPayload> {
     const params =
       typeof cursor === "number"
         ? ({ cursor } satisfies FrpcPollQuery)
         : undefined;
     const res = await apiClient.get("/frpc/poll", {
       params,
+      signal,
     });
     return res.data.data;
   },
@@ -283,9 +284,7 @@ export const CloudflaredAPI = {
     const res = await apiClient.get("/cloudflared/reconcile/jobs/active");
     return res.data.data;
   },
-  async getReconcileJobByPlan(
-    planId: string,
-  ): Promise<CloudflareReconcileJob> {
+  async getReconcileJobByPlan(planId: string): Promise<CloudflareReconcileJob> {
     const res = await apiClient.get(
       `/cloudflared/reconcile/jobs/by-plan/${encodeURIComponent(planId)}`,
     );
@@ -359,12 +358,16 @@ export const CloudflaredAPI = {
   async clearLogs(): Promise<void> {
     await apiClient.delete("/cloudflared/logs");
   },
-  async poll(cursor?: number): Promise<CloudflaredPollPayload> {
+  async poll(
+    cursor?: number,
+    signal?: AbortSignal,
+  ): Promise<CloudflaredPollPayload> {
     const params = (
       typeof cursor === "number" ? { cursor } : undefined
     ) satisfies CloudflaredPollQuery | undefined;
     const res = await apiClient.get("/cloudflared/poll", {
       params,
+      signal,
     });
     return res.data.data;
   },

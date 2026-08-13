@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <Sheet v-model:open="isMobileNavOpen">
+    <Sheet v-if="isMobileNavOpen" v-model:open="isMobileNavOpen">
       <SheetContent side="left" class="w-[66vw] max-w-[240px] p-0">
         <SheetHeader class="sr-only">
           <SheetTitle>{{ t("admin.nav.navigationMenu") }}</SheetTitle>
@@ -210,7 +210,8 @@
       <main
         id="main-content"
         class="flex-1 w-full min-w-0"
-        :aria-busy="isRouteNavigating" tabindex="-1"
+        :aria-busy="isRouteNavigating"
+        tabindex="-1"
       >
         <h1 class="sr-only">{{ currentNavLabel }}</h1>
         <LayoutStatusBanners :navigate-to="navigateTo" />
@@ -242,6 +243,7 @@
     </div>
 
     <LayoutLocaleDialog
+      v-if="isLocaleDialogOpen"
       v-model:open="isLocaleDialogOpen"
       :is-saving="isSavingLocale"
       :options="localeOptions"
@@ -260,7 +262,6 @@ import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import { useSystemClockStore } from "../store/systemClock";
 import { useUpdateStore } from "../store/update";
 import { isRouteNavigating, pendingNavPath } from "../router/navigation-state";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Button } from "@/components/ui/button";
 import { ThemeModeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "@admin-shared/utils/toast";
@@ -271,19 +272,20 @@ import {
   normalizeLocale,
 } from "@fn-knock/i18n/core";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
-import LayoutLocaleDialog from "./layout/LayoutLocaleDialog.vue";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";
+import {
+  ConfirmDangerPopover,
+  LayoutLocaleDialog,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "./layout/asyncComponents";
 
 const router = useRouter();
 const route = useRoute();
@@ -453,5 +455,4 @@ watch(
   },
   { immediate: true },
 );
-
 </script>

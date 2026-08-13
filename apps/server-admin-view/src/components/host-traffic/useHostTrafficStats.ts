@@ -1,7 +1,7 @@
 import { computed, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { TimeSeriesChartSeries } from "@/components/charts/TimeSeriesChart.vue";
-import { DashboardAPI } from "@/lib/api";
+import { DashboardAPI } from "@/lib/api/dashboard";
 import type { DashboardStats, HostTrafficStats } from "@/types";
 
 const rangeDefs = [

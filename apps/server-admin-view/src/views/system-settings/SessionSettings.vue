@@ -21,7 +21,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { AuthCredentialSettings, PostLoginIpGrantMode } from "../../types";
 import { useConfigStore } from "../../store/config";
 import SessionDurationFieldRow from "./SessionDurationFieldRow.vue";

@@ -6,7 +6,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { SSHSecurityAPI } from "@/lib/api";
+import { SSHSecurityAPI } from "@/lib/api/security";
 import { useConfigStore } from "@/store/config";
 import type { SSHSecurityDetails, SSHSecuritySelection } from "@/types";
 
@@ -55,8 +55,8 @@ export const useSSHSecurityConfig = () => {
       });
     },
   });
-  const { isPending: isSyncingFirewall, run: runSyncFirewall } =
-    useAsyncAction({
+  const { isPending: isSyncingFirewall, run: runSyncFirewall } = useAsyncAction(
+    {
       onError: (error) => {
         toast.error(t("admin.sshSecurity.syncFailed"), {
           description: extractErrorMessage(
@@ -65,7 +65,8 @@ export const useSSHSecurityConfig = () => {
           ),
         });
       },
-    });
+    },
+  );
 
   const customCidrsState = computed(() =>
     parseCidrTextarea(form.customCidrsText),

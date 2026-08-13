@@ -29,8 +29,71 @@ test("runtime performance summary uses nearest-rank p95", () => {
     readiness_p95_ms: 40,
     management_rss_p95_bytes: 130,
     gateway_rss_p95_bytes: 230,
+    gateway_load_peak_rss_p95_bytes: null,
+    gateway_post_load_rss_p95_bytes: null,
+    gateway_post_reclaim_rss_p95_bytes: null,
+    proxy_2mib_rps_p50: null,
   });
   assert.equal(percentile([1, 2, 3, 4, 5], 0.95), 5);
+});
+
+test("runtime performance schema v2 summarizes stable and load checkpoints", () => {
+  const sample = (stable, peak, retained, reclaimed, throughput) => ({
+    readiness_ms: 10,
+    checkpoints: {
+      stable_10s: {
+        management_rss_bytes: stable,
+        gateway_rss_bytes: stable * 2,
+      },
+      load_peak: { gateway_rss_bytes: peak },
+      post_load_30s: { gateway_rss_bytes: retained },
+      post_reclaim: { gateway_rss_bytes: reclaimed },
+    },
+    loads: [
+      { name: "proxy_2mib", requests_per_second: throughput },
+    ],
+  });
+  const summary = summarizeRuntimeSamples([
+    sample(100, 500, 400, 300, 90),
+    sample(110, 550, 440, 330, 100),
+  ]);
+  assert.deepEqual(summary, {
+    readiness_p95_ms: 10,
+    management_rss_p95_bytes: 110,
+    gateway_rss_p95_bytes: 220,
+    gateway_load_peak_rss_p95_bytes: 550,
+    gateway_post_load_rss_p95_bytes: 440,
+    gateway_post_reclaim_rss_p95_bytes: 330,
+    proxy_2mib_rps_p50: 90,
+  });
+});
+
+test("runtime comparison enforces throughput and load RSS improvements", () => {
+  const failures = compareRuntimeSummaries(
+    {
+      readiness_p95_ms: 100,
+      management_rss_p95_bytes: 1_000,
+      gateway_rss_p95_bytes: 2_000,
+      gateway_load_peak_rss_p95_bytes: 10_000,
+      gateway_post_load_rss_p95_bytes: 8_000,
+      proxy_2mib_rps_p50: 100,
+    },
+    {
+      readiness_p95_ms: 100,
+      management_rss_p95_bytes: 1_000,
+      gateway_rss_p95_bytes: 2_000,
+      gateway_load_peak_rss_p95_bytes: 8_000,
+      gateway_post_load_rss_p95_bytes: 6_400,
+      proxy_2mib_rps_p50: 95,
+    },
+    {
+      readiness: 0.1,
+      rss: 0.05,
+      throughput: 0.05,
+      loadRssImprovement: 0.2,
+    },
+  );
+  assert.deepEqual(failures, []);
 });
 
 test("runtime performance comparison permits configured regressions", () => {

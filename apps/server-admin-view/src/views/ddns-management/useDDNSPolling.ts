@@ -10,8 +10,8 @@ import {
   DEFAULT_LOG_WINDOW_SIZE,
   mergePollingLogWindow,
 } from "@admin-shared/utils/log-window";
-import type { DDNSStatusPayload } from "@/lib/api";
-import { DDNSAPI } from "@/lib/api";
+import { type DDNSStatusPayload } from "@/lib/api/ddns";
+import { DDNSAPI } from "@/lib/api/ddns";
 import { useTargetPolling } from "@/composables/useTargetPolling";
 import type { LogEntry } from "./model";
 

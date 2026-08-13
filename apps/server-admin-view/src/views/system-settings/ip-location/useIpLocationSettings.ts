@@ -6,7 +6,10 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { IpLocationSettingsAPI, type IpLocationApiConfig } from "@/lib/api";
+import {
+  IpLocationSettingsAPI,
+  type IpLocationApiConfig,
+} from "@/lib/api/config";
 import {
   buildIpLocationSettingsPayload,
   DEFAULT_CUSTOM_CIDR_URL,
@@ -97,8 +100,8 @@ export const useIpLocationSettings = () => {
       });
     },
   });
-  const { isPending: isTestingIpLookup, run: runTestIpLookup } =
-    useAsyncAction({
+  const { isPending: isTestingIpLookup, run: runTestIpLookup } = useAsyncAction(
+    {
       onError: (error) => {
         toast.error(t("admin.ipLocationSettings.connectionFailed"), {
           description: extractErrorMessage(
@@ -107,7 +110,8 @@ export const useIpLocationSettings = () => {
           ),
         });
       },
-    });
+    },
+  );
   const { isPending: isTestingCidr, run: runTestCidr } = useAsyncAction({
     onError: (error) => {
       toast.error(t("admin.ipLocationSettings.connectionFailed"), {

@@ -13,7 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EventCenterAPI, RuntimeHealthAPI } from "@/lib/api";
+import { EventCenterAPI } from "@/lib/api/events";
+import { RuntimeHealthAPI } from "@/lib/api/runtime-health";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import RuntimeComponentCard from "./RuntimeComponentCard.vue";
 import GatewayMemoryDialog from "./GatewayMemoryDialog.vue";
 import type {
@@ -41,7 +43,6 @@ const logGeneratedAt = ref<string | null>(null);
 const logsLoading = ref(false);
 const logsClearing = ref(false);
 const gatewayMemoryDialogOpen = ref(false);
-let pollTimer: ReturnType<typeof setInterval> | null = null;
 let logRequestId = 0;
 
 const componentOrder = [
@@ -81,22 +82,27 @@ const selectedLogComponentName = computed(() =>
     : "",
 );
 
-const fetchRuntime = async (showError = true) => {
+const fetchRuntime = async (showError = true, signal?: AbortSignal) => {
   if (loading.value) return;
   loading.value = true;
   try {
     const [health, events] = await Promise.all([
-      RuntimeHealthAPI.getHealth(),
-      EventCenterAPI.getEvents({
-        page: 1,
-        limit: "20",
-        search: "",
-        source: "RUNTIME_MONITOR",
-      }),
+      RuntimeHealthAPI.getHealth(signal),
+      EventCenterAPI.getEvents(
+        {
+          page: 1,
+          limit: "20",
+          search: "",
+          source: "RUNTIME_MONITOR",
+        },
+        signal,
+      ),
     ]);
+    if (signal?.aborted) return;
     snapshot.value = health.data;
     recentEvents.value = events.data.events;
   } catch (error) {
+    if (signal?.aborted) return;
     if (showError) {
       toast.error(t("admin.eventCenter.runtime.loadFailed"), {
         description: error instanceof Error ? error.message : String(error),
@@ -107,17 +113,11 @@ const fetchRuntime = async (showError = true) => {
   }
 };
 
-const stopPolling = () => {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
-};
-
-const syncPolling = () => {
-  stopPolling();
-  if (!props.active || document.hidden) return;
-  void fetchRuntime(snapshot.value === null);
-  pollTimer = setInterval(() => void fetchRuntime(false), 5_000);
-};
+const runtimePoller = createVisibilityPoller({
+  intervalMs: 5_000,
+  enabled: () => props.active,
+  task: (signal) => fetchRuntime(snapshot.value === null, signal),
+});
 
 const copyDiagnostics = async () => {
   copying.value = true;
@@ -242,14 +242,12 @@ const formatLogLine = (entry: RuntimeOperationalLogEntry) => {
   }${fields}`;
 };
 
-watch(() => props.active, syncPolling);
+watch(() => props.active, runtimePoller.sync);
 onMounted(() => {
-  document.addEventListener("visibilitychange", syncPolling);
-  syncPolling();
+  runtimePoller.start();
 });
 onUnmounted(() => {
-  stopPolling();
-  document.removeEventListener("visibilitychange", syncPolling);
+  runtimePoller.stop();
 });
 </script>
 

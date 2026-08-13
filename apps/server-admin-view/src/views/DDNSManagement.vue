@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { onBeforeRouteLeave } from "vue-router";
 import { Settings2 } from "lucide-vue-next";
-import { DDNSAPI } from "../lib/api";
+import { DDNSAPI, type DDNSNetworkInterfacePayload } from "@/lib/api/ddns";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
@@ -14,7 +14,6 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import type { DDNSNetworkInterfacePayload } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import { docsUrls } from "../lib/docs";
@@ -527,7 +526,11 @@ onUnmounted(() => {
         <span class="text-sm text-muted-foreground">{{
           enabled ? t("admin.ddns.enabled") : t("admin.ddns.disabled")
         }}</span>
-        <Switch v-model="enabled" :aria-label="t('admin.ddns.enabled')" :disabled="isEnabledSwitchDisabled" />
+        <Switch
+          v-model="enabled"
+          :aria-label="t('admin.ddns.enabled')"
+          :disabled="isEnabledSwitchDisabled"
+        />
       </div>
     </div>
 

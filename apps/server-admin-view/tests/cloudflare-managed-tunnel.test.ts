@@ -186,6 +186,9 @@ describe("managed Cloudflare Tunnel", () => {
         "../../server-admin-rs/src/tunnels/cloudflared/optimization/resolvers.rs",
       ),
       readSource(
+        "../../server-admin-rs/src/tunnels/cloudflared/optimization/settings.rs",
+      ),
+      readSource(
         "../../server-admin-rs/src/tunnels/cloudflared/optimization/probes.rs",
       ),
     ].join("\n");
@@ -290,7 +293,10 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(controller, /startOptimizationScan\(/u);
     assert.match(card, /preferredIpValidated === true/u);
     assert.match(card, /preferredIpValidated === false/u);
-    assert.match(card, /aria-describedby="optimization-preferred-ip-description"/u);
+    assert.match(
+      card,
+      /aria-describedby="optimization-preferred-ip-description"/u,
+    );
     assert.match(backend, /normalize_preferred_ip/u);
     assert.match(backend, /bundled_cloudflare_prefixes/u);
     assert.match(backend, /retain_shortlist_with_priority/u);

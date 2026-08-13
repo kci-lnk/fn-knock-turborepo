@@ -425,7 +425,7 @@ import {
   type WhiteListRecord,
   type WhitelistRegionGroupRecord,
   type WhitelistRegionInput,
-} from "../lib/api";
+} from "@/lib/api/whitelist";
 
 const { t } = useI18n();
 const { fetchRecords, isInitializing, loading, records, regionGroups } =

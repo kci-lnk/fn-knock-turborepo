@@ -28,7 +28,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { CaptchaAPI } from "../../lib/api";
+import { CaptchaAPI } from "@/lib/api/config";
 import {
   ensureUncommonDifficultyAtLeastBase,
   isPowDifficultyPreset,
@@ -108,11 +108,10 @@ const baseDifficultySelection = computed({
     const difficulty = Number(value);
     if (!isPowDifficultyPreset(difficulty)) return;
     form.pow.base_max_number = difficulty;
-    form.pow.uncommon_location.max_number =
-      ensureUncommonDifficultyAtLeastBase(
-        difficulty,
-        form.pow.uncommon_location.max_number,
-      );
+    form.pow.uncommon_location.max_number = ensureUncommonDifficultyAtLeastBase(
+      difficulty,
+      form.pow.uncommon_location.max_number,
+    );
   },
 });
 
@@ -262,9 +261,7 @@ onMounted(fetchSettings);
               {{ t("admin.captchaSettings.powBaseDifficultyDescription") }}
             </div>
           </div>
-          <div
-            class="captcha-key-input-wrap captcha-difficulty-select-wrap"
-          >
+          <div class="captcha-key-input-wrap captcha-difficulty-select-wrap">
             <Select v-model="baseDifficultySelection" :disabled="isSaving">
               <SelectTrigger :id="powBaseFieldId" class="w-full">
                 <SelectValue />
@@ -318,22 +315,15 @@ onMounted(fetchSettings);
               {{ t("admin.captchaSettings.powUncommonDifficultyDescription") }}
             </div>
           </div>
-          <div
-            class="captcha-key-input-wrap captcha-difficulty-select-wrap"
-          >
-            <Select
-              v-model="uncommonDifficultySelection"
-              :disabled="isSaving"
-            >
+          <div class="captcha-key-input-wrap captcha-difficulty-select-wrap">
+            <Select v-model="uncommonDifficultySelection" :disabled="isSaving">
               <SelectTrigger :id="powUncommonFieldId" class="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
                   :value="String(POW_DIFFICULTY_STANDARD)"
-                  :disabled="
-                    POW_DIFFICULTY_STANDARD < form.pow.base_max_number
-                  "
+                  :disabled="POW_DIFFICULTY_STANDARD < form.pow.base_max_number"
                 >
                   {{ t("admin.captchaSettings.powDifficultyStandard") }}
                 </SelectItem>

@@ -1,10 +1,10 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type {
-  AcmeApplicationPayload,
-  AcmeApplicationRecord,
-  AcmeDnsProvider,
-} from "@/lib/api";
+import {
+  type AcmeApplicationPayload,
+  type AcmeApplicationRecord,
+  type AcmeDnsProvider,
+} from "@/lib/api/acme";
 import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
 import { toast } from "@admin-shared/utils/toast";
 import {

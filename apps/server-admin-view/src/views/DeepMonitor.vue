@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { Activity, Download, Eraser, Square } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
-import { DeepMonitorAPI } from "@/lib/api";
+import { DeepMonitorAPI } from "@/lib/api/deep-monitor";
 import type { DeepMonitorEventSummary, DeepMonitorSession } from "@/types";
 import {
   Breadcrumb,
@@ -15,6 +15,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 const DEFAULT_DURATION_SECONDS = 30 * 60;
 const LOG_LINE_LIMIT = 1000;
@@ -35,7 +36,6 @@ const now = ref(Date.now());
 const logViewport = ref<HTMLElement | null>(null);
 let source: EventSource | null = null;
 let clock: number | undefined;
-let sessionRefresh: number | undefined;
 
 const normalizeHost = (value: string) =>
   value.trim().toLowerCase().replace(/\.+$/, "");
@@ -153,7 +153,7 @@ const resetLogStream = () => {
   discardedLines.value = 0;
 };
 
-const loadRecentEvents = async () => {
+const loadRecentEvents = async (signal?: AbortSignal) => {
   const current = session.value;
   if (!current) return;
   loading.value = true;
@@ -166,10 +166,14 @@ const loadRecentEvents = async () => {
     let cursor = String(approximateFirstSequence);
     let hasMore = true;
     while (hasMore && logLines.value.length < LOG_LINE_LIMIT) {
-      const result = await DeepMonitorAPI.events(current.id, {
-        cursor,
-        limit: 200,
-      });
+      const result = await DeepMonitorAPI.events(
+        current.id,
+        {
+          cursor,
+          limit: 200,
+        },
+        signal,
+      );
       for (const item of result.items) appendEvent(item, false);
       cursor = result.next_cursor;
       hasMore = result.has_more && result.items.length > 0;
@@ -182,10 +186,14 @@ const loadRecentEvents = async () => {
   }
 };
 
-const refreshSession = async (forceReload = false, silent = false) => {
+const refreshSession = async (
+  forceReload = false,
+  silent = false,
+  signal?: AbortSignal,
+) => {
   if (mutating.value && !forceReload) return;
   try {
-    const items = (await DeepMonitorAPI.list()).filter(
+    const items = (await DeepMonitorAPI.list(signal)).filter(
       (item) => normalizeHost(item.host) === normalizeHost(host.value),
     );
     const next =
@@ -194,7 +202,7 @@ const refreshSession = async (forceReload = false, silent = false) => {
     session.value = next;
     if (changed) {
       resetLogStream();
-      await loadRecentEvents();
+      await loadRecentEvents(signal);
       openLive();
     } else if (!active.value) {
       closeLive();
@@ -205,6 +213,11 @@ const refreshSession = async (forceReload = false, silent = false) => {
     if (!silent) toast.error(errorMessage(error));
   }
 };
+
+const sessionPoller = createVisibilityPoller({
+  intervalMs: 5_000,
+  task: (signal) => refreshSession(false, true, signal),
+});
 
 const start = async () => {
   if (!host.value || active.value) return;
@@ -258,21 +271,18 @@ const clear = async () => {
   }
 };
 
-watch(host, () => void refreshSession(true));
+watch(host, () => sessionPoller.sync());
 
 onMounted(async () => {
   clock = window.setInterval(() => (now.value = Date.now()), 1000);
-  sessionRefresh = window.setInterval(
-    () => void refreshSession(false, true),
-    5000,
-  );
   await refreshSession(true);
+  sessionPoller.start();
 });
 
 onUnmounted(() => {
   closeLive();
   if (clock) window.clearInterval(clock);
-  if (sessionRefresh) window.clearInterval(sessionRefresh);
+  sessionPoller.stop();
 });
 </script>
 

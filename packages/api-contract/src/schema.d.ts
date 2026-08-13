@@ -7684,15 +7684,25 @@ export interface components {
             record_localhost?: boolean | null;
         };
         GatewayMemoryConfigData: {
+            /** Format: int64 */
+            effective_memory_limit_bytes: number;
             /** Format: int32 */
             gc_percent: number;
+            /** Format: int64 */
+            memory_limit_mib: number | null;
         };
         GatewayMemoryConfigUpdateData: {
             /** Format: int32 */
-            gc_percent: number;
+            gc_percent?: number | null;
+            /** Format: int64 */
+            memory_limit_mib?: number | null;
         };
         GatewayMemoryReclaimBodyData: Record<string, never>;
         GatewayMemoryReclaimData: {
+            /** Format: int64 */
+            active_client_connections: number;
+            /** Format: int64 */
+            active_proxy_requests: number;
             /** Format: int32 */
             gc_percent: number;
             /** Format: int64 */
@@ -7700,7 +7710,25 @@ export interface components {
             /** Format: int64 */
             heap_sys_bytes: number;
             /** Format: int64 */
+            idle_client_connections: number;
+            /** Format: int64 */
+            managed_memory_bytes: number;
+            /** Format: int64 */
+            memory_limit_bytes: number;
+            /** Format: int32 */
+            num_gc: number;
+            /** Format: int64 */
+            open_upstream_connections: number;
+            /** Format: int64 */
             rss_bytes: number;
+            /** Format: int64 */
+            udp_queue_drops: number;
+            /** Format: int64 */
+            udp_queued_bytes: number;
+            /** Format: int64 */
+            udp_queued_bytes_peak: number;
+            /** Format: int64 */
+            udp_sessions: number;
         };
         GatewayPortalData: {
             /** @enum {string} */
@@ -8697,6 +8725,10 @@ export interface components {
             run_type: 0 | 1 | 3;
         };
         RuntimeComponentHealthData: {
+            /** Format: int64 */
+            active_client_connections?: number | null;
+            /** Format: int64 */
+            active_proxy_requests?: number | null;
             commit: string | null;
             /** Format: int32 */
             consecutive_failures: number;
@@ -8711,6 +8743,8 @@ export interface components {
             heap_sys_bytes?: number | null;
             /** @enum {string} */
             id: "management" | "gateway_process" | "gateway_dataplane" | "auth_bridge" | "storage" | "config_sync";
+            /** Format: int64 */
+            idle_client_connections?: number | null;
             instance_id: string | null;
             /** Format: date-time */
             last_checked_at: string | null;
@@ -8718,6 +8752,14 @@ export interface components {
             last_success_at: string | null;
             /** Format: int64 */
             latency_ms?: number | null;
+            /** Format: int64 */
+            managed_memory_bytes?: number | null;
+            /** Format: int64 */
+            memory_limit_bytes?: number | null;
+            /** Format: int64 */
+            num_gc?: number | null;
+            /** Format: int64 */
+            open_upstream_connections?: number | null;
             /** Format: int32 */
             pid: number | null;
             /** @enum {string} */
@@ -8729,6 +8771,14 @@ export interface components {
             started_at: string | null;
             /** @enum {string} */
             status: "healthy" | "degraded" | "unhealthy" | "unknown" | "blocked";
+            /** Format: int64 */
+            udp_queue_drops?: number | null;
+            /** Format: int64 */
+            udp_queued_bytes?: number | null;
+            /** Format: int64 */
+            udp_queued_bytes_peak?: number | null;
+            /** Format: int64 */
+            udp_sessions?: number | null;
             /** Format: int64 */
             uptime_ms: number | null;
             version: string | null;

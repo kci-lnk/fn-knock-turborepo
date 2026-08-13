@@ -1,5 +1,5 @@
 import { computed, ref, watch, type ComputedRef } from "vue";
-import { ScanAPI, type ScanDiscoveryHostCandidate } from "@/lib/api";
+import { ScanAPI, type ScanDiscoveryHostCandidate } from "@/lib/api/scan";
 
 type Translate = (key: string) => string;
 

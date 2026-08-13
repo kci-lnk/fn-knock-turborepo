@@ -158,6 +158,7 @@ pub(super) async fn sync_runtime_after_import(
 
     let locale_label = maintenance_backup_text(translator, "syncSteps.locale");
     let locale = normalize_locale_config(config.get("locale").unwrap_or(&Value::Null));
+    state.set_browser_locale(&locale).await;
     match state.gateway.client.set_locale_config(&locale).await {
         Ok((status, value))
             if status == reqwest::StatusCode::NOT_FOUND

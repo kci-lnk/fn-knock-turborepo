@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { LoaderCircle, RefreshCw, ShieldAlert } from "lucide-vue-next";
-import type {
-  CloudflareReconcileConflict,
-  CloudflareReconcileOperation,
-} from "@/lib/api";
+import {
+  type CloudflareReconcileConflict,
+  type CloudflareReconcileOperation,
+} from "@/lib/api/tunnel";
 import type { CloudflareTunnelController } from "./useCloudflareTunnelController";
 
 const { controller } = defineProps<{

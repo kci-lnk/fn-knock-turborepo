@@ -6,13 +6,12 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useConfigStore } from "@/store/config";
+import { CloudflaredAPI, FrpcAPI } from "@/lib/api/tunnel";
 import {
-  CloudflaredAPI,
-  FrpcAPI,
   SystemAPI,
   type AccessEntryInfo,
   type RunModePromptPreferences,
-} from "@/lib/api";
+} from "@/lib/api/system";
 import {
   DEFAULT_REVERSE_PROXY_SUBMODE,
   resolveReverseProxySubmode,

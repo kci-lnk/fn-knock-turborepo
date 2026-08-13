@@ -149,8 +149,12 @@ export const SystemAPI = {
     const res = await apiClient.post("/config/auto_https", payload);
     return res.data.data;
   },
-  async getSmartConnectDetails(): Promise<SmartConnectDetailsContract> {
-    const res = await apiClient.get("/config/smart_connect/details");
+  async getSmartConnectDetails(
+    signal?: AbortSignal,
+  ): Promise<SmartConnectDetailsContract> {
+    const res = await apiClient.get("/config/smart_connect/details", {
+      signal,
+    });
     return res.data.data;
   },
   async updateSmartConnect(
@@ -231,8 +235,8 @@ export const SystemAPI = {
     );
     return res.data.data;
   },
-  async getFrpStatus(): Promise<FrpAssetStatusResponse> {
-    const res = await apiClient.get("/system/frp/status");
+  async getFrpStatus(signal?: AbortSignal): Promise<FrpAssetStatusResponse> {
+    const res = await apiClient.get("/system/frp/status", { signal });
     return res.data;
   },
   async startFrpDownload(): Promise<SystemAssetMutationResponse> {
@@ -247,8 +251,10 @@ export const SystemAPI = {
     const res = await apiClient.delete("/system/frp");
     return res.data;
   },
-  async getCloudflaredStatus(): Promise<CloudflaredAssetStatusResponse> {
-    const res = await apiClient.get("/system/cloudflared/status");
+  async getCloudflaredStatus(
+    signal?: AbortSignal,
+  ): Promise<CloudflaredAssetStatusResponse> {
+    const res = await apiClient.get("/system/cloudflared/status", { signal });
     return res.data;
   },
   async startCloudflaredDownload(): Promise<SystemAssetMutationResponse> {

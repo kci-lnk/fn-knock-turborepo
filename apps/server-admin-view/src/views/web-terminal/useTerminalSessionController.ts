@@ -1,7 +1,7 @@
 import { nextTick, type ComputedRef, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
-import { TerminalAPI } from "@/lib/api";
+import { TerminalAPI } from "@/lib/api/terminal";
 import type {
   TerminalAttachmentRecord,
   TerminalOutputChunk,

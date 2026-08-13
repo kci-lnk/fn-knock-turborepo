@@ -115,9 +115,10 @@ export const CaptchaAPI = {
     });
     return res.data.data;
   },
-  async getPowChallenge() {
+  async getPowChallenge(signal?: AbortSignal) {
     const res = await apiClient.get("/challenge", {
       params: withNoStoreParams(),
+      signal,
     });
     return res.data;
   },

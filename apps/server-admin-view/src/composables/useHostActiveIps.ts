@@ -1,12 +1,5 @@
-import {
-  computed,
-  onBeforeUnmount,
-  ref,
-  unref,
-  watch,
-  type Ref,
-} from "vue";
-import { DashboardAPI } from "../lib/api";
+import { computed, onBeforeUnmount, ref, unref, watch, type Ref } from "vue";
+import { DashboardAPI } from "@/lib/api/dashboard";
 import type {
   HostActiveIp,
   IpLocationLookupStatus,

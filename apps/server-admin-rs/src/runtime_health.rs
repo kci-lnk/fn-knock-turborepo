@@ -108,6 +108,28 @@ pub(crate) struct ComponentHealth {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub heap_sys_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_limit_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_memory_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_gc: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_proxy_requests: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_client_connections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idle_client_connections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_upstream_connections: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_sessions: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_queued_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_queued_bytes_peak: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp_queue_drops: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<u64>,
 }
 
@@ -137,6 +159,17 @@ impl ComponentHealth {
             goroutines: None,
             heap_alloc_bytes: None,
             heap_sys_bytes: None,
+            memory_limit_bytes: None,
+            managed_memory_bytes: None,
+            num_gc: None,
+            active_proxy_requests: None,
+            active_client_connections: None,
+            idle_client_connections: None,
+            open_upstream_connections: None,
+            udp_sessions: None,
+            udp_queued_bytes: None,
+            udp_queued_bytes_peak: None,
+            udp_queue_drops: None,
             latency_ms: None,
         }
     }
@@ -224,6 +257,17 @@ struct ProbeMetadata {
     rss_bytes: Option<u64>,
     heap_alloc_bytes: Option<u64>,
     heap_sys_bytes: Option<u64>,
+    memory_limit_bytes: Option<i64>,
+    managed_memory_bytes: Option<u64>,
+    num_gc: Option<u64>,
+    active_proxy_requests: Option<u64>,
+    active_client_connections: Option<u64>,
+    idle_client_connections: Option<u64>,
+    open_upstream_connections: Option<u64>,
+    udp_sessions: Option<u64>,
+    udp_queued_bytes: Option<u64>,
+    udp_queued_bytes_peak: Option<u64>,
+    udp_queue_drops: Option<u64>,
     latency_ms: Option<u64>,
 }
 
@@ -1123,6 +1167,21 @@ fn runtime_metadata(value: &Value) -> ProbeMetadata {
             .filter(|value| *value > 0),
         heap_alloc_bytes: value.get("heap_alloc_bytes").and_then(Value::as_u64),
         heap_sys_bytes: value.get("heap_sys_bytes").and_then(Value::as_u64),
+        memory_limit_bytes: value.get("memory_limit_bytes").and_then(Value::as_i64),
+        managed_memory_bytes: value.get("managed_memory_bytes").and_then(Value::as_u64),
+        num_gc: value.get("num_gc").and_then(Value::as_u64),
+        active_proxy_requests: value.get("active_proxy_requests").and_then(Value::as_u64),
+        active_client_connections: value
+            .get("active_client_connections")
+            .and_then(Value::as_u64),
+        idle_client_connections: value.get("idle_client_connections").and_then(Value::as_u64),
+        open_upstream_connections: value
+            .get("open_upstream_connections")
+            .and_then(Value::as_u64),
+        udp_sessions: value.get("udp_sessions").and_then(Value::as_u64),
+        udp_queued_bytes: value.get("udp_queued_bytes").and_then(Value::as_u64),
+        udp_queued_bytes_peak: value.get("udp_queued_bytes_peak").and_then(Value::as_u64),
+        udp_queue_drops: value.get("udp_queue_drops").and_then(Value::as_u64),
         ..ProbeMetadata::default()
     }
 }
@@ -1163,6 +1222,39 @@ fn apply_metadata(health: &mut ComponentHealth, metadata: ProbeMetadata) {
     }
     if metadata.heap_sys_bytes.is_some() {
         health.heap_sys_bytes = metadata.heap_sys_bytes;
+    }
+    if metadata.memory_limit_bytes.is_some() {
+        health.memory_limit_bytes = metadata.memory_limit_bytes;
+    }
+    if metadata.managed_memory_bytes.is_some() {
+        health.managed_memory_bytes = metadata.managed_memory_bytes;
+    }
+    if metadata.num_gc.is_some() {
+        health.num_gc = metadata.num_gc;
+    }
+    if metadata.active_proxy_requests.is_some() {
+        health.active_proxy_requests = metadata.active_proxy_requests;
+    }
+    if metadata.active_client_connections.is_some() {
+        health.active_client_connections = metadata.active_client_connections;
+    }
+    if metadata.idle_client_connections.is_some() {
+        health.idle_client_connections = metadata.idle_client_connections;
+    }
+    if metadata.open_upstream_connections.is_some() {
+        health.open_upstream_connections = metadata.open_upstream_connections;
+    }
+    if metadata.udp_sessions.is_some() {
+        health.udp_sessions = metadata.udp_sessions;
+    }
+    if metadata.udp_queued_bytes.is_some() {
+        health.udp_queued_bytes = metadata.udp_queued_bytes;
+    }
+    if metadata.udp_queued_bytes_peak.is_some() {
+        health.udp_queued_bytes_peak = metadata.udp_queued_bytes_peak;
+    }
+    if metadata.udp_queue_drops.is_some() {
+        health.udp_queue_drops = metadata.udp_queue_drops;
     }
     if metadata.latency_ms.is_some() {
         health.latency_ms = metadata.latency_ms;

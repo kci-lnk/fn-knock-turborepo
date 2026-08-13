@@ -90,21 +90,14 @@ export const ensureScopedLocaleReady = async (
   scope: BrowserI18nScope,
   locale: LocaleCode,
 ): Promise<void> => {
-  await Promise.all(
-    locale === DEFAULT_LOCALE
-      ? [loadScopedLocaleMessages(scope, locale)]
-      : [
-          loadScopedLocaleMessages(scope, locale),
-          loadScopedLocaleMessages(scope, DEFAULT_LOCALE),
-        ],
-  );
+  await loadScopedLocaleMessages(scope, locale);
 };
 
 export const getScopedLocaleMessages = (
   scope: BrowserI18nScope,
   locale: LocaleCode,
 ): Partial<Record<LocaleCode, ScopedLocaleMessages>> => {
-  const entries = [DEFAULT_LOCALE, locale]
+  const entries = [locale]
     .map((code) => [code, getLoadedScopedLocaleMessages(scope, code)] as const)
     .filter((entry): entry is readonly [LocaleCode, ScopedLocaleMessages] =>
       Boolean(entry[1]),

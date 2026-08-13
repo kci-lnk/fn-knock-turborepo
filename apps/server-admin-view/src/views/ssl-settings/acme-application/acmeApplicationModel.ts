@@ -1,7 +1,6 @@
-import type { AcmeDnsProvider } from "@/lib/api";
+import { type AcmeDnsProvider } from "@/lib/api/acme";
 
-export type DnsCredentialScheme =
-  AcmeDnsProvider["credentialSchemes"][number];
+export type DnsCredentialScheme = AcmeDnsProvider["credentialSchemes"][number];
 export type DnsCredentialField = DnsCredentialScheme["fields"][number];
 
 export const getProviderCredentialFields = (

@@ -34,6 +34,17 @@ pub(super) struct RuntimeComponentHealthData {
     goroutines: Option<u64>,
     heap_alloc_bytes: Option<u64>,
     heap_sys_bytes: Option<u64>,
+    memory_limit_bytes: Option<i64>,
+    managed_memory_bytes: Option<u64>,
+    num_gc: Option<u64>,
+    active_proxy_requests: Option<u64>,
+    active_client_connections: Option<u64>,
+    idle_client_connections: Option<u64>,
+    open_upstream_connections: Option<u64>,
+    udp_sessions: Option<u64>,
+    udp_queued_bytes: Option<u64>,
+    udp_queued_bytes_peak: Option<u64>,
+    udp_queue_drops: Option<u64>,
     latency_ms: Option<u64>,
 }
 
@@ -87,12 +98,17 @@ pub(super) struct RuntimeLogClearData {
 pub(super) struct GatewayMemoryConfigData {
     #[schema(minimum = 25, maximum = 500)]
     gc_percent: i32,
+    #[schema(required = true, minimum = 64, maximum = 4096)]
+    memory_limit_mib: Option<u64>,
+    effective_memory_limit_bytes: u64,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct GatewayMemoryConfigUpdateData {
-    #[schema(minimum = 25, maximum = 500)]
-    gc_percent: i32,
+    #[schema(required = false, minimum = 25, maximum = 500)]
+    gc_percent: Option<i32>,
+    #[schema(required = false, minimum = 64, maximum = 4096)]
+    memory_limit_mib: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -105,6 +121,17 @@ pub(super) struct GatewayMemoryReclaimData {
     rss_bytes: u64,
     #[schema(minimum = 25, maximum = 500)]
     gc_percent: i32,
+    memory_limit_bytes: i64,
+    managed_memory_bytes: u64,
+    num_gc: u32,
+    active_proxy_requests: u64,
+    active_client_connections: u64,
+    idle_client_connections: u64,
+    open_upstream_connections: u64,
+    udp_sessions: u64,
+    udp_queued_bytes: u64,
+    udp_queued_bytes_peak: u64,
+    udp_queue_drops: u64,
 }
 
 #[derive(Serialize, ToSchema)]

@@ -1,5 +1,5 @@
 import { computed, type Ref } from "vue";
-import type { DDNSNetworkInterfacePayload } from "@/lib/api";
+import { type DDNSNetworkInterfacePayload } from "@/lib/api/ddns";
 import {
   IP_SOURCE_KEY,
   NETWORK_INTERFACE_KEY,
@@ -58,7 +58,9 @@ export const useDDNSTargetDialogState = ({
       state.value.config[NETWORK_INTERFACE_KEY],
     );
     return resolveNetworkInterfaceOptions(networkInterfaces.value, selected, {
-      label: translate("admin.ddns.unavailableInterfaceLabel", { name: selected }),
+      label: translate("admin.ddns.unavailableInterfaceLabel", {
+        name: selected,
+      }),
       summary: translate("admin.ddns.unavailableInterfaceSummary"),
     });
   });

@@ -1,16 +1,10 @@
 import { onUnmounted, ref, watch } from "vue";
-import { DeepMonitorAPI } from "@/lib/api";
+import { DeepMonitorAPI } from "@/lib/api/deep-monitor";
 import { normalizeHostLike } from "./model";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 export const useActiveDeepMonitors = (enabled: () => boolean) => {
   const activeHosts = ref<string[]>([]);
-  let refreshTimer: number | undefined;
-
-  const stop = () => {
-    if (refreshTimer) window.clearInterval(refreshTimer);
-    refreshTimer = undefined;
-  };
-
   const refresh = async () => {
     try {
       const sessions = await DeepMonitorAPI.list();
@@ -22,24 +16,24 @@ export const useActiveDeepMonitors = (enabled: () => boolean) => {
     }
   };
 
-  const start = () => {
-    stop();
-    void refresh();
-    refreshTimer = window.setInterval(() => void refresh(), 5000);
-  };
+  const poller = createVisibilityPoller({
+    intervalMs: 5_000,
+    enabled,
+    task: refresh,
+  });
+  poller.start();
 
   watch(
     enabled,
     (available) => {
-      if (available) start();
-      else {
-        stop();
+      poller.sync();
+      if (!available) {
         activeHosts.value = [];
       }
     },
     { immediate: true },
   );
-  onUnmounted(stop);
+  onUnmounted(poller.stop);
 
   return activeHosts;
 };

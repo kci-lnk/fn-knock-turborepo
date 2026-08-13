@@ -5716,6 +5716,14 @@ export const jaJPAdmin = {
         placeholder: "回収強度を選択",
         customDescription: "カスタムの回収強度を使用します。",
         rangeError: "25 から 500 までの整数を入力してください。",
+        limitTitle: "Go ランタイムのメモリ上限",
+        limitDescription:
+          "Go ランタイムが管理するメモリを制限します。プロセス RSS の上限ではなくソフトリミットです。",
+        auto: "自動（推奨）",
+        manual: "手動",
+        manualHint: "手動上限はデバイスの有効メモリの 50% を超えられません。",
+        manualRangeError: "64 から 4096 までの整数を入力してください。",
+        effectiveLimit: "現在の有効上限：{limit}",
         retry: "再試行",
         hint: "GOGC が低いほど回収頻度が上がり、通常はメモリ使用量が減りますが、CPU 負荷が増えます。即時回収では短時間停止する場合があります。",
         levels: {

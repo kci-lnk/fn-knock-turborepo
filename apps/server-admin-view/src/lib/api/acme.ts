@@ -74,8 +74,8 @@ export const AcmeAPI = {
     const res = await apiClient.get("/acme/overview");
     return res.data.data;
   },
-  async status(): Promise<AcmeStatus> {
-    const res = await apiClient.get("/acme/status");
+  async status(signal?: AbortSignal): Promise<AcmeStatus> {
+    const res = await apiClient.get("/acme/status", { signal });
     return res.data.data;
   },
   async getConfig(): Promise<AcmeConfig | null> {
@@ -165,7 +165,11 @@ export const AcmeAPI = {
   },
   async poll(
     id: string,
-    opts?: { limit?: number; order?: "asc" | "desc" },
+    opts?: {
+      limit?: number;
+      order?: "asc" | "desc";
+      signal?: AbortSignal;
+    },
   ): Promise<AcmeJobPoll> {
     const params = {
       limit: opts?.limit,
@@ -173,7 +177,7 @@ export const AcmeAPI = {
     } satisfies AcmePollQuery;
     const res = await apiClient.get(
       `/acme/jobs/${encodeURIComponent(id)}/poll`,
-      { params },
+      { params, signal: opts?.signal },
     );
     return res.data.data;
   },

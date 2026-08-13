@@ -29,6 +29,18 @@ const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccess
 pub(crate) const DEFAULT_GATEWAY_GC_PERCENT: i32 = 100;
 pub(crate) const MIN_GATEWAY_GC_PERCENT: i32 = 25;
 pub(crate) const MAX_GATEWAY_GC_PERCENT: i32 = 500;
+pub(crate) const MIN_GATEWAY_MEMORY_LIMIT_MIB: u64 = 64;
+pub(crate) const MAX_GATEWAY_MEMORY_LIMIT_MIB: u64 = 4096;
+const DEFAULT_AUTO_MEMORY_LIMIT_MIB: u64 = 256;
+const MIN_AUTO_MEMORY_LIMIT_MIB: u64 = 128;
+const MAX_AUTO_MEMORY_LIMIT_MIB: u64 = 512;
+const MIB: u64 = 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GatewayMemorySettings {
+    pub(crate) gc_percent: i32,
+    pub(crate) memory_limit_mib: Option<u64>,
+}
 
 fn gateway_route_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.admin.gatewaySettingsRoutes.{key}"))
@@ -73,18 +85,9 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
         tracing::warn!(%error, "failed to sync gateway base runtime on boot");
     }
 
-    let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
-    match state.storage.store.get_config().await {
-        Ok(current_config) => {
-            if let Err(error) = sync_gateway_memory_runtime(&state, &current_config).await {
-                tracing::warn!(%error, "failed to sync gateway memory runtime on boot");
-            }
-        }
-        Err(error) => {
-            tracing::warn!(%error, "failed to refresh config for gateway memory boot sync");
-        }
+    if let Err(error) = sync_gateway_memory_on_boot(&state).await {
+        tracing::warn!(%error, "failed to refresh gateway memory runtime during boot sync");
     }
-    drop(_memory_update_guard);
 
     let visibility_runtime = match state
         .storage
@@ -149,22 +152,99 @@ pub(crate) fn gateway_memory_gc_percent(config: &Value) -> i32 {
         .unwrap_or(DEFAULT_GATEWAY_GC_PERCENT)
 }
 
+pub(crate) fn gateway_memory_settings(config: &Value) -> GatewayMemorySettings {
+    GatewayMemorySettings {
+        gc_percent: gateway_memory_gc_percent(config),
+        memory_limit_mib: config
+            .pointer("/gateway_memory/memory_limit_mib")
+            .and_then(Value::as_u64)
+            .filter(|value| {
+                (MIN_GATEWAY_MEMORY_LIMIT_MIB..=MAX_GATEWAY_MEMORY_LIMIT_MIB).contains(value)
+            }),
+    }
+}
+
+pub(crate) fn effective_host_memory_bytes() -> Option<u64> {
+    crate::infra::system_resources::effective_memory_bytes().0
+}
+
+pub(crate) fn resolve_gateway_memory_limit_bytes(settings: GatewayMemorySettings) -> u64 {
+    settings.memory_limit_mib.map_or_else(
+        || auto_gateway_memory_limit_mib(effective_host_memory_bytes()),
+        |value| value.clamp(MIN_GATEWAY_MEMORY_LIMIT_MIB, MAX_GATEWAY_MEMORY_LIMIT_MIB),
+    ) * MIB
+}
+
+fn auto_gateway_memory_limit_mib(effective_memory_bytes: Option<u64>) -> u64 {
+    effective_memory_bytes.map_or(DEFAULT_AUTO_MEMORY_LIMIT_MIB, |bytes| {
+        (bytes / MIB / 4).clamp(MIN_AUTO_MEMORY_LIMIT_MIB, MAX_AUTO_MEMORY_LIMIT_MIB)
+    })
+}
+
+pub(crate) fn validate_gateway_memory_settings(
+    settings: GatewayMemorySettings,
+) -> anyhow::Result<()> {
+    if !(MIN_GATEWAY_GC_PERCENT..=MAX_GATEWAY_GC_PERCENT).contains(&settings.gc_percent) {
+        anyhow::bail!(
+            "GC percent must be between {MIN_GATEWAY_GC_PERCENT} and {MAX_GATEWAY_GC_PERCENT}"
+        );
+    }
+    if let Some(memory_limit_mib) = settings.memory_limit_mib {
+        if !(MIN_GATEWAY_MEMORY_LIMIT_MIB..=MAX_GATEWAY_MEMORY_LIMIT_MIB)
+            .contains(&memory_limit_mib)
+        {
+            anyhow::bail!(
+                "Memory limit must be between {MIN_GATEWAY_MEMORY_LIMIT_MIB} and {MAX_GATEWAY_MEMORY_LIMIT_MIB} MiB"
+            );
+        }
+        if let Some(host_memory_bytes) = effective_host_memory_bytes()
+            && memory_limit_mib.saturating_mul(MIB) > host_memory_bytes / 2
+        {
+            anyhow::bail!("Memory limit must not exceed 50% of effective system memory");
+        }
+    }
+    Ok(())
+}
+
 pub(crate) async fn sync_gateway_memory_runtime(
     state: &AppState,
     config: &Value,
-) -> anyhow::Result<i32> {
-    let expected = gateway_memory_gc_percent(config);
-    let applied = state
+) -> anyhow::Result<GatewayMemorySettings> {
+    let expected = gateway_memory_settings(config);
+    apply_gateway_memory_settings(state, expected).await
+}
+
+pub(crate) async fn apply_gateway_memory_settings(
+    state: &AppState,
+    expected: GatewayMemorySettings,
+) -> anyhow::Result<GatewayMemorySettings> {
+    validate_gateway_memory_settings(expected)?;
+    let memory_limit_bytes = resolve_gateway_memory_limit_bytes(expected);
+    let (applied_gc_percent, applied_memory_limit_bytes) = state
         .gateway
         .client
-        .set_gateway_memory_config(expected)
+        .set_gateway_memory_config(expected.gc_percent, i64::try_from(memory_limit_bytes)?)
         .await?;
-    if applied != expected {
+    if applied_gc_percent != expected.gc_percent
+        || u64::try_from(applied_memory_limit_bytes).ok() != Some(memory_limit_bytes)
+    {
         anyhow::bail!(
-            "Go gateway reported an unexpected GC percent: expected={expected}, applied={applied}"
+            "Go gateway reported unexpected memory settings: expected_gc={}, applied_gc={}, expected_limit={}, applied_limit={}",
+            expected.gc_percent,
+            applied_gc_percent,
+            memory_limit_bytes,
+            applied_memory_limit_bytes,
         );
     }
-    Ok(applied)
+    Ok(expected)
+}
+
+pub(crate) async fn sync_gateway_memory_on_boot(
+    state: &AppState,
+) -> anyhow::Result<GatewayMemorySettings> {
+    let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
+    let config = state.storage.store.get_config().await?;
+    sync_gateway_memory_runtime(state, &config).await
 }
 
 struct CompiledGatewayVisibility {

@@ -8,7 +8,7 @@ import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import OverflowTooltipText from "@admin-shared/components/common/OverflowTooltipText.vue";
-import type { DDNSTargetSummaryPayload } from "@/lib/api";
+import { type DDNSTargetSummaryPayload } from "@/lib/api/ddns";
 import {
   getTargetDisplayName,
   shouldShowIPv4ForScope,

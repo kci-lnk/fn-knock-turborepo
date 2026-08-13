@@ -123,7 +123,12 @@ export interface LocaleResolutionInput {
 }
 
 export const resolveLocale = (input: LocaleResolutionInput = {}): LocaleCode =>
-  normalizeLocale(input.defaultLocale) ?? DEFAULT_LOCALE;
+  normalizeLocale(input.explicitLocale) ??
+  getLocaleFromCookieHeader(input.cookieHeader) ??
+  normalizeLocale(input.storageLocale) ??
+  normalizeLocale(input.defaultLocale) ??
+  parseAcceptLanguage(input.acceptLanguage) ??
+  DEFAULT_LOCALE;
 
 export type MessageParams = Record<
   string,

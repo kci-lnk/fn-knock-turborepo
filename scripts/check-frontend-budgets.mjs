@@ -1,74 +1,196 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const budgets = [
+const compressibleExtensions = new Set([
+  ".css",
+  ".html",
+  ".js",
+  ".json",
+  ".svg",
+  ".txt",
+  ".wasm",
+]);
+const MAX_INITIAL_SCRIPT_BROTLI = 100 * 1024;
+
+const apps = [
   {
     name: "admin",
     directory: "apps/server-admin-view/dist",
-    limit: 255 * 1024,
+    scenarios: [
+      {
+        name: "Dashboard+zh-CN",
+        limit: 260 * 1024,
+        sources: [
+          "/src/views/Dashboard.vue",
+          "/messages/scopes/admin/zh-CN.ts",
+        ],
+      },
+    ],
   },
-  { name: "auth", directory: "apps/server-auth-view/dist", limit: 157 * 1024 },
+  {
+    name: "auth",
+    directory: "apps/server-auth-view/dist",
+    scenarios: [
+      {
+        name: "Home+zh-CN",
+        limit: 125 * 1024,
+        sources: ["/src/views/Home.vue", "/messages/scopes/auth/zh-CN.ts"],
+      },
+      {
+        name: "LoginBase+zh-CN",
+        limit: 155 * 1024,
+        sources: ["/src/views/Login.vue", "/messages/scopes/auth/zh-CN.ts"],
+      },
+      {
+        name: "Login+ALTCHA+zh-CN",
+        limit: 180 * 1024,
+        sources: [
+          "/src/views/Login.vue",
+          "/messages/scopes/auth/zh-CN.ts",
+          "/node_modules/altcha/",
+        ],
+      },
+      {
+        name: "Login+PoW+zh-CN",
+        limit: 175 * 1024,
+        sources: ["/src/views/Login.vue", "/messages/scopes/auth/zh-CN.ts"],
+        files: [/pow\.worker[^/]*\.js$/u],
+      },
+    ],
+  },
 ];
 
-function fail(message) {
+const fail = (message) => {
   throw new Error(`[frontend-budget] ${message}`);
-}
+};
 
-function referencedInitialFiles(html) {
-  const files = new Set(["index.html"]);
-  const expression =
-    /<(?:script|link)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi;
-  for (const match of html.matchAll(expression)) {
-    const reference = match[1];
-    if (/^(?:https?:|data:|\/\/)/i.test(reference)) continue;
-    const clean = reference
-      .split(/[?#]/, 1)[0]
-      .replace(/^\.\//, "")
-      .replace(/^\//, "");
-    if (clean) files.add(clean);
-  }
-  return files;
-}
+const walkFiles = (directory, relative = "") =>
+  readdirSync(path.join(directory, relative), { withFileTypes: true }).flatMap(
+    (entry) => {
+      const next = path.join(relative, entry.name);
+      return entry.isDirectory() ? walkFiles(directory, next) : [next];
+    },
+  );
+
+const normalizedSource = (record) =>
+  `/${String(record.src ?? "")
+    .replaceAll("\\", "/")
+    .replace(/^\/+/, "")}`;
 
 let failed = false;
-for (const budget of budgets) {
-  const directory = path.join(root, budget.directory);
-  const htmlPath = path.join(directory, "index.html");
-  let html;
-  try {
-    html = readFileSync(htmlPath, "utf8");
-  } catch (error) {
+for (const app of apps) {
+  const directory = path.join(root, app.directory);
+  const manifestPath = path.join(directory, ".vite/manifest.json");
+  if (!existsSync(manifestPath)) {
     fail(
-      `missing ${path.relative(root, htmlPath)}; build the frontend first (${error.code})`,
+      `missing ${path.relative(root, manifestPath)}; enable Vite manifest output`,
     );
   }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const entries = Object.entries(manifest);
+  const entryKey = entries.find(([, record]) => record.isEntry)?.[0];
+  if (!entryKey) fail(`${app.name} manifest has no entry chunk`);
+  const allFiles = walkFiles(directory).map((value) =>
+    value.replaceAll("\\", "/"),
+  );
 
-  let compressedBytes = 0;
-  const files = referencedInitialFiles(html);
-  for (const relativePath of files) {
-    const absolutePath = path.join(directory, relativePath);
-    try {
-      compressedBytes += gzipSync(readFileSync(absolutePath), {
-        level: 9,
-      }).byteLength;
-    } catch (error) {
-      fail(
-        `${budget.name} initial asset is missing: ${relativePath} (${error.code})`,
+  const addRecord = (key, files, visited) => {
+    if (visited.has(key)) return;
+    const record = manifest[key];
+    if (!record) fail(`${app.name} manifest import is missing: ${key}`);
+    visited.add(key);
+    if (record.file) files.add(record.file);
+    for (const css of record.css ?? []) files.add(css);
+    for (const asset of record.assets ?? []) files.add(asset);
+    for (const imported of record.imports ?? [])
+      addRecord(imported, files, visited);
+  };
+
+  for (const relativePath of allFiles) {
+    if (relativePath.endsWith(".br") || relativePath.endsWith(".gz")) continue;
+    if (!compressibleExtensions.has(path.extname(relativePath))) continue;
+    if (
+      !existsSync(path.join(directory, `${relativePath}.br`)) ||
+      !existsSync(path.join(directory, `${relativePath}.gz`))
+    ) {
+      console.error(
+        `[frontend-budget] ${app.name} build lacks gzip/brotli sidecars: ${relativePath}`,
       );
+      failed = true;
     }
   }
 
-  const kib = (compressedBytes / 1024).toFixed(1);
-  const limitKib = (budget.limit / 1024).toFixed(0);
-  console.log(
-    `[frontend-budget] ${budget.name}: ${kib} KiB gzip / ${limitKib} KiB (${files.size} files)`,
-  );
-  if (compressedBytes > budget.limit) failed = true;
+  for (const scenario of app.scenarios) {
+    const files = new Set(["index.html"]);
+    const visited = new Set();
+    addRecord(entryKey, files, visited);
+    for (const source of scenario.sources) {
+      const matches = entries.filter(([, record]) =>
+        normalizedSource(record).includes(source),
+      );
+      if (matches.length === 0) {
+        fail(
+          `${app.name}/${scenario.name} source not found in manifest: ${source}`,
+        );
+      }
+      for (const [key] of matches) addRecord(key, files, visited);
+    }
+    for (const expression of scenario.files ?? []) {
+      const matches = allFiles.filter((file) => expression.test(file));
+      if (matches.length === 0) {
+        fail(`${app.name}/${scenario.name} asset not found: ${expression}`);
+      }
+      for (const file of matches) files.add(file);
+    }
+
+    let rawBytes = 0;
+    let gzipBytes = 0;
+    let brotliBytes = 0;
+    for (const relativePath of files) {
+      const absolutePath = path.join(directory, relativePath);
+      if (!existsSync(absolutePath)) {
+        fail(`${app.name}/${scenario.name} asset is missing: ${relativePath}`);
+      }
+      const rawSize = statSync(absolutePath).size;
+      rawBytes += rawSize;
+      const requiresSidecars = compressibleExtensions.has(
+        path.extname(relativePath),
+      );
+      const gzipPath = `${absolutePath}.gz`;
+      const brotliPath = `${absolutePath}.br`;
+      if (
+        requiresSidecars &&
+        (!existsSync(gzipPath) || !existsSync(brotliPath))
+      ) {
+        fail(
+          `${app.name}/${scenario.name} lacks gzip/brotli sidecars: ${relativePath}`,
+        );
+      }
+      const gzipSize = existsSync(gzipPath) ? statSync(gzipPath).size : rawSize;
+      const brotliSize = existsSync(brotliPath)
+        ? statSync(brotliPath).size
+        : rawSize;
+      gzipBytes += gzipSize;
+      brotliBytes += brotliSize;
+      if (
+        relativePath.endsWith(".js") &&
+        brotliSize > MAX_INITIAL_SCRIPT_BROTLI
+      ) {
+        console.error(
+          `[frontend-budget] ${app.name}/${scenario.name}: ${relativePath} is ${(brotliSize / 1024).toFixed(1)} KiB Brotli (limit 100 KiB)`,
+        );
+        failed = true;
+      }
+    }
+    console.log(
+      `[frontend-budget] ${app.name}/${scenario.name}: ${(rawBytes / 1024).toFixed(1)} KiB raw, ${(gzipBytes / 1024).toFixed(1)} KiB gzip, ${(brotliBytes / 1024).toFixed(1)} KiB br / ${(scenario.limit / 1024).toFixed(0)} KiB (${files.size} files)`,
+    );
+    if (brotliBytes > scenario.limit) failed = true;
+  }
 }
 
-if (failed) fail("one or more initial-page gzip budgets were exceeded");
+if (failed) fail("one or more route-level frontend budgets were exceeded");

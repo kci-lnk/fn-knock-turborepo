@@ -1,7 +1,7 @@
 import { computed, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
-import { EventCenterAPI } from "@/lib/api";
+import { EventCenterAPI } from "@/lib/api/events";
 import type {
   NotificationDelivery,
   NotificationDeliveryStatus,
@@ -9,7 +9,11 @@ import type {
   NotificationRule,
 } from "@/types";
 
-export const useNotificationDeliveries = ({ active }: { active: Ref<boolean> }) => {
+export const useNotificationDeliveries = ({
+  active,
+}: {
+  active: Ref<boolean>;
+}) => {
   const { t } = useI18n();
   const deliveries = ref<NotificationDelivery[]>([]);
   const providers = ref<NotificationProviderView[]>([]);
@@ -36,14 +40,15 @@ export const useNotificationDeliveries = ({ active }: { active: Ref<boolean> }) 
     const generation = ++loadGeneration;
     loading.value = true;
     try {
-      const [providersResult, rulesResult, deliveriesResult] = await Promise.all([
-        EventCenterAPI.getNotificationProviders(),
-        EventCenterAPI.getNotificationRules(),
-        EventCenterAPI.getNotificationDeliveries({
-          page: currentPage.value,
-          limit: parsedLimit.value,
-        }),
-      ]);
+      const [providersResult, rulesResult, deliveriesResult] =
+        await Promise.all([
+          EventCenterAPI.getNotificationProviders(),
+          EventCenterAPI.getNotificationRules(),
+          EventCenterAPI.getNotificationDeliveries({
+            page: currentPage.value,
+            limit: parsedLimit.value,
+          }),
+        ]);
       if (!providersResult.success) {
         throw new Error(
           providersResult.message ||
@@ -52,8 +57,7 @@ export const useNotificationDeliveries = ({ active }: { active: Ref<boolean> }) 
       }
       if (!rulesResult.success) {
         throw new Error(
-          rulesResult.message ||
-            t("admin.notifications.rules.rulesLoadFailed"),
+          rulesResult.message || t("admin.notifications.rules.rulesLoadFailed"),
         );
       }
       if (!deliveriesResult.success) {

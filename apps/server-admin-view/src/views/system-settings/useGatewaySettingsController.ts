@@ -7,7 +7,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import { normalizeGatewayPortalConfig } from "@/lib/gatewayPortal";
 import {
   buildGatewayUnmatchedRoutePatch,

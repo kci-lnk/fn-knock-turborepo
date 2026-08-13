@@ -1,6 +1,7 @@
 import { computed, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { AcmeAPI, DDNSAPI } from "@/lib/api";
+import { AcmeAPI } from "@/lib/api/acme";
+import { DDNSAPI } from "@/lib/api/ddns";
 import {
   buildDnsCredentialTransferSuggestion,
   resolveDnsCredentialBridge,
@@ -97,9 +98,13 @@ export const useDnsCredentialTransfer = ({
     };
   };
 
-  watch(providerId, () => {
-    void refreshSource();
-  }, { immediate: true });
+  watch(
+    providerId,
+    () => {
+      void refreshSource();
+    },
+    { immediate: true },
+  );
 
   return {
     applySuggestion,

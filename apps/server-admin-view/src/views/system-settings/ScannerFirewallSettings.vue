@@ -20,7 +20,7 @@ import { toast } from "@admin-shared/utils/toast";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
 import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
-import { ScannerAPI, type ScannerSettings } from "../../lib/api";
+import { ScannerAPI, type ScannerSettings } from "@/lib/api/security";
 import {
   extractErrorMessage,
   useAsyncAction,

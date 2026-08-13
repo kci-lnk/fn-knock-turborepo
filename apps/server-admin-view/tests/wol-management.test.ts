@@ -6,17 +6,12 @@ const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
 const contractSchemas = (
-  JSON.parse(
-    readSource("../../../packages/api-contract/openapi.json"),
-  ) as {
+  JSON.parse(readSource("../../../packages/api-contract/openapi.json")) as {
     components: {
       schemas: Record<
         string,
         {
-          properties?: Record<
-            string,
-            { type?: unknown; writeOnly?: boolean }
-          >;
+          properties?: Record<string, { type?: unknown; writeOnly?: boolean }>;
         }
       >;
     };
@@ -219,8 +214,8 @@ describe("Wake-on-LAN management", () => {
     assert.match(api, /deviceKey\?: string/u);
     assert.match(api, /privateKey\?: string/u);
     assert.equal(
-      contractSchemas.WolBlinkerIntegrationData.properties
-        ?.credentialConfigured.type,
+      contractSchemas.WolBlinkerIntegrationData.properties?.credentialConfigured
+        .type,
       "boolean",
     );
     assert.equal(
@@ -280,7 +275,9 @@ describe("Wake-on-LAN management", () => {
     );
     assert.match(api, /async getTarget\(id: string, signal\?: AbortSignal\)/u);
     assert.match(page, /refreshEditingTargetRuntime/u);
-    assert.match(page, /stopTargetRuntimePolling/u);
-    assert.match(page, /targetRuntimeAbortController/u);
+    assert.match(page, /createVisibilityPoller/u);
+    assert.match(page, /targetRuntimePoller\.sync\(\)/u);
+    assert.match(page, /targetRuntimePoller\.stop\(\)/u);
+    assert.doesNotMatch(page, /setInterval/u);
   });
 });

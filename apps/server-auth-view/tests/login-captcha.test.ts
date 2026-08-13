@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 
 import { useLoginCaptcha } from "../src/composables/useLoginCaptcha";
 
@@ -102,5 +102,48 @@ describe("useLoginCaptcha", () => {
     };
     captcha.resetCaptchaWidgets();
     assert.deepEqual(resets, ["pow", "turnstile"]);
+  });
+
+  it("cancels fallback PoW when the active provider changes", async () => {
+    let observedSignal: AbortSignal | undefined;
+    const errors: string[] = [];
+    const captcha = useLoginCaptcha({
+      canUseNativePow: false,
+      translate: (key) => key,
+      onError: (message) => errors.push(message),
+      resolvePowSubmission: (signal) => {
+        observedSignal = signal;
+        return new Promise((_, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    });
+    captcha.captchaConfig.value = captchaConfig;
+    await nextTick();
+
+    captcha.handlePowStateChange(
+      new CustomEvent("statechange", {
+        detail: { state: "verified", payload: "stale-pow-proof" },
+      }),
+    );
+    assert.equal(captcha.isCaptchaVerified.value, true);
+
+    const pending = captcha.handlePowFallbackVerify();
+    captcha.captchaConfig.value = {
+      ...captchaConfig,
+      provider: "turnstile",
+    };
+    await nextTick();
+    await pending;
+
+    assert.equal(observedSignal?.aborted, true);
+    assert.equal(captcha.isPowFallbackLoading.value, false);
+    assert.equal(captcha.isCaptchaVerified.value, false);
+    assert.equal(captcha.captchaSubmission.value, null);
+    assert.deepEqual(errors, []);
   });
 });

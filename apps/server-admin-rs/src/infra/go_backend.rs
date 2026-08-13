@@ -153,17 +153,35 @@ impl GoBackendClient {
             "heap_sys_bytes": info.heap_sys_bytes,
             "rss_bytes": info.rss_bytes,
             "gc_percent": info.gc_percent,
+            "memory_limit_bytes": info.memory_limit_bytes,
+            "num_gc": info.num_gc,
+            "managed_memory_bytes": info.managed_memory_bytes,
+            "active_proxy_requests": info.active_proxy_requests,
+            "active_client_connections": info.active_client_connections,
+            "idle_client_connections": info.idle_client_connections,
+            "open_upstream_connections": info.open_upstream_connections,
+            "udp_sessions": info.udp_sessions,
+            "udp_queued_bytes": info.udp_queued_bytes,
+            "udp_queued_bytes_peak": info.udp_queued_bytes_peak,
+            "udp_queue_drops": info.udp_queue_drops,
         }))
     }
 
-    pub async fn set_gateway_memory_config(&self, gc_percent: i32) -> anyhow::Result<i32> {
+    pub async fn set_gateway_memory_config(
+        &self,
+        gc_percent: i32,
+        memory_limit_bytes: i64,
+    ) -> anyhow::Result<(i32, i64)> {
         let mut client = self.control.clone();
         let response = client
-            .set_gateway_memory_config(self.request(GatewayMemoryConfig { gc_percent }))
+            .set_gateway_memory_config(self.request(GatewayMemoryConfig {
+                gc_percent,
+                memory_limit_bytes,
+            }))
             .await
             .context("set Go gateway memory config")?
             .into_inner();
-        Ok(response.gc_percent)
+        Ok((response.gc_percent, response.memory_limit_bytes))
     }
 
     pub async fn reclaim_gateway_memory(&self) -> anyhow::Result<Value> {
@@ -178,6 +196,17 @@ impl GoBackendClient {
             "heap_sys_bytes": info.heap_sys_bytes,
             "rss_bytes": info.rss_bytes,
             "gc_percent": info.gc_percent,
+            "memory_limit_bytes": info.memory_limit_bytes,
+            "num_gc": info.num_gc,
+            "managed_memory_bytes": info.managed_memory_bytes,
+            "active_proxy_requests": info.active_proxy_requests,
+            "active_client_connections": info.active_client_connections,
+            "idle_client_connections": info.idle_client_connections,
+            "open_upstream_connections": info.open_upstream_connections,
+            "udp_sessions": info.udp_sessions,
+            "udp_queued_bytes": info.udp_queued_bytes,
+            "udp_queued_bytes_peak": info.udp_queued_bytes_peak,
+            "udp_queue_drops": info.udp_queue_drops,
         }))
     }
 

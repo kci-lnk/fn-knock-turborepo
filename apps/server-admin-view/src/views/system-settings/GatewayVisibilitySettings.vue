@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
-import { ConfigAPI } from "../../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type {
   GatewayVisibilityDetails,
   GatewayVisibilitySelection,

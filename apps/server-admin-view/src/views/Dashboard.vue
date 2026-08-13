@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { toast } from "@admin-shared/utils/toast";
 import {
   Card,
   CardContent,
@@ -16,17 +15,8 @@ import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ArrowRight, Check, Palette, TriangleAlert } from "lucide-vue-next";
+import { ArrowRight, Palette, TriangleAlert } from "lucide-vue-next";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { useConfigStore } from "../store/config";
 import { useDashboardTunnelStatus } from "./dashboard/useDashboardTunnelStatus";
 import { useDashboardRealtimeTraffic } from "./dashboard/useDashboardRealtimeTraffic";
@@ -35,19 +25,22 @@ import {
   dashboardRanges,
   useDashboardData,
 } from "./dashboard/useDashboardData";
-import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
-import {
-  THEME_COLOR_PRESETS,
-  normalizeAppearanceConfig,
-  type ThemeColorPresetKey,
-} from "@frontend-core/appearance";
+
+const DashboardThemeDialog = defineAsyncComponent(
+  () => import("./dashboard/DashboardThemeDialog.vue"),
+);
+const HumanFriendlyTime = defineAsyncComponent(
+  () => import("@admin-shared/components/common/HumanFriendlyTime.vue"),
+);
+const TimeSeriesChart = defineAsyncComponent(
+  () => import("@/components/charts/TimeSeriesChart.vue"),
+);
 
 const router = useRouter();
 const configStore = useConfigStore();
 const { t } = useI18n();
 const ranges = dashboardRanges;
 const themeDialogOpen = ref(false);
-const isSavingThemePreset = ref(false);
 
 const showTunnelSection = computed(
   () =>
@@ -104,39 +97,6 @@ const {
   stopRealtimePolling: realtimePolling.stop,
   translate: (key) => t(key),
 });
-
-const themePresetOptions = THEME_COLOR_PRESETS.map((preset) => ({
-  ...preset,
-  labelKey: `admin.dashboard.theme.presets.${preset.key}`,
-}));
-const activeThemeColorPreset = computed(
-  () =>
-    normalizeAppearanceConfig(configStore.config?.appearance)
-      .theme_color_preset,
-);
-const getErrorMessage = (error: unknown, fallback: string) => {
-  const value = error as {
-    response?: { data?: { message?: string } };
-    message?: string;
-  };
-  return value?.response?.data?.message || value?.message || fallback;
-};
-const selectThemeColorPreset = async (preset: ThemeColorPresetKey) => {
-  if (preset === activeThemeColorPreset.value || isSavingThemePreset.value) {
-    return;
-  }
-  isSavingThemePreset.value = true;
-  try {
-    await configStore.saveAppearanceConfig({ theme_color_preset: preset });
-    themeDialogOpen.value = false;
-  } catch (error) {
-    toast.error(t("admin.dashboard.theme.saveFailed"), {
-      description: getErrorMessage(error, t("common.tryLater")),
-    });
-  } finally {
-    isSavingThemePreset.value = false;
-  }
-};
 
 const {
   ddnsCards,
@@ -212,64 +172,25 @@ watch(showTunnelSection, (visible) => {
             </TabsList>
           </Tabs>
 
-          <Dialog v-model:open="themeDialogOpen">
-            <DialogTrigger as-child>
-              <Button
-                data-testid="theme-preset-trigger"
-                variant="ghost"
-                size="icon"
-                class="h-9 w-9 shrink-0 rounded-lg bg-muted p-[3px] text-foreground shadow-none hover:bg-muted hover:text-foreground"
-                :aria-label="t('admin.dashboard.theme.buttonLabel')"
-                :title="t('admin.dashboard.theme.buttonLabel')"
-              >
-                <span
-                  class="inline-flex h-full w-full items-center justify-center rounded-md bg-background shadow-sm"
-                >
-                  <Palette class="h-4 w-4" />
-                </span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent class="sm:max-w-[460px]">
-              <DialogHeader>
-                <DialogTitle>{{
-                  t("admin.dashboard.theme.title")
-                }}</DialogTitle>
-                <DialogDescription>
-                  {{ t("admin.dashboard.theme.description") }}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div class="grid gap-2">
-                <Button
-                  v-for="preset in themePresetOptions"
-                  :key="preset.key"
-                  :data-theme-preset="preset.key"
-                  type="button"
-                  variant="outline"
-                  class="h-auto justify-start gap-3 px-3 py-3 text-left"
-                  :class="
-                    preset.key === activeThemeColorPreset
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                      : 'border-border/70 hover:border-primary/35'
-                  "
-                  :disabled="isSavingThemePreset"
-                  @click="selectThemeColorPreset(preset.key)"
-                >
-                  <span
-                    class="size-5 shrink-0 rounded-full border border-border shadow-sm"
-                    :style="{ backgroundColor: preset.color }"
-                  />
-                  <span class="min-w-0 flex-1 text-sm font-medium">
-                    {{ t(preset.labelKey) }}
-                  </span>
-                  <Check
-                    v-if="preset.key === activeThemeColorPreset"
-                    class="h-4 w-4 shrink-0 text-primary"
-                  />
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button
+            data-testid="theme-preset-trigger"
+            variant="ghost"
+            size="icon"
+            class="h-9 w-9 shrink-0 rounded-lg bg-muted p-[3px] text-foreground shadow-none hover:bg-muted hover:text-foreground"
+            :aria-label="t('admin.dashboard.theme.buttonLabel')"
+            :title="t('admin.dashboard.theme.buttonLabel')"
+            @click="themeDialogOpen = true"
+          >
+            <span
+              class="inline-flex h-full w-full items-center justify-center rounded-md bg-background shadow-sm"
+            >
+              <Palette class="h-4 w-4" />
+            </span>
+          </Button>
+          <DashboardThemeDialog
+            v-if="themeDialogOpen"
+            v-model:open="themeDialogOpen"
+          />
         </div>
       </div>
     </section>

@@ -4,7 +4,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "@/lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { SSLSharedFilesPayload } from "@/types";
 
 type TranslationParams = Record<string, string | number>;

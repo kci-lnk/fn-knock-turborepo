@@ -1,7 +1,8 @@
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from "vue";
+import { createVisibilityPoller } from "./createVisibilityPoller";
 
 interface UsePollingResourceStatusOptions<T> {
-  fetcher: () => Promise<T>;
+  fetcher: (signal?: AbortSignal) => Promise<T>;
   onData: (data: T) => void;
   isDownloading: (data: T) => boolean;
   onError?: (error: unknown) => void;
@@ -12,37 +13,40 @@ export function usePollingResourceStatus<T>(
   options: UsePollingResourceStatusOptions<T>,
 ) {
   const isInitializing = ref(true);
-  let pollTimer: number | null = null;
-
-  const stopPolling = () => {
-    if (pollTimer !== null) {
-      window.clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  };
-
-  const startPolling = () => {
-    if (pollTimer !== null) return;
-    pollTimer = window.setInterval(refresh, options.intervalMs ?? 1000);
-  };
-
-  async function refresh() {
-    try {
-      const data = await options.fetcher();
-      options.onData(data);
-      if (options.isDownloading(data)) {
-        startPolling();
-      } else {
-        stopPolling();
+  let shouldKeepPolling = false;
+  const poller = createVisibilityPoller({
+    intervalMs: options.intervalMs ?? 1000,
+    immediate: false,
+    task: async (signal) => {
+      try {
+        const data = await options.fetcher(signal);
+        if (signal.aborted) return;
+        options.onData(data);
+        shouldKeepPolling = options.isDownloading(data);
+        if (!shouldKeepPolling) poller.stop();
+      } catch (error) {
+        // Visibility changes and component teardown deliberately abort a
+        // request. Do not interpret that as a completed resource and stop the
+        // poller permanently; it must remain able to resume when visible.
+        if (signal.aborted) return;
+        options.onError?.(error);
+        if (!shouldKeepPolling) poller.stop();
+      } finally {
+        isInitializing.value = false;
       }
-    } catch (error) {
-      options.onError?.(error);
-    } finally {
-      isInitializing.value = false;
-    }
-  }
+    },
+  });
 
-  onMounted(refresh);
+  const refresh = () => {
+    // A completed resource stops periodic polling. Explicit refreshes after a
+    // user action restart it and immediately execute one non-overlapping pass.
+    poller.start();
+    return poller.refresh();
+  };
+
+  const stopPolling = () => poller.stop();
+
+  onMounted(() => void refresh());
   onUnmounted(stopPolling);
 
   return {

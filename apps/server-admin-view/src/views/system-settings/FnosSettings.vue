@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@admin-shared/utils/toast";
-import { SystemAPI } from "../../lib/api";
+import { SystemAPI } from "@/lib/api/system";
 import type {
   FnosNetworkTuningStatus,
   FnosPortIconHijackConfig,

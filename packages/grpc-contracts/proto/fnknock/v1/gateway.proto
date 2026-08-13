@@ -794,12 +794,26 @@ message GatewayRuntimeInfo {
   uint64 heap_sys_bytes = 8;
   uint64 rss_bytes = 9;
   int32 gc_percent = 10;
+  // Effective Go runtime soft memory limit. This controls runtime-managed
+  // memory and is not a process RSS limit.
+  int64 memory_limit_bytes = 11;
+  uint32 num_gc = 12;
+  uint64 managed_memory_bytes = 13;
+  uint64 active_proxy_requests = 14;
+  uint64 open_upstream_connections = 15;
+  uint64 udp_sessions = 16;
+  uint64 udp_queued_bytes = 17;
+  uint64 udp_queued_bytes_peak = 18;
+  uint64 udp_queue_drops = 19;
+  uint64 active_client_connections = 20;
+  uint64 idle_client_connections = 21;
 }
 
 // Go runtime garbage-collector target. Lower percentages collect more often
 // and trade CPU time for a smaller heap. The control plane accepts 25..500.
 message GatewayMemoryConfig {
   int32 gc_percent = 1;
+  int64 memory_limit_bytes = 2;
 }
 
 message GatewayListenerConfig {

@@ -1,11 +1,11 @@
 import { ref, type Ref } from "vue";
-import type {
-  DDNSHttpTransport,
-  DDNSPublicDnsProvider,
-  DDNSPublicCheckSourcesPayload,
-  DDNSStatusPayload,
-  DDNSTargetSummaryPayload,
-} from "@/lib/api";
+import {
+  type DDNSHttpTransport,
+  type DDNSPublicDnsProvider,
+  type DDNSPublicCheckSourcesPayload,
+  type DDNSStatusPayload,
+  type DDNSTargetSummaryPayload,
+} from "@/lib/api/ddns";
 import {
   DEFAULT_DDNS_HTTP_TRANSPORT,
   DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,

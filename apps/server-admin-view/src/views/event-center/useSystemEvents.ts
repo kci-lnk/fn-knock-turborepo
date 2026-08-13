@@ -7,7 +7,7 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { usePagedSelectionList } from "@admin-shared/composables/usePagedSelectionList";
 import { toast } from "@admin-shared/utils/toast";
-import { EventCenterAPI } from "@/lib/api";
+import { EventCenterAPI } from "@/lib/api/events";
 import type {
   SystemEventLevel,
   SystemEventRecord,

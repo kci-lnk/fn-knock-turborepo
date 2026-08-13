@@ -8,7 +8,7 @@ import {
   type AcmeApplicationRecord,
   type AcmeDnsProvider,
   type AcmeOverview,
-} from "@/lib/api";
+} from "@/lib/api/acme";
 import { acmeCertificateArchiveFilename } from "@/lib/acme-download";
 import { useConfigStore } from "@/store/config";
 import { toast } from "@admin-shared/utils/toast";
@@ -134,14 +134,14 @@ export function useAcmeCertificateController() {
   const canStopActiveJob = computed(() => {
     if (!isTableLocked.value) return false;
     if (isStoppingJob.value) return true;
-    return Boolean(overview.value?.lock.jobId || job.value?.status === "running");
+    return Boolean(
+      overview.value?.lock.jobId || job.value?.status === "running",
+    );
   });
   const lockedApplication = computed(() => {
     const applicationId = overview.value?.lock.applicationId;
     if (!applicationId) return null;
-    return (
-      applications.value.find((item) => item.id === applicationId) || null
-    );
+    return applications.value.find((item) => item.id === applicationId) || null;
   });
 
   const acmeStatusLabel = computed(() => {
@@ -196,9 +196,7 @@ export function useAcmeCertificateController() {
 
   const deleteCandidateLabel = computed(
     () =>
-      deleteCandidate.value?.name ||
-      deleteCandidate.value?.primaryDomain ||
-      "",
+      deleteCandidate.value?.name || deleteCandidate.value?.primaryDomain || "",
   );
 
   const loadProviders = async () => {
@@ -209,10 +207,7 @@ export function useAcmeCertificateController() {
       {
         onError: (error) => {
           toast.error(
-            extractErrorMessage(
-              error,
-              t("admin.acmeCert.loadProvidersFailed"),
-            ),
+            extractErrorMessage(error, t("admin.acmeCert.loadProvidersFailed")),
           );
           dnsProviders.value = [];
         },

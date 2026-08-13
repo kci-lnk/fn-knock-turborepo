@@ -21,7 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { WOLRelay, WOLTarget, WOLTargetInput } from "@/lib/api";
+import {
+  type WOLRelay,
+  type WOLTarget,
+  type WOLTargetInput,
+} from "@/lib/api/wol";
 
 const props = defineProps<{
   open: boolean;

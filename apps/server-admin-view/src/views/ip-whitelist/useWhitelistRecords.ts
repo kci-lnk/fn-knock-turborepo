@@ -8,7 +8,8 @@ import {
   WhitelistAPI,
   type WhiteListRecord,
   type WhitelistRegionGroupRecord,
-} from "../../lib/api";
+} from "@/lib/api/whitelist";
+import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 
 type Translate = (key: string) => string;
 
@@ -16,7 +17,6 @@ export function useWhitelistRecords(translate: Translate) {
   const records = ref<WhiteListRecord[]>([]);
   const regionGroups = ref<WhitelistRegionGroupRecord[]>([]);
   const isInitializing = ref(true);
-  let refreshIntervalId: ReturnType<typeof window.setInterval> | null = null;
 
   const { isPending: loading, run: runFetchRecords } = useAsyncAction({
     onError: (error) => {
@@ -61,19 +61,16 @@ export function useWhitelistRecords(translate: Translate) {
     );
   }
 
-  onMounted(() => {
-    void fetchRecords();
-    refreshIntervalId = window.setInterval(() => {
-      void fetchRecords();
-    }, 30_000);
+  const recordsPoller = createVisibilityPoller({
+    intervalMs: 30_000,
+    task: fetchRecords,
   });
 
-  onUnmounted(() => {
-    if (refreshIntervalId !== null) {
-      window.clearInterval(refreshIntervalId);
-      refreshIntervalId = null;
-    }
+  onMounted(() => {
+    recordsPoller.start();
   });
+
+  onUnmounted(recordsPoller.stop);
 
   return {
     fetchRecords,

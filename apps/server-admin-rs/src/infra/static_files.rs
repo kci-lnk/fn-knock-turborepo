@@ -1,20 +1,143 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    collections::HashMap,
+    io::Read,
+    path::{Component, Path, PathBuf},
+};
 
 use crate::{i18n::Translator, response, state::AppState};
 use axum::{
     Router,
     body::Body,
     extract::{OriginalUri, State},
-    http::{HeaderMap, HeaderValue, Request, StatusCode, header},
+    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
+use sha2::{Digest, Sha256};
 
 const AUTH_PUBLIC_PREFIX: &str = "/auth";
 const AUTH_LOCAL_PREFIX: &str = "/__auth__";
 const INDEX_CACHE_CONTROL: &str = "no-cache";
 const FINGERPRINTED_ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 const STATIC_ASSET_CACHE_CONTROL: &str = "public, max-age=300";
+
+#[derive(Clone)]
+struct StaticFileVariant {
+    path: PathBuf,
+    content_length: u64,
+    etag: HeaderValue,
+}
+
+#[derive(Clone)]
+struct StaticFileEntry {
+    raw: StaticFileVariant,
+    brotli: Option<StaticFileVariant>,
+    gzip: Option<StaticFileVariant>,
+    content_type: HeaderValue,
+    last_modified: Option<HeaderValue>,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct StaticFileCatalog {
+    entries: HashMap<PathBuf, StaticFileEntry>,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct StaticFileCatalogs {
+    pub(crate) admin: StaticFileCatalog,
+    pub(crate) auth: StaticFileCatalog,
+}
+
+impl StaticFileCatalogs {
+    pub(crate) fn build(admin_root: &Path, auth_root: &Path) -> Self {
+        Self {
+            admin: StaticFileCatalog::build(admin_root),
+            auth: StaticFileCatalog::build(auth_root),
+        }
+    }
+}
+
+impl StaticFileCatalog {
+    fn build(root: &Path) -> Self {
+        let mut entries = HashMap::new();
+        collect_static_files(root, &mut entries);
+        Self { entries }
+    }
+
+    fn get(&self, path: &Path) -> Option<&StaticFileEntry> {
+        self.entries.get(path)
+    }
+}
+
+fn collect_static_files(path: &Path, entries: &mut HashMap<PathBuf, StaticFileEntry>) {
+    let Ok(children) = std::fs::read_dir(path) else {
+        return;
+    };
+    for child in children.flatten() {
+        let path = child.path();
+        let Ok(file_type) = child.file_type() else {
+            continue;
+        };
+        if file_type.is_dir() {
+            collect_static_files(&path, entries);
+            continue;
+        }
+        if !file_type.is_file()
+            || matches!(
+                path.extension().and_then(|value| value.to_str()),
+                Some("br" | "gz")
+            )
+        {
+            continue;
+        }
+        if let Some(entry) = static_file_entry(&path) {
+            entries.insert(path, entry);
+        }
+    }
+}
+
+fn static_file_variant(path: PathBuf) -> Option<StaticFileVariant> {
+    let metadata = std::fs::metadata(&path).ok()?;
+    let mut file = std::fs::File::open(&path).ok()?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).ok()?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    // Release packaging normalizes mtimes for reproducibility, so a
+    // size+mtime validator can collide when index.html changes without a size
+    // change. A content digest remains stable and representation-specific.
+    let etag = HeaderValue::from_str(&format!("\"sha256-{:x}\"", hasher.finalize())).ok()?;
+    Some(StaticFileVariant {
+        path,
+        content_length: metadata.len(),
+        etag,
+    })
+}
+
+fn static_file_entry(path: &Path) -> Option<StaticFileEntry> {
+    let raw = static_file_variant(path.to_path_buf())?;
+    let metadata = std::fs::metadata(path).ok()?;
+    let last_modified = metadata
+        .modified()
+        .ok()
+        .and_then(|value| HeaderValue::from_str(&httpdate::fmt_http_date(value)).ok());
+    let content_type =
+        HeaderValue::from_str(mime_guess::from_path(path).first_or_octet_stream().as_ref())
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    StaticFileEntry {
+        raw,
+        brotli: static_file_variant(PathBuf::from(format!("{}.br", path.display()))),
+        gzip: static_file_variant(PathBuf::from(format!("{}.gz", path.display()))),
+        content_type,
+        last_modified,
+    }
+    .into()
+}
 
 pub fn admin_static_routes() -> Router<AppState> {
     Router::new()
@@ -34,32 +157,63 @@ pub fn auth_static_routes() -> Router<AppState> {
         .route("/__auth__/index.html", get(auth_index))
 }
 
-async fn admin_index(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    serve_index(&state.settings.admin_static_path, Some(&headers)).await
+async fn admin_index(State(state): State<AppState>, request: Request<Body>) -> Response {
+    serve_index(
+        &state,
+        &state.settings.admin_static_path,
+        &state.static_files.admin,
+        request.headers(),
+        request.method(),
+    )
+    .await
 }
 
-async fn auth_index(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    serve_index(&state.settings.auth_static_path, Some(&headers)).await
+async fn auth_index(State(state): State<AppState>, request: Request<Body>) -> Response {
+    serve_index(
+        &state,
+        &state.settings.auth_static_path,
+        &state.static_files.auth,
+        request.headers(),
+        request.method(),
+    )
+    .await
 }
 
 pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) -> Response {
     let path = req.uri().path().to_string();
     let normalized_path = normalize_auth_path(&path);
-    if normalized_path.starts_with("/api") {
+    if is_api_path(&normalized_path) {
         let translator = Translator::from_state(&state).await;
         return response::error(
             StatusCode::NOT_FOUND,
             translator.t("server.authRoutes.pathNotFound"),
         );
     }
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return method_not_allowed();
+    }
 
     let Some(asset_path) = auth_asset_path(&state.settings.auth_static_path, &path) else {
         return not_found();
     };
-    if asset_path.is_file() {
-        serve_file(asset_path, Some(req.headers())).await
+    if let Some(entry) = state.static_files.auth.get(&asset_path) {
+        serve_catalog_file(
+            &asset_path,
+            entry,
+            req.headers(),
+            req.method(),
+            StaticFileKind::Asset,
+        )
+        .await
     } else if is_known_auth_view_path(&path) {
-        serve_index(&state.settings.auth_static_path, Some(req.headers())).await
+        serve_index(
+            &state,
+            &state.settings.auth_static_path,
+            &state.static_files.auth,
+            req.headers(),
+            req.method(),
+        )
+        .await
     } else {
         auth_not_found_html()
     }
@@ -71,12 +225,15 @@ pub async fn admin_fallback(
     req: Request<Body>,
 ) -> Response {
     let path = original_uri.path();
-    if path.starts_with("/api/") {
+    if is_api_path(path) {
         let translator = Translator::from_state(&state).await;
         return response::error(
             StatusCode::NOT_FOUND,
             translator.t("server.apiPathNotFound"),
         );
+    }
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return method_not_allowed();
     }
 
     let Some(asset_path) = safe_join(
@@ -85,24 +242,78 @@ pub async fn admin_fallback(
     ) else {
         return not_found();
     };
-    if asset_path.is_file() {
-        serve_file(asset_path, Some(req.headers())).await
+    if let Some(entry) = state.static_files.admin.get(&asset_path) {
+        serve_catalog_file(
+            &asset_path,
+            entry,
+            req.headers(),
+            req.method(),
+            StaticFileKind::Asset,
+        )
+        .await
     } else {
-        serve_index(&state.settings.admin_static_path, Some(req.headers())).await
+        serve_index(
+            &state,
+            &state.settings.admin_static_path,
+            &state.static_files.admin,
+            req.headers(),
+            req.method(),
+        )
+        .await
     }
 }
 
-async fn serve_index(root: &Path, request_headers: Option<&HeaderMap>) -> Response {
-    serve_file_with_kind(
-        root.join("index.html"),
-        request_headers,
-        StaticFileKind::Index,
+async fn serve_index(
+    state: &AppState,
+    root: &Path,
+    catalog: &StaticFileCatalog,
+    request_headers: &HeaderMap,
+    method: &Method,
+) -> Response {
+    let path = root.join("index.html");
+    let mut response = match catalog.get(&path) {
+        Some(entry) => {
+            serve_catalog_file(&path, entry, request_headers, method, StaticFileKind::Index).await
+        }
+        None => not_found(),
+    };
+    if let Some(cookie) = locale_cookie(state).await {
+        response.headers_mut().append(header::SET_COOKIE, cookie);
+    }
+    response
+}
+
+#[cfg(test)]
+async fn serve_file(path: PathBuf, request_headers: Option<&HeaderMap>) -> Response {
+    let Some(entry) = static_file_entry(&path) else {
+        return not_found();
+    };
+    let empty_headers = HeaderMap::new();
+    serve_catalog_file(
+        &path,
+        &entry,
+        request_headers.unwrap_or(&empty_headers),
+        &Method::GET,
+        StaticFileKind::Asset,
     )
     .await
 }
 
-async fn serve_file(path: PathBuf, request_headers: Option<&HeaderMap>) -> Response {
-    serve_file_with_kind(path, request_headers, StaticFileKind::Asset).await
+#[cfg(test)]
+async fn serve_index_file(root: &Path, request_headers: Option<&HeaderMap>) -> Response {
+    let path = root.join("index.html");
+    let Some(entry) = static_file_entry(&path) else {
+        return not_found();
+    };
+    let empty_headers = HeaderMap::new();
+    serve_catalog_file(
+        &path,
+        &entry,
+        request_headers.unwrap_or(&empty_headers),
+        &Method::GET,
+        StaticFileKind::Index,
+    )
+    .await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,41 +322,105 @@ enum StaticFileKind {
     Asset,
 }
 
-async fn serve_file_with_kind(
-    path: PathBuf,
-    request_headers: Option<&HeaderMap>,
+async fn serve_catalog_file(
+    path: &Path,
+    entry: &StaticFileEntry,
+    request_headers: &HeaderMap,
+    method: &Method,
     kind: StaticFileKind,
 ) -> Response {
-    let (served_path, content_encoding) = select_precompressed_path(&path, request_headers).await;
-    let Ok(file) = tokio::fs::File::open(&served_path).await else {
-        return not_found();
+    if method != Method::GET && method != Method::HEAD {
+        return method_not_allowed();
+    }
+    let (variant, content_encoding) = select_precompressed_variant(entry, request_headers);
+    if if_none_match_matches(request_headers, &variant.etag) {
+        let mut response = StatusCode::NOT_MODIFIED.into_response();
+        apply_static_headers(
+            &mut response,
+            path,
+            entry,
+            variant,
+            content_encoding,
+            kind,
+            false,
+        );
+        return response;
+    }
+    let body = if method == Method::HEAD {
+        Body::empty()
+    } else {
+        let Ok(file) = tokio::fs::File::open(&variant.path).await else {
+            return not_found();
+        };
+        Body::from_stream(tokio_util::io::ReaderStream::new(file))
     };
-    let content_length = file.metadata().await.ok().map(|metadata| metadata.len());
-    let mime = mime_guess::from_path(&path).first_or_octet_stream();
-    let stream = tokio_util::io::ReaderStream::new(file);
-    let mut response = Response::new(Body::from_stream(stream));
-    response.headers_mut().insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_str(mime.as_ref())
-            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    let mut response = Response::new(body);
+    apply_static_headers(
+        &mut response,
+        path,
+        entry,
+        variant,
+        content_encoding,
+        kind,
+        true,
     );
+    response
+}
+
+fn if_none_match_matches(headers: &HeaderMap, etag: &HeaderValue) -> bool {
+    let Ok(expected) = etag.to_str() else {
+        return false;
+    };
+    let expected = expected.strip_prefix("W/").unwrap_or(expected);
+    headers
+        .get_all(header::IF_NONE_MATCH)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .map(str::trim)
+        .any(|candidate| {
+            candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == expected
+        })
+}
+
+fn apply_static_headers(
+    response: &mut Response,
+    path: &Path,
+    entry: &StaticFileEntry,
+    variant: &StaticFileVariant,
+    content_encoding: Option<&'static str>,
+    kind: StaticFileKind,
+    include_length: bool,
+) {
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, entry.content_type.clone());
     response.headers_mut().insert(
         header::CACHE_CONTROL,
-        HeaderValue::from_static(cache_control_for_file(&path, kind)),
+        HeaderValue::from_static(cache_control_for_file(path, kind)),
     );
-    if let Some(content_length) = content_length
-        && let Ok(value) = HeaderValue::from_str(&content_length.to_string())
+    response
+        .headers_mut()
+        .insert(header::ETAG, variant.etag.clone());
+    if let Some(value) = &entry.last_modified {
+        response
+            .headers_mut()
+            .insert(header::LAST_MODIFIED, value.clone());
+    }
+    if include_length && let Ok(value) = HeaderValue::from_str(&variant.content_length.to_string())
     {
         response.headers_mut().insert(header::CONTENT_LENGTH, value);
+    }
+    if entry.brotli.is_some() || entry.gzip.is_some() {
+        response
+            .headers_mut()
+            .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
     }
     if let Some(content_encoding) = content_encoding {
         response.headers_mut().insert(
             header::CONTENT_ENCODING,
             HeaderValue::from_static(content_encoding),
         );
-        response
-            .headers_mut()
-            .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
     }
     if kind == StaticFileKind::Asset {
         response.headers_mut().insert(
@@ -153,30 +428,75 @@ async fn serve_file_with_kind(
             HeaderValue::from_static("nosniff"),
         );
     }
-    response
 }
 
-async fn select_precompressed_path(
-    path: &Path,
-    request_headers: Option<&HeaderMap>,
-) -> (PathBuf, Option<&'static str>) {
-    let accepted = request_headers
-        .and_then(|headers| headers.get(header::ACCEPT_ENCODING))
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
-    for (encoding, suffix) in [("br", ".br"), ("gzip", ".gz")] {
-        if !accepts_encoding(accepted, encoding) {
-            continue;
+fn select_precompressed_variant<'a>(
+    entry: &'a StaticFileEntry,
+    request_headers: &HeaderMap,
+) -> (&'a StaticFileVariant, Option<&'static str>) {
+    let brotli_quality = entry
+        .brotli
+        .as_ref()
+        .map(|_| accepted_encoding_quality(request_headers, "br"))
+        .unwrap_or(0.0);
+    let gzip_quality = entry
+        .gzip
+        .as_ref()
+        .map(|_| accepted_encoding_quality(request_headers, "gzip"))
+        .unwrap_or(0.0);
+    if brotli_quality > 0.0
+        && brotli_quality >= gzip_quality
+        && let Some(variant) = &entry.brotli
+    {
+        return (variant, Some("br"));
+    }
+    if gzip_quality > 0.0
+        && let Some(variant) = &entry.gzip
+    {
+        return (variant, Some("gzip"));
+    }
+    (&entry.raw, None)
+}
+
+async fn locale_cookie(state: &AppState) -> Option<HeaderValue> {
+    let locale = state.browser_locale.read().await;
+    HeaderValue::from_str(&format!(
+        "fn_knock_locale={locale}; Path=/; Max-Age=31536000; SameSite=Lax"
+    ))
+    .ok()
+}
+
+#[cfg(test)]
+fn accepts_encoding(header_value: &str, target: &str) -> bool {
+    encoding_quality(header_value, target) > 0.0
+}
+
+fn accepted_encoding_quality(headers: &HeaderMap, target: &str) -> f32 {
+    let mut exact_quality = None;
+    let mut wildcard_quality = None;
+    for header_value in headers
+        .get_all(header::ACCEPT_ENCODING)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+    {
+        let (exact, wildcard) = encoding_qualities(header_value, target);
+        if exact.is_some() {
+            exact_quality = exact;
         }
-        let candidate = PathBuf::from(format!("{}{suffix}", path.display()));
-        if tokio::fs::try_exists(&candidate).await.unwrap_or(false) {
-            return (candidate, Some(encoding));
+        if wildcard.is_some() {
+            wildcard_quality = wildcard;
         }
     }
-    (path.to_path_buf(), None)
+    exact_quality.or(wildcard_quality).unwrap_or(0.0)
 }
 
-fn accepts_encoding(header_value: &str, target: &str) -> bool {
+#[cfg(test)]
+fn encoding_quality(header_value: &str, target: &str) -> f32 {
+    let (exact_quality, wildcard_quality) = encoding_qualities(header_value, target);
+    exact_quality.or(wildcard_quality).unwrap_or(0.0)
+}
+
+fn encoding_qualities(header_value: &str, target: &str) -> (Option<f32>, Option<f32>) {
     let mut exact_quality = None;
     let mut wildcard_quality = None;
     for entry in header_value.split(',') {
@@ -202,7 +522,11 @@ fn accepts_encoding(header_value: &str, target: &str) -> bool {
             wildcard_quality = Some(quality);
         }
     }
-    exact_quality.or(wildcard_quality).unwrap_or(0.0) > 0.0
+    (exact_quality, wildcard_quality)
+}
+
+fn is_api_path(path: &str) -> bool {
+    path == "/api" || path.starts_with("/api/")
 }
 
 fn cache_control_for_file(path: &Path, kind: StaticFileKind) -> &'static str {
@@ -308,14 +632,23 @@ fn not_found() -> Response {
     StatusCode::NOT_FOUND.into_response()
 }
 
+fn method_not_allowed() -> Response {
+    Response::builder()
+        .status(StatusCode::METHOD_NOT_ALLOWED)
+        .header(header::ALLOW, "GET, HEAD")
+        .body(Body::empty())
+        .unwrap_or_else(|_| StatusCode::METHOD_NOT_ALLOWED.into_response())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         StaticFileKind, accepts_encoding, auth_not_found_html, cache_control_for_file,
-        has_fingerprinted_file_name, is_known_auth_view_path, normalize_auth_path, serve_file,
-        serve_index,
+        has_fingerprinted_file_name, if_none_match_matches, is_api_path, is_known_auth_view_path,
+        normalize_auth_path, serve_catalog_file, serve_file, serve_index_file, static_file_entry,
+        static_file_variant,
     };
-    use axum::http::{StatusCode, header};
+    use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
     use std::path::Path;
 
     #[test]
@@ -383,6 +716,14 @@ mod tests {
         assert!(!accepts_encoding("br;q=invalid", "br"));
     }
 
+    #[test]
+    fn api_path_matching_respects_segment_boundaries() {
+        assert!(is_api_path("/api"));
+        assert!(is_api_path("/api/status"));
+        assert!(!is_api_path("/apix"));
+        assert!(!is_api_path("/api-client"));
+    }
+
     #[tokio::test]
     async fn serve_static_asset_sets_node_headers() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -415,6 +756,8 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("18")
         );
+        assert!(response.headers().contains_key(header::ETAG));
+        assert!(response.headers().contains_key(header::LAST_MODIFIED));
     }
 
     #[tokio::test]
@@ -426,7 +769,7 @@ mod tests {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert(header::ACCEPT_ENCODING, "gzip, br".parse().unwrap());
 
-        let response = serve_file(asset_path, Some(&headers)).await;
+        let response = serve_file(asset_path.clone(), Some(&headers)).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -443,6 +786,49 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("Accept-Encoding")
         );
+
+        let identity = serve_file(asset_path, None).await;
+        assert!(identity.headers().get(header::CONTENT_ENCODING).is_none());
+        assert_eq!(
+            identity.headers().get(header::VARY).unwrap(),
+            "Accept-Encoding"
+        );
+    }
+
+    #[tokio::test]
+    async fn serve_static_asset_honors_compression_quality_and_method() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let asset_path = temp_dir.path().join("app-ABCDEFG.js");
+        std::fs::write(&asset_path, "uncompressed").unwrap();
+        std::fs::write(format!("{}.br", asset_path.display()), "brotli").unwrap();
+        std::fs::write(format!("{}.gz", asset_path.display()), "gzip").unwrap();
+        let entry = static_file_entry(&asset_path).unwrap();
+        let mut headers = HeaderMap::new();
+        headers.append(header::ACCEPT_ENCODING, "br;q=0.2".parse().unwrap());
+        headers.append(header::ACCEPT_ENCODING, "gzip;q=0.9".parse().unwrap());
+
+        let response = serve_catalog_file(
+            &asset_path,
+            &entry,
+            &headers,
+            &Method::GET,
+            StaticFileKind::Asset,
+        )
+        .await;
+        assert_eq!(
+            response.headers().get(header::CONTENT_ENCODING).unwrap(),
+            "gzip"
+        );
+
+        let response = serve_catalog_file(
+            &asset_path,
+            &entry,
+            &headers,
+            &Method::POST,
+            StaticFileKind::Asset,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 
     #[tokio::test]
@@ -450,7 +836,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         std::fs::write(temp_dir.path().join("index.html"), "<!doctype html>").unwrap();
 
-        let response = serve_index(temp_dir.path(), None).await;
+        let response = serve_index_file(temp_dir.path(), None).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -466,6 +852,57 @@ mod tests {
                 .get(header::X_CONTENT_TYPE_OPTIONS)
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn static_catalog_handles_conditional_and_head_requests_without_opening_body() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let asset_path = temp_dir.path().join("app-ABCDEFG.js");
+        std::fs::write(&asset_path, "console.log('ok');").unwrap();
+        let entry = static_file_entry(&asset_path).unwrap();
+        let mut conditional = HeaderMap::new();
+        conditional.insert(header::IF_NONE_MATCH, entry.raw.etag.clone());
+        let response = serve_catalog_file(
+            &asset_path,
+            &entry,
+            &conditional,
+            &Method::GET,
+            StaticFileKind::Asset,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+        assert!(!response.headers().contains_key(header::CONTENT_LENGTH));
+        let strong_etag = entry.raw.etag.to_str().unwrap().trim_start_matches("W/");
+        conditional.insert(
+            header::IF_NONE_MATCH,
+            HeaderValue::from_str(&format!("\"unrelated\", {strong_etag}")).unwrap(),
+        );
+        assert!(if_none_match_matches(&conditional, &entry.raw.etag));
+
+        let response = serve_catalog_file(
+            &asset_path,
+            &entry,
+            &HeaderMap::new(),
+            &Method::HEAD,
+            StaticFileKind::Asset,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_LENGTH).unwrap(),
+            "18"
+        );
+    }
+
+    #[test]
+    fn static_etag_changes_for_equal_length_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let asset_path = temp_dir.path().join("app.js");
+        std::fs::write(&asset_path, "aaaa").unwrap();
+        let first = static_file_variant(asset_path.clone()).unwrap();
+        std::fs::write(&asset_path, "bbbb").unwrap();
+        let second = static_file_variant(asset_path).unwrap();
+        assert_ne!(first.etag, second.etag);
     }
 
     #[test]

@@ -291,7 +291,7 @@ import {
   SlidersHorizontal,
 } from "lucide-vue-next";
 import { useConfigStore } from "../store/config";
-import { ConfigAPI } from "../lib/api";
+import { ConfigAPI } from "@/lib/api/config";
 import type { ProxyMapping } from "../types";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";

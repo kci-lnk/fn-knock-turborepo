@@ -54,9 +54,12 @@ describe("runtime health view", () => {
     assert.match(cardSource, /manageMemory/u);
     assert.match(dialogSource, /updateGatewayMemoryConfig/u);
     assert.match(dialogSource, /reclaimGatewayMemory/u);
-    assert.match(dialogSource, /!loaded\.value \|\| !validDraft\.value/u);
+    assert.match(dialogSource, /!validMemoryLimit\.value/u);
     assert.match(dialogSource, /MIN_GC_PERCENT = 25/u);
     assert.match(dialogSource, /MAX_GC_PERCENT = 500/u);
+    assert.match(dialogSource, /MIN_MEMORY_LIMIT_MIB = 64/u);
+    assert.match(dialogSource, /MAX_MEMORY_LIMIT_MIB = 4096/u);
+    assert.match(dialogSource, /memory_limit_mib:/u);
     assert.match(dialogSource, /saving\.value \|\| reclaiming\.value/u);
     assert.match(apiSource, /runtime-health\/gateway-memory\/reclaim/u);
   });

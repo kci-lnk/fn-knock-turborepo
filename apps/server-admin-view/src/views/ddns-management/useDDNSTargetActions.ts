@@ -1,10 +1,10 @@
 import type { ComputedRef, Ref } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
-import type {
-  DDNSTargetDetailPayload,
-  DDNSTargetSummaryPayload,
-} from "@/lib/api";
+import {
+  type DDNSTargetDetailPayload,
+  type DDNSTargetSummaryPayload,
+} from "@/lib/api/ddns";
 import {
   INTERFACE_IPV4_INDEX_KEY,
   INTERFACE_IPV4_SELECTOR_KEY,

@@ -9,7 +9,7 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
-import { GatewayLogsAPI } from "@/lib/api";
+import { GatewayLogsAPI } from "@/lib/api/gateway";
 import type { GatewayLogAnalyticsPayload } from "@/types";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";

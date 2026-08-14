@@ -11,9 +11,9 @@ if (manifest.scripts["frontend:measure"] !== "node ./scripts/frontend-performanc
 if (manifest.scripts["frontend:measure:check"] !== "node ./scripts/check-frontend-performance.mjs") process.exit(1);
 NODE
 
-rg -q 'FN_KNOCK_FRONTEND_PERF_RUNS: "5"' "${WORKFLOW}"
-rg -q 'frontend-performance-current.json' "${WORKFLOW}"
-rg -q -- '--max-regression 0.10' "${WORKFLOW}"
+grep -Fq 'FN_KNOCK_FRONTEND_PERF_RUNS: "5"' "${WORKFLOW}"
+grep -Fq 'frontend-performance-current.json' "${WORKFLOW}"
+grep -Fq -- '--max-regression 0.10' "${WORKFLOW}"
 node --test "${ROOT_DIR}/scripts/tests/frontend-performance.test.mjs"
 
 printf '[test-frontend-performance-contract] cold-cache frontend performance gate passed\n'

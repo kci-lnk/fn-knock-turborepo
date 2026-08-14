@@ -64,6 +64,7 @@ pub(crate) enum BundleCompatibilityError {
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct GoBackendClient {
+    addr: String,
     control: GatewayControlServiceClient<Channel>,
     logs: GatewayLogsServiceClient<Channel>,
     deep_monitor: DeepMonitorServiceClient<Channel>,
@@ -86,12 +87,22 @@ impl GoBackendClient {
         }
         let token = MetadataValue::try_from(token)
             .context("encode FN_KNOCK_INTERNAL_RPC_TOKEN metadata")?;
-        let endpoint = Endpoint::from_shared(format!("http://{}", normalize_grpc_addr(&addr)))
+        Self::new_with_metadata(addr, token, timeout)
+    }
+
+    fn new_with_metadata(
+        addr: String,
+        token: MetadataValue<tonic::metadata::Ascii>,
+        timeout: Duration,
+    ) -> anyhow::Result<Self> {
+        let addr = normalize_grpc_addr(&addr);
+        let endpoint = Endpoint::from_shared(format!("http://{addr}"))
             .with_context(|| format!("invalid GO_BACKEND_GRPC_ADDR: {addr}"))?
             .timeout(timeout)
             .connect_timeout(timeout);
         let channel = endpoint.connect_lazy();
         Ok(Self {
+            addr,
             control: GatewayControlServiceClient::new(channel.clone())
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
@@ -120,6 +131,12 @@ impl GoBackendClient {
             timeout,
             token,
         })
+    }
+
+    /// Build an isolated client for a bounded operation whose latency budget
+    /// differs from normal interactive control-plane requests.
+    pub(crate) fn with_timeout(&self, timeout: Duration) -> anyhow::Result<Self> {
+        Self::new_with_metadata(self.addr.clone(), self.token.clone(), timeout)
     }
 
     fn request<T>(&self, message: T) -> Request<T> {

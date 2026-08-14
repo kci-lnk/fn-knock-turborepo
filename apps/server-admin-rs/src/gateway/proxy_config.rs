@@ -51,7 +51,10 @@ use runtime::ensure_go_host_protocol_modes_applied;
 use runtime::{
     sync_go_auth_config, sync_go_rules, sync_host_mappings_runtime, sync_stream_mappings_runtime,
 };
-pub(crate) use runtime::{sync_go_host_rules_for_config_locked, sync_go_host_rules_locked};
+pub(crate) use runtime::{
+    sync_go_host_rules_for_config_locked, sync_go_host_rules_for_config_with_timeout_locked,
+    sync_go_host_rules_locked,
+};
 use subdomain::*;
 
 #[cfg(test)]

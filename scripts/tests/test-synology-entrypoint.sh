@@ -55,17 +55,17 @@ read_running_pid() {
   printf '%s\n' "${pid}"
 }
 
-wait_for_ready() {
+wait_for_processes_started() {
   local attempts=0
   while [ "${attempts}" -lt 80 ]; do
-    if grep -Fq '[fn-knock] services are ready' "${LOG_FILE}" 2>/dev/null; then
+    if grep -Fq '[fn-knock] service processes started; waiting for application readiness' "${LOG_FILE}" 2>/dev/null; then
       return 0
     fi
-    process_is_alive "${SUPERVISOR_PID}" || fail 'entrypoint exited before reporting readiness'
+    process_is_alive "${SUPERVISOR_PID}" || fail 'entrypoint exited before reporting child startup'
     attempts=$((attempts + 1))
     sleep 0.1
   done
-  fail 'entrypoint did not report readiness within 8 seconds'
+  fail 'entrypoint did not report child startup within 8 seconds'
 }
 
 wait_for_exit() {
@@ -104,7 +104,10 @@ FN_KNOCK_GATEWAY_CONFIG_DIR="${DATA_DIR}/gateway" \
   bash "${ENTRYPOINT}" > "${LOG_FILE}" 2>&1 &
 SUPERVISOR_PID=$!
 
-wait_for_ready
+wait_for_processes_started
+if grep -Fq '[fn-knock] services are ready' "${LOG_FILE}"; then
+  fail 'entrypoint reported application readiness from process liveness alone'
+fi
 GATEWAY_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/gateway.pid" 'gateway')"
 MANAGEMENT_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/management.pid" 'management')"
 

@@ -12,6 +12,7 @@ PKGHOME="${WORK_DIR}/home"
 READY_FILE="${WORK_DIR}/ready"
 ENTRYPOINT_PID_FILE="${WORK_DIR}/entrypoint.pid"
 WORKER_PID_FILE="${WORK_DIR}/worker.pid"
+START_TIMEOUT_FILE="${WORK_DIR}/start-timeout"
 
 cleanup() {
   if [ -r "${PKGVAR}/fn-knock.pid" ]; then
@@ -39,6 +40,7 @@ run_lifecycle() {
   TEST_READY_FILE="${READY_FILE}" \
   TEST_ENTRYPOINT_PID_FILE="${ENTRYPOINT_PID_FILE}" \
   TEST_WORKER_PID_FILE="${WORKER_PID_FILE}" \
+  TEST_START_TIMEOUT_FILE="${START_TIMEOUT_FILE}" \
     sh "${LIFECYCLE}" "$@"
 }
 
@@ -92,6 +94,8 @@ SH
 cat > "${PKGDEST}/bin/fn-knock-entrypoint" <<'SH'
 #!/bin/sh
 printf '%s\n' "$$" > "${TEST_ENTRYPOINT_PID_FILE:?}"
+printf '%s\n' "${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-missing}" \
+  > "${TEST_START_TIMEOUT_FILE:?}"
 cleanup() {
   trap - TERM INT EXIT
   if [ -n "${ready_pid:-}" ]; then
@@ -129,12 +133,13 @@ chmod 755 "${FAKE_BIN}/curl" "${PKGDEST}/bin/fn-knock-entrypoint"
 
 rm -f "${READY_FILE}" "${ENTRYPOINT_PID_FILE}"
 TEST_READY_DELAY_SECONDS=2 \
-FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS=6 \
 FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=3 \
 FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
   run_lifecycle start || fail 'ready service failed to start'
 
 [ -s "${PKGVAR}/fn-knock.pid" ] || fail 'successful start did not persist the supervisor PID'
+[ "$(cat "${START_TIMEOUT_FILE}")" = "180" ] || \
+  fail 'default DSM start timeout was not propagated to the application'
 supervisor_pid="$(cat "${PKGVAR}/fn-knock.pid")"
 kill -0 "${supervisor_pid}" 2>/dev/null || fail 'supervisor is not running after readiness'
 run_lifecycle status || fail 'status did not report the ready service as running'

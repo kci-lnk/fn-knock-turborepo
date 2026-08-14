@@ -218,11 +218,16 @@ pub(crate) async fn apply_gateway_memory_settings(
     state: &AppState,
     expected: GatewayMemorySettings,
 ) -> anyhow::Result<GatewayMemorySettings> {
+    apply_gateway_memory_settings_with_client(&state.gateway.client, expected).await
+}
+
+async fn apply_gateway_memory_settings_with_client(
+    client: &crate::go_backend::GoBackendClient,
+    expected: GatewayMemorySettings,
+) -> anyhow::Result<GatewayMemorySettings> {
     validate_gateway_memory_settings(expected)?;
     let memory_limit_bytes = resolve_gateway_memory_limit_bytes(expected);
-    let (applied_gc_percent, applied_memory_limit_bytes) = state
-        .gateway
-        .client
+    let (applied_gc_percent, applied_memory_limit_bytes) = client
         .set_gateway_memory_config(expected.gc_percent, i64::try_from(memory_limit_bytes)?)
         .await?;
     if applied_gc_percent != expected.gc_percent
@@ -245,6 +250,17 @@ pub(crate) async fn sync_gateway_memory_on_boot(
     let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
     let config = state.storage.store.get_config().await?;
     sync_gateway_memory_runtime(state, &config).await
+}
+
+pub(crate) async fn sync_gateway_memory_on_boot_with_timeout(
+    state: &AppState,
+    timeout: std::time::Duration,
+) -> anyhow::Result<GatewayMemorySettings> {
+    let _memory_update_guard = state.gateway.memory_update_lock.lock().await;
+    let config = state.storage.store.get_config().await?;
+    let expected = gateway_memory_settings(&config);
+    let client = state.gateway.client.with_timeout(timeout)?;
+    apply_gateway_memory_settings_with_client(&client, expected).await
 }
 
 struct CompiledGatewayVisibility {

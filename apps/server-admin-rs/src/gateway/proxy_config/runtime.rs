@@ -15,6 +15,14 @@ pub(crate) async fn sync_go_host_rules_locked(
     state: &AppState,
     rules: &Value,
 ) -> Result<(), String> {
+    sync_go_host_rules_with_client_locked(state, &state.gateway.client, rules).await
+}
+
+async fn sync_go_host_rules_with_client_locked(
+    state: &AppState,
+    client: &crate::go_backend::GoBackendClient,
+    rules: &Value,
+) -> Result<(), String> {
     state.set_gateway_config_synced(false);
     state.runtime_health.operational_log(
         "INFO",
@@ -24,9 +32,7 @@ pub(crate) async fn sync_go_host_rules_locked(
         Map::new(),
     );
     let result = async {
-        let response = state
-            .gateway
-            .client
+        let response = client
             .set_host_rules(rules)
             .await
             .map_err(|error| error.to_string())?;
@@ -57,10 +63,15 @@ pub(crate) async fn sync_go_host_rules_locked(
 }
 
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
+    flush_go_host_rules_with_client_locked(state, &state.gateway.client).await
+}
+
+async fn flush_go_host_rules_with_client_locked(
+    state: &AppState,
+    client: &crate::go_backend::GoBackendClient,
+) -> Result<(), String> {
     state.set_gateway_config_synced(false);
-    let result = state
-        .gateway
-        .client
+    let result = client
         .flush_host_rules()
         .await
         .map_err(|error| error.to_string())
@@ -100,6 +111,22 @@ pub(crate) async fn sync_go_host_rules_for_config_locked(
     match host_rules_payload_for_config(config) {
         Some(rules) => sync_go_host_rules_locked(state, &rules).await,
         None => flush_go_host_rules_locked(state).await,
+    }
+}
+
+pub(crate) async fn sync_go_host_rules_for_config_with_timeout_locked(
+    state: &AppState,
+    config: &Value,
+    timeout: std::time::Duration,
+) -> Result<(), String> {
+    let client = state
+        .gateway
+        .client
+        .with_timeout(timeout)
+        .map_err(|error| error.to_string())?;
+    match host_rules_payload_for_config(config) {
+        Some(rules) => sync_go_host_rules_with_client_locked(state, &client, &rules).await,
+        None => flush_go_host_rules_with_client_locked(state, &client).await,
     }
 }
 

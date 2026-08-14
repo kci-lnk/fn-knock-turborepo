@@ -205,7 +205,7 @@ write_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID}"
 wait_for_process_or_fail "${BACKEND_PID}" "administration service"
 supervisor_log INFO management started supervisor_start null || true
 
-echo "[fn-knock] services are ready"
+echo "[fn-knock] service processes started; waiting for application readiness"
 while kill -0 "${GATEWAY_PID}" 2>/dev/null && kill -0 "${BACKEND_PID}" 2>/dev/null; do
   sleep 1
 done

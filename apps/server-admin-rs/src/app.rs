@@ -9,6 +9,7 @@ mod cli;
 mod docker_admin_view;
 mod router;
 mod server;
+mod startup_gateway;
 
 pub(crate) use boot::cleanup_legacy_auth_log_storage;
 
@@ -26,7 +27,7 @@ use crate::{
     ddns_status::start_ddns_tasks,
     fnos_certificate_sync::start_fnos_certificate_sync_tasks,
     frpc::start_frpc_tasks,
-    gateway_settings::{migrate_visibility_policies_on_boot, sync_gateway_memory_on_boot},
+    gateway_settings::migrate_visibility_policies_on_boot,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
     maintenance::start_automatic_backup_tasks,
@@ -46,6 +47,13 @@ use crate::{
     whitelist::{migrate_whitelist_ipsets_on_boot, start_whitelist_tasks},
     wol::start_wol_tasks,
 };
+
+// DSM gives the package supervisor 180 seconds by default. Keep one shared
+// application budget so individually bounded startup phases cannot add up past
+// that window, while retaining time for error propagation and process cleanup.
+const DEFAULT_APPLICATION_STARTUP_TIMEOUT: Duration = Duration::from_secs(150);
+const SYNOLOGY_SUPERVISOR_SHUTDOWN_MARGIN: Duration = Duration::from_secs(30);
+const GATEWAY_STARTUP_PHASE_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub async fn run() -> anyhow::Result<()> {
     init_tracing();
@@ -114,16 +122,35 @@ pub(crate) async fn run_with_settings(
     if let Some(path) = &readiness_marker {
         let _ = tokio::fs::remove_file(path).await;
     }
+    let startup_deadline = tokio::time::Instant::now() + application_startup_timeout();
     settings.ensure_altcha_hmac_key()?;
     // Child cancellation propagates an SCM/signal stop into every listener and
     // worker, while an application startup error can tear down its own tasks
     // without masquerading as an external service stop in the supervisor.
     let runtime_shutdown = shutdown.child_token();
     let state = AppState::new_with_shutdown(settings.clone(), runtime_shutdown.clone()).await?;
-    wait_for_gateway_control_plane(&state, &runtime_shutdown, Duration::from_secs(60)).await?;
+    wait_for_gateway_control_plane(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "gateway control plane",
+        )?,
+    )
+    .await?;
     // Apply the restored GOGC/memory-limit pair before expensive migrations,
     // listener readiness, or production traffic can create a startup spike.
-    sync_gateway_memory_on_boot(&state).await?;
+    startup_gateway::sync_memory(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "gateway memory configuration",
+        )?,
+    )
+    .await?;
     start_runtime_monitor(state.clone()).await?;
     let migrated_cidr_caches = migrate_cidr_query_caches_on_boot(&state).await?;
     if migrated_cidr_caches > 0 {
@@ -139,9 +166,17 @@ pub(crate) async fn run_with_settings(
     // policy table can contain Host fields that require the matching gateway.
     // Publish the complete generation before listeners and readiness open.
     let startup_config = state.storage.store.get_config().await?;
-    crate::proxy_config::sync_go_host_rules_for_config_locked(&state, &startup_config)
-        .await
-        .map_err(anyhow::Error::msg)?;
+    startup_gateway::sync_host_rules(
+        &state,
+        &startup_config,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "gateway host rules",
+        )?,
+    )
+    .await?;
     migrate_scanner_cidr_ipset_on_boot(&state).await?;
     migrate_common_auth_location_ipset_on_boot(&state).await?;
     migrate_whitelist_ipsets_on_boot(&state).await?;
@@ -240,9 +275,14 @@ pub(crate) async fn run_with_settings(
     // important on Windows: the Go data plane may issue auth requests as soon
     // as the bridge handshakes, and SCM Running must still be withheld until
     // bundle + process + data plane + auth bridge are all healthy.
+    let final_readiness_timeout = startup_phase_timeout(
+        startup_deadline,
+        GATEWAY_STARTUP_PHASE_TIMEOUT,
+        "gateway final readiness",
+    )?;
     let readiness = wait_for_readiness_while_serving(
         servers.as_mut(),
-        wait_for_gateway(&state, &runtime_shutdown, Some(Duration::from_secs(60))),
+        wait_for_gateway(&state, &runtime_shutdown, final_readiness_timeout),
     )
     .await;
     if let Err(error) = readiness {
@@ -363,85 +403,127 @@ async fn wait_for_gateway_control_plane(
     shutdown: &CancellationToken,
     timeout: Duration,
 ) -> anyhow::Result<()> {
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let process_ready = state
-            .gateway
-            .client
-            .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
-            .await
-            .unwrap_or(false);
-        if process_ready {
-            match state.gateway.client.verify_bundle_compatibility().await {
-                Ok(_) => return Ok(()),
-                Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
-                    tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
-                }
-                Err(error @ crate::go_backend::BundleCompatibilityError::Incompatible(_)) => {
-                    return Err(error.into());
+    let wait = async {
+        loop {
+            let process_ready = state
+                .gateway
+                .client
+                .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
+                .await
+                .unwrap_or(false);
+            if process_ready {
+                match state.gateway.client.verify_bundle_compatibility().await {
+                    Ok(_) => return Ok(()),
+                    Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
+                        tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
+                    }
+                    Err(error @ crate::go_backend::BundleCompatibilityError::Incompatible(_)) => {
+                        return Err(error.into());
+                    }
                 }
             }
+            tokio::select! {
+                _ = shutdown.cancelled() => anyhow::bail!("startup cancelled"),
+                _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+            }
         }
-        if tokio::time::Instant::now() >= deadline {
-            anyhow::bail!("Go gateway control plane did not become ready within 60 seconds");
-        }
-        tokio::select! {
-            _ = shutdown.cancelled() => anyhow::bail!("startup cancelled"),
-            _ = tokio::time::sleep(Duration::from_millis(250)) => {}
-        }
+    };
+    match tokio::time::timeout(timeout, wait).await {
+        Ok(result) => result,
+        Err(_) => anyhow::bail!(
+            "Go gateway control plane did not become ready within {:.1} seconds",
+            timeout.as_secs_f64()
+        ),
     }
 }
 
 async fn wait_for_gateway(
     state: &AppState,
     shutdown: &CancellationToken,
-    timeout: Option<Duration>,
+    timeout: Duration,
 ) -> anyhow::Result<()> {
-    let deadline = timeout.map(|timeout| tokio::time::Instant::now() + timeout);
-    loop {
-        let process_ready = state
-            .gateway
-            .client
-            .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
-            .await
-            .unwrap_or(false);
-        let dataplane_ready = state
-            .gateway
-            .client
-            .health_serving(crate::go_backend::GATEWAY_HEALTH_DATAPLANE)
-            .await
-            .unwrap_or(false);
-        let auth_bridge_ready = state
-            .gateway
-            .client
-            .health_serving(crate::go_backend::GATEWAY_HEALTH_AUTH_BRIDGE)
-            .await
-            .unwrap_or(false);
-        let bundle_ready = if process_ready {
-            match state.gateway.client.verify_bundle_compatibility().await {
-                Ok(_) => true,
-                Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
-                    tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
-                    false
+    let wait = async {
+        loop {
+            let process_ready = state
+                .gateway
+                .client
+                .health_serving(crate::go_backend::GATEWAY_HEALTH_PROCESS)
+                .await
+                .unwrap_or(false);
+            let dataplane_ready = state
+                .gateway
+                .client
+                .health_serving(crate::go_backend::GATEWAY_HEALTH_DATAPLANE)
+                .await
+                .unwrap_or(false);
+            let auth_bridge_ready = state
+                .gateway
+                .client
+                .health_serving(crate::go_backend::GATEWAY_HEALTH_AUTH_BRIDGE)
+                .await
+                .unwrap_or(false);
+            let bundle_ready = if process_ready {
+                match state.gateway.client.verify_bundle_compatibility().await {
+                    Ok(_) => true,
+                    Err(crate::go_backend::BundleCompatibilityError::Unavailable(error)) => {
+                        tracing::debug!(%error, "gateway compatibility probe is temporarily unavailable");
+                        false
+                    }
+                    Err(error @ crate::go_backend::BundleCompatibilityError::Incompatible(_)) => {
+                        return Err(error.into());
+                    }
                 }
-                Err(error @ crate::go_backend::BundleCompatibilityError::Incompatible(_)) => {
-                    return Err(error.into());
-                }
+            } else {
+                false
+            };
+            if bundle_ready && dataplane_ready && auth_bridge_ready && state.gateway_config_synced()
+            {
+                return Ok(());
             }
-        } else {
-            false
-        };
-        if bundle_ready && dataplane_ready && auth_bridge_ready && state.gateway_config_synced() {
-            return Ok(());
+            tokio::select! {
+                _ = shutdown.cancelled() => anyhow::bail!("startup cancelled"),
+                _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+            }
         }
-        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
-            anyhow::bail!("Go gateway did not become ready within the startup deadline");
-        }
-        tokio::select! {
-            _ = shutdown.cancelled() => anyhow::bail!("startup cancelled"),
-            _ = tokio::time::sleep(Duration::from_millis(250)) => {}
-        }
+    };
+    match tokio::time::timeout(timeout, wait).await {
+        Ok(result) => result,
+        Err(_) => anyhow::bail!(
+            "Go gateway did not become ready within {:.1} seconds",
+            timeout.as_secs_f64()
+        ),
     }
+}
+
+fn startup_phase_timeout(
+    deadline: tokio::time::Instant,
+    phase_cap: Duration,
+    phase: &str,
+) -> anyhow::Result<Duration> {
+    let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+    if remaining.is_zero() {
+        anyhow::bail!("application startup deadline exhausted before {phase}");
+    }
+    Ok(remaining.min(phase_cap))
+}
+
+fn application_startup_timeout() -> Duration {
+    let supervisor_timeout = env::var("FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .map(Duration::from_secs);
+    application_startup_timeout_for_supervisor(supervisor_timeout)
+}
+
+fn application_startup_timeout_for_supervisor(supervisor_timeout: Option<Duration>) -> Duration {
+    supervisor_timeout
+        .map(|timeout| {
+            timeout
+                .saturating_sub(SYNOLOGY_SUPERVISOR_SHUTDOWN_MARGIN)
+                .max(Duration::from_secs(1))
+        })
+        .unwrap_or(DEFAULT_APPLICATION_STARTUP_TIMEOUT)
 }
 
 async fn shutdown_signal() {
@@ -513,5 +595,49 @@ mod tests {
         stop_auth_bridge(worker).await;
 
         assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn startup_phase_uses_the_smaller_of_remaining_budget_and_phase_cap() {
+        let timeout = startup_phase_timeout(
+            tokio::time::Instant::now() + Duration::from_secs(120),
+            Duration::from_secs(60),
+            "test phase",
+        )
+        .unwrap();
+
+        assert!(timeout <= Duration::from_secs(60));
+        assert!(timeout > Duration::from_secs(59));
+    }
+
+    #[test]
+    fn startup_phase_fails_after_the_shared_deadline() {
+        let error = startup_phase_timeout(
+            tokio::time::Instant::now(),
+            Duration::from_secs(60),
+            "test phase",
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "application startup deadline exhausted before test phase"
+        );
+    }
+
+    #[test]
+    fn synology_application_budget_leaves_supervisor_cleanup_margin() {
+        assert_eq!(
+            application_startup_timeout_for_supervisor(Some(Duration::from_secs(180))),
+            Duration::from_secs(150)
+        );
+        assert_eq!(
+            application_startup_timeout_for_supervisor(Some(Duration::from_secs(20))),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            application_startup_timeout_for_supervisor(None),
+            DEFAULT_APPLICATION_STARTUP_TIMEOUT
+        );
     }
 }

@@ -621,32 +621,32 @@ validate_payload_listing() {
   local gateway_arch="$2"
   local gateway_listing
 
-  printf '%s\n' "${listing}" | grep -Fxq "etc/config/fn-knock" || \
+  grep -Fxq "etc/config/fn-knock" <<<"${listing}" || \
     fail "data payload missing /etc/config/fn-knock"
-  printf '%s\n' "${listing}" | grep -Fxq "etc/init.d/fn-knock" || \
+  grep -Fxq "etc/init.d/fn-knock" <<<"${listing}" || \
     fail "data payload missing /etc/init.d/fn-knock"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" || \
+  grep -Fxq "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" <<<"${listing}" || \
     fail "data payload missing ACME bundled resource"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin-rs" || \
+  grep -Fxq "usr/lib/fn-knock/server/server-admin-rs" <<<"${listing}" || \
     fail "data payload missing Rust server-admin-rs binary"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/bin/server-admin-rs" || \
+  grep -Fxq "usr/lib/fn-knock/bin/server-admin-rs" <<<"${listing}" || \
     fail "data payload missing Rust server-admin-rs symlink"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/ui/www/index.html" || \
+  grep -Fxq "usr/lib/fn-knock/ui/www/index.html" <<<"${listing}" || \
     fail "data payload missing admin UI index.html"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" || \
+  grep -Fxq "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" <<<"${listing}" || \
     fail "data payload missing selected gateway binary"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/share/luci/menu.d/luci-app-fn-knock.json" || \
+  grep -Fxq "usr/share/luci/menu.d/luci-app-fn-knock.json" <<<"${listing}" || \
     fail "data payload missing LuCI menu"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/share/rpcd/acl.d/luci-app-fn-knock.json" || \
+  grep -Fxq "usr/share/rpcd/acl.d/luci-app-fn-knock.json" <<<"${listing}" || \
     fail "data payload missing LuCI ACL"
-  printf '%s\n' "${listing}" | grep -Fxq "www/luci-static/resources/view/fn-knock.js" || \
+  grep -Fxq "www/luci-static/resources/view/fn-knock.js" <<<"${listing}" || \
     fail "data payload missing LuCI view"
-  printf '%s\n' "${listing}" | grep -Fxq "www/luci-static/resources/view/fn-knock-openwrt.js" || \
+  grep -Fxq "www/luci-static/resources/view/fn-knock-openwrt.js" <<<"${listing}" || \
     fail "data payload missing OpenWrt LuCI view"
-  printf '%s\n' "${listing}" | grep -Fxq "www/luci-static/resources/fn-knock/fn-knock.png" || \
+  grep -Fxq "www/luci-static/resources/fn-knock/fn-knock.png" <<<"${listing}" || \
     fail "data payload missing LuCI icon"
 
-  gateway_listing="$(printf '%s\n' "${listing}" | grep 'usr/lib/fn-knock/server/go-reauth-proxy-linux-' || true)"
+  gateway_listing="$(grep 'usr/lib/fn-knock/server/go-reauth-proxy-linux-' <<<"${listing}" || true)"
   if [ "${gateway_listing}" != "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" ]; then
     printf '%s\n' "${gateway_listing}" >&2
     fail "data payload contains unexpected gateway binaries"
@@ -1070,9 +1070,9 @@ validate_istore_meta_payload_listing() {
   local meta_path="$2"
   local icon_path="www/luci-static/resources/app-icons/${APP_NAME}.png"
 
-  printf '%s\n' "${listing}" | grep -Fxq "${meta_path}" || \
+  grep -Fxq "${meta_path}" <<<"${listing}" || \
     fail "iStore meta payload missing ${meta_path}"
-  printf '%s\n' "${listing}" | grep -Fxq "${icon_path}" || \
+  grep -Fxq "${icon_path}" <<<"${listing}" || \
     fail "iStore meta payload missing ${icon_path}"
 }
 

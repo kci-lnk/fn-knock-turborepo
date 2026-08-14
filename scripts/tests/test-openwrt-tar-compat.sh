@@ -84,4 +84,22 @@ IPK_LISTING="$(tar -tzf "${IPK_TAR}" | normalize_tar_listing)"
   test_fail "tar-format IPK member order changed"
 }
 
+LARGE_PAYLOAD_LISTING="$({
+  printf '%s\n' \
+    "etc/config/fn-knock" \
+    "etc/init.d/fn-knock" \
+    "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" \
+    "usr/lib/fn-knock/server/server-admin-rs" \
+    "usr/lib/fn-knock/bin/server-admin-rs" \
+    "usr/lib/fn-knock/ui/www/index.html" \
+    "usr/lib/fn-knock/server/go-reauth-proxy-linux-amd64" \
+    "usr/share/luci/menu.d/luci-app-fn-knock.json" \
+    "usr/share/rpcd/acl.d/luci-app-fn-knock.json" \
+    "www/luci-static/resources/view/fn-knock.js" \
+    "www/luci-static/resources/view/fn-knock-openwrt.js" \
+    "www/luci-static/resources/fn-knock/fn-knock.png"
+  awk 'BEGIN { for (i = 0; i < 20000; i += 1) printf "usr/share/fn-knock/fixture-%05d\\n", i }'
+})"
+validate_payload_listing "${LARGE_PAYLOAD_LISTING}" amd64
+
 printf '[test-openwrt-tar-compat] %s tar compatibility passed\n' "${TAR_FLAVOR}"

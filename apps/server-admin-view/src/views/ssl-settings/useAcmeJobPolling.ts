@@ -113,7 +113,22 @@ export function useAcmeJobPolling({
       const killedCount =
         result.processResult.matchedPids.length -
         result.processResult.remainingPids.length;
-      if (result.stopped) {
+      const stopErrors = result.processResult.errors;
+      const remainingPids = result.processResult.remainingPids;
+      if (
+        !result.stopped &&
+        (Boolean(result.job) || stopErrors.length > 0 || remainingPids.length > 0)
+      ) {
+        const details = [
+          ...stopErrors,
+          ...(remainingPids.length
+            ? [`PID: ${remainingPids.join(", ")}`]
+            : []),
+        ].join("; ");
+        toast.error(t("admin.acmeCert.stopJobFailed"), {
+          description: details || undefined,
+        });
+      } else if (result.stopped) {
         toast.success(t("admin.acmeCert.jobStopped"), {
           description:
             result.processResult.matchedPids.length > 0

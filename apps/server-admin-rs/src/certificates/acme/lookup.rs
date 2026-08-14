@@ -397,10 +397,25 @@ pub(super) async fn get_active_acme_runtime_lock(
             // Conservatively keep the lease until TTL expiry.
             return Ok(lock);
         };
-        if matches!(
-            job.get("status").and_then(Value::as_str),
-            Some("succeeded" | "failed")
-        ) {
+        let status = job.get("status").and_then(Value::as_str);
+        let terminal = matches!(status, Some("succeeded" | "failed"));
+        let control = state.acme_job_control(job_id).await;
+        let executor_finished = control
+            .as_ref()
+            .is_some_and(|control| control.finished.is_cancelled());
+        if executor_finished {
+            state.finish_acme_job_control(job_id).await;
+        }
+        let abandoned = matches!(status, Some("queued" | "running" | "stopped"))
+            && (control.is_none() || executor_finished);
+        if terminal || abandoned {
+            if abandoned && matches!(status, Some("queued" | "running")) {
+                let t = Translator::from_state(state).await;
+                let message = t.t("server.acmeJobRunner.manualStop");
+                if let Err(error) = mark_acme_job_stopped(state, job_id, &message).await {
+                    tracing::warn!(%error, %job_id, "failed to finalize an abandoned ACME job");
+                }
+            }
             let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) else {
                 return Ok(lock);
             };
@@ -416,8 +431,8 @@ pub(super) async fn get_active_acme_runtime_lock(
             // a newly acquired lease is never reported as unlocked.
             continue;
         }
-        // A stopped job remains locked until its executor has observed the
-        // stop and released the lease after the final commit boundary.
+        // A non-terminal job with an in-process owner remains locked until
+        // that executor crosses its final commit boundary and releases it.
         return Ok(lock);
     }
     Ok(json!({ "locked": true }))

@@ -31,6 +31,7 @@ const {
   isMutating,
   isRefreshingLogs,
   isStoppingJob,
+  isTableLocked,
   job,
   logs,
   refreshLogs,
@@ -62,6 +63,7 @@ const {
       :initial-value="editingApplication"
       :dns-providers="dnsProviders"
       :pending="isDialogSubmitting"
+      :runtime-locked="isTableLocked"
       @submit="submitDialog"
     />
 

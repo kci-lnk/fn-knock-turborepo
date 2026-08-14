@@ -1,6 +1,6 @@
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU32, Ordering},
 };
 use std::{collections::HashMap, future::Future, time::Duration};
 
@@ -55,6 +55,11 @@ pub struct AppStateInner {
     pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
     pub acme_install_state: RwLock<Option<Value>>,
+    /// Owns cancellation and completion signals for ACME jobs started by this
+    /// process. Persistent leases remain the cross-process source of truth;
+    /// this registry is intentionally empty after a restart so stale leases
+    /// can be identified and reconciled safely.
+    pub(crate) acme_runtime: AcmeRuntimeState,
     pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
     /// Serializes the Go loopback listener, dual-stack firewall rules and
@@ -99,6 +104,36 @@ pub struct StorageState {
     /// beside this facade and can shadow-compare without leaking migration
     /// details into unrelated runtime domains.
     pub store: Store,
+}
+
+#[derive(Clone)]
+pub(crate) struct AcmeJobControl {
+    pub(crate) cancellation: CancellationToken,
+    pub(crate) finished: CancellationToken,
+    pid: Arc<AtomicU32>,
+}
+
+impl AcmeJobControl {
+    fn new(shutdown: &CancellationToken) -> Self {
+        Self {
+            cancellation: shutdown.child_token(),
+            finished: CancellationToken::new(),
+            pid: Arc::new(AtomicU32::new(0)),
+        }
+    }
+
+    pub(crate) fn pid(&self) -> u32 {
+        self.pid.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn set_pid(&self, pid: u32) {
+        self.pid.store(pid, Ordering::Release);
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct AcmeRuntimeState {
+    jobs: Mutex<HashMap<String, AcmeJobControl>>,
 }
 
 impl StorageState {
@@ -382,6 +417,7 @@ impl AppState {
                 asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
+                acme_runtime: AcmeRuntimeState::default(),
                 ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
                 fnos_connect_waf_update_lock: Mutex::new(()),
@@ -431,6 +467,27 @@ impl std::ops::Deref for AppState {
 }
 
 impl AppState {
+    pub(crate) async fn register_acme_job_control(&self, job_id: &str) -> Option<AcmeJobControl> {
+        let mut jobs = self.acme_runtime.jobs.lock().await;
+        if jobs.contains_key(job_id) {
+            return None;
+        }
+        let control = AcmeJobControl::new(&self.shutdown);
+        jobs.insert(job_id.to_string(), control.clone());
+        Some(control)
+    }
+
+    pub(crate) async fn acme_job_control(&self, job_id: &str) -> Option<AcmeJobControl> {
+        self.acme_runtime.jobs.lock().await.get(job_id).cloned()
+    }
+
+    pub(crate) async fn finish_acme_job_control(&self, job_id: &str) {
+        if let Some(control) = self.acme_runtime.jobs.lock().await.remove(job_id) {
+            control.set_pid(0);
+            control.finished.cancel();
+        }
+    }
+
     pub(crate) fn spawn_background<F>(&self, name: &'static str, future: F)
     where
         F: Future<Output = ()> + Send + 'static,

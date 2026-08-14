@@ -495,6 +495,25 @@ pub(super) async fn register_acme_account(
     certificate_authority: Option<&str>,
     t: &Translator,
 ) -> anyhow::Result<String> {
+    register_acme_account_inner(state, email, certificate_authority, None, t).await
+}
+
+pub(super) async fn register_acme_account_for_job(
+    state: &AppState,
+    certificate_authority: &str,
+    control: &AcmeJobControl,
+    t: &Translator,
+) -> anyhow::Result<String> {
+    register_acme_account_inner(state, None, Some(certificate_authority), Some(control), t).await
+}
+
+async fn register_acme_account_inner(
+    state: &AppState,
+    email: Option<&str>,
+    certificate_authority: Option<&str>,
+    control: Option<&AcmeJobControl>,
+    t: &Translator,
+) -> anyhow::Result<String> {
     let account_email = resolve_account_email(state, email).await;
     if crate::runtime_profile::deployment_target(state) == "windows" {
         return Ok(account_email);
@@ -506,7 +525,11 @@ pub(super) async fn register_acme_account(
     ];
     args.extend(shared_acme_args(state, certificate_authority));
     args.push("--debug".to_string());
-    let result = run_acme_command(state, args, None).await?;
+    let result = if let Some(control) = control {
+        run_acme_command_for_job(state, args, control, t).await?
+    } else {
+        run_acme_command(state, args, None).await?
+    };
     if result.exit_code == 0 {
         return Ok(account_email);
     }
@@ -526,6 +549,35 @@ pub(super) async fn register_acme_account(
             ),
         ],
     ))
+}
+
+async fn run_acme_command_for_job(
+    state: &AppState,
+    args: Vec<String>,
+    control: &AcmeJobControl,
+    t: &Translator,
+) -> anyhow::Result<AcmeCommandResult> {
+    let mut command = Command::new(acme_executable_path(state));
+    command
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()?;
+    control.set_pid(child.id().unwrap_or(0));
+    let stdout_task = spawn_acme_output_collector(child.stdout.take());
+    let stderr_task = spawn_acme_output_collector(child.stderr.take());
+    let status = wait_for_acme_child(&mut child, control, t).await;
+    let stdout = wait_for_acme_collected_output(stdout_task).await;
+    let stderr = wait_for_acme_collected_output(stderr_task).await;
+    let status = status?;
+    Ok(AcmeCommandResult {
+        exit_code: status.code().unwrap_or(-1),
+        stdout,
+        stderr,
+    })
 }
 
 pub(super) async fn set_default_certificate_authority(
@@ -569,7 +621,10 @@ pub(super) async fn run_acme_command(
     command
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     if let Some(extra_env) = extra_env {
         for (key, value) in extra_env {
             if let Some(value) = value.as_str() {
@@ -577,11 +632,27 @@ pub(super) async fn run_acme_command(
             }
         }
     }
-    let output = command.output().await?;
+    let mut child = command.spawn()?;
+    let stdout_task = spawn_acme_output_collector(child.stdout.take());
+    let stderr_task = spawn_acme_output_collector(child.stderr.take());
+    let timeout = tokio_time::sleep(acme_job_timeout());
+    tokio::pin!(timeout);
+    let status = tokio::select! {
+        status = child.wait() => status.map_err(anyhow::Error::from),
+        _ = &mut timeout => {
+            match terminate_acme_child(&mut child, std::time::Duration::from_secs(3)).await {
+                Ok(_) => Err(anyhow::anyhow!("ACME command exceeded its execution timeout")),
+                Err(error) => Err(error),
+            }
+        }
+    };
+    let stdout = wait_for_acme_collected_output(stdout_task).await;
+    let stderr = wait_for_acme_collected_output(stderr_task).await;
+    let status = status?;
     Ok(AcmeCommandResult {
-        exit_code: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        exit_code: status.code().unwrap_or(-1),
+        stdout,
+        stderr,
     })
 }
 

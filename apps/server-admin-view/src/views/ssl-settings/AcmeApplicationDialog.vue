@@ -5,6 +5,7 @@
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>
           {{ t("admin.acmeApplicationDialog.description") }}
+          <span v-if="props.runtimeLocked" class="block text-amber-700 dark:text-amber-300">{{ t("admin.acmeCert.lock.description") }}</span>
         </DialogDescription>
       </DialogHeader>
 
@@ -278,7 +279,7 @@
         </Button>
         <Button
           type="button"
-          :disabled="!canSubmit || props.pending"
+          :disabled="!canSubmit || props.pending || props.runtimeLocked"
           @click="submit(true)"
         >
           {{ t("admin.acmeApplicationDialog.saveAndApply") }}

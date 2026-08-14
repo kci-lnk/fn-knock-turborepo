@@ -374,6 +374,12 @@ export function useAcmeCertificateController() {
     isDownloading.value ||
     isStoppingJob.value;
 
+  const isConfigurationEditBlocked = () =>
+    isMutating.value ||
+    isDialogSubmitting.value ||
+    isDownloading.value ||
+    isStoppingJob.value;
+
   const isDeleteApplicationBlocked = () =>
     isTableLocked.value ||
     isMutating.value ||
@@ -392,7 +398,7 @@ export function useAcmeCertificateController() {
     libraryBadgeVariant,
     libraryStatusLabel,
     primaryActionLabel,
-  } = useAcmeCertificateDisplay({ isActionBlocked });
+  } = useAcmeCertificateDisplay({ isConfigurationEditBlocked });
 
   onMounted(async () => {
     await Promise.all([fetchOverview({ silent: true }), loadProviders()]);
@@ -424,6 +430,7 @@ export function useAcmeCertificateController() {
     handleDeleteDialogOpenChange,
     isAcmeInstalled,
     isActionBlocked,
+    isConfigurationEditBlocked,
     isDeleteApplicationBlocked,
     isDialogOpen,
     isDialogSubmitting,

@@ -1659,7 +1659,7 @@ export const zhHantAdmin = {
       autoRenewFor: "正在為 {target} 自動續期證書",
       requestFor: "正在為 {target} 申請證書",
       description:
-        "任務執行期間會鎖定列表操作，你仍然可以查看列表內容和下方日誌。",
+        "任務執行期間仍可編輯並儲存 DNS 設定；再次申請、部署和刪除等衝突操作會保持鎖定。",
     },
     loadOverviewFailed: "載入 ACME 概覽失敗",
     loadProvidersFailed: "載入 DNS 服務商失敗",

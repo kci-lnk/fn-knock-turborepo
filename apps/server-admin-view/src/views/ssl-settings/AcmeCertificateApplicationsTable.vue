@@ -39,6 +39,7 @@ const {
   downloadCertificate,
   formatCertificateRange,
   isActionBlocked,
+  isConfigurationEditBlocked,
   isDeleteApplicationBlocked,
   isOverviewLoading,
   isSecondaryActionDisabled,
@@ -70,12 +71,12 @@ const {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div class="relative">
+        <div class="grid gap-3">
           <div
             v-if="isTableLocked"
-            class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border bg-background/80 p-4 backdrop-blur-sm"
+            class="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100"
           >
-            <div class="max-w-md text-center">
+            <div>
               <div class="text-sm font-medium">{{ lockMessageTitle }}</div>
               <div class="mt-1 text-xs text-muted-foreground">
                 {{ lockMessageDescription }}
@@ -239,7 +240,7 @@ const {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" class="w-44">
                             <DropdownMenuItem
-                              :disabled="isActionBlocked()"
+                              :disabled="isConfigurationEditBlocked()"
                               @select="openEditDialog(application.id)"
                             >
                               {{ t("admin.acmeCert.editApplication") }}

@@ -5,7 +5,6 @@ use std::{
     io::{Cursor, Write},
     path::{Path, PathBuf},
     process::Stdio,
-    sync::atomic::Ordering,
 };
 
 use ::time::{
@@ -23,7 +22,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
     process::Command,
     time::{self as tokio_time, MissedTickBehavior},
 };
@@ -31,7 +30,12 @@ use tokio_util::sync::CancellationToken;
 use utoipa_axum::router::OpenApiRouter;
 use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
 
-use crate::{i18n::Translator, response, ssl, state::AppState, time_utils};
+use crate::{
+    i18n::Translator,
+    response, ssl,
+    state::{AcmeJobControl, AppState},
+    time_utils,
+};
 
 mod analysis;
 mod certificates;
@@ -81,7 +85,6 @@ const MAX_ACME_BODY_BYTES: usize = 1024 * 1024;
 const ACME_JOB_TTL_SECONDS: usize = 86_400;
 const ACME_RUNTIME_LOCK_MIN_TTL_SECONDS: usize = 300;
 const ACME_RUNTIME_LOCK_MAX_TTL_SECONDS: usize = 6 * 60 * 60;
-static WINDOWS_ACME_ACTIVE_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 #[derive(Deserialize)]
 struct AcmeLogsQuery {
@@ -122,7 +125,11 @@ pub(crate) fn acme_openapi_routes() -> OpenApiRouter<AppState> {
     handlers::openapi_routes().merge(resource::openapi_routes())
 }
 
-pub fn start_acme_tasks(state: AppState) {
+pub async fn start_acme_tasks(state: AppState) {
+    let t = Translator::from_state(&state).await;
+    if let Err(error) = recover_orphaned_acme_runtime_job(&state, &t).await {
+        tracing::warn!(%error, "failed to recover interrupted ACME runtime state");
+    }
     let task_state = state.clone();
     state.spawn_background("acme-auto-renew", async move {
         let mut ticker = acme_renew_ticker(acme_renew_interval());

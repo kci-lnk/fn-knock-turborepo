@@ -5,11 +5,11 @@ type CertificateStatusKey =
   "none" | "invalid" | "expired" | "expiring" | "valid";
 
 type UseAcmeCertificateDisplayOptions = {
-  isActionBlocked: () => boolean;
+  isConfigurationEditBlocked: () => boolean;
 };
 
 export function useAcmeCertificateDisplay({
-  isActionBlocked,
+  isConfigurationEditBlocked,
 }: UseAcmeCertificateDisplayOptions) {
   const { locale, t } = useI18n();
 
@@ -22,7 +22,7 @@ export function useAcmeCertificateDisplay({
   const isSecondaryActionDisabled = (
     application: AcmeApplicationOverviewItem,
   ) => {
-    return isActionBlocked() && !application.latestJob?.id;
+    return isConfigurationEditBlocked() && !application.latestJob?.id;
   };
 
   const certificateStatusKey = (

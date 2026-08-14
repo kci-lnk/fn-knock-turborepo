@@ -164,3 +164,35 @@ describe("ACME API contract", () => {
     assert.match(api, /satisfies AcmePollQuery/u);
   });
 });
+
+describe("ACME stuck-job recovery UI", () => {
+  it("keeps DNS configuration reachable while a certificate job owns the lock", () => {
+    const table = readSource(
+      "../src/views/ssl-settings/AcmeCertificateApplicationsTable.vue",
+    );
+    const header = readSource(
+      "../src/views/ssl-settings/AcmeCertificateHeader.vue",
+    );
+    const dialog = readSource(
+      "../src/views/ssl-settings/AcmeApplicationDialog.vue",
+    );
+
+    assert.doesNotMatch(table, /absolute inset-0/u);
+    assert.match(table, /isConfigurationEditBlocked\(\)/u);
+    assert.doesNotMatch(
+      header,
+      /!isAcmeInstalled\s*\|\|\s*isTableLocked\s*\|\|/u,
+    );
+    assert.match(dialog, /props\.runtimeLocked/u);
+  });
+
+  it("surfaces incomplete stop results instead of reporting no active job", () => {
+    const polling = readSource(
+      "../src/views/ssl-settings/useAcmeJobPolling.ts",
+    );
+
+    assert.match(polling, /result\.processResult\.remainingPids/u);
+    assert.match(polling, /result\.processResult\.errors/u);
+    assert.match(polling, /admin\.acmeCert\.stopJobFailed/u);
+  });
+});

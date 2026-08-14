@@ -1857,7 +1857,7 @@ export const jaJPAdmin = {
       autoRenewFor: "{target} の証明書を自動更新中",
       requestFor: "{target} の証明書を申請中",
       description:
-        "タスク実行中はリスト操作がロックされますが、リストの内容と以下のログは引き続き参照できます。",
+        "タスク実行中も DNS 設定を編集して保存できます。再申請、デプロイ、削除などの競合する操作はロックされたままです。",
     },
     loadOverviewFailed: "ACME の概要を読み込めませんでした",
     loadProvidersFailed: "DNS プロバイダーの読み込みに失敗しました",

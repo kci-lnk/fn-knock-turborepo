@@ -1858,7 +1858,7 @@ export const enAdmin = {
       autoRenewFor: "Auto-renewing certificate for {target}",
       requestFor: "Requesting certificate for {target}",
       description:
-        "List actions are locked while the task runs. You can still view list content and logs below.",
+        "You can edit and save DNS settings while the task runs. Conflicting actions such as requesting again, deploying, or deleting remain locked.",
     },
     loadOverviewFailed: "Failed to load ACME overview",
     loadProvidersFailed: "Failed to load DNS providers",

@@ -1,5 +1,24 @@
 use super::*;
 
+struct AcmeExecutionDropGuard {
+    heartbeat_stop: CancellationToken,
+    control: AcmeJobControl,
+}
+
+impl Drop for AcmeExecutionDropGuard {
+    fn drop(&mut self) {
+        self.heartbeat_stop.cancel();
+        #[cfg(unix)]
+        let pid = self.control.pid();
+        #[cfg(unix)]
+        if let Ok(pid) = i32::try_from(pid) {
+            let _ = send_acme_process_group_signal(pid, libc::SIGKILL);
+        }
+        self.control.set_pid(0);
+        self.control.finished.cancel();
+    }
+}
+
 pub(super) async fn start_acme_application_job(
     state: AppState,
     application: Value,
@@ -61,9 +80,18 @@ pub(super) async fn reserve_acme_application_job(
     }
 
     let job = build_queued_acme_job(application, trigger, t)?;
+    let job_id = job
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let control = state
+        .register_acme_job_control(&job_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.acmeJobRunner.activeTaskRunning")))?;
     let lock = build_acme_runtime_lock(application, &job, trigger);
     let leased_lock = with_runtime_lock_lease(lock);
-    let acquired = state
+    let acquired = match state
         .storage
         .store
         .set_json_value_nx_ex(
@@ -71,16 +99,19 @@ pub(super) async fn reserve_acme_application_job(
             &leased_lock,
             acme_runtime_lock_ttl_seconds(),
         )
-        .await?;
+        .await
+    {
+        Ok(acquired) => acquired,
+        Err(error) => {
+            state.finish_acme_job_control(&job_id).await;
+            return Err(error.into());
+        }
+    };
     if !acquired {
+        state.finish_acme_job_control(&job_id).await;
         anyhow::bail!(t.t("server.acmeJobRunner.activeTaskRunning"));
     }
 
-    let job_id = job
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
     if let Err(error) = async {
         create_acme_job(state, &job, t).await?;
         clear_acme_logs(state, &job_id).await?;
@@ -89,7 +120,14 @@ pub(super) async fn reserve_acme_application_job(
     .await
     {
         release_acme_runtime_lock(state, &leased_lock).await.ok();
+        state.finish_acme_job_control(&job_id).await;
         return Err(error);
+    }
+
+    if control.cancellation.is_cancelled() {
+        release_acme_runtime_lock(state, &leased_lock).await.ok();
+        state.finish_acme_job_control(&job_id).await;
+        anyhow::bail!(t.t("server.acmeJobRunner.manualStop"));
     }
 
     Ok((job, leased_lock))
@@ -144,14 +182,32 @@ pub(super) async fn run_reserved_acme_application_job(
     let run_lock = lock.clone();
     let run_t = t.clone();
     let run_job_id = job_id.clone();
-    state.spawn_background("acme-application-job", async move {
-        if let Err(error) =
-            execute_acme_application_job(run_state, run_application, run_job_id, run_lock, run_t)
-                .await
+    let control = state
+        .acme_job_control(&job_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.acmeJobRunner.manualStop")))?;
+    if control.cancellation.is_cancelled() {
+        anyhow::bail!(t.t("server.acmeJobRunner.manualStop"));
+    }
+    let run_control = control.clone();
+    let spawned = state.spawn_abortable_background("acme-application-job", async move {
+        if let Err(error) = execute_acme_application_job(
+            run_state,
+            run_application,
+            run_job_id,
+            run_lock,
+            run_control,
+            run_t,
+        )
+        .await
         {
             tracing::warn!(%error, "ACME job runner failed");
         }
     });
+    if spawned.is_none() {
+        state.finish_acme_job_control(&job_id).await;
+        anyhow::bail!("ACME runtime is shutting down");
+    }
 
     Ok((job, lock))
 }
@@ -165,27 +221,36 @@ pub(super) async fn fail_reserved_acme_application_job(
     t: &Translator,
 ) -> anyhow::Result<()> {
     let job_id = job.get("id").and_then(Value::as_str).unwrap_or("");
-    if !job_id.is_empty() {
-        append_acme_log(
-            state,
-            job_id,
-            &t.t_params(
-                "server.acmeJobRunner.flowFailed",
-                &[("message", message.to_string())],
-            ),
-        )
-        .await
-        .ok();
+    let already_stopped = !job_id.is_empty() && acme_job_is_stopped(state, job_id).await?;
+    if !job_id.is_empty() && !already_stopped {
+        let cancelled = state
+            .acme_job_control(job_id)
+            .await
+            .is_some_and(|control| control.cancellation.is_cancelled());
+        let (status, final_message, log_message) = if cancelled {
+            let stopped_message = t.t("server.acmeJobRunner.manualStop");
+            ("stopped", stopped_message.clone(), stopped_message)
+        } else {
+            (
+                "failed",
+                message.to_string(),
+                t.t_params(
+                    "server.acmeJobRunner.flowFailed",
+                    &[("message", message.to_string())],
+                ),
+            )
+        };
+        append_acme_log(state, job_id, &log_message).await.ok();
         let finished_at = now_node_iso();
         if let Some(updated) = update_acme_job(
             state,
             job_id,
             json!({
                 "applicationId": application.get("id").and_then(Value::as_str).unwrap_or(""),
-                "status": "failed",
+                "status": status,
                 "progress": 100,
                 "finishedAt": finished_at,
-                "message": message,
+                "message": final_message,
             }),
         )
         .await?
@@ -194,6 +259,7 @@ pub(super) async fn fail_reserved_acme_application_job(
         }
     }
     release_acme_runtime_lock(state, lock).await.ok();
+    state.finish_acme_job_control(job_id).await;
     Ok(())
 }
 
@@ -477,11 +543,49 @@ pub(super) async fn execute_acme_application_job(
     application: Value,
     job_id: String,
     lock: Value,
+    control: AcmeJobControl,
     t: Translator,
 ) -> anyhow::Result<()> {
     let heartbeat_stop = CancellationToken::new();
+    let _drop_guard = AcmeExecutionDropGuard {
+        heartbeat_stop: heartbeat_stop.clone(),
+        control: control.clone(),
+    };
     let heartbeat_task =
         start_acme_lock_heartbeat(state.clone(), lock.clone(), heartbeat_stop.clone());
+    let result = execute_acme_application_job_inner(
+        state.clone(),
+        application,
+        job_id.clone(),
+        lock.clone(),
+        control.clone(),
+        t,
+    )
+    .await;
+
+    heartbeat_stop.cancel();
+    let release_result = release_acme_runtime_lock(&state, &lock).await;
+    heartbeat_task.await.ok();
+    control.set_pid(0);
+    state.finish_acme_job_control(&job_id).await;
+
+    if let Err(error) = release_result {
+        tracing::error!(%error, %job_id, "failed to release ACME runtime lock");
+        if result.is_ok() {
+            return Err(error.into());
+        }
+    }
+    result
+}
+
+async fn execute_acme_application_job_inner(
+    state: AppState,
+    application: Value,
+    job_id: String,
+    lock: Value,
+    control: AcmeJobControl,
+    t: Translator,
+) -> anyhow::Result<()> {
     let started_at = now_node_iso();
     let running_message = acme_job_running_message(&t, lock.get("reason").and_then(Value::as_str));
     if let Some(job) = update_running_acme_job(
@@ -520,7 +624,15 @@ pub(super) async fn execute_acme_application_job(
                 .find(|certificate| {
                     certificate.get("applicationId").and_then(Value::as_str) == Some(application_id)
                 });
-        issue_acme_certificate(&state, &application, &job_id, &certificate_authority, &t).await?;
+        issue_acme_certificate(
+            &state,
+            &application,
+            &job_id,
+            &certificate_authority,
+            &control,
+            &t,
+        )
+        .await?;
         ensure_acme_job_running(&state, &job_id, &t).await?;
         if let Some(job) = update_running_acme_job(
             &state,
@@ -660,7 +772,7 @@ pub(super) async fn execute_acme_application_job(
         }
     }
 
-    let finalization_result = async {
+    async {
         match result {
             Ok(()) => {
                 if acme_job_is_stopped(&state, &job_id).await? {
@@ -685,6 +797,26 @@ pub(super) async fn execute_acme_application_job(
                 let message = error.to_string();
                 if acme_job_is_stopped(&state, &job_id).await? {
                     append_stopped_ignored_log(&state, &job_id, &t).await;
+                } else if control.cancellation.is_cancelled() {
+                    let stopped_message = t.t("server.acmeJobRunner.manualStop");
+                    append_acme_log(&state, &job_id, &stopped_message)
+                        .await
+                        .ok();
+                    if let Some(job) = update_running_acme_job(
+                        &state,
+                        &job_id,
+                        json!({
+                            "status": "stopped",
+                            "progress": 100,
+                            "finishedAt": now_node_iso(),
+                            "message": stopped_message,
+                        }),
+                        &t,
+                    )
+                    .await?
+                    {
+                        update_acme_application_job_state(&state, &application, &job).await?;
+                    }
                 } else {
                     append_acme_log(
                         &state,
@@ -716,12 +848,7 @@ pub(super) async fn execute_acme_application_job(
         }
         Ok::<(), anyhow::Error>(())
     }
-    .await;
-
-    heartbeat_stop.cancel();
-    release_acme_runtime_lock(&state, &lock).await.ok();
-    heartbeat_task.await.ok();
-    finalization_result
+    .await
 }
 
 pub(super) fn acme_job_running_message(t: &Translator, trigger: Option<&str>) -> String {
@@ -779,6 +906,7 @@ pub(super) async fn issue_acme_certificate(
     application: &Value,
     job_id: &str,
     certificate_authority: &str,
+    control: &AcmeJobControl,
     t: &Translator,
 ) -> anyhow::Result<()> {
     let executable = acme_executable_path(state);
@@ -803,16 +931,16 @@ pub(super) async fn issue_acme_certificate(
             state,
             application,
             job_id,
-            certificate_authority,
             &domains,
             &dns_type,
+            control,
             t,
         )
         .await;
     }
     let acme_home = acme_home_dir(state);
     apply_acme_dns_provider_patches(state, &dns_type, job_id, t).await?;
-    register_acme_account(state, None, Some(certificate_authority), t).await?;
+    register_acme_account_for_job(state, certificate_authority, control, t).await?;
     let mut args = vec![
         "--issue".to_string(),
         "--home".to_string(),
@@ -842,7 +970,10 @@ pub(super) async fn issue_acme_certificate(
     command
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
     let env_vars = normalize_acme_env_vars(&dns_type, application.get("credentials"));
     for (key, value) in env_vars {
         if let Some(value) = value.as_str() {
@@ -850,25 +981,13 @@ pub(super) async fn issue_acme_certificate(
         }
     }
     let mut child = command.spawn()?;
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let out_state = state.clone();
-    let out_job = job_id.to_string();
-    let err_state = state.clone();
-    let err_job = job_id.to_string();
-    let stdout_task = tokio::spawn(async move {
-        if let Some(stream) = stdout {
-            append_acme_stream_lines(out_state, out_job, stream).await;
-        }
-    });
-    let stderr_task = tokio::spawn(async move {
-        if let Some(stream) = stderr {
-            append_acme_stream_lines(err_state, err_job, stream).await;
-        }
-    });
-    let status = child.wait().await?;
-    let _ = stdout_task.await;
-    let _ = stderr_task.await;
+    control.set_pid(child.id().unwrap_or(0));
+    let stdout_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stdout.take());
+    let stderr_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stderr.take());
+    let status = wait_for_acme_child(&mut child, control, t).await;
+    wait_for_acme_output_task(stdout_task).await;
+    wait_for_acme_output_task(stderr_task).await;
+    let status = status?;
     if status.success() {
         return Ok(());
     }
@@ -885,9 +1004,9 @@ async fn issue_windows_acme_certificate(
     state: &AppState,
     application: &Value,
     job_id: &str,
-    _certificate_authority: &str,
     domains: &[String],
     dns_type: &str,
+    control: &AcmeJobControl,
     t: &Translator,
 ) -> anyhow::Result<()> {
     anyhow::ensure!(
@@ -931,7 +1050,8 @@ async fn issue_windows_acme_certificate(
     command
         .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -943,31 +1063,12 @@ async fn issue_windows_acme_certificate(
         }
     }
     let mut child = command.spawn()?;
-    WINDOWS_ACME_ACTIVE_PID.store(child.id().unwrap_or(0), Ordering::Release);
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let stdout_task = {
-        let state = state.clone();
-        let job_id = job_id.to_string();
-        tokio::spawn(async move {
-            if let Some(stream) = stdout {
-                append_acme_stream_lines(state, job_id, stream).await;
-            }
-        })
-    };
-    let stderr_task = {
-        let state = state.clone();
-        let job_id = job_id.to_string();
-        tokio::spawn(async move {
-            if let Some(stream) = stderr {
-                append_acme_stream_lines(state, job_id, stream).await;
-            }
-        })
-    };
-    let status = child.wait().await;
-    WINDOWS_ACME_ACTIVE_PID.store(0, Ordering::Release);
-    let _ = stdout_task.await;
-    let _ = stderr_task.await;
+    control.set_pid(child.id().unwrap_or(0));
+    let stdout_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stdout.take());
+    let stderr_task = spawn_acme_log_stream(state.clone(), job_id.to_string(), child.stderr.take());
+    let status = wait_for_acme_child(&mut child, control, t).await;
+    wait_for_acme_output_task(stdout_task).await;
+    wait_for_acme_output_task(stderr_task).await;
     let status = status?;
     if status.success() {
         Ok(())
@@ -980,6 +1081,163 @@ async fn issue_windows_acme_certificate(
             ]
         ))
     }
+}
+
+pub(super) async fn wait_for_acme_child(
+    child: &mut tokio::process::Child,
+    control: &AcmeJobControl,
+    t: &Translator,
+) -> anyhow::Result<std::process::ExitStatus> {
+    let timeout = tokio_time::sleep(acme_job_timeout());
+    tokio::pin!(timeout);
+    let result = tokio::select! {
+        status = child.wait() => status.map_err(anyhow::Error::from),
+        _ = control.cancellation.cancelled() => {
+            let termination = terminate_acme_child(child, acme_stop_grace_period()).await;
+            match termination {
+                Ok(_) => Err(anyhow::anyhow!(t.t("server.acmeJobRunner.manualStop"))),
+                Err(error) => Err(error),
+            }
+        }
+        _ = &mut timeout => {
+            let termination = terminate_acme_child(child, acme_stop_grace_period()).await;
+            match termination {
+                Ok(_) => Err(anyhow::anyhow!("ACME certificate request exceeded its execution timeout")),
+                Err(error) => Err(error),
+            }
+        }
+    };
+    control.set_pid(0);
+    result
+}
+
+pub(super) async fn terminate_acme_child(
+    child: &mut tokio::process::Child,
+    grace: std::time::Duration,
+) -> anyhow::Result<std::process::ExitStatus> {
+    let pid = child.id().unwrap_or(0);
+    #[cfg(unix)]
+    if let Ok(pid) = i32::try_from(pid) {
+        let _ = send_acme_process_group_signal(pid, libc::SIGTERM);
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child.start_kill();
+    }
+
+    if let Ok(status) = tokio_time::timeout(grace, child.wait()).await {
+        let status = status.map_err(anyhow::Error::from)?;
+        #[cfg(unix)]
+        if let Ok(pid) = i32::try_from(pid)
+            && acme_process_group_exists(pid)
+        {
+            let _ = send_acme_process_group_signal(pid, libc::SIGKILL);
+        }
+        return Ok(status);
+    }
+
+    #[cfg(unix)]
+    if let Ok(pid) = i32::try_from(pid) {
+        let _ = send_acme_process_group_signal(pid, libc::SIGKILL);
+    }
+    let _ = child.start_kill();
+    tokio_time::timeout(grace, child.wait())
+        .await
+        .map_err(|_| anyhow::anyhow!("ACME process did not exit after forced termination"))?
+        .map_err(anyhow::Error::from)
+}
+
+#[cfg(unix)]
+fn send_acme_process_group_signal(pid: i32, signal: libc::c_int) -> std::io::Result<()> {
+    if pid <= 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "process group id must be positive",
+        ));
+    }
+    // SAFETY: the child is created as a process-group leader, and a negative
+    // pid asks kill(2) to signal only that group. No Rust memory is accessed.
+    if unsafe { libc::kill(-pid, signal) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(unix)]
+fn acme_process_group_exists(pid: i32) -> bool {
+    if pid <= 0 {
+        return false;
+    }
+    // SAFETY: signal 0 performs an existence/permission check only.
+    if unsafe { libc::kill(-pid, 0) } == 0 {
+        true
+    } else {
+        std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
+}
+
+async fn wait_for_acme_output_task(mut task: tokio::task::JoinHandle<()>) {
+    if tokio_time::timeout(std::time::Duration::from_secs(2), &mut task)
+        .await
+        .is_err()
+    {
+        task.abort();
+    }
+}
+
+fn spawn_acme_log_stream<R>(
+    state: AppState,
+    job_id: String,
+    stream: Option<R>,
+) -> tokio::task::JoinHandle<()>
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        if let Some(stream) = stream {
+            append_acme_stream_lines(state, job_id, stream).await;
+        }
+    })
+}
+
+pub(super) fn spawn_acme_output_collector<R>(stream: Option<R>) -> tokio::task::JoinHandle<Vec<u8>>
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut bytes = Vec::new();
+        if let Some(mut stream) = stream {
+            stream.read_to_end(&mut bytes).await.ok();
+        }
+        bytes
+    })
+}
+
+pub(super) async fn wait_for_acme_collected_output(
+    mut task: tokio::task::JoinHandle<Vec<u8>>,
+) -> String {
+    match tokio_time::timeout(std::time::Duration::from_secs(2), &mut task).await {
+        Ok(Ok(bytes)) => String::from_utf8_lossy(&bytes).to_string(),
+        Ok(Err(_)) => String::new(),
+        Err(_) => {
+            task.abort();
+            String::new()
+        }
+    }
+}
+
+pub(super) fn acme_job_timeout() -> std::time::Duration {
+    let seconds = std::env::var("ACME_JOB_TIMEOUT_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(30 * 60)
+        .clamp(60, 6 * 60 * 60);
+    std::time::Duration::from_secs(seconds)
+}
+
+fn acme_stop_grace_period() -> std::time::Duration {
+    std::time::Duration::from_secs(3)
 }
 
 pub(super) async fn append_acme_stream_lines<R>(state: AppState, job_id: String, stream: R)

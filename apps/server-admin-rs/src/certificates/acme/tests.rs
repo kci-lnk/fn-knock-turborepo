@@ -323,7 +323,7 @@ async fn auto_renew_does_not_release_another_scan_owner() {
 }
 
 #[tokio::test]
-async fn completed_runtime_lock_is_cleaned_but_stopped_lock_stays_active() {
+async fn terminal_and_orphaned_stopped_runtime_locks_are_cleaned() {
     let (_directory, state) = acme_test_state().await;
     let t = Translator::new("zh-CN");
     let application = test_application("app-1", &["example.test"]);
@@ -370,7 +370,7 @@ async fn completed_runtime_lock_is_cleaned_but_stopped_lock_stays_active() {
 
     assert_eq!(
         get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
-        json!(true)
+        json!(false)
     );
     assert!(
         state
@@ -379,8 +379,60 @@ async fn completed_runtime_lock_is_cleaned_but_stopped_lock_stays_active() {
             .get_json_value(ACME_RUNTIME_LOCK_KEY)
             .await
             .unwrap()
-            .is_some()
+            .is_none()
     );
+
+    let controlled_lock =
+        with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &controlled_lock)
+        .await
+        .expect("seed controlled stopped lock");
+    let job_id = job["id"].as_str().unwrap().to_string();
+    state
+        .register_acme_job_control(&job_id)
+        .await
+        .expect("register stopped job owner");
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(true),
+        "a stopped job remains locked while its executor is still registered"
+    );
+    state.finish_acme_job_control(&job_id).await;
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(false)
+    );
+
+    job["status"] = json!("running");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed abandoned running job");
+    let abandoned_lock =
+        with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &abandoned_lock)
+        .await
+        .expect("seed abandoned running lock");
+    let abandoned_control = state
+        .register_acme_job_control(&job_id)
+        .await
+        .expect("register abandoned job owner");
+    abandoned_control.finished.cancel();
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(false),
+        "a completed executor cannot leave its runtime lease behind"
+    );
+    assert_eq!(
+        get_acme_job(&state, &job_id).await.unwrap().unwrap()["status"],
+        json!("stopped")
+    );
+    assert!(state.acme_job_control(&job_id).await.is_none());
 }
 
 #[test]
@@ -1697,4 +1749,275 @@ fn analyzes_retry_after_frequency_limit_like_node() {
     assert_eq!(analysis["provider"], json!("dns_ali"));
     assert!(analysis["message"].as_str().unwrap().contains("601"));
     assert_eq!(analysis["evidence"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn startup_recovery_stops_orphaned_job_and_releases_its_lock() {
+    let (_directory, state) = acme_test_state().await;
+    let t = Translator::new("en");
+    let application = test_application("app-orphan", &["orphan.example.test"]);
+    write_acme_applications(&state, std::slice::from_ref(&application))
+        .await
+        .expect("seed ACME application");
+
+    let mut job = build_queued_acme_job(&application, "auto_renew", &t).expect("queued job");
+    job["status"] = json!("running");
+    job["startedAt"] = json!("2026-07-01T01:00:00.000Z");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed running job");
+    let lock = with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &lock)
+        .await
+        .expect("seed runtime lock");
+
+    assert!(
+        recover_orphaned_acme_runtime_job(&state, &t)
+            .await
+            .expect("recover orphaned job")
+    );
+    assert_eq!(
+        get_acme_job(&state, job["id"].as_str().unwrap())
+            .await
+            .unwrap()
+            .unwrap()["status"],
+        json!("stopped")
+    );
+    assert_eq!(
+        read_acme_applications(&state).await.unwrap()[0]["latestJobStatus"],
+        json!("stopped")
+    );
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(false)
+    );
+
+    job["status"] = json!("failed");
+    job["message"] = json!("provider credentials rejected");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed terminal job");
+    let terminal_lock =
+        with_runtime_lock_lease(build_acme_runtime_lock(&application, &job, "auto_renew"));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &terminal_lock)
+        .await
+        .expect("seed terminal runtime lock");
+    recover_orphaned_acme_runtime_job(&state, &t)
+        .await
+        .expect("recover terminal lock");
+    assert_eq!(
+        get_acme_job(&state, job["id"].as_str().unwrap())
+            .await
+            .unwrap()
+            .unwrap()["status"],
+        json!("failed"),
+        "startup recovery must not downgrade a terminal job"
+    );
+}
+
+#[tokio::test]
+async fn startup_recovery_reconstructs_a_missing_running_job_record() {
+    let (_directory, state) = acme_test_state().await;
+    let t = Translator::new("en");
+    let mut application = test_application("app-missing-job", &["missing.example.test"]);
+    application["latestJobId"] = json!("missing-job");
+    application["latestJobStatus"] = json!("running");
+    application["latestJobTrigger"] = json!("auto_renew");
+    application["latestJobAt"] = json!("2026-07-01T01:00:00.000Z");
+    write_acme_applications(&state, std::slice::from_ref(&application))
+        .await
+        .expect("seed stale application state");
+
+    assert!(
+        recover_orphaned_acme_runtime_job(&state, &t)
+            .await
+            .expect("recover missing job")
+    );
+    let job = get_acme_job(&state, "missing-job")
+        .await
+        .unwrap()
+        .expect("reconstructed job");
+    assert_eq!(job["status"], json!("stopped"));
+    assert_eq!(
+        read_acme_applications(&state).await.unwrap()[0]["latestJobStatus"],
+        json!("stopped")
+    );
+}
+
+#[tokio::test]
+async fn manual_stop_waits_for_the_owned_executor_to_release_its_lock() {
+    let (_directory, state) = acme_test_state().await;
+    let t = Translator::new("en");
+    let application = test_application("app-running", &["running.example.test"]);
+    write_acme_applications(&state, std::slice::from_ref(&application))
+        .await
+        .expect("seed ACME application");
+    let mut job = build_queued_acme_job(&application, "manual_request", &t).expect("queued job");
+    job["status"] = json!("running");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed running job");
+    let lock = with_runtime_lock_lease(build_acme_runtime_lock(
+        &application,
+        &job,
+        "manual_request",
+    ));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &lock)
+        .await
+        .expect("seed runtime lock");
+
+    let job_id = job["id"].as_str().unwrap().to_string();
+    let control = state
+        .register_acme_job_control(&job_id)
+        .await
+        .expect("register executor control");
+    let executor_state = state.clone();
+    let executor_lock = lock.clone();
+    let executor_job_id = job_id.clone();
+    let executor = async move {
+        control.cancellation.cancelled().await;
+        release_acme_runtime_lock(&executor_state, &executor_lock)
+            .await
+            .expect("release runtime lock");
+        executor_state
+            .finish_acme_job_control(&executor_job_id)
+            .await;
+    };
+
+    let (result, ()) = tokio::join!(stop_active_acme_job(&state, &t), executor);
+    let result = result.expect("stop active job");
+    assert_eq!(result["stopped"], json!(true));
+    assert_eq!(result["job"]["status"], json!("stopped"));
+    assert_eq!(result["lock"]["locked"], json!(false));
+    assert_eq!(result["processResult"]["remainingPids"], json!([]));
+}
+
+#[tokio::test]
+async fn cancellation_during_job_reservation_is_recorded_as_stopped() {
+    let (_directory, state) = acme_test_state().await;
+    let t = Translator::new("en");
+    let application = test_application("app-reserved", &["reserved.example.test"]);
+    write_acme_applications(&state, std::slice::from_ref(&application))
+        .await
+        .expect("seed ACME application");
+    let job = build_queued_acme_job(&application, "manual_request", &t).expect("queued job");
+    create_acme_job(&state, &job, &t)
+        .await
+        .expect("seed queued job");
+    let lock = with_runtime_lock_lease(build_acme_runtime_lock(
+        &application,
+        &job,
+        "manual_request",
+    ));
+    state
+        .storage
+        .store
+        .set_json_value(ACME_RUNTIME_LOCK_KEY, &lock)
+        .await
+        .expect("seed runtime lock");
+    let job_id = job["id"].as_str().unwrap();
+    let control = state
+        .register_acme_job_control(job_id)
+        .await
+        .expect("register job control");
+    control.cancellation.cancel();
+
+    fail_reserved_acme_application_job(
+        &state,
+        &application,
+        &job,
+        &lock,
+        "runtime is shutting down",
+        &t,
+    )
+    .await
+    .expect("finalize cancelled reservation");
+
+    let stopped = get_acme_job(&state, job_id)
+        .await
+        .unwrap()
+        .expect("stopped job");
+    assert_eq!(stopped["status"], json!("stopped"));
+    assert_eq!(
+        stopped["message"],
+        json!(t.t("server.acmeJobRunner.manualStop"))
+    );
+    assert_eq!(
+        get_active_acme_runtime_lock(&state).await.unwrap()["locked"],
+        json!(false)
+    );
+    assert!(state.acme_job_control(job_id).await.is_none());
+}
+
+#[test]
+fn auto_renew_failure_backoff_requires_time_or_a_configuration_change() {
+    let latest_job_at = parse_certificate_unix_timestamp("2026-07-01T01:00:00Z").unwrap();
+    let application = json!({
+        "latestJobStatus": "failed",
+        "latestJobAt": "2026-07-01T01:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+    });
+
+    assert!(!auto_renew_retry_allowed_with_backoff(
+        &application,
+        latest_job_at + 3_599,
+        3_600,
+    ));
+    assert!(auto_renew_retry_allowed_with_backoff(
+        &application,
+        latest_job_at + 3_600,
+        3_600,
+    ));
+
+    let mut updated = application;
+    updated["updatedAt"] = json!("2026-07-01T01:00:01Z");
+    assert!(auto_renew_retry_allowed_with_backoff(
+        &updated,
+        latest_job_at + 1,
+        3_600,
+    ));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn forced_acme_stop_terminates_the_owned_process_group() {
+    let mut command = Command::new("sh");
+    command
+        .args(["-c", "trap '' TERM; sleep 30 & echo $!; wait"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    command.process_group(0);
+    let mut child = command.spawn().expect("spawn test ACME process group");
+    let pid = child.id().expect("child pid");
+    let mut descendant_line = String::new();
+    BufReader::new(child.stdout.take().expect("child stdout"))
+        .read_line(&mut descendant_line)
+        .await
+        .expect("read descendant pid");
+    let descendant_pid = descendant_line
+        .trim()
+        .parse::<i32>()
+        .expect("descendant pid");
+
+    terminate_acme_child(&mut child, std::time::Duration::from_millis(50))
+        .await
+        .expect("terminate process group");
+    assert!(!crate::unix::process_exists(pid as i32));
+    for _ in 0..50 {
+        if !crate::unix::process_exists(descendant_pid) {
+            break;
+        }
+        tokio_time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(!crate::unix::process_exists(descendant_pid));
 }

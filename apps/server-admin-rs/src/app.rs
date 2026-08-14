@@ -193,7 +193,7 @@ pub(crate) async fn run_with_settings(
     start_update_tasks(state.clone());
     start_ddns_tasks(state.clone());
     if capabilities.acme_available {
-        start_acme_tasks(state.clone());
+        start_acme_tasks(state.clone()).await;
     }
     if capabilities.fnos_certificate_sync_available {
         start_fnos_certificate_sync_tasks(state.clone());

@@ -56,6 +56,17 @@ async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
         if application.get("renewEnabled").and_then(Value::as_bool) == Some(false) {
             continue;
         }
+        if !auto_renew_retry_allowed(&application, now) {
+            let application_id = application
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            tracing::info!(
+                %application_id,
+                "skipping ACME auto-renew during failure backoff"
+            );
+            continue;
+        }
         let Some(certificate) =
             get_usable_issued_certificate_for_application(&state, &application).await?
         else {
@@ -111,6 +122,46 @@ async fn run_acme_auto_renew_locked(state: AppState) -> anyhow::Result<()> {
         tracing::warn!(%error, "failed to reconcile ACME SSL deployment after auto-renew");
     }
     Ok(())
+}
+
+fn auto_renew_retry_allowed(application: &Value, now: i64) -> bool {
+    auto_renew_retry_allowed_with_backoff(application, now, acme_renew_failure_backoff_seconds())
+}
+
+pub(super) fn auto_renew_retry_allowed_with_backoff(
+    application: &Value,
+    now: i64,
+    backoff_seconds: i64,
+) -> bool {
+    if !matches!(
+        application.get("latestJobStatus").and_then(Value::as_str),
+        Some("failed" | "stopped")
+    ) {
+        return true;
+    }
+    let Some(latest_job_at) = application
+        .get("latestJobAt")
+        .and_then(Value::as_str)
+        .and_then(parse_certificate_unix_timestamp)
+    else {
+        return true;
+    };
+    let updated_at = application
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .and_then(parse_certificate_unix_timestamp);
+    if updated_at.is_some_and(|updated_at| updated_at > latest_job_at) {
+        return true;
+    }
+    now.saturating_sub(latest_job_at) >= backoff_seconds
+}
+
+fn acme_renew_failure_backoff_seconds() -> i64 {
+    env::var("ACME_RENEW_FAILURE_BACKOFF_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(6 * 60 * 60)
+        .clamp(60, 7 * 24 * 60 * 60)
 }
 
 async fn try_acquire_acme_renew_lease(

@@ -1706,7 +1706,7 @@ export const zhCNAdmin = {
       autoRenewFor: "正在为 {target} 自动续期证书",
       requestFor: "正在为 {target} 申请证书",
       description:
-        "任务执行期间会锁定列表操作，你仍然可以查看列表内容和下方日志。",
+        "任务执行期间仍可编辑并保存 DNS 配置；再次申请、部署和删除等冲突操作会保持锁定。",
     },
     loadOverviewFailed: "加载 ACME 概览失败",
     loadProvidersFailed: "加载 DNS 服务商失败",

@@ -69,7 +69,6 @@ const {
             <Button
               :disabled="
                 !isAcmeInstalled ||
-                isTableLocked ||
                 isDialogSubmitting ||
                 !dnsProviders.length
               "

@@ -1836,7 +1836,7 @@ export const koKRAdmin = {
       autoRenewFor: "{target} 인증서를 자동으로 갱신하는 중",
       requestFor: "{target} 인증서를 발급하는 중",
       description:
-        "작업이 실행되는 동안 목록 작업은 잠깁니다. 아래에서 목록 콘텐츠와 로그를 계속 볼 수 있습니다.",
+        "작업 실행 중에도 DNS 설정을 편집하고 저장할 수 있습니다. 재신청, 배포, 삭제처럼 충돌하는 작업은 계속 잠깁니다.",
     },
     loadOverviewFailed: "ACME 개요를 불러오지 못했습니다.",
     loadProvidersFailed: "DNS 제공자를 불러오지 못했습니다.",

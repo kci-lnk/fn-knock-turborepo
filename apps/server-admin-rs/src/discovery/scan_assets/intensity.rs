@@ -1,6 +1,4 @@
 use super::*;
-#[cfg(test)]
-pub(super) use crate::infra::system_resources::host_memory_bytes;
 use crate::infra::system_resources::{effective_memory_bytes, process_file_descriptor_limit};
 
 const MIB: u64 = 1024 * 1024;

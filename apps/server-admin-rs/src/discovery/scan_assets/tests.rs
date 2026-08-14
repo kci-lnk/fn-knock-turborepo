@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(target_os = "macos")]
+use crate::infra::system_resources::host_memory_bytes;
 use crate::test_support::EnvGuard;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

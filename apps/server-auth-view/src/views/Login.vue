@@ -1,6 +1,7 @@
 <template>
   <AuthShell>
     <AuthCard
+      card-class="auth-login-card"
       :title="t('auth.title')"
       :description="
         isCaptchaVerified

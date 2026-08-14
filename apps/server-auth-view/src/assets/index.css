@@ -210,6 +210,21 @@
     z-index: 1;
   }
 
+  .auth-login-card {
+    max-width: 26rem;
+    border-color: color-mix(in oklch, var(--foreground) 10%, transparent);
+    border-radius: 1.5rem;
+    background: color-mix(in oklch, var(--card) 90%, transparent);
+    box-shadow:
+      0 22px 56px color-mix(in oklch, var(--foreground) 10%, transparent),
+      0 4px 12px color-mix(in oklch, var(--foreground) 5%, transparent),
+      inset 0 1px 0 color-mix(in oklch, var(--background) 72%, transparent);
+  }
+
+  .auth-login-card::before {
+    opacity: 0.2;
+  }
+
   .dark .auth-glass-card {
     border-color: color-mix(in oklch, var(--foreground) 10%, transparent);
     background: linear-gradient(
@@ -218,6 +233,14 @@
       color-mix(in oklch, var(--card) 48%, transparent)
     );
     box-shadow: 0 14px 42px rgb(0 0 0 / 24%);
+  }
+
+  .dark .auth-login-card {
+    border-color: rgb(255 255 255 / 12%);
+    background: color-mix(in oklch, var(--card) 84%, transparent);
+    box-shadow:
+      0 24px 58px rgb(0 0 0 / 32%),
+      inset 0 1px 0 rgb(255 255 255 / 5%);
   }
 
   :root:not(.dark)[data-theme-color="dynamic_white"] .auth-visual-shell {
@@ -243,5 +266,13 @@
         transparent 24rem
       );
     opacity: 0.36;
+  }
+
+  :root:not(.dark)[data-theme-color="dynamic_white"] .auth-login-card {
+    border-color: rgb(255 255 255 / 72%);
+    background: rgb(255 255 255 / 86%);
+    box-shadow:
+      0 24px 60px rgb(82 82 82 / 11%),
+      0 4px 14px rgb(82 82 82 / 6%);
   }
 }

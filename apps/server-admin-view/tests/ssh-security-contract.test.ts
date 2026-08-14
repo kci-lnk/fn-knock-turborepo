@@ -56,10 +56,20 @@ describe("SSH security API contract", () => {
   });
 
   it("preserves runtime summary fields and write-only request boundaries", () => {
+    const config = contract.components.schemas.SshSecurityConfigData;
     const summary = contract.components.schemas.SshSecuritySummaryData;
     assert.ok(summary.properties?.allowed_range_count);
 
     const update = contract.components.schemas.SshSecurityConfigUpdateData;
+    const durationUnits = ["minute", "hour", "day", "month"];
+    assert.deepEqual(
+      config.properties?.block_duration_unit?.enum,
+      durationUnits,
+    );
+    assert.deepEqual(
+      update.properties?.block_duration_unit?.enum,
+      durationUnits,
+    );
     assert.equal(update.properties?.configured_at, undefined);
     assert.equal(update.properties?.updated_at, undefined);
 
@@ -78,6 +88,9 @@ describe("SSH security API contract", () => {
   it("derives frontend models, requests, and queries from the contract", () => {
     const types = readSource("../src/types/gateway.ts");
     const api = readSource("../src/lib/api/security.ts");
+    const form = readSource(
+      "../src/views/ssh-security/SSHSecurityFormFields.vue",
+    );
 
     assert.match(types, /SshSecurityConfigData"\]/u);
     assert.match(types, /SshSecuritySummaryData"\]/u);
@@ -86,5 +99,7 @@ describe("SSH security API contract", () => {
     assert.match(api, /SshSecurityConfigUpdateData/u);
     assert.match(api, /satisfies SshBlocksDeleteBody/u);
     assert.doesNotMatch(api, /Partial<Omit<SSHSecurityConfig/u);
+    assert.match(form, /<SelectItem value="month">/u);
+    assert.match(form, /admin\.sshSecurity\.month/u);
   });
 });

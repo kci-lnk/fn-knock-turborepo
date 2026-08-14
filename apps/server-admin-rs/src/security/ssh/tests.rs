@@ -31,6 +31,16 @@ fn normalizes_ssh_config_defaults() {
 }
 
 #[test]
+fn supports_month_ssh_block_durations() {
+    let config = normalize_config(Some(json!({
+        "block_duration_value": 2,
+        "block_duration_unit": "month"
+    })));
+    assert_eq!(config["block_duration_unit"], json!("month"));
+    assert_eq!(ssh_block_duration_seconds(&config), 60 * 24 * 3600);
+}
+
+#[test]
 fn disabled_ssh_runtime_keeps_compiled_allow_policy_for_offline_reenable() {
     let runtime = config::build_runtime_from_config(
         &json!({

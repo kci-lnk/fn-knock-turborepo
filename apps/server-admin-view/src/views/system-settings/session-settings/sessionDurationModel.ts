@@ -4,6 +4,7 @@ export type SessionDurationUnit =
   | "hour"
   | "day"
   | "week"
+  | "month"
   | "year";
 
 export type SessionDurationField = {
@@ -42,6 +43,11 @@ export const durationUnits: SessionDurationUnitOption[] = [
     value: "week",
     labelKey: "admin.sessionSettings.units.week",
     seconds: 7 * 24 * 3600,
+  },
+  {
+    value: "month",
+    labelKey: "admin.sessionSettings.units.month",
+    seconds: 30 * 24 * 3600,
   },
   {
     value: "year",

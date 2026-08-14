@@ -1596,6 +1596,7 @@ export const jaJPAdmin = {
       hour: "時間",
       day: "日",
       week: "週",
+      month: "か月",
       year: "年",
     },
     grantModes: {
@@ -1750,6 +1751,7 @@ export const jaJPAdmin = {
     minute: "分",
     hour: "時間",
     day: "日",
+    month: "か月",
     allowedRegions: "SSH アクセスを許可する地域",
     allowedRegionsDescription:
       "地域を追加しない場合、地域による制限はありません。追加すると、指定地域、カスタム CIDR、組み込みのローカル送信元からのみ SSH へアクセスできます。",

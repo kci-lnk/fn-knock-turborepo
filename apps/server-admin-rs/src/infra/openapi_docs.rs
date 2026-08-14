@@ -6292,6 +6292,14 @@ mod tests {
                 "SSH config updates must not accept read-only {read_only_property}"
             );
         }
+        for schema in ["SshSecurityConfigData", "SshSecurityConfigUpdateData"] {
+            assert_eq!(
+                document.pointer(&format!(
+                    "/components/schemas/{schema}/properties/block_duration_unit/enum"
+                )),
+                Some(&json!(["minute", "hour", "day", "month"]))
+            );
+        }
         assert_eq!(
             document.pointer("/components/schemas/SshSecurityBlockData/properties/reason/enum"),
             Some(&json!(["failed_login_threshold", "cidr_not_allowed"]))

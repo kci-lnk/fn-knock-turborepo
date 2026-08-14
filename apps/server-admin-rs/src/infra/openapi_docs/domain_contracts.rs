@@ -1647,7 +1647,7 @@ pub(super) fn components() -> Map<String, Value> {
             &mut schemas,
             schema,
             "block_duration_unit",
-            &["minute", "hour", "day"],
+            &["minute", "hour", "day", "month"],
         );
     }
     set_property_enum(

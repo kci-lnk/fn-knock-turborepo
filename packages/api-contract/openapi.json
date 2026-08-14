@@ -17869,7 +17869,8 @@
             "enum": [
               "minute",
               "hour",
-              "day"
+              "day",
+              "month"
             ],
             "type": "string"
           },
@@ -17937,7 +17938,8 @@
             "enum": [
               "minute",
               "hour",
-              "day"
+              "day",
+              "month"
             ],
             "type": [
               "string",

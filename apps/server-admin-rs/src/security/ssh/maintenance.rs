@@ -555,6 +555,7 @@ pub(super) fn ssh_block_duration_seconds(config: &Value) -> i64 {
     {
         "minute" => value * 60,
         "hour" => value * 3600,
+        "month" => value * 30 * 24 * 3600,
         _ => value * 24 * 3600,
     }
 }

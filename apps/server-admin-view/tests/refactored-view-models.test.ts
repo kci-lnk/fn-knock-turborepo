@@ -230,7 +230,12 @@ describe("stream mapping model", () => {
 describe("session duration model", () => {
   it("round-trips duration fields and prefers the largest exact unit", () => {
     assert.equal(toDurationSeconds({ value: 2, unit: "hour" }), 7200);
+    assert.equal(toDurationSeconds({ value: 2, unit: "month" }), 5_184_000);
     assert.deepEqual(splitDuration(7200), { value: 2, unit: "hour" });
+    assert.deepEqual(splitDuration(60 * 24 * 3600), {
+      value: 2,
+      unit: "month",
+    });
     assert.deepEqual(splitDuration(90), { value: 90, unit: "second" });
   });
 
@@ -239,7 +244,18 @@ describe("session duration model", () => {
       value: 1,
       unit: "hour",
     });
-    assert.equal(durationUnits.length, 6);
+    assert.deepEqual(
+      durationUnits.map(({ value, seconds }) => ({ value, seconds })),
+      [
+        { value: "second", seconds: 1 },
+        { value: "minute", seconds: 60 },
+        { value: "hour", seconds: 3600 },
+        { value: "day", seconds: 24 * 3600 },
+        { value: "week", seconds: 7 * 24 * 3600 },
+        { value: "month", seconds: 30 * 24 * 3600 },
+        { value: "year", seconds: 365 * 24 * 3600 },
+      ],
+    );
   });
 });
 

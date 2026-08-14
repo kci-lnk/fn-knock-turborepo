@@ -1413,6 +1413,7 @@ export const zhHantAdmin = {
       hour: "小時",
       day: "天",
       week: "週",
+      month: "月",
       year: "年",
     },
     grantModes: {
@@ -1554,6 +1555,7 @@ export const zhHantAdmin = {
     minute: "分鐘",
     hour: "小時",
     day: "天",
+    month: "月",
     allowedRegions: "允許訪問 SSH 的地區",
     allowedRegionsDescription:
       "未添加地區時不做地區限制；添加後，僅允許這些地區、自定義 CIDR 與內建本機來源訪問 SSH。",

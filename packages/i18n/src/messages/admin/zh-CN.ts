@@ -1461,6 +1461,7 @@ export const zhCNAdmin = {
       hour: "小时",
       day: "天",
       week: "周",
+      month: "月",
       year: "年",
     },
     grantModes: {
@@ -1601,6 +1602,7 @@ export const zhCNAdmin = {
     minute: "分钟",
     hour: "小时",
     day: "天",
+    month: "月",
     allowedRegions: "允许访问 SSH 的地区",
     allowedRegionsDescription:
       "未添加地区时不做地区限制；添加后，仅允许这些地区、自定义 CIDR 和内置本地来源访问 SSH。",

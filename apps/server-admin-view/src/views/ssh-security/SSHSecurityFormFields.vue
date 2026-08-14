@@ -161,6 +161,9 @@ const {
           <SelectItem value="day">
             {{ t("admin.sshSecurity.day") }}
           </SelectItem>
+          <SelectItem value="month">
+            {{ t("admin.sshSecurity.month") }}
+          </SelectItem>
         </SelectContent>
       </Select>
     </div>

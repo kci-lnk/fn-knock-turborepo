@@ -9299,7 +9299,7 @@ export interface components {
         SshSecurityConfigData: {
             allowed_regions: components["schemas"]["GatewayVisibilitySelectionData"][];
             /** @enum {string} */
-            block_duration_unit: "minute" | "hour" | "day";
+            block_duration_unit: "minute" | "hour" | "day" | "month";
             /** Format: int64 */
             block_duration_value: number;
             /** Format: date-time */
@@ -9316,7 +9316,7 @@ export interface components {
         SshSecurityConfigUpdateData: {
             allowed_regions?: components["schemas"]["GatewayVisibilitySelectionInputData"][] | null;
             /** @enum {string|null} */
-            block_duration_unit?: "minute" | "hour" | "day" | null;
+            block_duration_unit?: "minute" | "hour" | "day" | "month" | null;
             /** Format: int64 */
             block_duration_value?: number | null;
             custom_cidrs?: string[] | null;

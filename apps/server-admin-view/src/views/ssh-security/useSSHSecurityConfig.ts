@@ -8,7 +8,11 @@ import {
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
 import { SSHSecurityAPI } from "@/lib/api/security";
 import { useConfigStore } from "@/store/config";
-import type { SSHSecurityDetails, SSHSecuritySelection } from "@/types";
+import type {
+  SSHSecurityBlockDurationUnit,
+  SSHSecurityDetails,
+  SSHSecuritySelection,
+} from "@/types";
 
 type SSHBlockListPanelInstance = {
   loadBlocks: () => Promise<void>;
@@ -30,7 +34,7 @@ export const useSSHSecurityConfig = () => {
     windowMinutes: 10,
     failedLoginThreshold: 5,
     blockDurationValue: 1,
-    blockDurationUnit: "day" as "minute" | "hour" | "day",
+    blockDurationUnit: "day" as SSHSecurityBlockDurationUnit,
     allowedRegions: [] as SSHSecuritySelection[],
     customCidrsText: "",
   });

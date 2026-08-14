@@ -1575,6 +1575,7 @@ export const koKRAdmin = {
       hour: "시간",
       day: "일",
       week: "주",
+      month: "개월",
       year: "년",
     },
     grantModes: {
@@ -1729,6 +1730,7 @@ export const koKRAdmin = {
     minute: "분",
     hour: "시간",
     day: "일",
+    month: "개월",
     allowedRegions: "SSH 접근 허용 지역",
     allowedRegionsDescription:
       "지역을 추가하지 않으면 지역 제한이 적용되지 않습니다. 지역을 추가한 후에는 해당 지역, 사용자 지정 CIDR 및 기본 로컬 출발지만 SSH에 접근할 수 있습니다.",

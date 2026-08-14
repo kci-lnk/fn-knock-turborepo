@@ -1596,6 +1596,7 @@ export const enAdmin = {
       hour: "hours",
       day: "days",
       week: "weeks",
+      month: "months",
       year: "years",
     },
     grantModes: {
@@ -1750,6 +1751,7 @@ export const enAdmin = {
     minute: "Minutes",
     hour: "Hours",
     day: "Days",
+    month: "Months",
     allowedRegions: "Regions allowed to access SSH",
     allowedRegionsDescription:
       "When no regions are added, no regional restriction is applied. After regions are added, only those regions, custom CIDRs, and built-in local sources can access SSH.",

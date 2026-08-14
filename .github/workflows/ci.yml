@@ -231,7 +231,7 @@ jobs:
           base_version="$(jq -er .version "${{ steps.baseline.outputs.root }}/version.json")"
           base_manifest="${{ steps.baseline.outputs.root }}/apps/server-admin-rs/Cargo.toml"
           base_profile="runtime-test"
-          if ! rg -q '^\[profile\.runtime-test\]' "${base_manifest}"; then
+          if ! grep -Eq '^\[profile\.runtime-test\]' "${base_manifest}"; then
             # Pre-profile baselines used the same release settings except for
             # runtime-test's cheaper thin LTO. Preserve an equivalent comparison.
             base_profile="release"

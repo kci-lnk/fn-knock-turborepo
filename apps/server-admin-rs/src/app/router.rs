@@ -2,7 +2,7 @@ use axum::{
     Router,
     body::Body,
     extract::State,
-    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, header},
+    http::{HeaderValue, Request, header},
     middleware::{self, Next},
     response::Response as AxumResponse,
 };
@@ -205,7 +205,6 @@ fn backend_router_with_capabilities(
     } else {
         api
     };
-    let api = api.layer(middleware::from_fn(admin_same_origin_middleware));
     #[cfg(test)]
     let api = api.layer(middleware::from_fn(route_contract_probe_middleware));
 
@@ -235,7 +234,7 @@ async fn route_contract_probe_middleware(req: Request<Body>, next: Next) -> Axum
             .map(MatchedPath::as_str)
             .unwrap_or_default();
         let mut response = AxumResponse::new(Body::empty());
-        *response.status_mut() = StatusCode::NO_CONTENT;
+        *response.status_mut() = axum::http::StatusCode::NO_CONTENT;
         if let Ok(value) = HeaderValue::from_str(matched_path) {
             response
                 .headers_mut()
@@ -263,8 +262,7 @@ pub(super) fn auth_router(state: AppState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             hmac_middleware,
-        ))
-        .layer(middleware::from_fn(auth_same_origin_middleware));
+        ));
 
     Router::new()
         .merge(api)
@@ -299,134 +297,6 @@ async fn browser_security_headers_middleware(req: Request<Body>, next: Next) -> 
         HeaderValue::from_static("no-referrer"),
     );
     response
-}
-
-async fn auth_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResponse {
-    if browser_request_origin_allowed(req.method(), req.headers()) {
-        return next.run(req).await;
-    }
-
-    response::error(
-        StatusCode::FORBIDDEN,
-        "Cross-origin authentication request denied",
-    )
-}
-
-async fn admin_same_origin_middleware(req: Request<Body>, next: Next) -> AxumResponse {
-    if browser_request_origin_allowed(req.method(), req.headers()) {
-        return next.run(req).await;
-    }
-
-    response::error(
-        StatusCode::FORBIDDEN,
-        "Cross-origin management request denied",
-    )
-}
-
-fn browser_request_origin_allowed(method: &Method, headers: &HeaderMap) -> bool {
-    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
-        return true;
-    }
-
-    if headers
-        .get("sec-fetch-site")
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("cross-site"))
-    {
-        return false;
-    }
-
-    let Some(origin) = headers
-        .get(header::ORIGIN)
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        // Non-browser clients do not necessarily send Origin. Endpoint-level
-        // credentials, login proofs and session checks remain authoritative.
-        return true;
-    };
-    let Ok(origin) = url::Url::parse(origin) else {
-        return false;
-    };
-    if !matches!(origin.scheme(), "http" | "https")
-        || !origin.username().is_empty()
-        || origin.password().is_some()
-        || origin.path() != "/"
-        || origin.query().is_some()
-        || origin.fragment().is_some()
-    {
-        return false;
-    }
-
-    let direct_authority = headers
-        .get(header::HOST)
-        .and_then(|value| value.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let Some(direct_authority) = direct_authority else {
-        return false;
-    };
-    // fnOS rewrites Host while proxying /cgi through trim_http_cgi. The admin
-    // frontend therefore supplies its browser origin in a non-safelisted
-    // header. Cross-origin browser callers cannot attach this header unless a
-    // CORS preflight succeeds, and these routers never grant CORS access.
-    let cgi_browser_origin_matches = authority_is_loopback(direct_authority)
-        && headers
-            .get("x-fn-knock-browser-origin")
-            .and_then(|value| value.to_str().ok())
-            .map(str::trim)
-            .is_some_and(|value| value == origin.as_str().trim_end_matches('/'));
-    if cgi_browser_origin_matches {
-        return true;
-    }
-    let internal_signed_candidate = authority_is_loopback(direct_authority)
-        && ["x-timestamp", "x-nonce", "x-signature"]
-            .iter()
-            .all(|name| headers.contains_key(*name));
-    let authority = if internal_signed_candidate {
-        headers
-            .get("x-forwarded-host")
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.split(',').next())
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(direct_authority)
-    } else {
-        direct_authority
-    };
-    let scheme = headers
-        .get("x-forwarded-proto")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
-        .map(str::trim)
-        .filter(|value| matches!(*value, "http" | "https"))
-        .unwrap_or_else(|| origin.scheme());
-    let Ok(expected) = url::Url::parse(&format!("{scheme}://{authority}")) else {
-        return false;
-    };
-
-    origin.scheme().eq_ignore_ascii_case(expected.scheme())
-        && origin
-            .host_str()
-            .zip(expected.host_str())
-            .is_some_and(|(left, right)| left.eq_ignore_ascii_case(right))
-        && origin.port_or_known_default() == expected.port_or_known_default()
-}
-
-fn authority_is_loopback(authority: &str) -> bool {
-    let Ok(authority) = authority.parse::<axum::http::uri::Authority>() else {
-        return false;
-    };
-    let host = authority.host();
-    let ip_host = host
-        .strip_prefix('[')
-        .and_then(|value| value.strip_suffix(']'))
-        .unwrap_or(host);
-    host.eq_ignore_ascii_case("localhost")
-        || ip_host
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|address| address.is_loopback())
 }
 
 #[cfg(test)]
@@ -532,24 +402,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auth_router_does_not_expose_hmac_secret_or_permissive_cors() {
+    async fn auth_router_does_not_expose_hmac_secret() {
         let (_directory, state) = auth_router_test_state("server-only-secret").await;
         let response = auth_router(state)
             .oneshot(
                 Request::get("/__fn-knock/runtime-hmac-secret")
-                    .header("origin", "https://attacker.invalid")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        assert!(
-            response
-                .headers()
-                .get("access-control-allow-origin")
-                .is_none()
-        );
     }
 
     #[tokio::test]
@@ -669,207 +532,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auth_router_rejects_cross_origin_mutations_before_wol_authorization() {
-        let (_directory, state) = auth_router_test_state("server-only-secret").await;
-        let app = auth_router(state);
-
-        let cross_origin = app
-            .clone()
+    async fn routers_do_not_filter_browser_origin_metadata() {
+        let (_auth_directory, auth_state) = auth_router_test_state("server-only-secret").await;
+        let auth_response = auth_router(auth_state)
             .oneshot(
-                Request::post("/api/auth/wol/targets/device-1/wake")
+                Request::post("/api/auth/login")
                     .header(header::HOST, "auth.example.com")
                     .header(header::ORIGIN, "https://attacker.invalid")
-                    .header("x-forwarded-proto", "https")
                     .header("sec-fetch-site", "cross-site")
-                    .body(Body::empty())
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(cross_origin.status(), StatusCode::FORBIDDEN);
-        assert!(
-            cross_origin
-                .headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .is_none()
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::CONTENT_SECURITY_POLICY)
-                .and_then(|value| value.to_str().ok()),
-            Some("frame-ancestors 'none'")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::X_FRAME_OPTIONS)
-                .and_then(|value| value.to_str().ok()),
-            Some("DENY")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::X_CONTENT_TYPE_OPTIONS)
-                .and_then(|value| value.to_str().ok()),
-            Some("nosniff")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::REFERRER_POLICY)
-                .and_then(|value| value.to_str().ok()),
-            Some("no-referrer")
-        );
+        assert_eq!(auth_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
-        let cross_site_without_origin = Request::post("/api/auth/wol/targets/device-1/wake")
-            .header(header::HOST, "auth.example.com")
-            .header("sec-fetch-site", "cross-site")
-            .body(Body::empty())
-            .unwrap();
-        assert!(!browser_request_origin_allowed(
-            cross_site_without_origin.method(),
-            cross_site_without_origin.headers()
-        ));
-
-        let same_origin = Request::post("/api/auth/wol/targets/device-1/wake")
-            .header(header::HOST, "auth.example.com")
-            .header(header::ORIGIN, "https://auth.example.com")
-            .header("x-forwarded-proto", "https")
-            .header("sec-fetch-site", "same-origin")
-            .body(Body::empty())
-            .unwrap();
-        assert!(browser_request_origin_allowed(
-            same_origin.method(),
-            same_origin.headers()
-        ));
-
-        let forged_forwarded_host = Request::post("/api/auth/wol/targets/device-1/wake")
-            .header(header::HOST, "auth.example.com")
-            .header(header::ORIGIN, "https://attacker.invalid")
-            .header("x-forwarded-host", "attacker.invalid")
-            .header("x-forwarded-proto", "https")
-            .body(Body::empty())
-            .unwrap();
-        assert!(!browser_request_origin_allowed(
-            forged_forwarded_host.method(),
-            forged_forwarded_host.headers()
-        ));
-
-        let signed_loopback_proxy = Request::post("/api/auth/wol/targets/device-1/wake")
-            .header(header::HOST, "127.0.0.1:7997")
-            .header(header::ORIGIN, "https://auth.example.com")
-            .header("x-forwarded-host", "auth.example.com")
-            .header("x-forwarded-proto", "https")
-            .header("x-timestamp", "1786274605858")
-            .header("x-nonce", "0011223344556677")
-            .header("x-signature", "validated-by-inner-middleware")
-            .body(Body::empty())
-            .unwrap();
-        assert!(browser_request_origin_allowed(
-            signed_loopback_proxy.method(),
-            signed_loopback_proxy.headers()
-        ));
-    }
-
-    #[tokio::test]
-    async fn backend_router_rejects_cross_origin_mutations_and_sets_browser_headers() {
-        let (_directory, state) = openwrt_test_state().await;
-        let app = backend_router(state, false);
-
-        let cross_origin = app
-            .clone()
+        let (_admin_directory, admin_state) = openwrt_test_state().await;
+        let admin_response = backend_router(admin_state, false)
             .oneshot(
-                Request::post("/api/admin/config")
+                Request::post("/api/admin/config/appearance")
                     .header(header::HOST, "admin.example.com")
                     .header(header::ORIGIN, "https://attacker.invalid")
                     .header("sec-fetch-site", "cross-site")
-                    .body(Body::empty())
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(cross_origin.status(), StatusCode::FORBIDDEN);
-        assert!(
-            cross_origin
-                .headers()
-                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-                .is_none()
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::CONTENT_SECURITY_POLICY)
-                .and_then(|value| value.to_str().ok()),
-            Some("frame-ancestors 'none'")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::X_FRAME_OPTIONS)
-                .and_then(|value| value.to_str().ok()),
-            Some("DENY")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::X_CONTENT_TYPE_OPTIONS)
-                .and_then(|value| value.to_str().ok()),
-            Some("nosniff")
-        );
-        assert_eq!(
-            cross_origin
-                .headers()
-                .get(header::REFERRER_POLICY)
-                .and_then(|value| value.to_str().ok()),
-            Some("no-referrer")
-        );
-
-        let same_origin = Request::post("/api/admin/config")
-            .header(header::HOST, "admin.example.com")
-            .header(header::ORIGIN, "https://admin.example.com")
-            .header("x-forwarded-proto", "https")
-            .header("sec-fetch-site", "same-origin")
-            .body(Body::empty())
-            .unwrap();
-        assert!(browser_request_origin_allowed(
-            same_origin.method(),
-            same_origin.headers()
-        ));
-
-        let fnos_cgi_same_origin = Request::post("/api/admin/config")
-            .header(header::HOST, "127.0.0.1:7998")
-            .header(header::ORIGIN, "http://192.168.31.98:19122")
-            .header("x-fn-knock-browser-origin", "http://192.168.31.98:19122")
-            .body(Body::empty())
-            .unwrap();
-        assert!(browser_request_origin_allowed(
-            fnos_cgi_same_origin.method(),
-            fnos_cgi_same_origin.headers()
-        ));
-
-        let forged_cgi_origin = Request::post("/api/admin/config")
-            .header(header::HOST, "127.0.0.1:7998")
-            .header(header::ORIGIN, "https://attacker.invalid")
-            .header("x-fn-knock-browser-origin", "https://admin.example.com")
-            .body(Body::empty())
-            .unwrap();
-        assert!(!browser_request_origin_allowed(
-            forged_cgi_origin.method(),
-            forged_cgi_origin.headers()
-        ));
-
-        let cross_site_cgi_origin = Request::post("/api/admin/config")
-            .header(header::HOST, "127.0.0.1:7998")
-            .header(header::ORIGIN, "https://attacker.invalid")
-            .header("x-fn-knock-browser-origin", "https://attacker.invalid")
-            .header("sec-fetch-site", "cross-site")
-            .body(Body::empty())
-            .unwrap();
-        assert!(!browser_request_origin_allowed(
-            cross_site_cgi_origin.method(),
-            cross_site_cgi_origin.headers()
-        ));
+        assert_eq!(admin_response.status(), StatusCode::OK);
     }
 
     #[tokio::test]

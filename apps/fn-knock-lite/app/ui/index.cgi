@@ -116,9 +116,6 @@ fi
 
 set -- -s
 
-# curl connects to loopback, but the backend must compare Origin against the
-# public CGI authority rather than 127.0.0.1 for browser mutation requests.
-[ -n "${HTTP_HOST:-}" ]         && set -- "$@" -H "host: $HTTP_HOST"
 [ -n "$HTTP_X_TIMESTAMP" ]      && set -- "$@" -H "x-timestamp: $HTTP_X_TIMESTAMP"
 [ -n "$HTTP_X_NONCE" ]          && set -- "$@" -H "x-nonce: $HTTP_X_NONCE"
 [ -n "$HTTP_X_SIGNATURE" ]      && set -- "$@" -H "x-signature: $HTTP_X_SIGNATURE"
@@ -130,26 +127,6 @@ set -- -s
 [ -n "$HTTP_USER_AGENT" ]       && set -- "$@" -H "user-agent: $HTTP_USER_AGENT"
 [ -n "$HTTP_ORIGIN" ]           && set -- "$@" -H "origin: $HTTP_ORIGIN"
 [ -n "$HTTP_REFERER" ]          && set -- "$@" -H "referer: $HTTP_REFERER"
-[ -n "${HTTP_SEC_FETCH_SITE:-}" ] && set -- "$@" -H "sec-fetch-site: $HTTP_SEC_FETCH_SITE"
-[ -n "${HTTP_X_FN_KNOCK_BROWSER_ORIGIN:-}" ] && \
-    set -- "$@" -H "x-fn-knock-browser-origin: $HTTP_X_FN_KNOCK_BROWSER_ORIGIN"
-
-PUBLIC_SCHEME=""
-case "${HTTPS:-}" in
-    on|1) PUBLIC_SCHEME="https" ;;
-esac
-if [ -z "$PUBLIC_SCHEME" ]; then
-    case "${REQUEST_SCHEME:-}" in
-        http|https) PUBLIC_SCHEME="$REQUEST_SCHEME" ;;
-    esac
-fi
-if [ -z "$PUBLIC_SCHEME" ]; then
-    FORWARDED_PROTO="${HTTP_X_FORWARDED_PROTO%%,*}"
-    case "$FORWARDED_PROTO" in
-        http|https) PUBLIC_SCHEME="$FORWARDED_PROTO" ;;
-    esac
-fi
-[ -n "$PUBLIC_SCHEME" ] && set -- "$@" -H "x-forwarded-proto: $PUBLIC_SCHEME"
 
 METHOD=${REQUEST_METHOD:-"GET"}
 set -- "$@" -X "$METHOD"

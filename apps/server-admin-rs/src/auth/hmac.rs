@@ -46,10 +46,10 @@ pub async fn hmac_middleware(
     }
 
     // Public-host requests are served directly by Rust and are protected by
-    // endpoint credentials plus the auth router's same-origin policy. The Go
-    // gateway rewrites its loopback upstream Host, which selects the internal
-    // signed channel. Selecting by Host prevents stripping all three signing
-    // headers from downgrading an internal request to an unsigned one.
+    // endpoint credentials. The Go gateway rewrites its loopback upstream
+    // Host, which selects the internal signed channel. Selecting by Host
+    // prevents stripping all three signing headers from downgrading an
+    // internal request to an unsigned one.
     if !uses_loopback_authority(req.headers()) {
         return next.run(req).await;
     }

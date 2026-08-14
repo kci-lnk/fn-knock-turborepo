@@ -8,7 +8,7 @@ WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-cgi-compression.XXXXXX")"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
 fail() {
-  printf '[test-cgi-origin-forwarding] ERROR: %s\n' "$*" >&2
+  printf '[test-cgi-proxy-contract] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -30,21 +30,21 @@ for cgi in \
   "${ROOT_DIR}/apps/fn-knock-synology/package/ui/index.cgi"
 do
   sh -n "${cgi}" || fail "invalid CGI shell syntax: ${cgi}"
-  assert_contains "${cgi}" 'HTTP_HOST' 'external CGI authority forwarding'
-  assert_contains "${cgi}" '-H "host:' 'loopback request Host override'
   assert_contains "${cgi}" 'HTTP_ORIGIN' 'browser Origin forwarding'
-  assert_contains "${cgi}" 'HTTP_SEC_FETCH_SITE' 'Fetch Metadata forwarding'
-  assert_contains "${cgi}" '-H "sec-fetch-site:' 'Fetch Metadata header'
-  assert_contains "${cgi}" 'HTTP_X_FN_KNOCK_BROWSER_ORIGIN' 'CGI browser-origin proof forwarding'
-  assert_contains "${cgi}" '-H "x-fn-knock-browser-origin:' 'CGI browser-origin proof header'
-  assert_contains "${cgi}" 'PUBLIC_SCHEME' 'external CGI scheme resolution'
-  assert_contains "${cgi}" '-H "x-forwarded-proto:' 'external CGI scheme forwarding'
   assert_contains "${cgi}" 'HTTP_ACCEPT_ENCODING' 'compression negotiation forwarding'
   assert_contains "${cgi}" '-H "accept-encoding:' 'Accept-Encoding upstream header'
   assert_contains "${cgi}" 'Content-Encoding' 'compressed response encoding forwarding'
   assert_contains "${cgi}" 'Content-Length' 'compressed response length forwarding'
+  assert_not_contains "${cgi}" 'HTTP_HOST' 'retired CGI authority forwarding'
+  assert_not_contains "${cgi}" 'PUBLIC_SCHEME' 'retired CGI scheme resolution'
+  assert_not_contains "${cgi}" 'HTTP_SEC_FETCH_SITE' 'retired Fetch Metadata forwarding'
+  assert_not_contains "${cgi}" 'HTTP_X_FN_KNOCK_BROWSER_ORIGIN' 'retired browser-origin proof'
   assert_not_contains "${cgi}" 's|src="/|src="./|g' 'compressed response body mutation'
 done
+
+assert_not_contains "${ROUTER}" 'same_origin_middleware' 'retired request-origin middleware'
+assert_not_contains "${ROUTER}" 'browser_request_origin_allowed' 'retired request-origin filter'
+assert_not_contains "${ADMIN_CLIENT}" 'X-Fn-Knock-Browser-Origin' 'retired browser-origin proof header'
 
 mkdir -p "${WORK_DIR}/bin"
 cat > "${WORK_DIR}/bin/curl" <<'FAKE_CURL'
@@ -105,9 +105,4 @@ do
     fail "compressed response body was changed: ${cgi}"
 done
 
-assert_contains "${ROUTER}" 'eq_ignore_ascii_case("cross-site")' 'cross-site mutation rejection'
-assert_contains "${ROUTER}" 'origin.port_or_known_default() == expected.port_or_known_default()' 'origin authority comparison'
-assert_contains "${ROUTER}" 'x-fn-knock-browser-origin' 'loopback CGI browser-origin proof validation'
-assert_contains "${ADMIN_CLIENT}" 'X-Fn-Knock-Browser-Origin' 'same-origin frontend proof header'
-
-printf '[test-cgi-origin-forwarding] CGI forwarding and compression contract passed\n'
+printf '[test-cgi-proxy-contract] CGI forwarding and compression contract passed\n'

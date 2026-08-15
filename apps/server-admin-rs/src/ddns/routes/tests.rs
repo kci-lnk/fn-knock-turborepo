@@ -173,9 +173,9 @@ fn catalog_signature(providers: &Value) -> Value {
 #[test]
 fn parses_ddns_settings_with_defaults() {
     let value = parse_settings(Some(
-        r#"{"updateIntervalMinutes":5,"httpTransport":"fetch","publicCheckSources":{"ipv4":["4.example.com","https://4.example.com"],"ipv6":["https://6.example.com"]}}"#,
+        r#"{"updateIntervalMinutes":2,"httpTransport":"fetch","publicCheckSources":{"ipv4":["4.example.com","https://4.example.com"],"ipv6":["https://6.example.com"]}}"#,
     ));
-    assert_eq!(value["updateIntervalMinutes"], json!(5));
+    assert_eq!(value["updateIntervalMinutes"], json!(2));
     assert_eq!(value["httpTransport"], json!("node"));
     assert_eq!(value["publicDnsProvider"], json!("alidns"));
     assert_eq!(
@@ -300,16 +300,20 @@ fn ddns_settings_record_interval_fallback_matches_node() {
 #[test]
 fn ddns_settings_record_interval_uses_node_number_coercion() {
     assert_eq!(
-        parse_settings(Some(r#"{"updateIntervalMinutes":5.0}"#))["updateIntervalMinutes"],
-        json!(5)
+        parse_settings(Some(r#"{"updateIntervalMinutes":2.0}"#))["updateIntervalMinutes"],
+        json!(2)
     );
     assert_eq!(
-        parse_settings(Some(r#"{"updateIntervalMinutes":"5.0"}"#))["updateIntervalMinutes"],
-        json!(5)
+        parse_settings(Some(r#"{"updateIntervalMinutes":"2.0"}"#))["updateIntervalMinutes"],
+        json!(2)
     );
     assert_eq!(
-        parse_settings(Some(r#"{"updateIntervalMinutes":"5e0"}"#))["updateIntervalMinutes"],
-        json!(5)
+        parse_settings(Some(r#"{"updateIntervalMinutes":"2e0"}"#))["updateIntervalMinutes"],
+        json!(2)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":1}"#))["updateIntervalMinutes"],
+        json!(10)
     );
     assert_eq!(
         parse_settings(Some(r#"{"updateIntervalMinutes":"0x10"}"#))["updateIntervalMinutes"],
@@ -507,6 +511,10 @@ fn dynu_provider_errors_are_failure_results_like_node() {
 #[test]
 fn ddns_default_interval_parses_legacy_cron_like_node() {
     assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("*/2 * * * *")),
+        Some(2)
+    );
+    assert_eq!(
         parse_legacy_ddns_cron_interval_minutes(Some("*/30 * * * *")),
         Some(30)
     );
@@ -515,7 +523,7 @@ fn ddns_default_interval_parses_legacy_cron_like_node() {
         Some(15)
     );
     assert_eq!(
-        parse_legacy_ddns_cron_interval_minutes(Some("*/4 * * * *")),
+        parse_legacy_ddns_cron_interval_minutes(Some("*/1 * * * *")),
         None
     );
     assert_eq!(

@@ -1177,7 +1177,7 @@ function validateContract(openapiPath) {
   const ddnsSettingsUpdate =
     document.components?.schemas?.DdnsSettingsUpdateData ?? {};
   if (
-    ddnsSettings.properties?.updateIntervalMinutes?.minimum !== 5 ||
+    ddnsSettings.properties?.updateIntervalMinutes?.minimum !== 2 ||
     ddnsSettings.properties?.updateIntervalMinutes?.maximum !== 1440 ||
     JSON.stringify(ddnsSettings.properties?.httpTransport?.enum) !==
       JSON.stringify(["curl", "node"]) ||

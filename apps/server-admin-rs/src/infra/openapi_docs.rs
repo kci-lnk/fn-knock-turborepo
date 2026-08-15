@@ -5323,7 +5323,7 @@ mod tests {
             document.pointer(
                 "/components/schemas/DdnsSettingsData/properties/updateIntervalMinutes/minimum"
             ),
-            Some(&json!(5))
+            Some(&json!(crate::ddns::MIN_DDNS_UPDATE_INTERVAL_MINUTES))
         );
         let ddns_status_required = document
             .pointer("/components/schemas/DdnsStatusData/required")

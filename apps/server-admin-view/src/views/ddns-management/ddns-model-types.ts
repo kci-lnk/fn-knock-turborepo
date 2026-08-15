@@ -86,7 +86,7 @@ export const EMPTY_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSourcesPayload = {
   ipv4: [],
   ipv6: [],
 };
-export const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
+export const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 2;
 export const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
 
 export const UPDATE_SCOPE_OPTIONS: Array<{

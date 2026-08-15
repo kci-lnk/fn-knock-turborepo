@@ -6,7 +6,10 @@ pub(super) async fn ddns_update_interval_minutes(state: &AppState) -> anyhow::Re
         .get("updateIntervalMinutes")
         .and_then(Value::as_i64)
         .unwrap_or(10)
-        .clamp(5, 1440))
+        .clamp(
+            MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+            MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+        ))
 }
 
 pub(super) async fn run_automatic_ddns_check(

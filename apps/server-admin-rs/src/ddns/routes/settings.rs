@@ -265,7 +265,9 @@ pub(super) fn normalize_update_interval_minutes(value: &Value) -> Option<i64> {
         return None;
     }
     let parsed = parsed as i64;
-    (5..=1440).contains(&parsed).then_some(parsed)
+    (MIN_DDNS_UPDATE_INTERVAL_MINUTES..=MAX_DDNS_UPDATE_INTERVAL_MINUTES)
+        .contains(&parsed)
+        .then_some(parsed)
 }
 
 fn js_number_from_string_like_node(value: &str) -> Option<f64> {
@@ -328,7 +330,9 @@ pub(super) fn parse_legacy_ddns_cron_interval_minutes(pattern: Option<&str>) -> 
         return None;
     }
     let minutes = interval.parse::<i64>().ok()?;
-    (5..=1440).contains(&minutes).then_some(minutes)
+    (MIN_DDNS_UPDATE_INTERVAL_MINUTES..=MAX_DDNS_UPDATE_INTERVAL_MINUTES)
+        .contains(&minutes)
+        .then_some(minutes)
 }
 
 pub(super) fn normalize_http_transport(value: Option<&Value>) -> &'static str {

@@ -6943,7 +6943,7 @@
           "updateIntervalMinutes": {
             "format": "int64",
             "maximum": 1440,
-            "minimum": 5,
+            "minimum": 2,
             "type": "integer"
           }
         },
@@ -6995,7 +6995,7 @@
           "updateIntervalMinutes": {
             "format": "int64",
             "maximum": 1440,
-            "minimum": 5,
+            "minimum": 2,
             "type": [
               "integer",
               "null"
@@ -7082,7 +7082,7 @@
           "updateIntervalMinutes": {
             "format": "int64",
             "maximum": 1440,
-            "minimum": 5,
+            "minimum": 2,
             "type": "integer"
           },
           "updateScope": {

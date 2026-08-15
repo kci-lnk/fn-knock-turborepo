@@ -75,7 +75,7 @@ describe("DDNS API contract", () => {
   it("preserves settings bounds, enums, and nullable status fields", () => {
     const settings = contract.components.schemas.DdnsSettingsData;
     const status = contract.components.schemas.DdnsStatusData;
-    assert.equal(settings.properties?.updateIntervalMinutes?.minimum, 5);
+    assert.equal(settings.properties?.updateIntervalMinutes?.minimum, 2);
     assert.equal(settings.properties?.updateIntervalMinutes?.maximum, 1440);
     assert.deepEqual(settings.properties?.httpTransport?.enum, [
       "curl",

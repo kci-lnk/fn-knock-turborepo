@@ -2834,14 +2834,14 @@ pub(super) fn components() -> Map<String, Value> {
             schema,
             "updateIntervalMinutes",
             "minimum",
-            json!(5),
+            json!(crate::ddns::MIN_DDNS_UPDATE_INTERVAL_MINUTES),
         );
         set_property_metadata(
             &mut schemas,
             schema,
             "updateIntervalMinutes",
             "maximum",
-            json!(1440),
+            json!(crate::ddns::MAX_DDNS_UPDATE_INTERVAL_MINUTES),
         );
     }
     for property in ["ipv4", "ipv6"] {

@@ -71,6 +71,8 @@ const DDNS_LOG_TTL_SECONDS: usize = 7 * 24 * 3600;
 const DDNS_LOG_MAX_LEN: usize = 1000;
 const DDNS_UPDATE_LOCK_NAME: &str = "ddns-update";
 const DDNS_UPDATE_LOCK_TTL_SECONDS: usize = 600;
+pub(crate) const MIN_DDNS_UPDATE_INTERVAL_MINUTES: i64 = 2;
+pub(crate) const MAX_DDNS_UPDATE_INTERVAL_MINUTES: i64 = 1440;
 const DDNS_STARTUP_CHECK_DELAY_SECONDS: u64 = 30;
 const DDNS_INTERFACE_FAILOVER_RECHECK_DELAY_MILLIS: u64 = 1_500;
 const DDNS_INTERFACE_PREFERRED_RECOVERY_CONFIRMATIONS: u8 = 3;
@@ -389,14 +391,22 @@ async fn update_settings(
         }
     };
     let interval = match body.update_interval_minutes {
-        Some(value) if (5..=1440).contains(&value) => value,
+        Some(value)
+            if (MIN_DDNS_UPDATE_INTERVAL_MINUTES..=MAX_DDNS_UPDATE_INTERVAL_MINUTES)
+                .contains(&value) =>
+        {
+            value
+        }
         Some(_) => {
             return response::error(
                 StatusCode::BAD_REQUEST,
                 ddns_text(
                     &translator,
                     "intervalOutOfRange",
-                    &[("min", "5".to_string()), ("max", "1440".to_string())],
+                    &[
+                        ("min", MIN_DDNS_UPDATE_INTERVAL_MINUTES.to_string()),
+                        ("max", MAX_DDNS_UPDATE_INTERVAL_MINUTES.to_string()),
+                    ],
                 ),
             );
         }

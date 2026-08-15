@@ -14,7 +14,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** DELETE /api/admin/acme */
+        /**
+         * 删除ACME 证书管理
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["uninstall_acme"];
         options?: never;
         head?: never;
@@ -28,10 +31,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/applications */
+        /**
+         * 查看ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/applications` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["applications"];
         put?: never;
-        /** POST /api/admin/acme/applications */
+        /**
+         * 提交ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["create_application"];
         delete?: never;
         options?: never;
@@ -46,15 +55,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/applications/{id} */
+        /**
+         * 查看ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/applications/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["application"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/acme/applications/{id} */
+        /**
+         * 删除ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme/applications/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_application"];
         options?: never;
         head?: never;
-        /** PATCH /api/admin/acme/applications/{id} */
+        /**
+         * 修改ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`PATCH /api/admin/acme/applications/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["update_application"];
         trace?: never;
     };
@@ -68,7 +86,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** DELETE /api/admin/acme/applications/{id}/certificate */
+        /**
+         * 删除ACME 证书管理证书
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme/applications/{id}/certificate` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_application_certificate"];
         options?: never;
         head?: never;
@@ -84,7 +105,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/applications/{id}/deploy */
+        /**
+         * 部署ACME 证书管理应用
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/deploy` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["deploy_application_certificate"];
         delete?: never;
         options?: never;
@@ -101,7 +125,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/applications/{id}/library/sync */
+        /**
+         * 同步ACME 证书管理证书库
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/library/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["sync_application_library"];
         delete?: never;
         options?: never;
@@ -118,7 +145,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/applications/{id}/request */
+        /**
+         * 提交ACME 证书管理申请
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/applications/{id}/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["request_application_certificate"];
         delete?: never;
         options?: never;
@@ -133,11 +163,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/certs/{domain} */
+        /**
+         * 查看ACME 证书管理证书
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/certs/{domain}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["cert_info"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/acme/certs/{domain} */
+        /**
+         * 删除ACME 证书管理证书
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme/certs/{domain}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_cert"];
         options?: never;
         head?: never;
@@ -153,7 +189,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/certs/{domain}/deploy */
+        /**
+         * 部署ACME 证书管理证书
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/certs/{domain}/deploy` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["deploy_domain_certificate"];
         delete?: never;
         options?: never;
@@ -168,7 +207,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/certs/{domain}/download */
+        /**
+         * 下载ACME 证书管理证书
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/certs/{domain}/download` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["cert_download"];
         put?: never;
         post?: never;
@@ -187,7 +229,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/client-settings */
+        /**
+         * 提交ACME 证书管理客户端设置
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/client-settings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["save_client_settings_route"];
         delete?: never;
         options?: never;
@@ -202,10 +247,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/config */
+        /**
+         * 查看ACME 证书管理配置
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["config"];
         put?: never;
-        /** POST /api/admin/acme/config */
+        /**
+         * 提交ACME 证书管理配置
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["save_config"];
         delete?: never;
         options?: never;
@@ -220,7 +271,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/dns-providers */
+        /**
+         * 查看ACME 证书管理DNS 提供者
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/dns-providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["dns_providers"];
         put?: never;
         post?: never;
@@ -239,7 +293,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/init */
+        /**
+         * 初始化ACME 证书管理
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/init` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["init_acme"];
         delete?: never;
         options?: never;
@@ -256,7 +313,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/jobs/active/stop */
+        /**
+         * 停止ACME 证书管理活动任务
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/jobs/active/stop` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["stop_active_job"];
         delete?: never;
         options?: never;
@@ -271,7 +331,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/jobs/{id} */
+        /**
+         * 查看ACME 证书管理任务
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/jobs/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["job"];
         put?: never;
         post?: never;
@@ -288,7 +351,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/jobs/{id}/logs */
+        /**
+         * 查看ACME 证书管理日志
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/jobs/{id}/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["job_logs"];
         put?: never;
         post?: never;
@@ -305,7 +371,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/jobs/{id}/poll */
+        /**
+         * 轮询ACME 证书管理任务
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/jobs/{id}/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_acme_jobs__id__poll"];
         put?: never;
         post?: never;
@@ -322,7 +391,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/overview */
+        /**
+         * 查看ACME 证书管理概览
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/overview` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["overview"];
         put?: never;
         post?: never;
@@ -341,7 +413,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/request */
+        /**
+         * 提交ACME 证书管理申请
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/request` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["request_certificate"];
         delete?: never;
         options?: never;
@@ -359,7 +434,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** DELETE /api/admin/acme/resource */
+        /**
+         * 删除ACME 证书管理资源
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme/resource` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_resource"];
         options?: never;
         head?: never;
@@ -375,7 +453,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/resource/cancel */
+        /**
+         * 取消ACME 证书管理资源
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/resource/cancel` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["cancel_resource_initialization"];
         delete?: never;
         options?: never;
@@ -392,7 +473,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/acme/resource/initialize */
+        /**
+         * 初始化ACME 证书管理资源
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`POST /api/admin/acme/resource/initialize` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["initialize_resource"];
         delete?: never;
         options?: never;
@@ -407,7 +491,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/resource/status */
+        /**
+         * 查看ACME 证书管理状态
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/resource/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["resource_status"];
         put?: never;
         post?: never;
@@ -424,7 +511,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/status */
+        /**
+         * 查看ACME 证书管理状态
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["status"];
         put?: never;
         post?: never;
@@ -441,7 +531,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/acme/subdomain-recommendation */
+        /**
+         * 查看ACME 证书管理子域建议
+         * @description 管理 ACME 客户端、证书申请、部署和运行任务。。`GET /api/admin/acme/subdomain-recommendation` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["subdomain_recommendation"];
         put?: never;
         post?: never;
@@ -458,8 +551,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看认证与账户账户
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`GET /api/admin/auth/accounts` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_accounts"];
         put?: never;
+        /**
+         * 提交认证与账户账户
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/accounts` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_accounts"];
         delete?: never;
         options?: never;
@@ -477,9 +578,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除认证与账户账户
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`DELETE /api/admin/auth/accounts/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_auth_accounts_by_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改认证与账户账户
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`PATCH /api/admin/auth/accounts/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_auth_accounts_by_id"];
         trace?: never;
     };
@@ -496,6 +605,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改认证与账户访问范围
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`PATCH /api/admin/auth/accounts/{id}/access-scopes` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_auth_accounts_by_id_access_scopes"];
         trace?: never;
     };
@@ -508,6 +621,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交认证与账户密码
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/accounts/{id}/password` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_accounts_by_id_password"];
         delete?: never;
         options?: never;
@@ -524,6 +641,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 设置认证与账户账户
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/accounts/{id}/setup` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_accounts_by_id_setup"];
         delete?: never;
         options?: never;
@@ -544,6 +665,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改认证与账户子域访问范围
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`PATCH /api/admin/auth/accounts/{id}/subdomain-access` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_auth_accounts_by_id_subdomain_access"];
         trace?: never;
     };
@@ -556,6 +681,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 绑定认证与账户TOTP 凭据
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/accounts/{id}/totp/bind` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_accounts_by_id_totp_bind"];
         delete?: never;
         options?: never;
@@ -572,6 +701,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 设置认证与账户TOTP 凭据
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/accounts/{id}/totp/setup` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_accounts_by_id_totp_setup"];
         delete?: never;
         options?: never;
@@ -589,6 +722,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除LDAP 认证绑定
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`DELETE /api/admin/auth/ldap/bindings/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_auth_ldap_bindings_by_id"];
         options?: never;
         head?: never;
@@ -602,6 +739,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看LDAP 认证目录
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/ldap/catalog` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_ldap_catalog"];
         put?: never;
         post?: never;
@@ -620,6 +761,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交LDAP 认证邀请
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/ldap/invitations` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_ldap_invitations"];
         delete?: never;
         options?: never;
@@ -634,8 +779,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看LDAP 认证提供者
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/ldap/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_ldap_providers"];
         put?: never;
+        /**
+         * 提交LDAP 认证提供者
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/ldap/providers` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_ldap_providers"];
         delete?: never;
         options?: never;
@@ -653,9 +806,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除LDAP 认证提供者
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`DELETE /api/admin/auth/ldap/providers/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_auth_ldap_providers_by_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改LDAP 认证提供者
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`PATCH /api/admin/auth/ldap/providers/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_auth_ldap_providers_by_id"];
         trace?: never;
     };
@@ -668,6 +829,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试LDAP 认证提供者
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/ldap/providers/{id}/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_ldap_providers_by_id_test"];
         delete?: never;
         options?: never;
@@ -682,6 +847,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看LDAP 认证绑定
+         * @description 管理 LDAP 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/ldap/totp/{totp_id}/bindings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_ldap_totp_by_totp_id_bindings"];
         put?: never;
         post?: never;
@@ -698,6 +867,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看认证与账户模式
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`GET /api/admin/auth/mode` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_mode"];
         put?: never;
         post?: never;
@@ -716,6 +889,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 预览认证与账户模式
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/mode/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_mode_preview"];
         delete?: never;
         options?: never;
@@ -732,6 +909,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 切换认证与账户模式
+         * @description 管理管理端认证模式、账户、凭据和访问范围。。`POST /api/admin/auth/mode/switch` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_mode_switch"];
         delete?: never;
         options?: never;
@@ -749,6 +930,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除OIDC 认证绑定
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`DELETE /api/admin/auth/oidc/bindings/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_auth_oidc_bindings_by_id"];
         options?: never;
         head?: never;
@@ -762,6 +947,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看OIDC 认证目录
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/oidc/catalog` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_oidc_catalog"];
         put?: never;
         post?: never;
@@ -780,6 +969,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交OIDC 认证邀请
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/oidc/invitations` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_oidc_invitations"];
         delete?: never;
         options?: never;
@@ -794,8 +987,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看OIDC 认证提供者
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/oidc/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_oidc_providers"];
         put?: never;
+        /**
+         * 提交OIDC 认证提供者
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/oidc/providers` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_oidc_providers"];
         delete?: never;
         options?: never;
@@ -813,9 +1014,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除OIDC 认证提供者
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`DELETE /api/admin/auth/oidc/providers/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_auth_oidc_providers_by_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改OIDC 认证提供者
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`PATCH /api/admin/auth/oidc/providers/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_auth_oidc_providers_by_id"];
         trace?: never;
     };
@@ -828,6 +1037,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试OIDC 认证提供者
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`POST /api/admin/auth/oidc/providers/{id}/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_auth_oidc_providers_by_id_test"];
         delete?: never;
         options?: never;
@@ -842,6 +1055,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看OIDC 认证绑定
+         * @description 管理 OIDC/OAuth 身份提供者、邀请和账户绑定。。`GET /api/admin/auth/oidc/totp/{totp_id}/bindings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_auth_oidc_totp_by_totp_id_bindings"];
         put?: never;
         post?: never;
@@ -858,6 +1075,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看登录退避列表
+         * @description 查看和重置登录失败后的退避与封锁状态。。`GET /api/admin/backoff/list` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_backoff_list"];
         put?: never;
         post?: never;
@@ -876,6 +1097,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 重置登录退避
+         * @description 查看和重置登录失败后的退避与封锁状态。。`POST /api/admin/backoff/reset` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_backoff_reset"];
         delete?: never;
         options?: never;
@@ -890,6 +1115,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看登录退避状态
+         * @description 查看和重置登录失败后的退避与封锁状态。。`GET /api/admin/backoff/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_backoff_status"];
         put?: never;
         post?: never;
@@ -906,6 +1135,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看CIDR 地域选择能力
+         * @description 提供 CIDR 访问控制所需的地域、城市和运营商数据。。`GET /api/admin/cidr/capabilities` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cidr_capabilities"];
         put?: never;
         post?: never;
@@ -922,6 +1155,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看CIDR 地域选择CIDR 列表
+         * @description 提供 CIDR 访问控制所需的地域、城市和运营商数据。。`GET /api/admin/cidr/cidrs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cidr_cidrs"];
         put?: never;
         post?: never;
@@ -938,6 +1175,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看CIDR 地域选择城市
+         * @description 提供 CIDR 访问控制所需的地域、城市和运营商数据。。`GET /api/admin/cidr/cities` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cidr_cities"];
         put?: never;
         post?: never;
@@ -954,6 +1195,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看CIDR 地域选择省份
+         * @description 提供 CIDR 访问控制所需的地域、城市和运营商数据。。`GET /api/admin/cidr/provinces` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cidr_provinces"];
         put?: never;
         post?: never;
@@ -970,6 +1215,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看CIDR 地域选择选择器
+         * @description 提供 CIDR 访问控制所需的地域、城市和运营商数据。。`GET /api/admin/cidr/selector` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cidr_selector"];
         put?: never;
         post?: never;
@@ -987,10 +1236,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** PUT /api/admin/cloudflared/cloudflare/credential */
+        /**
+         * 更新Cloudflare 隧道凭据
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`PUT /api/admin/cloudflared/cloudflare/credential` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_cloudflared_cloudflare_credential"];
         post?: never;
-        /** DELETE /api/admin/cloudflared/cloudflare/credential */
+        /**
+         * 删除Cloudflare 隧道凭据
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`DELETE /api/admin/cloudflared/cloudflare/credential` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_cloudflared_cloudflare_credential"];
         options?: never;
         head?: never;
@@ -1004,7 +1259,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/cloudflare/state */
+        /**
+         * 查看Cloudflare 隧道运行状态
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/cloudflare/state` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_cloudflare_state"];
         put?: never;
         post?: never;
@@ -1021,10 +1279,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/config */
+        /**
+         * 查看Cloudflare 隧道配置
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_config"];
         put?: never;
-        /** POST /api/admin/cloudflared/config */
+        /**
+         * 提交Cloudflare 隧道配置
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_config"];
         delete?: never;
         options?: never;
@@ -1039,11 +1303,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/logs */
+        /**
+         * 查看Cloudflare 隧道日志
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_logs"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/cloudflared/logs */
+        /**
+         * 删除Cloudflare 隧道日志
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`DELETE /api/admin/cloudflared/logs` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_cloudflared_logs"];
         options?: never;
         head?: never;
@@ -1059,7 +1329,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/optimization/apply */
+        /**
+         * 应用Cloudflare 隧道优选配置
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/optimization/apply` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_optimization_apply"];
         delete?: never;
         options?: never;
@@ -1075,7 +1348,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** PUT /api/admin/cloudflared/optimization/domains/{hostname} */
+        /**
+         * 更新Cloudflare 隧道域名
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`PUT /api/admin/cloudflared/optimization/domains/{hostname}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_cloudflared_optimization_domains_hostname"];
         post?: never;
         delete?: never;
@@ -1093,7 +1369,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/optimization/fallback */
+        /**
+         * 提交Cloudflare 隧道故障回退
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/optimization/fallback` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_optimization_fallback"];
         delete?: never;
         options?: never;
@@ -1110,7 +1389,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/optimization/scans */
+        /**
+         * 提交Cloudflare 隧道扫描任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/optimization/scans` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_optimization_scans"];
         delete?: never;
         options?: never;
@@ -1125,11 +1407,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/optimization/scans/{id} */
+        /**
+         * 查看Cloudflare 隧道扫描任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/optimization/scans/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_optimization_scans_id"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/cloudflared/optimization/scans/{id} */
+        /**
+         * 删除Cloudflare 隧道扫描任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`DELETE /api/admin/cloudflared/optimization/scans/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_cloudflared_optimization_scans_id"];
         options?: never;
         head?: never;
@@ -1144,7 +1432,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** PUT /api/admin/cloudflared/optimization/settings */
+        /**
+         * 更新Cloudflare 隧道设置
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`PUT /api/admin/cloudflared/optimization/settings` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_cloudflared_optimization_settings"];
         post?: never;
         delete?: never;
@@ -1160,7 +1451,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/poll */
+        /**
+         * 轮询Cloudflare 隧道
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_poll"];
         put?: never;
         post?: never;
@@ -1179,7 +1473,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/reconcile/apply */
+        /**
+         * 应用Cloudflare 隧道协调任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/reconcile/apply` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_reconcile_apply"];
         delete?: never;
         options?: never;
@@ -1194,7 +1491,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/reconcile/jobs/active */
+        /**
+         * 查看Cloudflare 隧道活动任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/reconcile/jobs/active` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_reconcile_jobs_active"];
         put?: never;
         post?: never;
@@ -1211,7 +1511,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id} */
+        /**
+         * 查看Cloudflare 隧道按计划筛选
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/reconcile/jobs/by-plan/{plan_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_reconcile_jobs_by_plan_plan_id"];
         put?: never;
         post?: never;
@@ -1228,7 +1531,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/reconcile/jobs/{id} */
+        /**
+         * 查看Cloudflare 隧道任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/reconcile/jobs/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_reconcile_jobs_id"];
         put?: never;
         post?: never;
@@ -1247,7 +1553,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/reconcile/preview */
+        /**
+         * 预览Cloudflare 隧道协调任务
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/reconcile/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_reconcile_preview"];
         delete?: never;
         options?: never;
@@ -1264,7 +1573,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/start */
+        /**
+         * 启动Cloudflare 隧道
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/start` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_start"];
         delete?: never;
         options?: never;
@@ -1279,7 +1591,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/cloudflared/status */
+        /**
+         * 查看Cloudflare 隧道状态
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`GET /api/admin/cloudflared/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_cloudflared_status"];
         put?: never;
         post?: never;
@@ -1298,7 +1613,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/cloudflared/stop */
+        /**
+         * 停止Cloudflare 隧道
+         * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/stop` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_cloudflared_stop"];
         delete?: never;
         options?: never;
@@ -1313,6 +1631,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config"];
         put?: never;
         post?: never;
@@ -1329,8 +1651,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置外观
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/appearance` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_appearance"];
         put?: never;
+        /**
+         * 提交系统配置外观
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/appearance` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_appearance"];
         delete?: never;
         options?: never;
@@ -1345,8 +1675,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置认证凭据设置
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/auth_credential_settings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_auth_credential_settings"];
         put?: never;
+        /**
+         * 提交系统配置认证凭据设置
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/auth_credential_settings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_auth_credential_settings"];
         delete?: never;
         options?: never;
@@ -1361,8 +1699,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置自动 HTTPS
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/auto_https` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_auto_https"];
         put?: never;
+        /**
+         * 提交系统配置自动 HTTPS
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/auto_https` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_auto_https"];
         delete?: never;
         options?: never;
@@ -1379,6 +1725,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置自动管理防火墙
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/auto_manage_firewall` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_auto_manage_firewall"];
         delete?: never;
         options?: never;
@@ -1393,8 +1743,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置验证码
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/captcha` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_captcha"];
         put?: never;
+        /**
+         * 提交系统配置验证码
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/captcha` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_captcha"];
         delete?: never;
         options?: never;
@@ -1409,8 +1767,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置仪表盘显示
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/dashboard_display` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_dashboard_display"];
         put?: never;
+        /**
+         * 提交系统配置仪表盘显示
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/dashboard_display` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_dashboard_display"];
         delete?: never;
         options?: never;
@@ -1425,8 +1791,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置默认路由
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/default_route` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_default_route"];
         put?: never;
+        /**
+         * 提交系统配置默认路由
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/default_route` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_default_route"];
         delete?: never;
         options?: never;
@@ -1443,6 +1817,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置默认隧道
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/default_tunnel` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_default_tunnel"];
         delete?: never;
         options?: never;
@@ -1457,8 +1835,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置防火墙附加端口
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/firewall_additional_ports` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_firewall_additional_ports"];
         put?: never;
+        /**
+         * 提交系统配置防火墙附加端口
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/firewall_additional_ports` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_firewall_additional_ports"];
         delete?: never;
         options?: never;
@@ -1475,6 +1861,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置飞牛证书同步
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_certificate_sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_certificate_sync"];
         delete?: never;
         options?: never;
@@ -1489,6 +1879,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置详情
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/fnos_certificate_sync/details` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_fnos_certificate_sync_details"];
         put?: never;
         post?: never;
@@ -1507,6 +1901,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 同步系统配置飞牛证书同步
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_certificate_sync/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_certificate_sync_sync"];
         delete?: never;
         options?: never;
@@ -1521,8 +1919,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置飞牛 WAF 连接
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/fnos_connect_waf` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_fnos_connect_waf"];
         put?: never;
+        /**
+         * 提交系统配置飞牛 WAF 连接
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_connect_waf` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_connect_waf"];
         delete?: never;
         options?: never;
@@ -1537,8 +1943,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置飞牛网络调优
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/fnos_network_tuning` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_fnos_network_tuning"];
         put?: never;
+        /**
+         * 提交系统配置飞牛网络调优
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_network_tuning` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_network_tuning"];
         delete?: never;
         options?: never;
@@ -1553,8 +1967,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置飞牛端口图标接管
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/fnos_port_icon_hijack` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_fnos_port_icon_hijack"];
         put?: never;
+        /**
+         * 提交系统配置飞牛端口图标接管
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_port_icon_hijack` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_port_icon_hijack"];
         delete?: never;
         options?: never;
@@ -1569,8 +1991,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置飞牛共享绕过
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/fnos_share_bypass` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_fnos_share_bypass"];
         put?: never;
+        /**
+         * 提交系统配置飞牛共享绕过
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/fnos_share_bypass` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_fnos_share_bypass"];
         delete?: never;
         options?: never;
@@ -1585,8 +2015,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置网关
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/gateway` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_gateway"];
         put?: never;
+        /**
+         * 提交系统配置网关
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/gateway` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_gateway"];
         delete?: never;
         options?: never;
@@ -1601,8 +2039,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置主机响应
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/gateway/host-response` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_gateway_host_response"];
         put?: never;
+        /**
+         * 提交系统配置主机响应
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/gateway/host-response` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_gateway_host_response"];
         delete?: never;
         options?: never;
@@ -1617,8 +2063,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置代理请求头
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/gateway/proxy-headers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_gateway_proxy_headers"];
         put?: never;
+        /**
+         * 提交系统配置代理请求头
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/gateway/proxy-headers` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_gateway_proxy_headers"];
         delete?: never;
         options?: never;
@@ -1633,8 +2087,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置可见性
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/gateway/visibility` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_gateway_visibility"];
         put?: never;
+        /**
+         * 提交系统配置可见性
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/gateway/visibility` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_gateway_visibility"];
         delete?: never;
         options?: never;
@@ -1649,8 +2111,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看代理与映射配置主机映射目录
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/host_mapping_catalog` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_host_mapping_catalog"];
         put?: never;
+        /**
+         * 提交代理与映射配置主机映射目录
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mapping_catalog` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_host_mapping_catalog"];
         delete?: never;
         options?: never;
@@ -1665,8 +2135,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看代理与映射配置主机映射
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/host_mappings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_host_mappings"];
         put?: never;
+        /**
+         * 提交代理与映射配置主机映射
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_host_mappings"];
         delete?: never;
         options?: never;
@@ -1683,6 +2161,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交代理与映射配置基础认证探测
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/basic_auth_probe` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_host_mappings_basic_auth_probe"];
         delete?: never;
         options?: never;
@@ -1697,6 +2179,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 导出代理与映射配置书签
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/host_mappings/bookmarks/export` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_config_host_mappings_bookmarks_export"];
         put?: never;
         post?: never;
@@ -1715,6 +2201,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交代理与映射配置元数据
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/metadata` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_host_mappings_metadata"];
         delete?: never;
         options?: never;
@@ -1731,6 +2221,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交代理与映射配置标题刷新
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/refresh_titles` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_host_mappings_refresh_titles"];
         delete?: never;
         options?: never;
@@ -1745,7 +2239,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看代理与映射配置高级认证
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/host_mappings/{host}/advanced_auth` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_host_mappings_by_host_advanced_auth"];
+        /**
+         * 更新代理与映射配置高级认证
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`PUT /api/admin/config/host_mappings/{host}/advanced_auth` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_config_host_mappings_by_host_advanced_auth"];
         post?: never;
         delete?: never;
@@ -1761,8 +2263,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置IP 归属地服务
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/ip_location_api` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_ip_location_api"];
         put?: never;
+        /**
+         * 提交系统配置IP 归属地服务
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/ip_location_api` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_ip_location_api"];
         delete?: never;
         options?: never;
@@ -1779,6 +2289,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置CIDR 测试
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/ip_location_api/test-cidr` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_ip_location_api_test_cidr"];
         delete?: never;
         options?: never;
@@ -1795,6 +2309,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置IP 查询测试
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/ip_location_api/test-ip-lookup` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_ip_location_api_test_ip_lookup"];
         delete?: never;
         options?: never;
@@ -1809,8 +2327,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置语言区域
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/locale` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_locale"];
         put?: never;
+        /**
+         * 提交系统配置语言区域
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/locale` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_locale"];
         delete?: never;
         options?: never;
@@ -1825,8 +2351,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置协议映射功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/protocol_mapping_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_protocol_mapping_feature"];
         put?: never;
+        /**
+         * 提交系统配置协议映射功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/protocol_mapping_feature` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_protocol_mapping_feature"];
         delete?: never;
         options?: never;
@@ -1843,6 +2377,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交代理与映射配置代理映射
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/proxy_mappings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_proxy_mappings"];
         delete?: never;
         options?: never;
@@ -1857,8 +2395,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置强制 PROXY 协议
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/proxy_protocol_force` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_proxy_protocol_force"];
         put?: never;
+        /**
+         * 提交系统配置强制 PROXY 协议
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/proxy_protocol_force` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_proxy_protocol_force"];
         delete?: never;
         options?: never;
@@ -1873,8 +2419,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置运行模式提示偏好
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/run_mode_prompt_preferences` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_run_mode_prompt_preferences"];
         put?: never;
+        /**
+         * 提交系统配置运行模式提示偏好
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/run_mode_prompt_preferences` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_run_mode_prompt_preferences"];
         delete?: never;
         options?: never;
@@ -1891,6 +2445,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置运行类型
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/run_type` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_run_type"];
         delete?: never;
         options?: never;
@@ -1907,6 +2465,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置智能连接
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/smart_connect` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_smart_connect"];
         delete?: never;
         options?: never;
@@ -1921,6 +2483,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置详情
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/smart_connect/details` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_smart_connect_details"];
         put?: never;
         post?: never;
@@ -1937,8 +2503,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看代理与映射配置流映射
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/stream_mappings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_stream_mappings"];
         put?: never;
+        /**
+         * 提交代理与映射配置流映射
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/stream_mappings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_stream_mappings"];
         delete?: never;
         options?: never;
@@ -1953,8 +2527,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看代理与映射配置子域模式
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`GET /api/admin/config/subdomain_mode` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_subdomain_mode"];
         put?: never;
+        /**
+         * 提交代理与映射配置子域模式
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/subdomain_mode` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_subdomain_mode"];
         delete?: never;
         options?: never;
@@ -1969,8 +2551,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置终端功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/terminal_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_terminal_feature"];
         put?: never;
+        /**
+         * 提交系统配置终端功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/terminal_feature` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_terminal_feature"];
         delete?: never;
         options?: never;
@@ -1985,6 +2575,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置欢迎引导
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/welcome_guide` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_welcome_guide"];
         put?: never;
         post?: never;
@@ -2003,6 +2597,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 完成系统配置欢迎引导
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/welcome_guide/complete` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_welcome_guide_complete"];
         delete?: never;
         options?: never;
@@ -2017,8 +2615,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统配置网络唤醒功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/wol_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_config_wol_feature"];
         put?: never;
+        /**
+         * 提交系统配置网络唤醒功能
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/wol_feature` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_config_wol_feature"];
         delete?: never;
         options?: never;
@@ -2033,6 +2639,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看仪表盘活跃 IP
+         * @description 读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/active-ips` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_dashboard_active_ips"];
         put?: never;
         post?: never;
@@ -2049,6 +2659,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看仪表盘实时数据
+         * @description 读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/realtime` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_dashboard_realtime"];
         put?: never;
         post?: never;
@@ -2065,6 +2679,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看仪表盘统计数据
+         * @description 读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/stats` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_dashboard_stats"];
         put?: never;
         post?: never;
@@ -2081,8 +2699,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS配置
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/config/{provider}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_config_provider"];
         put?: never;
+        /**
+         * 提交动态 DNS配置
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/config/{provider}` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_config_provider"];
         delete?: never;
         options?: never;
@@ -2097,6 +2723,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS网络接口
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/interfaces` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_interfaces"];
         put?: never;
         post?: never;
@@ -2115,6 +2745,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 解析动态 DNS网络接口
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/interfaces/resolve` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_interfaces_resolve"];
         delete?: never;
         options?: never;
@@ -2129,9 +2763,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS日志
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_logs"];
         put?: never;
         post?: never;
+        /**
+         * 删除动态 DNS日志
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`DELETE /api/admin/ddns/logs` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_ddns_logs"];
         options?: never;
         head?: never;
@@ -2145,6 +2787,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 轮询动态 DNS
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_poll"];
         put?: never;
         post?: never;
@@ -2163,6 +2809,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交动态 DNS提供者
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/provider` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_provider"];
         delete?: never;
         options?: never;
@@ -2177,6 +2827,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS提供者
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_providers"];
         put?: never;
         post?: never;
@@ -2195,6 +2849,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试动态 DNS公网检测
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/public-check/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_public_check_test"];
         delete?: never;
         options?: never;
@@ -2209,8 +2867,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS设置
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/settings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_settings"];
         put?: never;
+        /**
+         * 提交动态 DNS设置
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/settings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_settings"];
         delete?: never;
         options?: never;
@@ -2225,6 +2891,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS状态
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_status"];
         put?: never;
         post?: never;
@@ -2241,8 +2911,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/targets` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_targets"];
         put?: never;
+        /**
+         * 提交动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/targets` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_targets"];
         delete?: never;
         options?: never;
@@ -2257,9 +2935,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`GET /api/admin/ddns/targets/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ddns_targets_id"];
+        /**
+         * 更新动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`PUT /api/admin/ddns/targets/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_ddns_targets_id"];
         post?: never;
+        /**
+         * 删除动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`DELETE /api/admin/ddns/targets/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_ddns_targets_id"];
         options?: never;
         head?: never;
@@ -2275,6 +2965,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交动态 DNS启用状态
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/targets/{id}/enabled` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_targets_id_enabled"];
         delete?: never;
         options?: never;
@@ -2291,6 +2985,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试动态 DNS目标
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/targets/{id}/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_targets_id_test"];
         delete?: never;
         options?: never;
@@ -2307,6 +3005,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试动态 DNS
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_test"];
         delete?: never;
         options?: never;
@@ -2323,6 +3025,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 切换动态 DNS
+         * @description 管理 DDNS 提供者、目标、网络接口、日志和任务状态。。`POST /api/admin/ddns/toggle` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ddns_toggle"];
         delete?: never;
         options?: never;
@@ -2337,8 +3043,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_deep_monitor_sessions"];
         put?: never;
+        /**
+         * 提交深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`POST /api/admin/deep-monitor/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_deep_monitor_sessions"];
         delete?: never;
         options?: never;
@@ -2353,9 +3067,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_deep_monitor_sessions_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`DELETE /api/admin/deep-monitor/sessions/{session_id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_deep_monitor_sessions_id"];
         options?: never;
         head?: never;
@@ -2369,6 +3091,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 下载深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}/download` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_deep_monitor_sessions_id_download"];
         put?: never;
         post?: never;
@@ -2385,6 +3111,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控事件
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}/events` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_deep_monitor_sessions__session_id__events"];
         put?: never;
         post?: never;
@@ -2401,6 +3131,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控事件
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}/events/{event_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_deep_monitor_sessions_id_events_event_id"];
         put?: never;
         post?: never;
@@ -2417,6 +3151,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控事件载荷
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}/events/{event_id}/payload` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_deep_monitor_sessions__session_id__events__event_id__payload"];
         put?: never;
         post?: never;
@@ -2435,6 +3173,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 延长深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`POST /api/admin/deep-monitor/sessions/{session_id}/extend` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_deep_monitor_sessions_id_extend"];
         delete?: never;
         options?: never;
@@ -2449,6 +3191,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看深度监控实时状态
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`GET /api/admin/deep-monitor/sessions/{session_id}/live` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_deep_monitor_sessions_id_live"];
         put?: never;
         post?: never;
@@ -2467,6 +3213,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 停止深度监控会话
+         * @description 创建和检查深度监控会话、捕获事件及其归档数据。。`POST /api/admin/deep-monitor/sessions/{session_id}/stop` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_deep_monitor_sessions_id_stop"];
         delete?: never;
         options?: never;
@@ -2481,9 +3231,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统事件
+         * @description 查询、清理和维护管理端系统事件记录。。`GET /api/admin/events` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_events"];
         put?: never;
         post?: never;
+        /**
+         * 删除系统事件
+         * @description 查询、清理和维护管理端系统事件记录。。`DELETE /api/admin/events` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_events"];
         options?: never;
         head?: never;
@@ -2500,6 +3258,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 清空系统事件
+         * @description 查询、清理和维护管理端系统事件记录。。`DELETE /api/admin/events/clear` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_events_clear"];
         options?: never;
         head?: never;
@@ -2515,6 +3277,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 清空防火墙
+         * @description 执行防火墙规则清理、重置和相关运行时操作。。`POST /api/admin/firewall/clear` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_firewall_clear"];
         delete?: never;
         options?: never;
@@ -2531,6 +3297,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 重置防火墙
+         * @description 执行防火墙规则清理、重置和相关运行时操作。。`POST /api/admin/firewall/reset` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_firewall_reset"];
         delete?: never;
         options?: never;
@@ -2545,10 +3315,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/config */
+        /**
+         * 查看FRPC 隧道配置
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_config"];
         put?: never;
-        /** POST /api/admin/frpc/config */
+        /**
+         * 提交FRPC 隧道配置
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_config"];
         delete?: never;
         options?: never;
@@ -2563,10 +3339,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/instances */
+        /**
+         * 查看FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/instances` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_instances"];
         put?: never;
-        /** POST /api/admin/frpc/instances */
+        /**
+         * 提交FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/instances` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_instances"];
         delete?: never;
         options?: never;
@@ -2583,7 +3365,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/instances/draft */
+        /**
+         * 提交FRPC 隧道草稿配置
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/instances/draft` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_instances_draft"];
         delete?: never;
         options?: never;
@@ -2598,12 +3383,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/instances/{id} */
+        /**
+         * 查看FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/instances/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_instances__id_"];
-        /** PUT /api/admin/frpc/instances/{id} */
+        /**
+         * 更新FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`PUT /api/admin/frpc/instances/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_frpc_instances_id"];
         post?: never;
-        /** DELETE /api/admin/frpc/instances/{id} */
+        /**
+         * 删除FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`DELETE /api/admin/frpc/instances/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_frpc_instances_id"];
         options?: never;
         head?: never;
@@ -2617,11 +3411,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/instances/{id}/logs */
+        /**
+         * 查看FRPC 隧道日志
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/instances/{id}/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_instances__id__logs"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/frpc/instances/{id}/logs */
+        /**
+         * 删除FRPC 隧道日志
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`DELETE /api/admin/frpc/instances/{id}/logs` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_frpc_instances_id_logs"];
         options?: never;
         head?: never;
@@ -2635,7 +3435,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/instances/{id}/poll */
+        /**
+         * 轮询FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/instances/{id}/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_instances__id__poll"];
         put?: never;
         post?: never;
@@ -2654,7 +3457,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/instances/{id}/restart */
+        /**
+         * 重启FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/instances/{id}/restart` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_instances_id_restart"];
         delete?: never;
         options?: never;
@@ -2671,7 +3477,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/instances/{id}/start */
+        /**
+         * 启动FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/instances/{id}/start` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_instances_id_start"];
         delete?: never;
         options?: never;
@@ -2688,7 +3497,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/instances/{id}/stop */
+        /**
+         * 停止FRPC 隧道实例
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/instances/{id}/stop` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_instances_id_stop"];
         delete?: never;
         options?: never;
@@ -2703,11 +3515,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/logs */
+        /**
+         * 查看FRPC 隧道日志
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_logs"];
         put?: never;
         post?: never;
-        /** DELETE /api/admin/frpc/logs */
+        /**
+         * 删除FRPC 隧道日志
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`DELETE /api/admin/frpc/logs` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_frpc_logs"];
         options?: never;
         head?: never;
@@ -2721,7 +3539,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/overview */
+        /**
+         * 查看FRPC 隧道概览
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/overview` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_overview"];
         put?: never;
         post?: never;
@@ -2738,7 +3559,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/poll */
+        /**
+         * 轮询FRPC 隧道
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_poll"];
         put?: never;
         post?: never;
@@ -2757,7 +3581,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/start */
+        /**
+         * 启动FRPC 隧道
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/start` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_start"];
         delete?: never;
         options?: never;
@@ -2772,7 +3599,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/status */
+        /**
+         * 查看FRPC 隧道状态
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_status"];
         put?: never;
         post?: never;
@@ -2791,7 +3621,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** POST /api/admin/frpc/stop */
+        /**
+         * 停止FRPC 隧道
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`POST /api/admin/frpc/stop` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_frpc_stop"];
         delete?: never;
         options?: never;
@@ -2806,7 +3639,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** GET /api/admin/frpc/web-status */
+        /**
+         * 查看FRPC 隧道Web 状态
+         * @description 管理 FRPC 配置、实例、运行状态和日志。。`GET /api/admin/frpc/web-status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_frpc_web_status"];
         put?: never;
         post?: never;
@@ -2823,8 +3659,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网关日志分析
+         * @description 配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/analytics` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_gateway_logs_analytics"];
         put?: never;
+        /**
+         * 提交网关日志分析
+         * @description 配置、检索和分析网关访问日志。。`POST /api/admin/gateway-logs/analytics` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_gateway_logs_analytics"];
         delete?: never;
         options?: never;
@@ -2839,8 +3683,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网关日志配置
+         * @description 配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_gateway_logs_config"];
         put?: never;
+        /**
+         * 提交网关日志配置
+         * @description 配置、检索和分析网关访问日志。。`POST /api/admin/gateway-logs/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_gateway_logs_config"];
         delete?: never;
         options?: never;
@@ -2855,6 +3707,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网关日志日期范围
+         * @description 配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/dates` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_gateway_logs_dates"];
         put?: never;
         post?: never;
@@ -2871,6 +3727,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网关日志目录
+         * @description 配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/directory` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_gateway_logs_directory"];
         put?: never;
         post?: never;
@@ -2887,9 +3747,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网关日志日志条目
+         * @description 配置、检索和分析网关访问日志。。`GET /api/admin/gateway-logs/entries` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_gateway_logs_entries"];
         put?: never;
         post?: never;
+        /**
+         * 删除网关日志日志条目
+         * @description 配置、检索和分析网关访问日志。。`DELETE /api/admin/gateway-logs/entries` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_gateway_logs_entries"];
         options?: never;
         head?: never;
@@ -2903,9 +3771,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通用黑名单
+         * @description 维护全局 IP 黑名单及其运行状态。。`GET /api/admin/general-blacklist` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_general_blacklist"];
         put?: never;
+        /**
+         * 提交通用黑名单
+         * @description 维护全局 IP 黑名单及其运行状态。。`POST /api/admin/general-blacklist` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_general_blacklist"];
+        /**
+         * 删除通用黑名单
+         * @description 维护全局 IP 黑名单及其运行状态。。`DELETE /api/admin/general-blacklist` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_general_blacklist"];
         options?: never;
         head?: never;
@@ -2921,6 +3801,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交通用黑名单状态
+         * @description 维护全局 IP 黑名单及其运行状态。。`POST /api/admin/general-blacklist/status` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_general_blacklist_status"];
         delete?: never;
         options?: never;
@@ -2938,6 +3822,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除通用黑名单
+         * @description 维护全局 IP 黑名单及其运行状态。。`DELETE /api/admin/general-blacklist/{ip}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_general_blacklist__ip_"];
         options?: never;
         head?: never;
@@ -2951,6 +3839,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看服务健康检查
+         * @description 探测管理端服务是否可用。。`GET /api/admin/healthz` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["healthz"];
         put?: never;
         post?: never;
@@ -2969,6 +3861,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交IP 归属地批量查询
+         * @description 批量查询 IP 地址归属地信息。。`POST /api/admin/ip-location/batch` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ip_location_batch"];
         delete?: never;
         options?: never;
@@ -2983,7 +3879,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看备份与维护自动备份
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`GET /api/admin/maintenance/backup/automatic` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_maintenance_backup_automatic"];
+        /**
+         * 更新备份与维护自动备份
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`PUT /api/admin/maintenance/backup/automatic` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_maintenance_backup_automatic"];
         post?: never;
         delete?: never;
@@ -2999,6 +3903,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看备份与维护文件
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`GET /api/admin/maintenance/backup/automatic/files` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_maintenance_backup_automatic_files"];
         put?: never;
         post?: never;
@@ -3015,6 +3923,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 导出备份与维护备份
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`GET /api/admin/maintenance/backup/export` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_maintenance_backup_export"];
         put?: never;
         post?: never;
@@ -3033,6 +3945,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交备份与维护飞牛 OS
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/export/fnos` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_maintenance_backup_export_fnos"];
         delete?: never;
         options?: never;
@@ -3047,6 +3963,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看备份与维护文件
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`GET /api/admin/maintenance/backup/files` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_maintenance_backup_files"];
         put?: never;
         post?: never;
@@ -3065,6 +3985,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 导入备份与维护备份
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/import` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_maintenance_backup_import"];
         delete?: never;
         options?: never;
@@ -3081,6 +4005,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交备份与维护自动备份
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/import/automatic` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_maintenance_backup_import_automatic"];
         delete?: never;
         options?: never;
@@ -3097,6 +4025,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交备份与维护飞牛 OS
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/backup/import/fnos` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_maintenance_backup_import_fnos"];
         delete?: never;
         options?: never;
@@ -3113,6 +4045,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 清空备份与维护数据
+         * @description 管理备份导入导出、自动备份和受确认保护的数据维护。。`POST /api/admin/maintenance/data/clear` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_maintenance_data_clear"];
         delete?: never;
         options?: never;
@@ -3127,9 +4063,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心投递记录
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/deliveries` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_deliveries"];
         put?: never;
         post?: never;
+        /**
+         * 删除通知中心投递记录
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`DELETE /api/admin/notifications/deliveries` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_notifications_deliveries"];
         options?: never;
         head?: never;
@@ -3143,8 +4087,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_providers"];
         put?: never;
+        /**
+         * 提交通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/providers` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_notifications_providers"];
         delete?: never;
         options?: never;
@@ -3159,6 +4111,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心目录
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/providers/catalog` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_providers_catalog"];
         put?: never;
         post?: never;
@@ -3177,6 +4133,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/providers/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_notifications_providers_test"];
         delete?: never;
         options?: never;
@@ -3191,12 +4151,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/providers/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_providers_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`DELETE /api/admin/notifications/providers/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_notifications_providers_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`PATCH /api/admin/notifications/providers/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_notifications_providers_id"];
         trace?: never;
     };
@@ -3209,6 +4181,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 测试通知中心提供者
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/providers/{id}/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_notifications_providers_id_test"];
         delete?: never;
         options?: never;
@@ -3223,8 +4199,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心规则
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/rules` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_rules"];
         put?: never;
+        /**
+         * 提交通知中心规则
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`POST /api/admin/notifications/rules` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_notifications_rules"];
         delete?: never;
         options?: never;
@@ -3242,9 +4226,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除通知中心规则
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`DELETE /api/admin/notifications/rules/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_notifications_rules_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改通知中心规则
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`PATCH /api/admin/notifications/rules/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_notifications_rules_id"];
         trace?: never;
     };
@@ -3255,6 +4247,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看通知中心触发记录
+         * @description 管理通知提供者、规则、触发记录和投递记录。。`GET /api/admin/notifications/triggers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_notifications_triggers"];
         put?: never;
         post?: never;
@@ -3271,6 +4267,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看管理面板会话引导初始化
+         * @description 管理 Docker 管理面板的初始化、登录、密码和会话状态。。`GET /api/admin/panel/bootstrap` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_panel_bootstrap"];
         put?: never;
         post?: never;
@@ -3289,6 +4289,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 登录管理面板会话
+         * @description 管理 Docker 管理面板的初始化、登录、密码和会话状态。。`POST /api/admin/panel/login` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_panel_login"];
         delete?: never;
         options?: never;
@@ -3305,6 +4309,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 退出管理面板会话
+         * @description 管理 Docker 管理面板的初始化、登录、密码和会话状态。。`POST /api/admin/panel/logout` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_panel_logout"];
         delete?: never;
         options?: never;
@@ -3321,6 +4329,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交管理面板会话密码
+         * @description 管理 Docker 管理面板的初始化、登录、密码和会话状态。。`POST /api/admin/panel/password` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_panel_password"];
         delete?: never;
         options?: never;
@@ -3337,6 +4349,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 修改管理面板会话密码
+         * @description 管理 Docker 管理面板的初始化、登录、密码和会话状态。。`POST /api/admin/panel/password/change` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_panel_password_change"];
         delete?: never;
         options?: never;
@@ -3354,6 +4370,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除通行密钥
+         * @description 管理账户绑定的 Passkey 凭据。。`DELETE /api/admin/passkeys/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_passkeys_by_id"];
         options?: never;
         head?: never;
@@ -3367,6 +4387,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看运行时健康
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`GET /api/admin/runtime-health` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_runtime_health"];
         put?: never;
         post?: never;
@@ -3383,6 +4407,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看运行时健康诊断信息
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`GET /api/admin/runtime-health/diagnostics` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_runtime_health_diagnostics"];
         put?: never;
         post?: never;
@@ -3399,6 +4427,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看运行时健康归档
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`GET /api/admin/runtime-health/diagnostics/archive` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功时返回附件或其他非 JSON 内容，媒体类型和下载文件名请查看响应定义。
+         */
         get: operations["get_api_admin_runtime_health_diagnostics_archive"];
         put?: never;
         post?: never;
@@ -3415,7 +4447,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看运行时健康网关内存
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`GET /api/admin/runtime-health/gateway-memory` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_runtime_health_gateway_memory"];
+        /**
+         * 更新运行时健康网关内存
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`PUT /api/admin/runtime-health/gateway-memory` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_runtime_health_gateway_memory"];
         post?: never;
         delete?: never;
@@ -3433,6 +4473,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 释放运行时健康网关内存
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`POST /api/admin/runtime-health/gateway-memory/reclaim` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_runtime_health_gateway_memory_reclaim"];
         delete?: never;
         options?: never;
@@ -3447,9 +4491,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看运行时健康日志
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`GET /api/admin/runtime-health/logs/{component}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_runtime_health_logs__component_"];
         put?: never;
         post?: never;
+        /**
+         * 删除运行时健康日志
+         * @description 检查服务组件健康、诊断信息、日志和网关内存状态。。`DELETE /api/admin/runtime-health/logs/{component}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_runtime_health_logs__component_"];
         options?: never;
         head?: never;
@@ -3463,8 +4515,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看资产扫描发现设置
+         * @description 配置并运行网络资产发现和扫描任务。。`GET /api/admin/scan/discover-settings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scan_discover_settings"];
         put?: never;
+        /**
+         * 提交资产扫描发现设置
+         * @description 配置并运行网络资产发现和扫描任务。。`POST /api/admin/scan/discover-settings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_scan_discover_settings"];
         delete?: never;
         options?: never;
@@ -3479,8 +4539,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看资产扫描发现目标
+         * @description 配置并运行网络资产发现和扫描任务。。`GET /api/admin/scan/discover-targets` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scan_discover_targets"];
         put?: never;
+        /**
+         * 提交资产扫描发现目标
+         * @description 配置并运行网络资产发现和扫描任务。。`POST /api/admin/scan/discover-targets` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_scan_discover_targets"];
         delete?: never;
         options?: never;
@@ -3497,6 +4565,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交资产扫描任务
+         * @description 配置并运行网络资产发现和扫描任务。。`POST /api/admin/scan/discover/jobs` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_scan_discover_jobs"];
         delete?: never;
         options?: never;
@@ -3511,9 +4583,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看资产扫描任务
+         * @description 配置并运行网络资产发现和扫描任务。。`GET /api/admin/scan/discover/jobs/{job_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scan_discover_jobs_by_job_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除资产扫描任务
+         * @description 配置并运行网络资产发现和扫描任务。。`DELETE /api/admin/scan/discover/jobs/{job_id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_scan_discover_jobs_by_job_id"];
         options?: never;
         head?: never;
@@ -3529,6 +4609,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 探测资产扫描主机映射
+         * @description 配置并运行网络资产发现和扫描任务。。`POST /api/admin/scan/host-mappings/probe` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_scan_host_mappings_probe"];
         delete?: never;
         options?: never;
@@ -3543,9 +4627,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看扫描器黑名单
+         * @description 管理扫描器设置、结果和黑名单记录。。`GET /api/admin/scanner/blacklist` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scanner_blacklist"];
         put?: never;
         post?: never;
+        /**
+         * 删除扫描器黑名单
+         * @description 管理扫描器设置、结果和黑名单记录。。`DELETE /api/admin/scanner/blacklist` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_scanner_blacklist"];
         options?: never;
         head?: never;
@@ -3559,9 +4651,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看扫描器黑名单
+         * @description 管理扫描器设置、结果和黑名单记录。。`GET /api/admin/scanner/blacklist/{ip}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scanner_blacklist__ip_"];
         put?: never;
         post?: never;
+        /**
+         * 删除扫描器黑名单
+         * @description 管理扫描器设置、结果和黑名单记录。。`DELETE /api/admin/scanner/blacklist/{ip}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_scanner_blacklist__ip_"];
         options?: never;
         head?: never;
@@ -3575,8 +4675,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看扫描器设置
+         * @description 管理扫描器设置、结果和黑名单记录。。`GET /api/admin/scanner/settings` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_scanner_settings"];
         put?: never;
+        /**
+         * 提交扫描器设置
+         * @description 管理扫描器设置、结果和黑名单记录。。`POST /api/admin/scanner/settings` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_scanner_settings"];
         delete?: never;
         options?: never;
@@ -3591,6 +4699,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看安全概览概览
+         * @description 读取管理端安全能力与当前保护状态。。`GET /api/admin/security/overview` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_security_overview"];
         put?: never;
         post?: never;
@@ -3607,6 +4719,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看会话管理
+         * @description 查询、撤销和维护认证会话及其移动性信息。。`GET /api/admin/sessions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_sessions"];
         put?: never;
         post?: never;
@@ -3623,9 +4739,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看会话管理
+         * @description 查询、撤销和维护认证会话及其移动性信息。。`GET /api/admin/sessions/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_sessions_by_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除会话管理
+         * @description 查询、撤销和维护认证会话及其移动性信息。。`DELETE /api/admin/sessions/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_sessions_by_id"];
         options?: never;
         head?: never;
@@ -3645,6 +4769,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改会话管理备注
+         * @description 查询、撤销和维护认证会话及其移动性信息。。`PATCH /api/admin/sessions/{id}/comment` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_sessions_by_id_comment"];
         trace?: never;
     };
@@ -3655,6 +4783,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看会话管理会话迁移
+         * @description 查询、撤销和维护认证会话及其移动性信息。。`GET /api/admin/sessions/{id}/mobility` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_sessions_by_id_mobility"];
         put?: never;
         post?: never;
@@ -3671,9 +4803,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看SSH 安全封锁记录
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`GET /api/admin/ssh-security/blocks` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ssh_security_blocks"];
         put?: never;
         post?: never;
+        /**
+         * 删除SSH 安全封锁记录
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`DELETE /api/admin/ssh-security/blocks` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_ssh_security_blocks"];
         options?: never;
         head?: never;
@@ -3687,9 +4827,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看SSH 安全封锁记录
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`GET /api/admin/ssh-security/blocks/{ip}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ssh_security_blocks_by_ip"];
         put?: never;
         post?: never;
+        /**
+         * 删除SSH 安全封锁记录
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`DELETE /api/admin/ssh-security/blocks/{ip}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_ssh_security_blocks_by_ip"];
         options?: never;
         head?: never;
@@ -3703,8 +4851,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看SSH 安全配置
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`GET /api/admin/ssh-security/config` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ssh_security_config"];
         put?: never;
+        /**
+         * 提交SSH 安全配置
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`POST /api/admin/ssh-security/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ssh_security_config"];
         delete?: never;
         options?: never;
@@ -3721,6 +4877,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 清空SSH 安全防火墙
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`POST /api/admin/ssh-security/firewall/clear` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ssh_security_firewall_clear"];
         delete?: never;
         options?: never;
@@ -3737,6 +4897,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 同步SSH 安全防火墙
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`POST /api/admin/ssh-security/firewall/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_ssh_security_firewall_sync"];
         delete?: never;
         options?: never;
@@ -3751,6 +4915,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看SSH 安全登录记录
+         * @description 管理 SSH 防护配置、登录记录和封锁记录。。`GET /api/admin/ssh-security/login-logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_ssh_security_login_logs"];
         put?: never;
         post?: never;
@@ -3770,6 +4938,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 清除当前激活证书
+         * @description 取消当前激活证书并同步网关，但保留证书库条目，以便之后重新激活。若需删除所有条目，请使用清空证书库接口。
+         */
         delete: operations["delete_api_admin_ssl"];
         options?: never;
         head?: never;
@@ -3785,6 +4957,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 激活证书库中的证书
+         * @description 将指定证书设为当前激活证书，并同步网关。在 `single_active` 模式中仅部署该证书；在 `multi_sni` 模式中它还会作为默认服务证书。
+         */
         post: operations["post_api_admin_ssl_activate"];
         delete?: never;
         options?: never;
@@ -3802,6 +4978,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除本地根 CA 文件
+         * @description 删除本地根 CA 的证书和私钥文件。该操作不会清空已保存的 CA 主机名列表，也不会删除已签发并保存到证书库的服务器证书；后续签发前必须重新初始化 CA。
+         */
         delete: operations["delete_api_admin_ssl_ca"];
         options?: never;
         head?: never;
@@ -3815,6 +4995,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 下载本地根 CA 证书
+         * @description 下载本地根 CA 的公开 PEM 证书，不包含根私钥。可将此证书分发给需要信任本地 CA 的客户端。
+         */
         get: operations["get_api_admin_ssl_ca_cert_pem"];
         put?: never;
         post?: never;
@@ -3831,9 +5015,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 列出本地 CA 主机名
+         * @description 返回本地 CA 签发服务器证书时使用的 SAN 主机名列表。列表为空时无法签发或下载本地 CA 服务器证书。
+         */
         get: operations["get_api_admin_ssl_ca_hosts"];
         put?: never;
+        /**
+         * 添加本地 CA 主机名
+         * @description 将一个非空主机名加入本地 CA 的 SAN 列表。重复值不会重复保存；该操作不会自动重新签发或部署证书。
+         */
         post: operations["post_api_admin_ssl_ca_hosts"];
+        /**
+         * 移除或清空本地 CA 主机名
+         * @description 传入 `value` 时移除对应主机名；传入 `all=true` 时清空整个列表。请求体省略、为空或无法解析时保持兼容行为并成功返回，不会修改列表。
+         */
         delete: operations["delete_api_admin_ssl_ca_hosts"];
         options?: never;
         head?: never;
@@ -3849,6 +5045,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 初始化本地根 CA
+         * @description 创建本地根 CA 证书及私钥。请先完成该操作，再配置主机名并签发服务器证书；重复执行的具体结果以返回状态为准。
+         */
         post: operations["post_api_admin_ssl_ca_init"];
         delete?: never;
         options?: never;
@@ -3865,6 +5065,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 签发并部署本地 CA 服务器证书
+         * @description 使用已初始化的本地根 CA 和当前主机名列表签发服务器证书，将其保存到证书库、设为激活证书并同步至网关。执行前必须初始化 CA 且至少配置一个主机名。
+         */
         post: operations["post_api_admin_ssl_ca_issue"];
         delete?: never;
         options?: never;
@@ -3879,6 +5083,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 下载本地 CA 临时服务器证书 ZIP
+         * @description 使用当前 CA 主机名列表即时签发服务器证书并以 ZIP 下载。该证书不会保存到证书库或激活；附件包含私钥，必须按敏感凭据保管。
+         */
         get: operations["get_api_admin_ssl_ca_server_cert_zip"];
         put?: never;
         post?: never;
@@ -3895,6 +5103,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看本地 CA 状态
+         * @description 检查本地根 CA 的证书和私钥是否都已初始化。未初始化时返回 `initialized=false`，并非错误；已初始化时附带根证书解析信息。
+         */
         get: operations["get_api_admin_ssl_ca_status"];
         put?: never;
         post?: never;
@@ -3911,6 +5123,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 下载当前激活证书的 PEM
+         * @description 下载当前激活证书的公开 PEM 链，不包含私钥。响应以附件形式返回，文件名由 `Content-Disposition` 指定。
+         */
         get: operations["get_api_admin_ssl_cert_pem"];
         put?: never;
         post?: never;
@@ -3927,6 +5143,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 下载当前激活证书和私钥 ZIP
+         * @description 下载当前激活证书与匹配私钥的 ZIP 包，包含 `server-cert.pem` 和 `server-key.pem`。该附件含有私钥，下载后必须按敏感凭据保管。
+         */
         get: operations["get_api_admin_ssl_cert_zip"];
         put?: never;
         post?: never;
@@ -3945,7 +5165,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 导入或更新证书库条目
+         * @description 保存手工、ACME 或本地 CA 来源的证书。`cert` 与 `key` 必须是相互匹配且可验证的完整 PEM；私钥仅写入保存，状态接口不会回显。未显式设置 `activate=false` 时会激活新条目；需要同步时会将配置下发到网关。
+         */
         post: operations["post_api_admin_ssl_certificates"];
+        /**
+         * 清空 SSL 证书库
+         * @description 永久删除证书库中的所有条目并清除当前激活证书，然后同步网关。此操作不可恢复；如需保留证书和私钥，请先下载备份。
+         */
         delete: operations["delete_api_admin_ssl_certificates"];
         options?: never;
         head?: never;
@@ -3962,6 +5190,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除指定证书库条目
+         * @description 按证书库标识符删除条目。删除当前激活证书，或在 `multi_sni` 模式删除任一证书时，会同步网关；该删除不可恢复。
+         */
         delete: operations["delete_api_admin_ssl_certificates_id"];
         options?: never;
         head?: never;
@@ -3977,6 +5209,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 切换 SSL 证书部署模式
+         * @description `single_active` 仅向网关部署当前激活证书；`multi_sni` 部署证书库并以激活证书作为默认项。切换到 `multi_sni` 且未指定激活证书时会选择证书库首项；网关同步失败会恢复之前的本地配置。
+         */
         post: operations["post_api_admin_ssl_deployment_mode"];
         delete?: never;
         options?: never;
@@ -3991,6 +5227,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 列出 SSL 共享目录中的候选文件
+         * @description 扫描已配置的 SSL 共享目录，最多返回 500 个文件、递归深度不超过 3 层。目录未配置或不可用时仍返回成功响应，并以 `available=false` 表示不可导入。
+         */
         get: operations["get_api_admin_ssl_shared_files"];
         put?: never;
         post?: never;
@@ -4007,6 +5247,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 读取 SSL 共享文件内容
+         * @description 读取共享目录中的单个文本文件，用于在导入前检查 PEM 内容。`path` 必须是共享根目录下的相对路径；绝对路径、目录穿越、目录本身和超过 512 KiB 的文件都会被拒绝。返回内容可能包含私钥，请仅在受信任环境中使用。
+         */
         get: operations["get_api_admin_ssl_shared_files_content"];
         put?: never;
         post?: never;
@@ -4023,6 +5267,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看 SSL 证书库与部署状态
+         * @description 汇总本地证书库、当前激活证书、域名覆盖度和网关部署状态。`deploymentMode` 是当前生效模式，`configuredDeploymentMode` 是本地配置；网关暂时不可达时会在 `gateway_status.sync_error` 中返回原因。
+         */
         get: operations["get_api_admin_ssl_status"];
         put?: never;
         post?: never;
@@ -4041,6 +5289,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交系统配置
+         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/sync-routes` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_sync_routes"];
         delete?: never;
         options?: never;
@@ -4055,6 +5307,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统服务访问入口
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`GET /api/admin/system/access-entry` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_system_access_entry"];
         put?: never;
         post?: never;
@@ -4073,6 +5329,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 检查系统服务系统时钟
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/clock/check` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_clock_check"];
         delete?: never;
         options?: never;
@@ -4087,6 +5347,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统服务状态
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`GET /api/admin/system/clock/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_system_clock_status"];
         put?: never;
         post?: never;
@@ -4105,6 +5369,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 同步系统服务系统时钟
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/clock/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_clock_sync"];
         delete?: never;
         options?: never;
@@ -4122,6 +5390,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除系统服务Cloudflare 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`DELETE /api/admin/system/cloudflared` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_system_cloudflared"];
         options?: never;
         head?: never;
@@ -4137,6 +5409,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 取消系统服务Cloudflare 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/cloudflared/cancel` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_cloudflared_cancel"];
         delete?: never;
         options?: never;
@@ -4153,6 +5429,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 下载系统服务Cloudflare 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/cloudflared/download` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_cloudflared_download"];
         delete?: never;
         options?: never;
@@ -4167,6 +5447,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统服务状态
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`GET /api/admin/system/cloudflared/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_system_cloudflared_status"];
         put?: never;
         post?: never;
@@ -4185,6 +5469,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 安装系统服务DNS 转发组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/dnsmasq/install` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_dnsmasq_install"];
         delete?: never;
         options?: never;
@@ -4199,6 +5487,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统服务状态
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`GET /api/admin/system/dnsmasq/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_system_dnsmasq_status"];
         put?: never;
         post?: never;
@@ -4218,6 +5510,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除系统服务FRP 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`DELETE /api/admin/system/frp` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_system_frp"];
         options?: never;
         head?: never;
@@ -4233,6 +5529,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 取消系统服务FRP 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/frp/cancel` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_frp_cancel"];
         delete?: never;
         options?: never;
@@ -4249,6 +5549,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 下载系统服务FRP 组件
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`POST /api/admin/system/frp/download` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_system_frp_download"];
         delete?: never;
         options?: never;
@@ -4263,6 +5567,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统服务状态
+         * @description 管理系统资源、时钟、二进制组件和运行时服务。。`GET /api/admin/system/frp/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_system_frp_status"];
         put?: never;
         post?: never;
@@ -4282,6 +5590,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除Web 终端附件
+         * @description 管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/attachments/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_terminal_attachments_by_id"];
         options?: never;
         head?: never;
@@ -4297,6 +5609,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 输入Web 终端附件
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/input` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_terminal_attachments_by_id_input"];
         delete?: never;
         options?: never;
@@ -4311,6 +5627,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 轮询Web 终端附件
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_terminal_attachments__id__poll"];
         put?: never;
         post?: never;
@@ -4329,6 +5649,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 调整大小Web 终端附件
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/resize` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_terminal_attachments_by_id_resize"];
         delete?: never;
         options?: never;
@@ -4343,8 +5667,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_terminal_sessions"];
         put?: never;
+        /**
+         * 提交Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_terminal_sessions"];
         delete?: never;
         options?: never;
@@ -4359,12 +5691,24 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_terminal_sessions_by_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/sessions/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_terminal_sessions_by_id"];
         options?: never;
         head?: never;
+        /**
+         * 修改Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/sessions/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_terminal_sessions_by_id"];
         trace?: never;
     };
@@ -4377,6 +5721,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交Web 终端附件
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions/{id}/attachments` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_terminal_sessions_by_id_attachments"];
         delete?: never;
         options?: never;
@@ -4391,6 +5739,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 终端状态
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_terminal_status"];
         put?: never;
         post?: never;
@@ -4409,6 +5761,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 安装Web 终端Tmux 组件
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/tmux/install` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_terminal_tmux_install"];
         delete?: never;
         options?: never;
@@ -4425,6 +5781,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 绑定TOTP 凭据
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`POST /api/admin/totp/bind` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_totp_bind"];
         delete?: never;
         options?: never;
@@ -4439,6 +5799,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 导出TOTP 凭据凭据
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`GET /api/admin/totp/credentials/export` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_totp_credentials_export"];
         put?: never;
         post?: never;
@@ -4457,6 +5821,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 导入TOTP 凭据凭据
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`POST /api/admin/totp/credentials/import` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_totp_credentials_import"];
         delete?: never;
         options?: never;
@@ -4473,6 +5841,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 设置TOTP 凭据
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`POST /api/admin/totp/setup` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_totp_setup"];
         delete?: never;
         options?: never;
@@ -4487,6 +5859,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看TOTP 凭据状态
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`GET /api/admin/totp/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_totp_status"];
         put?: never;
         post?: never;
@@ -4506,6 +5882,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除TOTP 凭据
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`DELETE /api/admin/totp/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_totp_by_id"];
         options?: never;
         head?: never;
@@ -4525,6 +5905,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改TOTP 凭据访问范围
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`PATCH /api/admin/totp/{id}/access-scopes` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_totp_by_id_access_scopes"];
         trace?: never;
     };
@@ -4541,6 +5925,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改TOTP 凭据备注
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`PATCH /api/admin/totp/{id}/comment` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_totp_by_id_comment"];
         trace?: never;
     };
@@ -4557,6 +5945,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改TOTP 凭据子域访问范围
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`PATCH /api/admin/totp/{id}/subdomain-access` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_totp_by_id_subdomain_access"];
         trace?: never;
     };
@@ -4567,6 +5959,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看TOTP 凭据通行密钥
+         * @description 管理 TOTP 凭据、访问范围、导入导出和 Passkey 绑定。。`GET /api/admin/totp/{totp_id}/passkeys` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_totp_by_totp_id_passkeys"];
         put?: never;
         post?: never;
@@ -4585,6 +5981,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 检查系统更新
+         * @description 检查、下载、确认和应用系统更新。。`POST /api/admin/update/check` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_update_check"];
         delete?: never;
         options?: never;
@@ -4601,6 +6001,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 检查并下载系统更新
+         * @description 检查、下载、确认和应用系统更新。。`POST /api/admin/update/check-and-download` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_update_check_and_download"];
         delete?: never;
         options?: never;
@@ -4615,6 +6019,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统更新确认信息
+         * @description 检查、下载、确认和应用系统更新。。`GET /api/admin/update/confirm` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_update_confirm"];
         put?: never;
         post?: never;
@@ -4633,6 +6041,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 下载系统更新
+         * @description 检查、下载、确认和应用系统更新。。`POST /api/admin/update/download` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_update_download"];
         delete?: never;
         options?: never;
@@ -4649,6 +6061,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 安装系统更新
+         * @description 检查、下载、确认和应用系统更新。。`POST /api/admin/update/install` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_update_install"];
         delete?: never;
         options?: never;
@@ -4663,6 +6079,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看系统更新状态
+         * @description 检查、下载、确认和应用系统更新。。`GET /api/admin/update/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_update_status"];
         put?: never;
         post?: never;
@@ -4681,6 +6101,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交Web 应用防火墙配置
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/config` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_config"];
         delete?: never;
         options?: never;
@@ -4697,6 +6121,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 上传Web 应用防火墙自定义规则文件
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/custom/upload` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_custom_upload"];
         delete?: never;
         options?: never;
@@ -4714,6 +6142,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除Web 应用防火墙自定义规则文件
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`DELETE /api/admin/waf/custom/{filename}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_waf_custom_filename"];
         options?: never;
         head?: never;
@@ -4727,6 +6159,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 应用防火墙详情
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`GET /api/admin/waf/details` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_waf_details"];
         put?: never;
         post?: never;
@@ -4745,6 +6181,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 排空Web 应用防火墙事件
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/events/drain` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_events_drain"];
         delete?: never;
         options?: never;
@@ -4759,9 +6199,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 应用防火墙日志
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`GET /api/admin/waf/logs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_waf_logs"];
         put?: never;
         post?: never;
+        /**
+         * 删除Web 应用防火墙日志
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`DELETE /api/admin/waf/logs` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_waf_logs"];
         options?: never;
         head?: never;
@@ -4775,6 +6223,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 应用防火墙日志
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`GET /api/admin/waf/logs/{trace_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_waf_logs_trace_id"];
         put?: never;
         post?: never;
@@ -4793,6 +6245,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 刷新Web 应用防火墙规则清单
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/manifest/refresh` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_manifest_refresh"];
         delete?: never;
         options?: never;
@@ -4809,6 +6265,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交Web 应用防火墙启用状态
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/rules/enabled` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_rules_enabled"];
         delete?: never;
         options?: never;
@@ -4825,6 +6285,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交Web 应用防火墙推荐规则
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/rules/recommended` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_rules_recommended"];
         delete?: never;
         options?: never;
@@ -4839,6 +6303,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 应用防火墙规则
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`GET /api/admin/waf/rules/{source}/{filename}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_waf_rules_source_filename"];
         put?: never;
         post?: never;
@@ -4855,6 +6323,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看Web 应用防火墙状态
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`GET /api/admin/waf/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_waf_status"];
         put?: never;
         post?: never;
@@ -4873,6 +6345,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 同步Web 应用防火墙系统规则
+         * @description 管理 WAF 配置、规则文件、事件和日志。。`POST /api/admin/waf/system/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_waf_system_sync"];
         delete?: never;
         options?: never;
@@ -4887,8 +6363,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看白名单
+         * @description 维护访问白名单、地区分组和域名解析记录。。`GET /api/admin/whitelist` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_whitelist"];
         put?: never;
+        /**
+         * 提交白名单
+         * @description 维护访问白名单、地区分组和域名解析记录。。`POST /api/admin/whitelist` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_whitelist"];
         delete?: never;
         options?: never;
@@ -4903,8 +6387,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看白名单地区分组
+         * @description 维护访问白名单、地区分组和域名解析记录。。`GET /api/admin/whitelist/regions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_whitelist_regions"];
         put?: never;
+        /**
+         * 提交白名单地区分组
+         * @description 维护访问白名单、地区分组和域名解析记录。。`POST /api/admin/whitelist/regions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_whitelist_regions"];
         delete?: never;
         options?: never;
@@ -4922,6 +6414,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除白名单地区分组
+         * @description 维护访问白名单、地区分组和域名解析记录。。`DELETE /api/admin/whitelist/regions/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_whitelist_regions__id_"];
         options?: never;
         head?: never;
@@ -4938,6 +6434,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /**
+         * 删除白名单
+         * @description 维护访问白名单、地区分组和域名解析记录。。`DELETE /api/admin/whitelist/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_whitelist__id_"];
         options?: never;
         head?: never;
@@ -4957,6 +6457,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * 修改白名单备注
+         * @description 维护访问白名单、地区分组和域名解析记录。。`PATCH /api/admin/whitelist/{id}/comment` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         patch: operations["patch_api_admin_whitelist__id__comment"];
         trace?: never;
     };
@@ -4969,6 +6473,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 刷新白名单
+         * @description 维护访问白名单、地区分组和域名解析记录。。`POST /api/admin/whitelist/{id}/refresh` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_whitelist__id__refresh"];
         delete?: never;
         options?: never;
@@ -4985,6 +6493,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交网络唤醒任务
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/discover/jobs` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_discover_jobs"];
         delete?: never;
         options?: never;
@@ -4999,9 +6511,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒任务
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/discover/jobs/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_discover_jobs_by_id"];
         put?: never;
         post?: never;
+        /**
+         * 删除网络唤醒任务
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`DELETE /api/admin/wol/discover/jobs/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_wol_discover_jobs_by_id"];
         options?: never;
         head?: never;
@@ -5015,7 +6535,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒本地中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/local-relay` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_local_relay"];
+        /**
+         * 更新网络唤醒本地中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`PUT /api/admin/wol/local-relay` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_wol_local_relay"];
         post?: never;
         delete?: never;
@@ -5033,6 +6561,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 配对网络唤醒本地中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/local-relay/pair` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_local_relay_pair"];
         delete?: never;
         options?: never;
@@ -5047,8 +6579,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/relays` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_relays"];
         put?: never;
+        /**
+         * 提交网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/relays` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_relays"];
         delete?: never;
         options?: never;
@@ -5063,9 +6603,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/relays/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_relays_by_id"];
+        /**
+         * 更新网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`PUT /api/admin/wol/relays/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_wol_relays_by_id"];
         post?: never;
+        /**
+         * 删除网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`DELETE /api/admin/wol/relays/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_wol_relays_by_id"];
         options?: never;
         head?: never;
@@ -5081,6 +6633,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 探测网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/relays/{id}/probe` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_relays_by_id_probe"];
         delete?: never;
         options?: never;
@@ -5097,6 +6653,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 轮换预共享密钥网络唤醒中继
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/relays/{id}/rotate-psk` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_relays_by_id_rotate_psk"];
         delete?: never;
         options?: never;
@@ -5111,8 +6671,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/targets` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_targets"];
         put?: never;
+        /**
+         * 提交网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/targets` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_targets"];
         delete?: never;
         options?: never;
@@ -5127,9 +6695,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * 查看网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`GET /api/admin/wol/targets/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         get: operations["get_api_admin_wol_targets_by_id"];
+        /**
+         * 更新网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`PUT /api/admin/wol/targets/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         put: operations["put_api_admin_wol_targets_by_id"];
         post?: never;
+        /**
+         * 删除网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`DELETE /api/admin/wol/targets/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         delete: operations["delete_api_admin_wol_targets_by_id"];
         options?: never;
         head?: never;
@@ -5145,6 +6725,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 唤醒网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/targets/{id}/wake` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_admin_wol_targets_by_id_wake"];
         delete?: never;
         options?: never;
@@ -5161,6 +6745,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * 提交内部系统事件
+         * @description 供内部组件发布系统事件的接口。。`POST /api/internal/system-events` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
         post: operations["post_api_internal_system_events"];
         delete?: never;
         options?: never;
@@ -9356,136 +10944,257 @@ export interface components {
             /** Format: date-time */
             updated_at: string | null;
         };
+        /** @description 向本地 CA 服务器证书 SAN 列表增加单个主机名的请求。 */
         SslCaHostBodyData: {
+            /** @description 要加入本地 CA 服务器证书 SAN 列表的非空 DNS 主机名。 */
             value: string;
         };
+        /** @description 从本地 CA 主机名列表移除单个项目或清空列表的可选请求体。 */
         SslCaHostsDeleteBodyData: {
-            /** @description When true, clear the entire CA host list. An omitted body remains a successful no-op for compatibility. */
+            /** @description 设为 `true` 时清空整个本地 CA 主机名列表；请求体省略时为兼容性无操作。 */
             all?: boolean | null;
+            /** @description 要移除的单个主机名；与 `all=true` 一起提供时由 `all` 优先。 */
             value?: string | null;
         };
+        /** @description 本地根 CA 是否已初始化及其公开证书信息。 */
         SslCaStatusData: {
+            /** @description 已初始化时的根 CA 公开证书信息；否则为 `null`。 */
             info?: null | components["schemas"]["SslCertificateInfoData"];
+            /** @description 本地根 CA 的证书和私钥是否均存在。 */
             initialized: boolean;
         };
+        /** @description 激活证书库中既有证书的请求。 */
         SslCertificateActivateBodyData: {
+            /** @description 要激活的证书库条目标识符。 */
             id: string;
         };
+        /** @description 从 X.509 PEM 证书解析出的公开元数据。 */
         SslCertificateInfoData: {
+            /** @description 从证书 Subject Alternative Name 读取的 DNS 名称。 */
             dnsNames: string[];
+            /** @description 颁发者可分辨名称。 */
             issuer: string;
+            /** @description 证书序列号。 */
             serialNumber: string;
+            /** @description 主题可分辨名称。 */
             subject: string;
             /** @description OpenSSL-compatible UTC certificate date string */
             validFrom: string;
             /** @description OpenSSL-compatible UTC certificate date string */
             validTo: string;
         };
+        /** @description 证书库在当前部署模式下对建议域名的整体覆盖分析。 */
         SslCertificateLibraryCoverageData: {
+            /** @description 当前激活证书的标识符；未激活时为 `null`。 */
             active_certificate_id: string | null;
+            /** @description 系统是否可以安全地自动激活建议证书。 */
             can_auto_activate: boolean;
+            /** @description 在 `multi_sni` 模式中组合后可覆盖建议域名的证书标识符。 */
             combined_covering_certificate_ids: string[];
-            /** @enum {string} */
+            /**
+             * @description 用于计算整体覆盖度的有效部署模式。
+             * @enum {string}
+             */
             deployment_mode: "single_active" | "multi_sni";
+            /** @description 可单独覆盖全部建议域名的证书标识符。 */
             fully_covering_certificate_ids: string[];
+            /** @description 仅部分覆盖建议域名的证书标识符。 */
             partially_covering_certificate_ids: string[];
-            /** @enum {string} */
+            /**
+             * @description 证书库整体覆盖结论：`ready`、`partial` 或 `missing`。
+             * @enum {string}
+             */
             status: "ready" | "partial" | "missing";
+            /** @description 建议激活的证书标识符；无合适候选时为 `null`。 */
             suggested_certificate_id: string | null;
+            /** @description 面向界面显示的本地化证书库覆盖摘要。 */
             summary: string;
+            /** @description 证书库覆盖风险或选择建议。 */
             warnings: string[];
         };
+        /** @description 导入或更新 SSL 证书库条目的请求。证书和私钥为敏感材料，私钥仅写入，不会在读取接口中返回。 */
         SslCertificateSaveBodyData: {
-            /** @description Activate after saving unless explicitly false */
+            /** @description 省略或为 `true` 时，保存后立即激活；仅显式传入 `false` 才保留为未激活条目。 */
             activate?: boolean | null;
+            /** @description 完整的 PEM X.509 证书链。必须与 `key` 匹配且可通过验证。 */
             cert: string;
+            /** @description 可选的证书库标识符。提供时更新同一条目；省略时会根据证书内容复用或创建标识符。 */
             id?: string | null;
-            /** Format: password */
+            /**
+             * Format: password
+             * @description 与 `cert` 匹配的完整 PEM 私钥。该字段仅写入，不会在任何状态或列表响应中返回。
+             */
             key: string;
+            /** @description 面向管理员显示的证书名称；省略时根据来源和主域名生成。 */
             label?: string | null;
+            /** @description 可选主域名，会被规范化为小写；用于来源关联和展示。 */
             primary_domain?: string | null;
-            /** @enum {string|null} */
+            /**
+             * @description 证书来源：`manual` 为手工导入，`acme` 为 ACME 签发，`ca` 为本地 CA 签发。
+             * @enum {string|null}
+             */
             source?: "manual" | "acme" | "ca" | null;
+            /** @description 可选的上游来源关联标识，例如 ACME 应用标识。 */
             source_ref_id?: string | null;
         };
+        /** @description 成功保存证书库条目后返回的稳定标识符。 */
         SslCertificateSaveData: {
+            /** @description 已保存或更新的证书库条目标识符。 */
             id: string;
         };
+        /** @description 证书库条目的公开摘要；不含证书 PEM 或私钥。 */
         SslCertificateSummaryData: {
+            /** @description 从公开证书解析出的元数据；无法解析时为 `null`。 */
             certInfo?: null | components["schemas"]["SslCertificateInfoData"];
+            /** @description 该单张证书对当前域名配置的覆盖分析。 */
             coverage: components["schemas"]["SslSubdomainCoverageData"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 证书库条目的创建时间。
+             */
             created_at: string;
+            /** @description 证书库条目的稳定标识符。 */
             id: string;
+            /** @description 该条目是否为当前激活证书。 */
             is_active: boolean;
+            /** @description 面向管理员显示的证书名称。 */
             label: string;
+            /** @description 可选主域名；未关联主域名时为 `null`。 */
             primary_domain?: string | null;
-            /** @enum {string} */
+            /**
+             * @description 证书来源：手工导入、ACME 或本地 CA。
+             * @enum {string}
+             */
             source: "manual" | "acme" | "ca";
+            /** @description 可选的上游来源关联标识。 */
             source_ref_id?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 证书库条目的最近更新时间。
+             */
             updated_at: string;
         };
+        /** @description 设置网关 SSL 部署模式的请求。 */
         SslDeploymentModeBodyData: {
-            /** @enum {string} */
+            /**
+             * @description `single_active` 仅部署激活证书；`multi_sni` 部署整个证书库并使用激活证书作为默认项。
+             * @enum {string}
+             */
             deployment_mode: "single_active" | "multi_sni";
         };
+        /** @description 网关当前部署的证书公开摘要。 */
         SslGatewayCertificateData: {
+            /** @description 网关报告的证书域名集合。 */
             domains?: string[] | null;
+            /** @description 网关已部署证书对应的证书库标识符；旧部署可能为空。 */
             id?: string | null;
+            /** @description 该证书是否是网关的默认服务证书。 */
             is_default?: boolean | null;
+            /** @description 网关已部署证书的显示名称。 */
             label?: string | null;
         };
+        /** @description 从网关读取的 SSL 部署状态；网关不可达时会提供同步错误。 */
         SslGatewayStatusData: {
+            /** @description 网关当前已部署的公开证书摘要。 */
             certificates: components["schemas"]["SslGatewayCertificateData"][];
-            /** @enum {string} */
+            /**
+             * @description 网关实际报告的部署模式。
+             * @enum {string}
+             */
             deployment_mode: "single_active" | "multi_sni";
+            /** @description 网关当前是否启用了 SSL 部署。 */
             enabled: boolean;
+            /** @description 无法读取或同步网关状态时的原因；正常情况下为 `null` 或省略。 */
             sync_error?: string | null;
         };
+        /** @description 共享目录中单个文本文件的内容和元数据；内容可能包含私钥。 */
         SslSharedFileContentData: {
+            /** @description 去除 UTF-8 BOM 后的文本内容；可能包含私钥，禁止在不可信环境中记录或分享。 */
             content: string;
+            /** @description 已读取文件的元数据。 */
             file: components["schemas"]["SslSharedFileData"];
         };
+        /** @description SSL 共享目录中可供预览或导入的文件元数据。 */
         SslSharedFileData: {
+            /** @description 小写文件扩展名，带前导句点；没有扩展名时为空字符串。 */
             extension: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description 文件的最近修改时间。
+             */
             modifiedAt: string;
+            /** @description 文件名，不包含目录部分。 */
             name: string;
+            /** @description 相对于 SSL 共享目录的路径；可用于读取内容接口。 */
             relativePath: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 文件大小，单位为字节。
+             */
             size: number;
         };
+        /** @description SSL 共享目录的可用性及其中的候选文件列表。 */
         SslSharedFilesData: {
+            /** @description 共享目录是否已经配置且可扫描。 */
             available: boolean;
+            /** @description 可预览或导入的候选文件，按修改时间倒序排列。 */
             files: components["schemas"]["SslSharedFileData"][];
+            /** @description SSL 共享目录在界面中使用的名称。 */
             shareName: string;
         };
+        /** @description SSL 模块的完整状态快照，汇总本地证书库、覆盖分析与网关部署结果。 */
         SslStatusData: {
+            /** @description 当前激活证书库条目的标识符；无激活证书时为 `null`。 */
             activeCertId?: string | null;
+            /** @description 当前激活证书的公开解析信息；无激活证书时为 `null`。 */
             certInfo?: null | components["schemas"]["SslCertificateInfoData"];
+            /** @description 证书库的公开摘要列表，不包含 PEM 或私钥。 */
             certificates: components["schemas"]["SslCertificateSummaryData"][];
-            /** @enum {string} */
+            /**
+             * @description 本地配置的部署模式，不受网关临时状态影响。
+             * @enum {string}
+             */
             configuredDeploymentMode: "single_active" | "multi_sni";
-            /** @enum {string} */
+            /**
+             * @description 当前生效的部署模式；网关已报告 `multi_sni` 时优先反映网关状态。
+             * @enum {string}
+             */
             deploymentMode: "single_active" | "multi_sni";
+            /** @description 当前是否存在网关或本地可用的 SSL 部署。 */
             enabled: boolean;
+            /** @description 网关的 SSL 部署状态或同步错误。 */
             gateway_status: components["schemas"]["SslGatewayStatusData"];
+            /** @description 证书库在有效部署模式下的整体域名覆盖分析。 */
             library_coverage: components["schemas"]["SslCertificateLibraryCoverageData"];
+            /** @description 当前激活证书的域名覆盖分析。 */
             subdomain_coverage: components["schemas"]["SslSubdomainCoverageData"];
         };
+        /** @description 单张证书对认证主机和建议域名的覆盖分析。 */
         SslSubdomainCoverageData: {
+            /** @description 需要受到证书覆盖的认证主机；未配置时为 `null`。 */
             auth_host: string | null;
+            /** @description 当前证书声明的 DNS 名称。 */
             certificate_domains: string[];
+            /** @description 已覆盖的实际主机名。 */
             covered_hosts: string[];
+            /** @description 已被当前证书覆盖的建议域名。 */
             covered_recommended_domains: string[];
+            /** @description 当前证书是否覆盖认证主机。 */
             covers_auth_host: boolean;
+            /** @description 根据当前配置建议由证书覆盖的域名集合。 */
             recommended_domains: string[];
-            /** @enum {string} */
+            /**
+             * @description 覆盖结论：`ready` 完整覆盖、`partial` 部分覆盖、`missing` 缺少可用证书。
+             * @enum {string}
+             */
             status: "ready" | "partial" | "missing";
+            /** @description 面向界面显示的本地化覆盖摘要。 */
             summary: string;
+            /** @description 尚未覆盖的实际主机名。 */
             uncovered_hosts: string[];
+            /** @description 尚未被当前证书覆盖的建议域名。 */
             uncovered_recommended_domains: string[];
+            /** @description 需要管理员处理的覆盖风险或配置提示。 */
             warnings: string[];
         };
         StreamBypassConditionData: {
@@ -10546,7 +12255,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除ACME 证书管理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10562,7 +12271,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10582,7 +12291,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10598,7 +12307,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10622,7 +12331,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10638,7 +12347,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10660,7 +12369,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10676,7 +12385,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10698,7 +12407,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10714,7 +12423,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10740,7 +12449,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10756,7 +12465,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10778,7 +12487,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除ACME 证书管理证书」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10787,7 +12496,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10809,7 +12518,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「部署ACME 证书管理应用」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10818,7 +12527,7 @@ export interface operations {
                     "application/json": components["schemas"]["AcmeActionMessageData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10840,7 +12549,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「同步ACME 证书管理证书库」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10856,7 +12565,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10878,7 +12587,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交ACME 证书管理申请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10894,7 +12603,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10916,7 +12625,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理证书」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10932,7 +12641,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10954,7 +12663,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除ACME 证书管理证书」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10963,7 +12672,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -10985,7 +12694,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「部署ACME 证书管理证书」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -10994,7 +12703,7 @@ export interface operations {
                     "application/json": components["schemas"]["AcmeActionMessageData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11016,7 +12725,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description ZIP archive attachment */
+            /** @description 「下载ACME 证书管理证书」成功，返回 ZIP 下载附件；请从 Content-Disposition 获取文件名。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -11027,7 +12736,7 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11051,7 +12760,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交ACME 证书管理客户端设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11067,7 +12776,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11087,7 +12796,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11103,7 +12812,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11127,7 +12836,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交ACME 证书管理配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11143,7 +12852,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11163,7 +12872,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理DNS 提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11179,7 +12888,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11199,7 +12908,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「初始化ACME 证书管理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11215,7 +12924,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11235,7 +12944,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「停止ACME 证书管理活动任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11251,7 +12960,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11273,7 +12982,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11289,7 +12998,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11311,7 +13020,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11327,7 +13036,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11352,7 +13061,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询ACME 证书管理任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11368,7 +13077,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11388,7 +13097,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理概览」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11404,7 +13113,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11428,7 +13137,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交ACME 证书管理申请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11444,7 +13153,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11464,7 +13173,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除ACME 证书管理资源」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11473,7 +13182,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11493,7 +13202,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「取消ACME 证书管理资源」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11509,7 +13218,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11529,7 +13238,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「初始化ACME 证书管理资源」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11545,7 +13254,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11565,7 +13274,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11581,7 +13290,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11601,7 +13310,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11617,7 +13326,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11637,7 +13346,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看ACME 证书管理子域建议」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11653,7 +13362,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11673,7 +13382,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11689,7 +13398,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11713,7 +13422,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11729,7 +13438,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11751,7 +13460,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11760,7 +13469,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11786,7 +13495,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11802,7 +13511,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11828,7 +13537,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改认证与账户访问范围」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11844,7 +13553,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11870,7 +13579,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交认证与账户密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11886,7 +13595,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11912,7 +13621,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「设置认证与账户账户」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11928,7 +13637,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11954,7 +13663,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改认证与账户子域访问范围」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11970,7 +13679,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -11996,7 +13705,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「绑定认证与账户TOTP 凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12012,7 +13721,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12034,7 +13743,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「设置认证与账户TOTP 凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12050,7 +13759,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12072,7 +13781,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除LDAP 认证绑定」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12081,7 +13790,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12101,7 +13810,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看LDAP 认证目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12117,7 +13826,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12141,7 +13850,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交LDAP 认证邀请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12157,7 +13866,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12177,7 +13886,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看LDAP 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12193,7 +13902,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12217,7 +13926,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交LDAP 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12233,7 +13942,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12255,7 +13964,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除LDAP 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12264,7 +13973,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12290,7 +13999,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改LDAP 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12306,7 +14015,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12333,7 +14042,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「测试LDAP 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12342,7 +14051,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExternalAuthConnectionTestData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12364,7 +14073,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看LDAP 认证绑定」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12380,7 +14089,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12400,7 +14109,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看认证与账户模式」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12416,7 +14125,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12440,7 +14149,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「预览认证与账户模式」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12456,7 +14165,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12480,7 +14189,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「切换认证与账户模式」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12496,7 +14205,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12518,7 +14227,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除OIDC 认证绑定」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12527,7 +14236,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12547,7 +14256,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看OIDC 认证目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12563,7 +14272,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12587,7 +14296,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交OIDC 认证邀请」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12603,7 +14312,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12623,7 +14332,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看OIDC 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12639,7 +14348,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12663,7 +14372,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交OIDC 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12679,7 +14388,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12701,7 +14410,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除OIDC 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12710,7 +14419,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12736,7 +14445,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改OIDC 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12752,7 +14461,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12775,7 +14484,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「测试OIDC 认证提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12784,7 +14493,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExternalAuthConnectionTestData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12806,7 +14515,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看OIDC 认证绑定」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12822,7 +14531,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12842,7 +14551,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看登录退避列表」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12858,7 +14567,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12882,7 +14591,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「重置登录退避」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12898,7 +14607,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12920,7 +14629,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看登录退避状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12936,7 +14645,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12956,7 +14665,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看CIDR 地域选择能力」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -12972,7 +14681,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12996,7 +14705,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看CIDR 地域选择CIDR 列表」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13012,7 +14721,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13034,7 +14743,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看CIDR 地域选择城市」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13050,7 +14759,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13070,7 +14779,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看CIDR 地域选择省份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13086,7 +14795,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13108,7 +14817,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看CIDR 地域选择选择器」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13124,7 +14833,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13148,7 +14857,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新Cloudflare 隧道凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13164,7 +14873,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13184,7 +14893,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Cloudflare 隧道凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13193,7 +14902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13213,7 +14922,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道运行状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13229,7 +14938,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13249,7 +14958,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13265,7 +14974,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13289,7 +14998,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Cloudflare 隧道配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13298,7 +15007,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13320,7 +15029,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13336,7 +15045,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13356,7 +15065,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Cloudflare 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13365,7 +15074,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13389,7 +15098,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「应用Cloudflare 隧道优选配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13405,7 +15114,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13431,7 +15140,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新Cloudflare 隧道域名」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13447,7 +15156,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13467,7 +15176,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Cloudflare 隧道故障回退」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13483,7 +15192,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13507,7 +15216,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Cloudflare 隧道扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13523,7 +15232,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13545,7 +15254,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13561,7 +15270,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13583,7 +15292,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Cloudflare 隧道扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13592,7 +15301,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13616,7 +15325,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新Cloudflare 隧道设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13632,7 +15341,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13654,7 +15363,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询Cloudflare 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13670,7 +15379,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13694,7 +15403,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「应用Cloudflare 隧道协调任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13710,7 +15419,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13730,7 +15439,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道活动任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13746,7 +15455,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13768,7 +15477,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道按计划筛选」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13784,7 +15493,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13806,7 +15515,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13822,7 +15531,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13846,7 +15555,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「预览Cloudflare 隧道协调任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13862,7 +15571,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13882,7 +15591,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「启动Cloudflare 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13898,7 +15607,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13918,7 +15627,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Cloudflare 隧道状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13934,7 +15643,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13954,7 +15663,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「停止Cloudflare 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13963,7 +15672,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -13983,7 +15692,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13999,7 +15708,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14019,7 +15728,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置外观」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14035,7 +15744,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14059,7 +15768,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置外观」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14075,7 +15784,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14095,7 +15804,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置认证凭据设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14111,7 +15820,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14135,7 +15844,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置认证凭据设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14151,7 +15860,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14171,7 +15880,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置自动 HTTPS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14187,7 +15896,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14211,7 +15920,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置自动 HTTPS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14227,7 +15936,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14251,7 +15960,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置自动管理防火墙」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14267,7 +15976,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14287,7 +15996,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置验证码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14303,7 +16012,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14327,7 +16036,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置验证码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14343,7 +16052,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14363,7 +16072,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置仪表盘显示」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14379,7 +16088,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14403,7 +16112,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置仪表盘显示」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14419,7 +16128,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14439,7 +16148,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置默认路由」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14455,7 +16164,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14479,7 +16188,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置默认路由」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14488,7 +16197,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14512,7 +16221,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置默认隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14521,7 +16230,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14541,7 +16250,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置防火墙附加端口」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14557,7 +16266,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14581,7 +16290,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置防火墙附加端口」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14597,7 +16306,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14621,7 +16330,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置飞牛证书同步」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14637,7 +16346,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14657,7 +16366,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置详情」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14673,7 +16382,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14697,7 +16406,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「同步系统配置飞牛证书同步」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14713,7 +16422,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14733,7 +16442,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置飞牛 WAF 连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14749,7 +16458,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14773,7 +16482,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置飞牛 WAF 连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14789,7 +16498,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14809,7 +16518,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置飞牛网络调优」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14825,7 +16534,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14849,7 +16558,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置飞牛网络调优」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14865,7 +16574,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14885,7 +16594,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置飞牛端口图标接管」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14901,7 +16610,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14925,7 +16634,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置飞牛端口图标接管」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14941,7 +16650,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -14961,7 +16670,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置飞牛共享绕过」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -14977,7 +16686,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15001,7 +16710,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置飞牛共享绕过」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15017,7 +16726,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15037,7 +16746,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置网关」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15053,7 +16762,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15077,7 +16786,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置网关」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15093,7 +16802,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15113,7 +16822,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置主机响应」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15129,7 +16838,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15153,7 +16862,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置主机响应」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15169,7 +16878,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15189,7 +16898,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置代理请求头」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15205,7 +16914,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15229,7 +16938,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置代理请求头」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15245,7 +16954,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15265,7 +16974,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置可见性」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15281,7 +16990,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15305,7 +17014,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置可见性」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15321,7 +17030,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15341,7 +17050,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看代理与映射配置主机映射目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     /** @description Opaque configuration revision for optimistic concurrency control */
@@ -15361,7 +17070,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15385,7 +17094,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置主机映射目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     /** @description Opaque configuration revision for optimistic concurrency control */
@@ -15405,7 +17114,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15425,7 +17134,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看代理与映射配置主机映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     /** @description Opaque configuration revision for optimistic concurrency control */
@@ -15443,7 +17152,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15467,7 +17176,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置主机映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     /** @description Opaque configuration revision for optimistic concurrency control */
@@ -15485,7 +17194,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15509,7 +17218,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置基础认证探测」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15518,7 +17227,7 @@ export interface operations {
                     "application/json": components["schemas"]["HostMappingBasicAuthProbeData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15538,7 +17247,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description HTML attachment */
+            /** @description 「导出代理与映射配置书签」成功，返回 HTML 内容。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15547,7 +17256,7 @@ export interface operations {
                     "text/html": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15571,7 +17280,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置元数据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15580,7 +17289,7 @@ export interface operations {
                     "application/json": components["schemas"]["HostMappingMetadataData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15600,7 +17309,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置标题刷新」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15609,7 +17318,7 @@ export interface operations {
                     "application/json": components["schemas"]["HostMappingRefreshSummaryData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15631,7 +17340,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看代理与映射配置高级认证」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15640,7 +17349,7 @@ export interface operations {
                     "application/json": components["schemas"]["AdvancedAuthDetailsData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15666,7 +17375,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新代理与映射配置高级认证」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15675,7 +17384,7 @@ export interface operations {
                     "application/json": components["schemas"]["AdvancedAuthDetailsData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15695,7 +17404,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置IP 归属地服务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15711,7 +17420,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15735,7 +17444,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置IP 归属地服务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15751,7 +17460,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15775,7 +17484,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置CIDR 测试」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15784,7 +17493,7 @@ export interface operations {
                     "application/json": components["schemas"]["CidrConnectionTestData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15808,7 +17517,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置IP 查询测试」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15817,7 +17526,7 @@ export interface operations {
                     "application/json": components["schemas"]["IpLocationConnectionTestData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15837,7 +17546,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置语言区域」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15853,7 +17562,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15877,7 +17586,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置语言区域」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15893,7 +17602,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15913,7 +17622,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置协议映射功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15929,7 +17638,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15953,7 +17662,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置协议映射功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15969,7 +17678,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -15993,7 +17702,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置代理映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16009,7 +17718,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16029,7 +17738,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置强制 PROXY 协议」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16045,7 +17754,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16069,7 +17778,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置强制 PROXY 协议」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16085,7 +17794,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16105,7 +17814,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置运行模式提示偏好」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16121,7 +17830,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16145,7 +17854,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置运行模式提示偏好」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16161,7 +17870,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16185,7 +17894,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置运行类型」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16194,7 +17903,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16218,7 +17927,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置智能连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16234,7 +17943,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16254,7 +17963,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置详情」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16270,7 +17979,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16290,7 +17999,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看代理与映射配置流映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16306,7 +18015,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16330,7 +18039,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置流映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16339,7 +18048,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16359,7 +18068,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看代理与映射配置子域模式」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16375,7 +18084,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16399,7 +18108,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交代理与映射配置子域模式」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16415,7 +18124,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16435,7 +18144,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16451,7 +18160,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16475,7 +18184,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16491,7 +18200,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16511,7 +18220,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16527,7 +18236,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16547,7 +18256,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「完成系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16563,7 +18272,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16583,7 +18292,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统配置网络唤醒功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16599,7 +18308,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16623,7 +18332,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置网络唤醒功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16639,7 +18348,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16661,7 +18370,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看仪表盘活跃 IP」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16677,7 +18386,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16697,7 +18406,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看仪表盘实时数据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16713,7 +18422,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16737,7 +18446,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看仪表盘统计数据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16753,7 +18462,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16775,7 +18484,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16791,7 +18500,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16817,7 +18526,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交动态 DNS配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16826,7 +18535,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16846,7 +18555,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS网络接口」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16862,7 +18571,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16886,7 +18595,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「解析动态 DNS网络接口」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16902,7 +18611,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16924,7 +18633,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16940,7 +18649,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16960,7 +18669,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除动态 DNS日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16969,7 +18678,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -16991,7 +18700,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询动态 DNS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17007,7 +18716,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17031,7 +18740,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交动态 DNS提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17040,7 +18749,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17060,7 +18769,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17076,7 +18785,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17100,7 +18809,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「测试动态 DNS公网检测」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17116,7 +18825,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17136,7 +18845,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17152,7 +18861,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17176,7 +18885,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交动态 DNS设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17192,7 +18901,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17212,7 +18921,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17228,7 +18937,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17248,7 +18957,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17264,7 +18973,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17288,7 +18997,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17304,7 +19013,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17326,7 +19035,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17342,7 +19051,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17368,7 +19077,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17384,7 +19093,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17406,7 +19115,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17415,7 +19124,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17441,7 +19150,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交动态 DNS启用状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17450,7 +19159,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17472,7 +19181,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「测试动态 DNS目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17481,7 +19190,7 @@ export interface operations {
                     "application/json": components["schemas"]["DdnsTestResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17501,7 +19210,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「测试动态 DNS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17510,7 +19219,7 @@ export interface operations {
                     "application/json": components["schemas"]["DdnsTestResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17534,7 +19243,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「切换动态 DNS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17543,7 +19252,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17565,7 +19274,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17581,7 +19290,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17605,7 +19314,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17621,7 +19330,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17643,7 +19352,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17659,7 +19368,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17681,7 +19390,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17690,7 +19399,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17712,7 +19421,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description ZIP archive attachment */
+            /** @description 「下载深度监控会话」成功，返回 ZIP 下载附件；请从 Content-Disposition 获取文件名。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -17723,14 +19432,14 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            /** @description The requested stream is empty */
+            /** @description 「下载深度监控会话」已成功完成，不返回响应正文。 */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17763,7 +19472,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看深度监控事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17779,7 +19488,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17802,7 +19511,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看深度监控事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17818,7 +19527,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17845,7 +19554,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Captured event payload */
+            /** @description 「查看深度监控事件载荷」成功，返回二进制下载附件；请从 Content-Disposition 获取文件名。 */
             200: {
                 headers: {
                     /** @description Attachment disposition for streamed payloads */
@@ -17856,14 +19565,14 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description The requested stream is empty */
+            /** @description 「查看深度监控事件载荷」已成功完成，不返回响应正文。 */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17889,7 +19598,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「延长深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17905,7 +19614,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17931,7 +19640,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Live traffic event stream */
+            /** @description 「查看深度监控实时状态」成功，返回实时事件流；连接中断后需要重新订阅。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17940,7 +19649,7 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -17962,7 +19671,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「停止深度监控会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17978,7 +19687,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18005,7 +19714,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18021,7 +19730,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18045,7 +19754,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除系统事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18054,7 +19763,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18074,7 +19783,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「清空系统事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18090,7 +19799,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18110,7 +19819,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「清空防火墙」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18126,7 +19835,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18150,7 +19859,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「重置防火墙」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18166,7 +19875,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18186,7 +19895,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18202,7 +19911,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18226,7 +19935,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交FRPC 隧道配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18235,7 +19944,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18255,7 +19964,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18271,7 +19980,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18295,7 +20004,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18311,7 +20020,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18331,7 +20040,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交FRPC 隧道草稿配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18347,7 +20056,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18371,7 +20080,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18387,7 +20096,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18413,7 +20122,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18429,7 +20138,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18451,7 +20160,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18460,7 +20169,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18484,7 +20193,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18500,7 +20209,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18522,7 +20231,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除FRPC 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18531,7 +20240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18555,7 +20264,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18571,7 +20280,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18593,7 +20302,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「重启FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18609,7 +20318,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18631,7 +20340,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「启动FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18647,7 +20356,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18669,7 +20378,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「停止FRPC 隧道实例」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18678,7 +20387,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18700,7 +20409,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18716,7 +20425,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18736,7 +20445,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除FRPC 隧道日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18745,7 +20454,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18767,7 +20476,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道概览」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18783,7 +20492,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18805,7 +20514,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询FRPC 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18821,7 +20530,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18841,7 +20550,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「启动FRPC 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18857,7 +20566,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18877,7 +20586,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18893,7 +20602,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18913,7 +20622,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「停止FRPC 隧道」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18922,7 +20631,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18942,7 +20651,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看FRPC 隧道Web 状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18958,7 +20667,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -18981,7 +20690,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网关日志分析」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18997,7 +20706,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19020,7 +20729,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交网关日志分析」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19036,7 +20745,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19056,7 +20765,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网关日志配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19072,7 +20781,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19096,7 +20805,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交网关日志配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19112,7 +20821,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19132,7 +20841,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网关日志日期范围」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19148,7 +20857,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19168,7 +20877,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网关日志目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19184,7 +20893,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19215,7 +20924,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网关日志日志条目」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19231,7 +20940,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19255,7 +20964,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除网关日志日志条目」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19271,7 +20980,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19295,7 +21004,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通用黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19311,7 +21020,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19335,7 +21044,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交通用黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19351,7 +21060,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19375,7 +21084,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通用黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19391,7 +21100,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19415,7 +21124,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交通用黑名单状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19431,7 +21140,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19453,7 +21162,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通用黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19469,7 +21178,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19489,7 +21198,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Storage and gateway are healthy */
+            /** @description 「查看服务健康检查」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19498,7 +21207,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description A required runtime component is unavailable */
+            /** @description 服务处理失败；请检查依赖服务和运行日志后重试。 */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -19507,7 +21216,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19531,7 +21240,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交IP 归属地批量查询」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19547,7 +21256,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19567,7 +21276,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看备份与维护自动备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19583,7 +21292,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19607,7 +21316,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新备份与维护自动备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19623,7 +21332,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19643,7 +21352,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看备份与维护文件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19659,7 +21368,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19679,7 +21388,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Binary attachment */
+            /** @description 「导出备份与维护备份」成功，返回二进制下载附件；请从 Content-Disposition 获取文件名。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19688,7 +21397,7 @@ export interface operations {
                     "application/octet-stream": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19708,7 +21417,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交备份与维护飞牛 OS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19724,7 +21433,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19744,7 +21453,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看备份与维护文件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19760,7 +21469,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19784,7 +21493,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「导入备份与维护备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19800,7 +21509,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19824,7 +21533,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交备份与维护自动备份」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19840,7 +21549,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19864,7 +21573,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交备份与维护飞牛 OS」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19880,7 +21589,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19904,7 +21613,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「清空备份与维护数据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19920,7 +21629,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19947,7 +21656,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心投递记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19963,7 +21672,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -19987,7 +21696,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通知中心投递记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20003,7 +21712,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20023,7 +21732,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20039,7 +21748,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20063,7 +21772,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20079,7 +21788,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20099,7 +21808,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心目录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20115,7 +21824,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20139,7 +21848,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「测试通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20148,7 +21857,7 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationProviderTestResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20170,7 +21879,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20186,7 +21895,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20208,7 +21917,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20217,7 +21926,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20243,7 +21952,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20259,7 +21968,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20282,7 +21991,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「测试通知中心提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20291,7 +22000,7 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationProviderTestResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20311,7 +22020,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20327,7 +22036,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20351,7 +22060,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交通知中心规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20367,7 +22076,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20389,7 +22098,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通知中心规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20398,7 +22107,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20424,7 +22133,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改通知中心规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20440,7 +22149,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20465,7 +22174,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看通知中心触发记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20481,7 +22190,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20501,7 +22210,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看管理面板会话引导初始化」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20517,7 +22226,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20541,7 +22250,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「登录管理面板会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20557,7 +22266,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Login rejected with an exponential retry delay */
+            /** @description 请求过于频繁；请遵循响应提示的退避时间后重试。 */
             429: {
                 headers: {
                     /** @description Seconds until the next login attempt */
@@ -20568,7 +22277,7 @@ export interface operations {
                     "application/json": components["schemas"]["PanelLoginRateLimitErrorData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20588,7 +22297,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「退出管理面板会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20604,7 +22313,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20628,7 +22337,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交管理面板会话密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20644,7 +22353,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20668,7 +22377,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改管理面板会话密码」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20684,7 +22393,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20706,7 +22415,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除通行密钥」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20715,7 +22424,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20735,7 +22444,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看运行时健康」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20751,7 +22460,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20771,7 +22480,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看运行时健康诊断信息」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20787,7 +22496,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20807,7 +22516,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Binary attachment */
+            /** @description 「查看运行时健康归档」成功，返回 ZIP 下载附件；请从 Content-Disposition 获取文件名。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20816,7 +22525,7 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20836,7 +22545,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看运行时健康网关内存」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20852,7 +22561,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20876,7 +22585,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新运行时健康网关内存」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20892,7 +22601,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20916,7 +22625,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「释放运行时健康网关内存」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20932,7 +22641,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20956,7 +22665,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看运行时健康日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20972,7 +22681,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -20994,7 +22703,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除运行时健康日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21010,7 +22719,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21030,7 +22739,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看资产扫描发现设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21046,7 +22755,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21070,7 +22779,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交资产扫描发现设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21086,7 +22795,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21106,7 +22815,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看资产扫描发现目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21122,7 +22831,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21146,7 +22855,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交资产扫描发现目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21162,7 +22871,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21186,7 +22895,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交资产扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21202,7 +22911,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21226,7 +22935,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看资产扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21242,7 +22951,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21265,7 +22974,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除资产扫描任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21281,7 +22990,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21305,7 +23014,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「探测资产扫描主机映射」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21321,7 +23030,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21345,7 +23054,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看扫描器黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21361,7 +23070,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21385,7 +23094,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除扫描器黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21394,7 +23103,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21416,7 +23125,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看扫描器黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21432,7 +23141,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21454,7 +23163,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除扫描器黑名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21463,7 +23172,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21483,7 +23192,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看扫描器设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21499,7 +23208,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21523,7 +23232,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交扫描器设置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21539,7 +23248,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21561,7 +23270,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看安全概览概览」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21577,7 +23286,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21597,7 +23306,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看会话管理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21613,7 +23322,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21635,7 +23344,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看会话管理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21651,7 +23360,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21673,7 +23382,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除会话管理」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21682,7 +23391,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21708,7 +23417,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改会话管理备注」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21724,7 +23433,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21746,7 +23455,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看会话管理会话迁移」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21762,7 +23471,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21786,7 +23495,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看SSH 安全封锁记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21802,7 +23511,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21826,7 +23535,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除SSH 安全封锁记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21842,7 +23551,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21864,7 +23573,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看SSH 安全封锁记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21880,7 +23589,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21902,7 +23611,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除SSH 安全封锁记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21911,7 +23620,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21931,7 +23640,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看SSH 安全配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21947,7 +23656,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -21971,7 +23680,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交SSH 安全配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21987,7 +23696,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22007,7 +23716,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「清空SSH 安全防火墙」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22023,7 +23732,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22043,7 +23752,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「同步SSH 安全防火墙」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22059,7 +23768,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22084,7 +23793,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看SSH 安全登录记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22100,7 +23809,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22120,7 +23829,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已清除当前激活证书并尝试同步网关。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22129,7 +23838,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22153,7 +23878,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 已激活指定证书并尝试同步网关。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22162,7 +23887,39 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22182,7 +23939,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已删除本地根 CA 文件。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22191,7 +23948,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22211,7 +23968,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description PEM certificate attachment */
+            /** @description 返回本地根 CA 的 PEM 附件。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -22222,7 +23979,39 @@ export interface operations {
                     "application/x-pem-file": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22242,7 +24031,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 返回本地 CA 主机名列表。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22258,7 +24047,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22282,7 +24087,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 返回更新后的本地 CA 主机名列表。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22298,7 +24103,39 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22322,7 +24159,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 返回更新后的主机名列表；清空全部或无操作时只返回成功标记。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22338,7 +24175,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22358,7 +24211,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已创建本地根 CA，并返回根证书信息。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22374,7 +24227,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22394,7 +24263,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已签发、保存并尝试部署本地 CA 服务器证书。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22403,7 +24272,39 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22423,7 +24324,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description ZIP archive attachment */
+            /** @description 返回基于当前 CA 主机名列表签发的证书和私钥 ZIP 附件。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -22434,7 +24335,39 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22454,7 +24387,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 返回本地根 CA 的初始化状态及证书信息。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22470,7 +24403,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22490,7 +24439,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description PEM certificate attachment */
+            /** @description 返回当前激活证书的 PEM 附件。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -22501,7 +24450,39 @@ export interface operations {
                     "application/x-pem-file": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22521,7 +24502,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description ZIP archive attachment */
+            /** @description 返回包含当前激活证书和私钥的 ZIP 附件。 */
             200: {
                 headers: {
                     /** @description Attachment filename */
@@ -22532,7 +24513,39 @@ export interface operations {
                     "application/zip": string;
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22556,7 +24569,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 已保存证书库条目，并返回其稳定标识符。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22572,7 +24585,39 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22592,7 +24637,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已清空证书库并尝试同步网关。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22601,7 +24646,23 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22623,7 +24684,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 已删除指定证书库条目，并在需要时同步网关。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22632,7 +24693,39 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22656,7 +24749,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 已切换部署模式，并返回更新后的 SSL 状态快照。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22672,7 +24765,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22692,7 +24801,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 返回共享目录可用性及可读取的候选文件元数据。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22708,7 +24817,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22730,7 +24839,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 返回文件元数据及 UTF-8 文本内容。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22746,7 +24855,55 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 共享目录中的目标文件存在，但当前进程没有读取权限。 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22766,7 +24923,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 返回 SSL 证书库、覆盖分析和网关部署快照。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22782,7 +24939,23 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22802,7 +24975,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交系统配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22818,7 +24991,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22838,7 +25011,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统服务访问入口」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22854,7 +25027,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22874,7 +25047,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「检查系统服务系统时钟」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22890,7 +25063,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22910,7 +25083,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统服务状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22926,7 +25099,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22946,7 +25119,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「同步系统服务系统时钟」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22955,7 +25128,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemClockSyncResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -22975,7 +25148,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除系统服务Cloudflare 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22984,7 +25157,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23004,7 +25177,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「取消系统服务Cloudflare 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23013,7 +25186,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23033,7 +25206,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「下载系统服务Cloudflare 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23042,7 +25215,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23062,7 +25235,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统服务状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23078,7 +25251,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23098,7 +25271,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「安装系统服务DNS 转发组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23114,7 +25287,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23134,7 +25307,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统服务状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23150,7 +25323,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23170,7 +25343,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除系统服务FRP 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23179,7 +25352,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23199,7 +25372,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「取消系统服务FRP 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23208,7 +25381,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23228,7 +25401,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「下载系统服务FRP 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23237,7 +25410,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemAssetMutationResponseData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23257,7 +25430,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统服务状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23273,7 +25446,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23295,7 +25468,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23304,7 +25477,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23330,7 +25503,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「输入Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23339,7 +25512,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23364,7 +25537,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮询Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23380,7 +25553,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23406,7 +25579,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「调整大小Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23422,7 +25595,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23442,7 +25615,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23458,7 +25631,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23482,7 +25655,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23498,7 +25671,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23520,7 +25693,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23536,7 +25709,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23558,7 +25731,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23567,7 +25740,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23593,7 +25766,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23609,7 +25782,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23631,7 +25804,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23647,7 +25820,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23667,7 +25840,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 终端状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23683,7 +25856,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23703,7 +25876,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「安装Web 终端Tmux 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23719,7 +25892,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23743,7 +25916,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「绑定TOTP 凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23752,7 +25925,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23772,7 +25945,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「导出TOTP 凭据凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23781,7 +25954,7 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialTransferData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23805,7 +25978,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「导入TOTP 凭据凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23821,7 +25994,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23841,7 +26014,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「设置TOTP 凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23857,7 +26030,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23877,7 +26050,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看TOTP 凭据状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23893,7 +26066,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23915,7 +26088,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除TOTP 凭据」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23924,7 +26097,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23950,7 +26123,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改TOTP 凭据访问范围」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23966,7 +26139,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -23992,7 +26165,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改TOTP 凭据备注」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24001,7 +26174,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24027,7 +26200,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改TOTP 凭据子域访问范围」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24043,7 +26216,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24066,7 +26239,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看TOTP 凭据通行密钥」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24082,7 +26255,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24102,7 +26275,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「检查系统更新」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24118,7 +26291,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24138,7 +26311,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「检查并下载系统更新」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24154,7 +26327,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24174,7 +26347,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统更新确认信息」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24190,7 +26363,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24210,7 +26383,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「下载系统更新」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24226,7 +26399,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24246,7 +26419,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「安装系统更新」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24255,7 +26428,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24275,7 +26448,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看系统更新状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24291,7 +26464,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24315,7 +26488,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Web 应用防火墙配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24331,7 +26504,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24355,7 +26528,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「上传Web 应用防火墙自定义规则文件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24371,7 +26544,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24393,7 +26566,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Web 应用防火墙自定义规则文件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24409,7 +26582,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24429,7 +26602,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 应用防火墙详情」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24445,7 +26618,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24465,7 +26638,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「排空Web 应用防火墙事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24481,7 +26654,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24512,7 +26685,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 应用防火墙日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24528,7 +26701,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24552,7 +26725,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「删除Web 应用防火墙日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24568,7 +26741,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24590,7 +26763,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 应用防火墙日志」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24606,7 +26779,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24626,7 +26799,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「刷新Web 应用防火墙规则清单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24642,7 +26815,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24666,7 +26839,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Web 应用防火墙启用状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24682,7 +26855,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24702,7 +26875,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「提交Web 应用防火墙推荐规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24718,7 +26891,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24741,7 +26914,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 应用防火墙规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24757,7 +26930,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24777,7 +26950,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看Web 应用防火墙状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24793,7 +26966,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24813,7 +26986,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「同步Web 应用防火墙系统规则」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24829,7 +27002,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24849,7 +27022,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24865,7 +27038,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24889,7 +27062,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24905,7 +27078,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24925,7 +27098,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看白名单地区分组」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24941,7 +27114,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -24965,7 +27138,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交白名单地区分组」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24981,7 +27154,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25004,7 +27177,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除白名单地区分组」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25013,7 +27186,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25036,7 +27209,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25045,7 +27218,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25072,7 +27245,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「修改白名单备注」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25081,7 +27254,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25104,7 +27277,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「刷新白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25113,7 +27286,7 @@ export interface operations {
                     "application/json": components["schemas"]["WhitelistRefreshEnvelopeData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25137,7 +27310,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交网络唤醒任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25153,7 +27326,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25177,7 +27350,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25193,7 +27366,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25216,7 +27389,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除网络唤醒任务」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25232,7 +27405,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25252,7 +27425,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒本地中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25268,7 +27441,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25292,7 +27465,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新网络唤醒本地中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25308,7 +27481,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25332,7 +27505,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「配对网络唤醒本地中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25348,7 +27521,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25368,7 +27541,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25384,7 +27557,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25408,7 +27581,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25424,7 +27597,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25446,7 +27619,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25462,7 +27635,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25488,7 +27661,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25504,7 +27677,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25526,7 +27699,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25535,7 +27708,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25557,7 +27730,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「探测网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25573,7 +27746,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25595,7 +27768,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「轮换预共享密钥网络唤醒中继」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25611,7 +27784,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25631,7 +27804,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25647,7 +27820,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25671,7 +27844,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25687,7 +27860,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25709,7 +27882,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「查看网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25725,7 +27898,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25751,7 +27924,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「更新网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25767,7 +27940,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25789,7 +27962,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「删除网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25798,7 +27971,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25820,7 +27993,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful response */
+            /** @description 「唤醒网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25836,7 +28009,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -25860,7 +28033,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful response */
+            /** @description 「提交内部系统事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -25869,7 +28042,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemEventPublishResultData"];
                 };
             };
-            /** @description Standard fn-knock error response */
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
             default: {
                 headers: {
                     [name: string]: unknown;

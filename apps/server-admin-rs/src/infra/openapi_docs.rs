@@ -14,7 +14,9 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{app_version::APP_LOCAL_VERSION, state::AppState};
 
+mod baseline_docs;
 mod domain_contracts;
+mod ssl_docs;
 
 #[derive(ToSchema)]
 #[allow(dead_code)]
@@ -3596,6 +3598,10 @@ pub(crate) fn build_openapi_document() -> Value {
             ("/api/admin/acme/certs/{domain}/deploy", "post"),
         ],
     );
+    baseline_docs::apply(&mut paths);
+    ssl_docs::apply(&mut paths, &mut components);
+    let mut tags = baseline_docs::tags();
+    tags.push(ssl_docs::tag());
 
     json!({
         "openapi": "3.1.0",
@@ -3610,6 +3616,7 @@ pub(crate) fn build_openapi_document() -> Value {
                 "description": "server-admin (port 7998)"
             }
         ],
+        "tags": tags,
         "paths": Value::Object(paths),
         "components": Value::Object(components)
     })
@@ -4305,6 +4312,151 @@ mod tests {
         assert!(SWAGGER_UI_STYLESHEET.len() > 100_000);
         assert!(SWAGGER_UI_BUNDLE.len() > 1_000_000);
         assert!(SWAGGER_UI_STANDALONE_PRESET.len() > 200_000);
+    }
+
+    #[test]
+    fn ssl_operations_have_curated_swagger_documentation() {
+        let document = document_value();
+        let ssl_tag = document
+            .get("tags")
+            .and_then(Value::as_array)
+            .and_then(|tags| tags.iter().find(|tag| tag["name"] == "ssl"))
+            .expect("SSL tag documentation");
+        assert!(ssl_tag["description"].as_str().is_some_and(|description| {
+            description.contains("证书库") && description.contains("同源管理面板")
+        }));
+        assert!(
+            !ssl_tag["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("\\n")),
+            "tag descriptions must contain real line breaks instead of literal escape sequences"
+        );
+
+        let mut ssl_operations = 0;
+        let paths = document["paths"].as_object().expect("OpenAPI paths");
+        for path_item in paths.values().filter_map(Value::as_object) {
+            for operation in path_item.values().filter_map(Value::as_object) {
+                if operation["tags"] != json!(["ssl"]) {
+                    continue;
+                }
+                ssl_operations += 1;
+                assert!(
+                    operation["summary"].as_str().is_some_and(|summary| summary
+                        .chars()
+                        .any(|character| !character.is_ascii()))
+                );
+                assert!(
+                    operation["description"]
+                        .as_str()
+                        .is_some_and(|description| {
+                            description.chars().any(|character| !character.is_ascii())
+                        })
+                );
+                assert!(
+                    operation["responses"]["200"]["description"]
+                        .as_str()
+                        .is_some_and(|description| {
+                            description.chars().any(|character| !character.is_ascii())
+                        })
+                );
+            }
+        }
+        assert_eq!(ssl_operations, 20);
+
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1ssl~1certificates/post/responses/400")
+                .is_some()
+        );
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1ssl~1activate/post/responses/404")
+                .is_some()
+        );
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1ssl~1shared-files~1content/get/responses/403")
+                .is_some()
+        );
+        assert!(
+            document
+                .pointer("/components/schemas/SslCertificateSaveBodyData/properties/key/writeOnly")
+                == Some(&json!(true))
+        );
+        assert!(
+            document
+                .pointer(
+                    "/components/schemas/SslCertificateSaveBodyData/properties/key/description"
+                )
+                .and_then(Value::as_str)
+                .is_some_and(|description| description.contains("仅写入"))
+        );
+        assert!(
+            !serde_json::to_string(&document)
+                .expect("serialize OpenAPI document")
+                .contains("-----BEGIN PRIVATE KEY-----")
+        );
+    }
+
+    #[test]
+    fn every_operation_has_a_chinese_swagger_baseline() {
+        let document = document_value();
+        let paths = document["paths"].as_object().expect("OpenAPI paths");
+        let tags = document["tags"].as_array().expect("top-level OpenAPI tags");
+        let documented_tags = tags
+            .iter()
+            .filter_map(|tag| tag["name"].as_str())
+            .collect::<BTreeSet<_>>();
+        let mut operation_tags = BTreeSet::new();
+        let mut operations = 0;
+        for path_item in paths.values().filter_map(Value::as_object) {
+            for operation in path_item.values().filter_map(Value::as_object) {
+                operations += 1;
+                for tag in operation["tags"].as_array().into_iter().flatten() {
+                    if let Some(tag) = tag.as_str() {
+                        operation_tags.insert(tag);
+                    }
+                }
+                for field in ["summary", "description"] {
+                    assert!(operation[field].as_str().is_some_and(|value| {
+                        value.chars().any(|character| !character.is_ascii())
+                    }));
+                }
+                let summary = operation["summary"].as_str().expect("operation summary");
+                let untranslated = summary
+                    .replace("Cloudflare", "")
+                    .replace("Web", "")
+                    .replace("Tmux", "");
+                assert!(
+                    !untranslated
+                        .chars()
+                        .any(|character| character.is_ascii_lowercase()),
+                    "summary must not expose untranslated path segments: {summary}"
+                );
+                for response in operation["responses"]
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|responses| responses.values())
+                {
+                    assert!(
+                        response["description"].as_str().is_some_and(|description| {
+                            description.chars().any(|character| !character.is_ascii())
+                        }),
+                        "response descriptions must be localized"
+                    );
+                }
+            }
+        }
+        assert_eq!(operations, 416);
+        assert_eq!(documented_tags, operation_tags);
+        assert!(documented_tags.iter().all(|tag| {
+            tags.iter().any(|item| {
+                item["name"] == *tag
+                    && item["description"].as_str().is_some_and(|description| {
+                        description.chars().any(|character| !character.is_ascii())
+                    })
+            })
+        }));
     }
 
     #[test]

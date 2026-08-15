@@ -6,6 +6,7 @@ const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
 type Schema = {
+  description?: string;
   enum?: string[];
   format?: string;
   items?: Schema;
@@ -18,6 +19,7 @@ type Schema = {
 
 type Operation = {
   "x-fn-knock-contract-source"?: string;
+  description?: string;
   parameters?: Array<{
     in?: string;
     name?: string;
@@ -26,12 +28,23 @@ type Operation = {
   }>;
   requestBody?: {
     required?: boolean;
-    content?: Record<string, { schema?: Schema }>;
+    content?: Record<
+      string,
+      { examples?: Record<string, { value?: unknown }>; schema?: Schema }
+    >;
   };
   responses?: Record<
     string,
-    { content?: Record<string, { schema?: Schema }> }
+    {
+      content?: Record<
+        string,
+        { examples?: Record<string, { value?: unknown }>; schema?: Schema }
+      >;
+      description?: string;
+    }
   >;
+  summary?: string;
+  tags?: string[];
 };
 
 const contract = JSON.parse(
@@ -39,6 +52,7 @@ const contract = JSON.parse(
 ) as {
   components: { schemas: Record<string, Schema> };
   paths: Record<string, Record<string, Operation>>;
+  tags?: Array<{ description?: string; name?: string }>;
 };
 
 describe("SSL certificate API contract", () => {
@@ -79,7 +93,10 @@ describe("SSL certificate API contract", () => {
     assert.ok(save.required?.includes("cert"));
     assert.ok(save.required?.includes("key"));
     assert.equal(save.properties?.key?.writeOnly, true);
+    assert.match(save.properties?.key?.description ?? "", /仅写入/u);
+    assert.match(save.properties?.cert?.description ?? "", /PEM/u);
     assert.equal(status.properties?.key, undefined);
+    assert.match(status.description ?? "", /状态快照/u);
     assert.deepEqual(status.properties?.deploymentMode?.enum, [
       "single_active",
       "multi_sni",
@@ -91,6 +108,77 @@ describe("SSL certificate API contract", () => {
     ]) {
       assert.ok(status.required?.includes(field), field);
     }
+  });
+
+  it("documents every SSL operation in Chinese without publishing private keys", () => {
+    const sslTag = contract.tags?.find((tag) => tag.name === "ssl");
+    assert.match(sslTag?.description ?? "", /证书库/u);
+    assert.match(sslTag?.description ?? "", /同源管理面板/u);
+    assert.doesNotMatch(
+      sslTag?.description ?? "",
+      /\\n/u,
+      "tag descriptions must use real line breaks instead of literal escape sequences",
+    );
+
+    const sslOperations = Object.values(contract.paths).flatMap((pathItem) =>
+      Object.values(pathItem).filter(
+        (operation) =>
+          operation["x-fn-knock-contract-source"] === "utoipa" &&
+          operation.tags?.includes("ssl"),
+      ),
+    );
+    assert.equal(sslOperations.length, 20);
+    for (const operation of sslOperations) {
+      assert.match(operation.summary ?? "", /[\u4e00-\u9fff]/u);
+      assert.match(operation.description ?? "", /[\u4e00-\u9fff]/u);
+      assert.match(operation.responses?.["200"]?.description ?? "", /[\u4e00-\u9fff]/u);
+    }
+
+    const save = contract.paths["/api/admin/ssl/certificates"].post;
+    assert.equal(
+      save.requestBody?.content?.["application/json"]?.examples,
+      undefined,
+      "certificate import must not publish a fake PEM or private-key example",
+    );
+    assert.doesNotMatch(
+      JSON.stringify(contract),
+      /-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----/u,
+    );
+  });
+
+  it("documents SSL examples and operation-specific errors", () => {
+    const activate = contract.paths["/api/admin/ssl/activate"].post;
+    const deployment = contract.paths["/api/admin/ssl/deployment-mode"].post;
+    const caHosts = contract.paths["/api/admin/ssl/ca/hosts"];
+    assert.ok(
+      activate.requestBody?.content?.["application/json"]?.examples?.activate,
+    );
+    assert.ok(
+      deployment.requestBody?.content?.["application/json"]?.examples?.multiSni,
+    );
+    assert.ok(
+      caHosts.post?.requestBody?.content?.["application/json"]?.examples
+        ?.addHost,
+    );
+    assert.ok(
+      caHosts.delete?.requestBody?.content?.["application/json"]?.examples
+        ?.clearAll,
+    );
+
+    assert.ok(
+      contract.paths["/api/admin/ssl/certificates"].post.responses?.["400"],
+    );
+    assert.ok(
+      contract.paths["/api/admin/ssl/activate"].post.responses?.["404"],
+    );
+    assert.ok(
+      contract.paths["/api/admin/ssl/shared-files/content"].get.responses?.[
+        "403"
+      ],
+    );
+    assert.ok(
+      contract.paths["/api/admin/ssl/ca/init"].post.responses?.["500"],
+    );
   });
 
   it("preserves shared-file, CA deletion, and attachment compatibility", () => {

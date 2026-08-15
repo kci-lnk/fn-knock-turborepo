@@ -71,6 +71,12 @@ const router = createRouter({
           component: () => import("../views/StreamMappings.vue"),
         },
         {
+          path: "streams/:protocol/:port/bypass-policy",
+          name: "StreamBypassPolicy",
+          component: () =>
+            import("../views/stream-mappings/StreamBypassPolicy.vue"),
+        },
+        {
           path: "ssl",
           name: "SSLSettings",
           component: () => import("../views/SSLSettings.vue"),

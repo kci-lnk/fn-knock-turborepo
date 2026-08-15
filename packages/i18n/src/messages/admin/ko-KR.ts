@@ -3133,6 +3133,72 @@ export const koKRAdmin = {
   },
   streamMappings: {
     title: "프로토콜 매핑",
+    serviceProfile: "서비스 식별",
+    serviceUnknown: "알 수 없는 서비스",
+    validationStrict: "엄격한 프로토콜 검증",
+    validationOff: "엄격한 검증 꺼짐",
+    probe: "감지",
+    probing: "감지 중...",
+    probeVerified: "대상 서비스가 확인되었습니다",
+    probeUnverified: "대상이 확인되지 않아 매핑이 비활성 상태로 유지됩니다",
+    probeFailed: "대상 서비스 감지 실패",
+    probeAuthenticatedHttp:
+      "HTTP가 감지되었지만 업스트림 인증이 애플리케이션 프로토콜을 숨기고 있습니다",
+    probeAuthenticatedHttpDescription:
+      "업스트림 자격 증명 없이는 WebDAV와 일반 HTTP를 확실히 구분할 수 없습니다. 서비스 유형을 지정하세요.",
+    bypassPolicy: "로그인 생략 설정",
+    bypassPolicyTitle: "소스별 로그인 생략 설정",
+    bypassPolicyDescription:
+      "규칙 그룹 중 하나와 일치하는 소스는 웹 로그인 없이 연결할 수 있으며, 일치하지 않는 소스는 계속 로그인해야 합니다. 그룹은 OR, 그룹 내 조건은 AND입니다.",
+    policyBack: "프로토콜 매핑으로 돌아가기",
+    policyNotFound: "프로토콜 매핑을 찾을 수 없습니다.",
+    policyEnabled: "지정한 소스의 로그인 생략",
+    policyEnabledDescription:
+      "아래 규칙과 일치하는 소스는 직접 연결할 수 있고, 다른 소스는 현재 로그인 인증 절차를 계속 사용합니다.",
+    policyAuthDisabledNotice:
+      "이 매핑은 로그인 인증이 꺼져 있어 모든 소스가 이미 로그인 없이 연결할 수 있으므로 이 설정이 필요하지 않습니다. 규칙은 초안으로 저장할 수 있습니다.",
+    policyValidationNotice:
+      "로그인 생략은 로그인 인증만 건너뜁니다. 서비스 식별과 엄격한 프로토콜 검증은 계속 실행됩니다.",
+    policyRuleGroups: "로그인 생략 소스 규칙",
+    policyNoGroups: "추가된 소스 규칙 그룹이 없습니다",
+    policyGroupAll: "그룹의 모든 소스 조건이 일치해야 합니다",
+    policyRegionDescription:
+      "저장할 때 선택 지역을 고정된 불변 CIDR 집합으로 컴파일합니다.",
+    policyMissingRules: "우회를 사용하려면 규칙 그룹을 하나 이상 추가하세요.",
+    policyEmptyGroup: "규칙 그룹은 비워 둘 수 없습니다.",
+    policyInvalidCondition: "모든 소스 IP 또는 소스 지역 조건을 완성하세요.",
+    policyBroadRuleConfirm: "넓은 소스 범위와 일치할 수 있습니다. 저장할까요?",
+    policyBroadRuleWarning: "넓은 소스 규칙은 저장할 때 확인이 필요합니다.",
+    policySaveHint:
+      "저장 후 일치하는 소스는 직접 연결할 수 있고, 일치하지 않는 소스는 계속 로그인해야 합니다.",
+    policyDisabledSaveHint:
+      "저장하면 지정 소스 로그인 생략이 비활성화됩니다. 기존 규칙은 나중에 다시 사용할 수 있도록 초안으로 유지됩니다.",
+    policyDiscardConfirm: "저장하지 않은 우회 정책 변경을 버릴까요?",
+    policyActive: "지정한 소스는 로그인 불필요",
+    policyDraft: "로그인 생략 규칙 비활성",
+    savingPolicy: "저장 중...",
+    savePolicy: "정책 컴파일 및 저장",
+    policyLoadFailed: "우회 정책을 불러오지 못했습니다",
+    policySaved: "우회 정책을 저장했습니다",
+    policySaveFailed: "우회 정책 저장 실패",
+    selectService: "서비스 유형 지정",
+    selectServiceTitle: "서비스 유형 지정",
+    selectServiceDescription:
+      "대상에서 실행 중인 서비스를 확인하고 해당 엄격한 프로토콜 검증을 활성화합니다. 로그인 요구 사항은 변경되지 않습니다.",
+    selectServicePlaceholder: "서비스 유형 선택",
+    selectServiceWarning:
+      "잘못 선택하면 연결이 거부됩니다. 로그인을 생략하려면 별도로 '로그인 생략 설정'을 구성하거나 매핑 편집에서 로그인 인증 요구를 끄세요.",
+    confirmService: "확인 후 검증 활성화",
+    clearService: "지정 해제",
+    clearServiceTitle: "지정한 서비스 유형을 해제할까요?",
+    clearServiceDescription:
+      "엄격한 프로토콜 검증을 끄고 매핑을 비활성화합니다. 로그인 인증과 로그인 생략 규칙은 유지됩니다. 다시 감지하거나 서비스 유형을 다시 지정한 후 사용하세요.",
+    clearServiceConfirm: "해제 후 비활성화",
+    serviceCatalogFailed: "서비스 카탈로그를 불러오지 못했습니다",
+    serviceConfirmed: "서비스 유형을 확인하고 엄격한 검증을 활성화했습니다",
+    serviceConfirmFailed: "예상 서비스 확인 실패",
+    serviceCleared: "서비스 유형 지정을 해제하고 매핑을 비활성화했습니다",
+    serviceClearFailed: "서비스 유형 지정 해제 실패",
     scheduleAvailability: "활성화 또는 비활성화 예약",
     scheduleOpen: "예약 개방 중 {window}",
     scheduleClosed: "예약 닫힘 {window}",
@@ -3174,10 +3240,10 @@ export const koKRAdmin = {
     commentUpdated: "메모가 업데이트되었습니다.",
     commentUpdateFailed: "메모를 업데이트하지 못했습니다.",
     target: "대상 주소",
-    authStatus: "인증 상태",
+    authStatus: "로그인 요구 사항",
     empty: "아직 설정된 프로토콜 매핑이 없습니다.",
-    authRequired: "인증이 필요합니다",
-    publicAccess: "외부 접근",
+    authRequired: "로그인 필요",
+    publicAccess: "모든 소스 로그인 불필요",
     edit: "편집",
     delete: "삭제",
     deleteTitle: "{protocol} 프로토콜 매핑을 삭제하시겠습니까?",
@@ -3197,9 +3263,11 @@ export const koKRAdmin = {
     targetPlaceholder: "예: 127.0.0.1:3306",
     targetHint:
       "호스트:포트만 지원됩니다. http:// 또는 다른 프로토콜 접두사를 포함하지 마세요.",
-    authRequiredLabel: "인증 필요",
-    authRequiredHint:
-      "활성화하면 먼저 출발지 IP를 기준으로 인증을 확인하며, 인증에 실패한 연결은 즉시 종료됩니다.",
+    authRequiredLabel: "로그인 인증 필요",
+    authRequiredEnabledHint:
+      "켜짐: 기본적으로 먼저 웹에서 로그인해야 합니다. 저장 후 '로그인 생략 설정'에서 지정한 소스만 직접 연결하도록 허용할 수 있습니다.",
+    authRequiredDisabledHint:
+      "꺼짐: 모든 소스가 로그인 없이 직접 연결할 수 있습니다. 대상 서비스 자체에 보안 보호가 있는지 확인하세요.",
     saveMapping: "매핑 저장",
     protocolRequired: "전송 프로토콜을 하나 이상 선택하세요.",
     portRequired: "외부 포트가 필요합니다.",

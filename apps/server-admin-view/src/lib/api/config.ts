@@ -13,10 +13,11 @@ import type {
 import { apiClient } from "./client";
 import { configAuthApi } from "./config-auth-api";
 import { configCoreApi } from "./config-core-api";
+import { configProxyApi } from "./config-proxy-api";
 import {
-  configProxyApi,
+  configStreamApi,
   STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE,
-} from "./config-proxy-api";
+} from "./config-stream-api";
 
 type CaptchaSettings = ApiContractComponents["schemas"]["CaptchaSettingsData"];
 type CaptchaSettingsUpdate =
@@ -29,6 +30,7 @@ type MaintenanceClearResult =
 export const ConfigAPI = {
   ...configCoreApi,
   ...configProxyApi,
+  ...configStreamApi,
   ...configAuthApi,
 };
 
@@ -37,6 +39,13 @@ export type {
   AdvancedAuthDetails,
   HostMappingBasicAuthProbeResult,
 } from "./config-proxy-api";
+export type {
+  StreamBypassPolicy,
+  StreamProbeResult,
+  StreamServiceCatalog,
+  StreamServiceDescriptor,
+  StreamServiceProfile,
+} from "./config-stream-api";
 export type {
   RevisionedConfig,
   RevisionedHostMappingCatalog,

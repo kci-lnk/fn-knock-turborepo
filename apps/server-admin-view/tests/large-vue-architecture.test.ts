@@ -26,10 +26,7 @@ const pageBudgets = [
     "../src/views/event-center/notifications/NotificationRuleConditions.vue",
     130,
   ],
-  [
-    "../src/views/event-center/notifications/NotificationRuleTargets.vue",
-    170,
-  ],
+  ["../src/views/event-center/notifications/NotificationRuleTargets.vue", 170],
   [
     "../src/views/event-center/notifications/NotificationRulesClearDialog.vue",
     80,
@@ -125,15 +122,9 @@ const pageBudgets = [
     190,
   ],
   ["../src/views/system-settings/SmartConnectSettings.vue", 310],
-  [
-    "../src/views/system-settings/smart-connect/SmartConnectFormPanel.vue",
-    340,
-  ],
+  ["../src/views/system-settings/smart-connect/SmartConnectFormPanel.vue", 340],
   ["../src/views/system-settings/CaptchaSettings.vue", 300],
-  [
-    "../src/views/system-settings/captcha/PowCaptchaSettingsFields.vue",
-    180,
-  ],
+  ["../src/views/system-settings/captcha/PowCaptchaSettingsFields.vue", 180],
   [
     "../src/views/system-settings/captcha/TurnstileCaptchaSettingsFields.vue",
     170,
@@ -157,7 +148,10 @@ const pageBudgets = [
   ["../src/components/stale-host-mappings/StaleHostMappingsResults.vue", 220],
   ["../src/views/subdomain-proxy/SubdomainMappingStatusIndicators.vue", 70],
   ["../src/views/subdomain-proxy/SubdomainMappingStatusTooltip.vue", 70],
-  ["../src/views/subdomain-proxy/SubdomainMappingAvailabilityIndicators.vue", 100],
+  [
+    "../src/views/subdomain-proxy/SubdomainMappingAvailabilityIndicators.vue",
+    100,
+  ],
   ["../src/views/subdomain-proxy/SubdomainMappingAccessIndicators.vue", 150],
   ["../src/views/subdomain-proxy/SubdomainMappingSecurityIndicators.vue", 180],
   ["../src/views/subdomain-proxy/SubdomainMappingsCard.vue", 150],
@@ -244,16 +238,63 @@ describe("large Vue architecture", () => {
 
   it("keeps stream mapping form state inside its editor component", () => {
     const source = readSource("../src/views/StreamMappings.vue");
+    const configApiSource = readSource("../src/lib/api/config.ts");
+    const proxyApiSource = readSource("../src/lib/api/config-proxy-api.ts");
+    const streamApiSource = readSource("../src/lib/api/config-stream-api.ts");
     const tableSource = readSource(
       "../src/views/stream-mappings/StreamMappingTable.vue",
+    );
+    const rowActionsSource = readSource(
+      "../src/views/stream-mappings/StreamMappingRowActions.vue",
+    );
+    const editorSource = readSource(
+      "../src/views/stream-mappings/StreamMappingEditorDialog.vue",
+    );
+    const serviceDialogSource = readSource(
+      "../src/views/stream-mappings/StreamServiceProfileDialog.vue",
     );
     assert.match(source, /StreamMappingEditorDialog/u);
     assert.match(source, /StreamMappingDisabledAlert/u);
     assert.match(source, /StreamMappingTable/u);
     assert.match(tableSource, /InlineCommentEditor/u);
+    assert.match(tableSource, /StreamMappingRowActions/u);
+    assert.match(tableSource, /table-fixed/u);
+    assert.doesNotMatch(tableSource, /ConfirmDangerPopover/u);
+    assert.match(rowActionsSource, /rounded-r-none/u);
+    assert.match(rowActionsSource, /DropdownMenu/u);
+    assert.match(rowActionsSource, /variant="destructive"/u);
+    assert.match(editorSource, /authRequiredEnabledHint/u);
+    assert.match(editorSource, /authRequiredDisabledHint/u);
+    assert.match(serviceDialogSource, /<option value="" disabled>/u);
+    assert.match(serviceDialogSource, /clearService/u);
     assert.match(source, /streamMappingModel/u);
+    assert.match(configApiSource, /configStreamApi/u);
+    assert.match(streamApiSource, /updateStreamBypassPolicy/u);
+    assert.doesNotMatch(proxyApiSource, /updateStreamBypassPolicy/u);
     assert.doesNotMatch(source, /hasAttemptedSubmit/u);
     assert.doesNotMatch(source, /isValidHostPort/u);
+  });
+
+  it("keeps stream bypass policy editing visual and controller-driven", () => {
+    const page = readSource(
+      "../src/views/stream-mappings/StreamBypassPolicy.vue",
+    );
+    const editor = readSource(
+      "../src/views/stream-mappings/StreamBypassPolicyEditor.vue",
+    );
+    const controller = readSource(
+      "../src/views/stream-mappings/useStreamBypassPolicyPage.ts",
+    );
+    const conditions = readSource(
+      "../src/views/stream-mappings/StreamBypassConditionEditor.vue",
+    );
+    assert.match(page, /useStreamBypassPolicyPage/u);
+    assert.match(page, /StreamBypassPolicyEditor/u);
+    assert.doesNotMatch(page, /ConfigAPI|JSON\.parse|Textarea/u);
+    assert.match(editor, /StreamBypassRuleGroups/u);
+    assert.match(controller, /ConfigAPI|onBeforeRouteLeave/u);
+    assert.match(conditions, /CidrRegionSelector/u);
+    assert.doesNotMatch(conditions, /JSON\.parse|Textarea/u);
   });
 
   it("separates host traffic data and overlay interaction", () => {
@@ -312,7 +353,9 @@ describe("large Vue architecture", () => {
   });
 
   it("keeps runtime API orchestration out of the runtime presentation", () => {
-    const runtimeSource = readSource("../src/views/event-center/RuntimeTab.vue");
+    const runtimeSource = readSource(
+      "../src/views/event-center/RuntimeTab.vue",
+    );
     const controllerSource = readSource(
       "../src/views/event-center/useRuntimeHealth.ts",
     );
@@ -376,7 +419,10 @@ describe("large Vue architecture", () => {
       "../src/views/session-management/GeneralBlacklistTab.vue",
     );
     assert.match(frpcSource, /useFrpcInstancePage/u);
-    assert.doesNotMatch(frpcSource, /FrpcAPI|ConfigAPI|createVisibilityPoller/u);
+    assert.doesNotMatch(
+      frpcSource,
+      /FrpcAPI|ConfigAPI|createVisibilityPoller/u,
+    );
     assert.match(whitelistSource, /useIpWhitelistPage/u);
     assert.match(whitelistSource, /WhitelistRecordsPanel/u);
     assert.match(whitelistSource, /WhitelistRegionGroups/u);
@@ -387,7 +433,10 @@ describe("large Vue architecture", () => {
     assert.match(blacklistSource, /useIpBlacklistPage/u);
     assert.match(blacklistSource, /IpBlacklistRecordsPanel/u);
     assert.match(blacklistSource, /IpBlacklistDetailDialog/u);
-    assert.doesNotMatch(blacklistSource, /ScannerAPI|SecurityAPI|useAsyncAction/u);
+    assert.doesNotMatch(
+      blacklistSource,
+      /ScannerAPI|SecurityAPI|useAsyncAction/u,
+    );
     assert.match(generalBlacklistSource, /useGeneralBlacklistPage/u);
     assert.match(generalBlacklistSource, /GeneralBlacklistRecordsPanel/u);
     assert.match(generalBlacklistSource, /GeneralBlacklistAddDialog/u);
@@ -464,7 +513,10 @@ describe("large Vue architecture", () => {
     assert.match(reverseProxySource, /ReverseProxyDialogs/u);
     assert.match(reverseProxyDialogsSource, /ReverseProxyDiscoverDialog/u);
     assert.match(reverseProxyControllerSource, /useReverseProxyDiscoverFlow/u);
-    assert.match(reverseProxyControllerSource, /useReverseProxyMappingActions/u);
+    assert.match(
+      reverseProxyControllerSource,
+      /useReverseProxyMappingActions/u,
+    );
     assert.doesNotMatch(reverseProxySource, /ConfigAPI|useAsyncAction/u);
     assert.match(whitelistSource, /WhitelistAddDialog/u);
     assert.match(subdomainSource, /useSubdomainProxyPage/u);
@@ -625,7 +677,10 @@ describe("large Vue architecture", () => {
     assert.match(analyticsControllerSource, /mapAnalyticsBuckets/u);
     assert.match(portalSource, /useGatewayPortalSettings/u);
     assert.match(portalSource, /GatewayPortalSettingsPanel/u);
-    assert.doesNotMatch(portalSource, /ConfigAPI|useConfigStore|useAsyncAction/u);
+    assert.doesNotMatch(
+      portalSource,
+      /ConfigAPI|useConfigStore|useAsyncAction/u,
+    );
     assert.match(portalControllerSource, /ConfigAPI/u);
     assert.match(portalControllerSource, /savePortalPatch/u);
   });
@@ -717,7 +772,10 @@ describe("large Vue architecture", () => {
     assert.match(terminalControllerSource, /useTerminalResizeQueue/u);
     assert.match(terminalControllerSource, /useTerminalEmulator/u);
     assert.doesNotMatch(terminalControllerSource, /ensureGhostty/u);
-    assert.doesNotMatch(terminalControllerSource, /createTerminalFitController/u);
+    assert.doesNotMatch(
+      terminalControllerSource,
+      /createTerminalFitController/u,
+    );
     assert.match(terminalDialogsSource, /TerminalRenameDialog/u);
     assert.match(terminalDialogsSource, /TerminalSendDialog/u);
   });
@@ -748,17 +806,17 @@ describe("large Vue architecture", () => {
     );
     assert.match(staleDialogSource, /useStaleHostMappingsCleanupDialog/u);
     assert.match(staleDialogSource, /StaleHostMappingsResults/u);
-    assert.doesNotMatch(staleDialogSource, /<Table|useStaleHostMappingsCleanup\(/u);
+    assert.doesNotMatch(
+      staleDialogSource,
+      /<Table|useStaleHostMappingsCleanup\(/u,
+    );
     assert.match(staleControllerSource, /useStaleHostMappingsCleanup\(/u);
     assert.match(statusSource, /SubdomainMappingAvailabilityIndicators/u);
     assert.match(statusSource, /SubdomainMappingAccessIndicators/u);
     assert.match(statusSource, /SubdomainMappingSecurityIndicators/u);
     assert.doesNotMatch(statusSource, /TooltipProvider|BrickWall|ShieldCheck/u);
     assert.match(statusTooltipSource, /TooltipProvider/u);
-    assert.match(
-      statusTooltipSource,
-      /handleMappingStatusTooltipOpenChange/u,
-    );
+    assert.match(statusTooltipSource, /handleMappingStatusTooltipOpenChange/u);
   });
 
   it("keeps mapping tables, optimization panels, and auth conditions focused", () => {

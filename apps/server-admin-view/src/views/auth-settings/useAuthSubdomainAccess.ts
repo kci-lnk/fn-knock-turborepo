@@ -248,7 +248,13 @@ export function useAuthSubdomainAccess({
         key,
         kind: "stream",
         label: `${stream.protocol.toUpperCase()}/${stream.listen_port}`,
-        description: mapping.target,
+        description: mapping.service_profile?.service_id
+          ? `${mapping.target} · ${mapping.service_profile.service_id}${
+              mapping.service_profile.device_role
+                ? ` · ${mapping.service_profile.device_role}`
+                : ""
+            }`
+          : mapping.target,
         stale: false,
       });
     }

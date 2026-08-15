@@ -3162,6 +3162,76 @@ export const enAdmin = {
   },
   streamMappings: {
     title: "Protocol mappings",
+    serviceProfile: "Service identification",
+    serviceUnknown: "Unknown service",
+    validationStrict: "Strict protocol validation",
+    validationOff: "Strict validation off",
+    probe: "Detect",
+    probing: "Detecting...",
+    probeVerified: "Target service verified",
+    probeUnverified: "Target is not verified; the mapping remains disabled",
+    probeFailed: "Failed to detect target service",
+    probeAuthenticatedHttp:
+      "HTTP detected, but upstream authentication hides the application protocol",
+    probeAuthenticatedHttpDescription:
+      "WebDAV cannot be distinguished reliably from ordinary HTTP without upstream credentials. Specify the service type.",
+    bypassPolicy: "Configure login bypass",
+    bypassPolicyTitle: "Configure login bypass by source",
+    bypassPolicyDescription:
+      "Sources matching any rule group can connect without signing in first; unmatched sources must still sign in. Groups are ORed and conditions within a group are ANDed.",
+    policyBack: "Back to protocol mappings",
+    policyNotFound: "This protocol mapping was not found.",
+    policyEnabled: "Allow selected sources to skip login",
+    policyEnabledDescription:
+      "Matching sources can connect directly; all other sources continue through the current login flow.",
+    policyAuthDisabledNotice:
+      "Require login authentication is already off, so every source can connect without login and this policy is unnecessary. Rules can still be saved as a draft.",
+    policyValidationNotice:
+      "Login bypass skips login authentication only. Service identification and strict protocol validation still run.",
+    policyRuleGroups: "Login-bypass source rules",
+    policyNoGroups: "No source rule groups have been added",
+    policyGroupAll: "All source conditions in this group must match",
+    policyRegionDescription:
+      "Selected regions are compiled into a fixed, immutable CIDR set when saved.",
+    policyMissingRules: "Add at least one rule group before enabling bypass.",
+    policyEmptyGroup: "Rule groups cannot be empty.",
+    policyInvalidCondition:
+      "Complete every source IP or source region condition.",
+    policyBroadRuleConfirm:
+      "This rule may cover a broad source range. Save it anyway?",
+    policyBroadRuleWarning:
+      "A broad source rule was detected and requires confirmation when saved.",
+    policySaveHint:
+      "After saving, matching sources can connect directly; unmatched sources must still sign in.",
+    policyDisabledSaveHint:
+      "After saving, source-based login bypass will be disabled. Existing rules remain as a draft for later use.",
+    policyDiscardConfirm:
+      "There are unsaved bypass policy changes. Discard them?",
+    policyActive: "Selected sources skip login",
+    policyDraft: "Login-bypass rules inactive",
+    savingPolicy: "Saving...",
+    savePolicy: "Compile and save policy",
+    policyLoadFailed: "Failed to load bypass policy",
+    policySaved: "Bypass policy compiled and saved",
+    policySaveFailed: "Failed to save bypass policy",
+    selectService: "Specify service type",
+    selectServiceTitle: "Specify service type",
+    selectServiceDescription:
+      "Confirm the service running at the target and enable matching strict protocol validation. This does not change login requirements.",
+    selectServicePlaceholder: "Select a service type",
+    selectServiceWarning:
+      "A wrong choice rejects connections. To skip login, configure login bypass separately or edit the mapping and turn off Require login authentication.",
+    confirmService: "Confirm and enable validation",
+    clearService: "Clear selection",
+    clearServiceTitle: "Clear the specified service type?",
+    clearServiceDescription:
+      "This turns off strict protocol validation and disables the mapping. Login authentication and bypass rules are preserved; detect the service again or specify another type before use.",
+    clearServiceConfirm: "Clear and disable",
+    serviceCatalogFailed: "Failed to load service catalog",
+    serviceConfirmed: "Service type confirmed and strict validation enabled",
+    serviceConfirmFailed: "Failed to confirm expected service",
+    serviceCleared: "Specified service type cleared; mapping disabled",
+    serviceClearFailed: "Failed to clear specified service type",
     scheduleAvailability: "Schedule enable or disable",
     scheduleOpen: "Scheduled open {window}",
     scheduleClosed: "Scheduled closed {window}",
@@ -3191,7 +3261,7 @@ export const enAdmin = {
       "Each rule forwards an external TCP or UDP port to a target address. This is useful for SSH, MySQL, Redis, DNS, and similar services.",
     accessTitle: "Public access and router setup",
     accessDescription:
-      "The external port is the port this host actually listens on. For example, if the software maps external port 6789 to 127.0.0.1:3306, configure the router to forward public port 6789 to port 6789 on this host, then connect to demo.example.com:6789. Do not forward the router directly to port 3306. If authentication is enabled, sign in on the web first, otherwise the connection is rejected directly.",
+      "The external port is the port this host actually listens on. For example, if the software maps external port 6789 to 127.0.0.1:3306, configure the router to forward public port 6789 to port 6789 on this host, then connect to demo.example.com:6789. Do not forward the router directly to port 3306. With Require login authentication enabled, clients must sign in on the web first by default; use Configure login bypass from the mapping actions to allow selected sources to connect directly.",
     disabledTitle: "Protocol mappings are disabled",
     disabledDescription:
       "Retained rules are not listening on any ports. You can fix or delete them here, then return to System settings → Features to enable the feature.",
@@ -3205,10 +3275,10 @@ export const enAdmin = {
     commentUpdated: "Comment updated",
     commentUpdateFailed: "Failed to update comment",
     target: "Target address",
-    authStatus: "Auth status",
+    authStatus: "Login requirement",
     empty: "No protocol mappings configured yet.",
-    authRequired: "Auth required",
-    publicAccess: "Public access",
+    authRequired: "Login required",
+    publicAccess: "No login for any source",
     edit: "Edit",
     delete: "Delete",
     deleteTitle: "Delete {protocol} protocol mapping?",
@@ -3228,9 +3298,11 @@ export const enAdmin = {
     targetPlaceholder: "Example: 127.0.0.1:3306",
     targetHint:
       "Only host:port is supported. Do not include http:// or another protocol prefix.",
-    authRequiredLabel: "Require auth",
-    authRequiredHint:
-      "When enabled, auth is checked by source IP first. Failed checks disconnect directly.",
+    authRequiredLabel: "Require login authentication",
+    authRequiredEnabledHint:
+      "On: clients must sign in on the web by default. After saving, Configure login bypass can allow selected sources through.",
+    authRequiredDisabledHint:
+      "Off: every source can connect directly without login. Make sure the target service has its own protection.",
     saveMapping: "Save mapping",
     protocolRequired: "Select at least one transport protocol.",
     portRequired: "External port is required.",

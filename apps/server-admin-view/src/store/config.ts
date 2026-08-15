@@ -66,6 +66,19 @@ export const useConfigStore = defineStore("config", () => {
     return snapshot.mappings;
   };
 
+  const refreshStreamMappingsOnly = async () => {
+    const mappings = await ConfigAPI.getStreamMappings();
+    if (config.value) {
+      config.value = {
+        ...config.value,
+        stream_mappings: mappings,
+      };
+    } else {
+      await loadConfig();
+    }
+    return mappings;
+  };
+
   const clearHostMappingsFollowUpRefresh = () => {
     if (hostMappingsFollowUpRefreshTimer !== null) {
       window.clearTimeout(hostMappingsFollowUpRefreshTimer);
@@ -511,6 +524,7 @@ export const useConfigStore = defineStore("config", () => {
     saveHostMappings,
     saveHostMappingCatalog,
     refreshAllHostMappingTitles,
+    refreshStreamMappingsOnly,
     saveStreamMappings,
     saveSubdomainMode,
     saveLocaleConfig,

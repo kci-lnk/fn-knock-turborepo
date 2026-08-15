@@ -3154,6 +3154,74 @@ export const jaJPAdmin = {
   },
   streamMappings: {
     title: "プロトコルマッピング",
+    serviceProfile: "サービス識別",
+    serviceUnknown: "不明なサービス",
+    validationStrict: "厳格なプロトコル検証",
+    validationOff: "厳格な検証はオフ",
+    probe: "検出",
+    probing: "検出中...",
+    probeVerified: "対象サービスを検証しました",
+    probeUnverified: "対象は未検証のため、マッピングは無効のままです",
+    probeFailed: "対象サービスの検出に失敗しました",
+    probeAuthenticatedHttp:
+      "HTTP を検出しましたが、上流認証によりアプリケーションプロトコルが隠されています",
+    probeAuthenticatedHttpDescription:
+      "上流の認証情報なしでは WebDAV と通常の HTTP を確実に区別できません。サービスタイプを指定してください。",
+    bypassPolicy: "ログイン不要を設定",
+    bypassPolicyTitle: "送信元別のログイン不要設定",
+    bypassPolicyDescription:
+      "いずれかのルールグループに一致した送信元は事前の Web ログインなしで接続でき、一致しない送信元にはログインが必要です。グループは OR、グループ内の条件は AND です。",
+    policyBack: "プロトコルマッピングに戻る",
+    policyNotFound: "このプロトコルマッピングが見つかりません。",
+    policyEnabled: "指定した送信元のログインを省略",
+    policyEnabledDescription:
+      "下のルールに一致した送信元は直接接続でき、それ以外は現在のログイン認証を続行します。",
+    policyAuthDisabledNotice:
+      "このマッピングではログイン認証が無効で、すべての送信元がすでにログインなしで接続できるため、この設定は不要です。ルールは下書きとして保存できます。",
+    policyValidationNotice:
+      "ログイン不要設定はログイン認証だけを省略します。サービス識別と厳格なプロトコル検証は引き続き実行されます。",
+    policyRuleGroups: "ログイン不要の送信元ルール",
+    policyNoGroups: "送信元ルールグループはまだありません",
+    policyGroupAll: "グループ内のすべての送信元条件に一致する必要があります",
+    policyRegionDescription:
+      "保存時に選択地域を固定された不変の CIDR セットへコンパイルします。",
+    policyMissingRules: "有効化するにはルールグループを追加してください。",
+    policyEmptyGroup: "ルールグループを空にはできません。",
+    policyInvalidCondition:
+      "送信元 IP または送信元地域の条件を完成してください。",
+    policyBroadRuleConfirm:
+      "広範囲の送信元に一致する可能性があります。保存しますか？",
+    policyBroadRuleWarning: "広範囲のルールは保存時に確認が必要です。",
+    policySaveHint:
+      "保存後、一致する送信元は直接接続でき、一致しない送信元にはログインが必要です。",
+    policyDisabledSaveHint:
+      "保存すると、指定した送信元のログイン省略は無効になります。既存のルールは後で再利用できる下書きとして保持されます。",
+    policyDiscardConfirm: "未保存のバイパスポリシー変更を破棄しますか？",
+    policyActive: "指定した送信元はログイン不要",
+    policyDraft: "ログイン不要ルールは未有効",
+    savingPolicy: "保存中...",
+    savePolicy: "ポリシーをコンパイルして保存",
+    policyLoadFailed: "バイパスポリシーを読み込めませんでした",
+    policySaved: "バイパスポリシーを保存しました",
+    policySaveFailed: "バイパスポリシーを保存できませんでした",
+    selectService: "サービスタイプを指定",
+    selectServiceTitle: "サービスタイプを指定",
+    selectServiceDescription:
+      "対象で稼働するサービスを確認し、対応する厳格なプロトコル検証を有効にします。ログイン要件は変更されません。",
+    selectServicePlaceholder: "サービスタイプを選択",
+    selectServiceWarning:
+      "選択を誤ると接続が拒否されます。ログインを省略するには、別途「ログイン不要を設定」を使用するか、マッピング編集でログイン認証を無効にしてください。",
+    confirmService: "確認して検証を有効化",
+    clearService: "指定を解除",
+    clearServiceTitle: "指定したサービスタイプを解除しますか？",
+    clearServiceDescription:
+      "厳格なプロトコル検証をオフにし、マッピングを無効化します。ログイン認証とログイン不要ルールは保持されます。再検出または再指定してから使用してください。",
+    clearServiceConfirm: "解除して無効化",
+    serviceCatalogFailed: "サービスカタログを読み込めませんでした",
+    serviceConfirmed: "サービスタイプを確認し、厳格な検証を有効にしました",
+    serviceConfirmFailed: "想定サービスを確認できませんでした",
+    serviceCleared: "サービスタイプの指定を解除し、マッピングを無効化しました",
+    serviceClearFailed: "サービスタイプの指定を解除できませんでした",
     scheduleAvailability: "有効化または無効化を予約",
     scheduleOpen: "スケジュール公開中 {window}",
     scheduleClosed: "スケジュール停止中 {window}",
@@ -3197,10 +3265,10 @@ export const jaJPAdmin = {
     commentUpdated: "コメントを更新しました",
     commentUpdateFailed: "コメントの更新に失敗しました",
     target: "転送先",
-    authStatus: "認証",
+    authStatus: "ログイン要件",
     empty: "プロトコルマッピングはまだありません。",
-    authRequired: "認証が必要",
-    publicAccess: "認証なし",
+    authRequired: "ログインが必要",
+    publicAccess: "すべての送信元でログイン不要",
     edit: "編集",
     delete: "削除",
     deleteTitle: "{protocol} プロトコルマッピングを削除しますか？",
@@ -3220,9 +3288,11 @@ export const jaJPAdmin = {
     targetPlaceholder: "例: 127.0.0.1:3306",
     targetHint:
       "host:port 形式のみ使用できます。http:// などのプロトコルは付けないでください。",
-    authRequiredLabel: "認証を必須にする",
-    authRequiredHint:
-      "有効にすると、送信元 IP に基づいて認証を確認します。認証に失敗した接続は直ちに切断されます。",
+    authRequiredLabel: "ログイン認証を必須にする",
+    authRequiredEnabledHint:
+      "オン：通常は事前に Web でのログインが必要です。保存後、「ログイン不要を設定」で指定した送信元だけを許可できます。",
+    authRequiredDisabledHint:
+      "オフ：すべての送信元がログインなしで直接接続できます。対象サービス自体に保護があることを確認してください。",
     saveMapping: "マッピングを保存",
     protocolRequired:
       "少なくとも 1 つのトランスポート プロトコルを選択してください。",

@@ -16,7 +16,6 @@ import type {
   SSLConfig,
   SSLSharedFilesPayload,
   SSLStatus,
-  StreamMapping,
   SubdomainModeConfig,
   UrlMetadataPreview,
 } from "../../types";
@@ -36,8 +35,6 @@ type ProxyProtocolForceContract =
   ApiContractComponents["schemas"]["ProxyProtocolForceData"];
 type ProxyMappingsUpdate =
   ApiContractComponents["schemas"]["ProxyMappingsUpdateData"];
-type StreamMappingsUpdate =
-  ApiContractComponents["schemas"]["StreamMappingsUpdateData"];
 type SubdomainModeUpdate =
   ApiContractComponents["schemas"]["SubdomainModeUpdateData"];
 type SubdomainModeResponse =
@@ -77,8 +74,6 @@ export type AdvancedAuthDetails =
   ApiContractComponents["schemas"]["AdvancedAuthDetailsData"];
 export type HostMappingBasicAuthProbeResult =
   ApiContractComponents["schemas"]["HostMappingBasicAuthProbeData"];
-export const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE = 40_901;
-
 export const configProxyApi = {
   async updateProxyMappings(mappings: ProxyMapping[]): Promise<void> {
     const payload = { mappings } satisfies ProxyMappingsUpdate;
@@ -229,14 +224,6 @@ export const configProxyApi = {
       responseType: "blob",
     });
     return res.data;
-  },
-  async getStreamMappings(): Promise<StreamMapping[]> {
-    const res = await apiClient.get("/config/stream_mappings");
-    return res.data.data;
-  },
-  async updateStreamMappings(mappings: StreamMapping[]): Promise<void> {
-    const payload = { mappings } satisfies StreamMappingsUpdate;
-    await apiClient.post("/config/stream_mappings", payload);
   },
   async getSubdomainMode(): Promise<SubdomainModeConfig> {
     const res = await apiClient.get("/config/subdomain_mode");

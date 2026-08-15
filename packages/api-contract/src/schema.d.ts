@@ -7626,14 +7626,19 @@ export interface components {
             auth_linked_totp_name: string;
             auth_required: boolean;
             auth_rule_group_id: string;
+            bypass_group_id: string;
+            bypass_policy_version: string;
             /** Format: int64 */
             bytes_in: number;
             /** Format: int64 */
             bytes_out: number;
             client_ip: string;
+            detected_service: string;
+            device_role: string;
             /** Format: int64 */
             duration_ms: number;
             eo_connecting_ip: string;
+            expected_service: string;
             general_blacklist_blocked: boolean;
             host: string;
             level: string;
@@ -7650,12 +7655,15 @@ export interface components {
             route_key: string;
             route_type: string;
             scheme: string;
+            service_confidence: string;
             /** Format: int32 */
             status: number;
             time: string;
             tls: boolean;
             upstream: string;
             user_agent: string;
+            validation_decision: string;
+            validation_evidence: string[];
             waf_action: string;
             waf_blocked: boolean;
             waf_bundle: string;
@@ -9480,14 +9488,43 @@ export interface components {
             uncovered_recommended_domains: string[];
             warnings: string[];
         };
+        StreamBypassConditionData: {
+            id: string;
+            operator: string;
+            policy_id: string;
+            selections: components["schemas"]["StreamBypassRegionSelectionData"][];
+            target: string;
+            values: string[];
+        };
+        StreamBypassGroupData: {
+            conditions: components["schemas"]["StreamBypassConditionData"][];
+            id: string;
+        };
+        StreamBypassPolicyData: {
+            broad_rule_confirmed: boolean;
+            enabled: boolean;
+            groups: components["schemas"]["StreamBypassGroupData"][];
+            policy_version: string;
+        };
+        StreamBypassRegionSelectionData: {
+            city: string | null;
+            operator: string | null;
+            province: string;
+            query_city: string | null;
+        };
         StreamMappingData: {
+            bypass_policy?: components["schemas"]["StreamBypassPolicyData"];
             comment?: string;
+            disabled?: boolean;
             /** Format: int64 */
             listen_port: number;
+            probe_status?: string;
             /** @enum {string} */
             protocol: "tcp" | "udp";
+            service_profile?: components["schemas"]["StreamServiceProfileData"];
             target: string;
             use_auth: boolean;
+            validation_mode?: string;
         };
         StreamMappingInputData: {
             comment?: string;
@@ -9500,6 +9537,22 @@ export interface components {
         };
         StreamMappingsUpdateData: {
             mappings: components["schemas"]["StreamMappingInputData"][];
+        };
+        StreamServiceProfileData: {
+            classifier_version: string;
+            device_role: string;
+            evidence_codes: string[];
+            metadata: {
+                [key: string]: string;
+            };
+            observed_at: string;
+            role_confidence: string;
+            service_confidence: string;
+            service_family: string;
+            service_id: string;
+            source: string;
+            strict_capable: boolean;
+            target_fingerprint: string;
         };
         SubdomainAccessUpdateData: {
             subdomain_access: components["schemas"]["TotpSubdomainAccessData"];

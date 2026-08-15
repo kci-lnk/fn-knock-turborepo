@@ -104,9 +104,13 @@
         <StreamMappingTable
           :mappings="allMappings"
           :removing-mapping-key="removingMappingKey"
+          :probing-mapping-key="probingMappingKey"
           :on-remove="removeMapping"
           :on-save-comment="updateComment"
           @edit="openEditDialog"
+          @probe="probeMapping"
+          @policy="openBypassPolicy"
+          @service="openServiceProfile"
         />
       </CardContent>
     </Card>
@@ -131,6 +135,16 @@
       @update:end-time="availabilityFormEndTime = $event"
       @cancel="closeAvailabilityDialog"
       @save="saveAvailability"
+    />
+    <StreamServiceProfileDialog
+      :open="isServiceProfileOpen"
+      :loading="isSavingServiceProfile"
+      :mapping="serviceProfileMapping"
+      :catalog="serviceCatalog"
+      :initial-service-id="serviceProfileInitialServiceId"
+      @update:open="setServiceProfileOpen"
+      @clear="clearServiceProfile"
+      @confirm="confirmServiceProfile"
     />
   </div>
 </template>
@@ -164,6 +178,7 @@ import StreamMappingDisabledAlert from "./stream-mappings/StreamMappingDisabledA
 import StreamMappingAvailabilityDialog from "./stream-mappings/StreamMappingAvailabilityDialog.vue";
 import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
 import StreamMappingTable from "./stream-mappings/StreamMappingTable.vue";
+import StreamServiceProfileDialog from "./stream-mappings/StreamServiceProfileDialog.vue";
 import {
   applyStreamMappingSubmission,
   compareStreamMappings,
@@ -175,6 +190,8 @@ import {
   updateStreamMappingComment,
 } from "./stream-mappings/streamMappingModel";
 import { useStreamMappingAvailability } from "./stream-mappings/useStreamMappingAvailability";
+import { useStreamMappingNavigation } from "./stream-mappings/useStreamMappingNavigation";
+import { useStreamMappingSecurity } from "./stream-mappings/useStreamMappingSecurity";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -183,6 +200,20 @@ const isSaving = ref(false);
 const isSyncing = ref(false);
 const editingMapping = ref<StreamMapping | null>(null);
 const removingMappingKey = ref<string | null>(null);
+const { openBypassPolicy } = useStreamMappingNavigation();
+const {
+  clearServiceProfile,
+  confirmServiceProfile,
+  isSavingServiceProfile,
+  isServiceProfileOpen,
+  openServiceProfile,
+  probeMapping,
+  probingMappingKey,
+  setServiceProfileOpen,
+  serviceCatalog,
+  serviceProfileInitialServiceId,
+  serviceProfileMapping,
+} = useStreamMappingSecurity();
 const {
   availabilityFormEnabled,
   availabilityFormEndTime,
@@ -246,7 +277,7 @@ function getSaveSuccessMessage(savedCount: number, isEditing: boolean): string {
     ? t("admin.streamMappings.saveMany", { action, count: savedCount })
     : t("admin.streamMappings.saveOne", { action });
 }
-async function removeMapping(mapping: StreamMapping) {
+async function removeMapping(mapping: StreamMapping): Promise<boolean> {
   removingMappingKey.value = getMappingKey(mapping);
   try {
     const result = await configStore.saveStreamMappings(
@@ -260,6 +291,7 @@ async function removeMapping(mapping: StreamMapping) {
       mapping: formatMappingLabel(mapping),
     });
     toast.success(message, { description });
+    return true;
   } catch (error: any) {
     const titleKey = protocolMappingEnabled.value
       ? "admin.streamMappings.deleteFailed"
@@ -267,6 +299,7 @@ async function removeMapping(mapping: StreamMapping) {
     toast.error(t(titleKey), {
       description: extractErrorMessage(error, t("common.tryLater")),
     });
+    return false;
   } finally {
     removingMappingKey.value = null;
   }

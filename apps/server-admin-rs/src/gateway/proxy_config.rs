@@ -35,6 +35,7 @@ mod metadata_refresh;
 mod metadata_special;
 mod normalize;
 mod runtime;
+mod stream_security;
 mod subdomain;
 
 use advanced_auth::*;
@@ -55,6 +56,7 @@ pub(crate) use runtime::{
     sync_go_host_rules_for_config_locked, sync_go_host_rules_for_config_with_timeout_locked,
     sync_go_host_rules_locked,
 };
+use stream_security::*;
 use subdomain::*;
 
 #[cfg(test)]
@@ -909,6 +911,11 @@ pub(crate) fn proxy_routing_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_proxy_mappings))
         .routes(routes!(get_stream_mappings))
         .routes(routes!(update_stream_mappings))
+        .routes(routes!(get_stream_service_catalog))
+        .routes(routes!(probe_stream_mapping))
+        .routes(routes!(get_stream_bypass_policy))
+        .routes(routes!(update_stream_bypass_policy))
+        .routes(routes!(confirm_stream_service_profile))
         .routes(routes!(get_subdomain_mode))
         .routes(routes!(update_subdomain_mode))
 }
@@ -1932,7 +1939,7 @@ where
     Fut: std::future::Future<Output = Result<(), String>>,
 {
     let translator = Translator::from_state(&state).await;
-    let normalized = match normalize_stream_mappings(body.mappings) {
+    let mut normalized = match normalize_stream_mappings(body.mappings) {
         Ok(value) => value,
         Err(message) => {
             return response::error(
@@ -1958,6 +1965,7 @@ where
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or_default();
+    prepare_stream_mapping_update(previous_mappings, &mut normalized);
     let protocol_mapping_feature = match runtime_config::load_protocol_mapping_feature(
         &state,
         Some(&previous_config),
@@ -1995,6 +2003,7 @@ where
         "stream_mappings".to_string(),
         Value::Array(normalized.clone()),
     );
+    prune_stream_access_policies(&mut updated_config);
     let requires_disabled_legacy_repair = protocol_mapping_enabled
         && only_removes_entries
         && validate_stream_mapping_runtime_safety(&updated_config).is_err();

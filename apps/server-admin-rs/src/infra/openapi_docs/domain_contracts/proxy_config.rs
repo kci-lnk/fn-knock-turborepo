@@ -2,6 +2,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use super::{GatewayVisibilitySelectionData, GatewayVisibilitySelectionInputData};
+use std::collections::HashMap;
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct ProxyMappingData {
@@ -19,6 +20,57 @@ pub(super) struct ProxyMappingsUpdateData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct StreamServiceProfileData {
+    service_id: String,
+    service_family: String,
+    device_role: String,
+    service_confidence: String,
+    role_confidence: String,
+    source: String,
+    observed_at: String,
+    classifier_version: String,
+    target_fingerprint: String,
+    evidence_codes: Vec<String>,
+    strict_capable: bool,
+    metadata: HashMap<String, String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamBypassRegionSelectionData {
+    province: String,
+    #[schema(required = true)]
+    city: Option<String>,
+    #[schema(required = true)]
+    query_city: Option<String>,
+    #[schema(required = true)]
+    operator: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamBypassConditionData {
+    id: String,
+    target: String,
+    operator: String,
+    policy_id: String,
+    values: Vec<String>,
+    selections: Vec<StreamBypassRegionSelectionData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamBypassGroupData {
+    id: String,
+    conditions: Vec<StreamBypassConditionData>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StreamBypassPolicyData {
+    enabled: bool,
+    policy_version: String,
+    groups: Vec<StreamBypassGroupData>,
+    broad_rule_confirmed: bool,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct StreamMappingData {
     protocol: String,
     listen_port: i64,
@@ -26,6 +78,16 @@ pub(super) struct StreamMappingData {
     use_auth: bool,
     #[schema(nullable = false)]
     comment: Option<String>,
+    #[schema(nullable = false)]
+    disabled: Option<bool>,
+    #[schema(nullable = false)]
+    validation_mode: Option<String>,
+    #[schema(nullable = false)]
+    service_profile: Option<StreamServiceProfileData>,
+    #[schema(nullable = false)]
+    bypass_policy: Option<StreamBypassPolicyData>,
+    #[schema(nullable = false)]
+    probe_status: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]

@@ -31,6 +31,10 @@ const budgets = [
     maxLines: 430,
   },
   {
+    path: "apps/server-admin-view/src/lib/api/config-stream-api.ts",
+    maxLines: 130,
+  },
+  {
     path: "apps/server-admin-view/src/lib/api/config-auth-api.ts",
     maxLines: 350,
   },

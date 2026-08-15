@@ -79,6 +79,14 @@ pub(super) struct GatewayLogEntryData {
     waf_action: String,
     waf_bundle: String,
     general_blacklist_blocked: bool,
+    expected_service: String,
+    detected_service: String,
+    service_confidence: String,
+    device_role: String,
+    validation_decision: String,
+    validation_evidence: Vec<String>,
+    bypass_policy_version: String,
+    bypass_group_id: String,
 }
 
 #[derive(Serialize, ToSchema)]

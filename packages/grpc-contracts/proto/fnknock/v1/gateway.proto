@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 13;
+  CONTROL_API_VERSION_CURRENT = 14;
 }
 
 message RpcStatus {
@@ -141,6 +141,75 @@ message StreamRule {
   int32 listen_port = 2;
   string target = 3;
   bool use_auth = 4;
+  bool disabled = 5;
+  string validation_mode = 6;
+  StreamServiceProfile service_profile = 7;
+  StreamBypassPolicy bypass_policy = 8;
+  string probe_status = 9;
+}
+
+// A normalized application-service observation. The gateway only emits
+// controlled evidence codes; raw probe or session payloads are never exposed.
+message StreamServiceProfile {
+  string service_id = 1;
+  string service_family = 2;
+  string device_role = 3;
+  string service_confidence = 4;
+  string role_confidence = 5;
+  string source = 6;
+  string observed_at = 7;
+  string classifier_version = 8;
+  string target_fingerprint = 9;
+  repeated string evidence_codes = 10;
+  bool strict_capable = 11;
+  map<string, string> metadata = 12;
+}
+
+message StreamBypassCondition {
+  string id = 1;
+  string target = 2;
+  string operator = 3;
+  // Deprecated compatibility input. New control planes compile selectors
+  // into StreamRules.access_policies and send only policy_id.
+  repeated string cidrs = 4 [deprecated = true];
+  string policy_id = 5;
+}
+
+message StreamBypassGroup {
+  string id = 1;
+  repeated StreamBypassCondition conditions = 2;
+}
+
+message StreamBypassPolicy {
+  bool enabled = 1;
+  string policy_version = 2;
+  repeated StreamBypassGroup groups = 3;
+  bool broad_rule_confirmed = 4;
+}
+
+message StreamProbeRequest {
+  string protocol = 1;
+  string target = 2;
+}
+
+message StreamProbeResult {
+  string status = 1;
+  StreamServiceProfile profile = 2;
+  string message = 3;
+}
+
+message StreamServiceDescriptor {
+  string service_id = 1;
+  string display_name = 2;
+  string service_family = 3;
+  repeated string transports = 4;
+  bool active_probe_supported = 5;
+  bool strict_capable = 6;
+}
+
+message StreamServiceCatalog {
+  string classifier_version = 1;
+  repeated StreamServiceDescriptor items = 2;
 }
 
 message StreamAvailability {
@@ -457,6 +526,14 @@ message GatewayLogEntry {
   string auth_rule_group_id = 44;
   string auth_grant_state = 45;
   string client_ip = 46;
+  string expected_service = 47;
+  string detected_service = 48;
+  string service_confidence = 49;
+  string device_role = 50;
+  string validation_decision = 51;
+  repeated string validation_evidence = 52;
+  string bypass_policy_version = 53;
+  string bypass_group_id = 54;
 }
 
 message GatewayLogDates {
@@ -842,6 +919,7 @@ message HostRules {
 message StreamRules {
   repeated StreamRule items = 1;
   StreamAvailability availability = 2;
+  repeated CompiledIpSet access_policies = 3;
 }
 
 message StringValue {
@@ -1100,6 +1178,8 @@ service GatewayControlService {
   rpc GetStreamRules(google.protobuf.Empty) returns (StreamRules);
   rpc SetStreamRules(StreamRules) returns (StreamRules);
   rpc FlushStreamRules(google.protobuf.Empty) returns (RpcStatus);
+  rpc ProbeStreamTarget(StreamProbeRequest) returns (StreamProbeResult);
+  rpc GetStreamServiceCatalog(google.protobuf.Empty) returns (StreamServiceCatalog);
   rpc GetAuthConfig(google.protobuf.Empty) returns (AuthConfig);
   rpc SetAuthConfig(AuthConfig) returns (RpcStatus);
   rpc GetDefaultRoute(google.protobuf.Empty) returns (StringValue);

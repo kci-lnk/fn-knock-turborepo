@@ -22,8 +22,9 @@ use crate::grpc_proto::{
     HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
     HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
-    SslDeployedCertificate, StreamAvailability, StreamRule, StreamRules, StringValue, WafConfig,
-    deep_monitor_service_client::DeepMonitorServiceClient,
+    SslDeployedCertificate, StreamAvailability, StreamBypassCondition, StreamBypassGroup,
+    StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules, StreamServiceProfile,
+    StringValue, WafConfig, deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -279,6 +280,9 @@ impl GoBackendClient {
             "compiled_ipset_v2",
             "compiled_whitelist_firewall_v1",
             "compiled_trusted_client_ipset_v1",
+            "stream_service_probe_v1",
+            "stream_strict_validation_v1",
+            "stream_bypass_policy_v1",
         ] {
             if !capabilities
                 .iter()
@@ -443,6 +447,7 @@ impl GoBackendClient {
             .set_stream_rules(self.request(StreamRules {
                 items: parse_stream_rules(rules.get("items").unwrap_or(rules)),
                 availability: parse_stream_availability(rules.get("availability")),
+                access_policies: parse_compiled_ip_sets(rules.get("access_policies"))?,
             }))
             .await
         {
@@ -450,6 +455,43 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("set_stream_rules", result)
+    }
+
+    pub async fn probe_stream_target(&self, protocol: &str, target: &str) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let response = client
+            .probe_stream_target(self.request(StreamProbeRequest {
+                protocol: protocol.trim().to_string(),
+                target: target.trim().to_string(),
+            }))
+            .await
+            .context("probe stream target")?
+            .into_inner();
+        Ok(json!({
+            "status": response.status,
+            "profile": response.profile.map(stream_service_profile_to_json),
+            "message": response.message,
+        }))
+    }
+
+    pub async fn get_stream_service_catalog(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let response = client
+            .get_stream_service_catalog(self.request(()))
+            .await
+            .context("get stream service catalog")?
+            .into_inner();
+        Ok(json!({
+            "classifier_version": response.classifier_version,
+            "items": response.items.into_iter().map(|item| json!({
+                "service_id": item.service_id,
+                "display_name": item.display_name,
+                "service_family": item.service_family,
+                "transports": item.transports,
+                "active_probe_supported": item.active_probe_supported,
+                "strict_capable": item.strict_capable,
+            })).collect::<Vec<_>>(),
+        }))
     }
 
     pub async fn flush_rules(&self) -> anyhow::Result<Value> {
@@ -1177,10 +1219,89 @@ fn parse_stream_rules(value: &Value) -> Vec<StreamRule> {
                     listen_port: i32_field(item, "listen_port", 0),
                     target: string_field(item, "target"),
                     use_auth: bool_field(item, "use_auth", true),
+                    disabled: bool_field(item, "disabled", false),
+                    validation_mode: string_field(item, "validation_mode"),
+                    service_profile: item
+                        .get("service_profile")
+                        .filter(|value| value.is_object())
+                        .map(parse_stream_service_profile),
+                    bypass_policy: item
+                        .get("bypass_policy")
+                        .filter(|value| value.is_object())
+                        .map(parse_stream_bypass_policy),
+                    probe_status: string_field(item, "probe_status"),
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn parse_stream_service_profile(value: &Value) -> StreamServiceProfile {
+    StreamServiceProfile {
+        service_id: string_field(value, "service_id"),
+        service_family: string_field(value, "service_family"),
+        device_role: string_field(value, "device_role"),
+        service_confidence: string_field(value, "service_confidence"),
+        role_confidence: string_field(value, "role_confidence"),
+        source: string_field(value, "source"),
+        observed_at: string_field(value, "observed_at"),
+        classifier_version: string_field(value, "classifier_version"),
+        target_fingerprint: string_field(value, "target_fingerprint"),
+        evidence_codes: value
+            .get("evidence_codes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(ToString::to_string)
+            .collect(),
+        strict_capable: bool_field(value, "strict_capable", false),
+        metadata: value
+            .get("metadata")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|items| items.iter())
+            .filter_map(|(key, value)| value.as_str().map(|value| (key.clone(), value.to_string())))
+            .collect(),
+    }
+}
+
+#[allow(deprecated)]
+fn parse_stream_bypass_policy(value: &Value) -> StreamBypassPolicy {
+    StreamBypassPolicy {
+        enabled: bool_field(value, "enabled", false),
+        policy_version: string_field(value, "policy_version"),
+        groups: value
+            .get("groups")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|group| StreamBypassGroup {
+                id: string_field(group, "id"),
+                conditions: group
+                    .get("conditions")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .map(|condition| StreamBypassCondition {
+                        id: string_field(condition, "id"),
+                        target: string_field(condition, "target"),
+                        operator: string_field(condition, "operator"),
+                        cidrs: condition
+                            .get("cidrs")
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .filter_map(Value::as_str)
+                            .map(ToString::to_string)
+                            .collect(),
+                        policy_id: string_field(condition, "policy_id"),
+                    })
+                    .collect(),
+            })
+            .collect(),
+        broad_rule_confirmed: bool_field(value, "broad_rule_confirmed", false),
+    }
 }
 
 fn parse_stream_availability(value: Option<&Value>) -> Option<StreamAvailability> {
@@ -1507,7 +1628,12 @@ fn stream_rules_to_json(rules: StreamRules) -> Value {
                     "protocol": item.protocol,
                     "listen_port": item.listen_port,
                     "target": item.target,
-                    "use_auth": item.use_auth
+                    "use_auth": item.use_auth,
+                    "disabled": item.disabled,
+                    "validation_mode": item.validation_mode,
+                    "service_profile": item.service_profile.map(stream_service_profile_to_json),
+                    "bypass_policy": item.bypass_policy.map(stream_bypass_policy_to_json),
+                    "probe_status": item.probe_status,
                 })
             })
             .collect(),
@@ -1525,6 +1651,41 @@ fn stream_rules_to_json(rules: StreamRules) -> Value {
     json!({
         "items": items,
         "availability": availability,
+        "access_policies": rules.access_policies.into_iter().map(compiled_ip_set_to_json).collect::<Vec<_>>(),
+    })
+}
+
+fn stream_service_profile_to_json(profile: StreamServiceProfile) -> Value {
+    json!({
+        "service_id": profile.service_id,
+        "service_family": profile.service_family,
+        "device_role": profile.device_role,
+        "service_confidence": profile.service_confidence,
+        "role_confidence": profile.role_confidence,
+        "source": profile.source,
+        "observed_at": profile.observed_at,
+        "classifier_version": profile.classifier_version,
+        "target_fingerprint": profile.target_fingerprint,
+        "evidence_codes": profile.evidence_codes,
+        "strict_capable": profile.strict_capable,
+        "metadata": profile.metadata,
+    })
+}
+
+fn stream_bypass_policy_to_json(policy: StreamBypassPolicy) -> Value {
+    json!({
+        "enabled": policy.enabled,
+        "policy_version": policy.policy_version,
+        "broad_rule_confirmed": policy.broad_rule_confirmed,
+        "groups": policy.groups.into_iter().map(|group| json!({
+            "id": group.id,
+            "conditions": group.conditions.into_iter().map(|condition| json!({
+                "id": condition.id,
+                "target": condition.target,
+                "operator": condition.operator,
+                "policy_id": condition.policy_id,
+            })).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
     })
 }
 
@@ -1896,6 +2057,35 @@ fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
         "general_blacklist_blocked".to_string(),
         Value::Bool(entry.general_blacklist_blocked),
     );
+    object.insert(
+        "expected_service".to_string(),
+        Value::String(entry.expected_service),
+    );
+    object.insert(
+        "detected_service".to_string(),
+        Value::String(entry.detected_service),
+    );
+    object.insert(
+        "service_confidence".to_string(),
+        Value::String(entry.service_confidence),
+    );
+    object.insert("device_role".to_string(), Value::String(entry.device_role));
+    object.insert(
+        "validation_decision".to_string(),
+        Value::String(entry.validation_decision),
+    );
+    object.insert(
+        "validation_evidence".to_string(),
+        json!(entry.validation_evidence),
+    );
+    object.insert(
+        "bypass_policy_version".to_string(),
+        Value::String(entry.bypass_policy_version),
+    );
+    object.insert(
+        "bypass_group_id".to_string(),
+        Value::String(entry.bypass_group_id),
+    );
     Value::Object(object)
 }
 
@@ -2231,7 +2421,9 @@ mod tests {
                 "protocol": "tcp",
                 "listen_port": 3306,
                 "target": "127.0.0.1:33060",
-                "use_auth": true
+                "use_auth": true,
+                "service_profile": null,
+                "bypass_policy": null
             }],
             "availability": {
                 "enabled": true,
@@ -2242,8 +2434,30 @@ mod tests {
         let rules = StreamRules {
             items: parse_stream_rules(&payload["items"]),
             availability: parse_stream_availability(payload.get("availability")),
+            access_policies: Vec::new(),
         };
 
-        assert_eq!(stream_rules_to_json(rules), payload);
+        assert_eq!(
+            stream_rules_to_json(rules),
+            json!({
+                "items": [{
+                    "protocol": "tcp",
+                    "listen_port": 3306,
+                    "target": "127.0.0.1:33060",
+                    "use_auth": true,
+                    "disabled": false,
+                    "validation_mode": "",
+                    "service_profile": null,
+                    "bypass_policy": null,
+                    "probe_status": "",
+                }],
+                "availability": {
+                    "enabled": true,
+                    "start_time": "22:00",
+                    "end_time": "06:00"
+                },
+                "access_policies": [],
+            })
+        );
     }
 }

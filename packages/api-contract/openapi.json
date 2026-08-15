@@ -10576,6 +10576,12 @@
           "auth_rule_group_id": {
             "type": "string"
           },
+          "bypass_group_id": {
+            "type": "string"
+          },
+          "bypass_policy_version": {
+            "type": "string"
+          },
           "bytes_in": {
             "format": "int64",
             "minimum": 0,
@@ -10589,11 +10595,20 @@
           "client_ip": {
             "type": "string"
           },
+          "detected_service": {
+            "type": "string"
+          },
+          "device_role": {
+            "type": "string"
+          },
           "duration_ms": {
             "format": "int64",
             "type": "integer"
           },
           "eo_connecting_ip": {
+            "type": "string"
+          },
+          "expected_service": {
             "type": "string"
           },
           "general_blacklist_blocked": {
@@ -10644,6 +10659,9 @@
           "scheme": {
             "type": "string"
           },
+          "service_confidence": {
+            "type": "string"
+          },
           "status": {
             "format": "int32",
             "type": "integer"
@@ -10659,6 +10677,15 @@
           },
           "user_agent": {
             "type": "string"
+          },
+          "validation_decision": {
+            "type": "string"
+          },
+          "validation_evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "waf_action": {
             "type": "string"
@@ -10738,7 +10765,15 @@
           "waf_rule_ids",
           "waf_action",
           "waf_bundle",
-          "general_blacklist_blocked"
+          "general_blacklist_blocked",
+          "expected_service",
+          "detected_service",
+          "service_confidence",
+          "device_role",
+          "validation_decision",
+          "validation_evidence",
+          "bypass_policy_version",
+          "bypass_group_id"
         ],
         "type": "object"
       },
@@ -18680,16 +18715,138 @@
         ],
         "type": "object"
       },
+      "StreamBypassConditionData": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "policy_id": {
+            "type": "string"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/StreamBypassRegionSelectionData"
+            },
+            "type": "array"
+          },
+          "target": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "target",
+          "operator",
+          "policy_id",
+          "values",
+          "selections"
+        ],
+        "type": "object"
+      },
+      "StreamBypassGroupData": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/StreamBypassConditionData"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "conditions"
+        ],
+        "type": "object"
+      },
+      "StreamBypassPolicyData": {
+        "properties": {
+          "broad_rule_confirmed": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/StreamBypassGroupData"
+            },
+            "type": "array"
+          },
+          "policy_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "policy_version",
+          "groups",
+          "broad_rule_confirmed"
+        ],
+        "type": "object"
+      },
+      "StreamBypassRegionSelectionData": {
+        "properties": {
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "province": {
+            "type": "string"
+          },
+          "query_city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "province",
+          "city",
+          "query_city",
+          "operator"
+        ],
+        "type": "object"
+      },
       "StreamMappingData": {
         "properties": {
+          "bypass_policy": {
+            "$ref": "#/components/schemas/StreamBypassPolicyData"
+          },
           "comment": {
             "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
           },
           "listen_port": {
             "format": "int64",
             "maximum": 65535,
             "minimum": 1,
             "type": "integer"
+          },
+          "probe_status": {
+            "type": "string"
           },
           "protocol": {
             "enum": [
@@ -18698,11 +18855,17 @@
             ],
             "type": "string"
           },
+          "service_profile": {
+            "$ref": "#/components/schemas/StreamServiceProfileData"
+          },
           "target": {
             "type": "string"
           },
           "use_auth": {
             "type": "boolean"
+          },
+          "validation_mode": {
+            "type": "string"
           }
         },
         "required": [
@@ -18755,6 +18918,70 @@
         },
         "required": [
           "mappings"
+        ],
+        "type": "object"
+      },
+      "StreamServiceProfileData": {
+        "properties": {
+          "classifier_version": {
+            "type": "string"
+          },
+          "device_role": {
+            "type": "string"
+          },
+          "evidence_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "role_confidence": {
+            "type": "string"
+          },
+          "service_confidence": {
+            "type": "string"
+          },
+          "service_family": {
+            "type": "string"
+          },
+          "service_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "strict_capable": {
+            "type": "boolean"
+          },
+          "target_fingerprint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_id",
+          "service_family",
+          "device_role",
+          "service_confidence",
+          "role_confidence",
+          "source",
+          "observed_at",
+          "classifier_version",
+          "target_fingerprint",
+          "evidence_codes",
+          "strict_capable",
+          "metadata"
         ],
         "type": "object"
       },

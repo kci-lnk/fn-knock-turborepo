@@ -265,7 +265,11 @@ watch(
               {{ t("admin.streamMappings.authRequiredLabel") }}
             </Label>
             <p class="text-xs text-muted-foreground">
-              {{ t("admin.streamMappings.authRequiredHint") }}
+              {{
+                form.useAuth
+                  ? t("admin.streamMappings.authRequiredEnabledHint")
+                  : t("admin.streamMappings.authRequiredDisabledHint")
+              }}
             </p>
           </div>
           <Switch id="stream-auth" v-model="form.useAuth" />

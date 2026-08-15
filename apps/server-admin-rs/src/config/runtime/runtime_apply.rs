@@ -266,6 +266,10 @@ pub(super) async fn sync_stream_rules(
             .get("availability")
             .cloned()
             .unwrap_or(Value::Null),
+        "access_policies": config
+            .get("stream_access_policies")
+            .cloned()
+            .unwrap_or_else(|| Value::Array(Vec::new())),
     });
     ensure_go_success(
         state

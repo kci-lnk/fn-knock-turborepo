@@ -3101,6 +3101,45 @@ fn provider_updater_map_covers_catalog() {
 }
 
 #[test]
+fn dnspod_record_list_treats_empty_results_as_missing_records() {
+    for response in [
+        json!({
+            "status": { "code": "1", "message": "Action completed successful" },
+            "records": []
+        }),
+        json!({
+            "status": { "code": "10", "message": "No records" }
+        }),
+    ] {
+        assert_eq!(
+            dnspod_record_from_list(&response, "query failed").unwrap(),
+            None
+        );
+    }
+}
+
+#[test]
+fn dnspod_record_list_preserves_records_and_real_errors() {
+    let record = dnspod_record_from_list(
+        &json!({
+            "status": { "code": "1", "message": "Action completed successful" },
+            "records": [{ "id": "42", "value": "192.0.2.1" }]
+        }),
+        "query failed",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(record.get("id"), Some(&json!("42")));
+
+    let error = dnspod_record_from_list(
+        &json!({ "status": { "code": "6", "message": "Invalid domain" } }),
+        "query failed",
+    )
+    .unwrap_err();
+    assert_eq!(error.to_string(), "Invalid domain");
+}
+
+#[test]
 fn ddns_domain_targets_parser_canonicalizes_supported_inputs() {
     let cases = [
         ("Home.Example.COM.", "home.example.com"),

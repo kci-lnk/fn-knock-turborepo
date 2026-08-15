@@ -75,22 +75,11 @@ pub(in crate::ddns::routes) async fn update_dnspod(
                         ("sub_domain", parsed.record_name.clone()),
                         ("record_type", record_type.to_string()),
                         ("record_line", record_line.clone()),
+                        ("error_on_empty", "no".to_string()),
                     ],
                 )
                 .await?;
-                if list.pointer("/status/code").and_then(Value::as_str) != Some("1") {
-                    return Err(anyhow::anyhow!(
-                        "{}",
-                        list.pointer("/status/message")
-                            .and_then(Value::as_str)
-                            .unwrap_or(query_failed.as_str())
-                    ));
-                }
-                let record = list
-                    .get("records")
-                    .and_then(Value::as_array)
-                    .and_then(|records| records.first())
-                    .cloned();
+                let record = dnspod_record_from_list(&list, &query_failed)?;
                 if let Some(record) = record {
                     if record.get("value").and_then(Value::as_str) == Some(ip.as_str()) {
                         return Ok(());
@@ -158,6 +147,28 @@ pub(in crate::ddns::routes) async fn update_dnspod(
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) fn dnspod_record_from_list(
+    list: &Value,
+    query_failed: &str,
+) -> anyhow::Result<Option<Value>> {
+    match list.pointer("/status/code").and_then(Value::as_str) {
+        Some("1") => Ok(list
+            .get("records")
+            .and_then(Value::as_array)
+            .and_then(|records| records.first())
+            .cloned()),
+        // Record.List uses code 10 for an empty result unless error_on_empty=no
+        // is honored. Both responses mean that Record.Create should run.
+        Some("10") => Ok(None),
+        _ => Err(anyhow::anyhow!(
+            "{}",
+            list.pointer("/status/message")
+                .and_then(Value::as_str)
+                .unwrap_or(query_failed)
+        )),
+    }
 }
 
 pub(in crate::ddns::routes) async fn dnspod_request(

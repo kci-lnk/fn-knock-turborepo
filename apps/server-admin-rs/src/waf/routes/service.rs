@@ -587,6 +587,7 @@ pub(super) async fn delete_custom_waf_rule(
 }
 
 pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Value> {
+    let _drain_guard = state.security.waf_event_drain_lock.lock().await;
     let config = load_waf_config(state).await?;
     if !config
         .get("enabled")
@@ -603,20 +604,30 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
     let response = state
         .gateway
         .client
-        .drain_waf_events(DEFAULT_DRAIN_LIMIT)
+        .lease_waf_events(DEFAULT_DRAIN_LIMIT)
         .await?;
     let data = go_response_data(response, "Failed to drain WAF events")?;
+    let lease_id = data
+        .get("lease_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
     let raw_events = data
         .get("events")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    if !raw_events.is_empty() && lease_id.is_empty() {
+        anyhow::bail!("Go backend returned WAF events without a delivery lease");
+    }
+    let leased_event_count = raw_events.len();
     let events = raw_events
         .into_iter()
         .filter_map(sanitize_event)
         .collect::<Vec<_>>();
-    if !events.is_empty() {
-        state
+    if !events.is_empty()
+        && let Err(error) = state
             .storage
             .store
             .persist_waf_events(
@@ -626,7 +637,37 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
                     .and_then(Value::as_i64)
                     .unwrap_or(7),
             )
+            .await
+    {
+        if !lease_id.is_empty()
+            && let Err(release_error) = state
+                .gateway
+                .client
+                .release_waf_event_lease(&lease_id)
+                .await
+        {
+            tracing::warn!(%release_error, %lease_id, "failed to release WAF event lease after persistence failure");
+        }
+        return Err(error.into());
+    }
+    if !lease_id.is_empty() {
+        let acknowledgement = state
+            .gateway
+            .client
+            .acknowledge_waf_event_lease(&lease_id)
             .await?;
+        let acknowledged = acknowledgement
+            .pointer("/data/acknowledged")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        if acknowledged != leased_event_count as i64 {
+            anyhow::bail!(
+                "Go backend acknowledged {acknowledged} of {} leased WAF events",
+                leased_event_count
+            );
+        }
+    }
+    if !events.is_empty() {
         for event in events.iter().filter(|event| is_waf_blocking_event(event)) {
             if let Err(error) = system_events::publish_waf_blocked_event(state, event).await {
                 tracing::warn!(%error, "failed to publish WAF blocked event");

@@ -266,6 +266,7 @@ impl GoBackendClient {
             "tcp",
             "udp",
             "waf",
+            "waf_event_lease_v1",
             "blacklist",
             "logs",
             "deep_monitor_v1",
@@ -1778,7 +1779,9 @@ fn waf_drain_to_json(result: crate::grpc_proto::WafDrainResult) -> Value {
             "error": event.error
         })).collect::<Vec<_>>(),
         "drained": result.drained,
-        "remaining": result.remaining
+        "remaining": result.remaining,
+        "lease_id": result.lease_id,
+        "acknowledged": result.acknowledged
     })
 }
 
@@ -2091,6 +2094,22 @@ mod tests {
                 "queue_depth": 7
             })
         );
+    }
+
+    #[test]
+    fn waf_drain_json_preserves_delivery_lease_completion() {
+        let value = waf_drain_to_json(crate::grpc_proto::WafDrainResult {
+            lease_id: "waf_lease_1".to_string(),
+            acknowledged: 2,
+            drained: 2,
+            remaining: 1,
+            ..Default::default()
+        });
+
+        assert_eq!(value["lease_id"], "waf_lease_1");
+        assert_eq!(value["acknowledged"], 2);
+        assert_eq!(value["drained"], 2);
+        assert_eq!(value["remaining"], 1);
     }
 
     #[test]

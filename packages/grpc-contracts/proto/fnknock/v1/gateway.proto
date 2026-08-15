@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 12;
+  CONTROL_API_VERSION_CURRENT = 13;
 }
 
 message RpcStatus {
@@ -373,6 +373,15 @@ message WafDrainResult {
   repeated WafEvent events = 1;
   int32 drained = 2;
   int32 remaining = 3;
+  string lease_id = 4;
+  int32 acknowledged = 5;
+}
+
+enum WafDrainOperation {
+  WAF_DRAIN_OPERATION_UNSPECIFIED = 0;
+  WAF_DRAIN_OPERATION_LEASE = 1;
+  WAF_DRAIN_OPERATION_ACKNOWLEDGE = 2;
+  WAF_DRAIN_OPERATION_RELEASE = 3;
 }
 
 message SslDeployedCertificate {
@@ -872,6 +881,8 @@ message WafBundleRequest {
 
 message WafDrainRequest {
   int32 limit = 1;
+  WafDrainOperation operation = 2;
+  string lease_id = 3;
 }
 
 message TcpRedirectRequest {

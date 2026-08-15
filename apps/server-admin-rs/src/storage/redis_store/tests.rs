@@ -8704,3 +8704,41 @@ fn waf_log_dates_include_neighboring_utc_days() {
     assert!(dates.contains(&"2024-01-02".to_string()));
     assert!(dates.contains(&"2024-01-03".to_string()));
 }
+
+#[tokio::test]
+async fn waf_event_persistence_is_atomic_and_idempotent_for_lease_retries() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let event = json!({
+        "trace_id": "waf_retry",
+        "time": "2026-08-15T15:28:20Z",
+        "action": "deny",
+        "status": 403,
+        "rule_ids": [921150]
+    });
+    let events = vec![event.clone()];
+
+    let (first, duplicate) = tokio::join!(
+        store.persist_waf_events(&events, 7),
+        store.persist_waf_events(&events, 7)
+    );
+    first.expect("persist leased event");
+    duplicate.expect("persist duplicate lease delivery");
+
+    assert_eq!(
+        store.get_waf_log_event("waf_retry").await.unwrap(),
+        Some(event)
+    );
+    let score = crate::time_utils::parse_iso_ms("2026-08-15T15:28:20Z").unwrap();
+    let date = crate::time_utils::local_date_from_ms(score);
+    assert_eq!(store.waf_log_date_total(&date).await.unwrap(), 1);
+    let stats = store
+        .conn()
+        .hgetall(&waf_log_stats_key(&date))
+        .await
+        .unwrap();
+    assert_eq!(stats.get("events").map(String::as_str), Some("1"));
+    assert_eq!(stats.get("action:deny").map(String::as_str), Some("1"));
+}

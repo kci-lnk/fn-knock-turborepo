@@ -1,4 +1,14 @@
 use super::*;
+use tokio_rusqlite::rusqlite::{TransactionBehavior, params};
+
+struct PersistableWafEvent {
+    trace_id: String,
+    event_key: String,
+    date: String,
+    score: i64,
+    action: String,
+    serialized: String,
+}
 
 impl Store {
     pub async fn count_waf_logs_for_buckets(
@@ -56,57 +66,115 @@ impl Store {
         let cutoff_date =
             crate::time_utils::local_date_from_ms(crate::time_utils::now_ms() - ttl_seconds * 1000);
         let cutoff_date_score = waf_log_date_score(&cutoff_date);
-        let mut touched_dates = BTreeSet::new();
-        let mut pipe = redis::pipe();
-        let mut operations = 0_usize;
-
-        for event in events {
-            let Some(trace_id) = event.get("trace_id").and_then(Value::as_str) else {
-                continue;
-            };
-            if trace_id.trim().is_empty() {
-                continue;
-            }
-            let score = waf_log_event_score(event);
-            let date = crate::time_utils::local_date_from_ms(score);
-            let action = event.get("action").and_then(Value::as_str).unwrap_or("log");
-            let serialized = serde_json::to_string(event).unwrap_or_default();
-
-            touched_dates.insert(date.clone());
-            pipe.set_ex(waf_log_event_key(trace_id), serialized, ttl_seconds as u64)
-                .ignore();
-            pipe.zadd(waf_log_date_key(&date), trace_id, score).ignore();
-            pipe.expire(waf_log_date_key(&date), ttl_seconds).ignore();
-            pipe.cmd("HINCRBY")
-                .arg(waf_log_stats_key(&date))
-                .arg("events")
-                .arg(1)
-                .ignore();
-            pipe.cmd("HINCRBY")
-                .arg(waf_log_stats_key(&date))
-                .arg(format!("action:{action}"))
-                .arg(1)
-                .ignore();
-            pipe.expire(waf_log_stats_key(&date), ttl_seconds).ignore();
-            operations += 6;
+        let prepared = events
+            .iter()
+            .filter_map(|event| {
+                let trace_id = event.get("trace_id").and_then(Value::as_str)?.trim();
+                if trace_id.is_empty() {
+                    return None;
+                }
+                let score = waf_log_event_score(event);
+                Some(PersistableWafEvent {
+                    trace_id: trace_id.to_string(),
+                    event_key: waf_log_event_key(trace_id),
+                    date: crate::time_utils::local_date_from_ms(score),
+                    score,
+                    action: event
+                        .get("action")
+                        .and_then(Value::as_str)
+                        .unwrap_or("log")
+                        .to_string(),
+                    serialized: serde_json::to_string(event).unwrap_or_default(),
+                })
+            })
+            .collect::<Vec<_>>();
+        if prepared.is_empty() {
+            return Ok(());
         }
 
-        for date in touched_dates {
-            pipe.zadd(WAF_LOG_DATES_INDEX_KEY, &date, waf_log_date_score(&date))
-                .ignore();
-            operations += 1;
-        }
-        pipe.cmd("ZREMRANGEBYSCORE")
-            .arg(WAF_LOG_DATES_INDEX_KEY)
-            .arg(0)
-            .arg(format!("({cutoff_date_score}"))
-            .ignore();
-        operations += 1;
+        self.conn()
+            .call(move |connection| {
+                let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let now_ms = crate::time_utils::now_ms();
+                let mut touched_dates = BTreeSet::new();
 
-        if operations > 0 {
-            let _: () = pipe.query_async(&mut self.conn()).await?;
-        }
-        Ok(())
+                for event in prepared {
+                    let already_persisted: bool = tx.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM kv_keys WHERE key = ?1 AND kind = 'string' AND (expires_at_ms IS NULL OR expires_at_ms > ?2))",
+                        params![event.event_key, now_ms],
+                        |row| row.get(0),
+                    )?;
+                    redis::execute_command_in_transaction(
+                        &tx,
+                        "SETEX",
+                        vec![
+                            event.event_key,
+                            ttl_seconds.to_string(),
+                            event.serialized,
+                        ],
+                    )?;
+                    redis::execute_command_in_transaction(
+                        &tx,
+                        "ZADD",
+                        vec![
+                            waf_log_date_key(&event.date),
+                            event.score.to_string(),
+                            event.trace_id,
+                        ],
+                    )?;
+                    redis::execute_command_in_transaction(
+                        &tx,
+                        "EXPIRE",
+                        vec![waf_log_date_key(&event.date), ttl_seconds.to_string()],
+                    )?;
+                    if !already_persisted {
+                        redis::execute_command_in_transaction(
+                            &tx,
+                            "HINCRBY",
+                            vec![waf_log_stats_key(&event.date), "events".to_string(), "1".to_string()],
+                        )?;
+                        redis::execute_command_in_transaction(
+                            &tx,
+                            "HINCRBY",
+                            vec![
+                                waf_log_stats_key(&event.date),
+                                format!("action:{}", event.action),
+                                "1".to_string(),
+                            ],
+                        )?;
+                    }
+                    redis::execute_command_in_transaction(
+                        &tx,
+                        "EXPIRE",
+                        vec![waf_log_stats_key(&event.date), ttl_seconds.to_string()],
+                    )?;
+                    touched_dates.insert(event.date);
+                }
+
+                for date in touched_dates {
+                    redis::execute_command_in_transaction(
+                        &tx,
+                        "ZADD",
+                        vec![
+                            WAF_LOG_DATES_INDEX_KEY.to_string(),
+                            waf_log_date_score(&date).to_string(),
+                            date,
+                        ],
+                    )?;
+                }
+                redis::execute_command_in_transaction(
+                    &tx,
+                    "ZREMRANGEBYSCORE",
+                    vec![
+                        WAF_LOG_DATES_INDEX_KEY.to_string(),
+                        "0".to_string(),
+                        format!("({cutoff_date_score}"),
+                    ],
+                )?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await
     }
 
     pub async fn list_waf_log_dates(

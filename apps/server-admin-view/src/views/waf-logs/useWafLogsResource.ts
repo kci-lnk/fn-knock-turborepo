@@ -14,6 +14,7 @@ import { useConfigStore } from "@/store/config";
 import type { WAFEvent } from "@/types";
 
 const AUTO_REFRESH_MS = 5_000;
+const TRACE_MISS_AUTO_REFRESH_LIMIT = 12;
 
 const getTodayString = () => {
   const now = new Date();
@@ -32,6 +33,7 @@ export const useWafLogsResource = () => {
   const { t } = useI18n();
   let isDisposed = false;
   let entriesRequestId = 0;
+  let traceMissAutoRefreshes = 0;
   const entries = ref<WAFEvent[]>([]);
   const availableDates = ref<string[]>([getTodayString()]);
   const selectedDate = ref(getTodayString());
@@ -148,6 +150,7 @@ export const useWafLogsResource = () => {
   };
 
   const refreshAll = async () => {
+    traceMissAutoRefreshes = 0;
     resetCursorPagination();
     await fetchEntries({ drain: true, silent: false });
   };
@@ -205,7 +208,18 @@ export const useWafLogsResource = () => {
     immediate: false,
     task: async (signal) => {
       if (currentCursor.value || cursorHistory.value.length > 0) return;
-      if (searchQuery.value.trim() || traceFilter.value.trim()) return;
+      if (searchQuery.value.trim()) return;
+      if (traceFilter.value.trim()) {
+        if (
+          entries.value.length > 0 ||
+          traceMissAutoRefreshes >= TRACE_MISS_AUTO_REFRESH_LIMIT
+        ) {
+          return;
+        }
+        traceMissAutoRefreshes += 1;
+        await fetchEntries({ silent: true, drain: true, signal });
+        return;
+      }
       await fetchEntries({ silent: true, signal });
     },
   });
@@ -216,6 +230,7 @@ export const useWafLogsResource = () => {
       const next = String(value || "");
       if (traceFilter.value === next) return;
       traceFilter.value = next;
+      traceMissAutoRefreshes = 0;
       resetCursorPagination();
       void fetchEntries({ drain: true });
     },

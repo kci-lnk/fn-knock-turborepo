@@ -13,6 +13,10 @@ const api = vi.hoisted(() => ({
   getWafLogs: vi.fn(),
 }));
 
+const routerState = vi.hoisted(() => ({
+  route: { query: {} as Record<string, unknown> },
+}));
+
 vi.mock("../src/lib/api/config", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/lib/api/config")>();
   return {
@@ -54,7 +58,7 @@ vi.mock("vue-router", async (importOriginal) => {
   const actual = await importOriginal<typeof import("vue-router")>();
   return {
     ...actual,
-    useRoute: () => ({ query: {} }),
+    useRoute: () => routerState.route,
   };
 });
 
@@ -96,7 +100,9 @@ const mountResource = <T>(setupResource: () => T) => {
 };
 
 beforeEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
+  routerState.route.query = {};
   api.drainWafEvents.mockResolvedValue({});
   api.getGatewayDates.mockResolvedValue({
     dates: ["2026-08-14"],
@@ -186,5 +192,38 @@ describe("latest log requests", () => {
 
     expect(resource.entries.value).toEqual([newestEntry]);
     wrapper.unmount();
+  });
+
+  it("retries an exact WAF trace that is still crossing the durable handoff", async () => {
+    vi.useFakeTimers();
+    routerState.route.query = { trace_id: "waf_delayed" };
+    const delayedEntry = { trace_id: "waf_delayed", action: "deny" };
+    api.getWafLogs
+      .mockResolvedValueOnce({
+        available_dates: ["2026-08-15"],
+        date: "2026-08-15",
+        items: [],
+        next_cursor: "",
+      })
+      .mockResolvedValueOnce({
+        available_dates: ["2026-08-15"],
+        date: "2026-08-15",
+        items: [delayedEntry],
+        next_cursor: "",
+      });
+
+    const { resource, wrapper } = mountResource(useWafLogsResource);
+    await flushPromises();
+    expect(resource.entries.value).toEqual([]);
+    expect(api.drainWafEvents).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await flushPromises();
+
+    expect(api.drainWafEvents).toHaveBeenCalledTimes(2);
+    expect(api.getWafLogs).toHaveBeenCalledTimes(2);
+    expect(resource.entries.value).toEqual([delayedEntry]);
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 });

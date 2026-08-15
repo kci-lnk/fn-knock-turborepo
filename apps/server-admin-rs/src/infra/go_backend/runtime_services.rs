@@ -6,7 +6,7 @@ use super::{
     rpc_status_response, ssl_info_to_json, status_value, traffic_to_json, waf_drain_to_json,
     waf_status_to_json,
 };
-use crate::grpc_proto::{HostRequest, WafBundleRequest, WafDrainRequest};
+use crate::grpc_proto::{HostRequest, WafBundleRequest, WafDrainOperation, WafDrainRequest};
 
 #[allow(dead_code)]
 impl GoBackendClient {
@@ -67,18 +67,53 @@ impl GoBackendClient {
         status_value("reload_waf_rules", result)
     }
 
-    pub async fn drain_waf_events(&self, limit: i64) -> anyhow::Result<Value> {
-        let mut client = self.waf.clone();
-        let result = match client
-            .drain_waf_events(self.request(WafDrainRequest {
+    pub async fn lease_waf_events(&self, limit: i64) -> anyhow::Result<Value> {
+        self.waf_event_lease_request(
+            "lease_waf_events",
+            WafDrainRequest {
                 limit: i32::try_from(limit).unwrap_or(i32::MAX),
-            }))
-            .await
-        {
+                operation: WafDrainOperation::Lease as i32,
+                lease_id: String::new(),
+            },
+        )
+        .await
+    }
+
+    pub async fn acknowledge_waf_event_lease(&self, lease_id: &str) -> anyhow::Result<Value> {
+        self.waf_event_lease_request(
+            "acknowledge_waf_event_lease",
+            WafDrainRequest {
+                limit: 0,
+                operation: WafDrainOperation::Acknowledge as i32,
+                lease_id: lease_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn release_waf_event_lease(&self, lease_id: &str) -> anyhow::Result<Value> {
+        self.waf_event_lease_request(
+            "release_waf_event_lease",
+            WafDrainRequest {
+                limit: 0,
+                operation: WafDrainOperation::Release as i32,
+                lease_id: lease_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    async fn waf_event_lease_request(
+        &self,
+        operation: &str,
+        request: WafDrainRequest,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.waf.clone();
+        let result = match client.drain_waf_events(self.request(request)).await {
             Ok(response) => ok(waf_drain_to_json(response.into_inner())),
             Err(error) => grpc_error(error),
         };
-        status_value("drain_waf_events", result)
+        status_value(operation, result)
     }
 
     pub async fn get_ssl_info(&self) -> anyhow::Result<(StatusCode, Value)> {

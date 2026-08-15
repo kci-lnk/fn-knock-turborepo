@@ -181,6 +181,9 @@ pub struct SecurityState {
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
+    /// Serializes the lease -> persist -> acknowledge handoff for WAF events.
+    /// Both the background task and the explicit UI drain endpoint use it.
+    pub waf_event_drain_lock: Mutex<()>,
 }
 
 impl Default for SecurityState {
@@ -190,6 +193,7 @@ impl Default for SecurityState {
             whitelist_runtime_sync_lock: Mutex::new(()),
             captcha_settings_update_lock: Mutex::new(()),
             waf_rules_update_lock: Mutex::new(()),
+            waf_event_drain_lock: Mutex::new(()),
         }
     }
 }

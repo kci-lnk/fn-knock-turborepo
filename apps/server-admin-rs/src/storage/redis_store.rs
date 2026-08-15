@@ -866,6 +866,23 @@ impl Store {
         Ok(store)
     }
 
+    pub(crate) async fn prepare_for_system_update(
+        &self,
+        backup_path: impl AsRef<Path>,
+    ) -> crate::storage::StorageResult<()> {
+        self.manager
+            .prepare_for_system_update(backup_path.as_ref())
+            .await
+    }
+
+    pub(crate) async fn checkpoint_for_shutdown(&self) -> crate::storage::StorageResult<()> {
+        self.manager.checkpoint_for_shutdown().await
+    }
+
+    pub(crate) async fn cancel_system_update(&self) -> crate::storage::StorageResult<()> {
+        self.manager.cancel_system_update().await
+    }
+
     fn conn(&self) -> ConnectionManager {
         self.manager.clone()
     }

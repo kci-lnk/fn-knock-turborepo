@@ -1141,7 +1141,8 @@
       "downloadPackageFirst": "请先完成更新包下载并校验",
       "packageMissing": "更新包不存在，请重新下载",
       "packageChecksumFailed": "更新包校验失败，请重新下载",
-      "installStartFailed": "启动更新安装流程失败"
+      "installStartFailed": "启动更新安装流程失败",
+      "databasePreflightFailed": "数据库完整性检查或更新前备份失败：{detail}"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -4349,7 +4350,8 @@
       "downloadPackageFirst": "請先完成更新包下載並校驗",
       "packageMissing": "更新包不存在，請重新下載",
       "packageChecksumFailed": "更新包校驗失敗，請重新下載",
-      "installStartFailed": "啟動更新安裝流程失敗"
+      "installStartFailed": "啟動更新安裝流程失敗",
+      "databasePreflightFailed": "資料庫完整性檢查或更新前備份失敗：{detail}"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -7557,7 +7559,8 @@
       "downloadPackageFirst": "Download and verify the update package before installing",
       "packageMissing": "Update package is missing. Download it again.",
       "packageChecksumFailed": "Update package checksum failed. Download it again.",
-      "installStartFailed": "Failed to start update installation"
+      "installStartFailed": "Failed to start update installation",
+      "databasePreflightFailed": "Database integrity check or pre-update backup failed: {detail}"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -10765,7 +10768,8 @@
       "downloadPackageFirst": "설치하기 전에 업데이트 패키지를 다운로드하고 확인하세요.",
       "packageMissing": "업데이트 패키지가 없습니다. 다시 다운로드하세요.",
       "packageChecksumFailed": "업데이트 패키지 체크섬에 실패했습니다. 다시 다운로드하세요.",
-      "installStartFailed": "업데이트 설치를 시작하지 못했습니다."
+      "installStartFailed": "업데이트 설치를 시작하지 못했습니다.",
+      "databasePreflightFailed": "데이터베이스 무결성 검사 또는 업데이트 전 백업에 실패했습니다: {detail}"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -13973,7 +13977,8 @@
       "downloadPackageFirst": "まずアップデートパッケージをダウンロードして確認してください",
       "packageMissing": "アップデートパッケージが存在しません。再度ダウンロードしてください。",
       "packageChecksumFailed": "アップデートパッケージの検証に失敗しました。もう一度ダウンロードしてください",
-      "installStartFailed": "アップデートのインストールプロセスの開始に失敗しました"
+      "installStartFailed": "アップデートのインストールプロセスの開始に失敗しました",
+      "databasePreflightFailed": "データベースの整合性チェックまたは更新前バックアップに失敗しました: {detail}"
     },
     "tunnelManagers": {
       "cloudflared": {

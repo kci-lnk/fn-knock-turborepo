@@ -1252,6 +1252,47 @@ impl ConnectionManager {
         .await
     }
 
+    pub(crate) async fn prepare_for_system_update(&self, backup_path: &Path) -> RedisResult<()> {
+        let backup_path = backup_path.to_path_buf();
+        self.call(move |conn| {
+            // Keep every write made between this preflight and process shutdown
+            // durable even if the package manager has to terminate the service.
+            conn.pragma_update(None, "synchronous", "FULL")?;
+            let result = (|| {
+                checkpoint_wal(conn, "TRUNCATE")?;
+                verify_sqlite_integrity(conn)?;
+                create_consistent_sqlite_backup(conn, &backup_path)?;
+                Ok(())
+            })();
+            if let Err(error) = result {
+                if let Err(restore_error) = conn.pragma_update(None, "synchronous", "NORMAL") {
+                    return Err(storage_error(format!(
+                        "{error}; failed to restore SQLite synchronous mode: {restore_error}"
+                    )));
+                }
+                return Err(error);
+            }
+            Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn cancel_system_update(&self) -> RedisResult<()> {
+        self.call(|conn| {
+            conn.pragma_update(None, "synchronous", "NORMAL")?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn checkpoint_for_shutdown(&self) -> RedisResult<()> {
+        self.call(|conn| {
+            checkpoint_wal(conn, "TRUNCATE")?;
+            Ok(())
+        })
+        .await
+    }
+
     pub(crate) async fn meta_value(&self, key: &str) -> RedisResult<Option<String>> {
         let key = key.to_string();
         self.call(move |conn| {
@@ -4216,6 +4257,124 @@ fn sqlite_table_exists(conn: &rusqlite::Connection, name: &str) -> RedisResult<b
     Ok(exists == 1)
 }
 
+fn checkpoint_wal(conn: &rusqlite::Connection, mode: &str) -> RedisResult<()> {
+    let sql = format!("PRAGMA wal_checkpoint({mode})");
+    let (busy, log_frames, checkpointed_frames) = conn.query_row(&sql, [], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    })?;
+    if busy != 0 {
+        return Err(storage_error(format!(
+            "SQLite WAL checkpoint remained busy ({checkpointed_frames}/{log_frames} frames)"
+        )));
+    }
+    Ok(())
+}
+
+fn verify_sqlite_integrity(conn: &rusqlite::Connection) -> RedisResult<()> {
+    let mut statement = conn.prepare("PRAGMA quick_check")?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+    let results = rows.collect::<Result<Vec<_>, _>>()?;
+    if results.len() == 1 && results[0].eq_ignore_ascii_case("ok") {
+        return Ok(());
+    }
+    Err(storage_error(format!(
+        "SQLite integrity check failed: {}",
+        results.join("; ")
+    )))
+}
+
+fn create_consistent_sqlite_backup(
+    conn: &rusqlite::Connection,
+    backup_path: &Path,
+) -> RedisResult<()> {
+    let parent = backup_path
+        .parent()
+        .ok_or_else(|| storage_error("SQLite update backup path has no parent directory"))?;
+    std::fs::create_dir_all(parent)?;
+
+    let mut temporary_name = backup_path.as_os_str().to_os_string();
+    temporary_name.push(".tmp");
+    let temporary_path = PathBuf::from(temporary_name);
+    remove_file_if_exists(&temporary_path)?;
+
+    let temporary_path_text = temporary_path
+        .to_str()
+        .ok_or_else(|| storage_error("SQLite update backup path is not valid UTF-8"))?
+        .to_string();
+    conn.execute("VACUUM INTO ?1", params![temporary_path_text])?;
+
+    let verification = rusqlite::Connection::open_with_flags(
+        &temporary_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    verify_sqlite_integrity(&verification)?;
+    verification.close().map_err(|(_, error)| error)?;
+    #[cfg(unix)]
+    std::fs::set_permissions(&temporary_path, std::fs::Permissions::from_mode(0o600))?;
+    sync_file(&temporary_path)?;
+    let previous_path = replace_backup_file(&temporary_path, backup_path)?;
+    sync_file(backup_path)?;
+    sync_directory(parent)?;
+    if let Some(previous_path) = previous_path {
+        remove_file_if_exists(&previous_path)?;
+        sync_directory(parent)?;
+    }
+    Ok(())
+}
+
+fn replace_backup_file(temporary_path: &Path, backup_path: &Path) -> RedisResult<Option<PathBuf>> {
+    if !backup_path.exists() {
+        std::fs::rename(temporary_path, backup_path)?;
+        return Ok(None);
+    }
+
+    let mut previous_name = backup_path.as_os_str().to_os_string();
+    previous_name.push(".previous");
+    let previous_path = PathBuf::from(previous_name);
+    remove_file_if_exists(&previous_path)?;
+    std::fs::rename(backup_path, &previous_path)?;
+    if let Err(error) = std::fs::rename(temporary_path, backup_path) {
+        if let Err(restore_error) = std::fs::rename(&previous_path, backup_path) {
+            return Err(storage_error(format!(
+                "failed to install SQLite backup: {error}; failed to restore previous backup: {restore_error}"
+            )));
+        }
+        return Err(error.into());
+    }
+    Ok(Some(previous_path))
+}
+
+fn remove_file_if_exists(path: &Path) -> RedisResult<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn sync_file(path: &Path) -> RedisResult<()> {
+    std::fs::OpenOptions::new()
+        .read(true)
+        .open(path)?
+        .sync_all()?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn sync_directory(path: &Path) -> RedisResult<()> {
+    std::fs::File::open(path)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_path: &Path) -> RedisResult<()> {
+    Ok(())
+}
+
 fn create_migration_backup(
     conn: &mut rusqlite::Connection,
     path: &Path,
@@ -4224,7 +4383,6 @@ fn create_migration_backup(
     if !path.exists() {
         return Ok(None);
     }
-    conn.execute_batch("PRAGMA wal_checkpoint(FULL);")?;
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -4234,7 +4392,7 @@ fn create_migration_backup(
         migration.version,
         now_ms()
     ));
-    std::fs::copy(path, &backup_path)?;
+    create_consistent_sqlite_backup(conn, &backup_path)?;
     Ok(Some(backup_path))
 }
 
@@ -4617,6 +4775,107 @@ mod tests {
 
         let error = manager.initialize().await.expect_err("checksum must fail");
         assert!(error.to_string().contains("checksum mismatch"));
+    }
+
+    #[tokio::test]
+    async fn system_update_preflight_replaces_a_verified_durable_snapshot() {
+        let directory = tempfile::tempdir().expect("create temp dir");
+        let path = directory.path().join("fn-knock.sqlite3");
+        let backup_path = directory.path().join("fn-knock.sqlite3.pre-update.bak");
+        let manager = ConnectionManager::open(&path).await.expect("open sqlite");
+        manager
+            .set_meta_value("update-snapshot-test", "before")
+            .await
+            .expect("seed snapshot value");
+
+        manager
+            .prepare_for_system_update(&backup_path)
+            .await
+            .expect("prepare first update snapshot");
+        assert_eq!(read_backup_meta(&backup_path), "before");
+
+        assert_eq!(synchronous_mode(&manager).await, 2);
+
+        manager
+            .set_meta_value("update-snapshot-test", "after")
+            .await
+            .expect("update snapshot value");
+        manager
+            .prepare_for_system_update(&backup_path)
+            .await
+            .expect("replace update snapshot");
+        assert_eq!(read_backup_meta(&backup_path), "after");
+        manager
+            .checkpoint_for_shutdown()
+            .await
+            .expect("checkpoint shutdown WAL");
+        manager
+            .cancel_system_update()
+            .await
+            .expect("restore normal sync mode");
+        assert_eq!(synchronous_mode(&manager).await, 1);
+    }
+
+    #[tokio::test]
+    async fn failed_system_update_preflight_restores_normal_sync_mode() {
+        let directory = tempfile::tempdir().expect("create temp dir");
+        let path = directory.path().join("fn-knock.sqlite3");
+        let invalid_backup = directory.path().join("invalid-backup");
+        let mut invalid_temporary_name = invalid_backup.as_os_str().to_os_string();
+        invalid_temporary_name.push(".tmp");
+        std::fs::create_dir(PathBuf::from(invalid_temporary_name))
+            .expect("create invalid temporary directory");
+        let manager = ConnectionManager::open(&path).await.expect("open sqlite");
+
+        manager
+            .prepare_for_system_update(&invalid_backup)
+            .await
+            .expect_err("invalid backup destination must fail");
+        assert_eq!(synchronous_mode(&manager).await, 1);
+    }
+
+    #[tokio::test]
+    async fn destructive_migration_backup_is_a_verified_sqlite_snapshot() {
+        let directory = tempfile::tempdir().expect("create temp dir");
+        let path = directory.path().join("fn-knock.sqlite3");
+        let manager = ConnectionManager::open(&path).await.expect("open sqlite");
+        manager
+            .set_meta_value("update-snapshot-test", "migration")
+            .await
+            .expect("seed migration snapshot value");
+        let source_path = path.clone();
+        let backup_path = manager
+            .call(move |conn| {
+                create_migration_backup(conn, &source_path, &SCHEMA_MIGRATIONS[1])?
+                    .ok_or_else(|| storage_error("migration backup was not created"))
+            })
+            .await
+            .expect("create migration snapshot");
+
+        assert_eq!(read_backup_meta(&backup_path), "migration");
+    }
+
+    async fn synchronous_mode(manager: &ConnectionManager) -> i64 {
+        manager
+            .call(|conn| {
+                conn.query_row("PRAGMA synchronous", [], |row| row.get::<_, i64>(0))
+                    .map_err(Into::into)
+            })
+            .await
+            .expect("read synchronous mode")
+    }
+
+    fn read_backup_meta(path: &Path) -> String {
+        let conn =
+            rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .expect("open update snapshot");
+        verify_sqlite_integrity(&conn).expect("snapshot integrity");
+        conn.query_row(
+            "SELECT value FROM storage_meta WHERE key = 'update-snapshot-test'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read snapshot value")
     }
 
     #[tokio::test]

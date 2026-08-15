@@ -4,7 +4,10 @@ set -e
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
 if [ -x /etc/init.d/fn-knock ]; then
-	/etc/init.d/fn-knock stop >/dev/null 2>&1 || true
+	if ! /etc/init.d/fn-knock stop >/dev/null 2>&1; then
+		echo "fn-knock: failed to stop service; refusing to remove or upgrade package" >&2
+		exit 1
+	fi
 	/etc/init.d/fn-knock disable >/dev/null 2>&1 || true
 fi
 

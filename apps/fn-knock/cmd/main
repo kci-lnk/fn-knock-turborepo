@@ -26,6 +26,8 @@ AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
 ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
 NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
+STOP_GRACE_ATTEMPTS=90
+STOP_KILL_ATTEMPTS=20
 
 BACKEND_PORT=""
 ADMIN_VIEW_PORT=""
@@ -610,16 +612,33 @@ stop_pid() {
     fi
 
     log_msg "Stopping ${name} (PID: ${pid})..."
-    kill -TERM "${pid}" 2>>"${LOG_FILE}" || true
-    for _ in $(seq 1 20); do
+    if ! kill -TERM "${pid}" 2>>"${LOG_FILE}"; then
+        log_msg "Failed to send SIGTERM to ${name} (PID: ${pid})."
+        return 1
+    fi
+    # The Rust service can legitimately spend about 30 seconds draining its
+    # owned workers and checkpointing SQLite. Do not cut that sequence short.
+    for _ in $(seq 1 "${STOP_GRACE_ATTEMPTS}"); do
         if ! check_process "${pid}"; then
-            break
+            return 0
         fi
         sleep 0.5
     done
     if check_process "${pid}"; then
-        kill -KILL "${pid}" 2>>"${LOG_FILE}" || true
+        log_msg "${name} did not stop gracefully; sending SIGKILL (PID: ${pid})."
+        if ! kill -KILL "${pid}" 2>>"${LOG_FILE}"; then
+            log_msg "Failed to send SIGKILL to ${name} (PID: ${pid})."
+            return 1
+        fi
+        for _ in $(seq 1 "${STOP_KILL_ATTEMPTS}"); do
+            if ! check_process "${pid}"; then
+                return 0
+            fi
+            sleep 0.25
+        done
     fi
+    log_msg "${name} is still running after the stop deadline (PID: ${pid})."
+    return 1
 }
 
 list_pids_by_keyword() {
@@ -638,6 +657,7 @@ stop_matching_processes() {
     local name="$2"
     local pids=""
     local matched=0
+    local stop_failed=0
 
     pids="$(list_pids_by_keyword "${keyword}")"
     if [ -z "${pids}" ]; then
@@ -651,13 +671,16 @@ stop_matching_processes() {
         if [ "${pid}" = "$$" ]; then
             continue
         fi
-        stop_pid "${pid}" "${name}"
+        if ! stop_pid "${pid}" "${name}"; then
+            stop_failed=1
+        fi
         matched=1
     done
 
     if [ "${matched}" -eq 1 ]; then
         log_msg "${name} cleanup finished by keyword: ${keyword}"
     fi
+    [ "${stop_failed}" -eq 0 ]
 }
 
 stop_service() {
@@ -675,7 +698,9 @@ stop_service() {
         return 0
     fi
 
-    stop_pid "${pid}" "${name}"
+    if ! stop_pid "${pid}" "${name}"; then
+        return 1
+    fi
 
     rm -f "${pid_file}"
     log_msg "${name} stopped."
@@ -899,7 +924,14 @@ stop() {
     log_msg "=== fn-knock stop ==="
     supervisor_log INFO supervisor stop_requested fnos_stop null
     resolve_gateway_bin >/dev/null 2>&1 || true
-    stop_service "${BACKEND_PID_FILE}" "Backend"
+    if ! stop_service "${BACKEND_PID_FILE}" "Backend"; then
+        log_msg "Backend stop failed; refusing to continue shutdown."
+        return 1
+    fi
+    if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
+        log_msg "Orphaned backend stop failed; refusing to continue shutdown."
+        return 1
+    fi
     rm -f "${READINESS_MARKER}"
     if ! cleanup_fn_connect_waf_rules; then
         log_msg "Gateway kept running because FN Connect WAF rules could not be safely removed"

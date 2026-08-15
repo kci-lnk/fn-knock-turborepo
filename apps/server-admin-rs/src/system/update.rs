@@ -174,6 +174,7 @@ struct UpdateInner {
     check_error: Option<String>,
     check_in_progress: bool,
     download_in_progress: bool,
+    install_in_progress: bool,
     downloaded_path: Option<PathBuf>,
     downloaded_sha256: Option<String>,
     confirmed_pending_on_boot: bool,
@@ -188,6 +189,16 @@ struct UpdateManager {
     #[cfg(test)]
     test_manifest_url: Option<String>,
     inner: Mutex<UpdateInner>,
+}
+
+struct InstallReservation<'a> {
+    manager: &'a UpdateManager,
+}
+
+impl Drop for InstallReservation<'_> {
+    fn drop(&mut self) {
+        self.manager.inner_guard().install_in_progress = false;
+    }
 }
 
 pub fn update_routes() -> OpenApiRouter<AppState> {
@@ -556,6 +567,8 @@ impl UpdateManager {
                         .target_version
                         .as_ref()
                         .is_some_and(|version| version != &manifest.version)
+                        && !inner.download_in_progress
+                        && !inner.install_in_progress
                         && !matches!(inner.download.status.as_str(), "downloading" | "installing");
                     if stale_download {
                         inner.download = DownloadState::default();
@@ -620,21 +633,22 @@ impl UpdateManager {
 
     async fn trigger_download(&'static self, state: AppState) -> Result<(), String> {
         let translator = Translator::from_state(&state).await;
-        {
-            let inner = self.inner_guard();
-            if inner.download_in_progress
-                || matches!(inner.download.status.as_str(), "downloading" | "verifying")
-            {
-                return Ok(());
-            }
-        }
         if self.inner_guard().latest_manifest.is_none() {
             let _ = self
                 .check_now_localized(state.clone(), "download-bootstrap")
                 .await;
         }
         let (manifest, target_package, target_path) = {
-            let inner = self.inner_guard();
+            let mut inner = self.inner_guard();
+            if inner.download_in_progress
+                || inner.install_in_progress
+                || matches!(
+                    inner.download.status.as_str(),
+                    "downloading" | "verifying" | "installing"
+                )
+            {
+                return Ok(());
+            }
             let manifest = inner
                 .latest_manifest
                 .clone()
@@ -655,10 +669,6 @@ impl UpdateManager {
             {
                 return Ok(());
             }
-            (manifest, target_package, target_path)
-        };
-        {
-            let mut inner = self.inner_guard();
             inner.download_in_progress = true;
             inner.download = DownloadState {
                 status: "downloading".to_string(),
@@ -668,7 +678,8 @@ impl UpdateManager {
                 error: None,
                 target_version: Some(manifest.version.clone()),
             };
-        }
+            (manifest, target_package, target_path)
+        };
         state.spawn_background("update-download", async move {
             if let Err(error) = self
                 .download_internal(translator, manifest, target_package, target_path)
@@ -683,12 +694,12 @@ impl UpdateManager {
     }
 
     async fn trigger_install(&self, state: &AppState) -> Result<(), String> {
+        let Some(_reservation) = self.reserve_install() else {
+            return Ok(());
+        };
         let translator = Translator::from_state(state).await;
         let (manifest, target_package, downloaded_path) = {
             let inner = self.inner_guard();
-            if inner.download.status == "installing" {
-                return Ok(());
-            }
             let manifest = inner
                 .latest_manifest
                 .clone()
@@ -715,22 +726,68 @@ impl UpdateManager {
             self.reset_download_state();
             return Err(update_manager_text(&translator, "packageChecksumFailed"));
         }
+        let backup_path = pre_update_backup_path(&state.settings.sqlite_path);
+        if let Err(error) = state
+            .storage
+            .store
+            .prepare_for_system_update(&backup_path)
+            .await
+        {
+            let message = update_manager_text_params(
+                &translator,
+                "databasePreflightFailed",
+                &[("detail", error.to_string())],
+            );
+            self.set_download_error(&message);
+            return Err(message);
+        }
         let pending = json!({
             "targetVersion": manifest.version,
             "requestedAt": time_utils::now_iso()
         });
-        state
+        if let Err(error) = state
             .storage
             .store
             .set_json_value_ex(UPDATE_PENDING_KEY, &pending, UPDATE_PENDING_TTL_SECONDS)
             .await
-            .map_err(|error| error.to_string())?;
+        {
+            self.restore_normal_sync_after_failed_install(state).await;
+            let message = error.to_string();
+            self.set_download_error(&message);
+            return Err(message);
+        }
         {
             let mut inner = self.inner_guard();
             inner.download.status = "installing".to_string();
             inner.download.error = None;
         }
-        self.write_and_launch_install_script(&downloaded_path, &translator)
+        let result = self.write_and_launch_install_script(&downloaded_path, &translator);
+        if let Err(message) = &result {
+            self.set_download_error(message);
+            let _ = state
+                .storage
+                .store
+                .delete_keys(&[UPDATE_PENDING_KEY.to_string()])
+                .await;
+            self.restore_normal_sync_after_failed_install(state).await;
+        }
+        result
+    }
+
+    fn reserve_install(&self) -> Option<InstallReservation<'_>> {
+        let mut inner = self.inner_guard();
+        if inner.install_in_progress || inner.download.status == "installing" {
+            return None;
+        }
+        inner.install_in_progress = true;
+        drop(inner);
+        Some(InstallReservation { manager: self })
+    }
+
+    async fn restore_normal_sync_after_failed_install(&self, state: &AppState) {
+        if let Err(error) = state.storage.store.cancel_system_update().await {
+            tracing::warn!(%error, "failed to restore SQLite sync mode after cancelled update");
+        }
     }
 
     async fn consume_confirm_message(&self, state: &AppState) -> anyhow::Result<Option<Value>> {
@@ -954,10 +1011,43 @@ impl UpdateManager {
         let script_path = self.updates_dir.join("apply-update.sh");
         let env_content = build_install_env_content();
         fs::write(&self.install_env_path, env_content).map_err(|error| error.to_string())?;
-        let escaped_path = shell_escape_path(downloaded_path);
-        let escaped_env_path = shell_escape_path(&self.install_env_path);
-        let script = format!(
-            r#"#!/bin/sh
+        let quoted_path = shell_quote_path(downloaded_path);
+        let quoted_env_path = shell_quote_path(&self.install_env_path);
+        let script = build_install_script(&quoted_path, &quoted_env_path);
+        fs::write(&script_path, script).map_err(|error| error.to_string())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
+                .map_err(|error| error.to_string())?;
+        }
+        let quoted_script_path = shell_quote_path(&script_path);
+        let quoted_log_path = shell_quote_path(&self.install_log_path);
+        let launcher = format!(
+            r#"if command -v setsid >/dev/null 2>&1; then
+  nohup setsid /bin/sh {quoted_script_path} > {quoted_log_path} 2>&1 < /dev/null &
+else
+  nohup /bin/sh {quoted_script_path} > {quoted_log_path} 2>&1 < /dev/null &
+fi"#
+        );
+        let status = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(launcher)
+            .status()
+            .map_err(|error| error.to_string())?;
+        if status.success() {
+            Ok(())
+        } else {
+            let message = update_manager_text(translator, "installStartFailed");
+            self.set_download_error(&message);
+            Err(message)
+        }
+    }
+}
+
+fn build_install_script(quoted_package_path: &str, quoted_env_path: &str) -> String {
+    format!(
+        r#"#!/bin/sh
 set -eu
 sleep 2
 
@@ -968,6 +1058,16 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "root privileges are required for update installation" >&2
   exit 1
 fi
+
+restart_after_failure() {{
+  status="$?"
+  trap - EXIT
+  if [ "$status" -ne 0 ]; then
+    appcenter-cli start fn-knock >/dev/null 2>&1 || true
+  fi
+  exit "$status"
+}}
+trap restart_after_failure EXIT
 
 resolve_install_volume() {{
   volume=""
@@ -986,51 +1086,31 @@ resolve_install_volume() {{
 }}
 
 install_volume="$(resolve_install_volume)"
-appcenter-cli stop fn-knock || true
-appcenter-cli uninstall fn-knock || true
+appcenter-cli stop fn-knock
+appcenter-cli uninstall fn-knock
 mkdir -p /tmp/appcenter
 if [ -n "$install_volume" ]; then
   echo "Using appcenter volume: $install_volume"
-  appcenter-cli install-fpk "{escaped_path}" --env "{escaped_env_path}" --volume "$install_volume"
+  appcenter-cli install-fpk {quoted_package_path} --env {quoted_env_path} --volume "$install_volume"
 else
-  appcenter-cli install-fpk "{escaped_path}" --env "{escaped_env_path}"
+  appcenter-cli install-fpk {quoted_package_path} --env {quoted_env_path}
 fi
 appcenter-cli start fn-knock
+trap - EXIT
 "#
-        );
-        fs::write(&script_path, script).map_err(|error| error.to_string())?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))
-                .map_err(|error| error.to_string())?;
-        }
-        let escaped_script_path = shell_escape_path(&script_path);
-        let escaped_log_path = shell_escape_path(&self.install_log_path);
-        let launcher = format!(
-            r#"if command -v setsid >/dev/null 2>&1; then
-  nohup setsid /bin/sh "{escaped_script_path}" > "{escaped_log_path}" 2>&1 < /dev/null &
-else
-  nohup /bin/sh "{escaped_script_path}" > "{escaped_log_path}" 2>&1 < /dev/null &
-fi"#
-        );
-        let status = Command::new("/bin/sh")
-            .arg("-c")
-            .arg(launcher)
-            .status()
-            .map_err(|error| error.to_string())?;
-        if status.success() {
-            Ok(())
-        } else {
-            let message = update_manager_text(translator, "installStartFailed");
-            self.set_download_error(&message);
-            Err(message)
-        }
-    }
+    )
 }
 
 fn manager(state: &AppState) -> &'static UpdateManager {
     UPDATE_MANAGER.get_or_init(|| UpdateManager::new(&state.settings.data_dir))
+}
+
+fn pre_update_backup_path(sqlite_path: &Path) -> PathBuf {
+    let file_name = sqlite_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("fn-knock.sqlite3");
+    sqlite_path.with_file_name(format!("{file_name}.pre-update.bak"))
 }
 
 fn update_http_client(timeout_ms: u64) -> Result<reqwest::Client, String> {
@@ -1077,6 +1157,7 @@ fn parse_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
     if version.is_empty() {
         return Err(ManifestError::MissingVersion);
     }
+    validate_manifest_version(&version)?;
     let update_available = update_available.ok_or(ManifestError::MissingUpdateAvailable)?;
     let force_update = force_update.ok_or(ManifestError::MissingForceUpdate)?;
     if download_url.is_empty() {
@@ -1109,6 +1190,7 @@ fn parse_windows_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestErro
     if version.is_empty() {
         return Err(ManifestError::MissingVersion);
     }
+    validate_manifest_version(&version)?;
     let update_available = object
         .get("update_available")
         .and_then(Value::as_bool)
@@ -1174,6 +1256,21 @@ fn ensure_sha256_raw(value: &str, field: &str) -> Result<String, ManifestError> 
         Ok(normalized)
     } else {
         Err(ManifestError::FieldInvalid(field.to_string()))
+    }
+}
+
+fn validate_manifest_version(version: &str) -> Result<(), ManifestError> {
+    let valid = version.len() <= 128
+        && version
+            .chars()
+            .any(|character| character.is_ascii_alphanumeric())
+        && version.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_' | '+')
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err(ManifestError::FieldInvalid("version".to_string()))
     }
 }
 
@@ -1270,8 +1367,8 @@ fn parse_node_decimal_port(value: &str) -> Option<u16> {
     (1..=65_535).contains(&signed).then_some(signed as u16)
 }
 
-fn shell_escape_path(path: &Path) -> String {
-    path.to_string_lossy().replace('"', "\\\"")
+fn shell_quote_path(path: &Path) -> String {
+    format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
 }
 
 fn self_update_available(state: &AppState) -> bool {
@@ -1645,5 +1742,73 @@ mod tests {
             ensure_sha256("bad", "sha256", &translator).unwrap_err(),
             "更新信息 sha256 无效"
         );
+    }
+
+    #[test]
+    fn install_reservation_blocks_duplicate_install_until_released() {
+        let directory = tempfile::tempdir().expect("create update directory");
+        let manager = UpdateManager::new(directory.path());
+
+        let reservation = manager.reserve_install().expect("reserve install");
+        assert!(manager.reserve_install().is_none());
+        drop(reservation);
+        assert!(manager.reserve_install().is_some());
+    }
+
+    #[test]
+    fn install_script_aborts_when_stop_or_uninstall_fails() {
+        let script = build_install_script("'/tmp/update.fpk'", "'/tmp/install.env'");
+        assert!(script.contains("appcenter-cli stop fn-knock\n"));
+        assert!(script.contains("appcenter-cli uninstall fn-knock\n"));
+        assert!(!script.contains("appcenter-cli stop fn-knock || true"));
+        assert!(!script.contains("appcenter-cli uninstall fn-knock || true"));
+        assert!(script.contains("trap restart_after_failure EXIT"));
+        assert!(script.contains("appcenter-cli start fn-knock >/dev/null 2>&1 || true"));
+
+        let stop = script.find("appcenter-cli stop fn-knock").unwrap();
+        let uninstall = script.find("appcenter-cli uninstall fn-knock").unwrap();
+        let install = script.find("appcenter-cli install-fpk").unwrap();
+        assert!(stop < uninstall && uninstall < install);
+
+        #[cfg(unix)]
+        {
+            let mut child = std::process::Command::new("/bin/sh")
+                .arg("-n")
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .expect("start shell syntax check");
+            std::io::Write::write_all(
+                child.stdin.as_mut().expect("shell stdin"),
+                script.as_bytes(),
+            )
+            .expect("write install script");
+            assert!(child.wait().expect("wait for shell syntax check").success());
+        }
+    }
+
+    #[test]
+    fn shell_paths_are_single_quoted_without_expansion_gaps() {
+        let quoted = shell_quote_path(Path::new("/tmp/a'$(touch injected).fpk"));
+        assert_eq!(quoted, "'/tmp/a'\"'\"'$(touch injected).fpk'");
+        let script = build_install_script(&quoted, "'/tmp/install.env'");
+        assert!(script.contains(&format!("install-fpk {quoted} --env")));
+    }
+
+    #[test]
+    fn manifest_rejects_unsafe_version_file_components() {
+        let translator = Translator::new("zh-CN");
+        let error = parse_manifest(
+            &json!({
+                "version": "2.0.0/../../$(touch injected)",
+                "update_available": true,
+                "force_update": false,
+                "download_url": "https://example.com/app.fpk",
+                "sha256": "a".repeat(64),
+                "release_notes": "notes"
+            }),
+            &translator,
+        )
+        .expect_err("unsafe version must be rejected");
+        assert_eq!(error, "更新信息 version 无效");
     }
 }

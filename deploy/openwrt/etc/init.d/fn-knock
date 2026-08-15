@@ -1,7 +1,9 @@
 #!/bin/sh /etc/rc.common
 
 START=99
-STOP=10
+# The Rust service drains managed tasks and checkpoints SQLite during SIGTERM.
+# Its internal shutdown deadlines can total about 30 seconds.
+STOP=45
 USE_PROCD=1
 
 NAME=fn-knock

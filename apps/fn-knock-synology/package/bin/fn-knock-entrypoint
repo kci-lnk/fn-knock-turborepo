@@ -119,20 +119,60 @@ wait_for_process_or_fail() {
 }
 
 terminate_children() {
-  local pid
+  local pid attempts=0 stop_failed=0
   for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
     if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
       kill "${pid}" 2>/dev/null || true
     fi
   done
-  wait "${BACKEND_PID:-}" 2>/dev/null || true
-  wait "${GATEWAY_PID:-}" 2>/dev/null || true
+  while [ "${attempts}" -lt 180 ]; do
+    local running=0
+    for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
+      if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+        running=1
+        break
+      fi
+    done
+    [ "${running}" -eq 0 ] && break
+    sleep 0.25
+    attempts=$((attempts + 1))
+  done
+  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+      echo "[fn-knock] process ${pid} exceeded graceful shutdown deadline; forcing stop" >&2
+      kill -KILL "${pid}" 2>/dev/null || true
+    fi
+  done
+  attempts=0
+  while [ "${attempts}" -lt 20 ]; do
+    local running=0
+    for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
+      if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+        running=1
+        break
+      fi
+    done
+    [ "${running}" -eq 0 ] && break
+    sleep 0.25
+    attempts=$((attempts + 1))
+  done
+  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+      echo "[fn-knock] process ${pid} is still running after forced stop" >&2
+      stop_failed=1
+    else
+      wait "${pid}" 2>/dev/null || true
+    fi
+  done
+  [ "${stop_failed}" -eq 0 ]
 }
 
 cleanup() {
   local code=$?
   trap - EXIT INT TERM
-  terminate_children
+  if ! terminate_children && [ "${code}" -eq 0 ]; then
+    code=1
+  fi
   remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
   remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   exit "${code}"
@@ -142,7 +182,10 @@ stop_gracefully() {
   trap '' INT TERM
   echo "[fn-knock] stop requested; terminating services"
   supervisor_log INFO supervisor stop_requested signal null || true
-  terminate_children
+  if ! terminate_children; then
+    echo "[fn-knock] failed to stop all managed processes" >&2
+    exit 1
+  fi
   remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
   remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   exit 0

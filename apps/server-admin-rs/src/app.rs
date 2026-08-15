@@ -304,6 +304,7 @@ pub(crate) async fn run_with_settings(
             let _ = tokio::fs::remove_file(path).await;
         }
         stop_runtime_logging(&state).await;
+        checkpoint_storage_for_shutdown(&state).await;
         return Err(error);
     }
     if let Err(error) = state.runtime_health.mark_session_ready(&state).await {
@@ -325,6 +326,7 @@ pub(crate) async fn run_with_settings(
             let _ = tokio::fs::remove_file(path).await;
         }
         stop_runtime_logging(&state).await;
+        checkpoint_storage_for_shutdown(&state).await;
         return Err(error);
     }
     if let Some(path) = &readiness_marker {
@@ -356,7 +358,14 @@ pub(crate) async fn run_with_settings(
         let _ = tokio::fs::remove_file(path).await;
     }
     stop_runtime_logging(&state).await;
+    checkpoint_storage_for_shutdown(&state).await;
     result
+}
+
+async fn checkpoint_storage_for_shutdown(state: &AppState) {
+    if let Err(error) = state.storage.store.checkpoint_for_shutdown().await {
+        tracing::warn!(%error, "failed to checkpoint SQLite before shutdown");
+    }
 }
 
 async fn stop_runtime_logging(state: &AppState) {

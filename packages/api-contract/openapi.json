@@ -5881,6 +5881,9 @@
             ],
             "type": "string"
           },
+          "show_console_app_list": {
+            "type": "boolean"
+          },
           "show_entry_status_module": {
             "type": "boolean"
           },
@@ -5911,6 +5914,7 @@
         },
         "required": [
           "show_entry_status_module",
+          "show_console_app_list",
           "sidebar_menu_order",
           "date_time_display_mode"
         ],
@@ -5925,6 +5929,12 @@
             ],
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "show_console_app_list": {
+            "type": [
+              "boolean",
               "null"
             ]
           },

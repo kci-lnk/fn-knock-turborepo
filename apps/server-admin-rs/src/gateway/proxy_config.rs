@@ -1112,6 +1112,10 @@ pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
         } else {
             normalize_target_path_mode(object.get("target_path_mode"))
         };
+        object.insert(
+            "service_role".to_string(),
+            Value::String(if is_auth { "auth" } else { "app" }.to_string()),
+        );
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
         object.insert(
             "target_path_mode".to_string(),

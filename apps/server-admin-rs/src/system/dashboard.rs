@@ -671,6 +671,10 @@ fn normalize_dashboard_display(value: Option<&Value>) -> Value {
             .and_then(|value| value.get("show_entry_status_module"))
             .and_then(Value::as_bool)
             .unwrap_or(true),
+        "show_console_app_list": value
+            .and_then(|value| value.get("show_console_app_list"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         "date_time_display_mode": normalize_date_time_display_mode(
             value.and_then(|value| value.get("date_time_display_mode"))
         ),
@@ -687,6 +691,9 @@ fn dashboard_display_update_fields(body: &Value) -> Map<String, Value> {
         .and_then(Value::as_bool)
     {
         fields.insert("show_entry_status_module".to_string(), Value::Bool(show));
+    }
+    if let Some(show) = body.get("show_console_app_list").and_then(Value::as_bool) {
+        fields.insert("show_console_app_list".to_string(), Value::Bool(show));
     }
     if body.get("sidebar_menu_order").is_some_and(Value::is_array) {
         fields.insert(
@@ -908,6 +915,7 @@ mod tests {
             }))),
             json!({
                 "show_entry_status_module": false,
+                "show_console_app_list": false,
                 "date_time_display_mode": "human_friendly",
                 "sidebar_menu_order": DEFAULT_SIDEBAR_MENU_ORDER
             })
@@ -926,6 +934,13 @@ mod tests {
             })))
             .get("date_time_display_mode"),
             Some(&json!("human_friendly"))
+        );
+        assert_eq!(
+            normalize_dashboard_display(Some(&json!({
+                "show_console_app_list": "true"
+            })))
+            .get("show_console_app_list"),
+            Some(&json!(false))
         );
 
         let normalized = normalize_sidebar_menu_order(Some(&json!([
@@ -954,6 +969,14 @@ mod tests {
             dashboard_display_update_fields(&json!({ "show_entry_status_module": true }));
         assert_eq!(show_update.len(), 1);
         assert_eq!(show_update["show_entry_status_module"], json!(true));
+
+        let app_list_update =
+            dashboard_display_update_fields(&json!({ "show_console_app_list": true }));
+        assert_eq!(app_list_update.len(), 1);
+        assert_eq!(app_list_update["show_console_app_list"], json!(true));
+        assert!(
+            dashboard_display_update_fields(&json!({ "show_console_app_list": "true" })).is_empty()
+        );
 
         let order_update = dashboard_display_update_fields(
             &json!({ "sidebar_menu_order": ["events", "dashboard"] }),

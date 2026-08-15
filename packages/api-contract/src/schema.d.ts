@@ -6500,12 +6500,14 @@ export interface components {
         DashboardDisplayData: {
             /** @enum {string} */
             date_time_display_mode: "human_friendly" | "full";
+            show_console_app_list: boolean;
             show_entry_status_module: boolean;
             sidebar_menu_order: ("dashboard" | "route_mapping" | "tunnel" | "protocol_mapping" | "sessions" | "ip_whitelist" | "ssl_certificate" | "ddns" | "wol" | "auth" | "ssh_security" | "events" | "gateway_request_logs" | "waf_logs" | "web_terminal" | "system_settings")[];
         };
         DashboardDisplayUpdateData: {
             /** @enum {string|null} */
             date_time_display_mode?: "human_friendly" | "full" | null;
+            show_console_app_list?: boolean | null;
             show_entry_status_module?: boolean | null;
             sidebar_menu_order?: ("dashboard" | "route_mapping" | "tunnel" | "protocol_mapping" | "sessions" | "ip_whitelist" | "ssl_certificate" | "ddns" | "wol" | "auth" | "ssh_security" | "events" | "gateway_request_logs" | "waf_logs" | "web_terminal" | "system_settings")[] | null;
         };

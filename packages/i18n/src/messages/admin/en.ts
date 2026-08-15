@@ -976,6 +976,9 @@ export const enAdmin = {
     showEntryStatusModule: "Show entry status module on Dashboard",
     showEntryStatusModuleHint:
       "When disabled, the Dashboard entry status card is hidden",
+    showConsoleAppList: "Show application list at the top of the console",
+    showConsoleAppListHint:
+      "Quickly open gateway applications from the top of the console",
     passkeyBindPrompt: "Prompt to bind Passkey after sign-in",
     passkeyBindPromptHint:
       "When disabled, Passkey binding prompts no longer appear after AUTH sign-in succeeds",
@@ -996,6 +999,12 @@ export const enAdmin = {
     smartConnect: "Smart Connect",
     smartConnectHint:
       "Automatically choose LAN or public access based on the network environment",
+  },
+  consoleApplicationList: {
+    label: "Apps",
+    ariaLabel: "Console application list",
+    empty: "No applications available",
+    openApplication: "Open {name} in a new tab",
   },
   sidebarMenuOrder: {
     systemSettings: "System settings",

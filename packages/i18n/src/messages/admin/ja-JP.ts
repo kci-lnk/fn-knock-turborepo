@@ -977,6 +977,9 @@ export const jaJPAdmin = {
     showEntryStatusModule: "ダッシュボードにアクセス経路の状態を表示",
     showEntryStatusModuleHint:
       "無効にすると、ダッシュボードの「アクセス経路の状態」カードが非表示になります",
+    showConsoleAppList: "コンソール上部にアプリ一覧を表示",
+    showConsoleAppListHint:
+      "コンソール上部からゲートウェイのアプリをすばやく開けます",
     passkeyBindPrompt: "ログイン後にパスキーの登録を案内",
     passkeyBindPromptHint:
       "無効にすると、認証画面でのログイン後にパスキー登録の案内を表示しません",
@@ -997,6 +1000,12 @@ export const jaJPAdmin = {
     smartConnect: "スマート接続",
     smartConnectHint:
       "ネットワーク環境に応じて、LAN またはインターネット経由のアクセスを自動的に選択します",
+  },
+  consoleApplicationList: {
+    label: "アプリ",
+    ariaLabel: "コンソールのアプリ一覧",
+    empty: "利用可能なアプリはありません",
+    openApplication: "{name} を新しいタブで開く",
   },
   sidebarMenuOrder: {
     systemSettings: "システム設定",

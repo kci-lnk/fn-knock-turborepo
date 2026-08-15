@@ -38,6 +38,7 @@ export function useFeaturesSettings() {
   const wolEnabled = ref(false);
   const passkeyBindPromptEnabled = ref(true);
   const showEntryStatusModule = ref(true);
+  const showConsoleAppList = ref(false);
   const dateTimeDisplayMode = ref<DateTimeDisplayMode>("human_friendly");
   const autoHttpsDetails = ref<AutoHttpsDetails | null>(null);
   const sshSecurityEnabled = ref(false);
@@ -81,6 +82,9 @@ export function useFeaturesSettings() {
   );
   const isDashboardDisplaySwitchDisabled = computed(
     () => isSaving.value || configStore.isLoading || configStore.isError,
+  );
+  const showConsoleAppListEntry = computed(
+    () => configStore.isFpkDeployment || configStore.isFpkLiteDeployment,
   );
   const currentRunTypeLabel = computed(() => {
     const runType = configStore.config?.run_type;
@@ -163,10 +167,13 @@ export function useFeaturesSettings() {
   const applyDashboardDisplaySettings = (
     data: Pick<
       DashboardDisplayConfig,
-      "show_entry_status_module" | "date_time_display_mode"
+      | "show_entry_status_module"
+      | "show_console_app_list"
+      | "date_time_display_mode"
     >,
   ) => {
     showEntryStatusModule.value = data.show_entry_status_module;
+    showConsoleAppList.value = data.show_console_app_list;
     dateTimeDisplayMode.value = normalizeDateTimeDisplayMode(
       data.date_time_display_mode,
     );
@@ -178,6 +185,8 @@ export function useFeaturesSettings() {
       show_entry_status_module:
         configStore.config.dashboard_display?.show_entry_status_module !==
         false,
+      show_console_app_list:
+        configStore.config.dashboard_display?.show_console_app_list === true,
       date_time_display_mode: normalizeDateTimeDisplayMode(
         configStore.config.dashboard_display?.date_time_display_mode,
       ),
@@ -264,6 +273,32 @@ export function useFeaturesSettings() {
       },
     );
     if (!result) showEntryStatusModule.value = previousValue;
+  };
+
+  const saveShowConsoleAppList = async (nextValue: boolean) => {
+    if (
+      isDashboardDisplaySwitchDisabled.value ||
+      !showConsoleAppListEntry.value ||
+      !configStore.config
+    ) {
+      return;
+    }
+    const previousValue = showConsoleAppList.value;
+    showConsoleAppList.value = nextValue;
+    const result = await runSaveSettings(
+      () =>
+        ConfigAPI.updateDashboardDisplayConfig({
+          show_console_app_list: nextValue,
+        }),
+      {
+        onSuccess: async (data) => {
+          applyDashboardDisplaySettings(data);
+          toast.success(t("admin.featuresSettings.updated"));
+          await configStore.loadConfig();
+        },
+      },
+    );
+    if (!result) showConsoleAppList.value = previousValue;
   };
 
   const saveDateTimeDisplayMode = async (nextValue: DateTimeDisplayMode) => {
@@ -415,10 +450,13 @@ export function useFeaturesSettings() {
     saveDateTimeDisplayMode,
     savePasskeyBindPromptEnabled,
     saveProtocolMappingEnabled,
+    saveShowConsoleAppList,
     saveShowEntryStatusModule,
     saveSSHSecurityEnabled,
     saveWOLEnabled,
     showAutoHttpsEntry,
+    showConsoleAppList,
+    showConsoleAppListEntry,
     showEntryStatusModule,
     showLoadingSkeleton,
     showSmartConnectEntry,

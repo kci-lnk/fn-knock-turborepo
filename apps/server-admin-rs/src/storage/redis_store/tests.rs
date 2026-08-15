@@ -6507,6 +6507,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
         Some(&json!("human_friendly"))
     );
     assert_eq!(
+        config.pointer("/dashboard_display/show_console_app_list"),
+        Some(&json!(false))
+    );
+    assert_eq!(
         config.pointer("/waf/system_rules_auto_update_enabled"),
         Some(&json!(true))
     );

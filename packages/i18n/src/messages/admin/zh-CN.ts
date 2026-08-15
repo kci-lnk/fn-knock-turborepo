@@ -880,6 +880,8 @@ export const zhCNAdmin = {
     dateTimeDisplayFull: "完整时间",
     showEntryStatusModule: "在首页显示入口状态模块",
     showEntryStatusModuleHint: "关闭后，首页的“入口状态”卡片将隐藏",
+    showConsoleAppList: "在控制台顶部显示应用列表",
+    showConsoleAppListHint: "开启后，可在控制台顶部快速打开网关中的应用",
     passkeyBindPrompt: "登录后提示绑定 Passkey",
     passkeyBindPromptHint: "关闭后，AUTH 登录成功后将不再弹出 Passkey 绑定提示",
     autoHttps: "自动HTTPS",
@@ -897,6 +899,12 @@ export const zhCNAdmin = {
     sidebarMenuOrderHint: "自定义左侧导航菜单的显示顺序",
     smartConnect: "智能连接",
     smartConnectHint: "根据网络环境自动选择局域网或公网访问",
+  },
+  consoleApplicationList: {
+    label: "应用",
+    ariaLabel: "控制台应用列表",
+    empty: "暂无可用应用",
+    openApplication: "在新标签页打开{name}",
   },
   sidebarMenuOrder: {
     systemSettings: "系统设置",

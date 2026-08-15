@@ -644,6 +644,9 @@ fn host_mapping_responses_backfill_legacy_defaults() {
 
     normalize_host_mapping_response_defaults(&mut mappings);
 
+    assert_eq!(mappings[0]["service_role"], json!("app"));
+    assert_eq!(mappings[1]["service_role"], json!("auth"));
+    assert_eq!(mappings[2]["service_role"], json!("auth"));
     assert_eq!(mappings[0]["waf_enabled"], json!(true));
     assert_eq!(mappings[1]["waf_enabled"], json!(true));
     assert_eq!(mappings[2]["waf_enabled"], json!(true));

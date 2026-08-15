@@ -958,6 +958,9 @@ export const koKRAdmin = {
     showEntryStatusModule: "대시보드에 접속 상태 표시",
     showEntryStatusModuleHint:
       "비활성화되면 대시보드 항목 상태 카드가 숨겨집니다.",
+    showConsoleAppList: "콘솔 상단에 애플리케이션 목록 표시",
+    showConsoleAppListHint:
+      "콘솔 상단에서 게이트웨이 애플리케이션을 빠르게 열 수 있습니다.",
     passkeyBindPrompt: "로그인 후 패스키 등록 안내 표시",
     passkeyBindPromptHint:
       "사용하지 않으면 AUTH 로그인 후 패스키 등록 안내가 나타나지 않습니다.",
@@ -978,6 +981,12 @@ export const koKRAdmin = {
     smartConnect: "스마트 커넥트",
     smartConnectHint:
       "네트워크 환경에 따라 LAN 또는 외부 접속 경로를 자동으로 선택합니다.",
+  },
+  consoleApplicationList: {
+    label: "앱",
+    ariaLabel: "콘솔 애플리케이션 목록",
+    empty: "사용 가능한 애플리케이션이 없습니다.",
+    openApplication: "새 탭에서 {name} 열기",
   },
   sidebarMenuOrder: {
     systemSettings: "시스템 설정",

@@ -6,7 +6,6 @@
       :is-lite="configStore.isFpkLiteDeployment"
     />
     <LayoutLoadStatus />
-
     <div
       class="sticky top-0 z-20 border-b bg-background/95 backdrop-blur sm:hidden"
     >
@@ -214,6 +213,7 @@
         tabindex="-1"
       >
         <h1 class="sr-only">{{ currentNavLabel }}</h1>
+        <ConsoleApplicationBar v-if="route.name === 'Dashboard'" />
         <LayoutStatusBanners :navigate-to="navigateTo" />
         <div
           v-if="isRouteNavigating"
@@ -276,6 +276,7 @@ const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
+import ConsoleApplicationBar from "./layout/ConsoleApplicationBar.vue";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";
 import {
@@ -330,7 +331,6 @@ const isSidebarMenuOrderMode = computed(
     !configStore.isLoading &&
     !configStore.isError,
 );
-
 type WindowWithIdleCallback = Window & {
   requestIdleCallback?: (
     callback: IdleRequestCallback,

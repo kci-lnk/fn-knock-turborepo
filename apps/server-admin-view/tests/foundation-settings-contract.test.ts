@@ -20,6 +20,7 @@ const contract = JSON.parse(
             minimum?: number;
             maximum?: number;
             multipleOf?: number;
+            type?: string | string[];
           }
         >;
         required?: string[];
@@ -51,6 +52,29 @@ describe("foundation settings API contract", () => {
         method.toUpperCase(),
       );
     }
+  });
+
+  it("keeps the FPK console application list in the dashboard display contract", () => {
+    assert.ok(
+      contract.components.schemas.DashboardDisplayData.required?.includes(
+        "show_console_app_list",
+      ),
+    );
+    assert.equal(
+      contract.components.schemas.DashboardDisplayData.properties
+        ?.show_console_app_list?.type,
+      "boolean",
+    );
+    assert.deepEqual(
+      contract.components.schemas.DashboardDisplayUpdateData.properties
+        ?.show_console_app_list?.type,
+      ["boolean", "null"],
+    );
+    assert.ok(
+      !contract.components.schemas.DashboardDisplayUpdateData.required?.includes(
+        "show_console_app_list",
+      ),
+    );
   });
 
   it("keeps welcome guide operations bound to the actual typed router", () => {
@@ -202,9 +226,9 @@ describe("foundation settings API contract", () => {
   it("keeps authentication credential settings bound to their typed router", () => {
     for (const method of ["get", "post"] as const) {
       assert.equal(
-        contract.paths["/api/admin/config/auth_credential_settings"]?.[method]?.[
-          "x-fn-knock-contract-source"
-        ],
+        contract.paths["/api/admin/config/auth_credential_settings"]?.[
+          method
+        ]?.["x-fn-knock-contract-source"],
         "utoipa",
         method.toUpperCase(),
       );

@@ -828,6 +828,8 @@ export const zhHantAdmin = {
     description: "控制可選功能的啟用狀態。",
     showEntryStatusModule: "在首頁顯示入口狀態模組",
     showEntryStatusModuleHint: "關閉後，首頁的「入口狀態」卡片將隱藏",
+    showConsoleAppList: "在控制台頂部顯示應用列表",
+    showConsoleAppListHint: "開啟後，可在控制台頂部快速開啟網關中的應用",
     passkeyBindPrompt: "登入後提示綁定 Passkey",
     passkeyBindPromptHint: "關閉後，AUTH 登入成功後將不再彈出 Passkey 綁定提示",
     autoHttps: "自動HTTPS",
@@ -845,6 +847,12 @@ export const zhHantAdmin = {
     sidebarMenuOrderHint: "自訂左側導覽選單的顯示順序",
     smartConnect: "智能連接",
     smartConnectHint: "根據網路環境自動選擇局域網或公網訪問",
+  },
+  consoleApplicationList: {
+    label: "應用",
+    ariaLabel: "控制台應用列表",
+    empty: "暫無可用應用",
+    openApplication: "在新分頁開啟{name}",
   },
   sidebarMenuOrder: {
     ...zhCNAdmin.sidebarMenuOrder,

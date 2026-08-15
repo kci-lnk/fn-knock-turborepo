@@ -32,10 +32,13 @@ const {
   saveDateTimeDisplayMode,
   savePasskeyBindPromptEnabled,
   saveProtocolMappingEnabled,
+  saveShowConsoleAppList,
   saveShowEntryStatusModule,
   saveSSHSecurityEnabled,
   saveWOLEnabled,
   showAutoHttpsEntry,
+  showConsoleAppList,
+  showConsoleAppListEntry,
   showEntryStatusModule,
   showLoadingSkeleton,
   showSmartConnectEntry,
@@ -75,6 +78,15 @@ const {
         :model-value="showEntryStatusModule"
         :disabled="isDashboardDisplaySwitchDisabled"
         @change="saveShowEntryStatusModule"
+      />
+
+      <FeatureSwitchRow
+        v-if="showConsoleAppListEntry"
+        :title="t('admin.featuresSettings.showConsoleAppList')"
+        :description="t('admin.featuresSettings.showConsoleAppListHint')"
+        :model-value="showConsoleAppList"
+        :disabled="isDashboardDisplaySwitchDisabled"
+        @change="saveShowConsoleAppList"
       />
 
       <DateTimeDisplaySettingRow

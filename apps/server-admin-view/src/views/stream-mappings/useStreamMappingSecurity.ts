@@ -97,10 +97,19 @@ export function useStreamMappingSecurity() {
     if (!mapping || isSavingServiceProfile.value) return;
     isSavingServiceProfile.value = true;
     try {
-      await ConfigAPI.confirmStreamServiceProfile(mapping, serviceId);
+      const profile = await ConfigAPI.confirmStreamServiceProfile(
+        mapping,
+        serviceId,
+      );
       await configStore.refreshStreamMappingsOnly();
       isServiceProfileOpen.value = false;
-      toast.success(t("admin.streamMappings.serviceConfirmed"));
+      toast.success(
+        t(
+          profile.strict_capable
+            ? "admin.streamMappings.serviceConfirmed"
+            : "admin.streamMappings.serviceConfirmedIdentificationOnly",
+        ),
+      );
     } catch (error: any) {
       toast.error(t("admin.streamMappings.serviceConfirmFailed"), {
         description: extractErrorMessage(error, t("common.tryLater")),

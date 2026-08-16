@@ -3005,11 +3005,15 @@ export const zhHantAdmin = {
     selectService: "指定服務類型",
     selectServiceTitle: "指定服務類型",
     selectServiceDescription:
-      "確認目標實際執行的服務，並啟用對應的嚴格協議校驗；此設定不會改變登入要求。",
+      "確認目標實際執行的服務。支援嚴格校驗的服務會啟用校驗；僅識別服務只儲存類型並保持映射啟用。此設定不會改變登入要求。",
     selectServicePlaceholder: "請選擇服務類型",
+    serviceIdentificationOnly: "僅識別",
     selectServiceWarning:
       "選擇錯誤會導致連線被拒絕。如需免登入，請另外設定「設定免登入」，或編輯映射關閉「要求登入驗證」。",
+    selectServiceIdentificationOnlyWarning:
+      "此服務僅支援識別，不支援嚴格協議校驗。確認後嚴格校驗保持關閉，映射保持啟用。",
     confirmService: "確認並啟用校驗",
+    confirmServiceIdentificationOnly: "確認服務類型",
     clearService: "清除指定",
     clearServiceTitle: "清除已指定的服務類型？",
     clearServiceDescription:
@@ -3017,6 +3021,8 @@ export const zhHantAdmin = {
     clearServiceConfirm: "清除並關閉校驗",
     serviceCatalogFailed: "載入服務目錄失敗",
     serviceConfirmed: "服務類型已確認並啟用嚴格校驗",
+    serviceConfirmedIdentificationOnly:
+      "服務類型已確認；嚴格校驗保持關閉，映射保持啟用",
     serviceConfirmFailed: "確認預期服務失敗",
     serviceCleared: "已清除指定的服務類型；嚴格校驗已關閉，映射保持啟用",
     serviceClearFailed: "清除指定的服務類型失敗",

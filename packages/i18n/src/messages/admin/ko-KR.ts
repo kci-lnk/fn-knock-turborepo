@@ -3257,11 +3257,15 @@ export const koKRAdmin = {
     selectService: "서비스 유형 지정",
     selectServiceTitle: "서비스 유형 지정",
     selectServiceDescription:
-      "대상에서 실행 중인 서비스를 확인하고 해당 엄격한 프로토콜 검증을 활성화합니다. 로그인 요구 사항은 변경되지 않습니다.",
+      "대상에서 실행 중인 서비스를 확인합니다. 엄격한 검증을 지원하는 서비스는 검증을 활성화하고, 식별 전용 서비스는 검증을 끈 채 매핑을 활성 상태로 유지합니다. 로그인 요구 사항은 변경되지 않습니다.",
     selectServicePlaceholder: "서비스 유형 선택",
+    serviceIdentificationOnly: "식별 전용",
     selectServiceWarning:
       "잘못 선택하면 연결이 거부됩니다. 로그인을 생략하려면 별도로 '로그인 생략 설정'을 구성하거나 매핑 편집에서 로그인 인증 요구를 끄세요.",
+    selectServiceIdentificationOnlyWarning:
+      "이 서비스는 식별할 수 있지만 엄격한 프로토콜 검증은 지원하지 않습니다. 확인 후에도 검증은 꺼진 상태이고 매핑은 활성 상태로 유지됩니다.",
     confirmService: "확인 후 검증 활성화",
+    confirmServiceIdentificationOnly: "서비스 유형 확인",
     clearService: "지정 해제",
     clearServiceTitle: "지정한 서비스 유형을 해제할까요?",
     clearServiceDescription:
@@ -3269,6 +3273,8 @@ export const koKRAdmin = {
     clearServiceConfirm: "해제 후 검증 끄기",
     serviceCatalogFailed: "서비스 카탈로그를 불러오지 못했습니다",
     serviceConfirmed: "서비스 유형을 확인하고 엄격한 검증을 활성화했습니다",
+    serviceConfirmedIdentificationOnly:
+      "서비스 유형을 확인했습니다. 엄격한 검증은 꺼진 상태이고 매핑은 활성 상태로 유지됩니다",
     serviceConfirmFailed: "예상 서비스 확인 실패",
     serviceCleared:
       "서비스 유형 지정을 해제했습니다. 엄격한 검증은 꺼져 있고 매핑은 활성 상태입니다",

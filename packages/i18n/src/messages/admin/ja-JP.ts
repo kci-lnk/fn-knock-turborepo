@@ -3279,11 +3279,15 @@ export const jaJPAdmin = {
     selectService: "サービスタイプを指定",
     selectServiceTitle: "サービスタイプを指定",
     selectServiceDescription:
-      "対象で稼働するサービスを確認し、対応する厳格なプロトコル検証を有効にします。ログイン要件は変更されません。",
+      "対象で稼働するサービスを確認します。厳格な検証に対応するサービスでは検証を有効にし、識別専用サービスでは検証をオフのままマッピングを有効に保ちます。ログイン要件は変更されません。",
     selectServicePlaceholder: "サービスタイプを選択",
+    serviceIdentificationOnly: "識別のみ",
     selectServiceWarning:
       "選択を誤ると接続が拒否されます。ログインを省略するには、別途「ログイン不要を設定」を使用するか、マッピング編集でログイン認証を無効にしてください。",
+    selectServiceIdentificationOnlyWarning:
+      "このサービスは識別できますが、厳格なプロトコル検証には対応していません。確認後も検証はオフで、マッピングは有効のままです。",
     confirmService: "確認して検証を有効化",
+    confirmServiceIdentificationOnly: "サービスタイプを確認",
     clearService: "指定を解除",
     clearServiceTitle: "指定したサービスタイプを解除しますか？",
     clearServiceDescription:
@@ -3291,6 +3295,8 @@ export const jaJPAdmin = {
     clearServiceConfirm: "解除して検証をオフ",
     serviceCatalogFailed: "サービスカタログを読み込めませんでした",
     serviceConfirmed: "サービスタイプを確認し、厳格な検証を有効にしました",
+    serviceConfirmedIdentificationOnly:
+      "サービスタイプを確認しました。厳格な検証はオフで、マッピングは有効のままです",
     serviceConfirmFailed: "想定サービスを確認できませんでした",
     serviceCleared:
       "サービスタイプの指定を解除しました。厳格な検証はオフで、マッピングは有効です",

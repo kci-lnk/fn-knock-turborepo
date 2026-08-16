@@ -3291,11 +3291,15 @@ export const enAdmin = {
     selectService: "Specify service type",
     selectServiceTitle: "Specify service type",
     selectServiceDescription:
-      "Confirm the service running at the target and enable matching strict protocol validation. This does not change login requirements.",
+      "Confirm the service running at the target. Services that support strict validation will enable it; identification-only services keep the mapping enabled without strict validation. This does not change login requirements.",
     selectServicePlaceholder: "Select a service type",
+    serviceIdentificationOnly: "Identification only",
     selectServiceWarning:
       "A wrong choice rejects connections. To skip login, configure login bypass separately or edit the mapping and turn off Require login authentication.",
+    selectServiceIdentificationOnlyWarning:
+      "This service can be identified but does not support strict validation. Confirming it keeps strict validation off and the mapping enabled.",
     confirmService: "Confirm and enable validation",
+    confirmServiceIdentificationOnly: "Confirm service type",
     clearService: "Clear selection",
     clearServiceTitle: "Clear the specified service type?",
     clearServiceDescription:
@@ -3303,6 +3307,8 @@ export const enAdmin = {
     clearServiceConfirm: "Clear and turn off validation",
     serviceCatalogFailed: "Failed to load service catalog",
     serviceConfirmed: "Service type confirmed and strict validation enabled",
+    serviceConfirmedIdentificationOnly:
+      "Service type confirmed; strict validation remains off and the mapping remains enabled",
     serviceConfirmFailed: "Failed to confirm expected service",
     serviceCleared:
       "Specified service type cleared; strict validation is off and the mapping remains enabled",

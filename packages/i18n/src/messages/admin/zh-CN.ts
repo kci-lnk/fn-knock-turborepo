@@ -3052,11 +3052,15 @@ export const zhCNAdmin = {
     selectService: "指定服务类型",
     selectServiceTitle: "指定服务类型",
     selectServiceDescription:
-      "确认目标实际运行的服务，并启用对应的严格协议校验；此设置不会改变登录要求。",
+      "确认目标实际运行的服务。支持严格校验的服务会启用校验；仅识别服务只保存类型并保持映射启用。此设置不会改变登录要求。",
     selectServicePlaceholder: "请选择服务类型",
+    serviceIdentificationOnly: "仅识别",
     selectServiceWarning:
       "选择错误会导致连接被拒绝。如需免登录，请另外配置“配置免登录”，或编辑映射关闭“要求登录鉴权”。",
+    selectServiceIdentificationOnlyWarning:
+      "该服务仅支持识别，不支持严格协议校验。确认后严格校验保持关闭，映射保持启用。",
     confirmService: "确认并启用校验",
+    confirmServiceIdentificationOnly: "确认服务类型",
     clearService: "清除指定",
     clearServiceTitle: "清除已指定的服务类型？",
     clearServiceDescription:
@@ -3064,6 +3068,8 @@ export const zhCNAdmin = {
     clearServiceConfirm: "清除并关闭校验",
     serviceCatalogFailed: "加载服务目录失败",
     serviceConfirmed: "服务类型已确认并启用严格校验",
+    serviceConfirmedIdentificationOnly:
+      "服务类型已确认；严格校验保持关闭，映射保持启用",
     serviceConfirmFailed: "确认预期服务失败",
     serviceCleared: "已清除指定的服务类型；严格校验已关闭，映射保持启用",
     serviceClearFailed: "清除指定的服务类型失败",

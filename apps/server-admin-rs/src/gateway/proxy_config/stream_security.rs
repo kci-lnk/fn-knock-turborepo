@@ -214,6 +214,20 @@ fn apply_stream_probe_result(object: &mut serde_json::Map<String, Value>, probe:
     );
 }
 
+fn apply_manual_stream_service_profile(
+    object: &mut serde_json::Map<String, Value>,
+    profile: Value,
+    strict_capable: bool,
+) {
+    object.insert("service_profile".into(), profile);
+    object.insert("probe_status".into(), Value::String("manual".into()));
+    object.insert(
+        "validation_mode".into(),
+        Value::String(if strict_capable { "strict" } else { "off" }.into()),
+    );
+    object.insert("disabled".into(), Value::Bool(false));
+}
+
 fn service_profile_precondition_matches(
     mapping: &Value,
     expected_target: &str,
@@ -439,10 +453,10 @@ pub(super) async fn confirm_stream_service_profile(
         .into_iter()
         .flatten()
         .any(|value| value.as_str() == Some(protocol.as_str()));
-    if !strict_capable || !transport_supported {
+    if !transport_supported {
         return response::error(
             StatusCode::BAD_REQUEST,
-            "selected service cannot be strictly validated on this transport",
+            "selected service does not support this transport",
         );
     }
     let _guard = state.gateway.protocol_mapping_update_lock.lock().await;
@@ -477,7 +491,7 @@ pub(super) async fn confirm_stream_service_profile(
         "classifier_version": catalog.get("classifier_version").cloned().unwrap_or(Value::Null),
         "target_fingerprint": fingerprint,
         "evidence_codes": ["administrator_confirmed"],
-        "strict_capable": true,
+        "strict_capable": strict_capable,
         "metadata": {},
     });
     let mut updated = previous.clone();
@@ -486,10 +500,7 @@ pub(super) async fn confirm_stream_service_profile(
     else {
         return response::error(StatusCode::CONFLICT, "stream mapping changed");
     };
-    object.insert("service_profile".into(), profile.clone());
-    object.insert("probe_status".into(), Value::String("manual".into()));
-    object.insert("validation_mode".into(), Value::String("strict".into()));
-    object.insert("disabled".into(), Value::Bool(false));
+    apply_manual_stream_service_profile(object, profile.clone(), strict_capable);
     if let Err(error) = persist_stream_security_change(&state, &previous, &updated).await {
         return response::error(StatusCode::BAD_GATEWAY, error);
     }
@@ -1000,11 +1011,11 @@ pub(super) async fn update_stream_bypass_policy(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_stream_probe_result, bypass_mapping_precondition_matches,
-        clear_stream_service_profile_fields, disabled_stream_bypass_policy,
-        enable_unvalidated_stream_mappings, is_broad_stream_policy, persisted_stream_selections,
-        persisted_stream_values, prepare_stream_mapping_update, prune_stream_access_policies,
-        service_profile_precondition_matches, source_ip_cidrs,
+        apply_manual_stream_service_profile, apply_stream_probe_result,
+        bypass_mapping_precondition_matches, clear_stream_service_profile_fields,
+        disabled_stream_bypass_policy, enable_unvalidated_stream_mappings, is_broad_stream_policy,
+        persisted_stream_selections, persisted_stream_values, prepare_stream_mapping_update,
+        prune_stream_access_policies, service_profile_precondition_matches, source_ip_cidrs,
     };
     use serde_json::json;
 
@@ -1159,6 +1170,42 @@ mod tests {
         assert_eq!(mapping["validation_mode"], "off");
         assert_eq!(mapping["disabled"], false);
         assert_eq!(mapping["service_profile"]["service_id"], "easytier");
+    }
+
+    #[test]
+    fn manual_identification_only_profile_keeps_validation_off_and_mapping_enabled() {
+        let mut mapping = json!({"disabled": true, "validation_mode": "strict"});
+        apply_manual_stream_service_profile(
+            mapping.as_object_mut().unwrap(),
+            json!({
+                "service_id": "easytier",
+                "source": "manual",
+                "strict_capable": false,
+            }),
+            false,
+        );
+        assert_eq!(mapping["probe_status"], "manual");
+        assert_eq!(mapping["validation_mode"], "off");
+        assert_eq!(mapping["disabled"], false);
+        assert_eq!(mapping["service_profile"]["service_id"], "easytier");
+        assert_eq!(mapping["service_profile"]["strict_capable"], false);
+    }
+
+    #[test]
+    fn manual_strict_capable_profile_enables_validation_without_disabling_mapping() {
+        let mut mapping = json!({"disabled": true, "validation_mode": "off"});
+        apply_manual_stream_service_profile(
+            mapping.as_object_mut().unwrap(),
+            json!({
+                "service_id": "webdav",
+                "source": "manual",
+                "strict_capable": true,
+            }),
+            true,
+        );
+        assert_eq!(mapping["probe_status"], "manual");
+        assert_eq!(mapping["validation_mode"], "strict");
+        assert_eq!(mapping["disabled"], false);
     }
 
     #[test]

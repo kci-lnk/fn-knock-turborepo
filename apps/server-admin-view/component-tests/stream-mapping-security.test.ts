@@ -99,7 +99,8 @@ describe("stream mapping service detection", () => {
               en: {
                 admin: {
                   streamMappings: {
-                    probeAuthenticatedHttp: "HTTP authentication hides the service",
+                    probeAuthenticatedHttp:
+                      "HTTP authentication hides the service",
                     probeAuthenticatedHttpDescription:
                       "Confirm WebDAV manually",
                   },
@@ -166,7 +167,8 @@ describe("stream mapping service detection", () => {
               en: {
                 admin: {
                   streamMappings: {
-                    probeUnverified: "Target reachable without strict validation",
+                    probeUnverified:
+                      "Target reachable without strict validation",
                   },
                 },
               },
@@ -179,7 +181,9 @@ describe("stream mapping service detection", () => {
     await model.probeMapping(unknownMapping);
 
     expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
-    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe("off");
+    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe(
+      "off",
+    );
     expect(toastMocks.warning).toHaveBeenCalledWith(
       "Target reachable without strict validation",
       {
@@ -260,15 +264,104 @@ describe("stream mapping service detection", () => {
     await model.probeMapping(easyTierMapping);
 
     expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
-    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe("off");
-    expect(configStore.config?.stream_mappings?.[0]?.service_profile?.service_id).toBe(
-      "easytier",
+    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe(
+      "off",
     );
+    expect(
+      configStore.config?.stream_mappings?.[0]?.service_profile?.service_id,
+    ).toBe("easytier");
     expect(toastMocks.warning).toHaveBeenCalledWith(
       "Target identified without strict validation",
       { description: "Identified as easytier; mapping enabled." },
     );
     expect(toastMocks.error).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("confirms an identification-only EasyTier profile without claiming strict validation", async () => {
+    const easyTierProfile = {
+      ...mapping.service_profile!,
+      device_role: "vpn",
+      service_family: "vpn",
+      service_id: "easytier",
+      source: "manual",
+      strict_capable: false,
+    };
+    const easyTierMapping: StreamMapping = {
+      ...mapping,
+      disabled: false,
+      probe_status: "unknown",
+      service_profile: {
+        ...easyTierProfile,
+        source: "probe",
+      },
+      validation_mode: "off",
+    };
+    const configStore = useConfigStore();
+    configStore.config = {
+      host_mapping_grouped_view: false,
+      host_mapping_groups: [],
+      host_mappings: [],
+      stream_mappings: [easyTierMapping],
+    } as AppConfig;
+    const confirm = vi
+      .spyOn(ConfigAPI, "confirmStreamServiceProfile")
+      .mockResolvedValue(easyTierProfile);
+    vi.spyOn(ConfigAPI, "getStreamMappings").mockResolvedValue([
+      {
+        ...easyTierMapping,
+        probe_status: "manual",
+        service_profile: easyTierProfile,
+        validation_mode: "off",
+      },
+    ]);
+
+    let model!: ReturnType<typeof useStreamMappingSecurity>;
+    const Harness = defineComponent({
+      setup() {
+        model = useStreamMappingSecurity();
+        return () => null;
+      },
+    });
+    const wrapper = mount(Harness, {
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: "en",
+            messages: {
+              en: {
+                admin: {
+                  streamMappings: {
+                    serviceConfirmFailed: "Confirm failed",
+                    serviceConfirmedIdentificationOnly:
+                      "Service confirmed without strict validation",
+                  },
+                },
+                common: { tryLater: "Try later" },
+              },
+            },
+          }),
+        ],
+      },
+    });
+    model.serviceProfileMapping.value = easyTierMapping;
+    model.isServiceProfileOpen.value = true;
+
+    await model.confirmServiceProfile("easytier");
+
+    expect(confirm).toHaveBeenCalledWith(easyTierMapping, "easytier");
+    expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
+    expect(configStore.config?.stream_mappings?.[0]?.probe_status).toBe(
+      "manual",
+    );
+    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe(
+      "off",
+    );
+    expect(model.isServiceProfileOpen.value).toBe(false);
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      "Service confirmed without strict validation",
+    );
     wrapper.unmount();
   });
 
@@ -338,7 +431,9 @@ describe("stream mapping service detection", () => {
 
     expect(clear).toHaveBeenCalledWith(manualMapping);
     expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
-    expect(configStore.config?.stream_mappings?.[0]?.service_profile).toBeUndefined();
+    expect(
+      configStore.config?.stream_mappings?.[0]?.service_profile,
+    ).toBeUndefined();
     expect(model.isServiceProfileOpen.value).toBe(false);
     expect(toastMocks.success).toHaveBeenCalledWith("Service cleared");
     wrapper.unmount();

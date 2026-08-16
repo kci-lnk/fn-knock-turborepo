@@ -27,13 +27,17 @@
             :key="item.service_id"
             :value="item.service_id"
           >
-            {{ item.display_name }} · {{ item.service_family }}
+            {{ serviceOptionLabel(item) }}
           </option>
         </select>
         <p
           class="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs leading-5 text-muted-foreground"
         >
-          {{ t("admin.streamMappings.selectServiceWarning") }}
+          {{
+            selectedItem && !selectedItem.strict_capable
+              ? t("admin.streamMappings.selectServiceIdentificationOnlyWarning")
+              : t("admin.streamMappings.selectServiceWarning")
+          }}
         </p>
       </div>
       <DialogFooter>
@@ -71,7 +75,9 @@
           {{
             loading
               ? t("admin.streamMappings.savingPolicy")
-              : t("admin.streamMappings.confirmService")
+              : selectedItem && !selectedItem.strict_capable
+                ? t("admin.streamMappings.confirmServiceIdentificationOnly")
+                : t("admin.streamMappings.confirmService")
           }}
         </Button>
       </DialogFooter>
@@ -94,7 +100,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import type { StreamMapping } from "@/types";
-import type { StreamServiceCatalog } from "@/lib/api/config";
+import type {
+  StreamServiceCatalog,
+  StreamServiceDescriptor,
+} from "@/lib/api/config";
 
 const props = defineProps<{
   open: boolean;
@@ -118,14 +127,22 @@ const canClear = computed(
 const compatibleItems = computed(() =>
   (props.catalog?.items ?? []).filter(
     (item) =>
-      item.strict_capable &&
       Boolean(props.mapping) &&
       item.transports.includes(props.mapping!.protocol),
   ),
 );
+const selectedItem = computed(() =>
+  compatibleItems.value.find((item) => item.service_id === selected.value),
+);
 const canConfirm = computed(() =>
   compatibleItems.value.some((item) => item.service_id === selected.value),
 );
+function serviceOptionLabel(item: StreamServiceDescriptor) {
+  const label = `${item.display_name} · ${item.service_family}`;
+  return item.strict_capable
+    ? label
+    : `${label} · ${t("admin.streamMappings.serviceIdentificationOnly")}`;
+}
 watch(
   () => [props.open, props.mapping, props.initialServiceId] as const,
   () => {

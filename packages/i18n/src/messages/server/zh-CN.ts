@@ -622,6 +622,7 @@ export const zhCNServer = {
       acme: "ACME 证书",
       ca: "自签发证书",
       manual: "手动上传证书",
+      external: "外部自动部署证书",
       current: "当前证书",
     },
     ssl: {

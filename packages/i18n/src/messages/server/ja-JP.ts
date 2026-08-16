@@ -745,6 +745,7 @@ export const jaJPServer = {
       acme: "ACME 証明書",
       ca: "自己署名証明書",
       manual: "証明書を手動でアップロードします",
+      external: "外部自動デプロイ証明書",
       current: "現在の証明書",
     },
     ssl: {

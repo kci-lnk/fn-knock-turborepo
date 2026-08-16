@@ -622,6 +622,7 @@ export const zhHantServer = {
       acme: "ACME 證書",
       ca: "自簽發證書",
       manual: "手動上傳證書",
+      external: "外部自動部署證書",
       current: "目前證書",
     },
     ssl: {

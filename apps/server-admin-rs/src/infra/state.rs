@@ -83,6 +83,13 @@ pub struct AppStateInner {
 pub struct GatewayState {
     #[allow(dead_code)]
     pub client: GoBackendClient,
+    /// Serializes SSL library mutations. Certificate automation may run
+    /// concurrently with manual and ACME updates, so their read-modify-write
+    /// sequences must share one owner.
+    pub ssl_update_lock: Mutex<()>,
+    /// Serializes SSL gateway calls and lets every caller converge a stale
+    /// deployment request to the newest persisted SSL configuration.
+    pub ssl_deployment_lock: Mutex<()>,
     /// Serializes the host-mapping config -> Go runtime transaction, including
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
@@ -146,6 +153,8 @@ impl GatewayState {
     fn new(client: GoBackendClient) -> Self {
         Self {
             client,
+            ssl_update_lock: Mutex::new(()),
+            ssl_deployment_lock: Mutex::new(()),
             host_mappings_update_lock: Mutex::new(()),
             protocol_mapping_update_lock: Mutex::new(()),
             memory_update_lock: Mutex::new(()),

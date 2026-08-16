@@ -8235,6 +8235,289 @@
         ],
         "type": "object"
       },
+      "ExternalCertificateBindingCreateBodyData": {
+        "description": "创建外部证书自动部署绑定的请求。",
+        "properties": {
+          "name": {
+            "description": "管理员可识别的绑定名称，最长 80 个字符。",
+            "type": "string"
+          },
+          "provider": {
+            "description": "外部部署适配器：`certd`、`acme_sh`、`lego` 或 `certbot`；省略时默认使用 `certd`。",
+            "enum": [
+              "certd",
+              "acme_sh",
+              "lego",
+              "certbot"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ExternalCertificateBindingCredentialData": {
+        "description": "创建或轮换绑定时一次性返回的凭据；离开响应后无法再次读取 Token。",
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/ExternalCertificateBindingData",
+            "description": "刚创建或刚轮换的绑定配置。"
+          },
+          "token": {
+            "description": "只显示一次的绑定专用 Bearer Token；服务端仅保存哈希。",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "binding",
+          "token"
+        ],
+        "type": "object"
+      },
+      "ExternalCertificateBindingData": {
+        "description": "外部证书部署绑定的公开配置和最近部署状态，不包含 Token、PEM 或私钥。",
+        "properties": {
+          "certificate_id": {
+            "description": "该绑定始终原位更新的稳定证书库条目标识符。",
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "deploy_path": {
+            "description": "绑定专用的相对部署路径。",
+            "type": "string"
+          },
+          "deploy_port": {
+            "description": "fn-knock 证书接收端口，取自运行时 `BACKEND_PORT`。服务默认只监听 `127.0.0.1`；同机工具直接使用，其他机器需先反向代理该端口，再将代理地址与 `deploy_path` 组合。",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "enabled": {
+            "description": "绑定是否允许继续部署。",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "绑定的稳定标识符，也是部署 URL 的一部分。",
+            "type": "string"
+          },
+          "last_deployed_at": {
+            "description": "最近一次成功或失败部署尝试的时间。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_dns_names": {
+            "description": "最近成功部署证书的 DNS SAN。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "last_error": {
+            "description": "最近一次失败的截断错误信息；绝不包含 PEM、私钥或 Token。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_fingerprint_sha256": {
+            "description": "最近成功部署证书的 SHA-256 指纹。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_result": {
+            "description": "最近一次部署结果：`success` 或 `failed`。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_valid_to": {
+            "description": "最近成功部署证书的到期时间。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "绑定的管理员显示名称。",
+            "type": "string"
+          },
+          "provider": {
+            "description": "外部部署提供方。适配器只负责生成原生接入配置，验证、存储和网关事务由统一部署服务处理。",
+            "enum": [
+              "certd",
+              "acme_sh",
+              "lego",
+              "certbot"
+            ],
+            "type": "string"
+          },
+          "request_body_template": {
+            "description": "Webhook JSON 模板；Certd 模板包含 `${crt}` 与 `${key}`，仅 `webhook` 类型返回。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_method": {
+            "description": "Webhook 请求方法；仅 `webhook` 类型返回。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "script_template": {
+            "description": "适配器生成的部署钩子脚本，包含 URL 与 Token 占位符；仅 `deploy_hook` 类型返回。脚本使用 `jq` 安全编码 PEM，并用 `curl` 上传。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setup_kind": {
+            "description": "接入配置类型：`webhook` 用于 Certd，`deploy_hook` 用于命令行 ACME 客户端。",
+            "enum": [
+              "webhook",
+              "deploy_hook"
+            ],
+            "type": "string"
+          },
+          "success_marker": {
+            "description": "Webhook 工具可用于判断响应成功的匹配字符串，仅 `webhook` 类型返回。",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "usage_instructions": {
+            "description": "保存和注册部署钩子的简短说明，仅 `deploy_hook` 类型返回。",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "certificate_id",
+          "enabled",
+          "created_at",
+          "updated_at",
+          "last_dns_names",
+          "deploy_path",
+          "deploy_port",
+          "setup_kind"
+        ],
+        "type": "object"
+      },
+      "ExternalCertificateBindingUpdateBodyData": {
+        "description": "重命名、启用或停用外部证书自动部署绑定的请求。",
+        "properties": {
+          "enabled": {
+            "description": "是否允许该绑定继续推送证书；停用不会删除既有证书。",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "新的绑定显示名称。",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ExternalCertificateDeployBodyData": {
+        "description": "外部证书客户端推送完整证书链和私钥的请求。",
+        "properties": {
+          "cert": {
+            "description": "包含叶证书及中间证书的完整 PEM 证书链。",
+            "minLength": 1,
+            "type": "string"
+          },
+          "key": {
+            "description": "与叶证书匹配的 PEM 私钥；仅写入，不会在响应或日志中回显。",
+            "minLength": 1,
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "cert",
+          "key"
+        ],
+        "type": "object"
+      },
+      "ExternalCertificateDeployData": {
+        "description": "外部证书部署结果及证书的非敏感元数据。",
+        "properties": {
+          "binding_id": {
+            "description": "本次使用的外部部署绑定。",
+            "type": "string"
+          },
+          "certificate_id": {
+            "description": "被创建或原位更新的稳定证书库条目。",
+            "type": "string"
+          },
+          "changed": {
+            "description": "证书或私钥是否发生变化；为 `false` 时不写配置、不重载网关。",
+            "type": "boolean"
+          },
+          "dns_names": {
+            "description": "证书声明的 DNS SAN。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fingerprint_sha256": {
+            "description": "叶证书 DER 内容的 SHA-256 指纹。",
+            "type": "string"
+          },
+          "gateway_applied": {
+            "description": "本次请求是否实际完成了网关同步。",
+            "type": "boolean"
+          },
+          "is_active": {
+            "description": "该稳定槽位是否为当前激活证书。",
+            "type": "boolean"
+          },
+          "valid_to": {
+            "description": "证书到期时间。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "binding_id",
+          "certificate_id",
+          "changed",
+          "gateway_applied",
+          "is_active",
+          "fingerprint_sha256",
+          "valid_to",
+          "dns_names"
+        ],
+        "type": "object"
+      },
       "FirewallAdditionalPortsData": {
         "properties": {
           "additionalPorts": {
@@ -18359,12 +18642,20 @@
             ]
           },
           "source": {
-            "description": "证书来源：`manual` 为手工导入，`acme` 为 ACME 签发，`ca` 为本地 CA 签发。",
+            "description": "证书来源：`manual` 为手工导入，`acme` 为 ACME 签发，`ca` 为本地 CA 签发，`external` 为外部自动部署。",
             "enum": [
               "manual",
               "acme",
-              "ca"
+              "ca",
+              "external"
             ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_provider": {
+            "description": "外部来源提供方，例如 `certd`；仅 `source=external` 时保存。",
             "type": [
               "string",
               "null"
@@ -18441,13 +18732,21 @@
             ]
           },
           "source": {
-            "description": "证书来源：手工导入、ACME 或本地 CA。",
+            "description": "证书来源：手工导入、ACME、本地 CA 或外部自动部署。",
             "enum": [
               "manual",
               "acme",
-              "ca"
+              "ca",
+              "external"
             ],
             "type": "string"
+          },
+          "source_provider": {
+            "description": "外部自动部署提供方，例如 `certd`；其他来源通常为 `null`。",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_ref_id": {
             "description": "可选的上游来源关联标识。",
@@ -23136,6 +23435,14 @@
           "lastError"
         ],
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "certificateDeploymentToken": {
+        "bearerFormat": "fnk_cert_*",
+        "description": "Binding-scoped token shown only when an external certificate deployment binding is created or rotated.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -42904,6 +43211,500 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/admin/ssl/external-bindings": {
+      "get": {
+        "description": "列出 Certd、acme.sh、lego、Certbot 等外部工具可使用的自动部署绑定及最近部署状态。响应不包含 Token、证书 PEM 或私钥；Token 只在创建或轮换时显示一次。",
+        "operationId": "get_api_admin_ssl_external_bindings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ExternalCertificateBindingData"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "返回外部证书部署绑定列表。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "列出外部证书部署绑定",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "post": {
+        "description": "创建一个稳定证书槽位和仅限该绑定使用的 Bearer Token。支持 `certd`、`acme_sh`、`lego` 和 `certbot`；适配器返回对应 Webhook 或部署钩子模板。Token 只在本次响应中显示，服务端仅持久化其哈希。首次成功部署在系统没有激活证书时自动激活，否则只加入证书库。",
+        "operationId": "post_api_admin_ssl_external_bindings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "acmeSh": {
+                  "summary": "创建 acme.sh 部署钩子绑定",
+                  "value": {
+                    "name": "acme.sh example.com",
+                    "provider": "acme_sh"
+                  }
+                },
+                "certbot": {
+                  "summary": "创建 Certbot 部署钩子绑定",
+                  "value": {
+                    "name": "Certbot example.com",
+                    "provider": "certbot"
+                  }
+                },
+                "certd": {
+                  "summary": "创建 Certd 部署绑定",
+                  "value": {
+                    "name": "Certd example.com",
+                    "provider": "certd"
+                  }
+                },
+                "lego": {
+                  "summary": "创建 lego 部署钩子绑定",
+                  "value": {
+                    "name": "lego example.com",
+                    "provider": "lego"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ExternalCertificateBindingCreateBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalCertificateBindingCredentialData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "已创建绑定，并一次性返回部署 Token 与所选客户端的接入模板。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "创建外部证书部署绑定",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/ssl/external-bindings/{id}": {
+      "delete": {
+        "description": "永久撤销该绑定及其 Token。对应的证书库条目默认保留，不会删除或停用正在运行的证书。",
+        "operationId": "delete_api_admin_ssl_external_bindings_by_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "a17f93f95c2d4e9db7d41b8122345678",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "已撤销绑定并保留已导入证书。"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "撤销外部证书部署绑定",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "patch": {
+        "description": "重命名绑定或切换启用状态。停用后部署入口立即拒绝该绑定的请求，但已经导入的证书会保留，避免中断正在使用的 HTTPS。",
+        "operationId": "patch_api_admin_ssl_external_bindings_by_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "a17f93f95c2d4e9db7d41b8122345678",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "disable": {
+                  "summary": "暂时停用自动部署",
+                  "value": {
+                    "enabled": false
+                  }
+                },
+                "rename": {
+                  "summary": "修改显示名称",
+                  "value": {
+                    "name": "Certd production"
+                  }
+                }
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ExternalCertificateBindingUpdateBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalCertificateBindingData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "返回更新后的绑定。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "更新或停用外部部署绑定",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/ssl/external-bindings/{id}/rotate-token": {
+      "post": {
+        "description": "立即废止旧 Token 并生成新 Token。新 Token 只在本次响应中显示；轮换后需同步更新证书客户端的部署配置。",
+        "operationId": "post_api_admin_ssl_external_bindings_by_id_rotate_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "example": "a17f93f95c2d4e9db7d41b8122345678",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalCertificateBindingCredentialData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "已轮换 Token，并一次性返回新凭据。"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "轮换外部部署凭据",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/ssl/shared-files": {
       "get": {
         "description": "扫描已配置的 SSL 共享目录，最多返回 500 个文件、递归深度不超过 3 层。目录未配置或不可用时仍返回成功响应，并以 `available=false` 表示不可导入。",
@@ -47975,6 +48776,191 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/integrations/certificates/{binding_id}": {
+      "put": {
+        "description": "使用绑定专用 `Authorization: Bearer <token>` 将完整 PEM 证书链和匹配私钥推送到稳定槽位。接口验证证钥匹配、证书链签名与 CA 约束、有效期和请求大小；相同内容幂等成功，到期更早的证书返回 `409`。部署网关失败时尝试恢复旧配置并返回非 2xx。该路径不使用管理会话，只接受绑定专用 Token。",
+        "operationId": "put_api_integrations_certificates_by_binding_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "binding_id",
+            "required": true,
+            "schema": {
+              "example": "a17f93f95c2d4e9db7d41b8122345678",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalCertificateDeployBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalCertificateDeployData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "证书已保存到稳定槽位，并在需要时同步到网关；`changed=false` 表示内容完全相同且未触发重载。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "缺少绑定专用 Bearer Token，或 Token 已轮换、已撤销或不属于当前绑定。"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "新证书的到期时间早于当前槽位中的证书，或 SSL 配置在部署期间发生并发变更；客户端应检查证书并重试。"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "证书部署请求超过 1 MiB 限制。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "新证书无法下发到网关；fn-knock 会尝试恢复旧配置和旧网关证书，并在无法确认恢复时明确返回该状态，证书客户端应将本次部署标记为失败并重试。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "security": [
+          {
+            "certificateDeploymentToken": []
+          }
+        ],
+        "summary": "部署外部证书",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/internal/system-events": {
       "post": {
         "description": "供内部组件发布系统事件的接口。。`POST /api/internal/system-events` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
@@ -48175,7 +49161,7 @@
       "name": "wol"
     },
     {
-      "description": "SSL 证书库、共享文件导入和本地 CA 管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；或初始化本地 CA、配置主机名后签发并部署。共享文件接口仅用于预览和导入前检查。\n\nSwagger UI 保留所有接口的在线调试能力，请先通过同源管理面板完成登录；下载 ZIP 或读取共享文件内容可能暴露私钥。",
+      "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。",
       "name": "ssl"
     }
   ]

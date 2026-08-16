@@ -18,6 +18,10 @@ const BAD_REQUEST: ErrorDocumentation = ErrorDocumentation {
     status: "400",
     description: "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。",
 };
+const UNAUTHORIZED: ErrorDocumentation = ErrorDocumentation {
+    status: "401",
+    description: "缺少绑定专用 Bearer Token，或 Token 已轮换、已撤销或不属于当前绑定。",
+};
 const FORBIDDEN: ErrorDocumentation = ErrorDocumentation {
     status: "403",
     description: "共享目录中的目标文件存在，但当前进程没有读取权限。",
@@ -26,6 +30,14 @@ const NOT_FOUND: ErrorDocumentation = ErrorDocumentation {
     status: "404",
     description: "请求的证书、CA 文件、共享文件或证书库记录不存在。",
 };
+const CONFLICT: ErrorDocumentation = ErrorDocumentation {
+    status: "409",
+    description: "新证书的到期时间早于当前槽位中的证书，或 SSL 配置在部署期间发生并发变更；客户端应检查证书并重试。",
+};
+const PAYLOAD_TOO_LARGE: ErrorDocumentation = ErrorDocumentation {
+    status: "413",
+    description: "证书部署请求超过 1 MiB 限制。",
+};
 const INTERNAL_ERROR: ErrorDocumentation = ErrorDocumentation {
     status: "500",
     description: "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。",
@@ -33,6 +45,10 @@ const INTERNAL_ERROR: ErrorDocumentation = ErrorDocumentation {
 const GATEWAY_SYNC_ERROR: ErrorDocumentation = ErrorDocumentation {
     status: "500",
     description: "本地 SSL 配置无法同步到网关。部署模式切换会恢复先前配置；其他写操作请通过状态接口确认最终部署结果。",
+};
+const BAD_GATEWAY: ErrorDocumentation = ErrorDocumentation {
+    status: "502",
+    description: "新证书无法下发到网关；fn-knock 会尝试恢复旧配置和旧网关证书，并在无法确认恢复时明确返回该状态，证书客户端应将本次部署标记为失败并重试。",
 };
 
 const OPERATIONS: &[OperationDocumentation] = &[
@@ -196,6 +212,62 @@ const OPERATIONS: &[OperationDocumentation] = &[
         success_description: "已清除当前激活证书并尝试同步网关。",
         errors: &[GATEWAY_SYNC_ERROR],
     },
+    OperationDocumentation {
+        method: "get",
+        path: "/api/admin/ssl/external-bindings",
+        summary: "列出外部证书部署绑定",
+        description: "列出 Certd、acme.sh、lego、Certbot 等外部工具可使用的自动部署绑定及最近部署状态。响应不包含 Token、证书 PEM 或私钥；Token 只在创建或轮换时显示一次。",
+        success_description: "返回外部证书部署绑定列表。",
+        errors: &[INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "post",
+        path: "/api/admin/ssl/external-bindings",
+        summary: "创建外部证书部署绑定",
+        description: "创建一个稳定证书槽位和仅限该绑定使用的 Bearer Token。支持 `certd`、`acme_sh`、`lego` 和 `certbot`；适配器返回对应 Webhook 或部署钩子模板。Token 只在本次响应中显示，服务端仅持久化其哈希。首次成功部署在系统没有激活证书时自动激活，否则只加入证书库。",
+        success_description: "已创建绑定，并一次性返回部署 Token 与所选客户端的接入模板。",
+        errors: &[BAD_REQUEST, INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "patch",
+        path: "/api/admin/ssl/external-bindings/{id}",
+        summary: "更新或停用外部部署绑定",
+        description: "重命名绑定或切换启用状态。停用后部署入口立即拒绝该绑定的请求，但已经导入的证书会保留，避免中断正在使用的 HTTPS。",
+        success_description: "返回更新后的绑定。",
+        errors: &[BAD_REQUEST, NOT_FOUND, INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "post",
+        path: "/api/admin/ssl/external-bindings/{id}/rotate-token",
+        summary: "轮换外部部署凭据",
+        description: "立即废止旧 Token 并生成新 Token。新 Token 只在本次响应中显示；轮换后需同步更新证书客户端的部署配置。",
+        success_description: "已轮换 Token，并一次性返回新凭据。",
+        errors: &[NOT_FOUND, INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "delete",
+        path: "/api/admin/ssl/external-bindings/{id}",
+        summary: "撤销外部证书部署绑定",
+        description: "永久撤销该绑定及其 Token。对应的证书库条目默认保留，不会删除或停用正在运行的证书。",
+        success_description: "已撤销绑定并保留已导入证书。",
+        errors: &[NOT_FOUND, INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "put",
+        path: "/api/integrations/certificates/{binding_id}",
+        summary: "部署外部证书",
+        description: "使用绑定专用 `Authorization: Bearer <token>` 将完整 PEM 证书链和匹配私钥推送到稳定槽位。接口验证证钥匹配、证书链签名与 CA 约束、有效期和请求大小；相同内容幂等成功，到期更早的证书返回 `409`。部署网关失败时尝试恢复旧配置并返回非 2xx。该路径不使用管理会话，只接受绑定专用 Token。",
+        success_description: "证书已保存到稳定槽位，并在需要时同步到网关；`changed=false` 表示内容完全相同且未触发重载。",
+        errors: &[
+            BAD_REQUEST,
+            UNAUTHORIZED,
+            NOT_FOUND,
+            CONFLICT,
+            PAYLOAD_TOO_LARGE,
+            INTERNAL_ERROR,
+            BAD_GATEWAY,
+        ],
+    },
 ];
 
 const SCHEMA_DESCRIPTIONS: &[(&str, &str)] = &[
@@ -261,6 +333,30 @@ const SCHEMA_DESCRIPTIONS: &[(&str, &str)] = &[
         "SslCertificateSaveData",
         "成功保存证书库条目后返回的稳定标识符。",
     ),
+    (
+        "ExternalCertificateBindingCreateBodyData",
+        "创建外部证书自动部署绑定的请求。",
+    ),
+    (
+        "ExternalCertificateBindingUpdateBodyData",
+        "重命名、启用或停用外部证书自动部署绑定的请求。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "外部证书部署绑定的公开配置和最近部署状态，不包含 Token、PEM 或私钥。",
+    ),
+    (
+        "ExternalCertificateBindingCredentialData",
+        "创建或轮换绑定时一次性返回的凭据；离开响应后无法再次读取 Token。",
+    ),
+    (
+        "ExternalCertificateDeployBodyData",
+        "外部证书客户端推送完整证书链和私钥的请求。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "外部证书部署结果及证书的非敏感元数据。",
+    ),
 ];
 
 const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
@@ -277,7 +373,12 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
     (
         "SslCertificateSaveBodyData",
         "source",
-        "证书来源：`manual` 为手工导入，`acme` 为 ACME 签发，`ca` 为本地 CA 签发。",
+        "证书来源：`manual` 为手工导入，`acme` 为 ACME 签发，`ca` 为本地 CA 签发，`external` 为外部自动部署。",
+    ),
+    (
+        "SslCertificateSaveBodyData",
+        "source_provider",
+        "外部来源提供方，例如 `certd`；仅 `source=external` 时保存。",
     ),
     (
         "SslCertificateSaveBodyData",
@@ -465,7 +566,12 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
     (
         "SslCertificateSummaryData",
         "source",
-        "证书来源：手工导入、ACME 或本地 CA。",
+        "证书来源：手工导入、ACME、本地 CA 或外部自动部署。",
+    ),
+    (
+        "SslCertificateSummaryData",
+        "source_provider",
+        "外部自动部署提供方，例如 `certd`；其他来源通常为 `null`。",
     ),
     (
         "SslCertificateSummaryData",
@@ -636,12 +742,187 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
         "id",
         "已保存或更新的证书库条目标识符。",
     ),
+    (
+        "ExternalCertificateBindingCreateBodyData",
+        "name",
+        "管理员可识别的绑定名称，最长 80 个字符。",
+    ),
+    (
+        "ExternalCertificateBindingCreateBodyData",
+        "provider",
+        "外部部署适配器：`certd`、`acme_sh`、`lego` 或 `certbot`；省略时默认使用 `certd`。",
+    ),
+    (
+        "ExternalCertificateBindingUpdateBodyData",
+        "name",
+        "新的绑定显示名称。",
+    ),
+    (
+        "ExternalCertificateBindingUpdateBodyData",
+        "enabled",
+        "是否允许该绑定继续推送证书；停用不会删除既有证书。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "id",
+        "绑定的稳定标识符，也是部署 URL 的一部分。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "name",
+        "绑定的管理员显示名称。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "provider",
+        "外部部署提供方。适配器只负责生成原生接入配置，验证、存储和网关事务由统一部署服务处理。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "certificate_id",
+        "该绑定始终原位更新的稳定证书库条目标识符。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "enabled",
+        "绑定是否允许继续部署。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_deployed_at",
+        "最近一次成功或失败部署尝试的时间。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_result",
+        "最近一次部署结果：`success` 或 `failed`。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_error",
+        "最近一次失败的截断错误信息；绝不包含 PEM、私钥或 Token。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_fingerprint_sha256",
+        "最近成功部署证书的 SHA-256 指纹。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_valid_to",
+        "最近成功部署证书的到期时间。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_dns_names",
+        "最近成功部署证书的 DNS SAN。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "deploy_path",
+        "绑定专用的相对部署路径。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "deploy_port",
+        "fn-knock 证书接收端口，取自运行时 `BACKEND_PORT`。服务默认只监听 `127.0.0.1`；同机工具直接使用，其他机器需先反向代理该端口，再将代理地址与 `deploy_path` 组合。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "setup_kind",
+        "接入配置类型：`webhook` 用于 Certd，`deploy_hook` 用于命令行 ACME 客户端。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "request_method",
+        "Webhook 请求方法；仅 `webhook` 类型返回。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "request_body_template",
+        "Webhook JSON 模板；Certd 模板包含 `${crt}` 与 `${key}`，仅 `webhook` 类型返回。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "success_marker",
+        "Webhook 工具可用于判断响应成功的匹配字符串，仅 `webhook` 类型返回。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "script_template",
+        "适配器生成的部署钩子脚本，包含 URL 与 Token 占位符；仅 `deploy_hook` 类型返回。脚本使用 `jq` 安全编码 PEM，并用 `curl` 上传。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "usage_instructions",
+        "保存和注册部署钩子的简短说明，仅 `deploy_hook` 类型返回。",
+    ),
+    (
+        "ExternalCertificateBindingCredentialData",
+        "binding",
+        "刚创建或刚轮换的绑定配置。",
+    ),
+    (
+        "ExternalCertificateBindingCredentialData",
+        "token",
+        "只显示一次的绑定专用 Bearer Token；服务端仅保存哈希。",
+    ),
+    (
+        "ExternalCertificateDeployBodyData",
+        "cert",
+        "包含叶证书及中间证书的完整 PEM 证书链。",
+    ),
+    (
+        "ExternalCertificateDeployBodyData",
+        "key",
+        "与叶证书匹配的 PEM 私钥；仅写入，不会在响应或日志中回显。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "binding_id",
+        "本次使用的外部部署绑定。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "certificate_id",
+        "被创建或原位更新的稳定证书库条目。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "changed",
+        "证书或私钥是否发生变化；为 `false` 时不写配置、不重载网关。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "gateway_applied",
+        "本次请求是否实际完成了网关同步。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "is_active",
+        "该稳定槽位是否为当前激活证书。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "fingerprint_sha256",
+        "叶证书 DER 内容的 SHA-256 指纹。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "valid_to",
+        "证书到期时间。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "dns_names",
+        "证书声明的 DNS SAN。",
+    ),
 ];
 
 pub(super) fn tag() -> Value {
     json!({
         "name": "ssl",
-        "description": "SSL 证书库、共享文件导入和本地 CA 管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；或初始化本地 CA、配置主机名后签发并部署。共享文件接口仅用于预览和导入前检查。\n\nSwagger UI 保留所有接口的在线调试能力，请先通过同源管理面板完成登录；下载 ZIP 或读取共享文件内容可能暴露私钥。"
+        "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。"
     })
 }
 
@@ -692,20 +973,19 @@ fn document_responses(operation: &mut Map<String, Value>, documentation: &Operat
             documented_error_response(error.description),
         );
     }
-    if let Some(default_response) = responses.get_mut("default").and_then(Value::as_object_mut) {
-        if default_response
+    if let Some(default_response) = responses.get_mut("default").and_then(Value::as_object_mut)
+        && default_response
             .get("description")
             .and_then(Value::as_str)
             .is_some_and(|description| description == "Standard fn-knock error response")
-        {
-            default_response.insert(
-                "description".to_string(),
-                Value::String(
-                    "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
-                        .to_string(),
-                ),
-            );
-        }
+    {
+        default_response.insert(
+            "description".to_string(),
+            Value::String(
+                "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+                    .to_string(),
+            ),
+        );
     }
 }
 
@@ -742,6 +1022,13 @@ fn document_parameter_examples(operation: &mut Map<String, Value>, method: &str,
     let example = match (method, path) {
         ("get", "/api/admin/ssl/shared-files/content") => Some("certificates/example.pem"),
         ("delete", "/api/admin/ssl/certificates/{id}") => Some("ssl_example_2026"),
+        ("patch" | "delete", "/api/admin/ssl/external-bindings/{id}")
+        | ("post", "/api/admin/ssl/external-bindings/{id}/rotate-token") => {
+            Some("a17f93f95c2d4e9db7d41b8122345678")
+        }
+        ("put", "/api/integrations/certificates/{binding_id}") => {
+            Some("a17f93f95c2d4e9db7d41b8122345678")
+        }
         _ => None,
     };
     let Some(example) = example else {
@@ -805,6 +1092,34 @@ fn request_examples(method: &str, path: &str) -> Option<Value> {
             "multiSni": {
                 "summary": "部署整个证书库",
                 "value": { "deployment_mode": "multi_sni" }
+            }
+        })),
+        ("post", "/api/admin/ssl/external-bindings") => Some(json!({
+            "certd": {
+                "summary": "创建 Certd 部署绑定",
+                "value": { "name": "Certd example.com", "provider": "certd" }
+            },
+            "acmeSh": {
+                "summary": "创建 acme.sh 部署钩子绑定",
+                "value": { "name": "acme.sh example.com", "provider": "acme_sh" }
+            },
+            "lego": {
+                "summary": "创建 lego 部署钩子绑定",
+                "value": { "name": "lego example.com", "provider": "lego" }
+            },
+            "certbot": {
+                "summary": "创建 Certbot 部署钩子绑定",
+                "value": { "name": "Certbot example.com", "provider": "certbot" }
+            }
+        })),
+        ("patch", "/api/admin/ssl/external-bindings/{id}") => Some(json!({
+            "disable": {
+                "summary": "暂时停用自动部署",
+                "value": { "enabled": false }
+            },
+            "rename": {
+                "summary": "修改显示名称",
+                "value": { "name": "Certd production" }
             }
         })),
         _ => None,

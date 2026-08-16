@@ -214,6 +214,21 @@ function validateContract(openapiPath) {
     ["post /api/admin/ssl/activate", "SslCertificateActivateBodyData"],
     ["post /api/admin/ssl/deployment-mode", "SslDeploymentModeBodyData"],
     ["delete /api/admin/ssl", null],
+    ["get /api/admin/ssl/external-bindings", null],
+    [
+      "post /api/admin/ssl/external-bindings",
+      "ExternalCertificateBindingCreateBodyData",
+    ],
+    [
+      "patch /api/admin/ssl/external-bindings/{id}",
+      "ExternalCertificateBindingUpdateBodyData",
+    ],
+    ["post /api/admin/ssl/external-bindings/{id}/rotate-token", null],
+    ["delete /api/admin/ssl/external-bindings/{id}", null],
+    [
+      "put /api/integrations/certificates/{binding_id}",
+      "ExternalCertificateDeployBodyData",
+    ],
     ["get /api/admin/waf/details", null],
     ["get /api/admin/waf/status", null],
     ["post /api/admin/waf/config", "WafConfigUpdateData"],
@@ -1316,7 +1331,7 @@ function validateContract(openapiPath) {
     sslSave.properties?.key?.writeOnly !== true ||
     (sslSave.required ?? []).includes("activate") ||
     JSON.stringify(sslSave.properties?.source?.enum) !==
-      JSON.stringify(["manual", "acme", "ca"]) ||
+      JSON.stringify(["manual", "acme", "ca", "external"]) ||
     JSON.stringify(sslStatus.properties?.deploymentMode?.enum) !==
       JSON.stringify(["single_active", "multi_sni"]) ||
     !["subdomain_coverage", "library_coverage", "gateway_status"].every(
@@ -1327,6 +1342,52 @@ function validateContract(openapiPath) {
     !(sslCoverage.required ?? []).includes("auth_host")
   ) {
     throw new Error("SSL certificate and status contracts are out of sync");
+  }
+  const externalBinding =
+    document.components?.schemas?.ExternalCertificateBindingData ?? {};
+  const externalCredential =
+    document.components?.schemas?.ExternalCertificateBindingCredentialData ??
+    {};
+  const externalBindingCreate =
+    document.components?.schemas?.ExternalCertificateBindingCreateBodyData ??
+    {};
+  const externalDeployBody =
+    document.components?.schemas?.ExternalCertificateDeployBodyData ?? {};
+  const externalDeploy =
+    document.paths?.["/api/integrations/certificates/{binding_id}"]?.put ?? {};
+  if (
+    externalCredential.properties?.token?.writeOnly !== true ||
+    externalDeployBody.properties?.key?.writeOnly !== true ||
+    externalBinding.properties?.token !== undefined ||
+    !["certificate_id", "provider", "deploy_port", "setup_kind"].every(
+      (field) => (externalBinding.required ?? []).includes(field),
+    ) ||
+    externalBinding.properties?.deploy_port?.description?.includes(
+      "BACKEND_PORT",
+    ) !== true ||
+    JSON.stringify(externalBinding.properties?.provider?.enum) !==
+      JSON.stringify(["certd", "acme_sh", "lego", "certbot"]) ||
+    JSON.stringify(externalBindingCreate.properties?.provider?.enum) !==
+      JSON.stringify(["certd", "acme_sh", "lego", "certbot"]) ||
+    JSON.stringify(externalBinding.properties?.setup_kind?.enum) !==
+      JSON.stringify(["webhook", "deploy_hook"]) ||
+    ![
+      "request_method",
+      "request_body_template",
+      "script_template",
+      "usage_instructions",
+    ].every((field) => externalBinding.properties?.[field]) ||
+    JSON.stringify(externalDeploy.security) !==
+      JSON.stringify([{ certificateDeploymentToken: [] }]) ||
+    document.components?.securitySchemes?.certificateDeploymentToken?.scheme !==
+      "bearer" ||
+    !["400", "401", "404", "409", "413", "500", "502"].every(
+      (status) => externalDeploy.responses?.[status],
+    )
+  ) {
+    throw new Error(
+      "External certificate deployment contracts are out of sync",
+    );
   }
   const sharedFileParameters =
     document.paths?.["/api/admin/ssl/shared-files/content"]?.get?.parameters ??

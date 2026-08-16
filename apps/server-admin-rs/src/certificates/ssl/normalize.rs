@@ -110,6 +110,15 @@ pub(super) fn normalize_managed_certificate(value: Value) -> Option<Value> {
     object.insert("id".to_string(), json!(id));
     object.insert("label".to_string(), json!(label));
     object.insert("source".to_string(), json!(source));
+    if source == "external"
+        && let Some(source_provider) = value
+            .get("source_provider")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    {
+        object.insert("source_provider".to_string(), json!(source_provider));
+    }
     if let Some(primary_domain) = primary_domain {
         object.insert("primary_domain".to_string(), json!(primary_domain));
     }

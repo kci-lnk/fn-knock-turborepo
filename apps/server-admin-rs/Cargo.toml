@@ -80,7 +80,7 @@ utoipa = "5.4.0"
 utoipa-axum = "0.2.0"
 webauthn-rs = { version = "0.6.1-dev", features = ["danger-allow-state-serialisation", "danger-credential-internals", "workaround-google-passkey-specific-issues"] }
 webauthn-rs-core = "0.6.1-dev"
-x509-parser = "0.18"
+x509-parser = { version = "0.18", features = ["verify"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 libc = "0.2"
 

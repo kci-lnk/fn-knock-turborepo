@@ -581,7 +581,8 @@
         "acme": "ACME 证书",
         "ca": "自签发证书",
         "manual": "手动上传证书",
-        "current": "当前证书"
+        "current": "当前证书",
+        "external": "外部自动部署证书"
       },
       "ssl": {
         "certFormatInvalid": "证书格式无效: {message}",
@@ -1141,8 +1142,7 @@
       "downloadPackageFirst": "请先完成更新包下载并校验",
       "packageMissing": "更新包不存在，请重新下载",
       "packageChecksumFailed": "更新包校验失败，请重新下载",
-      "installStartFailed": "启动更新安装流程失败",
-      "databasePreflightFailed": "数据库完整性检查或更新前备份失败：{detail}"
+      "installStartFailed": "启动更新安装流程失败"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -3790,7 +3790,8 @@
         "acme": "ACME 證書",
         "ca": "自簽發證書",
         "manual": "手動上傳證書",
-        "current": "目前證書"
+        "current": "目前證書",
+        "external": "外部自動部署證書"
       },
       "ssl": {
         "certFormatInvalid": "證書格式無效: {message}",
@@ -4350,8 +4351,7 @@
       "downloadPackageFirst": "請先完成更新包下載並校驗",
       "packageMissing": "更新包不存在，請重新下載",
       "packageChecksumFailed": "更新包校驗失敗，請重新下載",
-      "installStartFailed": "啟動更新安裝流程失敗",
-      "databasePreflightFailed": "資料庫完整性檢查或更新前備份失敗：{detail}"
+      "installStartFailed": "啟動更新安裝流程失敗"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -6999,7 +6999,8 @@
         "acme": "ACME certificate",
         "ca": "Self-signed certificate",
         "manual": "Manually uploaded certificate",
-        "current": "Current certificate"
+        "current": "Current certificate",
+        "external": "Externally deployed certificate"
       },
       "ssl": {
         "certFormatInvalid": "Certificate format is invalid: {message}",
@@ -7559,8 +7560,7 @@
       "downloadPackageFirst": "Download and verify the update package before installing",
       "packageMissing": "Update package is missing. Download it again.",
       "packageChecksumFailed": "Update package checksum failed. Download it again.",
-      "installStartFailed": "Failed to start update installation",
-      "databasePreflightFailed": "Database integrity check or pre-update backup failed: {detail}"
+      "installStartFailed": "Failed to start update installation"
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -10208,7 +10208,8 @@
         "acme": "ACME 인증서",
         "ca": "자체 서명된 인증서",
         "manual": "수동으로 업로드한 인증서",
-        "current": "현재 인증서"
+        "current": "현재 인증서",
+        "external": "외부 자동 배포 인증서"
       },
       "ssl": {
         "certFormatInvalid": "인증서 형식이 잘못되었습니다: {message}",
@@ -10768,8 +10769,7 @@
       "downloadPackageFirst": "설치하기 전에 업데이트 패키지를 다운로드하고 확인하세요.",
       "packageMissing": "업데이트 패키지가 없습니다. 다시 다운로드하세요.",
       "packageChecksumFailed": "업데이트 패키지 체크섬에 실패했습니다. 다시 다운로드하세요.",
-      "installStartFailed": "업데이트 설치를 시작하지 못했습니다.",
-      "databasePreflightFailed": "데이터베이스 무결성 검사 또는 업데이트 전 백업에 실패했습니다: {detail}"
+      "installStartFailed": "업데이트 설치를 시작하지 못했습니다."
     },
     "tunnelManagers": {
       "cloudflared": {
@@ -13417,7 +13417,8 @@
         "acme": "ACME 証明書",
         "ca": "自己署名証明書",
         "manual": "証明書を手動でアップロードします",
-        "current": "現在の証明書"
+        "current": "現在の証明書",
+        "external": "外部自動デプロイ証明書"
       },
       "ssl": {
         "certFormatInvalid": "無効な証明書形式: {message}",
@@ -13977,8 +13978,7 @@
       "downloadPackageFirst": "まずアップデートパッケージをダウンロードして確認してください",
       "packageMissing": "アップデートパッケージが存在しません。再度ダウンロードしてください。",
       "packageChecksumFailed": "アップデートパッケージの検証に失敗しました。もう一度ダウンロードしてください",
-      "installStartFailed": "アップデートのインストールプロセスの開始に失敗しました",
-      "databasePreflightFailed": "データベースの整合性チェックまたは更新前バックアップに失敗しました: {detail}"
+      "installStartFailed": "アップデートのインストールプロセスの開始に失敗しました"
     },
     "tunnelManagers": {
       "cloudflared": {

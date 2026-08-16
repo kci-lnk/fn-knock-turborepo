@@ -154,6 +154,8 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_deep_monitor = crate::deep_monitor::deep_monitor_openapi_routes().into_openapi();
     let typed_waf = crate::waf::waf_openapi_routes().into_openapi();
     let typed_ssl = crate::ssl::ssl_openapi_routes().into_openapi();
+    let typed_external_certificates =
+        crate::ssl::external_certificate_openapi_routes().into_openapi();
     let typed_ddns = crate::ddns::ddns_openapi_routes().into_openapi();
     let typed_cloudflared = crate::cloudflared::cloudflared_openapi_routes().into_openapi();
     let typed_frpc = crate::frpc::frpc_openapi_routes().into_openapi();
@@ -190,6 +192,17 @@ pub(crate) fn build_openapi_document() -> Value {
         }),
     );
     schemas.extend(domain_contracts::components());
+    components.insert(
+        "securitySchemes".to_string(),
+        json!({
+            "certificateDeploymentToken": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "fnk_cert_*",
+                "description": "Binding-scoped token shown only when an external certificate deployment binding is created or rotated."
+            }
+        }),
+    );
     let mut paths = Map::new();
     if let Some(mut health_operation) = typed_health_operation {
         health_operation["responses"]["default"] = json!({
@@ -1603,6 +1616,76 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
+    insert_typed_array_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings",
+        "get",
+        "ExternalCertificateBindingData",
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings",
+        "post",
+        "ExternalCertificateBindingCredentialData",
+        None,
+        Some("ExternalCertificateBindingCreateBodyData"),
+    );
+    let external_binding_id_parameter = json!([{
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+    }]);
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings/{id}",
+        "patch",
+        "ExternalCertificateBindingData",
+        Some(external_binding_id_parameter.clone()),
+        Some("ExternalCertificateBindingUpdateBodyData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings/{id}/rotate-token",
+        "post",
+        "ExternalCertificateBindingCredentialData",
+        Some(external_binding_id_parameter.clone()),
+        None,
+    );
+    insert_typed_empty_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings/{id}",
+        "delete",
+        None,
+        Some(external_binding_id_parameter),
+    );
+    let external_deploy_path = "/api/integrations/certificates/{binding_id}";
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_external_certificates,
+        external_deploy_path,
+        "put",
+        "ExternalCertificateDeployData",
+        Some(json!([{
+            "name": "binding_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+        }])),
+        Some("ExternalCertificateDeployBodyData"),
+    );
+    if let Some(operation) = paths
+        .get_mut(external_deploy_path)
+        .and_then(Value::as_object_mut)
+        .and_then(|item| item.get_mut("put"))
+    {
+        operation["security"] = json!([{ "certificateDeploymentToken": [] }]);
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_ddns,
@@ -4341,27 +4424,23 @@ mod tests {
                 }
                 ssl_operations += 1;
                 assert!(
-                    operation["summary"].as_str().is_some_and(|summary| summary
-                        .chars()
-                        .any(|character| !character.is_ascii()))
+                    operation["summary"]
+                        .as_str()
+                        .is_some_and(|summary| !summary.is_ascii())
                 );
                 assert!(
                     operation["description"]
                         .as_str()
-                        .is_some_and(|description| {
-                            description.chars().any(|character| !character.is_ascii())
-                        })
+                        .is_some_and(|description| { !description.is_ascii() })
                 );
                 assert!(
                     operation["responses"]["200"]["description"]
                         .as_str()
-                        .is_some_and(|description| {
-                            description.chars().any(|character| !character.is_ascii())
-                        })
+                        .is_some_and(|description| { !description.is_ascii() })
                 );
             }
         }
-        assert_eq!(ssl_operations, 20);
+        assert_eq!(ssl_operations, 26);
 
         assert!(
             document
@@ -4418,9 +4497,11 @@ mod tests {
                     }
                 }
                 for field in ["summary", "description"] {
-                    assert!(operation[field].as_str().is_some_and(|value| {
-                        value.chars().any(|character| !character.is_ascii())
-                    }));
+                    assert!(
+                        operation[field]
+                            .as_str()
+                            .is_some_and(|value| { !value.is_ascii() })
+                    );
                 }
                 let summary = operation["summary"].as_str().expect("operation summary");
                 let untranslated = summary
@@ -4439,22 +4520,22 @@ mod tests {
                     .flat_map(|responses| responses.values())
                 {
                     assert!(
-                        response["description"].as_str().is_some_and(|description| {
-                            description.chars().any(|character| !character.is_ascii())
-                        }),
+                        response["description"]
+                            .as_str()
+                            .is_some_and(|description| { !description.is_ascii() }),
                         "response descriptions must be localized"
                     );
                 }
             }
         }
-        assert_eq!(operations, 416);
+        assert_eq!(operations, 422);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
                 item["name"] == *tag
-                    && item["description"].as_str().is_some_and(|description| {
-                        description.chars().any(|character| !character.is_ascii())
-                    })
+                    && item["description"]
+                        .as_str()
+                        .is_some_and(|description| !description.is_ascii())
             })
         }));
     }
@@ -5139,7 +5220,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 416);
+        assert_eq!(operations.len(), 422);
         assert!(
             operations
                 .iter()

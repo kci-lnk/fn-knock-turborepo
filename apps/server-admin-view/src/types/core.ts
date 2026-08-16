@@ -206,6 +206,10 @@ export type SSLSharedFilesPayload =
   ApiContractComponents["schemas"]["SslSharedFilesData"];
 export type SSLCAStatus =
   ApiContractComponents["schemas"]["SslCaStatusData"];
+export type ExternalCertificateBinding =
+  ApiContractComponents["schemas"]["ExternalCertificateBindingData"];
+export type ExternalCertificateBindingCredential =
+  ApiContractComponents["schemas"]["ExternalCertificateBindingCredentialData"];
 
 export type FnosShareBypassConfig =
   ApiContractComponents["schemas"]["FnosShareBypassData"];

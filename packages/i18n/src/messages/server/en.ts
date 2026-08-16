@@ -711,6 +711,7 @@ export const enServer = {
       acme: "ACME certificate",
       ca: "Self-signed certificate",
       manual: "Manually uploaded certificate",
+      external: "Externally deployed certificate",
       current: "Current certificate",
     },
     ssl: {

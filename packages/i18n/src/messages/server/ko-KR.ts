@@ -716,6 +716,7 @@ export const koKRServer = {
       acme: "ACME 인증서",
       ca: "자체 서명된 인증서",
       manual: "수동으로 업로드한 인증서",
+      external: "외부 자동 배포 인증서",
       current: "현재 인증서",
     },
     ssl: {

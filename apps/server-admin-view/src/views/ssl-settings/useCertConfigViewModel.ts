@@ -122,6 +122,8 @@ export const useCertConfigViewModel = ({
   const sourceLabel = (source: SSLCertificateSource): string => {
     if (source === "acme") return "ACME";
     if (source === "ca") return translate("admin.certConfig.localCa");
+    if (source === "external")
+      return translate("admin.certConfig.externalSource");
     return translate("admin.certConfig.manualUploadSource");
   };
 

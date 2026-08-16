@@ -550,6 +550,7 @@ pub(super) fn normalize_certificate_source(value: Option<&str>) -> &'static str 
     match value {
         Some("acme") => "acme",
         Some("ca") => "ca",
+        Some("external") => "external",
         _ => "manual",
     }
 }
@@ -574,6 +575,7 @@ pub(super) fn default_certificate_label(source: &str, primary_domain: Option<&st
     match source {
         "acme" => translator.t("server.store.certificateLabels.acme"),
         "ca" => translator.t("server.store.certificateLabels.ca"),
+        "external" => translator.t("server.store.certificateLabels.external"),
         "current" => translator.t("server.store.certificateLabels.current"),
         _ => translator.t("server.store.certificateLabels.manual"),
     }

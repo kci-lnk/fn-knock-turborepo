@@ -994,6 +994,12 @@ struct BackupImportResultData {
     SslSharedFileContentData,
     SslCaStatusData,
     SslCertificateSaveData,
+    ExternalCertificateBindingCreateBodyData,
+    ExternalCertificateBindingUpdateBodyData,
+    ExternalCertificateBindingData,
+    ExternalCertificateBindingCredentialData,
+    ExternalCertificateDeployBodyData,
+    ExternalCertificateDeployData,
     NotificationFieldOptionData,
     NotificationSchemaFieldData,
     NotificationProviderCapabilitiesData,
@@ -2287,7 +2293,12 @@ pub(super) fn components() -> Map<String, Value> {
         json!("byte"),
     );
     for schema in ["SslCertificateSaveBodyData", "SslCertificateSummaryData"] {
-        set_property_enum(&mut schemas, schema, "source", &["manual", "acme", "ca"]);
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "source",
+            &["manual", "acme", "ca", "external"],
+        );
     }
     for property in ["cert", "key"] {
         set_property_metadata(
@@ -2304,6 +2315,48 @@ pub(super) fn components() -> Map<String, Value> {
         "key",
         "writeOnly",
         json!(true),
+    );
+    for property in ["cert", "key"] {
+        set_property_metadata(
+            &mut schemas,
+            "ExternalCertificateDeployBodyData",
+            property,
+            "minLength",
+            json!(1),
+        );
+    }
+    set_property_metadata(
+        &mut schemas,
+        "ExternalCertificateDeployBodyData",
+        "key",
+        "writeOnly",
+        json!(true),
+    );
+    set_property_metadata(
+        &mut schemas,
+        "ExternalCertificateBindingCredentialData",
+        "token",
+        "writeOnly",
+        json!(true),
+    );
+    let external_certificate_providers = &["certd", "acme_sh", "lego", "certbot"];
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingCreateBodyData",
+        "provider",
+        external_certificate_providers,
+    );
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingData",
+        "provider",
+        external_certificate_providers,
+    );
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingData",
+        "setup_kind",
+        &["webhook", "deploy_hook"],
     );
     set_property_metadata(
         &mut schemas,

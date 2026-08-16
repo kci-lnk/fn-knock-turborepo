@@ -316,6 +316,7 @@ pub(super) fn build_ca_issue_certificate_body(
         id: None,
         label: hosts.first().cloned(),
         source: Some("ca".to_string()),
+        source_provider: None,
         primary_domain: None,
         source_ref_id: None,
         cert,
@@ -408,6 +409,7 @@ pub(super) async fn set_deployment_mode(
     Json(body): Json<DeploymentModeBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -447,7 +449,13 @@ pub(super) async fn set_deployment_mode(
         );
     }
     if let Err(error) = sync_ssl_deployment_to_gateway(&state, Some(&config)).await {
-        let _ = state.storage.store.save_config(&previous).await;
+        if let Err(rollback_error) = state.storage.store.save_config(&previous).await {
+            tracing::error!(%rollback_error, "failed to restore SSL deployment mode configuration");
+        } else if let Err(rollback_error) =
+            sync_ssl_deployment_to_gateway(&state, Some(&previous)).await
+        {
+            tracing::error!(%rollback_error, "failed to restore previous gateway SSL deployment mode");
+        }
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_gateway_error(&translator, &error.to_string()),

@@ -49,7 +49,7 @@ use crate::{
     scanner::{cidr_routes, scanner_routes},
     security_overview::security_overview_routes,
     ssh_security::ssh_security_routes,
-    ssl::ssl_routes,
+    ssl::{external_certificate_routes, ssl_routes},
     state::AppState,
     static_files,
     static_files::{admin_static_routes, auth_static_routes},
@@ -207,9 +207,17 @@ fn backend_router_with_capabilities(
     };
     #[cfg(test)]
     let api = api.layer(middleware::from_fn(route_contract_probe_middleware));
+    let external_certificate_routes = external_certificate_routes();
+    #[cfg(test)]
+    let external_certificate_routes =
+        external_certificate_routes.layer(middleware::from_fn(route_contract_probe_middleware));
 
     let router = Router::new()
         .route("/__fn-knock/readyz", axum::routing::get(response::readyz))
+        // Certificate automation uses a binding-scoped bearer token instead
+        // of an interactive admin session. Keep this router outside the admin
+        // authentication layer while retaining its own strict authentication.
+        .merge(external_certificate_routes)
         .merge(api)
         .merge(admin_static_routes())
         .fallback(static_files::admin_fallback)
@@ -413,6 +421,33 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn certificate_deployment_uses_binding_auth_outside_the_admin_session_layer() {
+        let (_directory, state) = auth_router_test_state("router-test-secret").await;
+        let app = backend_router(state, true);
+        let deployment = app
+            .clone()
+            .oneshot(
+                Request::put("/api/integrations/certificates/missing-binding")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"cert":"invalid","key":"invalid"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deployment.status(), StatusCode::NOT_FOUND);
+
+        let binding_admin = app
+            .oneshot(
+                Request::get("/api/admin/ssl/external-bindings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(binding_admin.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -620,7 +655,7 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 416, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 422, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

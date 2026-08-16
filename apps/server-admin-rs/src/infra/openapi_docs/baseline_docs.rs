@@ -398,7 +398,7 @@ fn success_response_description(response: &Map<String, Value>, summary: &str) ->
 }
 
 fn contains_chinese(value: &str) -> bool {
-    value.chars().any(|character| !character.is_ascii())
+    !value.is_ascii()
 }
 
 fn response_note(operation: &Map<String, Value>) -> &'static str {

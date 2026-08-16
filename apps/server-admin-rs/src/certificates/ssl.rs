@@ -20,7 +20,9 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
-use x509_parser::{extensions::GeneralName, pem::parse_x509_pem, time::ASN1Time};
+use x509_parser::{
+    extensions::GeneralName, parse_x509_certificate, pem::parse_x509_pem, time::ASN1Time,
+};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
@@ -32,6 +34,7 @@ use crate::{
 
 mod ca;
 mod deployment;
+mod external;
 mod handlers;
 mod library;
 mod normalize;
@@ -41,6 +44,14 @@ mod status;
 
 use ca::*;
 pub(crate) use deployment::*;
+use external::{
+    __path_create_external_certificate_binding, __path_delete_external_certificate_binding,
+    __path_list_external_certificate_bindings, __path_rotate_external_certificate_binding_token,
+    __path_update_external_certificate_binding, create_external_certificate_binding,
+    delete_external_certificate_binding, list_external_certificate_bindings,
+    rotate_external_certificate_binding_token, update_external_certificate_binding,
+};
+pub(crate) use external::{external_certificate_openapi_routes, external_certificate_routes};
 use handlers::*;
 use handlers::{
     __path_activate_certificate, __path_active_cert_pem, __path_active_cert_zip,
@@ -231,6 +242,7 @@ struct SaveCertificateBody {
     id: Option<String>,
     label: Option<String>,
     source: Option<String>,
+    source_provider: Option<String>,
     primary_domain: Option<String>,
     source_ref_id: Option<String>,
     cert: String,
@@ -284,5 +296,10 @@ pub(crate) fn ssl_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(delete_certificate))
         .routes(routes!(activate_certificate))
         .routes(routes!(set_deployment_mode))
+        .routes(routes!(list_external_certificate_bindings))
+        .routes(routes!(create_external_certificate_binding))
+        .routes(routes!(update_external_certificate_binding))
+        .routes(routes!(rotate_external_certificate_binding_token))
+        .routes(routes!(delete_external_certificate_binding))
         .routes(routes!(clear_ssl))
 }

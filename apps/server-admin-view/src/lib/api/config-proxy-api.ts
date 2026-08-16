@@ -14,6 +14,8 @@ import type {
   HostMappingRefreshSummary,
   ProxyMapping,
   SSLConfig,
+  ExternalCertificateBinding,
+  ExternalCertificateBindingCredential,
   SSLSharedFilesPayload,
   SSLStatus,
   SubdomainModeConfig,
@@ -69,6 +71,10 @@ type SslActivateBody =
   ApiContractComponents["schemas"]["SslCertificateActivateBodyData"];
 type SslDeploymentModeBody =
   ApiContractComponents["schemas"]["SslDeploymentModeBodyData"];
+type ExternalCertificateBindingCreateBody =
+  ApiContractComponents["schemas"]["ExternalCertificateBindingCreateBodyData"];
+type ExternalCertificateBindingUpdateBody =
+  ApiContractComponents["schemas"]["ExternalCertificateBindingUpdateBodyData"];
 
 export type AdvancedAuthDetails =
   ApiContractComponents["schemas"]["AdvancedAuthDetailsData"];
@@ -318,6 +324,45 @@ export const configProxyApi = {
   },
   async clearSSLCertificateLibrary(): Promise<void> {
     await apiClient.delete("/ssl/certificates");
+  },
+  async getExternalCertificateBindings(): Promise<
+    ExternalCertificateBinding[]
+  > {
+    const res = await apiClient.get("/ssl/external-bindings");
+    return res.data.data || [];
+  },
+  async createExternalCertificateBinding(
+    name: string,
+    provider: ExternalCertificateBinding["provider"],
+  ): Promise<ExternalCertificateBindingCredential> {
+    const payload = {
+      name,
+      provider,
+    } satisfies ExternalCertificateBindingCreateBody;
+    const res = await apiClient.post("/ssl/external-bindings", payload);
+    return res.data.data;
+  },
+  async updateExternalCertificateBinding(
+    id: string,
+    update: ExternalCertificateBindingUpdateBody,
+  ): Promise<ExternalCertificateBinding> {
+    const payload = update satisfies ExternalCertificateBindingUpdateBody;
+    const res = await apiClient.patch(
+      `/ssl/external-bindings/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return res.data.data;
+  },
+  async rotateExternalCertificateBindingToken(
+    id: string,
+  ): Promise<ExternalCertificateBindingCredential> {
+    const res = await apiClient.post(
+      `/ssl/external-bindings/${encodeURIComponent(id)}/rotate-token`,
+    );
+    return res.data.data;
+  },
+  async deleteExternalCertificateBinding(id: string): Promise<void> {
+    await apiClient.delete(`/ssl/external-bindings/${encodeURIComponent(id)}`);
   },
   async updateDefaultRoute(path: string): Promise<void> {
     const body = { path } satisfies DefaultRouteUpdate;

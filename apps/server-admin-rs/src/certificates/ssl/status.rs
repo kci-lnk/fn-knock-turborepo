@@ -184,6 +184,11 @@ pub(super) fn local_ssl_status(ssl: &Value) -> Value {
             );
             insert_optional_status_string(
                 &mut object,
+                "source_provider",
+                certificate.get("source_provider"),
+            );
+            insert_optional_status_string(
+                &mut object,
                 "primary_domain",
                 certificate.get("primary_domain"),
             );

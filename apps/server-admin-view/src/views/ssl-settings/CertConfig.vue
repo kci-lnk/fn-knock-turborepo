@@ -173,6 +173,8 @@
       </template>
     </ConfigCollapsibleCard>
 
+    <ExternalCertificateDeploymentCard />
+
     <CertificateLibraryCard
       :activate-button-label="activateButtonLabel"
       :activate-certificate="activateCertificate"
@@ -222,6 +224,7 @@ import type { SSLStatus } from "../../types";
 import { toast } from "@admin-shared/utils/toast";
 import ActiveCertificateDetailsCard from "./ActiveCertificateDetailsCard.vue";
 import CertificateDeploymentCard from "./CertificateDeploymentCard.vue";
+import ExternalCertificateDeploymentCard from "./ExternalCertificateDeploymentCard.vue";
 import CertificateLibraryCard from "./CertificateLibraryCard.vue";
 import CertificateStatusCard from "./CertificateStatusCard.vue";
 import { useCertConfigViewModel } from "./useCertConfigViewModel";

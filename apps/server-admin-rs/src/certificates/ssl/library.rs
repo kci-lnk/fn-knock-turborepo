@@ -5,6 +5,7 @@ pub(super) async fn save_ssl_certificate(
     input: SaveCertificateBody,
     activate: bool,
 ) -> anyhow::Result<Value> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     validate_ssl_cert(&input.cert, &input.key)?;
     let mut config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
@@ -38,6 +39,12 @@ pub(super) async fn save_ssl_certificate(
         .cloned();
     let now = now_node_iso();
     let source = normalize_certificate_source(input.source.as_deref());
+    let source_provider = input
+        .source_provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     let primary_domain = input
         .primary_domain
         .as_deref()
@@ -72,6 +79,11 @@ pub(super) async fn save_ssl_certificate(
     next.insert("id".to_string(), json!(id));
     next.insert("label".to_string(), json!(label));
     next.insert("source".to_string(), json!(source));
+    if source == "external"
+        && let Some(source_provider) = source_provider
+    {
+        next.insert("source_provider".to_string(), json!(source_provider));
+    }
     if let Some(primary_domain) = primary_domain {
         next.insert("primary_domain".to_string(), json!(primary_domain));
     }
@@ -144,6 +156,7 @@ pub(crate) async fn save_acme_certificate_to_library(
                 .filter(|value| !value.is_empty())
                 .map(str::to_string),
             source: Some("acme".to_string()),
+            source_provider: None,
             primary_domain: Some(normalized_domain),
             source_ref_id: normalized_ref.map(str::to_string),
             cert: cert.to_string(),
@@ -282,6 +295,7 @@ pub(super) async fn set_active_ssl_certificate(
     state: &AppState,
     id: Option<&str>,
 ) -> anyhow::Result<Option<Value>> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let normalized_id = id.map(str::trim).filter(|value| !value.is_empty());
@@ -304,6 +318,7 @@ pub(super) async fn delete_ssl_certificate(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<(bool, bool)> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let active_id = ssl
@@ -349,6 +364,7 @@ pub(crate) async fn delete_acme_ssl_certificates(
     application_id: Option<&str>,
     primary_domain: Option<&str>,
 ) -> anyhow::Result<(usize, bool)> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let active_id = ssl
@@ -411,6 +427,7 @@ pub(crate) async fn delete_acme_ssl_certificates(
 }
 
 pub(super) async fn clear_ssl_certificate_library(state: &AppState) -> anyhow::Result<()> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = state.storage.store.get_config().await?;
     let mut ssl = normalize_ssl_config(config.get("ssl"));
     ssl["certificates"] = json!([]);
@@ -421,6 +438,7 @@ pub(super) async fn clear_ssl_certificate_library(state: &AppState) -> anyhow::R
 }
 
 pub(super) async fn clear_active_ssl(state: &AppState) -> anyhow::Result<()> {
+    let _guard = state.gateway.ssl_update_lock.lock().await;
     let mut config = state.storage.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     config["ssl"] = mirror_active_ssl_certificate(&ssl, None);

@@ -6,6 +6,7 @@ pub(super) struct SslCertificateSaveBodyData {
     id: Option<String>,
     label: Option<String>,
     source: Option<String>,
+    source_provider: Option<String>,
     primary_domain: Option<String>,
     source_ref_id: Option<String>,
     cert: String,
@@ -82,6 +83,7 @@ pub(super) struct SslCertificateSummaryData {
     id: String,
     label: String,
     source: String,
+    source_provider: Option<String>,
     primary_domain: Option<String>,
     source_ref_id: Option<String>,
     created_at: String,
@@ -158,4 +160,65 @@ pub(super) struct SslCaStatusData {
 #[derive(Serialize, ToSchema)]
 pub(super) struct SslCertificateSaveData {
     id: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateBindingCreateBodyData {
+    name: String,
+    provider: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateBindingUpdateBodyData {
+    name: Option<String>,
+    enabled: Option<bool>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateBindingData {
+    id: String,
+    name: String,
+    provider: String,
+    certificate_id: String,
+    enabled: bool,
+    created_at: String,
+    updated_at: String,
+    last_deployed_at: Option<String>,
+    last_result: Option<String>,
+    last_error: Option<String>,
+    last_fingerprint_sha256: Option<String>,
+    last_valid_to: Option<String>,
+    last_dns_names: Vec<String>,
+    deploy_path: String,
+    deploy_port: u16,
+    setup_kind: String,
+    request_method: Option<String>,
+    request_body_template: Option<String>,
+    success_marker: Option<String>,
+    script_template: Option<String>,
+    usage_instructions: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateBindingCredentialData {
+    binding: ExternalCertificateBindingData,
+    token: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateDeployBodyData {
+    cert: String,
+    key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ExternalCertificateDeployData {
+    binding_id: String,
+    certificate_id: String,
+    changed: bool,
+    gateway_applied: bool,
+    is_active: bool,
+    fingerprint_sha256: String,
+    valid_to: String,
+    dns_names: Vec<String>,
 }

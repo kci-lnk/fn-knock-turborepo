@@ -62,6 +62,8 @@ const {
   moveMappingsToGroup,
   omitPublicPortConfiguration,
   openAdvancedAuth,
+  openBatchAvailability,
+  openBatchMutation,
   openAvailabilityDialog,
   openClearAllConfigDialog,
   openCreateDialog,
@@ -181,12 +183,26 @@ const {
         :traffic-timestamp="trafficRealtimeStats?.timestamp ?? null"
         :visible-mappings-count="visibleMappings.length"
         @add-auth-service="addAuthService"
+        @batch-delete="
+          (hosts, onComplete) => openBatchMutation(hosts, 'delete', onComplete)
+        "
+        @batch-disable="
+          (hosts, onComplete) => openBatchMutation(hosts, 'disable', onComplete)
+        "
+        @batch-enable="
+          (hosts, onComplete) => openBatchMutation(hosts, 'enable', onComplete)
+        "
+        @batch-schedule="openBatchAvailability"
         @clear-default="clearDefaultMapping"
         @copy-host="copyMappingHost"
         @delete="openDeleteMappingDialog"
         @edit="openEditDialog"
         @export-bookmarks="exportBookmarks"
-        @move-mappings="moveMappingsToGroup"
+        @move-mappings="
+          async (hosts, groupId, onComplete) => {
+            if (await moveMappingsToGroup(hosts, groupId)) onComplete?.();
+          }
+        "
         @open-clear-all-config="openClearAllConfigDialog"
         @open-create="openCreateDialog"
         @open-discover="openDiscoverDialog"

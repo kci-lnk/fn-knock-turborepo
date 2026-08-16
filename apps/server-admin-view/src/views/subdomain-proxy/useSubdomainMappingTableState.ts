@@ -13,6 +13,7 @@ interface SubdomainMappingTableStateOptions {
   filteredMappings: () => HostMapping[];
   groups: () => HostMappingGroup[];
   isSavingMappings: () => boolean;
+  isMappingSelectable: (mapping: HostMapping) => boolean;
   searchQuery: () => string;
   showGroupedView: () => boolean;
   ungroupedLabel: () => string;
@@ -50,11 +51,13 @@ export const useSubdomainMappingTableState = (
       : options.collapseStorage;
   const groupSections = ref<HostMappingGroupSection[]>([]);
   const selectedHosts = ref(new Set<string>());
+  const isSelectionMode = ref(false);
   const collapsedGroupKeys = ref(loadCollapsedGroupKeys(collapseStorage));
 
   const dragDisabled = computed(
     () =>
       options.isSavingMappings() ||
+      isSelectionMode.value ||
       Boolean(options.searchQuery().trim()) ||
       options.filteredMappings().length < 2,
   );
@@ -65,7 +68,9 @@ export const useSubdomainMappingTableState = (
       : HIDDEN_SELECTION_CLASS,
   );
   const allVisibleSelected = computed(() => {
-    const mappings = options.filteredMappings();
+    const mappings = options
+      .filteredMappings()
+      .filter(options.isMappingSelectable);
     return (
       mappings.length > 0 &&
       mappings.every((mapping) => selectedHosts.value.has(mapping.host))
@@ -76,6 +81,7 @@ export const useSubdomainMappingTableState = (
       !allVisibleSelected.value &&
       options
         .filteredMappings()
+        .filter(options.isMappingSelectable)
         .some((mapping) => selectedHosts.value.has(mapping.host)),
   );
 
@@ -91,7 +97,11 @@ export const useSubdomainMappingTableState = (
       options.ungroupedLabel(),
       options.showGroupedView() && !options.searchQuery().trim(),
     );
-    const visibleHosts = new Set(filteredMappings.map((item) => item.host));
+    const visibleHosts = new Set(
+      filteredMappings
+        .filter(options.isMappingSelectable)
+        .map((item) => item.host),
+    );
     selectedHosts.value = new Set(
       [...selectedHosts.value].filter((host) => visibleHosts.has(host)),
     );
@@ -113,6 +123,12 @@ export const useSubdomainMappingTableState = (
     if (wasSaving && !isSaving) syncGroupSections();
   });
   watch(options.showGroupedView, clearSelection);
+  watch(options.searchQuery, clearSelection);
+
+  const setSelectionMode = (enabled: boolean) => {
+    isSelectionMode.value = enabled;
+    if (!enabled) clearSelection();
+  };
 
   const updateSectionMappings = (key: string, mappings: HostMapping[]) => {
     const section = groupSections.value.find((item) => item.key === key);
@@ -158,19 +174,23 @@ export const useSubdomainMappingTableState = (
     selectedHosts.value = next;
   };
   const isSectionSelected = (section: HostMappingGroupSection) =>
-    section.mappings.length > 0 &&
-    section.mappings.every((mapping) =>
+    section.mappings.some(options.isMappingSelectable) &&
+    section.mappings
+      .filter(options.isMappingSelectable)
+      .every((mapping) =>
       selectedHosts.value.has(mapping.host),
     );
   const isSectionPartiallySelected = (section: HostMappingGroupSection) =>
     !isSectionSelected(section) &&
-    section.mappings.some((mapping) => selectedHosts.value.has(mapping.host));
+    section.mappings
+      .filter(options.isMappingSelectable)
+      .some((mapping) => selectedHosts.value.has(mapping.host));
   const setSectionSelected = (
     section: HostMappingGroupSection,
     selected: boolean,
   ) => {
     const next = new Set(selectedHosts.value);
-    for (const mapping of section.mappings) {
+    for (const mapping of section.mappings.filter(options.isMappingSelectable)) {
       if (selected) next.add(mapping.host);
       else next.delete(mapping.host);
     }
@@ -178,7 +198,9 @@ export const useSubdomainMappingTableState = (
   };
   const setAllVisibleSelected = (selected: boolean) => {
     const next = new Set(selectedHosts.value);
-    for (const mapping of options.filteredMappings()) {
+    for (const mapping of options
+      .filteredMappings()
+      .filter(options.isMappingSelectable)) {
       if (selected) next.add(mapping.host);
       else next.delete(mapping.host);
     }
@@ -189,14 +211,17 @@ export const useSubdomainMappingTableState = (
     clearSelection();
     return hosts;
   };
+  const getSelectedHosts = () => [...selectedHosts.value];
 
   return {
     allVisibleSelected,
     clearSelection,
     dragDisabled,
     groupSections,
+    getSelectedHosts,
     handleSortEnd,
     isMappingSelected,
+    isSelectionMode,
     isSectionCollapsed,
     isSectionPartiallySelected,
     isSectionSelected,
@@ -204,6 +229,7 @@ export const useSubdomainMappingTableState = (
     selectedCount,
     setAllVisibleSelected,
     setMappingSelected,
+    setSelectionMode,
     setSectionSelected,
     someVisibleSelected,
     takeSelectedHosts,

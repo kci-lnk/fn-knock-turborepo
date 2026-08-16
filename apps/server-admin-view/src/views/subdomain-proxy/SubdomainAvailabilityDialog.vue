@@ -2,11 +2,12 @@
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-[480px]">
       <DialogHeader>
-        <DialogTitle>{{
-          t("admin.subdomainProxy.availabilityTitle")
-        }}</DialogTitle>
+        <DialogTitle>{{ title || t("admin.subdomainProxy.availabilityTitle") }}</DialogTitle>
         <DialogDescription>
-          {{ t("admin.subdomainProxy.availabilityDescription", { host }) }}
+          {{
+            description ||
+            t("admin.subdomainProxy.availabilityDescription", { host })
+          }}
         </DialogDescription>
       </DialogHeader>
 
@@ -70,7 +71,7 @@
             v-if="loading"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          {{ t("admin.subdomainProxy.saveMapping") }}
+          {{ saveLabel || t("admin.subdomainProxy.saveMapping") }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -95,10 +96,13 @@ import { Switch } from "@/components/ui/switch";
 
 const props = defineProps<{
   enabled: boolean;
+  description?: string;
   host: string;
   loading: boolean;
   open: boolean;
   startTime: string;
+  saveLabel?: string;
+  title?: string;
   endTime: string;
   validationMessage: string;
 }>();

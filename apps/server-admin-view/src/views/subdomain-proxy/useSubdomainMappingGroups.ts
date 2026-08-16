@@ -110,25 +110,28 @@ export const useSubdomainMappingGroups = ({
   const moveMappingsToGroup = async (
     hosts: string[],
     groupId: string | null,
-  ) => {
+  ): Promise<boolean> => {
     const nextMappings = moveHostMappingsToGroup(
       allMappings.value,
       new Set(hosts),
       groupId,
     );
-    if (hasSameMappingOrderAndGroups(allMappings.value, nextMappings)) return;
+    if (hasSameMappingOrderAndGroups(allMappings.value, nextMappings)) {
+      return false;
+    }
 
     const targetGroupName =
       (groupId
         ? groups.value.find((group) => group.id === groupId)?.name
         : translate("admin.subdomainProxy.ungrouped")) || undefined;
-    await runSaveMappings(async () => {
+    const saved = await runSaveMappings(async () => {
       await saveCatalog(nextMappings, groups.value);
       toast.success(translate("admin.subdomainProxy.mappingsMoved"), {
         description: targetGroupName,
       });
       return true;
     });
+    return saved === true;
   };
 
   const updateHostMappingGroupedView = async (value: boolean) => {

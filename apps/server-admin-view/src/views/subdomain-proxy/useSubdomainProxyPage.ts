@@ -20,6 +20,7 @@ import {
 } from "./model";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useSubdomainAvailabilityActions } from "./useSubdomainAvailabilityActions";
+import { useSubdomainBatchActions } from "./useSubdomainBatchActions";
 import { useSubdomainAvailabilityStatus } from "./useSubdomainAvailabilityStatus";
 import { useDelayedHostPopover } from "./useDelayedHostPopover";
 import { useMappingFaviconState } from "./useMappingFaviconState";
@@ -301,6 +302,32 @@ export const useSubdomainProxyPage = () => {
     saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
     translate: (key, params) => (params ? t(key, params) : t(key)),
   });
+  const {
+    availabilityFormEnabled: batchAvailabilityFormEnabled,
+    availabilityFormEndTime: batchAvailabilityFormEndTime,
+    availabilityFormStartTime: batchAvailabilityFormStartTime,
+    availabilityValidationMessage: batchAvailabilityValidationMessage,
+    batchAvailabilityOpen,
+    batchMutationConfirmLabel,
+    batchMutationConfirmVariant,
+    batchMutationDescription,
+    batchMutationTitle,
+    closeBatchAvailability,
+    closeBatchMutation,
+    confirmBatchMutation,
+    isBatchMutationOpen,
+    openBatchAvailability,
+    openBatchMutation,
+    saveBatchAvailability,
+    selectedCount: batchSelectedCount,
+  } = useSubdomainBatchActions({
+    allMappings,
+    isAuthServiceTarget,
+    isSavingMappings,
+    runSaveMappings,
+    saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
+    translate: (key, params) => (params ? t(key, params) : t(key)),
+  });
 
   const {
     basicAuthInjectionModel,
@@ -505,6 +532,8 @@ export const useSubdomainProxyPage = () => {
       activeEdgeClientIpProvider,
       addAuthService,
       allMappings,
+      openBatchAvailability,
+      openBatchMutation,
       authServiceMapping,
       authServicePublicPort,
       canManageNewMappings,
@@ -590,6 +619,16 @@ export const useSubdomainProxyPage = () => {
     },
     dialogs: {
       allMappings,
+      batchAvailabilityFormEnabled,
+      batchAvailabilityFormEndTime,
+      batchAvailabilityFormStartTime,
+      batchAvailabilityOpen,
+      batchAvailabilityValidationMessage,
+      batchMutationConfirmLabel,
+      batchMutationConfirmVariant,
+      batchMutationDescription,
+      batchMutationTitle,
+      batchSelectedCount,
       availabilityDialogHostLabel,
       availabilityFormEnabled,
       availabilityFormEndTime,
@@ -601,12 +640,15 @@ export const useSubdomainProxyPage = () => {
       canShowBasicAuthInjection,
       canUseRootDomainSuffix,
       closeAvailabilityDialog,
+      closeBatchAvailability,
+      closeBatchMutation,
       closeDeleteDialog,
       closeDialog,
       closeToggleDialog,
       composedPreviewHost,
       configStore,
       confirmDelete,
+      confirmBatchMutation,
       confirmToggleMapping,
       deleteDialogConfirmLabel,
       deleteDialogDescription,
@@ -633,6 +675,7 @@ export const useSubdomainProxyPage = () => {
       isAllSelected,
       isAuthServiceTarget,
       isAvailabilityDialogOpen,
+      isBatchMutationOpen,
       isClearingAllSubdomainConfig,
       isDeleteDialogOpen,
       isDialogOpen,
@@ -660,6 +703,7 @@ export const useSubdomainProxyPage = () => {
       preserveHostModel,
       refreshMappingMetadata,
       saveAvailabilityDialog,
+      saveBatchAvailability,
       saveDiscoveredServices,
       saveMapping,
       savedRootDomain,

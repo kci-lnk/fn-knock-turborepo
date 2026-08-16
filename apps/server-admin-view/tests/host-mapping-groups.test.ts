@@ -144,6 +144,7 @@ test("keeps mapping selection scoped to visible rows", async () => {
     filteredMappings: () => filteredMappings.value,
     groups: () => groups,
     isSavingMappings: () => false,
+    isMappingSelectable: () => true,
     searchQuery: () => "",
     showGroupedView: () => true,
     ungroupedLabel: () => "Ungrouped",
@@ -163,6 +164,38 @@ test("keeps mapping selection scoped to visible rows", async () => {
   assert.equal(state.selectedCount.value, 0);
 });
 
+test("selection mode clears on search changes and excludes auth mappings", async () => {
+  const first = mapping("one.example.test", groups[0].id);
+  const auth = {
+    ...mapping("auth.example.test", groups[0].id),
+    target: "http://127.0.0.1:7997",
+    service_role: "auth" as const,
+  };
+  const filteredMappings = ref([first, auth]);
+  const searchQuery = ref("");
+  const state = useSubdomainMappingTableState({
+    filteredMappings: () => filteredMappings.value,
+    groups: () => groups,
+    isSavingMappings: () => false,
+    isMappingSelectable: (item) => item.service_role !== "auth",
+    searchQuery: () => searchQuery.value,
+    showGroupedView: () => true,
+    ungroupedLabel: () => "Ungrouped",
+    onSaveFlatOrder: () => undefined,
+    onSaveGroupedOrder: () => undefined,
+    collapseStorage: null,
+  });
+
+  state.setSelectionMode(true);
+  state.setAllVisibleSelected(true);
+  assert.deepEqual(state.getSelectedHosts(), [first.host]);
+  assert.equal(state.dragDisabled.value, true);
+
+  searchQuery.value = "one";
+  await nextTick();
+  assert.equal(state.selectedCount.value, 0);
+});
+
 test("restores canonical mapping order after a save finishes", async () => {
   const first = mapping("one.example.test", null);
   const second = mapping("two.example.test", null);
@@ -172,6 +205,7 @@ test("restores canonical mapping order after a save finishes", async () => {
     filteredMappings: () => [first, second],
     groups: () => [],
     isSavingMappings: () => isSaving.value,
+    isMappingSelectable: () => true,
     searchQuery: () => "",
     showGroupedView: () => false,
     ungroupedLabel: () => "Ungrouped",
@@ -205,6 +239,7 @@ test("persists collapsed groups without failing when storage rejects writes", ()
     filteredMappings: () => [first],
     groups: () => groups,
     isSavingMappings: () => false,
+    isMappingSelectable: () => true,
     searchQuery: () => "",
     showGroupedView: () => true,
     ungroupedLabel: () => "Ungrouped",
@@ -225,6 +260,7 @@ test("persists collapsed groups without failing when storage rejects writes", ()
     filteredMappings: () => [first],
     groups: () => groups,
     isSavingMappings: () => false,
+    isMappingSelectable: () => true,
     searchQuery: () => "",
     showGroupedView: () => true,
     ungroupedLabel: () => "Ungrouped",
@@ -308,6 +344,35 @@ test("reports a failed group catalog save without closing its editor", async () 
   assert.equal(saved, false);
   assert.equal(completed, false);
   assert.equal(originalMappings[0]?.group_id, groups[0].id);
+});
+
+test("reports batch moves as unsuccessful until the catalog save completes", async () => {
+  const originalMappings = [mapping("one.example.test", null)];
+  const controller = useSubdomainMappingGroups({
+    allMappings: computed(() => originalMappings),
+    groupedView: computed(() => true),
+    groups: computed(() => groups),
+    isAuthServiceTarget: () => false,
+    runSaveMappings: async (action) => {
+      try {
+        return await action();
+      } catch {
+        return undefined;
+      }
+    },
+    saveCatalog: async () => {
+      throw new Error("conflict");
+    },
+    translate: (key) => key,
+  });
+
+  const saved = await controller.moveMappingsToGroup(
+    [originalMappings[0]!.host],
+    groups[0]!.id,
+  );
+
+  assert.equal(saved, false);
+  assert.equal(originalMappings[0]?.group_id, null);
 });
 
 test("provides success toasts for every persisted group operation", () => {

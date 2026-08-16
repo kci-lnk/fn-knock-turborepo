@@ -21,8 +21,10 @@ defineProps<{
   mapping: HostMapping;
   model: SubdomainMappingsCardProps;
   selected: boolean;
+  selectable: boolean;
   selectionCheckboxClass: string;
   selectionVisibilityClass: string;
+  selectionMode: boolean;
   showGroupedView: boolean;
 }>();
 const emit = defineEmits<{ select: [selected: boolean] }>();
@@ -41,9 +43,18 @@ const { t } = useI18n();
     ]"
   >
     <TableCell class="mapping-sticky-cell mapping-order-cell mapping-icon-cell">
-      <div class="flex items-center" :class="{ 'gap-1 pl-7': showGroupedView }">
+      <div
+        class="flex h-7 w-full items-center"
+        :class="
+          selectionMode
+            ? 'justify-center'
+            : showGroupedView
+              ? 'gap-1 pl-7'
+              : ''
+        "
+      >
         <Checkbox
-          v-if="showGroupedView"
+          v-if="selectionMode && selectable"
           :class="[
             selectionCheckboxClass,
             selectionVisibilityClass,
@@ -58,6 +69,7 @@ const { t } = useI18n();
           @update:model-value="emit('select', $event === true)"
         />
         <button
+          v-if="!selectionMode"
           type="button"
           class="mapping-drag-handle inline-flex h-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
           :class="showGroupedView ? 'w-5' : '-ml-1 w-7'"

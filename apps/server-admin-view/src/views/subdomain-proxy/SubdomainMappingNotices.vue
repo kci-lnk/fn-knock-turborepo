@@ -7,6 +7,7 @@ const props = defineProps<{
   rootDomainValidationMessage: string;
   savedRootDomain: string;
   rootDomainPendingSave: boolean;
+  selectionMode: boolean;
 }>();
 
 const { t } = useI18n();
@@ -23,7 +24,7 @@ const rootDomainNotice = computed(() =>
 
 <template>
   <p
-    v-if="visibleMappingsCount > 1"
+    v-if="visibleMappingsCount > 1 && !selectionMode"
     class="text-xs text-muted-foreground"
   >
     {{ t("admin.subdomainProxy.orderHintPrefix") }}

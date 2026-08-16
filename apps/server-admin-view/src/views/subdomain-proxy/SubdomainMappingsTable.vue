@@ -38,9 +38,11 @@ const {
   allVisibleSelected,
   clearSelection,
   dragDisabled,
+  getSelectedHosts,
   groupSections,
   handleSortEnd,
   isMappingSelected,
+  isSelectionMode,
   isSectionCollapsed,
   isSectionPartiallySelected,
   isSectionSelected,
@@ -48,9 +50,9 @@ const {
   selectedCount,
   setAllVisibleSelected,
   setMappingSelected,
+  setSelectionMode,
   setSectionSelected,
   someVisibleSelected,
-  takeSelectedHosts,
   toggleSectionCollapsed,
   updateSectionMappings,
 } = useSubdomainMappingTableState({
@@ -59,29 +61,38 @@ const {
   isSavingMappings: () => props.model.isSavingMappings,
   searchQuery: () => props.model.searchQuery,
   showGroupedView: () => props.showGroupedView,
+  isMappingSelectable: (mapping) =>
+    !props.model.isAuthServiceTarget(mapping.target),
   ungroupedLabel: () => t("admin.subdomainProxy.ungrouped"),
   onSaveFlatOrder: props.actions.saveFlatOrder,
   onSaveGroupedOrder: props.actions.saveGroupedOrder,
 });
 const moveSelected = (groupId: string | null) =>
-  props.actions.moveMappings(takeSelectedHosts(), groupId);
+  props.actions.moveMappings(getSelectedHosts(), groupId, clearSelection);
+const runBatchAction = (
+  action: (hosts: string[], onComplete: () => void) => void,
+) => action(getSelectedHosts(), clearSelection);
 const handleScroll = (event: Event) => {
   if (event.currentTarget instanceof HTMLElement) {
     isScrolled.value = event.currentTarget.scrollLeft > 0;
   }
 };
 
-defineExpose({ clearSelection });
+defineExpose({ clearSelection, setSelectionMode });
 </script>
 
 <template>
   <SubdomainMappingsBatchActions
-    v-if="showGroupedView && selectedCount > 0"
+    v-if="isSelectionMode && selectedCount > 0"
     :groups="model.groups"
     :saving="model.isSavingMappings"
     :selected-count="selectedCount"
     @clear="clearSelection"
+    @delete="runBatchAction(actions.batchDelete)"
+    @disable="runBatchAction(actions.batchDisable)"
+    @enable="runBatchAction(actions.batchEnable)"
     @move="moveSelected"
+    @schedule="runBatchAction(actions.batchSchedule)"
   />
 
   <slot name="notices" />
@@ -102,9 +113,9 @@ defineExpose({ clearSelection });
           <TableHead
             class="mapping-sticky-cell mapping-order-cell mapping-icon-cell"
           >
-            <div class="flex items-center pl-3">
+            <div class="flex h-7 w-full items-center justify-center">
               <Checkbox
-                v-if="showGroupedView"
+                v-if="isSelectionMode"
                 :class="[
                   selectionCheckboxClass,
                   mappingSelectionVisibilityClass,
@@ -160,12 +171,18 @@ defineExpose({ clearSelection });
           <SubdomainMappingGroupHeaderRow
             :actions="actions"
             :collapsed="isSectionCollapsed(section)"
+            :has-selectable-mappings="
+              section.mappings.some(
+                (mapping) => !model.isAuthServiceTarget(mapping.target),
+              )
+            "
             :model="model"
             :partially-selected="isSectionPartiallySelected(section)"
             :section="section"
             :selected="isSectionSelected(section)"
             :selection-checkbox-class="selectionCheckboxClass"
             :selection-visibility-class="mappingSelectionVisibilityClass"
+            :selection-mode="isSelectionMode"
             @select="setSectionSelected(section, $event)"
             @toggle="toggleSectionCollapsed(section)"
           />
@@ -178,8 +195,10 @@ defineExpose({ clearSelection });
             :mapping="mapping"
             :model="model"
             :selected="isMappingSelected(mapping.host)"
+            :selectable="!model.isAuthServiceTarget(mapping.target)"
             :selection-checkbox-class="selectionCheckboxClass"
             :selection-visibility-class="mappingSelectionVisibilityClass"
+            :selection-mode="isSelectionMode"
             :show-grouped-view="showGroupedView"
             @select="setMappingSelected(mapping.host, $event)"
           />

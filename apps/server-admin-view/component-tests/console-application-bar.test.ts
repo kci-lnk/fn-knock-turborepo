@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { DOMWrapper, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick, ref } from "vue";
 import { createI18n } from "vue-i18n";
@@ -87,9 +87,20 @@ describe("ConsoleApplicationBar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setActivePinia(createPinia());
+    document.body.replaceChildren();
   });
 
-  it("renders a horizontally scrollable, keyboard-accessible new-tab link", () => {
+  const openDialog = async (wrapper: ReturnType<typeof mount>) => {
+    await wrapper.get("button").trigger("click");
+    await nextTick();
+    const content = document.body.querySelector<HTMLElement>(
+      '[data-slot="dialog-content"]',
+    );
+    expect(content).not.toBeNull();
+    return new DOMWrapper(content!);
+  };
+
+  it("opens an application dialog with a responsive new-tab application grid", async () => {
     const store = useConfigStore();
     store.config = pathConfig();
     const wrapper = mount(ConsoleApplicationBar, {
@@ -101,10 +112,22 @@ describe("ConsoleApplicationBar", () => {
     expect(nav.classes()).toContain("max-w-full");
     expect(nav.classes()).toContain("overflow-hidden");
     expect(nav.classes()).toContain("shadow-none");
-    expect(nav.classes()).not.toContain("backdrop-blur");
-    expect(nav.classes()).not.toContain("max-w-7xl");
     expect(wrapper.get("ul").classes()).toContain("overflow-x-auto");
-    const link = wrapper.get("a");
+    const barLink = wrapper.get("ul a");
+    expect(barLink.attributes("href")).toMatch(/:7999\/photos\/$/u);
+
+    const trigger = wrapper.get("button");
+    expect(trigger.attributes("aria-label")).toBe("Console application list");
+    expect(trigger.attributes("aria-expanded")).toBe("false");
+    const dialog = await openDialog(wrapper);
+    expect(trigger.attributes("aria-expanded")).toBe("true");
+    expect(dialog.text()).toContain("Apps");
+
+    const grid = dialog.get('[data-testid="console-application-grid"]');
+    expect(grid.classes()).toContain(
+      "grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))]",
+    );
+    const link = grid.get("a");
     expect(link.attributes("target")).toBe("_blank");
     expect(link.attributes("rel")).toBe("noopener noreferrer");
     expect(link.attributes("aria-label")).toBe("Open /photos in a new tab");
@@ -112,9 +135,15 @@ describe("ConsoleApplicationBar", () => {
     expect(link.attributes("title")).toBe("/photos");
     expect(link.attributes("title")).not.toContain("photos:3000");
     expect(accessEntry.load).toHaveBeenCalledTimes(1);
+
+    await dialog.get('[data-slot="dialog-close"]').trigger("click");
+    await nextTick();
+    expect(
+      document.body.querySelector('[data-slot="dialog-content"]'),
+    ).toBeNull();
   });
 
-  it("shows a compact empty state when no application is configured", async () => {
+  it("shows the empty state inside the dialog when no application is configured", async () => {
     const store = useConfigStore();
     store.config = { ...pathConfig(), proxy_mappings: [] };
     const wrapper = mount(ConsoleApplicationBar, {
@@ -122,7 +151,9 @@ describe("ConsoleApplicationBar", () => {
     });
 
     expect(wrapper.text()).toContain("No applications available");
-    expect(wrapper.find("a").exists()).toBe(false);
+    const dialog = await openDialog(wrapper);
+    expect(dialog.text()).toContain("No applications available");
+    expect(dialog.find("a").exists()).toBe(false);
   });
 
   it("does not render or load the gateway entry outside FPK", () => {
@@ -137,7 +168,7 @@ describe("ConsoleApplicationBar", () => {
       global: { plugins: [i18n] },
     });
 
-    expect(wrapper.find("nav").exists()).toBe(false);
+    expect(wrapper.find("button").exists()).toBe(false);
     expect(accessEntry.load).not.toHaveBeenCalled();
   });
 
@@ -149,23 +180,25 @@ describe("ConsoleApplicationBar", () => {
     const wrapper = mount(ConsoleApplicationBar, {
       global: { plugins: [i18n] },
     });
+    const dialog = await openDialog(wrapper);
 
-    await wrapper.get("img").trigger("error");
-    expect(wrapper.find("img").exists()).toBe(false);
+    await dialog.get("img").trigger("error");
+    expect(dialog.find("img").exists()).toBe(false);
 
     store.config = hostConfig(nextIcon);
     await nextTick();
-    expect(wrapper.get("img").attributes("src")).toBe(nextIcon);
+    expect(dialog.get("img").attributes("src")).toBe(nextIcon);
   });
 
-  it("hides the Host icon completely when portal icons are disabled", () => {
+  it("hides the Host icon completely when portal icons are disabled", async () => {
     const store = useConfigStore();
     store.config = hostConfig("", false);
     const wrapper = mount(ConsoleApplicationBar, {
       global: { plugins: [i18n] },
     });
+    const dialog = await openDialog(wrapper);
 
-    const link = wrapper.get("a");
+    const link = dialog.get("a");
     expect(link.find("img").exists()).toBe(false);
     expect(link.find("svg").exists()).toBe(false);
   });

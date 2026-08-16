@@ -7,6 +7,7 @@ import {
   Folders,
   Image,
   ListTree,
+  ListChecks,
   Plus,
   RefreshCw,
   Search,
@@ -42,6 +43,7 @@ defineProps<{
   isExportingBookmarks: boolean;
   isRefreshingTitles: boolean;
   isSavingMappings: boolean;
+  selectionMode?: boolean;
   isSyncing: boolean;
   visibleMappingsCount: number;
 }>();
@@ -57,6 +59,7 @@ const emit = defineEmits<{
   "open-stale-cleanup": [];
   "refresh-all-titles": [];
   "sync-routes": [];
+  "update-selection-mode": [value: boolean];
   "update-grouped-view": [value: boolean];
 }>();
 
@@ -86,6 +89,22 @@ const { t } = useI18n();
         <ListTree class="hidden h-4 w-4 sm:block" />
         <span class="truncate">{{
           t("admin.subdomainProxy.groupedView")
+        }}</span>
+      </Button>
+      <Button
+        variant="outline"
+        :disabled="isSavingMappings || !hasRegularHostMappings"
+        :aria-pressed="selectionMode"
+        class="min-w-0 px-2 sm:w-auto sm:px-3"
+        @click="emit('update-selection-mode', !selectionMode)"
+      >
+        <ListChecks class="hidden h-4 w-4 sm:block" />
+        <span class="truncate">{{
+          t(
+            selectionMode
+              ? "admin.subdomainProxy.exitSelectionMode"
+              : "admin.subdomainProxy.selectionMode",
+          )
         }}</span>
       </Button>
       <Button

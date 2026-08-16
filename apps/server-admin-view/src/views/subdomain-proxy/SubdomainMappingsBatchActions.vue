@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ChevronDown, FolderInput } from "lucide-vue-next";
+import {
+  CalendarClock,
+  ChevronDown,
+  FolderInput,
+  Power,
+  PowerOff,
+  Trash2,
+} from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,7 +26,11 @@ defineProps<{
 
 const emit = defineEmits<{
   clear: [];
+  disable: [];
+  enable: [];
   move: [groupId: string | null];
+  schedule: [];
+  delete: [];
 }>();
 
 const { t } = useI18n();
@@ -38,7 +49,7 @@ const { t } = useI18n();
         })
       }}
     </span>
-    <DropdownMenu>
+    <DropdownMenu v-if="groups.length > 0">
       <DropdownMenuTrigger as-child>
         <Button size="sm" variant="outline" :disabled="saving">
           <FolderInput class="mr-2 h-4 w-4" />
@@ -60,7 +71,23 @@ const { t } = useI18n();
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-    <Button size="sm" variant="outline" @click="emit('clear')">
+    <Button size="sm" variant="outline" :disabled="saving" @click="emit('enable')">
+      <Power class="mr-2 h-4 w-4" />
+      {{ t("admin.subdomainProxy.enableMapping") }}
+    </Button>
+    <Button size="sm" variant="outline" :disabled="saving" @click="emit('disable')">
+      <PowerOff class="mr-2 h-4 w-4" />
+      {{ t("admin.subdomainProxy.disableMapping") }}
+    </Button>
+    <Button size="sm" variant="outline" :disabled="saving" @click="emit('schedule')">
+      <CalendarClock class="mr-2 h-4 w-4" />
+      {{ t("admin.subdomainProxy.scheduleAvailability") }}
+    </Button>
+    <Button size="sm" variant="destructive" :disabled="saving" @click="emit('delete')">
+      <Trash2 class="mr-2 h-4 w-4" />
+      {{ t("admin.subdomainProxy.delete") }}
+    </Button>
+    <Button size="sm" variant="outline" :disabled="saving" @click="emit('clear')">
       {{ t("admin.subdomainProxy.clearSelection") }}
     </Button>
   </div>

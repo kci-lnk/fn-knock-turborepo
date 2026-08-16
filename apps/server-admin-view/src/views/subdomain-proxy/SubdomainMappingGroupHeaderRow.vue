@@ -24,12 +24,14 @@ import type {
 defineProps<{
   actions: SubdomainMappingsTableActions;
   collapsed: boolean;
+  hasSelectableMappings: boolean;
   model: SubdomainMappingsCardProps;
   partiallySelected: boolean;
   section: HostMappingGroupSection;
   selected: boolean;
   selectionCheckboxClass: string;
   selectionVisibilityClass: string;
+  selectionMode: boolean;
 }>();
 const emit = defineEmits<{
   select: [selected: boolean];
@@ -46,6 +48,7 @@ const { t } = useI18n();
           class="mapping-group-header-sticky flex min-h-11 items-center gap-2 px-3 py-2"
         >
           <Checkbox
+            v-if="selectionMode && hasSelectableMappings"
             :class="[selectionCheckboxClass, selectionVisibilityClass]"
             :model-value="partiallySelected ? 'indeterminate' : selected"
             :aria-label="

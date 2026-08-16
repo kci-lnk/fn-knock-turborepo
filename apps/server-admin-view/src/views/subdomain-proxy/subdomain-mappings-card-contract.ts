@@ -68,13 +68,21 @@ export interface SubdomainMappingsCardProps {
 
 export type SubdomainMappingsCardEmits = {
   "add-auth-service": [];
+  "batch-delete": [hosts: string[], onComplete: () => void];
+  "batch-disable": [hosts: string[], onComplete: () => void];
+  "batch-enable": [hosts: string[], onComplete: () => void];
+  "batch-schedule": [hosts: string[], onComplete: () => void];
   "clear-default": [mapping: HostMapping];
   "copy-host": [mapping: HostMapping];
   delete: [host: string];
   edit: [mapping: HostMapping];
   "export-bookmarks": [];
   "open-clear-all-config": [];
-  "move-mappings": [hosts: string[], groupId: string | null];
+  "move-mappings": [
+    hosts: string[],
+    groupId: string | null,
+    onComplete?: () => void,
+  ];
   "open-create": [groupId?: string | null];
   "open-discover": [];
   "open-discover-settings": [];
@@ -100,11 +108,19 @@ export type SubdomainMappingsCardEmits = {
 
 export interface SubdomainMappingsTableActions {
   clearDefault: (mapping: HostMapping) => void;
+  batchDelete: (hosts: string[], onComplete: () => void) => void;
+  batchDisable: (hosts: string[], onComplete: () => void) => void;
+  batchEnable: (hosts: string[], onComplete: () => void) => void;
+  batchSchedule: (hosts: string[], onComplete: () => void) => void;
   copyHost: (mapping: HostMapping) => void;
   deleteMapping: (host: string) => void;
   edit: (mapping: HostMapping) => void;
   manageGroups: () => void;
-  moveMappings: (hosts: string[], groupId: string | null) => void;
+  moveMappings: (
+    hosts: string[],
+    groupId: string | null,
+    onComplete?: () => void,
+  ) => void;
   openAdvancedAuth: (host: string) => void;
   openAvailability: (mapping: HostMapping) => void;
   openCreate: (groupId?: string | null) => void;

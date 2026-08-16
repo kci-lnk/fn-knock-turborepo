@@ -18,7 +18,11 @@ const props = defineProps<SubdomainMappingsCardProps>();
 const emit = defineEmits<SubdomainMappingsCardEmits>();
 const { t } = useI18n();
 const isGroupManagerOpen = ref(false);
-const mappingsTable = ref<{ clearSelection: () => void } | null>(null);
+const mappingsTable = ref<{
+  clearSelection: () => void;
+  setSelectionMode: (enabled: boolean) => void;
+} | null>(null);
+const isSelectionMode = ref(false);
 const searchModel = computed({
   get: () => props.searchQuery,
   set: (value: string) => emit("update:searchQuery", value),
@@ -30,12 +34,22 @@ const updateGroupedView = (value: boolean) => {
   emit("update-grouped-view", value);
   mappingsTable.value?.clearSelection();
 };
+const updateSelectionMode = (value: boolean) => {
+  isSelectionMode.value = value;
+  mappingsTable.value?.setSelectionMode(value);
+};
 const saveGroupsAndCloseOnSuccess = (nextGroups: HostMappingGroup[]) => {
   emit("save-groups", nextGroups, (saved) => {
     if (saved) isGroupManagerOpen.value = false;
   });
 };
 const tableActions: SubdomainMappingsTableActions = {
+  batchDelete: (hosts, onComplete) => emit("batch-delete", hosts, onComplete),
+  batchDisable: (hosts, onComplete) =>
+    emit("batch-disable", hosts, onComplete),
+  batchEnable: (hosts, onComplete) => emit("batch-enable", hosts, onComplete),
+  batchSchedule: (hosts, onComplete) =>
+    emit("batch-schedule", hosts, onComplete),
   clearDefault: (mapping) => emit("clear-default", mapping),
   copyHost: (mapping) => emit("copy-host", mapping),
   deleteMapping: (host) => emit("delete", host),
@@ -43,7 +57,8 @@ const tableActions: SubdomainMappingsTableActions = {
   manageGroups: () => {
     isGroupManagerOpen.value = true;
   },
-  moveMappings: (hosts, groupId) => emit("move-mappings", hosts, groupId),
+  moveMappings: (hosts, groupId, onComplete) =>
+    emit("move-mappings", hosts, groupId, onComplete),
   openAdvancedAuth: (host) => emit("open-advanced-auth", host),
   openAvailability: (mapping) => emit("open-availability", mapping),
   openCreate: (groupId) => emit("open-create", groupId),
@@ -77,6 +92,7 @@ const tableActions: SubdomainMappingsTableActions = {
         :is-exporting-bookmarks="isExportingBookmarks"
         :is-refreshing-titles="isRefreshingTitles"
         :is-saving-mappings="isSavingMappings"
+        :selection-mode="isSelectionMode"
         :is-syncing="isSyncing"
         :visible-mappings-count="visibleMappingsCount"
         @add-auth-service="emit('add-auth-service')"
@@ -90,6 +106,7 @@ const tableActions: SubdomainMappingsTableActions = {
         @refresh-all-titles="emit('refresh-all-titles')"
         @sync-routes="emit('sync-routes')"
         @update-grouped-view="updateGroupedView"
+        @update-selection-mode="updateSelectionMode"
       />
     </CardHeader>
     <CardContent class="space-y-4">
@@ -110,6 +127,7 @@ const tableActions: SubdomainMappingsTableActions = {
             :root-domain-validation-message="rootDomainValidationMessage"
             :saved-root-domain="savedRootDomain"
             :root-domain-pending-save="isRootDomainPendingSave"
+            :selection-mode="isSelectionMode"
           />
         </template>
       </SubdomainMappingsTable>

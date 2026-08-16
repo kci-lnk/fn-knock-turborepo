@@ -3238,6 +3238,10 @@ export const enAdmin = {
     probe: "Detect",
     probing: "Detecting...",
     probeVerified: "Target service verified",
+    probeIdentifiedWithoutStrict:
+      "Target service identified without strict validation",
+    probeIdentifiedWithoutStrictDescription:
+      "Identified as {service}; the mapping remains enabled.",
     probeUnverified:
       "Target service not identified; strict validation is off and the mapping remains enabled",
     probeFailed: "Failed to detect target service",

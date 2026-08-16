@@ -3008,6 +3008,9 @@ export const zhCNAdmin = {
     probe: "检测",
     probing: "检测中...",
     probeVerified: "目标服务已验证",
+    probeIdentifiedWithoutStrict: "目标服务已识别，未启用严格校验",
+    probeIdentifiedWithoutStrictDescription:
+      "已识别为 {service}；映射保持启用。",
     probeUnverified: "目标服务未识别，已关闭严格校验并保持映射启用",
     probeFailed: "检测目标服务失败",
     probeAuthenticatedHttp: "检测到 HTTP，但上游认证隐藏了应用协议",

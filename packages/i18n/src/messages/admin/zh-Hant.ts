@@ -2960,6 +2960,9 @@ export const zhHantAdmin = {
     probe: "檢測",
     probing: "檢測中...",
     probeVerified: "目標服務已驗證",
+    probeIdentifiedWithoutStrict: "目標服務已識別，未啟用嚴格校驗",
+    probeIdentifiedWithoutStrictDescription:
+      "已識別為 {service}；映射保持啟用。",
     probeUnverified: "目標服務未識別，已關閉嚴格校驗並保持映射啟用",
     probeFailed: "檢測目標服務失敗",
     probeAuthenticatedHttp: "已偵測到 HTTP，但上游驗證隱藏了應用協議",

@@ -1141,6 +1141,27 @@ mod tests {
     }
 
     #[test]
+    fn identification_only_probe_persists_profile_without_blocking_mapping() {
+        let mut mapping = json!({"disabled": true, "validation_mode": "strict"});
+        apply_stream_probe_result(
+            mapping.as_object_mut().unwrap(),
+            &json!({
+                "status": "unknown",
+                "message": "service identified; strict validation is not enabled",
+                "profile": {
+                    "service_id": "easytier",
+                    "service_confidence": "strong",
+                    "strict_capable": false,
+                },
+            }),
+        );
+        assert_eq!(mapping["probe_status"], "unknown");
+        assert_eq!(mapping["validation_mode"], "off");
+        assert_eq!(mapping["disabled"], false);
+        assert_eq!(mapping["service_profile"]["service_id"], "easytier");
+    }
+
+    #[test]
     fn verified_strong_probe_enables_strict_validation_without_disabling_mapping() {
         let mut mapping = json!({"disabled": true, "validation_mode": "off"});
         apply_stream_probe_result(

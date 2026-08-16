@@ -3228,6 +3228,10 @@ export const jaJPAdmin = {
     probe: "検出",
     probing: "検出中...",
     probeVerified: "対象サービスを検証しました",
+    probeIdentifiedWithoutStrict:
+      "対象サービスを識別しました（厳格な検証はオフ）",
+    probeIdentifiedWithoutStrictDescription:
+      "{service} として識別しました。マッピングは有効のままです。",
     probeUnverified:
       "対象サービスを識別できませんでした。厳格な検証をオフにしてマッピングを有効のまま維持します",
     probeFailed: "対象サービスの検出に失敗しました",

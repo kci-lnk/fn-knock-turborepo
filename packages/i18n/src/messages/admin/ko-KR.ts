@@ -3208,6 +3208,10 @@ export const koKRAdmin = {
     probe: "감지",
     probing: "감지 중...",
     probeVerified: "대상 서비스가 확인되었습니다",
+    probeIdentifiedWithoutStrict:
+      "대상 서비스를 식별했습니다(엄격한 검증 꺼짐)",
+    probeIdentifiedWithoutStrictDescription:
+      "{service}(으)로 식별했습니다. 매핑은 활성 상태로 유지됩니다.",
     probeUnverified:
       "대상 서비스를 식별하지 못했습니다. 엄격한 검증을 끄고 매핑은 활성 상태로 유지합니다",
     probeFailed: "대상 서비스 감지 실패",

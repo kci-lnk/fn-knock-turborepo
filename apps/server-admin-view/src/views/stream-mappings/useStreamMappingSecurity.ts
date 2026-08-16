@@ -48,6 +48,13 @@ export function useStreamMappingSecurity() {
         toast.success(t("admin.streamMappings.probeVerified"), {
           description: result.profile?.service_id || undefined,
         });
+      } else if (result.profile?.service_id) {
+        toast.warning(t("admin.streamMappings.probeIdentifiedWithoutStrict"), {
+          description: t(
+            "admin.streamMappings.probeIdentifiedWithoutStrictDescription",
+            { service: result.profile.service_id },
+          ),
+        });
       } else {
         toast.warning(t("admin.streamMappings.probeUnverified"), {
           description: result.message || result.status,

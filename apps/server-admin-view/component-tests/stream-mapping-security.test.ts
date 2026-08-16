@@ -190,6 +190,88 @@ describe("stream mapping service detection", () => {
     wrapper.unmount();
   });
 
+  it("reports an identification-only EasyTier probe without enabling strict validation", async () => {
+    const easyTierMapping: StreamMapping = {
+      ...mapping,
+      disabled: false,
+      service_profile: undefined,
+      validation_mode: "off",
+    };
+    const easyTierProfile = {
+      ...mapping.service_profile!,
+      device_role: "vpn",
+      service_confidence: "strong",
+      service_family: "vpn",
+      service_id: "easytier",
+      strict_capable: false,
+    };
+    const configStore = useConfigStore();
+    configStore.config = {
+      host_mapping_grouped_view: false,
+      host_mapping_groups: [],
+      host_mappings: [],
+      stream_mappings: [easyTierMapping],
+    } as AppConfig;
+    vi.spyOn(ConfigAPI, "probeStreamMapping").mockResolvedValue({
+      message: "service identified; strict validation is not enabled",
+      profile: easyTierProfile,
+      status: "unknown",
+    });
+    vi.spyOn(ConfigAPI, "getStreamMappings").mockResolvedValue([
+      {
+        ...easyTierMapping,
+        disabled: false,
+        probe_status: "unknown",
+        service_profile: easyTierProfile,
+        validation_mode: "off",
+      },
+    ]);
+
+    let model!: ReturnType<typeof useStreamMappingSecurity>;
+    const Harness = defineComponent({
+      setup() {
+        model = useStreamMappingSecurity();
+        return () => null;
+      },
+    });
+    const wrapper = mount(Harness, {
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: "en",
+            messages: {
+              en: {
+                admin: {
+                  streamMappings: {
+                    probeIdentifiedWithoutStrict:
+                      "Target identified without strict validation",
+                    probeIdentifiedWithoutStrictDescription:
+                      "Identified as {service}; mapping enabled.",
+                  },
+                },
+              },
+            },
+          }),
+        ],
+      },
+    });
+
+    await model.probeMapping(easyTierMapping);
+
+    expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
+    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe("off");
+    expect(configStore.config?.stream_mappings?.[0]?.service_profile?.service_id).toBe(
+      "easytier",
+    );
+    expect(toastMocks.warning).toHaveBeenCalledWith(
+      "Target identified without strict validation",
+      { description: "Identified as easytier; mapping enabled." },
+    );
+    expect(toastMocks.error).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
   it("clears a manually specified service and refreshes the enabled mapping", async () => {
     const manualMapping: StreamMapping = {
       ...mapping,

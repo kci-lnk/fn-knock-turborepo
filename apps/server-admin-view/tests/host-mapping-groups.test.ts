@@ -403,7 +403,7 @@ test("provides success toasts for every persisted group operation", () => {
   assert.equal((controller.match(/toast\.success\(/gu) ?? []).length, 4);
 });
 
-test("keeps mobile actions on one row and group headings visible while scrolling", () => {
+test("keeps mobile actions balanced and group headings visible while scrolling", () => {
   const card = readFileSync(
     new URL(
       "../src/views/subdomain-proxy/SubdomainMappingGroupHeaderRow.vue",
@@ -425,8 +425,18 @@ test("keeps mobile actions on one row and group headings visible while scrolling
 
   assert.match(
     header,
-    /grid w-full grid-cols-\[auto_auto_minmax\(0,1fr\)\] items-center gap-2 sm:flex/u,
+    /grid w-full grid-cols-3 items-center gap-2 sm:flex/u,
   );
+  assert.match(
+    header,
+    /class="col-span-3 flex min-w-0 w-full items-center sm:col-auto sm:w-auto"/u,
+  );
+  for (const icon of ["ListTree", "ListChecks", "Search"]) {
+    assert.match(
+      header,
+      new RegExp(`<${icon} class="h-4 w-4 shrink-0"`, "u"),
+    );
+  }
   assert.match(
     header,
     /class="hidden sm:inline-flex"[\s\S]*?admin\.subdomainProxy\.manageGroups/u,

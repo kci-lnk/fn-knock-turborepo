@@ -3517,6 +3517,7 @@ export const enAdmin = {
     batchMappingsDisabled: "Disabled {count} subdomains",
     batchMappingsDeleted: "Deleted {count} subdomains",
     batchAvailabilityTitle: "Schedule {count} subdomains",
+    batchSchedule: "Schedule",
     batchAvailabilityDescription:
       "Apply one daily availability window to every selected subdomain.",
     saveBatchAvailability: "Save schedule",

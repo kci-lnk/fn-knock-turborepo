@@ -3262,6 +3262,7 @@ export const zhCNAdmin = {
     batchMappingsDisabled: "已禁用 {count} 个子域",
     batchMappingsDeleted: "已删除 {count} 个子域",
     batchAvailabilityTitle: "设置 {count} 个子域的定时规则",
+    batchSchedule: "定时",
     batchAvailabilityDescription: "为所有选中的子域应用相同的每日开放时间窗。",
     saveBatchAvailability: "保存定时规则",
     batchAvailabilitySaved: "已为 {count} 个子域保存定时规则",

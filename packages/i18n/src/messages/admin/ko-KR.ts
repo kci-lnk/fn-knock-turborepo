@@ -3478,6 +3478,7 @@ export const koKRAdmin = {
     batchMappingsDisabled: "서브도메인 {count}개를 비활성화했습니다",
     batchMappingsDeleted: "서브도메인 {count}개를 삭제했습니다",
     batchAvailabilityTitle: "서브도메인 {count}개 예약",
+    batchSchedule: "예약",
     batchAvailabilityDescription: "선택한 모든 서브도메인에 같은 일일 시간 창을 적용합니다.",
     saveBatchAvailability: "예약 저장",
     batchAvailabilitySaved: "서브도메인 {count}개의 예약을 저장했습니다",

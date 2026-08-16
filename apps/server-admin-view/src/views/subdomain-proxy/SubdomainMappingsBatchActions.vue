@@ -38,57 +38,95 @@ const { t } = useI18n();
 
 <template>
   <div
-    class="flex flex-wrap items-center gap-3 rounded-md border bg-muted/35 px-3 py-2"
+    class="grid grid-cols-2 items-center gap-2 rounded-md border bg-muted/35 px-3 py-3 sm:flex sm:flex-wrap sm:gap-3 sm:py-2"
     role="toolbar"
     :aria-label="t('admin.subdomainProxy.batchActions')"
   >
-    <span class="text-sm font-medium">
+    <span class="min-w-0 truncate text-sm font-medium">
       {{
         t("admin.subdomainProxy.selectedMappingsCount", {
           count: selectedCount,
         })
       }}
     </span>
-    <DropdownMenu v-if="groups.length > 0">
-      <DropdownMenuTrigger as-child>
-        <Button size="sm" variant="outline" :disabled="saving">
-          <FolderInput class="mr-2 h-4 w-4" />
-          {{ t("admin.subdomainProxy.moveToGroup") }}
-          <ChevronDown class="ml-2 h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem
-          v-for="group in groups"
-          :key="group.id"
-          @select="emit('move', group.id)"
-        >
-          {{ group.name }}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem @select="emit('move', null)">
-          {{ t("admin.subdomainProxy.ungrouped") }}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <Button size="sm" variant="outline" :disabled="saving" @click="emit('enable')">
+    <Button
+      size="sm"
+      variant="outline"
+      :disabled="saving"
+      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+      @click="emit('clear')"
+    >
+      {{ t("admin.subdomainProxy.clearSelection") }}
+    </Button>
+    <div v-if="groups.length > 0" class="col-span-2 sm:contents">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            size="sm"
+            variant="outline"
+            :disabled="saving"
+            class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+          >
+            <FolderInput class="mr-2 h-4 w-4" />
+            {{ t("admin.subdomainProxy.moveToGroup") }}
+            <ChevronDown class="ml-2 h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem
+            v-for="group in groups"
+            :key="group.id"
+            @select="emit('move', group.id)"
+          >
+            {{ group.name }}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem @select="emit('move', null)">
+            {{ t("admin.subdomainProxy.ungrouped") }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+    <Button
+      size="sm"
+      variant="outline"
+      :disabled="saving"
+      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+      @click="emit('enable')"
+    >
       <Power class="mr-2 h-4 w-4" />
       {{ t("admin.subdomainProxy.enableMapping") }}
     </Button>
-    <Button size="sm" variant="outline" :disabled="saving" @click="emit('disable')">
+    <Button
+      size="sm"
+      variant="outline"
+      :disabled="saving"
+      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+      @click="emit('disable')"
+    >
       <PowerOff class="mr-2 h-4 w-4" />
       {{ t("admin.subdomainProxy.disableMapping") }}
     </Button>
-    <Button size="sm" variant="outline" :disabled="saving" @click="emit('schedule')">
+    <Button
+      size="sm"
+      variant="outline"
+      :disabled="saving"
+      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+      @click="emit('schedule')"
+    >
       <CalendarClock class="mr-2 h-4 w-4" />
-      {{ t("admin.subdomainProxy.scheduleAvailability") }}
+      <span class="sm:hidden">{{ t("admin.subdomainProxy.batchSchedule") }}</span>
+      <span class="hidden sm:inline">{{ t("admin.subdomainProxy.scheduleAvailability") }}</span>
     </Button>
-    <Button size="sm" variant="destructive" :disabled="saving" @click="emit('delete')">
+    <Button
+      size="sm"
+      variant="destructive"
+      :disabled="saving"
+      class="h-10 w-full justify-center sm:h-8 sm:w-auto"
+      @click="emit('delete')"
+    >
       <Trash2 class="mr-2 h-4 w-4" />
       {{ t("admin.subdomainProxy.delete") }}
-    </Button>
-    <Button size="sm" variant="outline" :disabled="saving" @click="emit('clear')">
-      {{ t("admin.subdomainProxy.clearSelection") }}
     </Button>
   </div>
 </template>

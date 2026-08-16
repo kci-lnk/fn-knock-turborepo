@@ -3215,6 +3215,7 @@ export const zhHantAdmin = {
     batchMappingsDisabled: "已停用 {count} 個子網域",
     batchMappingsDeleted: "已刪除 {count} 個子網域",
     batchAvailabilityTitle: "設定 {count} 個子網域的定時規則",
+    batchSchedule: "定時",
     batchAvailabilityDescription: "對所有選取的子網域套用相同的每日開放時段。",
     saveBatchAvailability: "儲存定時規則",
     batchAvailabilitySaved: "已為 {count} 個子網域儲存定時規則",

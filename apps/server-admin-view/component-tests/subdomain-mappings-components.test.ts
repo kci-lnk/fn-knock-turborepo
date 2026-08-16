@@ -111,6 +111,13 @@ describe("subdomain mapping presentation components", () => {
       .find((button) => button.text().includes("Clear selection"));
     await clearButton?.trigger("click");
     expect(batch.emitted("clear")).toHaveLength(1);
+    expect(batch.classes()).toContain("grid");
+    expect(batch.classes()).toContain("grid-cols-2");
+    expect(
+      batch
+        .findAll("button")
+        .filter((button) => button.classes().includes("h-10")),
+    ).toHaveLength(6);
 
     const mapping = {
       ...createDefaultMapping(),

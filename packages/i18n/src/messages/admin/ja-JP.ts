@@ -3504,6 +3504,7 @@ export const jaJPAdmin = {
     batchMappingsDisabled: "{count} 件のサブドメインを無効化しました",
     batchMappingsDeleted: "{count} 件のサブドメインを削除しました",
     batchAvailabilityTitle: "{count} 件のサブドメインを予約",
+    batchSchedule: "予約",
     batchAvailabilityDescription: "選択したすべてのサブドメインに同じ毎日の時間枠を適用します。",
     saveBatchAvailability: "スケジュールを保存",
     batchAvailabilitySaved: "{count} 件のサブドメインのスケジュールを保存しました",

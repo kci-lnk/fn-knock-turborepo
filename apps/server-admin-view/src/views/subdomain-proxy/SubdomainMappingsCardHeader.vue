@@ -72,21 +72,21 @@ const { t } = useI18n();
   >
     <CardTitle>{{ t("admin.subdomainProxy.mappingsTitle") }}</CardTitle>
     <div
-      class="grid w-full grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
+      class="grid w-full grid-cols-3 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end"
     >
       <DocsLinkButton
         :href="docsHref"
         size="default"
-        class="w-auto px-2 [&_svg]:hidden sm:px-3 sm:[&_svg]:block"
+        class="h-10 w-full justify-center gap-1.5 border bg-background px-2 shadow-sm sm:h-9 sm:w-auto sm:border-0 sm:bg-transparent sm:px-3 sm:shadow-none"
       />
       <Button
         :variant="groupedView ? 'secondary' : 'outline'"
         :disabled="isSavingMappings"
         :aria-pressed="groupedView"
-        class="min-w-0 px-2 sm:w-auto sm:px-3"
+        class="h-10 min-w-0 w-full justify-center px-2 sm:h-9 sm:w-auto sm:px-3"
         @click="emit('update-grouped-view', !groupedView)"
       >
-        <ListTree class="hidden h-4 w-4 sm:block" />
+        <ListTree class="h-4 w-4 shrink-0" />
         <span class="truncate">{{
           t("admin.subdomainProxy.groupedView")
         }}</span>
@@ -95,10 +95,10 @@ const { t } = useI18n();
         variant="outline"
         :disabled="isSavingMappings || !hasRegularHostMappings"
         :aria-pressed="selectionMode"
-        class="min-w-0 px-2 sm:w-auto sm:px-3"
+        class="h-10 min-w-0 w-full justify-center px-2 sm:h-9 sm:w-auto sm:px-3"
         @click="emit('update-selection-mode', !selectionMode)"
       >
-        <ListChecks class="hidden h-4 w-4 sm:block" />
+        <ListChecks class="h-4 w-4 shrink-0" />
         <span class="truncate">{{
           t(
             selectionMode
@@ -129,15 +129,15 @@ const { t } = useI18n();
       </Button>
       <div
         v-if="authServiceMapping"
-        class="flex min-w-0 w-full items-center sm:w-auto"
+        class="col-span-3 flex min-w-0 w-full items-center sm:col-auto sm:w-auto"
       >
         <Button
           :variant="discoverButtonVariant"
           :disabled="!canManageNewMappings || isDiscovering || isSavingMappings"
-          class="min-w-0 flex-1 rounded-r-none px-2 text-xs sm:flex-none sm:px-3 sm:text-sm"
+          class="h-10 min-w-0 flex-1 rounded-r-none px-2 text-xs sm:h-9 sm:flex-none sm:px-3 sm:text-sm"
           @click="emit('open-discover')"
         >
-          <Search class="hidden h-4 w-4 sm:block" />
+          <Search class="h-4 w-4 shrink-0" />
           <span class="truncate">
             {{
               isDiscovering
@@ -155,7 +155,7 @@ const { t } = useI18n();
               :aria-label="t('common.moreActions')"
               :disabled="isSavingMappings"
               :class="[
-                'h-9 w-8 rounded-l-none border-l px-1 sm:w-9 sm:px-2',
+                'h-10 w-10 rounded-l-none border-l px-1 sm:h-9 sm:w-9 sm:px-2',
                 discoverButtonDividerClass,
               ]"
             >

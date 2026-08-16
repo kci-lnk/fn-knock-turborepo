@@ -557,6 +557,14 @@ function runPreflight(version) {
   if (result.status !== 0) fail(`release preflight failed for v${version}`);
 }
 
+function generateApiContract(version) {
+  const script = path.join(ROOT_DIR, "scripts", "generate-api-contract.mjs");
+  console.log(
+    `[release] regenerating OpenAPI and TypeScript contracts for ${version}`,
+  );
+  run(process.execPath, [script, "generate"], { inherit: true });
+}
+
 async function showStatus() {
   assertGitRepository(ROOT_DIR, git);
   assertGitRepository(GO_REPOSITORY, gatewayGit);
@@ -693,6 +701,8 @@ async function prepareRelease(targetArgument, options) {
   console.log(`[release] files to update:`);
   for (const update of updates) console.log(`  ${update.relativePath}`);
   console.log(`  ${path.relative(ROOT_DIR, notes.targetPath)}`);
+  console.log(`  packages/api-contract/openapi.json (generated)`);
+  console.log(`  packages/api-contract/src/schema.d.ts (generated)`);
   for (const update of gatewayUpdates) {
     console.log(`  Go-Reauth-Proxy/${update.relativePath}`);
   }
@@ -713,6 +723,7 @@ async function prepareRelease(targetArgument, options) {
   await mkdir(path.dirname(notes.targetPath), { recursive: true });
   await writeFile(notes.targetPath, notes.content, "utf8");
 
+  generateApiContract(nextVersion);
   runPreflight(nextVersion);
   await checkGateway(nextVersion);
   console.log(`[release] prepared ${nextTag}`);

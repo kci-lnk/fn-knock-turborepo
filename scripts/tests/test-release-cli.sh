@@ -68,6 +68,9 @@ do
   cp "${ROOT_DIR}/${relative_path}" "${FIXTURE}/${relative_path}"
 done
 
+cp "${ROOT_DIR}/scripts/tests/fixtures/generate-api-contract-stub.mjs" \
+  "${FIXTURE}/scripts/generate-api-contract.mjs"
+
 git -C "${FIXTURE}" init -q
 git -C "${FIXTURE}" config user.email test@example.invalid
 git -C "${FIXTURE}" config user.name "Release CLI Test"
@@ -106,6 +109,8 @@ grep -Fq "${CURRENT_VERSION} -> ${NEXT_PATCH}" "${WORK_DIR}/patch-dry-run.txt" |
   fail "dry-run modified version.json"
 [ ! -e "${FIXTURE}/release-notes/${NEXT_PATCH}.md" ] || \
   fail "dry-run created release notes"
+[ ! -e "${FIXTURE}/packages/api-contract/openapi.json" ] || \
+  fail "dry-run generated the OpenAPI contract"
 
 run_cli prepare minor --dry-run > "${WORK_DIR}/minor-dry-run.txt"
 grep -Fq "${CURRENT_VERSION} -> ${NEXT_MINOR}" "${WORK_DIR}/minor-dry-run.txt" || \
@@ -129,6 +134,11 @@ grep -Fq "Version = \"${NEXT_PATCH}\"" "${GO_FIXTURE}/pkg/version/version.go" ||
   fail "Go gateway source version was not updated"
 grep -Fq "default \"${NEXT_PATCH}\"" "${GO_FIXTURE}/Taskfile.yml" || \
   fail "Go gateway Taskfile version was not updated"
+[ "$(jq -r '.info.version' "${FIXTURE}/packages/api-contract/openapi.json")" = "${NEXT_PATCH}" ] || \
+  fail "prepare did not regenerate the OpenAPI contract after updating versions"
+grep -Fq "regenerating OpenAPI and TypeScript contracts for ${NEXT_PATCH}" \
+  "${WORK_DIR}/prepare.txt" || \
+  fail "prepare did not report API contract regeneration"
 
 run_cli status >/dev/null
 run_cli check "${NEXT_PATCH}" >/dev/null

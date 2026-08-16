@@ -77,12 +77,6 @@ const buildGateway = async (output) => {
     cwd: gatewayDir,
   });
   const actualCommit = stdout.trim().toLowerCase();
-  const expectedCommit = String(manifest.gatewayCommit ?? "").toLowerCase();
-  if (actualCommit !== expectedCommit) {
-    throw new Error(
-      `Go checkout ${actualCommit} does not match version.json gatewayCommit ${expectedCommit}`,
-    );
-  }
   await execFileAsync(
     "go",
     [
@@ -102,43 +96,6 @@ const buildGateway = async (output) => {
     },
   );
   return output;
-};
-
-const validateGatewayCheckoutVersion = async ({
-  gatewayDir = process.env.FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR,
-  manifestPath = process.env.FN_KNOCK_RUNTIME_VERSION_MANIFEST ??
-    path.join(rootDir, "version.json"),
-} = {}) => {
-  if (!gatewayDir) {
-    for (const candidate of [
-      path.join(rootDir, "..", "Go-Reauth-Proxy"),
-      path.join(rootDir, "Go-Reauth-Proxy"),
-    ]) {
-      try {
-        await access(path.join(candidate, ".git"));
-        gatewayDir = candidate;
-        break;
-      } catch {
-        // Continue to the other supported checkout layout.
-      }
-    }
-  }
-  if (!gatewayDir) {
-    throw new Error("Unable to locate the Go-Reauth-Proxy checkout");
-  }
-  const manifest = JSON.parse(
-    await readFile(path.resolve(rootDir, manifestPath), "utf8"),
-  );
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
-    cwd: gatewayDir,
-  });
-  const actualCommit = stdout.trim().toLowerCase();
-  const expectedCommit = String(manifest.gatewayCommit ?? "").toLowerCase();
-  if (actualCommit !== expectedCommit) {
-    throw new Error(
-      `Go checkout ${actualCommit} does not match version.json gatewayCommit ${expectedCommit}`,
-    );
-  }
 };
 
 const resolveGatewayBinary = async (explicitBinary, tempDir) => {
@@ -430,7 +387,6 @@ export const startRuntime = async ({
     rootDir,
     authStaticPath ?? "apps/server-auth-view/dist",
   );
-  await validateGatewayCheckoutVersion();
   await ensureRuntimeArtifacts(
     resolvedServerBinary,
     resolvedAdminStaticPath,

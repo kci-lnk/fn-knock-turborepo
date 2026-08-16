@@ -46,14 +46,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out and record locked Go gateway commit
+      - name: Record Go gateway commit
         shell: bash
         run: |
-          locked_commit="$(jq -er .gatewayCommit version.json)"
-          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
-          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
-          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
-          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${locked_commit}" >> "${GITHUB_ENV}"
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${sha}" >> "${GITHUB_ENV}"
 
       - name: Checkout frozen RustSec advisory database
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -152,14 +149,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out locked Go gateway commit
-        shell: bash
-        run: |
-          locked_commit="$(jq -er .gatewayCommit version.json)"
-          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
-          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
-          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
-
       - name: Record Go gateway commit
         id: gateway
         shell: bash
@@ -217,8 +206,7 @@ jobs:
           base_sha="${{ github.event.pull_request.base.sha }}"
           git fetch --no-tags origin "${base_sha}"
           git worktree add --detach "${base_root}" "${base_sha}"
-          base_gateway_commit="$(jq -er .gatewayCommit "${base_root}/version.json")"
-          git -C Go-Reauth-Proxy fetch --no-tags origin "${base_gateway_commit}"
+          base_gateway_commit="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
           git -C Go-Reauth-Proxy worktree add --detach "${base_gateway}" "${base_gateway_commit}"
           printf 'root=%s\n' "${base_root}" >> "${GITHUB_OUTPUT}"
           printf 'gateway=%s\n' "${base_gateway}" >> "${GITHUB_OUTPUT}"
@@ -292,8 +280,6 @@ jobs:
           # comparison isolates Rust/Go runtime startup and idle-memory changes.
           FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
           FN_KNOCK_RUNTIME_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
-          FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR="${{ steps.baseline.outputs.gateway }}" \
-          FN_KNOCK_RUNTIME_VERSION_MANIFEST="${{ steps.baseline.outputs.root }}/version.json" \
           FN_KNOCK_RUNTIME_PERF_EXERCISE_MEMORY_CONFIG="0" \
           FN_KNOCK_RUNTIME_PERF_VERIFY_STATIC="0" \
             node scripts/runtime-performance.mjs > "${base}"
@@ -337,8 +323,6 @@ jobs:
             node scripts/frontend-performance.mjs > "${current}"
           FN_KNOCK_RUNTIME_SERVER_BIN="${RUNNER_TEMP}/server-admin-rs-base" \
           FN_KNOCK_FRONTEND_PERF_GATEWAY_BIN="${RUNNER_TEMP}/go-reauth-proxy-base" \
-          FN_KNOCK_RUNTIME_GATEWAY_SOURCE_DIR="${{ steps.baseline.outputs.gateway }}" \
-          FN_KNOCK_RUNTIME_VERSION_MANIFEST="${{ steps.baseline.outputs.root }}/version.json" \
           FN_KNOCK_RUNTIME_ADMIN_STATIC_PATH="${{ steps.baseline.outputs.root }}/apps/server-admin-view/dist" \
           FN_KNOCK_RUNTIME_AUTH_STATIC_PATH="${{ steps.baseline.outputs.root }}/apps/server-auth-view/dist" \
           FN_KNOCK_FRONTEND_PERF_ENFORCE_RESOURCES="0" \
@@ -391,16 +375,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out and record locked Go gateway commit
+      - name: Record Go gateway commit
         id: gateway
         shell: bash
         run: |
-          locked_commit="$(jq -er .gatewayCommit version.json)"
-          git -C Go-Reauth-Proxy fetch --no-tags origin "${locked_commit}"
-          git -C Go-Reauth-Proxy checkout --detach "${locked_commit}"
-          test "$(git -C Go-Reauth-Proxy rev-parse HEAD)" = "${locked_commit}"
-          printf 'sha=%s\n' "${locked_commit}" >> "${GITHUB_OUTPUT}"
-          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${locked_commit}" >> "${GITHUB_ENV}"
+          sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+          printf 'FN_KNOCK_GATEWAY_COMMIT=%s\n' "${sha}" >> "${GITHUB_ENV}"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -476,7 +457,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npm run runtime:measure | tee "${RUNNER_TEMP}/runtime-performance.json"
+          npm run --silent runtime:measure | tee "${RUNNER_TEMP}/runtime-performance.json"
           {
             echo '### Runtime performance sample'
             echo '```json'

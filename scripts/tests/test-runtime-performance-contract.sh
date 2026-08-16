@@ -18,6 +18,13 @@ assert_contains() {
   grep -Fq -- "${expected}" "${file}" || fail "${label}: ${file} is missing ${expected}"
 }
 
+assert_not_contains() {
+  local file="$1" unexpected="$2" label="$3"
+  if grep -Fq -- "${unexpected}" "${file}"; then
+    fail "${label}: ${file} unexpectedly contains ${unexpected}"
+  fi
+}
+
 for file in "${HARNESS}" "${MEASURE}" "${COMPARE}" "${WORKFLOW}"; do
   [ -f "${file}" ] || fail "missing runtime performance contract file: ${file}"
 done
@@ -46,13 +53,16 @@ assert_contains "${COMPARE}" '0.1' 'default readiness regression tolerance'
 assert_contains "${COMPARE}" '0.05' 'default RSS regression tolerance'
 assert_contains "${WORKFLOW}" 'Measure runtime readiness and idle RSS' 'scheduled runtime performance measurement'
 assert_contains "${WORKFLOW}" 'FN_KNOCK_RUNTIME_PERF_RUNS: "5"' 'scheduled sample count'
+assert_contains "${WORKFLOW}" 'npm run --silent runtime:measure | tee' 'machine-readable scheduled sample'
 assert_contains "${WORKFLOW}" 'runtime-performance-${{ github.run_id }}' 'runtime performance artifact'
 assert_contains "${WORKFLOW}" 'runtime-performance:' 'PR runtime performance job'
 assert_contains "${WORKFLOW}" "github.event.pull_request.base.sha" 'PR base revision'
 assert_contains "${WORKFLOW}" 'git worktree add --detach' 'base source worktree'
 assert_contains "${WORKFLOW}" 'Go-Reauth-Proxy worktree add --detach' 'base gateway worktree'
-assert_contains "${WORKFLOW}" 'base_gateway_commit="$(jq -er .gatewayCommit "${base_root}/version.json")"' 'version-locked base gateway'
-assert_contains "${WORKFLOW}" 'locked_commit="$(jq -er .gatewayCommit version.json)"' 'version-locked current gateway'
+assert_contains "${WORKFLOW}" 'base_gateway_commit="$(git -C Go-Reauth-Proxy rev-parse HEAD)"' 'current gateway baseline'
+assert_contains "${WORKFLOW}" 'sha="$(git -C Go-Reauth-Proxy rev-parse HEAD)"' 'actual gateway commit metadata'
+assert_not_contains "${WORKFLOW}" 'gatewayCommit' 'historical gateway commit must not control CI checkout'
+assert_not_contains "${HARNESS}" 'gatewayCommit' 'historical gateway commit must not control runtime tests'
 assert_contains "${WORKFLOW}" 'FN_KNOCK_RUNTIME_PERF_EXERCISE_MEMORY_CONFIG="0"' 'legacy baseline memory API compatibility'
 assert_contains "${WORKFLOW}" 'base_manifest="${{ steps.baseline.outputs.root }}/apps/server-admin-rs/Cargo.toml"' 'base Rust manifest path'
 assert_contains "${WORKFLOW}" 'base_profile="runtime-test"' 'matching base runtime profile'

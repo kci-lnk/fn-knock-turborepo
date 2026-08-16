@@ -472,6 +472,94 @@ pub(super) struct AcmeCommandResult {
     pub(super) stderr: String,
 }
 
+pub(super) struct AcmeCommandWorkspace {
+    path: PathBuf,
+    original_home: PathBuf,
+    command_home: PathBuf,
+}
+
+impl AcmeCommandWorkspace {
+    pub(super) fn prepare(state: &AppState) -> anyhow::Result<Option<Self>> {
+        if crate::runtime_profile::deployment_target(state) == "windows" {
+            return Ok(None);
+        }
+
+        // acme.sh builds its curl command in a shell variable and expands that
+        // variable without quotes. In particular, HTTP_HEADER defaults below
+        // --config-home, so a macOS data path such as "Application Support"
+        // gets split into multiple curl arguments inside acme.sh even though
+        // Tokio passed --config-home as one argument. Newer acme.sh releases
+        // therefore reject whitespace in --home altogether. Use a private,
+        // command-scoped symlink as the shell-facing home while retaining all
+        // account and certificate state in the configured FnKnock data dir.
+        #[cfg(unix)]
+        let temporary_root = PathBuf::from("/tmp");
+        #[cfg(not(unix))]
+        let temporary_root = env::temp_dir();
+        let path = temporary_root.join(format!(
+            "fn-knock-acme-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            std::fs::DirBuilder::new().mode(0o700).create(&path)?;
+        }
+        #[cfg(not(unix))]
+        std::fs::create_dir(&path)?;
+
+        let original_home = acme_home_dir(state);
+        #[cfg(unix)]
+        let command_home = path.join("home");
+        #[cfg(not(unix))]
+        let command_home = original_home.clone();
+        let workspace = Self {
+            path,
+            original_home,
+            command_home,
+        };
+        #[cfg(unix)]
+        if let Err(error) =
+            std::os::unix::fs::symlink(&workspace.original_home, &workspace.command_home)
+        {
+            drop(workspace);
+            return Err(error.into());
+        }
+        Ok(Some(workspace))
+    }
+
+    pub(super) fn rewrite_home_args(&self, args: &mut [String]) {
+        for index in 1..args.len() {
+            if matches!(args[index - 1].as_str(), "--home" | "--config-home")
+                && Path::new(&args[index]) == self.original_home
+            {
+                args[index] = self.command_home.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    pub(super) fn configure_command(&self, command: &mut Command) {
+        command
+            .env("HTTP_HEADER", self.path.join("http.header"))
+            .env("LE_TEMP_DIR", &self.path);
+    }
+}
+
+impl Drop for AcmeCommandWorkspace {
+    fn drop(&mut self) {
+        if let Err(error) = std::fs::remove_dir_all(&self.path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(
+                %error,
+                path = %self.path.display(),
+                "failed to remove ACME command workspace"
+            );
+        }
+    }
+}
+
 pub(super) async fn switch_certificate_authority(
     state: &AppState,
     certificate_authority: &str,
@@ -557,6 +645,11 @@ async fn run_acme_command_for_job(
     control: &AcmeJobControl,
     t: &Translator,
 ) -> anyhow::Result<AcmeCommandResult> {
+    let workspace = AcmeCommandWorkspace::prepare(state)?;
+    let mut args = args;
+    if let Some(workspace) = &workspace {
+        workspace.rewrite_home_args(&mut args);
+    }
     let mut command = Command::new(acme_executable_path(state));
     command
         .args(args)
@@ -565,6 +658,9 @@ async fn run_acme_command_for_job(
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
+    if let Some(workspace) = &workspace {
+        workspace.configure_command(&mut command);
+    }
     let mut child = command.spawn()?;
     control.set_pid(child.id().unwrap_or(0));
     let stdout_task = spawn_acme_output_collector(child.stdout.take());
@@ -617,6 +713,11 @@ pub(super) async fn run_acme_command(
     args: Vec<String>,
     extra_env: Option<&Map<String, Value>>,
 ) -> anyhow::Result<AcmeCommandResult> {
+    let workspace = AcmeCommandWorkspace::prepare(state)?;
+    let mut args = args;
+    if let Some(workspace) = &workspace {
+        workspace.rewrite_home_args(&mut args);
+    }
     let mut command = Command::new(acme_executable_path(state));
     command
         .args(args)
@@ -631,6 +732,9 @@ pub(super) async fn run_acme_command(
                 command.env(key, value);
             }
         }
+    }
+    if let Some(workspace) = &workspace {
+        workspace.configure_command(&mut command);
     }
     let mut child = command.spawn()?;
     let stdout_task = spawn_acme_output_collector(child.stdout.take());
@@ -672,6 +776,30 @@ pub(super) fn shared_acme_args(
         args.push(normalize_certificate_authority(Some(certificate_authority)));
     }
     args
+}
+
+pub(super) fn format_acme_command_for_log(executable: &Path, args: &[String]) -> String {
+    let executable = executable.to_string_lossy();
+    std::iter::once(executable.as_ref())
+        .chain(args.iter().map(String::as_str))
+        .map(shell_quote_acme_arg)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn shell_quote_acme_arg(value: &str) -> String {
+    if !value.is_empty()
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(
+                    byte,
+                    b'_' | b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'-'
+                )
+        })
+    {
+        return value.to_string();
+    }
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
 pub(super) fn command_output_brief(stdout: &str, stderr: &str) -> String {

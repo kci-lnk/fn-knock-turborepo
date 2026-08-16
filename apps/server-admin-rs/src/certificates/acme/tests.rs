@@ -1,22 +1,26 @@
 use super::*;
 
-async fn acme_test_state() -> (tempfile::TempDir, AppState) {
-    let directory = tempfile::tempdir().expect("create ACME test directory");
+async fn acme_test_state_with_data_dir(data_dir: PathBuf, runtime_target: &str) -> AppState {
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);
         crate::settings::Settings::from_env()
     };
-    settings.runtime_target = "linux".to_string();
-    settings.data_dir = directory.path().join("data");
-    settings.gateway_config_dir = directory.path().join("gateway");
-    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.runtime_target = runtime_target.to_string();
+    settings.gateway_config_dir = data_dir.join("gateway");
+    settings.sqlite_path = data_dir.join("fn-knock.sqlite3");
+    settings.data_dir = data_dir;
     settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.internal_rpc_token = "test-internal-rpc-token".to_string();
     settings.request_timeout = std::time::Duration::from_millis(100);
-    let state = AppState::new(settings)
+    AppState::new(settings)
         .await
-        .expect("create ACME test state");
+        .expect("create ACME test state")
+}
+
+async fn acme_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("create ACME test directory");
+    let state = acme_test_state_with_data_dir(directory.path().join("data"), "linux").await;
     state
         .storage
         .store
@@ -24,6 +28,124 @@ async fn acme_test_state() -> (tempfile::TempDir, AppState) {
         .await
         .expect("mark ACME data migrated");
     (directory, state)
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn acme_command_preserves_spaced_paths_and_uses_unspaced_http_workspace() {
+    let directory = tempfile::tempdir().expect("create ACME path test directory");
+    let state = acme_test_state_with_data_dir(
+        directory.path().join("Application Support/FnKnock/data"),
+        "macos",
+    )
+    .await;
+
+    let executable = acme_executable_path(&state);
+    tokio::fs::create_dir_all(executable.parent().expect("ACME executable parent"))
+        .await
+        .expect("create ACME executable parent");
+    tokio::fs::write(
+        &executable,
+        r#"#!/bin/sh
+{
+  printf 'HTTP_HEADER=%s\n' "$HTTP_HEADER"
+  printf 'LE_TEMP_DIR=%s\n' "$LE_TEMP_DIR"
+  for argument in "$@"; do
+    printf 'ARG=%s\n' "$argument"
+  done
+} > "$FN_KNOCK_TEST_ACME_RECORD"
+"#,
+    )
+    .await
+    .expect("write ACME argument fixture");
+    crate::fs_utils::chmod_executable(&executable);
+
+    let record_path = state.settings.data_dir.join("acme-command-record.txt");
+    let mut extra_env = Map::new();
+    extra_env.insert(
+        "FN_KNOCK_TEST_ACME_RECORD".to_string(),
+        json!(record_path.to_string_lossy()),
+    );
+    let args = shared_acme_args(&state, Some("letsencrypt"));
+    let result = run_acme_command(&state, args.clone(), Some(&extra_env))
+        .await
+        .expect("run ACME argument fixture");
+    assert_eq!(result.exit_code, 0);
+
+    let record = tokio::fs::read_to_string(&record_path)
+        .await
+        .expect("read ACME argument record");
+    let value = |prefix: &str| {
+        record
+            .lines()
+            .find_map(|line| line.strip_prefix(prefix))
+            .expect("recorded ACME environment value")
+    };
+    let http_header = value("HTTP_HEADER=");
+    let temp_dir = value("LE_TEMP_DIR=");
+    assert!(!http_header.chars().any(char::is_whitespace));
+    assert!(!temp_dir.chars().any(char::is_whitespace));
+    assert_eq!(Path::new(http_header).parent(), Some(Path::new(temp_dir)));
+    assert!(!Path::new(temp_dir).exists(), "workspace must be removed");
+
+    let recorded_args = record
+        .lines()
+        .filter_map(|line| line.strip_prefix("ARG="))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(recorded_args[0], "--home");
+    assert_eq!(recorded_args[2], "--config-home");
+    assert_eq!(recorded_args[1], recorded_args[3]);
+    assert!(!recorded_args[1].chars().any(char::is_whitespace));
+    assert_eq!(
+        Path::new(&recorded_args[1]).parent(),
+        Some(Path::new(temp_dir))
+    );
+    assert!(
+        !Path::new(&recorded_args[1]).exists(),
+        "home link must be removed"
+    );
+    assert_eq!(&recorded_args[4..], &args[4..]);
+    assert!(args[1].contains("Application Support"));
+    assert!(acme_home_dir(&state).join("acme.sh").is_file());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn bundled_acme_script_persists_state_through_spaced_data_path() {
+    let directory = tempfile::tempdir().expect("create bundled ACME path test directory");
+    let state = acme_test_state_with_data_dir(
+        directory.path().join("Application Support/FnKnock/data"),
+        "macos",
+    )
+    .await;
+
+    install_from_bundled_zip_blocking(&state).expect("install bundled acme.sh");
+    set_default_certificate_authority(&state, "letsencrypt", &Translator::new("zh-CN"))
+        .await
+        .expect("run bundled acme.sh through an unspaced workspace");
+
+    let account_conf = tokio::fs::read_to_string(acme_home_dir(&state).join("account.conf"))
+        .await
+        .expect("read persisted bundled acme.sh account config");
+    assert_eq!(default_certificate_authority(&state), "letsencrypt");
+    assert!(!account_conf.contains("fn-knock-acme-"));
+    assert!(acme_home_dir(&state).join("acme.sh").is_file());
+}
+
+#[test]
+fn acme_command_log_quotes_paths_with_spaces() {
+    let executable = Path::new("/Library/Application Support/FnKnock/data/.acme.sh/acme.sh");
+    let args = vec![
+        "--home".to_string(),
+        "/Library/Application Support/FnKnock/data/.acme.sh".to_string(),
+        "-d".to_string(),
+        "*.example.test".to_string(),
+    ];
+    assert_eq!(
+        format_acme_command_for_log(executable, &args),
+        "'/Library/Application Support/FnKnock/data/.acme.sh/acme.sh' --home '/Library/Application Support/FnKnock/data/.acme.sh' -d '*.example.test'"
+    );
 }
 
 fn test_application(id: &str, domains: &[&str]) -> Value {

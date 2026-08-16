@@ -961,14 +961,19 @@ pub(super) async fn issue_acme_certificate(
     append_acme_log(
         state,
         job_id,
-        &format!("$ {} {}", executable.display(), args.join(" ")),
+        &format!("$ {}", format_acme_command_for_log(&executable, &args)),
     )
     .await
     .ok();
 
+    let workspace = AcmeCommandWorkspace::prepare(state)?;
+    let mut execution_args = args;
+    if let Some(workspace) = &workspace {
+        workspace.rewrite_home_args(&mut execution_args);
+    }
     let mut command = Command::new(executable);
     command
-        .args(args)
+        .args(execution_args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -979,6 +984,9 @@ pub(super) async fn issue_acme_certificate(
         if let Some(value) = value.as_str() {
             command.env(key, value);
         }
+    }
+    if let Some(workspace) = &workspace {
+        workspace.configure_command(&mut command);
     }
     let mut child = command.spawn()?;
     control.set_pid(child.id().unwrap_or(0));

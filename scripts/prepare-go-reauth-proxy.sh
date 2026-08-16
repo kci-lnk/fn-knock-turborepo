@@ -17,6 +17,7 @@ SKIP_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_SKIP_BUILD:-0}"
 FORCE_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD:-0}"
 BUNDLE_VERSION="$(fn_knock_app_version "${ROOT_DIR}")"
 BUNDLE_COMMIT=""
+ACTUAL_COMMIT=""
 
 log() {
   echo "[fn-knock] $*"
@@ -25,6 +26,40 @@ log() {
 fail() {
   echo "[fn-knock] ERROR: $*" >&2
   exit 1
+}
+
+invalidate_build_cache() {
+  local arch
+  local binary
+
+  for arch in "${ARCHES[@]}"; do
+    binary="${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}"
+    rm -f "${binary}" "${binary}.commit" "${binary}.version"
+  done
+}
+
+assert_checkout_locked() {
+  local phase="$1"
+  local invalidate="${2:-0}"
+  local actual_commit
+  local worktree_state
+
+  actual_commit="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse HEAD 2>/dev/null)" || \
+    fail "unable to resolve Go gateway commit from ${GO_REAUTH_PROXY_DIR} during ${phase}"
+  if [ "${actual_commit}" != "${BUNDLE_COMMIT}" ]; then
+    if [ "${invalidate}" = "1" ]; then
+      invalidate_build_cache
+    fi
+    fail "Go gateway HEAD changed during artifact preparation (${phase}): expected ${BUNDLE_COMMIT}, got ${actual_commit}"
+  fi
+
+  worktree_state="$(git -C "${GO_REAUTH_PROXY_DIR}" status --porcelain --untracked-files=normal)"
+  if [ -n "${worktree_state}" ]; then
+    if [ "${invalidate}" = "1" ]; then
+      invalidate_build_cache
+    fi
+    fail "Go gateway working tree is not clean during artifact preparation (${phase}); commit or discard changes before packaging"
+  fi
 }
 
 needs_build() {
@@ -75,10 +110,16 @@ needs_build() {
   fail "missing Go-Reauth-Proxy checkout: ${GO_REAUTH_PROXY_DIR}. Set FN_KNOCK_GO_REAUTH_PROXY_DIR to override."
 bash "${ROOT_DIR}/scripts/verify-go-control-api-contract.sh" "${GO_REAUTH_PROXY_DIR}"
 
-BUNDLE_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse HEAD 2>/dev/null)" || \
+ACTUAL_COMMIT="$(git -C "${GO_REAUTH_PROXY_DIR}" rev-parse HEAD 2>/dev/null)" || \
   fail "unable to resolve Go gateway commit from ${GO_REAUTH_PROXY_DIR}"
+if [ -n "${FN_KNOCK_GATEWAY_COMMIT:-}" ]; then
+  BUNDLE_COMMIT="${FN_KNOCK_GATEWAY_COMMIT}"
+else
+  BUNDLE_COMMIT="${ACTUAL_COMMIT}"
+fi
 [[ "${BUNDLE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
   fail "Go gateway commit must be a 40-character lowercase Git commit: ${BUNDLE_COMMIT:-<empty>}"
+assert_checkout_locked "before gateway build"
 
 if needs_build; then
   if [ "${SKIP_BUILD}" = "1" ]; then
@@ -99,6 +140,7 @@ if needs_build; then
       FN_KNOCK_COMMIT="${BUNDLE_COMMIT}" \
       task build
   )
+  assert_checkout_locked "after gateway build" 1
   for arch in "${ARCHES[@]}"; do
     binary="${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}"
     [ -f "${binary}" ] || fail "missing gateway binary after build: ${binary}"
@@ -130,3 +172,5 @@ for arch in "${ARCHES[@]}"; do
   chmod +x "${dst}"
   log "Prepared ${dst}"
 done
+
+assert_checkout_locked "after gateway staging"

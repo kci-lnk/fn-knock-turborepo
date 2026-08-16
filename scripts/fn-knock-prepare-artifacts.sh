@@ -292,14 +292,19 @@ sync_versions() {
 }
 
 resolve_gateway_commit() {
+  local worktree_state
+
   [ "${PREBUILT_ONLY}" != "1" ] || return 0
   [ -d "${GO_REPOSITORY}" ] || fail "missing Go-Reauth-Proxy checkout: ${GO_REPOSITORY}"
   FN_KNOCK_GATEWAY_COMMIT="$(git -C "${GO_REPOSITORY}" rev-parse HEAD 2>/dev/null)" || \
     fail "unable to resolve Go gateway commit from ${GO_REPOSITORY}"
   [[ "${FN_KNOCK_GATEWAY_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || \
     fail "Go gateway commit must be a 40-character lowercase Git commit"
+  worktree_state="$(git -C "${GO_REPOSITORY}" status --porcelain --untracked-files=normal)"
+  [ -z "${worktree_state}" ] || \
+    fail "Go gateway working tree is not clean; commit or discard changes before preparing artifacts"
   export FN_KNOCK_GATEWAY_COMMIT
-  log "Using Go gateway HEAD ${FN_KNOCK_GATEWAY_COMMIT}"
+  log "Locked Go gateway commit ${FN_KNOCK_GATEWAY_COMMIT}"
 }
 
 build_runtime() {

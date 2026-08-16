@@ -3238,7 +3238,8 @@ export const enAdmin = {
     probe: "Detect",
     probing: "Detecting...",
     probeVerified: "Target service verified",
-    probeUnverified: "Target is not verified; the mapping remains disabled",
+    probeUnverified:
+      "Target service not identified; strict validation is off and the mapping remains enabled",
     probeFailed: "Failed to detect target service",
     probeAuthenticatedHttp:
       "HTTP detected, but upstream authentication hides the application protocol",
@@ -3294,12 +3295,13 @@ export const enAdmin = {
     clearService: "Clear selection",
     clearServiceTitle: "Clear the specified service type?",
     clearServiceDescription:
-      "This turns off strict protocol validation and disables the mapping. Login authentication and bypass rules are preserved; detect the service again or specify another type before use.",
-    clearServiceConfirm: "Clear and disable",
+      "This turns off strict protocol validation while keeping the mapping enabled. Login authentication and bypass rules are preserved.",
+    clearServiceConfirm: "Clear and turn off validation",
     serviceCatalogFailed: "Failed to load service catalog",
     serviceConfirmed: "Service type confirmed and strict validation enabled",
     serviceConfirmFailed: "Failed to confirm expected service",
-    serviceCleared: "Specified service type cleared; mapping disabled",
+    serviceCleared:
+      "Specified service type cleared; strict validation is off and the mapping remains enabled",
     serviceClearFailed: "Failed to clear specified service type",
     scheduleAvailability: "Schedule enable or disable",
     scheduleOpen: "Scheduled open {window}",

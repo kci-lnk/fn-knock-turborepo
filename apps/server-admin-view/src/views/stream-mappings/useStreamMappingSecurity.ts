@@ -49,7 +49,7 @@ export function useStreamMappingSecurity() {
           description: result.profile?.service_id || undefined,
         });
       } else {
-        toast.error(t("admin.streamMappings.probeUnverified"), {
+        toast.warning(t("admin.streamMappings.probeUnverified"), {
           description: result.message || result.status,
         });
       }

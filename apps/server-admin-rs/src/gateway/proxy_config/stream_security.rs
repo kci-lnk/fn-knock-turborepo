@@ -39,7 +39,7 @@ pub(super) fn prepare_stream_mapping_update(previous: &[Value], next: &mut [Valu
             for field in SECURITY_FIELDS {
                 object.remove(field);
             }
-            object.insert("disabled".into(), Value::Bool(true));
+            object.insert("disabled".into(), Value::Bool(false));
             object.insert("probe_status".into(), Value::String("stale".into()));
             object.insert("validation_mode".into(), Value::String("off".into()));
             continue;
@@ -57,7 +57,7 @@ pub(super) fn prepare_stream_mapping_update(previous: &[Value], next: &mut [Valu
             for field in SECURITY_FIELDS {
                 object.remove(field);
             }
-            object.insert("disabled".into(), Value::Bool(true));
+            object.insert("disabled".into(), Value::Bool(false));
             object.insert("probe_status".into(), Value::String("stale".into()));
             object.insert("validation_mode".into(), Value::String("off".into()));
             if let Some(mut policy) = previous.get("bypass_policy").cloned() {
@@ -74,7 +74,38 @@ pub(super) fn prepare_stream_mapping_update(previous: &[Value], next: &mut [Valu
         {
             policy.insert("enabled".into(), Value::Bool(false));
         }
+        let strict = object
+            .get("validation_mode")
+            .and_then(Value::as_str)
+            .is_some_and(|mode| mode.trim().eq_ignore_ascii_case("strict"));
+        if !strict && object.get("disabled").and_then(Value::as_bool) == Some(true) {
+            object.insert("disabled".into(), Value::Bool(false));
+        }
     }
+}
+
+pub(super) fn enable_unvalidated_stream_mappings(config: &mut Value) -> usize {
+    let Some(mappings) = config
+        .get_mut("stream_mappings")
+        .and_then(Value::as_array_mut)
+    else {
+        return 0;
+    };
+    let mut repaired = 0;
+    for mapping in mappings {
+        let Some(object) = mapping.as_object_mut() else {
+            continue;
+        };
+        let strict = object
+            .get("validation_mode")
+            .and_then(Value::as_str)
+            .is_some_and(|mode| mode.trim().eq_ignore_ascii_case("strict"));
+        if !strict && object.get("disabled").and_then(Value::as_bool) == Some(true) {
+            object.insert("disabled".into(), Value::Bool(false));
+            repaired += 1;
+        }
+    }
+    repaired
 }
 
 pub(super) fn prune_stream_access_policies(config: &mut Value) {
@@ -147,7 +178,40 @@ fn clear_stream_service_profile_fields(object: &mut serde_json::Map<String, Valu
     object.remove("service_profile");
     object.insert("probe_status".into(), Value::String("stale".into()));
     object.insert("validation_mode".into(), Value::String("off".into()));
-    object.insert("disabled".into(), Value::Bool(true));
+    object.insert("disabled".into(), Value::Bool(false));
+}
+
+fn apply_stream_probe_result(object: &mut serde_json::Map<String, Value>, probe: &Value) {
+    let status = probe
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let strong = probe
+        .get("profile")
+        .and_then(|value| value.get("service_confidence"))
+        .and_then(Value::as_str)
+        == Some("strong");
+    let strict_capable = probe
+        .get("profile")
+        .and_then(|value| value.get("strict_capable"))
+        .and_then(Value::as_bool)
+        == Some(true);
+    object.insert("probe_status".into(), Value::String(status.to_string()));
+    object.remove("service_profile");
+    if let Some(profile) = probe.get("profile").filter(|value| {
+        value
+            .get("service_id")
+            .and_then(Value::as_str)
+            .is_some_and(|service_id| !service_id.is_empty())
+    }) {
+        object.insert("service_profile".into(), profile.clone());
+    }
+    let verified = status == "verified" && strong && strict_capable;
+    object.insert("disabled".into(), Value::Bool(false));
+    object.insert(
+        "validation_mode".into(),
+        Value::String(if verified { "strict" } else { "off" }.into()),
+    );
 }
 
 fn service_profile_precondition_matches(
@@ -270,36 +334,7 @@ pub(super) async fn probe_stream_mapping(
     else {
         return response::error(StatusCode::CONFLICT, "stream mapping changed during probe");
     };
-    let status = probe
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("unknown");
-    let strong = probe
-        .get("profile")
-        .and_then(|value| value.get("service_confidence"))
-        .and_then(Value::as_str)
-        == Some("strong");
-    let strict_capable = probe
-        .get("profile")
-        .and_then(|value| value.get("strict_capable"))
-        .and_then(Value::as_bool)
-        == Some(true);
-    object.insert("probe_status".into(), Value::String(status.to_string()));
-    object.remove("service_profile");
-    if let Some(profile) = probe.get("profile").filter(|value| {
-        value
-            .get("service_id")
-            .and_then(Value::as_str)
-            .is_some_and(|service_id| !service_id.is_empty())
-    }) {
-        object.insert("service_profile".into(), profile.clone());
-    }
-    let verified = status == "verified" && strong && strict_capable;
-    object.insert("disabled".into(), Value::Bool(!verified));
-    object.insert(
-        "validation_mode".into(),
-        Value::String(if verified { "strict" } else { "off" }.into()),
-    );
+    apply_stream_probe_result(object, &probe);
     if let Err(error) = persist_stream_security_change(&state, &previous, &updated).await {
         return response::error(StatusCode::BAD_GATEWAY, error);
     }
@@ -965,15 +1000,16 @@ pub(super) async fn update_stream_bypass_policy(
 #[cfg(test)]
 mod tests {
     use super::{
-        bypass_mapping_precondition_matches, clear_stream_service_profile_fields,
-        disabled_stream_bypass_policy, is_broad_stream_policy, persisted_stream_selections,
+        apply_stream_probe_result, bypass_mapping_precondition_matches,
+        clear_stream_service_profile_fields, disabled_stream_bypass_policy,
+        enable_unvalidated_stream_mappings, is_broad_stream_policy, persisted_stream_selections,
         persisted_stream_values, prepare_stream_mapping_update, prune_stream_access_policies,
         service_profile_precondition_matches, source_ip_cidrs,
     };
     use serde_json::json;
 
     #[test]
-    fn new_stream_mapping_is_stale_and_runtime_disabled() {
+    fn new_stream_mapping_is_stale_and_runtime_enabled_without_strict_validation() {
         let mut next = vec![json!({
             "protocol": "tcp", "listen_port": 5900,
             "target": "127.0.0.1:5900", "use_auth": true,
@@ -983,7 +1019,7 @@ mod tests {
         })];
         prepare_stream_mapping_update(&[], &mut next);
         assert_eq!(next[0]["probe_status"], "stale");
-        assert_eq!(next[0]["disabled"], true);
+        assert_eq!(next[0]["disabled"], false);
         assert_eq!(next[0]["validation_mode"], "off");
         assert!(next[0].get("service_profile").is_none());
         assert!(next[0].get("bypass_policy").is_none());
@@ -1041,7 +1077,7 @@ mod tests {
         })];
         prepare_stream_mapping_update(&previous, &mut next);
         assert_eq!(next[0]["probe_status"], "stale");
-        assert_eq!(next[0]["disabled"], true);
+        assert_eq!(next[0]["disabled"], false);
         assert_eq!(next[0]["bypass_policy"]["enabled"], false);
         assert!(next[0].get("service_profile").is_none());
     }
@@ -1067,7 +1103,7 @@ mod tests {
     }
 
     #[test]
-    fn clearing_manual_service_profile_disables_mapping_but_preserves_login_policy() {
+    fn clearing_manual_service_profile_keeps_mapping_enabled_and_preserves_login_policy() {
         let mut mapping = json!({
             "protocol": "tcp", "listen_port": 5900,
             "target": "camera:5900", "use_auth": true,
@@ -1079,9 +1115,66 @@ mod tests {
         assert!(mapping.get("service_profile").is_none());
         assert_eq!(mapping["probe_status"], "stale");
         assert_eq!(mapping["validation_mode"], "off");
-        assert_eq!(mapping["disabled"], true);
+        assert_eq!(mapping["disabled"], false);
         assert_eq!(mapping["use_auth"], true);
         assert_eq!(mapping["bypass_policy"]["policy_version"], "v1");
+    }
+
+    #[test]
+    fn unknown_probe_keeps_mapping_enabled_without_strict_validation() {
+        let mut mapping = json!({
+            "disabled": true,
+            "validation_mode": "strict",
+            "service_profile": {"service_id": "ssh"},
+        });
+        apply_stream_probe_result(
+            mapping.as_object_mut().unwrap(),
+            &json!({
+                "status": "unknown",
+                "message": "target responded but no strong service signature matched",
+            }),
+        );
+        assert_eq!(mapping["probe_status"], "unknown");
+        assert_eq!(mapping["validation_mode"], "off");
+        assert_eq!(mapping["disabled"], false);
+        assert!(mapping.get("service_profile").is_none());
+    }
+
+    #[test]
+    fn verified_strong_probe_enables_strict_validation_without_disabling_mapping() {
+        let mut mapping = json!({"disabled": true, "validation_mode": "off"});
+        apply_stream_probe_result(
+            mapping.as_object_mut().unwrap(),
+            &json!({
+                "status": "verified",
+                "profile": {
+                    "service_id": "ssh",
+                    "service_confidence": "strong",
+                    "strict_capable": true,
+                },
+            }),
+        );
+        assert_eq!(mapping["probe_status"], "verified");
+        assert_eq!(mapping["validation_mode"], "strict");
+        assert_eq!(mapping["disabled"], false);
+        assert_eq!(mapping["service_profile"]["service_id"], "ssh");
+    }
+
+    #[test]
+    fn repairs_only_disabled_mappings_without_strict_validation() {
+        let mut config = json!({
+            "stream_mappings": [
+                {"listen_port": 6001, "validation_mode": "off", "disabled": true},
+                {"listen_port": 6002, "disabled": true},
+                {"listen_port": 6003, "validation_mode": "strict", "disabled": true},
+                {"listen_port": 6004, "validation_mode": "off", "disabled": false}
+            ]
+        });
+        assert_eq!(enable_unvalidated_stream_mappings(&mut config), 2);
+        assert_eq!(config["stream_mappings"][0]["disabled"], false);
+        assert_eq!(config["stream_mappings"][1]["disabled"], false);
+        assert_eq!(config["stream_mappings"][2]["disabled"], true);
+        assert_eq!(config["stream_mappings"][3]["disabled"], false);
     }
 
     #[test]

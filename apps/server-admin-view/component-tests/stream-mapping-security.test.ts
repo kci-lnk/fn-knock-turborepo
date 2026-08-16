@@ -122,7 +122,75 @@ describe("stream mapping service detection", () => {
     wrapper.unmount();
   });
 
-  it("clears a manually specified service and refreshes the disabled mapping", async () => {
+  it("keeps an unknown but reachable target enabled without strict validation", async () => {
+    const unknownMapping: StreamMapping = {
+      ...mapping,
+      disabled: true,
+      service_profile: undefined,
+      validation_mode: "strict",
+    };
+    const configStore = useConfigStore();
+    configStore.config = {
+      host_mapping_grouped_view: false,
+      host_mapping_groups: [],
+      host_mappings: [],
+      stream_mappings: [unknownMapping],
+    } as AppConfig;
+    vi.spyOn(ConfigAPI, "probeStreamMapping").mockResolvedValue({
+      message: "target responded but no strong service signature matched",
+      status: "unknown",
+    });
+    vi.spyOn(ConfigAPI, "getStreamMappings").mockResolvedValue([
+      {
+        ...unknownMapping,
+        disabled: false,
+        probe_status: "unknown",
+        validation_mode: "off",
+      },
+    ]);
+
+    let model!: ReturnType<typeof useStreamMappingSecurity>;
+    const Harness = defineComponent({
+      setup() {
+        model = useStreamMappingSecurity();
+        return () => null;
+      },
+    });
+    const wrapper = mount(Harness, {
+      global: {
+        plugins: [
+          createI18n({
+            legacy: false,
+            locale: "en",
+            messages: {
+              en: {
+                admin: {
+                  streamMappings: {
+                    probeUnverified: "Target reachable without strict validation",
+                  },
+                },
+              },
+            },
+          }),
+        ],
+      },
+    });
+
+    await model.probeMapping(unknownMapping);
+
+    expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
+    expect(configStore.config?.stream_mappings?.[0]?.validation_mode).toBe("off");
+    expect(toastMocks.warning).toHaveBeenCalledWith(
+      "Target reachable without strict validation",
+      {
+        description: "target responded but no strong service signature matched",
+      },
+    );
+    expect(toastMocks.error).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("clears a manually specified service and refreshes the enabled mapping", async () => {
     const manualMapping: StreamMapping = {
       ...mapping,
       probe_status: "manual",
@@ -146,7 +214,7 @@ describe("stream mapping service detection", () => {
     vi.spyOn(ConfigAPI, "getStreamMappings").mockResolvedValue([
       {
         ...manualMapping,
-        disabled: true,
+        disabled: false,
         probe_status: "stale",
         service_profile: undefined,
         validation_mode: "off",
@@ -187,7 +255,7 @@ describe("stream mapping service detection", () => {
     await model.clearServiceProfile();
 
     expect(clear).toHaveBeenCalledWith(manualMapping);
-    expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(true);
+    expect(configStore.config?.stream_mappings?.[0]?.disabled).toBe(false);
     expect(configStore.config?.stream_mappings?.[0]?.service_profile).toBeUndefined();
     expect(model.isServiceProfileOpen.value).toBe(false);
     expect(toastMocks.success).toHaveBeenCalledWith("Service cleared");

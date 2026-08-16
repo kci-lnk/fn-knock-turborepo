@@ -3208,7 +3208,8 @@ export const koKRAdmin = {
     probe: "감지",
     probing: "감지 중...",
     probeVerified: "대상 서비스가 확인되었습니다",
-    probeUnverified: "대상이 확인되지 않아 매핑이 비활성 상태로 유지됩니다",
+    probeUnverified:
+      "대상 서비스를 식별하지 못했습니다. 엄격한 검증을 끄고 매핑은 활성 상태로 유지합니다",
     probeFailed: "대상 서비스 감지 실패",
     probeAuthenticatedHttp:
       "HTTP가 감지되었지만 업스트림 인증이 애플리케이션 프로토콜을 숨기고 있습니다",
@@ -3260,12 +3261,13 @@ export const koKRAdmin = {
     clearService: "지정 해제",
     clearServiceTitle: "지정한 서비스 유형을 해제할까요?",
     clearServiceDescription:
-      "엄격한 프로토콜 검증을 끄고 매핑을 비활성화합니다. 로그인 인증과 로그인 생략 규칙은 유지됩니다. 다시 감지하거나 서비스 유형을 다시 지정한 후 사용하세요.",
-    clearServiceConfirm: "해제 후 비활성화",
+      "엄격한 프로토콜 검증을 끄고 매핑은 활성 상태로 유지합니다. 로그인 인증과 로그인 생략 규칙은 유지됩니다.",
+    clearServiceConfirm: "해제 후 검증 끄기",
     serviceCatalogFailed: "서비스 카탈로그를 불러오지 못했습니다",
     serviceConfirmed: "서비스 유형을 확인하고 엄격한 검증을 활성화했습니다",
     serviceConfirmFailed: "예상 서비스 확인 실패",
-    serviceCleared: "서비스 유형 지정을 해제하고 매핑을 비활성화했습니다",
+    serviceCleared:
+      "서비스 유형 지정을 해제했습니다. 엄격한 검증은 꺼져 있고 매핑은 활성 상태입니다",
     serviceClearFailed: "서비스 유형 지정 해제 실패",
     scheduleAvailability: "활성화 또는 비활성화 예약",
     scheduleOpen: "예약 개방 중 {window}",

@@ -122,6 +122,35 @@ async fn boot_migration_enables_gateway_wol_shortcut_once() {
 }
 
 #[tokio::test]
+async fn boot_migration_reenables_unvalidated_stream_mappings() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["stream_mappings"] = json!([
+        {"protocol": "tcp", "listen_port": 6001, "validation_mode": "off", "disabled": true},
+        {"protocol": "tcp", "listen_port": 6002, "disabled": true},
+        {"protocol": "tcp", "listen_port": 6003, "validation_mode": "strict", "disabled": true},
+        {"protocol": "tcp", "listen_port": 6004, "validation_mode": "off", "disabled": false}
+    ]);
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(applied.contains(&"unvalidated_stream_mappings_enabled"));
+    assert_eq!(config["stream_mappings"][0]["disabled"], false);
+    assert_eq!(config["stream_mappings"][1]["disabled"], false);
+    assert_eq!(config["stream_mappings"][2]["disabled"], true);
+    assert_eq!(config["stream_mappings"][3]["disabled"], false);
+
+    let persisted = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload config");
+    assert_eq!(persisted["stream_mappings"], config["stream_mappings"]);
+}
+
+#[tokio::test]
 async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
 

@@ -3228,7 +3228,8 @@ export const jaJPAdmin = {
     probe: "検出",
     probing: "検出中...",
     probeVerified: "対象サービスを検証しました",
-    probeUnverified: "対象は未検証のため、マッピングは無効のままです",
+    probeUnverified:
+      "対象サービスを識別できませんでした。厳格な検証をオフにしてマッピングを有効のまま維持します",
     probeFailed: "対象サービスの検出に失敗しました",
     probeAuthenticatedHttp:
       "HTTP を検出しましたが、上流認証によりアプリケーションプロトコルが隠されています",
@@ -3282,12 +3283,13 @@ export const jaJPAdmin = {
     clearService: "指定を解除",
     clearServiceTitle: "指定したサービスタイプを解除しますか？",
     clearServiceDescription:
-      "厳格なプロトコル検証をオフにし、マッピングを無効化します。ログイン認証とログイン不要ルールは保持されます。再検出または再指定してから使用してください。",
-    clearServiceConfirm: "解除して無効化",
+      "厳格なプロトコル検証をオフにし、マッピングは有効のまま維持します。ログイン認証とログイン不要ルールは保持されます。",
+    clearServiceConfirm: "解除して検証をオフ",
     serviceCatalogFailed: "サービスカタログを読み込めませんでした",
     serviceConfirmed: "サービスタイプを確認し、厳格な検証を有効にしました",
     serviceConfirmFailed: "想定サービスを確認できませんでした",
-    serviceCleared: "サービスタイプの指定を解除し、マッピングを無効化しました",
+    serviceCleared:
+      "サービスタイプの指定を解除しました。厳格な検証はオフで、マッピングは有効です",
     serviceClearFailed: "サービスタイプの指定を解除できませんでした",
     scheduleAvailability: "有効化または無効化を予約",
     scheduleOpen: "スケジュール公開中 {window}",

@@ -15,6 +15,11 @@ pub(super) async fn apply_boot_config_migrations(
         applied.push("runtime_health_events");
     }
 
+    if proxy_config::enable_unvalidated_stream_mappings(config) > 0 {
+        config_changed = true;
+        applied.push("unvalidated_stream_mappings_enabled");
+    }
+
     if state
         .storage
         .store

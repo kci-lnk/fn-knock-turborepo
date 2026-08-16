@@ -66,6 +66,10 @@ pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(
     normalize::validate_stream_mapping_runtime_safety_inner(config)
 }
 
+pub(crate) fn enable_unvalidated_stream_mappings(config: &mut Value) -> usize {
+    stream_security::enable_unvalidated_stream_mappings(config)
+}
+
 pub(crate) fn referenced_host_ipset_policy_ids<'a>(
     mappings: impl IntoIterator<Item = &'a Value>,
 ) -> std::collections::BTreeSet<String> {

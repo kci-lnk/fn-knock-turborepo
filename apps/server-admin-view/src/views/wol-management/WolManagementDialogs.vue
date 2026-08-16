@@ -3,6 +3,7 @@ import WOLBootstrapDialog from "./WOLBootstrapDialog.vue";
 import WOLDiscoveryDialog from "./WOLDiscoveryDialog.vue";
 import WOLPortalSettingsDialog from "./WOLPortalSettingsDialog.vue";
 import WOLRelayDialog from "./WOLRelayDialog.vue";
+import WOLShutdownDialog from "./WOLShutdownDialog.vue";
 import WOLTargetDialog from "./WOLTargetDialog.vue";
 import type { WolManagementPageController } from "./useWolManagementPage";
 
@@ -37,6 +38,13 @@ const {
   targetDialogOpen,
   targetForm,
   targetMode,
+  setShutdownDialogOpen,
+  shutdownDialogOpen,
+  shutdownDialogTarget,
+  shutdownTarget,
+  shuttingDownTargetIds,
+  testSsh,
+  testingSsh,
 } = props.controller;
 </script>
 
@@ -67,7 +75,21 @@ const {
     :saving="saving"
     :error="targetDialogError"
     :target="editingTarget"
+    :testing-ssh="testingSsh"
     @confirm="saveTarget"
+    @test-ssh="testSsh"
+  />
+  <WOLShutdownDialog
+    :open="shutdownDialogOpen"
+    :target="shutdownDialogTarget"
+    :loading="
+      Boolean(
+        shutdownDialogTarget &&
+        shuttingDownTargetIds.has(shutdownDialogTarget.id),
+      )
+    "
+    @update:open="setShutdownDialogOpen"
+    @confirm="shutdownTarget"
   />
   <WOLBootstrapDialog
     :open="bootstrapOpen"

@@ -1,22 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import {
-  CalendarClock,
-  ChevronDown,
-  FolderInput,
-  Power,
-  PowerOff,
-  Trash2,
-} from "lucide-vue-next";
+import { CalendarClock, Power, PowerOff, Trash2 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { HostMappingGroup } from "@/types";
+import SubdomainBatchGroupMenu from "./SubdomainBatchGroupMenu.vue";
 
 defineProps<{
   groups: HostMappingGroup[];
@@ -58,35 +45,11 @@ const { t } = useI18n();
     >
       {{ t("admin.subdomainProxy.clearSelection") }}
     </Button>
-    <div v-if="groups.length > 0" class="col-span-2 sm:contents">
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            size="sm"
-            variant="outline"
-            :disabled="saving"
-            class="h-10 w-full justify-center sm:h-8 sm:w-auto"
-          >
-            <FolderInput class="mr-2 h-4 w-4" />
-            {{ t("admin.subdomainProxy.moveToGroup") }}
-            <ChevronDown class="ml-2 h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem
-            v-for="group in groups"
-            :key="group.id"
-            @select="emit('move', group.id)"
-          >
-            {{ group.name }}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem @select="emit('move', null)">
-            {{ t("admin.subdomainProxy.ungrouped") }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <SubdomainBatchGroupMenu
+      :groups="groups"
+      :saving="saving"
+      @move="emit('move', $event)"
+    />
     <Button
       size="sm"
       variant="outline"
@@ -115,8 +78,12 @@ const { t } = useI18n();
       @click="emit('schedule')"
     >
       <CalendarClock class="mr-2 h-4 w-4" />
-      <span class="sm:hidden">{{ t("admin.subdomainProxy.batchSchedule") }}</span>
-      <span class="hidden sm:inline">{{ t("admin.subdomainProxy.scheduleAvailability") }}</span>
+      <span class="sm:hidden">{{
+        t("admin.subdomainProxy.batchSchedule")
+      }}</span>
+      <span class="hidden sm:inline">{{
+        t("admin.subdomainProxy.scheduleAvailability")
+      }}</span>
     </Button>
     <Button
       size="sm"

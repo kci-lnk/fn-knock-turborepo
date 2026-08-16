@@ -3,8 +3,11 @@ import { describe, it } from "node:test";
 import type {
   WOLDiscoveryPollEvent,
   WOLTarget,
+  WOLTargetSshInput,
 } from "../src/lib/api/wol";
 import {
+  canShutdownWolTarget,
+  changeWolSshAuthMethod,
   createWolLocalRelayInput,
   createWolTargetInput,
   reduceWolDiscoveryEvent,
@@ -22,6 +25,7 @@ describe("Wake-on-LAN management model", () => {
       ipAddress: null,
       enabled: true,
       integrations: undefined,
+      ssh: undefined,
     });
     assert.equal(createWolLocalRelayInput().psk, "");
   });
@@ -49,6 +53,18 @@ describe("Wake-on-LAN management model", () => {
           runtime: {},
         },
       },
+      ssh: {
+        enabled: false,
+        host: "",
+        port: 22,
+        username: "",
+        platform: "linux",
+        authMethod: "privateKey",
+        hostKeyAlgorithm: "",
+        hostKeyFingerprint: "",
+        credentialConfigured: false,
+        passphraseConfigured: false,
+      },
     } as unknown as WOLTarget;
 
     const edit = wolTargetToEditInput(target);
@@ -66,10 +82,7 @@ describe("Wake-on-LAN management model", () => {
         progress: { scanned: 0, total: 10 },
       },
     } as unknown as WOLDiscoveryPollEvent;
-    let state = reduceWolDiscoveryEvent(
-      { progress: null, result: null },
-      meta,
-    );
+    let state = reduceWolDiscoveryEvent({ progress: null, result: null }, meta);
     for (const [mac, ip] of [
       ["00:00:00:00:00:10", "192.0.2.10"],
       ["00:00:00:00:00:02", "192.0.2.2"],
@@ -102,5 +115,53 @@ describe("Wake-on-LAN management model", () => {
     assert.deepEqual([...current], ["one"]);
     assert.deepEqual([...added], ["one", "two"]);
     assert.deepEqual([...removed], ["two"]);
+  });
+
+  it("requires fresh credentials after changing SSH authentication methods", () => {
+    const ssh: WOLTargetSshInput = {
+      enabled: true,
+      host: "192.0.2.10",
+      port: 22,
+      username: "operator",
+      platform: "linux",
+      authMethod: "privateKey",
+      hostKeyAlgorithm: "ssh-ed25519",
+      hostKeyFingerprint: "SHA256:example",
+      password: "stale-password",
+      privateKey: "stale-private-key",
+      privateKeyPassphrase: "stale-passphrase",
+      clearCredential: true,
+    };
+
+    changeWolSshAuthMethod(ssh, "password");
+    assert.equal(ssh.authMethod, "password");
+    assert.equal(ssh.enabled, true);
+    assert.equal(ssh.password, "");
+    assert.equal(ssh.privateKey, "");
+    assert.equal(ssh.privateKeyPassphrase, "");
+    assert.equal(ssh.clearCredential, false);
+    assert.equal(ssh.hostKeyAlgorithm, "");
+    assert.equal(ssh.hostKeyFingerprint, "");
+  });
+
+  it("offers shutdown for complete SSH targets regardless of probe state", () => {
+    const target = {
+      enabled: true,
+      status: { state: "unknown" },
+      ssh: {
+        enabled: true,
+        host: "192.0.2.10",
+        username: "operator",
+        hostKeyAlgorithm: "ssh-ed25519",
+        hostKeyFingerprint: "SHA256:example",
+        credentialConfigured: true,
+      },
+    } as WOLTarget;
+
+    assert.equal(canShutdownWolTarget(target), true);
+    target.status.state = "offline";
+    assert.equal(canShutdownWolTarget(target), true);
+    target.ssh.hostKeyFingerprint = "";
+    assert.equal(canShutdownWolTarget(target), false);
   });
 });

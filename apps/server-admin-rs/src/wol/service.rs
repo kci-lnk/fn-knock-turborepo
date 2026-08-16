@@ -8,7 +8,7 @@ use crate::{events, state::AppState};
 
 use super::{
     dispatch::{DispatchError, dispatch, dispatch_local},
-    secrets::secret_store,
+    secrets::{SshCredentialKind, secret_store},
     status::{schedule_target_rechecks, status_view},
     store::{RelayRecord, TargetRecord, list_targets, load_relay, load_target},
 };
@@ -71,6 +71,9 @@ pub(crate) struct AuthTargetView {
     id: String,
     name: String,
     status: AuthTargetStatusView,
+    shutdown_available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ssh_host: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,6 +94,7 @@ pub(crate) async fn list_auth_targets(
         let status = status_view(state, &target.id)
             .await
             .map_err(|error| WolServiceError::internal("load Target status", error))?;
+        let shutdown_available = auth_target_shutdown_available(state, &target);
         views.push(AuthTargetView {
             id: target.id,
             name: target.name,
@@ -98,9 +102,32 @@ pub(crate) async fn list_auth_targets(
                 state: status.state,
                 checked_at: status.checked_at,
             },
+            shutdown_available,
+            ssh_host: shutdown_available.then_some(target.ssh.host),
         });
     }
     Ok(views)
+}
+
+fn auth_target_shutdown_available(state: &AppState, target: &TargetRecord) -> bool {
+    let config = &target.ssh;
+    if !config.enabled
+        || config.host.trim().is_empty()
+        || config.username.trim().is_empty()
+        || config.port == 0
+        || !matches!(config.platform.as_str(), "linux" | "macos" | "windows")
+        || !matches!(config.auth_method.as_str(), "password" | "privateKey")
+        || config.host_key_algorithm.trim().is_empty()
+        || !config.host_key_fingerprint.starts_with("SHA256:")
+    {
+        return false;
+    }
+    let kind = if config.auth_method == "password" {
+        SshCredentialKind::Password
+    } else {
+        SshCredentialKind::PrivateKey
+    };
+    secret_store(state).ssh_configured(&target.id, kind)
 }
 
 pub(crate) async fn wake_target(

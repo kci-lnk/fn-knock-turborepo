@@ -14,6 +14,9 @@ use crate::{i18n::Translator, response, state::AppState, time_utils};
 type HmacSha256 = Hmac<Sha256>;
 const MAX_SIGNED_REQUEST_BODY_BYTES: usize = 4 * 1024 * 1024;
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct VerifiedInternalRequest;
+
 fn hmac_text(translator: &Translator, key: &str) -> String {
     let translation_key = format!("server.hmac.{key}");
     match key {
@@ -111,7 +114,11 @@ pub async fn hmac_middleware(
         .set_nonce_if_not_exists(&headers.nonce, 600)
         .await
     {
-        Ok(true) => next.run(Request::from_parts(parts, Body::from(body))).await,
+        Ok(true) => {
+            let mut request = Request::from_parts(parts, Body::from(body));
+            request.extensions_mut().insert(VerifiedInternalRequest);
+            next.run(request).await
+        }
         Ok(false) => hmac_error(&state, StatusCode::UNAUTHORIZED, "nonceReused").await,
         Err(error) => {
             tracing::warn!(%error, "failed to store HMAC nonce");
@@ -403,6 +410,7 @@ mod tests {
         assert!(requires_hmac("/api/auth/session"));
         assert!(requires_hmac("/api/auth/wol/targets"));
         assert!(requires_hmac("/api/auth/wol/targets/device-1/wake"));
+        assert!(requires_hmac("/api/auth/wol/targets/device-1/shutdown"));
         assert!(requires_hmac("/api/admin/config"));
     }
 

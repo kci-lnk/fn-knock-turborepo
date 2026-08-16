@@ -192,6 +192,47 @@ export const jaJPAdmin = {
         },
       },
     },
+    ssh: {
+      title: "SSH リモートシャットダウン",
+      description:
+        "この fnKnock から端末へ直接接続します。保存前に SSH をテストしてください。テストでは認証情報を送る前に確認したホスト鍵を固定します。",
+      host: "SSH ホスト",
+      port: "SSH ポート",
+      username: "ユーザー名",
+      platform: "対象 OS",
+      authMethod: "認証方式",
+      privateKeyAuth: "OpenSSH 秘密鍵",
+      passwordAuth: "パスワード",
+      password: "SSH パスワード",
+      privateKey: "OpenSSH 秘密鍵",
+      privateKeyPassphrase: "秘密鍵のパスフレーズ",
+      optional: "任意",
+      credentialConfigured: "設定済み。空欄なら変更しません",
+      passphraseConfigured: "設定済み。空欄なら変更しません",
+      clearCredential: "SSH 認証情報を消去",
+      privateKeyCopyTitle: "{platform} で秘密鍵をコピー",
+      privateKeyCopyHint:
+        "リモートシャットダウン専用に作成した秘密鍵を使用してください。下のコマンドを実行して上欄へ貼り付けます。対象端末のホスト秘密鍵はコピーしないでください。",
+      testConnection: "SSH をテスト",
+      testRequired:
+        "先に SSH をテストしてください。成功すると保存して有効化できます。",
+      testSuccess: "SSH 接続とシャットダウン権限は正常です",
+      testSuccessDescription:
+        "端末を停止せずに {latency} ms でテストを完了しました。",
+      testFailed: "SSH テストに失敗しました",
+      shutdown: "シャットダウン",
+      shutdownTitle: "リモートシャットダウンの確認",
+      shutdownDescription: "SSH で「{target}」（{host}）を停止します。",
+      shutdownWarning:
+        "端末上の未保存データが失われる可能性があります。送信後は取り消せません。",
+      confirmShutdown: "シャットダウンを確認",
+      confirmShutdownCountdown: "シャットダウンを確認（{seconds}）",
+      shutdownAccepted: "シャットダウンを開始しました",
+      shutdownAcceptedDescription:
+        "SSH コマンドは {latency} ms で受理されました。端末状態を確認しています。",
+      shutdownUnknown: "シャットダウン結果を確認できません",
+      shutdownFailed: "リモートシャットダウンに失敗しました",
+    },
     discovery: {
       title: "オンライン LAN デバイスを検出",
       description:
@@ -3496,7 +3537,8 @@ export const jaJPAdmin = {
     batchDisableTitle: "{count} 件のサブドメインを無効にしますか？",
     batchDisableDescription: "選択したサブドメインへのプロキシを停止します。",
     batchDeleteTitle: "{count} 件のサブドメインを削除しますか？",
-    batchDeleteDescription: "選択した Host マッピングは完全に削除され、元に戻せません。",
+    batchDeleteDescription:
+      "選択した Host マッピングは完全に削除され、元に戻せません。",
     confirmBatchEnable: "{count} 件を有効化",
     confirmBatchDisable: "{count} 件を無効化",
     confirmBatchDelete: "{count} 件を削除",
@@ -3505,10 +3547,13 @@ export const jaJPAdmin = {
     batchMappingsDeleted: "{count} 件のサブドメインを削除しました",
     batchAvailabilityTitle: "{count} 件のサブドメインを予約",
     batchSchedule: "予約",
-    batchAvailabilityDescription: "選択したすべてのサブドメインに同じ毎日の時間枠を適用します。",
+    batchAvailabilityDescription:
+      "選択したすべてのサブドメインに同じ毎日の時間枠を適用します。",
     saveBatchAvailability: "スケジュールを保存",
-    batchAvailabilitySaved: "{count} 件のサブドメインのスケジュールを保存しました",
-    batchAvailabilityCleared: "{count} 件のサブドメインのスケジュールを解除しました",
+    batchAvailabilitySaved:
+      "{count} 件のサブドメインのスケジュールを保存しました",
+    batchAvailabilityCleared:
+      "{count} 件のサブドメインのスケジュールを解除しました",
     clearSelection: "選択を解除",
     selectAllMappings: "表示中のサブドメインをすべて選択",
     selectGroupMappings: "{group} のサブドメインをすべて選択",
@@ -5790,6 +5835,7 @@ export const jaJPAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "スキャナーをブロック",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新完了",
       FN_EVENT_WOL_WAKE_COMPLETED: "Wake-on-LAN 完了",
+      FN_EVENT_WOL_SHUTDOWN_COMPLETED: "SSH リモートシャットダウン完了",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "ゲートウェイのレート制限",
       FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "ゲートウェイ公開範囲によるブロック",
       FN_EVENT_WAF_BLOCKED: "WAF によるブロック",
@@ -6011,6 +6057,8 @@ export const jaJPAdmin = {
         "{ip} が通常とは異なるパスへ {count} 回アクセスしたためブロックしました",
       ddnsUpdated: "{provider} {result}: {message}",
       wolWakeCompleted: "デバイス {target} / {relay}: {result}（{latency} ms）",
+      wolShutdownCompleted:
+        "デバイス {target} / SSH ホスト {host}: {result}（{latency} ms）",
       gatewayThrottleBlocked: "{ip} に {seconds}秒間のレート制限を適用しました",
       gatewayVisibilityBlocked:
         "{ip} から {host}{path} へのアクセスを公開範囲ルールがブロックしました",

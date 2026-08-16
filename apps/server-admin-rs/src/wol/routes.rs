@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::{crypto_utils, response, state::AppState, time_utils};
 
-use super::secrets::IntegrationCredentialKind;
+use super::secrets::{IntegrationCredentialKind, SshCredentialKind};
 use super::{
     discovery::{
         DiscoveryJobError, cancel_discovery_job, get_discovery_job, local_broadcast_addresses,
@@ -29,7 +29,7 @@ use super::{
     secrets::{local_relay_secret_id, secret_store},
     store::{
         BemfaIntegrationConfig, BlinkerIntegrationConfig, LocalRelayConfig, RelayRecord,
-        TargetIntegrations, TargetRecord, delete_relay as delete_relay_record,
+        TargetIntegrations, TargetRecord, TargetSshConfig, delete_relay as delete_relay_record,
         delete_target as delete_target_record, list_relays, list_targets, load_local_relay_config,
         load_relay, load_target, save_local_relay_config, save_relay, save_target,
     },
@@ -43,6 +43,11 @@ const PAIRING_CODE_PREFIX: &str = "FNW1.";
 const MAX_PAIRING_CODE_LENGTH: usize = 1024;
 const MAX_INTEGRATION_CREDENTIAL_LENGTH: usize = 512;
 const MAX_BEMFA_TOPIC_LENGTH: usize = 64;
+const MAX_SSH_PASSWORD_LENGTH: usize = 512;
+const MAX_SSH_PRIVATE_KEY_LENGTH: usize = 64 * 1024;
+const MAX_SSH_PASSPHRASE_LENGTH: usize = 1024;
+const SSH_SHUTDOWN_COOLDOWN_SECONDS: i64 = 30;
+const SSH_SHUTDOWN_IN_FLIGHT_TTL_SECONDS: usize = 75;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,6 +75,36 @@ struct TargetBody {
     enabled: bool,
     #[serde(default)]
     integrations: Option<TargetIntegrationsBody>,
+    #[serde(default)]
+    ssh: Option<TargetSshBody>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetSshBody {
+    enabled: bool,
+    host: String,
+    #[serde(default = "default_ssh_port")]
+    port: u16,
+    username: String,
+    platform: String,
+    auth_method: String,
+    #[serde(default)]
+    host_key_algorithm: String,
+    #[serde(default)]
+    host_key_fingerprint: String,
+    #[serde(default)]
+    password: Option<String>,
+    #[serde(default)]
+    private_key: Option<String>,
+    #[serde(default)]
+    private_key_passphrase: Option<String>,
+    #[serde(default)]
+    clear_credential: bool,
+}
+
+fn default_ssh_port() -> u16 {
+    22
 }
 
 #[derive(Deserialize)]
@@ -117,6 +152,23 @@ struct ValidatedTargetIntegrations {
     config: TargetIntegrations,
     blinker_credential: Option<Vec<u8>>,
     bemfa_credential: Option<Vec<u8>>,
+}
+
+struct ValidatedTargetSsh {
+    config: TargetSshConfig,
+    password: Option<Vec<u8>>,
+    private_key: Option<Vec<u8>>,
+    private_key_passphrase: Option<Vec<u8>>,
+    clear_password: bool,
+    clear_private_key: bool,
+    clear_private_key_passphrase: bool,
+}
+
+#[derive(Clone)]
+struct SshSecretSnapshot {
+    password: Option<Vec<u8>>,
+    private_key: Option<Vec<u8>>,
+    private_key_passphrase: Option<Vec<u8>>,
 }
 
 #[derive(Deserialize)]
@@ -216,6 +268,22 @@ struct TargetView {
     relay: Option<RelaySummary>,
     status: super::status::TargetStatusView,
     integrations: TargetIntegrationsView,
+    ssh: TargetSshView,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetSshView {
+    enabled: bool,
+    host: String,
+    port: u16,
+    username: String,
+    platform: String,
+    auth_method: String,
+    host_key_algorithm: String,
+    host_key_fingerprint: String,
+    credential_configured: bool,
+    passphrase_configured: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -322,6 +390,8 @@ pub(crate) fn wol_target_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_target))
         .routes(routes!(delete_target))
         .routes(routes!(wake_target))
+        .routes(routes!(test_target_ssh))
+        .routes(routes!(shutdown_target))
 }
 
 async fn require_wol_feature(
@@ -772,6 +842,7 @@ async fn create_target_inner(
         broadcast_address,
         ip_address,
         integrations: TargetIntegrations::default(),
+        ssh: Default::default(),
         enabled: body.enabled,
         created_at: now.clone(),
         updated_at: now,
@@ -834,6 +905,7 @@ async fn update_target_inner(
     let previous_bemfa = secrets
         .read_integration(id, IntegrationCredentialKind::Bemfa)
         .map_err(WolHttpError::internal)?;
+    let previous_ssh = read_ssh_secret_snapshot(&secrets, id)?;
     let ValidatedTargetIntegrations {
         config: integrations,
         blinker_credential,
@@ -854,6 +926,7 @@ async fn update_target_inner(
         bemfa_credential.as_deref().or(previous_bemfa.as_deref()),
     )
     .await?;
+    let validated_ssh = validate_target_ssh(target.ssh.clone(), body.ssh.as_ref(), &previous_ssh)?;
     let reset_status = target.mac != mac
         || target.ip_address != ip_address
         || target.relay_id != relay_id
@@ -864,6 +937,7 @@ async fn update_target_inner(
     target.broadcast_address = broadcast_address;
     target.ip_address = ip_address;
     target.integrations = integrations;
+    target.ssh = validated_ssh.config.clone();
     target.enabled = body.enabled;
     target.updated_at = time_utils::now_iso();
     if reset_status {
@@ -907,6 +981,22 @@ async fn update_target_inner(
         );
         return Err(WolHttpError::internal(error));
     }
+    if let Err(error) = apply_ssh_secret_update(&secrets, id, &validated_ssh) {
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Blinker,
+            previous_blinker.as_deref(),
+        );
+        restore_integration_secret(
+            &secrets,
+            id,
+            IntegrationCredentialKind::Bemfa,
+            previous_bemfa.as_deref(),
+        );
+        restore_ssh_secrets(&secrets, id, &previous_ssh);
+        return Err(WolHttpError::internal(error));
+    }
     if let Err(error) = save_target(state, &target).await {
         restore_integration_secret(
             &secrets,
@@ -920,6 +1010,7 @@ async fn update_target_inner(
             IntegrationCredentialKind::Bemfa,
             previous_bemfa.as_deref(),
         );
+        restore_ssh_secrets(&secrets, id, &previous_ssh);
         return Err(internal_error("save Target", error));
     }
     super::integrations::remove_runtime(state, id).await;
@@ -946,6 +1037,10 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
                     Ok(value) => value,
                     Err(error) => return WolHttpError::internal(error).into_response(),
                 };
+            let previous_ssh = match read_ssh_secret_snapshot(&secrets, &id) {
+                Ok(value) => value,
+                Err(error) => return error.into_response(),
+            };
             if let Err(error) = secrets.delete_integration(&id, IntegrationCredentialKind::Blinker)
             {
                 return WolHttpError::internal(error).into_response();
@@ -958,6 +1053,28 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
                     previous_blinker.as_deref(),
                 );
                 return WolHttpError::internal(error).into_response();
+            }
+            for kind in [
+                SshCredentialKind::Password,
+                SshCredentialKind::PrivateKey,
+                SshCredentialKind::PrivateKeyPassphrase,
+            ] {
+                if let Err(error) = secrets.delete_ssh(&id, kind) {
+                    restore_integration_secret(
+                        &secrets,
+                        &id,
+                        IntegrationCredentialKind::Blinker,
+                        previous_blinker.as_deref(),
+                    );
+                    restore_integration_secret(
+                        &secrets,
+                        &id,
+                        IntegrationCredentialKind::Bemfa,
+                        previous_bemfa.as_deref(),
+                    );
+                    restore_ssh_secrets(&secrets, &id, &previous_ssh);
+                    return WolHttpError::internal(error).into_response();
+                }
             }
             match delete_target_record(&state, &id).await {
                 Ok(()) => {
@@ -978,6 +1095,7 @@ async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) ->
                         IntegrationCredentialKind::Bemfa,
                         previous_bemfa.as_deref(),
                     );
+                    restore_ssh_secrets(&secrets, &id, &previous_ssh);
                     internal_error("delete Target", error).into_response()
                 }
             }
@@ -999,6 +1117,219 @@ async fn wake_target_inner(state: &AppState, id: &str) -> Result<Value, WolHttpE
     super::service::wake_target(state, id, super::service::WakeSource::Admin)
         .await
         .map_err(|error| WolHttpError::new(error.status, error.message))
+}
+
+#[utoipa::path(post, path = "/api/admin/wol/targets/{id}/ssh/test", tag = "wol", operation_id = "post_api_admin_wol_targets_by_id_ssh_test", request_body = serde_json::Value, params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "SSH connection test result")))]
+async fn test_target_ssh(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    body: Result<Json<TargetSshBody>, JsonRejection>,
+) -> Response {
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return WolHttpError::bad_request("SSH test request is invalid").into_response(),
+    };
+    let target = match load_target(&state, &id).await {
+        Ok(Some(target)) => target,
+        Ok(None) => return WolHttpError::not_found("Target").into_response(),
+        Err(error) => return internal_error("load Target", error).into_response(),
+    };
+    let secrets = secret_store(&state);
+    let previous = match read_ssh_secret_snapshot(&secrets, &id) {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    let mut test_body = body.clone();
+    test_body.enabled = false;
+    test_body.host_key_algorithm.clear();
+    test_body.host_key_fingerprint.clear();
+    let mut validated = match validate_target_ssh(target.ssh, Some(&test_body), &previous) {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    let credentials = match effective_ssh_credentials(&validated, &previous) {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    let _permit = match state.wol.ssh_concurrency.acquire().await {
+        Ok(permit) => permit,
+        Err(_) => return WolHttpError::internal("SSH runtime is unavailable").into_response(),
+    };
+    let observed =
+        match super::ssh::probe_host_key(&validated.config.host, validated.config.port).await {
+            Ok(observed) => observed,
+            Err(error) => return ssh_http_error(error).into_response(),
+        };
+    validated.config.host_key_algorithm = observed.algorithm.clone();
+    validated.config.host_key_fingerprint = observed.fingerprint.clone();
+    if let Err(error) = validate_saved_ssh_config(&validated.config) {
+        return error.into_response();
+    }
+    match super::ssh::test_connection(&validated.config, credentials, observed.endpoint).await {
+        Ok(result) if result.privilege_ready => response::ok(json!({
+            "authenticated": result.authenticated,
+            "privilegeReady": result.privilege_ready,
+            "latencyMs": result.latency_ms,
+            "hostKeyAlgorithm": observed.algorithm,
+            "hostKeyFingerprint": observed.fingerprint,
+        }))
+        .into_response(),
+        Ok(_) => WolHttpError::conflict("SSH user lacks non-interactive shutdown privileges")
+            .into_response(),
+        Err(error) => ssh_http_error(error).into_response(),
+    }
+}
+
+#[utoipa::path(post, path = "/api/admin/wol/targets/{id}/shutdown", tag = "wol", operation_id = "post_api_admin_wol_targets_by_id_shutdown", params(("id" = String, Path, description = "Target identifier")), responses((status = 200, description = "SSH shutdown dispatch result")))]
+async fn shutdown_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    match shutdown_target_inner(&state, &id).await {
+        Ok(value) => response::ok(value).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
+
+async fn shutdown_target_inner(state: &AppState, id: &str) -> Result<Value, WolHttpError> {
+    let target = load_target(state, id)
+        .await
+        .map_err(|error| internal_error("load Target", error))?
+        .ok_or_else(|| WolHttpError::not_found("Target"))?;
+    if !target.enabled {
+        return Err(WolHttpError::conflict("Target is disabled"));
+    }
+    if !target.ssh.enabled {
+        return Err(WolHttpError::conflict("SSH remote shutdown is disabled"));
+    }
+    validate_saved_ssh_config(&target.ssh)?;
+    let snapshot = read_ssh_secret_snapshot(&secret_store(state), id)?;
+    let credentials = saved_ssh_credentials(&target.ssh, &snapshot)?;
+    let _permit = state
+        .wol
+        .ssh_concurrency
+        .acquire()
+        .await
+        .map_err(|_| WolHttpError::internal("SSH runtime is unavailable"))?;
+    let cooldown_key = shutdown_cooldown_key(id);
+    let acquired = acquire_shutdown_cooldown(state, &cooldown_key).await?;
+    if !acquired {
+        return Err(WolHttpError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Target shutdown was requested recently; wait before retrying",
+        ));
+    }
+    let started_at = time_utils::now_iso();
+    match super::ssh::shutdown(&target.ssh, credentials).await {
+        Ok(result) => {
+            retain_shutdown_cooldown(state, &cooldown_key, id).await;
+            super::status::schedule_target_shutdown_rechecks(state.clone(), id.to_string());
+            publish_shutdown_event(state, &target, true, result.status, result.latency_ms).await;
+            Ok(json!({
+                "targetId": target.id,
+                "status": result.status,
+                "platform": result.platform,
+                "latencyMs": result.latency_ms,
+                "requestedAt": started_at,
+            }))
+        }
+        Err(super::ssh::SshError::CommandUnknown) => {
+            retain_shutdown_cooldown(state, &cooldown_key, id).await;
+            super::status::schedule_target_shutdown_rechecks(state.clone(), id.to_string());
+            publish_shutdown_event(state, &target, false, "unknown", 0).await;
+            Err(WolHttpError::new(
+                StatusCode::GATEWAY_TIMEOUT,
+                "SSH shutdown command result is unknown",
+            ))
+        }
+        Err(error) => {
+            let _ = state.storage.store.delete_key(&cooldown_key).await;
+            publish_shutdown_event(state, &target, false, "failed", 0).await;
+            Err(ssh_http_error(error))
+        }
+    }
+}
+
+pub(crate) async fn shutdown_target_for_portal(
+    state: &AppState,
+    id: &str,
+) -> Result<Value, super::service::WolServiceError> {
+    shutdown_target_inner(state, id)
+        .await
+        .map_err(|error| super::service::WolServiceError {
+            status: error.status,
+            message: error.message,
+        })
+}
+
+fn shutdown_cooldown_key(id: &str) -> String {
+    format!("fn_knock:wol:runtime:shutdown-cooldown:{id}")
+}
+
+async fn acquire_shutdown_cooldown(state: &AppState, key: &str) -> Result<bool, WolHttpError> {
+    state
+        .storage
+        .store
+        .set_key_if_not_exists_with_ttl(key, "1", SSH_SHUTDOWN_IN_FLIGHT_TTL_SECONDS)
+        .await
+        .map_err(|error| internal_error("acquire shutdown cooldown", error))
+}
+
+async fn retain_shutdown_cooldown(state: &AppState, key: &str, target_id: &str) {
+    if state
+        .storage
+        .store
+        .set_string_value_with_optional_ttl(key, "1", Some(SSH_SHUTDOWN_COOLDOWN_SECONDS))
+        .await
+        .is_err()
+    {
+        // The longer in-flight TTL remains as the fail-safe if this refresh
+        // cannot be persisted after a possibly successful shutdown command.
+        tracing::warn!(
+            target_id,
+            stage = "cooldown",
+            error_category = "storage",
+            "failed to refresh SSH shutdown cooldown"
+        );
+    }
+}
+
+async fn publish_shutdown_event(
+    state: &AppState,
+    target: &TargetRecord,
+    success: bool,
+    status: &str,
+    latency_ms: u64,
+) {
+    let payload = json!({
+        "success": success,
+        "status": status,
+        "target_id": target.id,
+        "target_name": target.name,
+        "host": target.ssh.host,
+        "platform": target.ssh.platform,
+        "latency_ms": latency_ms,
+    });
+    if let Err(error) =
+        crate::events::publish_wol_shutdown_completed_event(state, &target.id, payload).await
+    {
+        tracing::warn!(%error, target_id = %target.id, "failed to publish WoL shutdown event");
+    }
+}
+
+fn ssh_http_error(error: super::ssh::SshError) -> WolHttpError {
+    match error {
+        super::ssh::SshError::InvalidEndpoint
+        | super::ssh::SshError::ProtectedAddress
+        | super::ssh::SshError::HostKeyUnavailable
+        | super::ssh::SshError::InvalidCredential => WolHttpError::bad_request(error.to_string()),
+        super::ssh::SshError::HostKeyMismatch => WolHttpError::conflict(error.to_string()),
+        super::ssh::SshError::CommandUnknown => {
+            WolHttpError::new(StatusCode::GATEWAY_TIMEOUT, error.to_string())
+        }
+        super::ssh::SshError::AuthenticationFailed
+        | super::ssh::SshError::ConnectionFailed
+        | super::ssh::SshError::CommandFailed => {
+            WolHttpError::new(StatusCode::BAD_GATEWAY, error.to_string())
+        }
+    }
 }
 
 async fn dispatch_for_relay(
@@ -1050,7 +1381,14 @@ async fn target_views(state: &AppState) -> Result<Vec<TargetView>, WolHttpError>
             .await
             .map_err(|error| internal_error("load Target status", error))?;
         let integrations = target_integrations_view(state, &target).await;
-        views.push(target_view_with_relay(target, relay, status, integrations));
+        let ssh = target_ssh_view(state, &target);
+        views.push(target_view_with_relay(
+            target,
+            relay,
+            status,
+            integrations,
+            ssh,
+        ));
     }
     Ok(views)
 }
@@ -1070,7 +1408,14 @@ async fn target_view(state: &AppState, target: TargetRecord) -> Result<TargetVie
         .await
         .map_err(|error| internal_error("load Target status", error))?;
     let integrations = target_integrations_view(state, &target).await;
-    Ok(target_view_with_relay(target, relay, status, integrations))
+    let ssh = target_ssh_view(state, &target);
+    Ok(target_view_with_relay(
+        target,
+        relay,
+        status,
+        integrations,
+        ssh,
+    ))
 }
 
 fn relay_view(state: &AppState, relay: RelayRecord) -> RelayView {
@@ -1103,6 +1448,7 @@ fn target_view_with_relay(
     relay: Option<RelaySummary>,
     status: super::status::TargetStatusView,
     integrations: TargetIntegrationsView,
+    ssh: TargetSshView,
 ) -> TargetView {
     let delivery_mode = if target.relay_id.is_some() {
         "relay"
@@ -1123,6 +1469,28 @@ fn target_view_with_relay(
         relay,
         status,
         integrations,
+        ssh,
+    }
+}
+
+fn target_ssh_view(state: &AppState, target: &TargetRecord) -> TargetSshView {
+    let secrets = secret_store(state);
+    let credential_configured = match target.ssh.auth_method.as_str() {
+        "password" => secrets.ssh_configured(&target.id, SshCredentialKind::Password),
+        _ => secrets.ssh_configured(&target.id, SshCredentialKind::PrivateKey),
+    };
+    TargetSshView {
+        enabled: target.ssh.enabled,
+        host: target.ssh.host.clone(),
+        port: target.ssh.port,
+        username: target.ssh.username.clone(),
+        platform: target.ssh.platform.clone(),
+        auth_method: target.ssh.auth_method.clone(),
+        host_key_algorithm: target.ssh.host_key_algorithm.clone(),
+        host_key_fingerprint: target.ssh.host_key_fingerprint.clone(),
+        credential_configured,
+        passphrase_configured: secrets
+            .ssh_configured(&target.id, SshCredentialKind::PrivateKeyPassphrase),
     }
 }
 
@@ -1288,6 +1656,333 @@ fn normalize_integration_credential(
         )));
     }
     Ok(Some(value.as_bytes().to_vec()))
+}
+
+fn validate_target_ssh(
+    current: TargetSshConfig,
+    body: Option<&TargetSshBody>,
+    existing: &SshSecretSnapshot,
+) -> Result<ValidatedTargetSsh, WolHttpError> {
+    let Some(body) = body else {
+        return Ok(ValidatedTargetSsh {
+            config: current,
+            password: None,
+            private_key: None,
+            private_key_passphrase: None,
+            clear_password: false,
+            clear_private_key: false,
+            clear_private_key_passphrase: false,
+        });
+    };
+    let host = body.host.trim();
+    let username = body.username.trim();
+    let algorithm = body.host_key_algorithm.trim();
+    let fingerprint = body.host_key_fingerprint.trim();
+    if host.len() > 253 || host.chars().any(char::is_control) {
+        return Err(WolHttpError::bad_request("SSH host is invalid"));
+    }
+    if body.port == 0 {
+        return Err(WolHttpError::bad_request("SSH port is invalid"));
+    }
+    if username.len() > 64
+        || username.chars().any(char::is_control)
+        || username.chars().any(char::is_whitespace)
+    {
+        return Err(WolHttpError::bad_request("SSH username is invalid"));
+    }
+    if !matches!(body.platform.as_str(), "linux" | "macos" | "windows") {
+        return Err(WolHttpError::bad_request("SSH platform is invalid"));
+    }
+    if !matches!(body.auth_method.as_str(), "password" | "privateKey") {
+        return Err(WolHttpError::bad_request(
+            "SSH authentication method is invalid",
+        ));
+    }
+    if algorithm.len() > 64
+        || algorithm
+            .bytes()
+            .any(|byte| !(byte.is_ascii_alphanumeric() || b"@._-".contains(&byte)))
+    {
+        return Err(WolHttpError::bad_request(
+            "SSH host key algorithm is invalid",
+        ));
+    }
+    if !fingerprint.is_empty()
+        && (fingerprint.len() > 128
+            || !fingerprint.starts_with("SHA256:")
+            || fingerprint[7..]
+                .bytes()
+                .any(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))))
+    {
+        return Err(WolHttpError::bad_request(
+            "SSH host key fingerprint is invalid",
+        ));
+    }
+    let password = normalize_ssh_secret(
+        body.password.as_deref(),
+        MAX_SSH_PASSWORD_LENGTH,
+        "SSH password",
+        false,
+    )?;
+    let private_key = normalize_ssh_secret(
+        body.private_key.as_deref(),
+        MAX_SSH_PRIVATE_KEY_LENGTH,
+        "SSH private key",
+        true,
+    )?;
+    let private_key_passphrase = normalize_ssh_secret(
+        body.private_key_passphrase.as_deref(),
+        MAX_SSH_PASSPHRASE_LENGTH,
+        "SSH private key passphrase",
+        false,
+    )?;
+    if body.clear_credential
+        && (password.is_some() || private_key.is_some() || private_key_passphrase.is_some())
+    {
+        return Err(WolHttpError::bad_request(
+            "SSH credentials cannot be replaced and cleared together",
+        ));
+    }
+    let switched = current.auth_method != body.auth_method;
+    let mut clear_password = body.clear_credential;
+    let mut clear_private_key = body.clear_credential;
+    let mut clear_private_key_passphrase = body.clear_credential;
+    let credential_available = if body.auth_method == "password" {
+        if private_key.is_some() || private_key_passphrase.is_some() {
+            return Err(WolHttpError::bad_request(
+                "Private key fields are not valid for password authentication",
+            ));
+        }
+        clear_private_key = true;
+        clear_private_key_passphrase = true;
+        if switched && password.is_none() {
+            false
+        } else {
+            password.is_some() || (!body.clear_credential && existing.password.is_some())
+        }
+    } else {
+        if password.is_some() {
+            return Err(WolHttpError::bad_request(
+                "Password is not valid for private key authentication",
+            ));
+        }
+        clear_password = true;
+        if private_key.is_some() && private_key_passphrase.is_none() {
+            clear_private_key_passphrase = true;
+        }
+        if switched && private_key.is_none() {
+            false
+        } else {
+            private_key.is_some() || (!body.clear_credential && existing.private_key.is_some())
+        }
+    };
+    let config = TargetSshConfig {
+        enabled: body.enabled,
+        host: host.to_string(),
+        port: body.port,
+        username: username.to_string(),
+        platform: body.platform.clone(),
+        auth_method: body.auth_method.clone(),
+        host_key_algorithm: algorithm.to_string(),
+        host_key_fingerprint: fingerprint.to_string(),
+    };
+    if config.enabled {
+        validate_saved_ssh_config(&config)?;
+        if !credential_available {
+            return Err(WolHttpError::conflict(
+                "SSH credential must be supplied before enabling remote shutdown",
+            ));
+        }
+    }
+    Ok(ValidatedTargetSsh {
+        config,
+        password,
+        private_key,
+        private_key_passphrase,
+        clear_password,
+        clear_private_key,
+        clear_private_key_passphrase,
+    })
+}
+
+fn validate_saved_ssh_config(config: &TargetSshConfig) -> Result<(), WolHttpError> {
+    if config.host.trim().is_empty()
+        || config.username.trim().is_empty()
+        || config.port == 0
+        || !matches!(config.platform.as_str(), "linux" | "macos" | "windows")
+        || !matches!(config.auth_method.as_str(), "password" | "privateKey")
+        || config.host_key_algorithm.trim().is_empty()
+        || !config.host_key_fingerprint.starts_with("SHA256:")
+    {
+        return Err(WolHttpError::conflict(
+            "SSH remote shutdown configuration is incomplete",
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_ssh_secret(
+    value: Option<&str>,
+    max_length: usize,
+    field: &str,
+    multiline: bool,
+) -> Result<Option<Vec<u8>>, WolHttpError> {
+    let Some(value) = value.filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if value.len() > max_length
+        || value.chars().any(|character| {
+            character.is_control() && !(multiline && matches!(character, '\n' | '\r' | '\t'))
+        })
+    {
+        return Err(WolHttpError::bad_request(format!(
+            "{field} is invalid or too long"
+        )));
+    }
+    Ok(Some(value.as_bytes().to_vec()))
+}
+
+fn read_ssh_secret_snapshot(
+    secrets: &super::secrets::WolSecretStore,
+    target_id: &str,
+) -> Result<SshSecretSnapshot, WolHttpError> {
+    Ok(SshSecretSnapshot {
+        password: secrets
+            .read_ssh(target_id, SshCredentialKind::Password)
+            .map_err(WolHttpError::internal)?,
+        private_key: secrets
+            .read_ssh(target_id, SshCredentialKind::PrivateKey)
+            .map_err(WolHttpError::internal)?,
+        private_key_passphrase: secrets
+            .read_ssh(target_id, SshCredentialKind::PrivateKeyPassphrase)
+            .map_err(WolHttpError::internal)?,
+    })
+}
+
+fn apply_ssh_secret_update(
+    secrets: &super::secrets::WolSecretStore,
+    target_id: &str,
+    update: &ValidatedTargetSsh,
+) -> Result<(), String> {
+    apply_ssh_secret(
+        secrets,
+        target_id,
+        SshCredentialKind::Password,
+        update.password.as_deref(),
+        update.clear_password,
+    )?;
+    apply_ssh_secret(
+        secrets,
+        target_id,
+        SshCredentialKind::PrivateKey,
+        update.private_key.as_deref(),
+        update.clear_private_key,
+    )?;
+    apply_ssh_secret(
+        secrets,
+        target_id,
+        SshCredentialKind::PrivateKeyPassphrase,
+        update.private_key_passphrase.as_deref(),
+        update.clear_private_key_passphrase,
+    )
+}
+
+fn apply_ssh_secret(
+    secrets: &super::secrets::WolSecretStore,
+    target_id: &str,
+    kind: SshCredentialKind,
+    value: Option<&[u8]>,
+    clear: bool,
+) -> Result<(), String> {
+    if let Some(value) = value {
+        secrets.write_ssh(target_id, kind, value)
+    } else if clear {
+        secrets.delete_ssh(target_id, kind)
+    } else {
+        Ok(())
+    }
+}
+
+fn restore_ssh_secrets(
+    secrets: &super::secrets::WolSecretStore,
+    target_id: &str,
+    snapshot: &SshSecretSnapshot,
+) {
+    for (kind, value) in [
+        (SshCredentialKind::Password, snapshot.password.as_deref()),
+        (
+            SshCredentialKind::PrivateKey,
+            snapshot.private_key.as_deref(),
+        ),
+        (
+            SshCredentialKind::PrivateKeyPassphrase,
+            snapshot.private_key_passphrase.as_deref(),
+        ),
+    ] {
+        let result = match value {
+            Some(value) => secrets.write_ssh(target_id, kind, value),
+            None => secrets.delete_ssh(target_id, kind),
+        };
+        if let Err(error) = result {
+            tracing::error!(%error, target_id, ?kind, "failed to restore SSH credential");
+        }
+    }
+}
+
+fn effective_ssh_credentials(
+    update: &ValidatedTargetSsh,
+    previous: &SshSecretSnapshot,
+) -> Result<super::ssh::Credentials, WolHttpError> {
+    let password = update.password.as_ref().or((!update.clear_password)
+        .then_some(previous.password.as_ref())
+        .flatten());
+    let private_key = update.private_key.as_ref().or((!update.clear_private_key)
+        .then_some(previous.private_key.as_ref())
+        .flatten());
+    let passphrase = update
+        .private_key_passphrase
+        .as_ref()
+        .or((!update.clear_private_key_passphrase)
+            .then_some(previous.private_key_passphrase.as_ref())
+            .flatten());
+    credentials_from_parts(&update.config, password, private_key, passphrase)
+}
+
+fn saved_ssh_credentials(
+    config: &TargetSshConfig,
+    snapshot: &SshSecretSnapshot,
+) -> Result<super::ssh::Credentials, WolHttpError> {
+    credentials_from_parts(
+        config,
+        snapshot.password.as_ref(),
+        snapshot.private_key.as_ref(),
+        snapshot.private_key_passphrase.as_ref(),
+    )
+}
+
+fn credentials_from_parts(
+    config: &TargetSshConfig,
+    password: Option<&Vec<u8>>,
+    private_key: Option<&Vec<u8>>,
+    passphrase: Option<&Vec<u8>>,
+) -> Result<super::ssh::Credentials, WolHttpError> {
+    let decode = |value: &Vec<u8>| {
+        String::from_utf8(value.clone())
+            .map_err(|_| WolHttpError::internal("Encrypted SSH credential is invalid"))
+    };
+    if config.auth_method == "password" {
+        Ok(super::ssh::Credentials::Password(decode(
+            password.ok_or_else(|| WolHttpError::conflict("SSH password is not configured"))?,
+        )?))
+    } else {
+        Ok(super::ssh::Credentials::PrivateKey {
+            key: decode(
+                private_key
+                    .ok_or_else(|| WolHttpError::conflict("SSH private key is not configured"))?,
+            )?,
+            passphrase: passphrase.map(decode).transpose()?,
+        })
+    }
 }
 
 fn default_skip_tls_verify() -> bool {
@@ -1701,6 +2396,7 @@ mod tests {
             ip_address: Some("192.168.31.20".to_string()),
             enabled: true,
             integrations: None,
+            ssh: None,
         };
         assert_eq!(
             validate_target_body(&target).unwrap().mac,
@@ -1748,6 +2444,7 @@ mod tests {
                 ip_address: None,
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -1826,6 +2523,7 @@ mod tests {
                 ip_address: Some("192.168.50.20".to_string()),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -1841,6 +2539,7 @@ mod tests {
                 ip_address: Some("192.168.31.20".to_string()),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -1858,6 +2557,7 @@ mod tests {
                     ip_address: None,
                     enabled: true,
                     integrations: None,
+                    ssh: None,
                 },
             )
             .await
@@ -1919,6 +2619,7 @@ mod tests {
                 ip_address: target.ip_address.clone(),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -1941,6 +2642,7 @@ mod tests {
                 ip_address: Some("192.168.50.21".to_string()),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -2123,6 +2825,7 @@ mod tests {
                 ip_address: Some("192.168.31.61".to_string()),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -2150,6 +2853,7 @@ mod tests {
                     skip_tls_verify: false,
                 }),
             }),
+            ssh: None,
         };
         let updated = update_target_inner(&state, &first.id, update)
             .await
@@ -2186,6 +2890,7 @@ mod tests {
                         skip_tls_verify: true,
                     }),
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2217,6 +2922,7 @@ mod tests {
                         skip_tls_verify: false,
                     }),
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2234,6 +2940,7 @@ mod tests {
                 ip_address: Some("192.168.31.62".to_string()),
                 enabled: true,
                 integrations: None,
+                ssh: None,
             },
         )
         .await
@@ -2257,6 +2964,7 @@ mod tests {
                     }),
                     bemfa: None,
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2282,6 +2990,7 @@ mod tests {
                         skip_tls_verify: false,
                     }),
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2307,6 +3016,7 @@ mod tests {
                         skip_tls_verify: true,
                     }),
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2332,6 +3042,7 @@ mod tests {
                         skip_tls_verify: false,
                     }),
                 }),
+                ssh: None,
             },
         )
         .await
@@ -2365,5 +3076,98 @@ mod tests {
             "credential_missing"
         );
         assert_eq!(restored_view.integrations.bemfa.runtime.state, "disabled");
+    }
+
+    #[test]
+    fn ssh_authentication_switch_requires_and_isolates_new_credentials() {
+        let current = TargetSshConfig {
+            auth_method: "password".to_string(),
+            ..TargetSshConfig::default()
+        };
+        let existing = SshSecretSnapshot {
+            password: Some(b"old-password".to_vec()),
+            private_key: None,
+            private_key_passphrase: None,
+        };
+        let mut body = TargetSshBody {
+            enabled: true,
+            host: "192.0.2.20".to_string(),
+            port: 22,
+            username: "operator".to_string(),
+            platform: "linux".to_string(),
+            auth_method: "privateKey".to_string(),
+            host_key_algorithm: "ssh-ed25519".to_string(),
+            host_key_fingerprint: "SHA256:YWJjZA==".to_string(),
+            password: None,
+            private_key: None,
+            private_key_passphrase: None,
+            clear_credential: false,
+        };
+
+        let error = validate_target_ssh(current.clone(), Some(&body), &existing)
+            .err()
+            .unwrap();
+        assert_eq!(error.status, StatusCode::CONFLICT);
+
+        body.private_key = Some(
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nkey\n-----END OPENSSH PRIVATE KEY-----"
+                .to_string(),
+        );
+        body.private_key_passphrase = Some("new-passphrase".to_string());
+        let update = validate_target_ssh(current, Some(&body), &existing).unwrap();
+        assert_eq!(update.config.auth_method, "privateKey");
+        assert!(update.clear_password);
+        assert!(!update.clear_private_key);
+        assert!(!update.clear_private_key_passphrase);
+        assert!(update.private_key.is_some());
+        assert!(update.private_key_passphrase.is_some());
+    }
+
+    #[test]
+    fn disabled_ssh_configuration_can_explicitly_clear_all_credentials() {
+        let existing = SshSecretSnapshot {
+            password: Some(b"password".to_vec()),
+            private_key: Some(b"private-key".to_vec()),
+            private_key_passphrase: Some(b"passphrase".to_vec()),
+        };
+        let body = TargetSshBody {
+            enabled: false,
+            host: String::new(),
+            port: 22,
+            username: String::new(),
+            platform: "linux".to_string(),
+            auth_method: "privateKey".to_string(),
+            host_key_algorithm: String::new(),
+            host_key_fingerprint: String::new(),
+            password: None,
+            private_key: None,
+            private_key_passphrase: None,
+            clear_credential: true,
+        };
+
+        let update =
+            validate_target_ssh(TargetSshConfig::default(), Some(&body), &existing).unwrap();
+        assert!(!update.config.enabled);
+        assert!(update.clear_password);
+        assert!(update.clear_private_key);
+        assert!(update.clear_private_key_passphrase);
+    }
+
+    #[tokio::test]
+    async fn shutdown_cooldown_covers_in_flight_work_and_restarts_after_result() {
+        let (_directory, state) = test_state().await;
+        let key = shutdown_cooldown_key("target-cooldown");
+
+        assert!(acquire_shutdown_cooldown(&state, &key).await.unwrap());
+        assert!(!acquire_shutdown_cooldown(&state, &key).await.unwrap());
+        let in_flight_ttl = state.storage.store.ttl_seconds(&key).await.unwrap();
+        assert!((70..=SSH_SHUTDOWN_IN_FLIGHT_TTL_SECONDS as i64).contains(&in_flight_ttl));
+
+        retain_shutdown_cooldown(&state, &key, "target-cooldown").await;
+        let result_ttl = state.storage.store.ttl_seconds(&key).await.unwrap();
+        assert!((25..=SSH_SHUTDOWN_COOLDOWN_SECONDS).contains(&result_ttl));
+
+        state.storage.store.delete_key(&key).await.unwrap();
+        assert!(acquire_shutdown_cooldown(&state, &key).await.unwrap());
     }
 }

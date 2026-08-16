@@ -68,9 +68,61 @@ pub(super) struct TargetRecord {
     /// in the installation-bound encrypted WoL secret store.
     #[serde(default)]
     pub integrations: TargetIntegrations,
+    /// Non-secret SSH remote-shutdown settings. Authentication material is
+    /// installation-bound in the encrypted WoL secret store.
+    #[serde(default)]
+    pub ssh: TargetSshConfig,
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct TargetSshConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub host: String,
+    #[serde(default = "default_ssh_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default = "default_ssh_platform")]
+    pub platform: String,
+    #[serde(default = "default_ssh_auth_method")]
+    pub auth_method: String,
+    #[serde(default)]
+    pub host_key_algorithm: String,
+    #[serde(default)]
+    pub host_key_fingerprint: String,
+}
+
+impl Default for TargetSshConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host: String::new(),
+            port: default_ssh_port(),
+            username: String::new(),
+            platform: default_ssh_platform(),
+            auth_method: default_ssh_auth_method(),
+            host_key_algorithm: String::new(),
+            host_key_fingerprint: String::new(),
+        }
+    }
+}
+
+fn default_ssh_port() -> u16 {
+    22
+}
+
+fn default_ssh_platform() -> String {
+    "linux".to_string()
+}
+
+fn default_ssh_auth_method() -> String {
+    "privateKey".to_string()
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -374,5 +426,7 @@ mod tests {
         assert!(!target.integrations.bemfa.enabled);
         assert!(target.integrations.blinker.skip_tls_verify);
         assert!(target.integrations.bemfa.skip_tls_verify);
+        assert_eq!(target.ssh, TargetSshConfig::default());
+        assert!(!target.ssh.enabled);
     }
 }

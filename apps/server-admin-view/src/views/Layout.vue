@@ -276,10 +276,10 @@ const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
-import ConsoleApplicationBar from "./layout/ConsoleApplicationBar.vue";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";
 import {
+  ConsoleApplicationBar,
   ConfirmDangerPopover,
   LayoutLocaleDialog,
   Sheet,

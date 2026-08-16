@@ -6,12 +6,13 @@ mod relay;
 mod routes;
 mod secrets;
 pub(crate) mod service;
+mod ssh;
 mod status;
 mod store;
 
 pub(crate) use routes::{
-    wol_discovery_openapi_routes, wol_local_relay_openapi_routes, wol_relay_openapi_routes,
-    wol_routes, wol_target_openapi_routes,
+    shutdown_target_for_portal, wol_discovery_openapi_routes, wol_local_relay_openapi_routes,
+    wol_relay_openapi_routes, wol_routes, wol_target_openapi_routes,
 };
 pub(crate) use status::start_wol_tasks;
 

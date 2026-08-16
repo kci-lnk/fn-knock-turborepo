@@ -7,6 +7,7 @@ import {
   type WOLRelayInput,
   type WOLTarget,
   type WOLTargetInput,
+  type WOLTargetSshInput,
 } from "@/lib/api/wol";
 
 export const createWolRelayInput = (): WOLRelayInput => ({
@@ -24,6 +25,7 @@ export const createWolTargetInput = (name = ""): WOLTargetInput => ({
   ipAddress: null,
   enabled: true,
   integrations: undefined,
+  ssh: undefined,
 });
 
 export const createWolLocalRelayInput = (): WOLLocalRelayInput => ({
@@ -75,7 +77,46 @@ export const wolTargetToEditInput = (target: WOLTarget): WOLTargetInput => ({
       skipTlsVerify: true,
     },
   },
+  ssh: {
+    enabled: target.ssh.enabled,
+    host: target.ssh.host || target.ipAddress || "",
+    port: target.ssh.port || 22,
+    username: target.ssh.username,
+    platform: target.ssh.platform,
+    authMethod: target.ssh.authMethod,
+    hostKeyAlgorithm: target.ssh.hostKeyAlgorithm,
+    hostKeyFingerprint: target.ssh.hostKeyFingerprint,
+    password: "",
+    privateKey: "",
+    privateKeyPassphrase: "",
+    clearCredential: false,
+  },
 });
+
+export const changeWolSshAuthMethod = (
+  ssh: WOLTargetSshInput,
+  authMethod: WOLTargetSshInput["authMethod"],
+) => {
+  if (ssh.authMethod === authMethod) return;
+  ssh.authMethod = authMethod;
+  ssh.password = "";
+  ssh.privateKey = "";
+  ssh.privateKeyPassphrase = "";
+  ssh.clearCredential = false;
+  ssh.hostKeyAlgorithm = "";
+  ssh.hostKeyFingerprint = "";
+};
+
+export const canShutdownWolTarget = (target: WOLTarget) =>
+  Boolean(
+    target.enabled &&
+    target.ssh.enabled &&
+    target.ssh.host &&
+    target.ssh.username &&
+    target.ssh.hostKeyAlgorithm &&
+    target.ssh.hostKeyFingerprint &&
+    target.ssh.credentialConfigured,
+  );
 
 export const updatePendingIds = (
   current: ReadonlySet<string>,

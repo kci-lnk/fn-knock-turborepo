@@ -44,6 +44,23 @@ pub(super) enum IntegrationCredentialKind {
     Bemfa,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SshCredentialKind {
+    Password,
+    PrivateKey,
+    PrivateKeyPassphrase,
+}
+
+impl SshCredentialKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Password => "ssh-password",
+            Self::PrivateKey => "ssh-private-key",
+            Self::PrivateKeyPassphrase => "ssh-private-key-passphrase",
+        }
+    }
+}
+
 impl IntegrationCredentialKind {
     fn name(self) -> &'static str {
         match self {
@@ -73,6 +90,15 @@ impl WolSecretStore {
     ) -> Result<Option<Vec<u8>>, String> {
         let id = integration_secret_id(target_id, kind);
         self.read_with_aad(&id, &integration_secret_aad(target_id, kind))
+    }
+
+    pub(super) fn read_ssh(
+        &self,
+        target_id: &str,
+        kind: SshCredentialKind,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let id = ssh_secret_id(target_id, kind);
+        self.read_with_aad(&id, &ssh_secret_aad(target_id, kind))
     }
 
     fn read_with_aad(&self, id: &str, aad: &[u8]) -> Result<Option<Vec<u8>>, String> {
@@ -134,6 +160,16 @@ impl WolSecretStore {
         self.write_with_aad(&id, value, &integration_secret_aad(target_id, kind))
     }
 
+    pub(super) fn write_ssh(
+        &self,
+        target_id: &str,
+        kind: SshCredentialKind,
+        value: &[u8],
+    ) -> Result<(), String> {
+        let id = ssh_secret_id(target_id, kind);
+        self.write_with_aad(&id, value, &ssh_secret_aad(target_id, kind))
+    }
+
     fn write_with_aad(&self, id: &str, value: &[u8], aad: &[u8]) -> Result<(), String> {
         validate_secret_id(id)?;
         self.ensure_layout()?;
@@ -161,12 +197,24 @@ impl WolSecretStore {
         self.configured(&integration_secret_id(target_id, kind))
     }
 
+    pub(super) fn ssh_configured(&self, target_id: &str, kind: SshCredentialKind) -> bool {
+        self.configured(&ssh_secret_id(target_id, kind))
+    }
+
     pub(super) fn delete_integration(
         &self,
         target_id: &str,
         kind: IntegrationCredentialKind,
     ) -> Result<(), String> {
         self.delete(&integration_secret_id(target_id, kind))
+    }
+
+    pub(super) fn delete_ssh(
+        &self,
+        target_id: &str,
+        kind: SshCredentialKind,
+    ) -> Result<(), String> {
+        self.delete(&ssh_secret_id(target_id, kind))
     }
 
     pub(super) fn delete(&self, relay_id: &str) -> Result<(), String> {
@@ -254,6 +302,18 @@ fn integration_secret_id(target_id: &str, kind: IntegrationCredentialKind) -> St
 fn integration_secret_aad(target_id: &str, kind: IntegrationCredentialKind) -> Vec<u8> {
     format!(
         "fn-knock:wol:integration:{}:target:{target_id}:credential:v1",
+        kind.name()
+    )
+    .into_bytes()
+}
+
+fn ssh_secret_id(target_id: &str, kind: SshCredentialKind) -> String {
+    format!("{}-{target_id}", kind.name())
+}
+
+fn ssh_secret_aad(target_id: &str, kind: SshCredentialKind) -> Vec<u8> {
+    format!(
+        "fn-knock:wol:ssh:{}:target:{target_id}:credential:v1",
         kind.name()
     )
     .into_bytes()
@@ -359,6 +419,60 @@ mod tests {
         store.clear_all().unwrap();
         assert!(!store.configured("relay-a"));
         assert!(store.read("relay-a", 1).unwrap().is_none());
+    }
+
+    #[test]
+    fn encrypts_and_separates_ssh_credentials() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = WolSecretStore::new(directory.path());
+        store
+            .write_ssh("target-a", SshCredentialKind::Password, b"secret")
+            .unwrap();
+        assert_eq!(
+            store
+                .read_ssh("target-a", SshCredentialKind::Password)
+                .unwrap()
+                .unwrap(),
+            b"secret"
+        );
+        assert!(
+            store
+                .read_ssh("target-a", SshCredentialKind::PrivateKey)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .read_ssh("target-b", SshCredentialKind::Password)
+                .unwrap()
+                .is_none()
+        );
+        let raw = fs::read_to_string(
+            store.secret_path(&ssh_secret_id("target-a", SshCredentialKind::Password)),
+        )
+        .unwrap();
+        assert!(!raw.contains("secret"));
+
+        fs::copy(
+            store.secret_path(&ssh_secret_id("target-a", SshCredentialKind::Password)),
+            store.secret_path(&ssh_secret_id("target-a", SshCredentialKind::PrivateKey)),
+        )
+        .unwrap();
+        assert!(
+            store
+                .read_ssh("target-a", SshCredentialKind::PrivateKey)
+                .is_err()
+        );
+        fs::copy(
+            store.secret_path(&ssh_secret_id("target-a", SshCredentialKind::Password)),
+            store.secret_path(&ssh_secret_id("target-b", SshCredentialKind::Password)),
+        )
+        .unwrap();
+        assert!(
+            store
+                .read_ssh("target-b", SshCredentialKind::Password)
+                .is_err()
+        );
     }
 
     #[test]

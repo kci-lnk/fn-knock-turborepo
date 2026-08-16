@@ -1,11 +1,7 @@
 import { reactive, ref, watch, type Ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import {
-  WOLAPI,
-  type WOLTarget,
-  type WOLTargetInput,
-} from "@/lib/api/wol";
+import { WOLAPI, type WOLTarget, type WOLTargetInput } from "@/lib/api/wol";
 import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
 import { createRandomTargetName } from "@/lib/wolTargetName";
 import {
@@ -14,6 +10,8 @@ import {
   wolTargetToEditInput,
 } from "./wol-management-model";
 import type { WolTranslate } from "./wol-management-types";
+import { useWolTargetShutdown } from "./useWolTargetShutdown";
+import { useWolTargetSsh } from "./useWolTargetSsh";
 
 export const useWolTargetManagement = ({
   reload,
@@ -59,6 +57,15 @@ export const useWolTargetManagement = ({
     targetDialogOpen.value = true;
   };
 
+  const refreshTargetById = async (id: string, signal?: AbortSignal) => {
+    const refreshed = await WOLAPI.getTarget(id, signal);
+    const index = targets.value.findIndex((target) => target.id === id);
+    if (index >= 0) targets.value.splice(index, 1, refreshed);
+  };
+
+  const ssh = useWolTargetSsh({ editingTargetId, t, targetForm });
+  const shutdown = useWolTargetShutdown({ refreshTargetById, t });
+
   const refreshEditingTargetRuntime = async (signal: AbortSignal) => {
     const id = editingTargetId.value;
     if (!targetDialogOpen.value || targetMode.value !== "edit" || !id) return;
@@ -90,7 +97,11 @@ export const useWolTargetManagement = ({
     targetDialogError.value = "";
     try {
       if (targetMode.value === "create") {
-        const { integrations: _integrations, ...createPayload } = targetForm;
+        const {
+          integrations: _integrations,
+          ssh: _ssh,
+          ...createPayload
+        } = targetForm;
         await WOLAPI.createTarget({ ...createPayload });
         toast.success(t("admin.wol.targetCreated"));
       } else {
@@ -142,6 +153,11 @@ export const useWolTargetManagement = ({
     }
   };
 
+  const stop = () => {
+    targetRuntimePoller.stop();
+    shutdown.stopShutdownRefreshes();
+  };
+
   const deleteTarget = async (target: WOLTarget) => {
     setPending(target.id, true, true);
     try {
@@ -163,15 +179,23 @@ export const useWolTargetManagement = ({
     editingTargetId,
     openCreateTarget,
     openEditTarget,
+    openShutdownDialog: shutdown.openShutdownDialog,
     saveTarget,
     savingTarget,
     startPolling: targetRuntimePoller.start,
-    stopPolling: targetRuntimePoller.stop,
+    stopPolling: stop,
+    setShutdownDialogOpen: shutdown.setShutdownDialogOpen,
+    shutdownDialogOpen: shutdown.shutdownDialogOpen,
+    shutdownDialogTarget: shutdown.shutdownDialogTarget,
+    shutdownTarget: shutdown.shutdownTarget,
+    shuttingDownTargetIds: shutdown.shuttingDownTargetIds,
     targetDialogError,
     targetDialogOpen,
     targetForm,
     targetMode,
     wakeTarget,
     wakingTargetIds,
+    testSsh: ssh.testSsh,
+    testingSsh: ssh.testingSsh,
   };
 };

@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header},
     response::{IntoResponse, Response},
     routing::{get, head, post},
@@ -177,6 +177,7 @@ pub fn auth_api_routes() -> Router<AppState> {
         .route("/verify", get(verify))
         .route("/wol/targets", get(wol::targets))
         .route("/wol/targets/{id}/wake", post(wol::wake))
+        .route("/wol/targets/{id}/shutdown", post(wol::shutdown))
         .route("/oidc/providers", get(oidc_providers))
         .route("/oidc/client-metadata", get(oidc_client_metadata))
         .route("/oidc/invite", get(oidc_invite))

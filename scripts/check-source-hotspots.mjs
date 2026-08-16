@@ -287,6 +287,10 @@ const budgets = [
     maxLines: 100,
   },
   {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainBatchGroupMenu.vue",
+    maxLines: 80,
+  },
+  {
     path: "apps/server-admin-view/src/views/subdomain-proxy/SubdomainMappingTitleCell.vue",
     maxLines: 180,
   },
@@ -385,6 +389,10 @@ const budgets = [
   {
     path: "apps/server-admin-view/src/views/wol-management/WolTargetsTab.vue",
     maxLines: 240,
+  },
+  {
+    path: "apps/server-admin-view/src/views/wol-management/WolTargetTechnicalDetails.vue",
+    maxLines: 90,
   },
   {
     path: "apps/server-admin-view/src/views/wol-management/WolRelaysTab.vue",
@@ -925,6 +933,10 @@ const budgets = [
   {
     path: "apps/server-admin-view/src/views/subdomain-proxy/useSubdomainProxyPage.ts",
     maxLines: 720,
+  },
+  {
+    path: "apps/server-admin-view/src/views/subdomain-proxy/useSubdomainProxyLifecycle.ts",
+    maxLines: 90,
   },
   {
     path: "apps/server-admin-view/src/views/WebTerminal.vue",

@@ -595,6 +595,10 @@ struct BackupImportResultData {
     WolBlinkerIntegrationInputData,
     WolBemfaIntegrationInputData,
     WolTargetIntegrationsInputData,
+    WolTargetSshInputData,
+    WolTargetSshData,
+    WolSshConnectionTestData,
+    WolShutdownData,
     WolTargetInputData,
     WolTargetData,
     WolTargetListData,
@@ -1456,6 +1460,9 @@ pub(super) fn components() -> Map<String, Value> {
         ("WolLocalRelayPairBodyData", "pairingCode"),
         ("WolBlinkerIntegrationInputData", "deviceKey"),
         ("WolBemfaIntegrationInputData", "privateKey"),
+        ("WolTargetSshInputData", "password"),
+        ("WolTargetSshInputData", "privateKey"),
+        ("WolTargetSshInputData", "privateKeyPassphrase"),
     ] {
         set_property_metadata(&mut schemas, schema, property, "writeOnly", json!(true));
     }
@@ -1477,6 +1484,21 @@ pub(super) fn components() -> Map<String, Value> {
         "deliveryMode",
         &["local", "relay"],
     );
+    for schema in ["WolTargetSshInputData", "WolTargetSshData"] {
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "platform",
+            &["linux", "macos", "windows"],
+        );
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "authMethod",
+            &["password", "privateKey"],
+        );
+    }
+    set_property_enum(&mut schemas, "WolShutdownData", "status", &["accepted"]);
     set_property_enum(
         &mut schemas,
         "WolTargetStatusData",

@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import { useConfigStore } from "../../store/config";
@@ -39,6 +39,7 @@ import { useGatewayVisibilityStatus } from "./useGatewayVisibilityStatus";
 import { useSubdomainMappingGroups } from "./useSubdomainMappingGroups";
 import { useActiveDeepMonitors } from "./useActiveDeepMonitors";
 import { useSubdomainNavigation } from "./useSubdomainNavigation";
+import { useSubdomainProxyLifecycle } from "./useSubdomainProxyLifecycle";
 
 export const useSubdomainProxyPage = () => {
   const configStore = useConfigStore();
@@ -121,11 +122,14 @@ export const useSubdomainProxyPage = () => {
       7997,
   );
   const isAuthServiceTarget = (target: string): boolean =>
-    isHttpTargetUrl(target) && parseTargetPort(target) === authServicePort.value;
+    isHttpTargetUrl(target) &&
+    parseTargetPort(target) === authServicePort.value;
   const savedEdgeClientIpProviderLabel = computed(() =>
     savedEdgeClientIpProvider.value
       ? t("admin.subdomainProxy.edgeRealIpSummary", {
-          provider: getEdgeClientIpProviderLabel(savedEdgeClientIpProvider.value),
+          provider: getEdgeClientIpProviderLabel(
+            savedEdgeClientIpProvider.value,
+          ),
         })
       : "",
   );
@@ -463,7 +467,8 @@ export const useSubdomainProxyPage = () => {
     isDefaultDomainAvailable,
     isSavingMappings,
     navigateToGatewayLocations,
-    refreshAllHostMappingTitles: () => configStore.refreshAllHostMappingTitles(),
+    refreshAllHostMappingTitles: () =>
+      configStore.refreshAllHostMappingTitles(),
     resetFaviconErrors,
     runSaveMappings,
     saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
@@ -474,52 +479,21 @@ export const useSubdomainProxyPage = () => {
     visibleMappings,
   });
 
-  watch(
+  useSubdomainProxyLifecycle({
+    clearMappingDialogKeyboardScrollTimer,
+    clearProtocolHeadersWarningCloseTimer,
     filteredMappings,
-    () => {
-      syncDraggableVisibleMappings();
-    },
-    { immediate: true },
-  );
-
-  let isDisposed = false;
-
-  onMounted(async () => {
-    startAvailabilityClock();
-
-    window.visualViewport?.addEventListener(
-      "resize",
-      handleMappingDialogViewportResize,
-    );
-    window.visualViewport?.addEventListener(
-      "scroll",
-      handleMappingDialogViewportResize,
-    );
-    if (!configStore.config) {
-      await configStore.loadConfig();
-    }
-    if (isDisposed) return;
-
-    void loadGlobalVisibilityStatus();
-    void loadAccessEntryPort();
-    startTrafficRealtimePolling();
-  });
-
-  onUnmounted(() => {
-    isDisposed = true;
-    stopAvailabilityClock();
-    window.visualViewport?.removeEventListener(
-      "resize",
-      handleMappingDialogViewportResize,
-    );
-    window.visualViewport?.removeEventListener(
-      "scroll",
-      handleMappingDialogViewportResize,
-    );
-    clearMappingDialogKeyboardScrollTimer();
-    clearProtocolHeadersWarningCloseTimer();
-    stopTrafficRealtimePolling();
-    stopDiscoverScan();
+    handleMappingDialogViewportResize,
+    isConfigLoaded: () => Boolean(configStore.config),
+    loadAccessEntryPort,
+    loadConfig: () => configStore.loadConfig(),
+    loadGlobalVisibilityStatus,
+    startAvailabilityClock,
+    startTrafficRealtimePolling,
+    stopAvailabilityClock,
+    stopDiscoverScan,
+    stopTrafficRealtimePolling,
+    syncDraggableVisibleMappings,
   });
 
   function openStaleCleanupDialog() {

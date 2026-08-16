@@ -134,6 +134,21 @@ pub(super) fn schedule_target_rechecks(state: AppState, target_id: String) {
     });
 }
 
+pub(super) fn schedule_target_shutdown_rechecks(state: AppState, target_id: String) {
+    let task_state = state.clone();
+    state.spawn_background("wol-target-shutdown-recheck", async move {
+        let mut elapsed = 0_u64;
+        for deadline in [5_u64, 20, 35] {
+            tokio::select! {
+                _ = task_state.shutdown.cancelled() => return,
+                _ = time::sleep(Duration::from_secs(deadline - elapsed)) => {}
+            }
+            elapsed = deadline;
+            let _ = check_target_by_id(&task_state, &target_id).await;
+        }
+    });
+}
+
 pub(super) async fn check_target_by_id(state: &AppState, id: &str) -> anyhow::Result<()> {
     if !super::feature_enabled_for_state(state).await? {
         return Ok(());
@@ -379,6 +394,7 @@ mod tests {
             broadcast_address: None,
             ip_address: Some("192.0.2.10".to_string()),
             integrations: super::super::store::TargetIntegrations::default(),
+            ssh: super::super::store::TargetSshConfig::default(),
             enabled: true,
             created_at: String::new(),
             updated_at: String::new(),

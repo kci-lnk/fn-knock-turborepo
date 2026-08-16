@@ -36,6 +36,8 @@ const auditedBudgets = new Map(
     "windows_service.rs": 1,
     "wol/dispatch.rs": 2,
     "wol/integrations.rs": 1,
+    // Test-only russh fixture; each returned handle is explicitly aborted by its test.
+    "wol/ssh.rs": 1,
   }),
 );
 

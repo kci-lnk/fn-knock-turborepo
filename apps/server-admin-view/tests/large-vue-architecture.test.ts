@@ -508,6 +508,9 @@ describe("large Vue architecture", () => {
     const subdomainControllerSource = readSource(
       "../src/views/subdomain-proxy/useSubdomainProxyPage.ts",
     );
+    const subdomainLifecycleSource = readSource(
+      "../src/views/subdomain-proxy/useSubdomainProxyLifecycle.ts",
+    );
     assert.match(reverseProxySource, /useReverseProxyPage/u);
     assert.match(reverseProxySource, /ReverseProxyMappingsCard/u);
     assert.match(reverseProxySource, /ReverseProxyDialogs/u);
@@ -527,9 +530,10 @@ describe("large Vue architecture", () => {
     assert.doesNotMatch(subdomainSource, /ConfigAPI|useAsyncAction/u);
     assert.match(subdomainControllerSource, /useSubdomainDestructiveActions/u);
     assert.match(subdomainControllerSource, /useGatewayVisibilityStatus/u);
+    assert.match(subdomainControllerSource, /useSubdomainProxyLifecycle/u);
     assert.match(subdomainControllerSource, /overview:\s*\{/u);
     assert.match(subdomainControllerSource, /dialogs:\s*\{/u);
-    assert.match(subdomainControllerSource, /if \(isDisposed\) return;/u);
+    assert.match(subdomainLifecycleSource, /if \(disposed\) return;/u);
     assert.doesNotMatch(subdomainSource, /DEFAULT_AUTH_SUBDOMAIN/u);
   });
 

@@ -184,6 +184,47 @@ export const koKRAdmin = {
         },
       },
     },
+    ssh: {
+      title: "SSH 원격 종료",
+      description:
+        "이 fnKnock에서 장치로 직접 연결합니다. 저장 전에 SSH를 테스트하세요. 테스트는 자격 증명을 보내기 전에 확인한 호스트 키를 고정합니다.",
+      host: "SSH 호스트",
+      port: "SSH 포트",
+      username: "사용자 이름",
+      platform: "대상 운영체제",
+      authMethod: "인증 방식",
+      privateKeyAuth: "OpenSSH 개인 키",
+      passwordAuth: "비밀번호",
+      password: "SSH 비밀번호",
+      privateKey: "OpenSSH 개인 키",
+      privateKeyPassphrase: "개인 키 암호",
+      optional: "선택 사항",
+      credentialConfigured: "설정됨. 비워 두면 유지됩니다",
+      passphraseConfigured: "설정됨. 비워 두면 유지됩니다",
+      clearCredential: "SSH 자격 증명 지우기",
+      privateKeyCopyTitle: "{platform}에서 개인 키 복사",
+      privateKeyCopyHint:
+        "원격 종료 전용으로 만든 개인 키를 사용하세요. 아래 명령을 실행한 뒤 위 입력란에 붙여넣으세요. 대상 장치의 호스트 개인 키는 복사하지 마세요.",
+      testConnection: "SSH 테스트",
+      testRequired:
+        "먼저 SSH를 테스트하세요. 테스트에 성공하면 원격 종료 설정을 저장하고 활성화할 수 있습니다.",
+      testSuccess: "SSH 연결 및 종료 권한이 정상입니다",
+      testSuccessDescription:
+        "장치를 종료하지 않고 {latency}ms 안에 테스트를 완료했습니다.",
+      testFailed: "SSH 테스트 실패",
+      shutdown: "종료",
+      shutdownTitle: "원격 종료 확인",
+      shutdownDescription: "SSH로 ‘{target}’({host}) 장치를 종료합니다.",
+      shutdownWarning:
+        "장치에서 저장하지 않은 작업이 손실될 수 있으며 전송 후에는 취소할 수 없습니다.",
+      confirmShutdown: "종료 확인",
+      confirmShutdownCountdown: "종료 확인({seconds})",
+      shutdownAccepted: "종료를 시작했습니다",
+      shutdownAcceptedDescription:
+        "SSH 명령이 {latency}ms 안에 수락되었습니다. 장치 상태를 확인 중입니다.",
+      shutdownUnknown: "종료 결과를 확인할 수 없습니다",
+      shutdownFailed: "원격 종료 실패",
+    },
     discovery: {
       title: "온라인 LAN 장치 검색",
       description:
@@ -3470,7 +3511,8 @@ export const koKRAdmin = {
     batchDisableTitle: "서브도메인 {count}개를 비활성화할까요?",
     batchDisableDescription: "선택한 서브도메인의 프록시 요청이 중지됩니다.",
     batchDeleteTitle: "서브도메인 {count}개를 삭제할까요?",
-    batchDeleteDescription: "선택한 Host 매핑이 영구 삭제되며 되돌릴 수 없습니다.",
+    batchDeleteDescription:
+      "선택한 Host 매핑이 영구 삭제되며 되돌릴 수 없습니다.",
     confirmBatchEnable: "{count}개 활성화",
     confirmBatchDisable: "{count}개 비활성화",
     confirmBatchDelete: "{count}개 삭제",
@@ -3479,7 +3521,8 @@ export const koKRAdmin = {
     batchMappingsDeleted: "서브도메인 {count}개를 삭제했습니다",
     batchAvailabilityTitle: "서브도메인 {count}개 예약",
     batchSchedule: "예약",
-    batchAvailabilityDescription: "선택한 모든 서브도메인에 같은 일일 시간 창을 적용합니다.",
+    batchAvailabilityDescription:
+      "선택한 모든 서브도메인에 같은 일일 시간 창을 적용합니다.",
     saveBatchAvailability: "예약 저장",
     batchAvailabilitySaved: "서브도메인 {count}개의 예약을 저장했습니다",
     batchAvailabilityCleared: "서브도메인 {count}개의 예약을 해제했습니다",
@@ -5747,6 +5790,7 @@ export const koKRAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "스캐너 차단",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 업데이트",
       FN_EVENT_WOL_WAKE_COMPLETED: "Wake-on-LAN 완료",
+      FN_EVENT_WOL_SHUTDOWN_COMPLETED: "SSH 원격 종료 완료",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "게이트웨이 요청 제한",
       FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "게이트웨이 공개 범위 차단",
       FN_EVENT_WAF_BLOCKED: "WAF가 차단됨",
@@ -5968,6 +6012,8 @@ export const koKRAdmin = {
         "비정상 경로 접근이 {count}회 감지되어 {ip}(이)가 차단되었습니다.",
       ddnsUpdated: "{provider} {result}: {message}",
       wolWakeCompleted: "장치 {target}, Relay {relay}: {result} ({latency}ms)",
+      wolShutdownCompleted:
+        "장치 {target}, SSH 호스트 {host}: {result} ({latency}ms)",
       gatewayThrottleBlocked:
         "{ip}(이)가 요청 제한에 걸려 {seconds}초 동안 차단되었습니다.",
       gatewayVisibilityBlocked:

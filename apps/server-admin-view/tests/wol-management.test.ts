@@ -119,9 +119,7 @@ describe("Wake-on-LAN management", () => {
   });
 
   it("keeps wake/probe feedback scoped and treats acknowledgement timeout as unknown", () => {
-    const targets = readSource(
-      "../src/views/wol-management/WolTargetsTab.vue",
-    );
+    const targets = readSource("../src/views/wol-management/WolTargetsTab.vue");
     const targetManagement = readSource(
       "../src/views/wol-management/useWolTargetManagement.ts",
     );
@@ -144,9 +142,34 @@ describe("Wake-on-LAN management", () => {
     assert.match(targets, /!target\.relay\?\.enabled/u);
   });
 
+  it("keeps wake and shutdown mutually exclusive by online state", () => {
+    const targets = readSource("../src/views/wol-management/WolTargetsTab.vue");
+    const dialog = readSource(
+      "../src/views/wol-management/WOLTargetDialog.vue",
+    );
+    const model = readSource(
+      "../src/views/wol-management/wol-management-model.ts",
+    );
+
+    assert.match(targets, /target\.status\.state === 'online'/u);
+    assert.match(targets, /v-else-if="target\.status\.state !== 'online'"/u);
+    assert.doesNotMatch(targets, /configureShutdown/u);
+    assert.match(targets, /<Power v-else/u);
+    assert.match(dialog, /v-if="ssh\.enabled"/u);
+    assert.match(dialog, /privateKeyCopyCommand/u);
+    assert.match(dialog, /admin\.wol\.ssh\.testRequired/u);
+    assert.doesNotMatch(dialog, /probe-ssh-host-key|trust-ssh-host-key/u);
+    assert.match(model, /target\.ssh\.hostKeyFingerprint/u);
+    assert.match(model, /target\.ssh\.credentialConfigured/u);
+    assert.doesNotMatch(model, /target\.status\.state/u);
+    assert.match(targets, /wakingTargetIds\.has\(target\.id\)/u);
+    assert.match(targets, /shuttingDownTargetIds\.has\(target\.id\)/u);
+  });
+
   it("prioritizes target names over technical wake details", () => {
-    const targets = readSource(
-      "../src/views/wol-management/WolTargetsTab.vue",
+    const targets = readSource("../src/views/wol-management/WolTargetsTab.vue");
+    const details = readSource(
+      "../src/views/wol-management/WolTargetTechnicalDetails.vue",
     );
     const dialogs = readSource(
       "../src/views/wol-management/WolManagementDialogs.vue",
@@ -174,19 +197,31 @@ describe("Wake-on-LAN management", () => {
       /target\.status\.state === 'online'[\s\S]*bg-emerald-500/u,
     );
     assert.match(template, /<MonitorUp v-else/u);
-    assert.match(
-      template,
-      /target\.status\.observedIp \|\| target\.ipAddress/u,
-    );
+    assert.match(details, /target\.status\.observedIp \|\| target\.ipAddress/u);
     assert.match(dialogs, /WOLPortalSettingsDialog/u);
     assert.match(portalSettings, /admin\.wol\.portal\.showShortcut/u);
   });
 
+  it("keeps mobile target details unshaded and gives power actions priority", () => {
+    const targets = readSource("../src/views/wol-management/WolTargetsTab.vue");
+    const details = readSource(
+      "../src/views/wol-management/WolTargetTechnicalDetails.vue",
+    );
+
+    assert.doesNotMatch(details, /bg-muted\/40/u);
+    assert.match(details, /grid gap-4 sm:grid-cols-2 sm:gap-6/u);
+    assert.doesNotMatch(details, /border-(?:x|y|t|b|l|r)/u);
+    assert.doesNotMatch(targets, /gap-2 border-t pt-3/u);
+    assert.match(
+      targets,
+      /order-2 grid grid-cols-\[minmax\(0,1fr\)_2\.75rem\]/u,
+    );
+    assert.match(targets, /order-1 h-11 w-full sm:order-2 sm:h-8 sm:w-auto/u);
+  });
+
   it("streams LAN discovery, generates editable names, and hides redundant wake paths", () => {
     const api = readSource("../src/lib/api/wol.ts");
-    const targets = readSource(
-      "../src/views/wol-management/WolTargetsTab.vue",
-    );
+    const targets = readSource("../src/views/wol-management/WolTargetsTab.vue");
     const discovery = readSource(
       "../src/views/wol-management/useWolDiscovery.ts",
     );
@@ -199,6 +234,9 @@ describe("Wake-on-LAN management", () => {
     );
     const discoveryDialog = readSource(
       "../src/views/wol-management/WOLDiscoveryDialog.vue",
+    );
+    const details = readSource(
+      "../src/views/wol-management/WolTargetTechnicalDetails.vue",
     );
 
     assert.match(api, /post\(\s*"\/wol\/discover\/jobs"/u);
@@ -222,10 +260,7 @@ describe("Wake-on-LAN management", () => {
       /<div v-if="relays\.length" class="space-y-2">[\s\S]*admin\.wol\.deliveryPath/u,
     );
     assert.doesNotMatch(targetDialog, /model\.note|admin\.wol\.note/u);
-    assert.match(
-      targets,
-      /v-if="relays\.length"[\s\S]*admin\.wol\.deliveryPath/u,
-    );
+    assert.match(details, /v-if="hasRelays"[\s\S]*admin\.wol\.deliveryPath/u);
     assert.match(discoveryDialog, /selectedDevices/u);
     assert.match(discoveryDialog, /existing\.has\(device\.mac\)/u);
     assert.match(discoveryDialog, /customCidrs/u);
@@ -313,13 +348,13 @@ describe("Wake-on-LAN management", () => {
     assert.equal((model.match(/skipTlsVerify: true/gu) ?? []).length, 2);
     assert.match(
       targetManagement,
-      /const \{ integrations: _integrations, \.\.\.createPayload \}/u,
+      /integrations: _integrations,[\s\S]*ssh: _ssh,[\s\S]*\.\.\.createPayload/u,
     );
     assert.match(api, /async getTarget\(id: string, signal\?: AbortSignal\)/u);
     assert.match(targetManagement, /refreshEditingTargetRuntime/u);
     assert.match(targetManagement, /createVisibilityPoller/u);
     assert.match(targetManagement, /targetRuntimePoller\.sync\(\)/u);
-    assert.match(targetManagement, /stopPolling: targetRuntimePoller\.stop/u);
+    assert.match(targetManagement, /stopPolling: stop/u);
     assert.doesNotMatch(targetManagement, /setInterval/u);
   });
 

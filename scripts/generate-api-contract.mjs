@@ -548,6 +548,11 @@ function validateContract(openapiPath) {
     ["put /api/admin/wol/targets/{id}", "WolTargetInputData"],
     ["delete /api/admin/wol/targets/{id}", null],
     ["post /api/admin/wol/targets/{id}/wake", null],
+    [
+      "post /api/admin/wol/targets/{id}/ssh/test",
+      "WolTargetSshInputData",
+    ],
+    ["post /api/admin/wol/targets/{id}/shutdown", null],
     ["get /api/admin/sessions", null],
     ["get /api/admin/sessions/{id}", null],
     ["delete /api/admin/sessions/{id}", null],
@@ -1991,6 +1996,9 @@ function validateContract(openapiPath) {
     ["WolLocalRelayPairBodyData", "pairingCode"],
     ["WolBlinkerIntegrationInputData", "deviceKey"],
     ["WolBemfaIntegrationInputData", "privateKey"],
+    ["WolTargetSshInputData", "password"],
+    ["WolTargetSshInputData", "privateKey"],
+    ["WolTargetSshInputData", "privateKeyPassphrase"],
   ]) {
     if (
       document.components?.schemas?.[schema]?.properties?.[property]

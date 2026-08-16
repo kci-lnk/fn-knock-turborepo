@@ -1277,6 +1277,28 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
     assert!(payload.pointer("/data/items/0/ipAddress").is_none());
     assert!(payload.pointer("/data/items/0/status/observedIp").is_none());
     assert!(payload.pointer("/data/items/0/status/lastError").is_none());
+    assert_eq!(
+        payload.pointer("/data/items/0/shutdownAvailable"),
+        Some(&json!(false))
+    );
+    assert!(payload.pointer("/data/items/0/sshHost").is_none());
+
+    let ip_only_request = |verified: bool| {
+        let mut request = Request::get("/api/auth/wol/targets")
+            .header("x-forwarded-for", "203.0.113.40")
+            .body(Body::empty())
+            .unwrap();
+        if verified {
+            request
+                .extensions_mut()
+                .insert(crate::auth::hmac::VerifiedInternalRequest);
+        }
+        request
+    };
+    let forged_ip = app.clone().oneshot(ip_only_request(false)).await.unwrap();
+    assert_eq!(forged_ip.status(), StatusCode::UNAUTHORIZED);
+    let allowed_by_session_ip = app.clone().oneshot(ip_only_request(true)).await.unwrap();
+    assert_eq!(allowed_by_session_ip.status(), StatusCode::OK);
 
     let target_id = payload
         .pointer("/data/items/0/id")
@@ -1292,6 +1314,17 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
         .await
         .unwrap();
     assert_eq!(anonymous_wake.status(), StatusCode::UNAUTHORIZED);
+
+    let anonymous_shutdown = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/auth/wol/targets/{target_id}/shutdown"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anonymous_shutdown.status(), StatusCode::UNAUTHORIZED);
 
     let allowed_wake = app
         .clone()
@@ -1326,6 +1359,82 @@ async fn wol_auth_api_requires_live_login_feature_portal_and_permission() {
                 .pointer(&format!("/data/{internal_field}"))
                 .is_none()
         );
+    }
+
+    let unavailable_shutdown = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/api/auth/wol/targets/{target_id}/shutdown"))
+                .header(header::COOKIE, "x-go-reauth-proxy-session-id=wol-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unavailable_shutdown.status(), StatusCode::CONFLICT);
+    let shutdown_payload = response_json(unavailable_shutdown).await;
+    assert_eq!(
+        shutdown_payload.pointer("/message"),
+        Some(&json!("Target is unavailable"))
+    );
+
+    let configure_shutdown = app
+        .clone()
+        .oneshot(
+            Request::put(format!("/api/admin/wol/targets/{target_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "name": "Visible workstation",
+                        "mac": "02:11:22:33:44:55",
+                        "relayId": null,
+                        "broadcastAddress": "127.0.0.1",
+                        "ipAddress": "127.0.0.1",
+                        "enabled": true,
+                        "ssh": {
+                            "enabled": true,
+                            "host": "127.0.0.1",
+                            "port": 22,
+                            "username": "operator",
+                            "platform": "linux",
+                            "authMethod": "password",
+                            "hostKeyAlgorithm": "ssh-ed25519",
+                            "hostKeyFingerprint": "SHA256:YWJjZA==",
+                            "password": "portal-test-secret",
+                            "clearCredential": false
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(configure_shutdown.status(), StatusCode::OK);
+
+    let configured = app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(configured.status(), StatusCode::OK);
+    let configured_payload = response_json(configured).await;
+    assert_eq!(
+        configured_payload.pointer("/data/items/0/shutdownAvailable"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        configured_payload.pointer("/data/items/0/sshHost"),
+        Some(&json!("127.0.0.1"))
+    );
+    let serialized = configured_payload.to_string();
+    for secret_field in [
+        "username",
+        "hostKeyAlgorithm",
+        "hostKeyFingerprint",
+        "credentialConfigured",
+        "password",
+        "privateKey",
+        "passphrase",
+        "portal-test-secret",
+    ] {
+        assert!(!serialized.contains(secret_field));
     }
 
     state.storage.store.delete_totp("wol-user").await.unwrap();

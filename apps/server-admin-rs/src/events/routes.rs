@@ -21,6 +21,7 @@ pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_SECURITY_SCANNER_BLOCKED",
     "FN_EVENT_DDNS_UPDATE_COMPLETED",
     "FN_EVENT_WOL_WAKE_COMPLETED",
+    "FN_EVENT_WOL_SHUTDOWN_COMPLETED",
     "FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
     "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED",
     "FN_EVENT_WAF_BLOCKED",
@@ -286,6 +287,36 @@ pub async fn publish_wol_wake_completed_event(
             dedupe_ttl_seconds: None,
             subject: Some(json!({ "kind": "RESOURCE", "id": target_id })),
             tags: Some(vec!["wol".to_string(), "network".to_string()]),
+            payload,
+        },
+    )
+    .await
+}
+
+pub async fn publish_wol_shutdown_completed_event(
+    state: &AppState,
+    target_id: &str,
+    payload: Value,
+) -> anyhow::Result<bool> {
+    let success = payload
+        .get("success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    publish_system_event_body(
+        state,
+        InternalSystemEventBody {
+            event_type: "FN_EVENT_WOL_SHUTDOWN_COMPLETED".to_string(),
+            source: "SERVER_ADMIN".to_string(),
+            level: Some(if success { "INFO" } else { "ERROR" }.to_string()),
+            happened_at: None,
+            dedupe_key: None,
+            dedupe_ttl_seconds: None,
+            subject: Some(json!({ "kind": "RESOURCE", "id": target_id })),
+            tags: Some(vec![
+                "wol".to_string(),
+                "ssh".to_string(),
+                "power".to_string(),
+            ]),
             payload,
         },
     )
@@ -1280,6 +1311,7 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         "FN_EVENT_SECURITY_SCANNER_BLOCKED" => Some("scanner_blocked"),
         "FN_EVENT_DDNS_UPDATE_COMPLETED" => Some("ddns_update"),
         "FN_EVENT_WOL_WAKE_COMPLETED" => Some("wol_wake"),
+        "FN_EVENT_WOL_SHUTDOWN_COMPLETED" => Some("wol_shutdown"),
         "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" => Some("gateway_throttle_block"),
         "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" => Some("gateway_visibility_block"),
         "FN_EVENT_WAF_BLOCKED" => Some("waf_blocked"),
@@ -1308,6 +1340,7 @@ fn default_event_level(event_type: &str) -> &'static str {
         | "FN_EVENT_AUTH_LOGOUT"
         | "FN_EVENT_DDNS_UPDATE_COMPLETED"
         | "FN_EVENT_WOL_WAKE_COMPLETED"
+        | "FN_EVENT_WOL_SHUTDOWN_COMPLETED"
         | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE"
         | "FN_EVENT_SYSTEM_CPU_RECOVERED"
         | "FN_EVENT_SYSTEM_MEMORY_RECOVERED"

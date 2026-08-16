@@ -2302,6 +2302,7 @@ export const zhHantServer = {
         securityScannerBlocked: "掃描器攔截",
         ddnsUpdateCompleted: "DDNS 更新",
         wolWakeCompleted: "遠端喚醒完成",
+        wolShutdownCompleted: "SSH 遠端關機完成",
         gatewayThrottleBlocked: "網關節流封鎖",
         gatewayVisibilityBlocked: "網關可見性攔截",
         wafBlocked: "WAF 阻斷",

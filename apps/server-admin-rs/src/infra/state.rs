@@ -7,7 +7,7 @@ use std::{collections::HashMap, future::Future, time::Duration};
 use anyhow::Context;
 use serde_json::Value;
 use tokio::{
-    sync::{Mutex, Notify, RwLock, broadcast, watch},
+    sync::{Mutex, Notify, RwLock, Semaphore, broadcast, watch},
     task::AbortHandle,
 };
 use tokio_util::sync::CancellationToken;
@@ -234,6 +234,9 @@ pub struct WolState {
     pub integration_status: RwLock<HashMap<String, Value>>,
     /// Online-state changes consumed by third-party integrations.
     pub status_updates: broadcast::Sender<Value>,
+    /// Bounds outbound SSH work so a burst of remote shutdown requests cannot
+    /// exhaust sockets or crypto workers.
+    pub ssh_concurrency: Semaphore,
 }
 
 impl Default for WolState {
@@ -252,6 +255,7 @@ impl Default for WolState {
             })),
             integration_status: RwLock::new(HashMap::new()),
             status_updates: broadcast::channel(128).0,
+            ssh_concurrency: Semaphore::new(8),
         }
     }
 }

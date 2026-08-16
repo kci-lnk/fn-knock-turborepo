@@ -2137,7 +2137,8 @@
           "runtimeHealthFailed": "组件健康检查失败",
           "runtimeRecovered": "组件已恢复",
           "runtimeAbnormalExit": "组件异常退出",
-          "wolWakeCompleted": "远程唤醒完成"
+          "wolWakeCompleted": "远程唤醒完成",
+          "wolShutdownCompleted": "SSH 远程关机完成"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -5346,7 +5347,8 @@
           "runtimeHealthFailed": "元件健康檢查失敗",
           "runtimeRecovered": "元件已恢復",
           "runtimeAbnormalExit": "元件異常結束",
-          "wolWakeCompleted": "遠端喚醒完成"
+          "wolWakeCompleted": "遠端喚醒完成",
+          "wolShutdownCompleted": "SSH 遠端關機完成"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -8555,7 +8557,8 @@
           "runtimeHealthFailed": "Component health failed",
           "runtimeRecovered": "Component recovered",
           "runtimeAbnormalExit": "Component exited abnormally",
-          "wolWakeCompleted": "Wake-on-LAN completed"
+          "wolWakeCompleted": "Wake-on-LAN completed",
+          "wolShutdownCompleted": "SSH remote shutdown completed"
         },
         "ruleName": "{event} notification",
         "levels": {
@@ -11764,7 +11767,8 @@
           "runtimeHealthFailed": "상태 검사 실패",
           "runtimeRecovered": "컴포넌트 복구",
           "runtimeAbnormalExit": "컴포넌트 비정상 종료",
-          "wolWakeCompleted": "Wake-on-LAN 완료"
+          "wolWakeCompleted": "Wake-on-LAN 완료",
+          "wolShutdownCompleted": "SSH 원격 종료 완료"
         },
         "ruleName": "{event} 알림",
         "levels": {
@@ -14973,7 +14977,8 @@
           "runtimeHealthFailed": "ヘルスチェック失敗",
           "runtimeRecovered": "コンポーネント復旧",
           "runtimeAbnormalExit": "コンポーネント異常終了",
-          "wolWakeCompleted": "Wake-on-LAN 完了"
+          "wolWakeCompleted": "Wake-on-LAN 完了",
+          "wolShutdownCompleted": "SSH リモートシャットダウン完了"
         },
         "ruleName": "{event}通知",
         "levels": {

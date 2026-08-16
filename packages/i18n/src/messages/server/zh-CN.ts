@@ -2302,6 +2302,7 @@ export const zhCNServer = {
         securityScannerBlocked: "扫描器拦截",
         ddnsUpdateCompleted: "DDNS 更新",
         wolWakeCompleted: "远程唤醒完成",
+        wolShutdownCompleted: "SSH 远程关机完成",
         gatewayThrottleBlocked: "网关节流封锁",
         gatewayVisibilityBlocked: "网关可见性拦截",
         wafBlocked: "WAF 阻断",

@@ -2569,6 +2569,7 @@ export const enServer = {
         securityScannerBlocked: "Scanner blocked",
         ddnsUpdateCompleted: "DDNS updated",
         wolWakeCompleted: "Wake-on-LAN completed",
+        wolShutdownCompleted: "SSH remote shutdown completed",
         gatewayThrottleBlocked: "Gateway throttling blocked",
         gatewayVisibilityBlocked: "Gateway visibility blocked",
         wafBlocked: "WAF blocked",

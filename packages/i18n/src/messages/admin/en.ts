@@ -190,6 +190,48 @@ export const enAdmin = {
         },
       },
     },
+    ssh: {
+      title: "SSH remote shutdown",
+      description:
+        "This fnKnock connects directly to the device. Test SSH before saving; the test pins the observed host key before sending credentials.",
+      host: "SSH host",
+      port: "SSH port",
+      username: "Username",
+      platform: "Target system",
+      authMethod: "Authentication",
+      privateKeyAuth: "OpenSSH private key",
+      passwordAuth: "Password",
+      password: "SSH password",
+      privateKey: "OpenSSH private key",
+      privateKeyPassphrase: "Private-key passphrase",
+      optional: "Optional",
+      credentialConfigured: "Configured; leave blank to keep it",
+      passphraseConfigured: "Configured; leave blank to keep it",
+      clearCredential: "Clear SSH credential",
+      privateKeyCopyTitle: "Copy the private key on {platform}",
+      privateKeyCopyHint:
+        "Use a private key created only for remote shutdown. Run the command below, then paste it above. Never copy the target device's host private key.",
+      testConnection: "Test SSH",
+      testRequired:
+        "Test SSH first. A successful test makes the remote-shutdown settings ready to save.",
+      testSuccess: "SSH connection and shutdown privilege are ready",
+      testSuccessDescription:
+        "The test completed in {latency} ms without shutting down the device.",
+      testFailed: "SSH test failed",
+      shutdown: "Shut down",
+      shutdownTitle: "Confirm remote shutdown",
+      shutdownDescription:
+        'You are about to shut down "{target}" ({host}) over SSH.',
+      shutdownWarning:
+        "Unsaved work on the device may be lost. This request cannot be undone after it is sent.",
+      confirmShutdown: "Confirm shutdown",
+      confirmShutdownCountdown: "Confirm shutdown ({seconds})",
+      shutdownAccepted: "Shutdown started",
+      shutdownAcceptedDescription:
+        "The SSH command was accepted in {latency} ms. Device status is being checked.",
+      shutdownUnknown: "Shutdown result is currently unknown",
+      shutdownFailed: "Remote shutdown failed",
+    },
     discovery: {
       title: "Discover online LAN devices",
       description:
@@ -3503,7 +3545,8 @@ export const enAdmin = {
     selectionMode: "Select",
     exitSelectionMode: "Done",
     batchEnableTitle: "Enable {count} subdomains?",
-    batchEnableDescription: "The selected subdomains will become available again.",
+    batchEnableDescription:
+      "The selected subdomains will become available again.",
     batchDisableTitle: "Disable {count} subdomains?",
     batchDisableDescription:
       "The selected subdomains will stop proxying requests and show an unavailable page.",
@@ -5799,6 +5842,7 @@ export const enAdmin = {
       FN_EVENT_SECURITY_SCANNER_BLOCKED: "Scanner blocked",
       FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS updated",
       FN_EVENT_WOL_WAKE_COMPLETED: "Wake-on-LAN completed",
+      FN_EVENT_WOL_SHUTDOWN_COMPLETED: "SSH remote shutdown completed",
       FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "Gateway throttle blocked",
       FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "Gateway visibility blocked",
       FN_EVENT_WAF_BLOCKED: "WAF blocked",
@@ -6018,6 +6062,8 @@ export const enAdmin = {
       scannerBlocked: "{ip} hit uncommon paths {count} times and was blocked",
       ddnsUpdated: "{provider} {result}: {message}",
       wolWakeCompleted: "Device {target} via {relay}: {result} ({latency} ms)",
+      wolShutdownCompleted:
+        "Device {target} via SSH host {host}: {result} ({latency} ms)",
       gatewayThrottleBlocked: "{ip} triggered throttling for {seconds}s",
       gatewayVisibilityBlocked:
         "{ip} was blocked by visibility rules while accessing {host}{path}",

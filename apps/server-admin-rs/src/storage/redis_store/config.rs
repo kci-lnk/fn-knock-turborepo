@@ -164,6 +164,7 @@ pub fn default_config() -> Value {
             "scanner_blocked": { "enabled": true },
             "ddns_update": { "enabled": true },
             "wol_wake": { "enabled": true },
+            "wol_shutdown": { "enabled": true },
             "gateway_throttle_block": { "enabled": true },
             "gateway_visibility_block": { "enabled": true },
             "waf_blocked": { "enabled": true },

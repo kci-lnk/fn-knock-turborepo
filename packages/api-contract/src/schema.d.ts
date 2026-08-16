@@ -6784,6 +6784,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/wol/targets/{id}/shutdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 关机网络唤醒目标
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/targets/{id}/shutdown` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_wol_targets_by_id_shutdown"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wol/targets/{id}/ssh/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 测试网络唤醒SSH
+         * @description 管理 Wake-on-LAN 中继、目标设备和集成状态。。`POST /api/admin/wol/targets/{id}/ssh/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_wol_targets_by_id_ssh_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wol/targets/{id}/wake": {
         parameters: {
             query?: never;
@@ -10190,7 +10230,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -10211,7 +10251,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             id: string;
@@ -10239,7 +10279,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string|null} */
-            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | null;
+            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | null;
             /** @enum {string|null} */
             group_by?: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER" | null;
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -11620,7 +11660,7 @@ export interface components {
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
         };
         SystemEventDeleteBodyData: {
             ids: string[];
@@ -11645,7 +11685,7 @@ export interface components {
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
         };
         SystemEventPublishResultData: {
             data: null | components["schemas"]["SystemEventData"];
@@ -12386,6 +12426,23 @@ export interface components {
             port: number;
             pskConfigured: boolean;
         };
+        WolShutdownData: {
+            /** Format: int64 */
+            latencyMs: number;
+            platform: string;
+            requestedAt: string;
+            /** @enum {string} */
+            status: "accepted";
+            targetId: string;
+        };
+        WolSshConnectionTestData: {
+            authenticated: boolean;
+            hostKeyAlgorithm: string;
+            hostKeyFingerprint: string;
+            /** Format: int64 */
+            latencyMs: number;
+            privilegeReady: boolean;
+        };
         WolTargetData: {
             broadcastAddress: string | null;
             createdAt: string;
@@ -12399,6 +12456,7 @@ export interface components {
             name: string;
             relay: null | components["schemas"]["WolRelaySummaryData"];
             relayId: string | null;
+            ssh: components["schemas"]["WolTargetSshData"];
             status: components["schemas"]["WolTargetStatusData"];
             updatedAt: string;
         };
@@ -12410,6 +12468,7 @@ export interface components {
             mac: string;
             name: string;
             relayId?: string | null;
+            ssh?: null | components["schemas"]["WolTargetSshInputData"];
         };
         WolTargetIntegrationsData: {
             bemfa: components["schemas"]["WolBemfaIntegrationData"];
@@ -12422,6 +12481,38 @@ export interface components {
         WolTargetListData: {
             items: components["schemas"]["WolTargetData"][];
             total: number;
+        };
+        WolTargetSshData: {
+            /** @enum {string} */
+            authMethod: "password" | "privateKey";
+            credentialConfigured: boolean;
+            enabled: boolean;
+            host: string;
+            hostKeyAlgorithm: string;
+            hostKeyFingerprint: string;
+            passphraseConfigured: boolean;
+            /** @enum {string} */
+            platform: "linux" | "macos" | "windows";
+            /** Format: int32 */
+            port: number;
+            username: string;
+        };
+        WolTargetSshInputData: {
+            /** @enum {string} */
+            authMethod: "password" | "privateKey";
+            clearCredential?: boolean;
+            enabled: boolean;
+            host: string;
+            hostKeyAlgorithm: string;
+            hostKeyFingerprint: string;
+            password?: string | null;
+            /** @enum {string} */
+            platform: "linux" | "macos" | "windows";
+            /** Format: int32 */
+            port?: number;
+            privateKey?: string | null;
+            privateKeyPassphrase?: string | null;
+            username: string;
         };
         WolTargetStatusData: {
             checkedAt: string | null;
@@ -19898,7 +19989,7 @@ export interface operations {
                 page?: number;
                 limit?: string;
                 search?: string;
-                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
                 level?: "INFO" | "WARN" | "ERROR" | "CRITICAL";
                 source?: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
             };
@@ -28510,6 +28601,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_wol_targets_by_id_shutdown: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「关机网络唤醒目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WolShutdownData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_wol_targets_by_id_ssh_test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WolTargetSshInputData"];
+            };
+        };
+        responses: {
+            /** @description 「测试网络唤醒SSH」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WolSshConnectionTestData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

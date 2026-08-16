@@ -7,27 +7,33 @@ type WolSchemas = ApiContractComponents["schemas"];
 export type WOLRelay = WolSchemas["WolRelayData"];
 export type WOLRelaySummary = WolSchemas["WolRelaySummaryData"];
 export type WOLTarget = WolSchemas["WolTargetData"];
-export type WOLIntegrationRuntime =
-  WolSchemas["WolIntegrationRuntimeData"];
+export type WOLIntegrationRuntime = WolSchemas["WolIntegrationRuntimeData"];
 export type WOLIntegrationRuntimeState = WOLIntegrationRuntime["state"];
-export type WOLTargetIntegrations =
-  WolSchemas["WolTargetIntegrationsData"];
-type WOLBlinkerIntegrationInput =
-  Omit<WolSchemas["WolBlinkerIntegrationInputData"], "deviceKey"> &
-    Required<
-      Pick<
-        WolSchemas["WolBlinkerIntegrationInputData"],
-        "bindComponent" | "skipTlsVerify"
-      >
-    > & { deviceKey?: string };
-type WOLBemfaIntegrationInput =
-  Omit<WolSchemas["WolBemfaIntegrationInputData"], "privateKey"> &
-    Required<
-      Pick<
-        WolSchemas["WolBemfaIntegrationInputData"],
-        "topic" | "skipTlsVerify"
-      >
-    > & { privateKey?: string };
+export type WOLTargetIntegrations = WolSchemas["WolTargetIntegrationsData"];
+export type WOLTargetSsh = WolSchemas["WolTargetSshData"];
+export type WOLTargetSshInput = WolSchemas["WolTargetSshInputData"] &
+  Required<
+    Pick<WolSchemas["WolTargetSshInputData"], "port" | "clearCredential">
+  >;
+export type WOLSshConnectionTest = WolSchemas["WolSshConnectionTestData"];
+export type WOLShutdownResult = WolSchemas["WolShutdownData"];
+type WOLBlinkerIntegrationInput = Omit<
+  WolSchemas["WolBlinkerIntegrationInputData"],
+  "deviceKey"
+> &
+  Required<
+    Pick<
+      WolSchemas["WolBlinkerIntegrationInputData"],
+      "bindComponent" | "skipTlsVerify"
+    >
+  > & { deviceKey?: string };
+type WOLBemfaIntegrationInput = Omit<
+  WolSchemas["WolBemfaIntegrationInputData"],
+  "privateKey"
+> &
+  Required<
+    Pick<WolSchemas["WolBemfaIntegrationInputData"], "topic" | "skipTlsVerify">
+  > & { privateKey?: string };
 export type WOLTargetIntegrationInput = {
   blinker: WOLBlinkerIntegrationInput;
   bemfa: WOLBemfaIntegrationInput;
@@ -37,17 +43,19 @@ export type WOLRelayInput = WolSchemas["WolRelayInputData"] &
   Required<Pick<WolSchemas["WolRelayInputData"], "port" | "enabled">>;
 export type WOLTargetInput = Omit<
   WolSchemas["WolTargetInputData"],
-  "integrations"
+  "integrations" | "ssh"
 > &
   Required<
     Pick<
       WolSchemas["WolTargetInputData"],
       "relayId" | "broadcastAddress" | "ipAddress" | "enabled"
     >
-  > & { integrations?: WOLTargetIntegrationInput };
+  > & {
+    integrations?: WOLTargetIntegrationInput;
+    ssh?: WOLTargetSshInput;
+  };
 export type WOLBootstrap = WolSchemas["WolBootstrapData"];
-export type WOLRelayCredentialResult =
-  WolSchemas["WolRelayCredentialData"];
+export type WOLRelayCredentialResult = WolSchemas["WolRelayCredentialData"];
 export type WOLDispatchResult = WolSchemas["WolDispatchData"];
 export type WOLLocalRelayConfig = WolSchemas["WolLocalRelayConfigData"];
 export type WOLLocalRelayRuntime = WolSchemas["WolLocalRelayRuntimeData"];
@@ -169,11 +177,9 @@ export const WOLAPI = {
     signal?: AbortSignal,
   ): Promise<WOLDiscoveryJobStatus> {
     const payload: WOLDiscoveryBody = { targetCidrs };
-    const response = await apiClient.post(
-      "/wol/discover/jobs",
-      payload,
-      { signal },
-    );
+    const response = await apiClient.post("/wol/discover/jobs", payload, {
+      signal,
+    });
     return response.data.data;
   },
   async getDiscoveryJob(
@@ -265,6 +271,22 @@ export const WOLAPI = {
   async wakeTarget(id: string): Promise<WOLDispatchResult> {
     const response = await apiClient.post(
       `/wol/targets/${encodeURIComponent(id)}/wake`,
+    );
+    return response.data.data;
+  },
+  async testSsh(
+    id: string,
+    payload: WOLTargetSshInput,
+  ): Promise<WOLSshConnectionTest> {
+    const response = await apiClient.post(
+      `/wol/targets/${encodeURIComponent(id)}/ssh/test`,
+      payload,
+    );
+    return response.data.data;
+  },
+  async shutdownTarget(id: string): Promise<WOLShutdownResult> {
+    const response = await apiClient.post(
+      `/wol/targets/${encodeURIComponent(id)}/shutdown`,
     );
     return response.data.data;
   },

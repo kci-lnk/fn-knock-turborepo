@@ -2674,6 +2674,7 @@ export const jaJPServer = {
         securityScannerBlocked: "スキャナーをブロック",
         ddnsUpdateCompleted: "DDNS 更新",
         wolWakeCompleted: "Wake-on-LAN 完了",
+        wolShutdownCompleted: "SSH リモートシャットダウン完了",
         gatewayThrottleBlocked: "ゲートウェイのレート制限",
         gatewayVisibilityBlocked: "ゲートウェイ公開範囲によるブロック",
         wafBlocked: "WAF がブロック",

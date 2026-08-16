@@ -17,10 +17,13 @@ import {
   MonitorUp,
   Pencil,
   Plus,
+  Power,
   Radar,
   Trash2,
 } from "lucide-vue-next";
 import type { WolManagementPageController } from "./useWolManagementPage";
+import { canShutdownWolTarget } from "./wol-management-model";
+import WolTargetTechnicalDetails from "./WolTargetTechnicalDetails.vue";
 
 const props = defineProps<{ controller: WolManagementPageController }>();
 const { t } = useI18n();
@@ -31,9 +34,11 @@ const {
   openCreateTarget,
   openDiscovery,
   openEditTarget,
+  openShutdownDialog,
   relays,
   statusLabel,
   targets,
+  shuttingDownTargetIds,
   wakeTarget,
   wakingTargetIds,
 } = props.controller;
@@ -41,7 +46,7 @@ const {
 
 <template>
   <TabsContent value="targets" class="space-y-4 pt-2">
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between">
       <p class="text-sm text-muted-foreground">
         {{ t("admin.wol.targetsDescription") }}
       </p>
@@ -70,7 +75,6 @@ const {
         </DropdownMenu>
       </div>
     </div>
-
     <div
       v-if="!targets.length"
       class="rounded-xl border border-dashed px-5 py-12 text-center text-sm text-muted-foreground"
@@ -108,70 +112,32 @@ const {
               class="shrink-0"
               :variant="target.enabled ? 'default' : 'secondary'"
             >
-              {{ target.enabled ? t("admin.wol.active") : t("admin.wol.disabled") }}
+              {{
+                target.enabled ? t("admin.wol.active") : t("admin.wol.disabled")
+              }}
             </Badge>
           </div>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div
+          <WolTargetTechnicalDetails
             data-testid="wol-target-technical"
-            class="grid gap-2 sm:grid-cols-2"
-          >
-            <div class="rounded-lg bg-muted/40 px-3 py-2.5">
-              <p class="text-xs text-muted-foreground">
-                {{ t("admin.wol.mac") }}
-              </p>
-              <p class="mt-1 break-all font-mono text-sm">{{ target.mac }}</p>
-            </div>
-            <div class="rounded-lg bg-muted/40 px-3 py-2.5 sm:col-span-2">
-              <p class="text-xs text-muted-foreground">
-                {{ t("admin.wol.status.label") }}
-              </p>
-              <div
-                class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
-              >
-                <span>{{ statusLabel(target) }}</span>
-                <span class="text-xs text-muted-foreground">
-                  {{ checkedAtLabel(target) }}
-                </span>
-                <span
-                  v-if="target.status.observedIp || target.ipAddress"
-                  class="font-mono text-xs"
-                >
-                  {{ target.status.observedIp || target.ipAddress }}
-                </span>
-              </div>
-            </div>
-            <div
-              v-if="relays.length"
-              class="rounded-lg bg-muted/40 px-3 py-2.5"
-            >
-              <p class="text-xs text-muted-foreground">
-                {{ t("admin.wol.deliveryPath") }}
-              </p>
-              <div class="mt-1 text-sm">
-                <template v-if="target.deliveryMode === 'local'">
-                  <p>{{ t("admin.wol.localDelivery") }}</p>
-                  <p
-                    v-if="target.broadcastAddress"
-                    class="mt-0.5 break-all font-mono text-xs text-muted-foreground"
-                  >
-                    {{ target.broadcastAddress }}:9
-                  </p>
-                </template>
-                <p v-else-if="target.relay">{{ target.relay.name }}</p>
-                <p v-else class="text-destructive">
-                  {{ t("admin.wol.relayMissing") }}
-                </p>
-              </div>
-            </div>
-          </div>
-
+            :target="target"
+            :has-relays="relays.length > 0"
+            :status-label="statusLabel(target)"
+            :checked-at-label="checkedAtLabel(target)"
+          />
           <div
-            class="flex flex-wrap items-center justify-between gap-2 border-t pt-3"
+            class="grid gap-2 pt-1 sm:flex sm:items-center sm:justify-between"
           >
-            <div class="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" @click="openEditTarget(target)">
+            <div
+              class="order-2 grid grid-cols-[minmax(0,1fr)_2.75rem] gap-2 sm:order-1 sm:flex sm:flex-wrap"
+            >
+              <Button
+                class="h-11 w-full sm:h-8 sm:w-auto"
+                variant="outline"
+                size="sm"
+                @click="openEditTarget(target)"
+              >
                 <Pencil class="mr-1.5 h-3.5 w-3.5" />
                 {{ t("admin.wol.edit") }}
               </Button>
@@ -185,19 +151,45 @@ const {
                   <Button
                     variant="outline"
                     size="sm"
+                    class="h-11 w-11 border-destructive/25 bg-destructive/5 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive sm:h-8 sm:w-8"
                     :aria-label="t('admin.wol.deleteTargetTitle')"
                   >
-                    <Trash2 class="h-3.5 w-3.5 text-destructive" />
+                    <Trash2 class="h-3.5 w-3.5" />
                   </Button>
                 </template>
               </ConfirmDangerPopover>
             </div>
             <Button
+              v-if="
+                target.enabled &&
+                target.status.state === 'online' &&
+                canShutdownWolTarget(target)
+              "
+              variant="destructive"
+              class="order-1 h-11 w-full sm:order-2 sm:h-8 sm:w-auto"
+              size="sm"
+              :disabled="
+                wakingTargetIds.has(target.id) ||
+                shuttingDownTargetIds.has(target.id)
+              "
+              @click="openShutdownDialog(target)"
+            >
+              <Loader2
+                v-if="shuttingDownTargetIds.has(target.id)"
+                class="mr-1.5 h-3.5 w-3.5 animate-spin"
+              />
+              <Power v-else class="mr-1.5 h-3.5 w-3.5" />
+              {{ t("admin.wol.ssh.shutdown") }}
+            </Button>
+            <Button
+              v-else-if="target.status.state !== 'online'"
+              class="order-1 h-11 w-full sm:order-2 sm:h-8 sm:w-auto"
               size="sm"
               :disabled="
                 !target.enabled ||
                 (target.deliveryMode === 'relay' && !target.relay?.enabled) ||
-                wakingTargetIds.has(target.id)
+                wakingTargetIds.has(target.id) ||
+                shuttingDownTargetIds.has(target.id)
               "
               @click="wakeTarget(target)"
             >

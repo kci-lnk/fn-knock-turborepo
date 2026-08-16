@@ -215,6 +215,60 @@ pub(super) struct WolTargetIntegrationsInputData {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct WolTargetSshInputData {
+    enabled: bool,
+    host: String,
+    #[schema(nullable = false)]
+    port: Option<u16>,
+    username: String,
+    platform: String,
+    auth_method: String,
+    host_key_algorithm: String,
+    host_key_fingerprint: String,
+    password: Option<String>,
+    private_key: Option<String>,
+    private_key_passphrase: Option<String>,
+    #[schema(nullable = false)]
+    clear_credential: Option<bool>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct WolTargetSshData {
+    enabled: bool,
+    host: String,
+    port: u16,
+    username: String,
+    platform: String,
+    auth_method: String,
+    host_key_algorithm: String,
+    host_key_fingerprint: String,
+    credential_configured: bool,
+    passphrase_configured: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct WolSshConnectionTestData {
+    authenticated: bool,
+    privilege_ready: bool,
+    latency_ms: u64,
+    host_key_algorithm: String,
+    host_key_fingerprint: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct WolShutdownData {
+    target_id: String,
+    status: String,
+    platform: String,
+    latency_ms: u64,
+    requested_at: String,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct WolTargetInputData {
     name: String,
     mac: String,
@@ -224,6 +278,7 @@ pub(super) struct WolTargetInputData {
     #[schema(nullable = false)]
     enabled: Option<bool>,
     integrations: Option<WolTargetIntegrationsInputData>,
+    ssh: Option<WolTargetSshInputData>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -246,6 +301,7 @@ pub(super) struct WolTargetData {
     relay: Option<WolRelaySummaryData>,
     status: WolTargetStatusData,
     integrations: WolTargetIntegrationsData,
+    ssh: WolTargetSshData,
 }
 
 #[derive(Serialize, ToSchema)]

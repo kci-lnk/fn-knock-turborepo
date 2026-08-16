@@ -193,6 +193,17 @@ export const describeSystemEvent = (
             ),
         latency: String(payload.latency_ms ?? "-"),
       });
+    case "FN_EVENT_WOL_SHUTDOWN_COMPLETED":
+      return translate("admin.eventCenter.events.wolShutdownCompleted", {
+        target: String(payload.target_name || payload.target_id || "-"),
+        host: String(payload.host || "-"),
+        result: payload.success
+          ? translate("admin.eventCenter.events.success")
+          : String(
+              payload.status || translate("admin.eventCenter.events.failure"),
+            ),
+        latency: String(payload.latency_ms ?? "-"),
+      });
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED":
       return translate("admin.eventCenter.events.gatewayThrottleBlocked", {
         ip: formatIpDisplay(payload.ip),

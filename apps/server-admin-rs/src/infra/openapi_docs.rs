@@ -1016,6 +1016,24 @@ pub(crate) fn build_openapi_document() -> Value {
         "/api/admin/wol/targets/{id}/wake",
         "post",
         "WolDispatchData",
+        Some(wol_target_id_parameter.clone()),
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_wol_targets,
+        "/api/admin/wol/targets/{id}/ssh/test",
+        "post",
+        "WolSshConnectionTestData",
+        Some(wol_target_id_parameter.clone()),
+        Some("WolTargetSshInputData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_wol_targets,
+        "/api/admin/wol/targets/{id}/shutdown",
+        "post",
+        "WolShutdownData",
         Some(wol_target_id_parameter),
         None,
     );
@@ -4528,7 +4546,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 422);
+        assert_eq!(operations, 424);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5220,7 +5238,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 422);
+        assert_eq!(operations.len(), 424);
         assert!(
             operations
                 .iter()
@@ -6168,6 +6186,9 @@ mod tests {
             ("WolLocalRelayPairBodyData", "pairingCode"),
             ("WolBlinkerIntegrationInputData", "deviceKey"),
             ("WolBemfaIntegrationInputData", "privateKey"),
+            ("WolTargetSshInputData", "password"),
+            ("WolTargetSshInputData", "privateKey"),
+            ("WolTargetSshInputData", "privateKeyPassphrase"),
         ] {
             assert_eq!(
                 document.pointer(&format!(

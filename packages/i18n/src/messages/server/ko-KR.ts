@@ -2585,6 +2585,7 @@ export const koKRServer = {
         securityScannerBlocked: "스캐너 차단",
         ddnsUpdateCompleted: "DDNS 업데이트",
         wolWakeCompleted: "Wake-on-LAN 완료",
+        wolShutdownCompleted: "SSH 원격 종료 완료",
         gatewayThrottleBlocked: "게이트웨이 요청 제한",
         gatewayVisibilityBlocked: "게이트웨이 공개 범위 차단",
         wafBlocked: "WAF 차단",

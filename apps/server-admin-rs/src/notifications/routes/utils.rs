@@ -311,6 +311,7 @@ pub(super) fn notification_event_label_key(event_type: &str) -> Option<&'static 
         "FN_EVENT_SECURITY_SCANNER_BLOCKED" => "events.securityScannerBlocked",
         "FN_EVENT_DDNS_UPDATE_COMPLETED" => "events.ddnsUpdateCompleted",
         "FN_EVENT_WOL_WAKE_COMPLETED" => "events.wolWakeCompleted",
+        "FN_EVENT_WOL_SHUTDOWN_COMPLETED" => "events.wolShutdownCompleted",
         "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" => "events.gatewayThrottleBlocked",
         "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" => "events.gatewayVisibilityBlocked",
         "FN_EVENT_WAF_BLOCKED" => "events.wafBlocked",

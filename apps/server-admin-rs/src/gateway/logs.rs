@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Context;
 use axum::{
     Json, Router,
@@ -6,6 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -18,6 +21,8 @@ use crate::{
 };
 
 mod analytics;
+
+const GATEWAY_LOG_ANALYTICS_TIMEOUT: Duration = Duration::from_secs(120);
 
 use analytics::{
     hydrate_analytics_response, release_geo_refresh, spawn_geo_refresh, try_acquire_geo_refresh,
@@ -224,10 +229,13 @@ async fn analytics(
     let result = state
         .gateway
         .client
-        .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
-            from_date: query.from.unwrap_or_default(),
-            to_date: query.to.unwrap_or_default(),
-        })
+        .analyze_log_entries_with_timeout(
+            crate::grpc_proto::GatewayLogAnalyticsQuery {
+                from_date: query.from.unwrap_or_default(),
+                to_date: query.to.unwrap_or_default(),
+            },
+            GATEWAY_LOG_ANALYTICS_TIMEOUT,
+        )
         .await
         .and_then(go_backend_data);
 
@@ -269,10 +277,13 @@ async fn refresh_analytics_geo(
         state
             .gateway
             .client
-            .analyze_log_entries(crate::grpc_proto::GatewayLogAnalyticsQuery {
-                from_date: query.from.unwrap_or_default(),
-                to_date: query.to.unwrap_or_default(),
-            })
+            .analyze_log_entries_with_timeout(
+                crate::grpc_proto::GatewayLogAnalyticsQuery {
+                    from_date: query.from.unwrap_or_default(),
+                    to_date: query.to.unwrap_or_default(),
+                },
+                GATEWAY_LOG_ANALYTICS_TIMEOUT,
+            )
             .await
             .and_then(go_backend_data)
     })

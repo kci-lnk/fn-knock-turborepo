@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
@@ -5,6 +7,7 @@ use super::{
     GoBackendClient, grpc_error, log_analytics_to_json, log_dates_to_json, log_delete_to_json,
     log_query_to_json, logging_to_json, ok, parse_logging, status_value,
 };
+
 use crate::grpc_proto::{GatewayLogAnalyticsQuery, GatewayLogQuery, StringValue};
 
 #[allow(dead_code)]
@@ -76,6 +79,14 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("analyze_log_entries", result)
+    }
+
+    pub async fn analyze_log_entries_with_timeout(
+        &self,
+        query: GatewayLogAnalyticsQuery,
+        timeout: Duration,
+    ) -> anyhow::Result<Value> {
+        self.with_timeout(timeout)?.analyze_log_entries(query).await
     }
 
     pub async fn delete_log_date(&self, date: &str) -> anyhow::Result<Value> {

@@ -466,7 +466,16 @@ pub(super) fn resolve_auth_public_port_for_scheme(
     raw_public_base_url: &str,
     gateway_fallback: bool,
 ) -> Option<u16> {
-    resolve_public_port_for_scheme(config, scheme, raw_public_base_url, gateway_fallback, false)
+    if is_cloudflared_reverse_proxy_subdomain_mode(config) {
+        return None;
+    }
+    resolve_public_port_for_scheme(
+        config,
+        scheme,
+        raw_public_base_url,
+        gateway_fallback,
+        !is_reverse_proxy_subdomain_mode(config),
+    )
 }
 
 pub(super) use crate::system_info::resolve_public_gateway_port_u16 as resolve_public_gateway_port;

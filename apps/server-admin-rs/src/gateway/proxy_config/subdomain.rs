@@ -512,7 +512,16 @@ pub(super) fn resolve_auth_public_port_for_scheme(
     raw_public_base_url: &str,
     gateway_fallback: bool,
 ) -> Option<i64> {
-    resolve_public_port_for_scheme(config, scheme, raw_public_base_url, gateway_fallback, false)
+    if is_cloudflared_reverse_proxy_subdomain_mode(config) {
+        return None;
+    }
+    resolve_public_port_for_scheme(
+        config,
+        scheme,
+        raw_public_base_url,
+        gateway_fallback,
+        !is_reverse_proxy_subdomain_mode(config),
+    )
 }
 
 pub(super) fn apply_public_port_to_base_url(raw_base_url: &str, config: &Value) -> String {

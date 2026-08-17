@@ -32,10 +32,18 @@ export const useSubdomainPortDisplay = ({
   const isReverseProxySubdomain = computed(() =>
     isReverseProxySubdomainMode(getConfig()),
   );
+  const isCloudflaredReverseProxySubdomain = computed(() =>
+    isCloudflaredReverseProxySubdomainMode(getConfig()),
+  );
+  const isFrpReverseProxySubdomain = computed(
+    () =>
+      isReverseProxySubdomain.value &&
+      !isCloudflaredReverseProxySubdomain.value,
+  );
   const configuredAuthServicePublicPort = computed(() =>
     resolveConfiguredAuthServicePublicPort(
       modeForm,
-      !isReverseProxySubdomain.value,
+      !isFrpReverseProxySubdomain.value,
     ),
   );
   const authServicePublicPort = computed({
@@ -61,7 +69,7 @@ export const useSubdomainPortDisplay = ({
   const configuredAccessEntryPort = computed(() =>
     resolveConfiguredAccessEntryPublicPort(
       currentModeConfig.value,
-      !isReverseProxySubdomain.value,
+      !isFrpReverseProxySubdomain.value,
     ),
   );
   const displayAccessEntryPort = computed(() =>
@@ -99,7 +107,7 @@ export const useSubdomainPortDisplay = ({
   const shouldOmitAccessEntryPort = computed(() => {
     if (
       isSavedEdgeClientIPActive.value ||
-      isCloudflaredReverseProxySubdomainMode(getConfig())
+      isCloudflaredReverseProxySubdomain.value
     ) {
       return true;
     }
@@ -114,7 +122,7 @@ export const useSubdomainPortDisplay = ({
   const shouldOmitDraftAuthServicePublicPort = computed(() => {
     if (
       isEdgeClientIPActive.value ||
-      isCloudflaredReverseProxySubdomainMode(getConfig())
+      isCloudflaredReverseProxySubdomain.value
     ) {
       return true;
     }

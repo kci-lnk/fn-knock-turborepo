@@ -85,6 +85,7 @@ test("non-edge ingress keeps an explicitly configured public port", () => {
 test("cloudflared omits a stale explicitly configured public port", () => {
   const subdomainMode = {
     ...createDefaultModeForm(),
+    public_auth_base_url: "https://auth.example.com:9443",
     public_https_port: 8443,
   };
   const {

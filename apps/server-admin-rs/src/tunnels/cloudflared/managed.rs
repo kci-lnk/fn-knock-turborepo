@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{crypto_utils, response, state::AppState, time_utils};
+use crate::{
+    crypto_utils, response, state::AppState, time_utils, tunnels::MANAGED_CLOUDFLARE_INGRESS_PORT,
+};
 
 use super::{
     cloudflare_api::{CloudflareApi, CloudflareApiError},
@@ -27,7 +29,6 @@ const PLAN_TTL_MS: i64 = 10 * 60 * 1000;
 const HTTP_MANAGE_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 const RECONCILE_JOB_START_DELAY: Duration = Duration::from_millis(250);
 const DNS_COMMENT_PREFIX: &str = "Managed by fn-knock";
-const DEFAULT_GO_REPROXY_PORT: u16 = 7999;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2272,13 +2273,7 @@ fn root_domain(config: &Value) -> Result<String, String> {
 }
 
 fn local_gateway_service() -> String {
-    local_gateway_service_from_port(std::env::var("GO_REPROXY_PORT").ok())
-}
-
-fn local_gateway_service_from_port(port: Option<String>) -> String {
-    let port =
-        crate::proxy_utils::parse_env_port_u16_with_fallback_value(port, DEFAULT_GO_REPROXY_PORT);
-    format!("http://127.0.0.1:{port}")
+    format!("http://127.0.0.1:{MANAGED_CLOUDFLARE_INGRESS_PORT}")
 }
 
 fn operation(id: &str, kind: &str, action: &str, target: impl Into<String>, owned: bool) -> Value {
@@ -2677,19 +2672,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn managed_tunnel_uses_go_reproxy_port() {
-        assert_eq!(
-            local_gateway_service_from_port(Some("15101".to_string())),
-            "http://127.0.0.1:15101"
-        );
-        assert_eq!(
-            local_gateway_service_from_port(Some("7999".to_string())),
-            "http://127.0.0.1:7999"
-        );
-        assert_eq!(
-            local_gateway_service_from_port(None),
-            "http://127.0.0.1:7999"
-        );
+    fn managed_tunnel_uses_dedicated_cloudflare_ingress_port() {
+        assert_eq!(local_gateway_service(), "http://127.0.0.1:17999");
     }
 
     fn legacy_managed_ownership() -> Value {

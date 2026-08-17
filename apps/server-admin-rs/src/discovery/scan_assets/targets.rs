@@ -1,5 +1,14 @@
 use super::*;
 
+pub(super) const DISCOVERY_RESERVED_PORTS: [u16; 6] = [
+    7_995,
+    8_000,
+    8_200,
+    crate::tunnels::MANAGED_CLOUDFLARE_INGRESS_PORT,
+    30_661,
+    30_662,
+];
+
 pub(super) fn build_discover_targets_payload(
     state: &AppState,
     headers: &HeaderMap,
@@ -167,7 +176,7 @@ pub(super) fn collect_excluded_ports(state: &AppState) -> Vec<u16> {
             ports.push(port);
         }
     }
-    ports.extend([7_995, 8_000, 8_200, 30_661, 30_662]);
+    ports.extend(DISCOVERY_RESERVED_PORTS);
     ports
         .into_iter()
         .collect::<BTreeSet<_>>()

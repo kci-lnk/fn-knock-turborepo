@@ -8,6 +8,7 @@ FAKE_BIN="${WORK_DIR}/bin"
 RUNTIME_DIR="${WORK_DIR}/runtime"
 RUST_DIR="${WORK_DIR}/rust"
 PACKAGE_TGZ="${WORK_DIR}/package.tgz"
+PAYLOAD_EXTRACT_DIR="${WORK_DIR}/payload"
 
 cleanup() {
   rm -rf "${WORK_DIR}"
@@ -60,6 +61,7 @@ do
   output_path="${WORK_DIR}/fn-knock-synology-${synology_arch}-test.spk"
 
   PATH="${FAKE_BIN}:${PATH}" \
+  TZ="Asia/Shanghai" \
   EXPECTED_FILE_DESCRIPTION="${file_description}" \
   FN_KNOCK_SYNOLOGY_SKIP_ARTIFACT_PREPARE=1 \
   FN_KNOCK_SYNOLOGY_GATEWAY_BIN="${gateway_bin}" \
@@ -84,6 +86,28 @@ do
   payload_listing="$(tar -tzf "${PACKAGE_TGZ}")"
   grep -Fqx './bin/server-admin-rs' <<< "${payload_listing}" || fail "${synology_arch} SPK is missing backend"
   grep -Fqx './bin/go-reauth-proxy' <<< "${payload_listing}" || fail "${synology_arch} SPK is missing gateway"
+
+  rm -rf "${PAYLOAD_EXTRACT_DIR}"
+  mkdir -p "${PAYLOAD_EXTRACT_DIR}"
+  tar -xzf "${PACKAGE_TGZ}" -C "${PAYLOAD_EXTRACT_DIR}"
+  PAYLOAD_EXTRACT_DIR="${PAYLOAD_EXTRACT_DIR}" node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const expectedMtimeSeconds = 946684800;
+for (const relativePath of [
+  "bin/server-admin-rs",
+  "ui/www/index.html",
+  "server-auth-view/dist/index.html",
+]) {
+  const actual = Math.trunc(
+    fs.statSync(path.join(process.env.PAYLOAD_EXTRACT_DIR, relativePath)).mtimeMs / 1000,
+  );
+  if (actual !== expectedMtimeSeconds) {
+    throw new Error(`${relativePath} mtime=${actual}, expected UTC ${expectedMtimeSeconds}`);
+  }
+}
+NODE
 done
 
 [ "$(find "${WORK_DIR}" -maxdepth 1 -name 'fn-knock-synology-*-test.spk' -type f | wc -l | tr -d ' ')" = "3" ] || \

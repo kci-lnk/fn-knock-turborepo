@@ -15,6 +15,7 @@ BUILD_NUMBER="${FN_KNOCK_SYNOLOGY_BUILD_NUMBER:-0017}"
 PACKAGE_VERSION="${PRODUCT_VERSION}-${BUILD_NUMBER}"
 PACKAGE_BETA="no"
 [ "${RELEASE_CHANNEL}" = "stable" ] || PACKAGE_BETA="yes"
+REPRODUCIBLE_MTIME="200001010000"
 TARGET_ARCH="${FN_KNOCK_SYNOLOGY_ARCH:-${1:-x86_64}}"
 RUNTIME_ARCH=""
 GO_ARCH=""
@@ -62,6 +63,14 @@ fail() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
+}
+
+normalize_tree_mtime() {
+  local tree="$1"
+  # touch -t interprets its argument in the process timezone. Pin UTC and stay
+  # well clear of the Unix epoch boundary so DSM extraction cannot produce a
+  # negative timestamp in positive-offset timezones.
+  TZ=UTC find "${tree}" -depth -exec touch -t "${REPRODUCIBLE_MTIME}" {} +
 }
 
 cleanup() {
@@ -289,7 +298,7 @@ build_package() {
   sh -n "${payload_dir}/ui/index.cgi" "${spk_root}/scripts/"*
   bash -n "${payload_dir}/bin/fn-knock-entrypoint"
 
-  find "${payload_dir}" -depth -exec touch -t 197001010000 {} +
+  normalize_tree_mtime "${payload_dir}"
   if tar --version 2>/dev/null | grep -qi bsdtar; then
     owner_args=(--uid 0 --gid 0 --uname root --gname root)
   else
@@ -299,7 +308,7 @@ build_package() {
   extract_size="$(du -sk "${payload_dir}" | awk '{print $1}')"
   write_info "${spk_root}/INFO" "${extract_size}"
 
-  find "${spk_root}" -depth -exec touch -t 197001010000 {} +
+  normalize_tree_mtime "${spk_root}"
   rm -f "${temp_output}"
   COPYFILE_DISABLE=1 tar "${owner_args[@]}" -cf "${temp_output}" \
     -C "${spk_root}" \

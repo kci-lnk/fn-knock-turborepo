@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     io::Read,
     path::{Component, Path, PathBuf},
+    time::{Duration, SystemTime},
 };
 
 use crate::{i18n::Translator, response, state::AppState};
@@ -20,6 +21,7 @@ const AUTH_LOCAL_PREFIX: &str = "/__auth__";
 const INDEX_CACHE_CONTROL: &str = "no-cache";
 const FINGERPRINTED_ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 const STATIC_ASSET_CACHE_CONTROL: &str = "public, max-age=300";
+const HTTP_DATE_MAX_OFFSET: Duration = Duration::from_secs(253_402_300_800);
 
 #[derive(Clone)]
 struct StaticFileVariant {
@@ -122,10 +124,7 @@ fn static_file_variant(path: PathBuf) -> Option<StaticFileVariant> {
 fn static_file_entry(path: &Path) -> Option<StaticFileEntry> {
     let raw = static_file_variant(path.to_path_buf())?;
     let metadata = std::fs::metadata(path).ok()?;
-    let last_modified = metadata
-        .modified()
-        .ok()
-        .and_then(|value| HeaderValue::from_str(&httpdate::fmt_http_date(value)).ok());
+    let last_modified = metadata.modified().ok().and_then(last_modified_header);
     let content_type =
         HeaderValue::from_str(mime_guess::from_path(path).first_or_octet_stream().as_ref())
             .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
@@ -137,6 +136,17 @@ fn static_file_entry(path: &Path) -> Option<StaticFileEntry> {
         last_modified,
     }
     .into()
+}
+
+fn last_modified_header(value: SystemTime) -> Option<HeaderValue> {
+    let since_epoch = value.duration_since(SystemTime::UNIX_EPOCH).ok()?;
+    // httpdate panics outside its supported 1970..9999 range. Filesystem
+    // metadata is external input, so omit the optional validator instead of
+    // allowing a malformed package timestamp to abort application startup.
+    if since_epoch >= HTTP_DATE_MAX_OFFSET {
+        return None;
+    }
+    HeaderValue::from_str(&httpdate::fmt_http_date(value)).ok()
 }
 
 pub fn admin_static_routes() -> Router<AppState> {
@@ -645,11 +655,14 @@ mod tests {
     use super::{
         StaticFileKind, accepts_encoding, auth_not_found_html, cache_control_for_file,
         has_fingerprinted_file_name, if_none_match_matches, is_api_path, is_known_auth_view_path,
-        normalize_auth_path, serve_catalog_file, serve_file, serve_index_file, static_file_entry,
-        static_file_variant,
+        last_modified_header, normalize_auth_path, serve_catalog_file, serve_file,
+        serve_index_file, static_file_entry, static_file_variant,
     };
     use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
-    use std::path::Path;
+    use std::{
+        path::Path,
+        time::{Duration, SystemTime},
+    };
 
     #[test]
     fn auth_view_fallback_paths_match_node() {
@@ -722,6 +735,22 @@ mod tests {
         assert!(is_api_path("/api/status"));
         assert!(!is_api_path("/apix"));
         assert!(!is_api_path("/api-client"));
+    }
+
+    #[test]
+    fn last_modified_header_rejects_filesystem_times_outside_http_date_range() {
+        let synology_epoch_in_utc8 = SystemTime::UNIX_EPOCH - Duration::from_secs(8 * 60 * 60);
+        assert!(last_modified_header(synology_epoch_in_utc8).is_none());
+        assert_eq!(
+            last_modified_header(SystemTime::UNIX_EPOCH)
+                .and_then(|value| value.to_str().ok().map(str::to_string))
+                .as_deref(),
+            Some("Thu, 01 Jan 1970 00:00:00 GMT")
+        );
+        assert!(
+            last_modified_header(SystemTime::UNIX_EPOCH + Duration::from_secs(253_402_300_800))
+                .is_none()
+        );
     }
 
     #[tokio::test]

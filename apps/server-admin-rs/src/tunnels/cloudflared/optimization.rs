@@ -879,7 +879,8 @@ pub(super) async fn reconcile_resources(
         CapabilityProbeResult::Pending | CapabilityProbeResult::Unsupported => return Ok(()),
     }
 
-    if let Some(ip) = selected_ip {
+    let publish_exact_routes = should_publish_exact_routes(ownership, force_publish);
+    if publish_exact_routes && let Some(ip) = selected_ip {
         let ip_text = ip.to_string();
         let current_edge_ip = ownership
             .pointer("/optimization/edgeDns/content")
@@ -924,15 +925,6 @@ pub(super) async fn reconcile_resources(
     let hosts =
         reconcile_optimization_host_membership(state, api, zone_id, ownership, &local, &suffix)
             .await?;
-    if !should_publish_exact_routes(ownership, force_publish) {
-        // A manual or health fallback suppresses exact business-hostname DNS
-        // publication, not reconciliation of the Cloudflare Custom Hostname
-        // control plane. Keep activation and certificate state fresh so a
-        // completed validation can make the next recovery scan available.
-        refresh_tracked_custom_hostname_statuses(state, api, zone_id, ownership, &origin_hostname)
-            .await?;
-        return Ok(());
-    }
     let remote_custom = api.list_custom_hostnames(zone_id, None).await?;
     let recovery_origin = ownership
         .pointer("/optimization/fallbackOrigin/previousOrigin")
@@ -1018,15 +1010,11 @@ pub(super) async fn reconcile_resources(
                 api.create_custom_hostname(zone_id, &host, &origin_hostname)
                     .await?
             }
-            Some(_) => {
+            Some(item) => {
                 set_host_state(
                     ownership,
                     &host,
-                    json!({
-                        "status": "conflict",
-                        "messageCode": "customHostnameOwnershipConflict",
-                        "message": "Custom Hostname is not owned by fn-knock"
-                    }),
+                    custom_hostname_ownership_conflict(item, &host, root),
                 );
                 save_managed_state(state, ownership).await?;
                 continue;
@@ -1211,14 +1199,17 @@ pub(super) async fn reconcile_resources(
                 Err(error) => return Err(error),
             }
         }
-        if !activation_conflict {
+        if !activation_conflict
+            && custom_hostname_needs_activation_dns(publish_exact_routes, status, ssl_status)
+        {
             // Cloudflare does not support TXT pre-validation when the custom
             // hostname is already in this Cloudflare Zone (Orange-to-Orange).
             // Point the exact hostname at the standard Tunnel first. This
             // activates the Custom Hostname without changing the request path;
             // only switch it to the preferred edge after certificate and SNI
             // validation have completed.
-            let activation_target = if exact_route_was_optimized {
+            let activation_targets_edge = publish_exact_routes && exact_route_was_optimized;
+            let activation_target = if activation_targets_edge {
                 edge_hostname.as_str()
             } else {
                 origin_hostname.as_str()
@@ -1246,7 +1237,7 @@ pub(super) async fn reconcile_resources(
                     set_exact_dns_route(
                         &mut host_state,
                         &record,
-                        if exact_route_was_optimized {
+                        if activation_targets_edge {
                             "edge"
                         } else {
                             "origin"
@@ -1284,10 +1275,35 @@ pub(super) async fn reconcile_resources(
         if !activation_conflict {
             ensure_object(&mut host_state).insert("status".to_string(), json!(status));
         }
-        ensure_object(&mut host_state).insert("hostnameStatus".to_string(), json!(status));
-        ensure_object(&mut host_state).insert("sslStatus".to_string(), json!(ssl_status));
+        update_custom_hostname_activation(&mut host_state, &refreshed);
         if !activation_conflict && status == "active" && ssl_status == "active" {
-            if let Some(ip) = selected_ip {
+            if !publish_exact_routes {
+                // The exact CNAME is needed while Cloudflare validates an O2O
+                // hostname, but an explicit fallback must ultimately use the
+                // wildcard Tunnel route. Once hostname and certificate
+                // validation are complete, remove only the exact DNS record;
+                // retain the active Custom Hostname for TLS/SNI probes and a
+                // later zero-downtime optimization recovery.
+                if let Some(record_id) = host_state.get("exactDnsId").and_then(Value::as_str) {
+                    delete_dns_if_owned(
+                        api,
+                        zone_id,
+                        &tracked_exact_dns_snapshot(
+                            &host,
+                            record_id,
+                            &host_state,
+                            ownership,
+                            Some(&edge_hostname),
+                        ),
+                        &suffix,
+                    )
+                    .await?;
+                    let object = ensure_object(&mut host_state);
+                    object.remove("exactDnsId");
+                    object.remove("exactDnsTarget");
+                }
+                ensure_object(&mut host_state).insert("status".to_string(), json!("fallback"));
+            } else if let Some(ip) = selected_ip {
                 match probe_custom_hostname(&host, ip).await {
                     Ok(()) => {
                         let exact_id = host_state.get("exactDnsId").and_then(Value::as_str);
@@ -1404,9 +1420,37 @@ pub(super) async fn reconcile_resources(
         .into_iter()
         .flat_map(|items| items.values())
         .any(exact_route_is_optimized);
-    ensure_nested_object(ownership, &["optimization"])
-        .insert("fallbackActive".to_string(), json!(!any_optimized));
+    ensure_nested_object(ownership, &["optimization"]).insert(
+        "fallbackActive".to_string(),
+        json!(!publish_exact_routes || !any_optimized),
+    );
     save_managed_state(state, ownership).await
+}
+
+fn custom_hostname_needs_activation_dns(
+    publish_exact_routes: bool,
+    hostname_status: &str,
+    ssl_status: &str,
+) -> bool {
+    publish_exact_routes || hostname_status != "active" || ssl_status != "active"
+}
+
+fn custom_hostname_ownership_conflict(custom: &Value, hostname: &str, root: &str) -> Value {
+    let previous_instance = custom
+        .get("custom_origin_server")
+        .and_then(Value::as_str)
+        .and_then(|origin| fn_knock_origin_instance(origin, root));
+    json!({
+        "status": "conflict",
+        "messageCode": "customHostnameOwnershipConflict",
+        "messageDetail": previous_instance,
+        "conflictResourceId": format!("custom-hostname:{hostname}"),
+        "message": if previous_instance.is_some() {
+            "Custom Hostname belongs to an earlier fn-knock instance; explicit takeover is required"
+        } else {
+            "Custom Hostname is not owned by fn-knock"
+        }
+    })
 }
 
 fn set_exact_dns_route(host_state: &mut Value, record: &Value, target: &str) {
@@ -1428,84 +1472,6 @@ fn record_preferred_edge_probe_failure(state: &mut Value, error: &str) {
         "lastProbeFailedAt".to_string(),
         json!(time_utils::now_iso()),
     );
-}
-
-async fn refresh_tracked_custom_hostname_statuses(
-    state: &AppState,
-    api: &CloudflareApi,
-    zone_id: &str,
-    ownership: &mut Value,
-    default_origin: &str,
-) -> Result<(), CloudflareApiError> {
-    let tracked = ownership
-        .pointer("/optimization/customHostnames")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flat_map(|items| items.iter())
-        .filter_map(|(hostname, host_state)| {
-            host_state
-                .get("id")
-                .and_then(Value::as_str)
-                .filter(|id| !id.is_empty())
-                .map(|id| (hostname.clone(), id.to_string(), host_state.clone()))
-        })
-        .collect::<Vec<_>>();
-    if tracked.is_empty() {
-        return Ok(());
-    }
-    let remote_custom = api.list_custom_hostnames(zone_id, None).await?;
-    let mut changed = false;
-    for (hostname, custom_id, mut host_state) in tracked {
-        match remote_custom
-            .iter()
-            .find(|remote| remote.get("id").and_then(Value::as_str) == Some(custom_id.as_str()))
-        {
-            Some(remote)
-                if managed_custom_hostname_matches(
-                    remote,
-                    &hostname,
-                    &host_state,
-                    Some(default_origin),
-                ) =>
-            {
-                changed |= update_custom_hostname_activation(&mut host_state, remote);
-            }
-            Some(remote) => {
-                changed |= update_custom_hostname_activation(&mut host_state, remote);
-                let conflict_changed = host_state.get("status").and_then(Value::as_str)
-                    != Some("conflict")
-                    || host_state.get("messageCode").and_then(Value::as_str)
-                        != Some("customHostnameOwnershipConflict")
-                    || host_state.get("message").and_then(Value::as_str)
-                        != Some("Custom Hostname is not owned by fn-knock");
-                let object = ensure_object(&mut host_state);
-                object.insert("status".to_string(), json!("conflict"));
-                object.insert(
-                    "messageCode".to_string(),
-                    json!("customHostnameOwnershipConflict"),
-                );
-                object.insert(
-                    "message".to_string(),
-                    json!("Custom Hostname is not owned by fn-knock"),
-                );
-                changed |= conflict_changed;
-            }
-            None => {
-                let object = ensure_object(&mut host_state);
-                changed |= object.get("hostnameStatus").and_then(Value::as_str) != Some("deleted")
-                    || object
-                        .get("sslStatus")
-                        .is_some_and(|value| !value.is_null());
-                object.insert("hostnameStatus".to_string(), json!("deleted"));
-                object.insert("sslStatus".to_string(), Value::Null);
-            }
-        }
-        set_host_state(ownership, &hostname, host_state);
-    }
-    if changed {
-        save_managed_state(state, ownership).await?;
-    }
-    Ok(())
 }
 
 fn update_custom_hostname_activation(host_state: &mut Value, remote: &Value) -> bool {
@@ -4315,6 +4281,50 @@ mod tests {
             false
         ));
         assert!(should_publish_exact_routes(&json!({}), false));
+    }
+
+    #[test]
+    fn fallback_keeps_only_the_activation_dns_needed_for_hostname_provisioning() {
+        assert!(custom_hostname_needs_activation_dns(
+            false,
+            "pending",
+            "pending_validation"
+        ));
+        assert!(custom_hostname_needs_activation_dns(
+            false,
+            "active",
+            "pending_validation"
+        ));
+        assert!(!custom_hostname_needs_activation_dns(
+            false, "active", "active"
+        ));
+        assert!(custom_hostname_needs_activation_dns(
+            true, "active", "active"
+        ));
+    }
+
+    #[test]
+    fn stale_fn_knock_custom_hostname_requires_explicit_takeover() {
+        let conflict = custom_hostname_ownership_conflict(
+            &json!({
+                "hostname": "app.tu.example.com",
+                "custom_origin_server": "fnknock-origin-7f531e6dd1e4.tu.example.com"
+            }),
+            "app.tu.example.com",
+            "tu.example.com",
+        );
+        assert_eq!(
+            conflict.get("status").and_then(Value::as_str),
+            Some("conflict")
+        );
+        assert_eq!(
+            conflict.get("messageDetail").and_then(Value::as_str),
+            Some("7f531e6dd1e4")
+        );
+        assert_eq!(
+            conflict.get("conflictResourceId").and_then(Value::as_str),
+            Some("custom-hostname:app.tu.example.com")
+        );
     }
 
     #[test]

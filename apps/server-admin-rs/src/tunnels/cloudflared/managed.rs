@@ -1,4 +1,7 @@
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{BTreeSet, HashSet},
+    time::Duration,
+};
 
 use axum::{
     Json,
@@ -1993,14 +1996,143 @@ pub(super) async fn api_for_background(
 }
 
 pub(super) async fn load_managed_config(state: &AppState) -> Value {
-    state
+    let managed = state
         .storage
         .store
         .get_json_value(MANAGED_CONFIG_KEY)
         .await
         .ok()
         .flatten()
-        .unwrap_or_else(|| json!({ "mode": "manual", "optimizationEnabled": false }))
+        .unwrap_or_else(|| json!({ "mode": "manual", "optimizationEnabled": false }));
+    let ownership = load_managed_state(state).await;
+    recover_managed_identity(managed, &ownership)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RecoveredManagedIdentity {
+    root_domain: String,
+    instance_id: String,
+}
+
+fn recover_managed_identity(mut managed: Value, ownership: &Value) -> Value {
+    let Some(identity) = managed_identity_from_ownership(ownership) else {
+        return managed;
+    };
+    let object = ensure_object(&mut managed);
+    object.insert("rootDomain".to_string(), json!(identity.root_domain));
+    object.insert("instanceId".to_string(), json!(identity.instance_id));
+    managed
+}
+
+fn managed_identity_from_ownership(ownership: &Value) -> Option<RecoveredManagedIdentity> {
+    if !has_managed_resources(ownership) {
+        return None;
+    }
+
+    let mut roots = BTreeSet::new();
+    let mut instances = BTreeSet::new();
+    let mut root_witnesses = 0usize;
+    let mut instance_witnesses = 0usize;
+
+    for path in ["/wildcardDns/name", "/ingress/hostname"] {
+        if let Some(root) = ownership
+            .pointer(path)
+            .and_then(Value::as_str)
+            .and_then(managed_wildcard_root)
+        {
+            roots.insert(root);
+            root_witnesses += 1;
+        }
+    }
+
+    for path in [
+        "/optimization/originDns/name",
+        "/optimization/edgeDns/name",
+        "/optimization/fallbackOrigin/origin",
+        "/optimization/capabilityProbe/hostname",
+    ] {
+        if let Some((instance, root)) = ownership
+            .pointer(path)
+            .and_then(Value::as_str)
+            .and_then(managed_auxiliary_identity)
+        {
+            roots.insert(root);
+            instances.insert(instance);
+            root_witnesses += 1;
+            instance_witnesses += 1;
+        }
+    }
+
+    for custom_hostname in ownership
+        .pointer("/optimization/customHostnames")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|items| items.values())
+    {
+        if let Some((instance, root)) = custom_hostname
+            .get("customOriginServer")
+            .and_then(Value::as_str)
+            .and_then(managed_auxiliary_identity)
+        {
+            roots.insert(root);
+            instances.insert(instance);
+            root_witnesses += 1;
+            instance_witnesses += 1;
+        }
+    }
+
+    if let Some(instance) = ownership
+        .pointer("/tunnel/name")
+        .and_then(Value::as_str)
+        .and_then(managed_tunnel_instance)
+    {
+        instances.insert(instance);
+        instance_witnesses += 1;
+    }
+
+    if roots.len() != 1 || instances.len() != 1 || root_witnesses < 2 || instance_witnesses < 2 {
+        return None;
+    }
+
+    Some(RecoveredManagedIdentity {
+        root_domain: roots.into_iter().next()?,
+        instance_id: instances.into_iter().next()?,
+    })
+}
+
+fn managed_wildcard_root(hostname: &str) -> Option<String> {
+    let root = hostname.trim().trim_end_matches('.').strip_prefix("*.")?;
+    normalized_managed_root(root)
+}
+
+fn managed_auxiliary_identity(hostname: &str) -> Option<(String, String)> {
+    let hostname = hostname.trim().trim_end_matches('.').to_ascii_lowercase();
+    let (label, root) = hostname.split_once('.')?;
+    let instance = ["fnknock-origin-", "fnknock-edge-", "fnknock-probe-"]
+        .into_iter()
+        .find_map(|prefix| label.strip_prefix(prefix))?;
+    if !managed_instance_suffix_valid(instance) {
+        return None;
+    }
+    Some((instance.to_string(), normalized_managed_root(root)?))
+}
+
+fn managed_tunnel_instance(name: &str) -> Option<String> {
+    let normalized = name.trim().to_ascii_lowercase();
+    let instance = normalized.strip_prefix("fn-knock-")?.rsplit('-').next()?;
+    managed_instance_suffix_valid(instance).then(|| instance.to_string())
+}
+
+fn managed_instance_suffix_valid(value: &str) -> bool {
+    value.len() == 12 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn normalized_managed_root(value: &str) -> Option<String> {
+    let value = value.trim().trim_end_matches('.').to_ascii_lowercase();
+    if value.is_empty() || value.contains(['*', '/', ':']) {
+        return None;
+    }
+    idna::domain_to_ascii(&value).ok()
 }
 
 pub(super) async fn save_managed_config(
@@ -2542,6 +2674,105 @@ mod tests {
     #[test]
     fn managed_tunnel_uses_dedicated_loopback_ingress() {
         assert_eq!(local_gateway_service(), "http://127.0.0.1:17999");
+    }
+
+    fn legacy_managed_ownership() -> Value {
+        json!({
+            "tunnel": {
+                "id": "eda45cde-5a2b-4a6e-9f0f-52ca0c75254f",
+                "name": "fn-knock-tu-wxlnk-com-f63f7fcb2f0f",
+                "ownership": "dedicated"
+            },
+            "ingress": { "hostname": "*.tu.wxlnk.com" },
+            "wildcardDns": {
+                "id": "wildcard-id",
+                "name": "*.tu.wxlnk.com",
+                "type": "CNAME",
+                "content": "eda45cde-5a2b-4a6e-9f0f-52ca0c75254f.cfargotunnel.com",
+                "proxied": true
+            },
+            "optimization": {
+                "originDns": {
+                    "id": "origin-id",
+                    "name": "fnknock-origin-f63f7fcb2f0f.tu.wxlnk.com"
+                },
+                "edgeDns": {
+                    "id": "edge-id",
+                    "name": "fnknock-edge-f63f7fcb2f0f.tu.wxlnk.com"
+                },
+                "fallbackOrigin": {
+                    "origin": "fnknock-origin-f63f7fcb2f0f.tu.wxlnk.com"
+                },
+                "capabilityProbe": {
+                    "hostname": "fnknock-probe-f63f7fcb2f0f.tu.wxlnk.com"
+                },
+                "customHostnames": {
+                    "auth.tu.wxlnk.com": {
+                        "customOriginServer": "fnknock-origin-f63f7fcb2f0f.tu.wxlnk.com"
+                    }
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn recovers_legacy_identity_when_managed_config_was_recreated() {
+        let managed = json!({
+            "mode": "managed",
+            "rootDomain": "std.wxlnk.com",
+            "instanceId": "5315f52f899843aeaebe34b4c125739b"
+        });
+
+        let recovered = recover_managed_identity(managed, &legacy_managed_ownership());
+
+        assert_eq!(managed_root_domain(&recovered), "tu.wxlnk.com");
+        assert_eq!(managed_instance_id(&recovered), "f63f7fcb2f0f");
+    }
+
+    #[test]
+    fn refuses_legacy_identity_recovery_when_lineages_are_mixed() {
+        let managed = json!({
+            "rootDomain": "std.wxlnk.com",
+            "instanceId": "5315f52f899843aeaebe34b4c125739b"
+        });
+        let mut ownership = legacy_managed_ownership();
+        ownership["optimization"]["edgeDns"]["name"] =
+            json!("fnknock-edge-aabbccddeeff.tu.wxlnk.com");
+
+        let recovered = recover_managed_identity(managed.clone(), &ownership);
+
+        assert_eq!(recovered, managed);
+    }
+
+    #[test]
+    fn refuses_legacy_identity_recovery_when_roots_are_mixed() {
+        let managed = json!({
+            "rootDomain": "std.wxlnk.com",
+            "instanceId": "5315f52f899843aeaebe34b4c125739b"
+        });
+        let mut ownership = legacy_managed_ownership();
+        ownership["ingress"]["hostname"] = json!("*.other.wxlnk.com");
+
+        let recovered = recover_managed_identity(managed.clone(), &ownership);
+
+        assert_eq!(recovered, managed);
+    }
+
+    #[test]
+    fn refuses_legacy_identity_recovery_without_multiple_lineage_witnesses() {
+        let managed = json!({
+            "rootDomain": "std.wxlnk.com",
+            "instanceId": "5315f52f899843aeaebe34b4c125739b"
+        });
+        let ownership = json!({
+            "tunnel": { "name": "fn-knock-tu-wxlnk-com-f63f7fcb2f0f" },
+            "ingress": { "hostname": "*.tu.wxlnk.com" },
+            "wildcardDns": { "id": "wildcard-id", "name": "*.tu.wxlnk.com" }
+        });
+
+        let recovered = recover_managed_identity(managed.clone(), &ownership);
+
+        assert_eq!(recovered, managed);
     }
 
     #[test]

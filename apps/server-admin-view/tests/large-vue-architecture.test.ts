@@ -892,6 +892,7 @@ describe("large Vue architecture", () => {
     const systemClockStoreSource = readSource("../src/store/systemClock.ts");
     const updateStoreSource = readSource("../src/store/update.ts");
     assert.match(dashboardSource, /clearTimeout\(ddnsLoadTimer\)/u);
+    assert.match(dashboardSource, /intervalMs: 60_000/u);
     assert.match(terminalPageSource, /if \(disposed\) return/u);
     assert.match(terminalSource, /initializationPromise/u);
     assert.match(terminalSource, /disposed \|\| !mountElement/u);

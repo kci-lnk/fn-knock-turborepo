@@ -39,6 +39,7 @@ pub struct Settings {
     #[allow(dead_code)]
     pub admin_proxy_secret: String,
     pub request_timeout: Duration,
+    pub auth_bridge_max_in_flight: usize,
     pub asset_download_connect_timeout: Duration,
     pub asset_download_read_timeout: Duration,
     pub asset_download_total_timeout: Duration,
@@ -135,6 +136,14 @@ impl Settings {
                 "GO_BACKEND_TIMEOUT_MS",
                 DEFAULT_REQUEST_TIMEOUT_MS,
             )),
+            auth_bridge_max_in_flight: env_u64_like_node(
+                "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT",
+                default_auth_bridge_max_in_flight() as u64,
+            )
+            .clamp(
+                MIN_AUTH_BRIDGE_MAX_IN_FLIGHT as u64,
+                MAX_AUTH_BRIDGE_MAX_IN_FLIGHT as u64,
+            ) as usize,
             asset_download_connect_timeout: Duration::from_millis(env_u64_like_node(
                 "FN_KNOCK_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS",
                 DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS,
@@ -349,9 +358,31 @@ fn secure_altcha_hmac_key_permissions(_path: &Path) -> anyhow::Result<()> {
 const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
 const SQLITE_STORAGE_DIR: &str = "storage";
 const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 5_000;
+const MIN_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 4;
+const MAX_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 128;
+const DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_PER_CPU: usize = 4;
+const DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_CAP: usize = 32;
+const FALLBACK_AUTH_BRIDGE_PARALLELISM: usize = 4;
 const DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS: u64 = 120_000;
 const DEFAULT_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS: u64 = 30 * 60 * 1_000;
+
+fn default_auth_bridge_max_in_flight() -> usize {
+    let parallelism = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(FALLBACK_AUTH_BRIDGE_PARALLELISM);
+    auth_bridge_max_in_flight_for_parallelism(parallelism)
+}
+
+fn auth_bridge_max_in_flight_for_parallelism(parallelism: usize) -> usize {
+    parallelism
+        .max(1)
+        .saturating_mul(DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_PER_CPU)
+        .clamp(
+            MIN_AUTH_BRIDGE_MAX_IN_FLIGHT,
+            DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_CAP,
+        )
+}
 
 fn env_string(name: &str, fallback: &str) -> String {
     env::var(name)
@@ -851,6 +882,34 @@ mod tests {
                 );
             },
         );
+    }
+
+    #[test]
+    fn auth_bridge_concurrency_defaults_low_and_clamps_overrides() {
+        with_env_vars(&["FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT"], |env| {
+            env.remove("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT");
+            assert_eq!(
+                Settings::from_env().auth_bridge_max_in_flight,
+                default_auth_bridge_max_in_flight()
+            );
+
+            env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "1");
+            assert_eq!(
+                Settings::from_env().auth_bridge_max_in_flight,
+                MIN_AUTH_BRIDGE_MAX_IN_FLIGHT
+            );
+
+            env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "500");
+            assert_eq!(
+                Settings::from_env().auth_bridge_max_in_flight,
+                MAX_AUTH_BRIDGE_MAX_IN_FLIGHT
+            );
+        });
+
+        assert_eq!(auth_bridge_max_in_flight_for_parallelism(1), 4);
+        assert_eq!(auth_bridge_max_in_flight_for_parallelism(4), 16);
+        assert_eq!(auth_bridge_max_in_flight_for_parallelism(8), 32);
+        assert_eq!(auth_bridge_max_in_flight_for_parallelism(64), 32);
     }
 
     #[test]

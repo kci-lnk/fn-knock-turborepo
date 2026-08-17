@@ -5,10 +5,12 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use tokio::sync::RwLock;
 use tokio_rusqlite::{
     Connection, OptionalExtension,
     rusqlite::{self, ToSql, params, params_from_iter},
@@ -26,6 +28,9 @@ pub(crate) trait AsyncCommands {}
 #[derive(Clone)]
 pub(crate) struct ConnectionManager {
     db: Connection,
+    analytics_db: Connection,
+    analytics_checkpoint_gate: Arc<RwLock<()>>,
+    #[cfg(test)]
     path: PathBuf,
 }
 
@@ -1230,29 +1235,58 @@ impl ConnectionManager {
             }
         }
         let db = Connection::open(path).await?;
+        Self::initialize_primary(&db, path).await?;
+        let analytics_db = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .await?;
         let manager = Self {
             db,
+            analytics_db,
+            analytics_checkpoint_gate: Arc::new(RwLock::new(())),
+            #[cfg(test)]
             path: path.to_path_buf(),
         };
-        manager.initialize().await?;
+        manager.initialize_analytics().await?;
         secure_sqlite_file_permissions(path).await?;
         Ok(manager)
     }
 
+    #[cfg(test)]
     async fn initialize(&self) -> RedisResult<()> {
-        let path = self.path.clone();
-        self.call(move |conn| {
+        Self::initialize_primary(&self.db, &self.path).await
+    }
+
+    async fn initialize_primary(db: &Connection, path: &Path) -> RedisResult<()> {
+        let initialize_path = path.to_path_buf();
+        db.call(move |conn| {
             conn.pragma_update(None, "journal_mode", "WAL")?;
             conn.pragma_update(None, "synchronous", "NORMAL")?;
             conn.pragma_update(None, "foreign_keys", "ON")?;
             conn.busy_timeout(std::time::Duration::from_secs(5))?;
-            run_schema_migrations(conn, &path)?;
-            Ok(())
+            run_schema_migrations(conn, &initialize_path)?;
+            Ok::<(), StorageError>(())
         })
         .await
+        .map_err(StorageError::from)
+    }
+
+    async fn initialize_analytics(&self) -> RedisResult<()> {
+        self.analytics_db
+            .call(|conn| {
+                conn.pragma_update(None, "query_only", true)?;
+                conn.busy_timeout(std::time::Duration::from_millis(250))?;
+                Ok::<(), StorageError>(())
+            })
+            .await
+            .map_err(StorageError::from)
     }
 
     pub(crate) async fn prepare_for_system_update(&self, backup_path: &Path) -> RedisResult<()> {
+        // WAL truncation and VACUUM INTO must not race an analytics reader.
+        // Primary operations remain serialized by tokio-rusqlite itself.
+        let _checkpoint_guard = self.analytics_checkpoint_gate.write().await;
         let backup_path = backup_path.to_path_buf();
         self.call(move |conn| {
             // Keep every write made between this preflight and process shutdown
@@ -1286,6 +1320,7 @@ impl ConnectionManager {
     }
 
     pub(crate) async fn checkpoint_for_shutdown(&self) -> RedisResult<()> {
+        let _checkpoint_guard = self.analytics_checkpoint_gate.write().await;
         self.call(|conn| {
             checkpoint_wal(conn, "TRUNCATE")?;
             Ok(())
@@ -1448,6 +1483,15 @@ impl ConnectionManager {
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
         self.db.call(f).await.map_err(StorageError::from)
+    }
+
+    async fn call_analytics<T, F>(&self, f: F) -> RedisResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
+    {
+        let _reader_guard = self.analytics_checkpoint_gate.read().await;
+        self.analytics_db.call(f).await.map_err(StorageError::from)
     }
 
     pub(crate) async fn get<K: IntoKey, T: FromOptionalString>(
@@ -1837,15 +1881,21 @@ impl ConnectionManager {
         self.zrange_ordered(key.into_key(), start, end, true).await
     }
 
-    pub(crate) async fn zrangebyscore<K: IntoKey>(
+    /// Read a persistent analytics sorted set without scheduling compatibility
+    /// TTL cleanup on the primary SQLite executor.
+    ///
+    /// Traffic metric keys manage retention through `ZREMRANGEBYSCORE` and do
+    /// not carry key-level TTLs. Keeping this path read-only prevents dashboard
+    /// history scans from sitting ahead of authentication work in the primary
+    /// executor queue or acquiring an unnecessary `IMMEDIATE` transaction.
+    pub(crate) async fn zrangebyscore_analytics<K: IntoKey>(
         &mut self,
         key: K,
         min_score: i64,
         max_score: i64,
     ) -> RedisResult<Vec<String>> {
         let key = key.into_key();
-        self.call(move |conn| {
-            purge_expired(conn, &key)?;
+        self.call_analytics(move |conn| {
             query_strings(
                 conn,
                 "SELECT member FROM kv_zset
@@ -4832,6 +4882,46 @@ mod tests {
             .await
             .expect_err("invalid backup destination must fail");
         assert_eq!(synchronous_mode(&manager).await, 1);
+    }
+
+    #[tokio::test]
+    async fn wal_checkpoint_waits_for_an_active_analytics_reader() {
+        let manager = temp_manager().await;
+        let reader_manager = manager.clone();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let reader = tokio::spawn(async move {
+            reader_manager
+                .call_analytics(move |_conn| {
+                    let _ = started_tx.send(());
+                    release_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .map_err(|error| {
+                            storage_error(format!("release analytics reader: {error}"))
+                        })?;
+                    Ok(())
+                })
+                .await
+        });
+        started_rx.await.expect("analytics reader started");
+
+        let checkpoint_manager = manager.clone();
+        let mut checkpoint =
+            tokio::spawn(async move { checkpoint_manager.checkpoint_for_shutdown().await });
+        let premature =
+            tokio::time::timeout(std::time::Duration::from_millis(50), &mut checkpoint).await;
+        release_tx.send(()).expect("release analytics reader");
+        reader
+            .await
+            .expect("analytics reader task")
+            .expect("analytics reader result");
+
+        assert!(premature.is_err(), "checkpoint bypassed analytics gate");
+        tokio::time::timeout(std::time::Duration::from_secs(5), checkpoint)
+            .await
+            .expect("checkpoint completed after reader")
+            .expect("checkpoint task")
+            .expect("checkpoint result");
     }
 
     #[tokio::test]

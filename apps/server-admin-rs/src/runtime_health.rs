@@ -557,7 +557,6 @@ impl RuntimeHealth {
     async fn run_probe(&self, state: &AppState) {
         self.import_supervisor_hints(state).await;
         let checked_at = time_utils::now_iso();
-        let storage_started = Instant::now();
         let (runtime_info, process_health, dataplane_health, auth_health, storage) = tokio::join!(
             tokio::time::timeout(PROBE_TIMEOUT, state.gateway.client.get_runtime_info()),
             tokio::time::timeout(
@@ -578,8 +577,13 @@ impl RuntimeHealth {
                     .client
                     .health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
             ),
-            tokio::time::timeout(PROBE_TIMEOUT, state.storage.store.ping()),
+            async {
+                let started = Instant::now();
+                let result = tokio::time::timeout(PROBE_TIMEOUT, state.storage.store.ping()).await;
+                (result, started.elapsed().as_millis() as u64)
+            },
         );
+        let (storage, storage_latency_ms) = storage;
 
         let management = ProbeResult {
             ok: true,
@@ -648,7 +652,7 @@ impl RuntimeHealth {
             },
             metadata: ProbeMetadata {
                 process_state: Some(ProcessState::NotApplicable),
-                latency_ms: Some(storage_started.elapsed().as_millis() as u64),
+                latency_ms: Some(storage_latency_ms),
                 ..ProbeMetadata::default()
             },
         };

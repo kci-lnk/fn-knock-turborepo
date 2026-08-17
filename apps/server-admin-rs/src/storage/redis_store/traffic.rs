@@ -11,7 +11,7 @@ impl Store {
     ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
         let key = traffic_key(user_id, direction, host);
         let mut conn = self.conn();
-        let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
+        let members: Vec<String> = conn.zrangebyscore_analytics(key, from_sec, to_sec).await?;
         Ok(parse_traffic_points(&members))
     }
 
@@ -24,7 +24,7 @@ impl Store {
     ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
         let key = error5xx_key(user_id, host);
         let mut conn = self.conn();
-        let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
+        let members: Vec<String> = conn.zrangebyscore_analytics(key, from_sec, to_sec).await?;
         Ok(parse_traffic_points(&members))
     }
 

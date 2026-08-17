@@ -30,6 +30,8 @@ static SCHEDULED_REBUILD: LazyLock<Mutex<ScheduledRebuild>> =
     LazyLock::new(|| Mutex::new(ScheduledRebuild::default()));
 static RECENT_AUTH_IP_TOUCHES: LazyLock<Mutex<HashMap<(String, String), i64>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static RECENT_AUTH_IP_WRITERS: LazyLock<Mutex<BTreeSet<String>>> =
+    LazyLock::new(|| Mutex::new(BTreeSet::new()));
 const RECENT_AUTH_IP_TOUCH_MIN_INTERVAL_SECONDS: i64 = 30;
 const MAX_RECENT_AUTH_IP_TOUCHES: usize = 4096;
 
@@ -37,6 +39,19 @@ const MAX_RECENT_AUTH_IP_TOUCHES: usize = 4096;
 struct ScheduledRebuild {
     next_id: u64,
     task: Option<(u64, AbortHandle)>,
+}
+
+struct RecentAuthIpWriterSlot {
+    store_key: String,
+}
+
+impl Drop for RecentAuthIpWriterSlot {
+    fn drop(&mut self) {
+        RECENT_AUTH_IP_WRITERS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&self.store_key);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -136,27 +151,55 @@ pub(crate) async fn migrate_common_auth_location_ipset_in_storage(
     Ok(runtime)
 }
 
-pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Result<()> {
+pub fn schedule_recent_verified_ip(state: &AppState, ip: &str) {
     let normalized = normalize_ip(ip);
     if normalized.is_empty() {
-        return Ok(());
+        return;
     }
     let now = now_seconds();
     let store_key = state.settings.sqlite_path.to_string_lossy().into_owned();
     if !claim_recent_auth_ip_touch(&store_key, &normalized, now) {
-        return Ok(());
+        return;
     }
-    if let Err(error) = state
-        .storage
-        .store
-        .record_recent_auth_ip(&normalized, now)
-        .await
-    {
+    let Some(writer_slot) = claim_recent_auth_ip_writer(&store_key) else {
+        // The observation is best-effort. Do not build an unbounded task queue
+        // behind the single primary SQLite writer on a busy machine.
         release_recent_auth_ip_touch(&store_key, &normalized, now);
-        return Err(error.into());
+        return;
+    };
+
+    let task_state = state.clone();
+    let refused_store_key = store_key.clone();
+    let refused_ip = normalized.clone();
+    let task = state.spawn_abortable_background("recent-verified-ip", async move {
+        let _writer_slot = writer_slot;
+        if let Err(error) = task_state
+            .storage
+            .store
+            .record_recent_auth_ip(&normalized, now)
+            .await
+        {
+            release_recent_auth_ip_touch(&store_key, &normalized, now);
+            tracing::debug!(%error, ip = %normalized, "failed to record recent verified auth IP");
+            return;
+        }
+        schedule_common_auth_locations_rebuild(task_state, "recent-auth-ip");
+    });
+    if task.is_none() {
+        release_recent_auth_ip_touch(&refused_store_key, &refused_ip, now);
     }
-    schedule_common_auth_locations_rebuild(state.clone(), "recent-auth-ip");
-    Ok(())
+}
+
+fn claim_recent_auth_ip_writer(store_key: &str) -> Option<RecentAuthIpWriterSlot> {
+    let mut writers = RECENT_AUTH_IP_WRITERS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !writers.insert(store_key.to_string()) {
+        return None;
+    }
+    Some(RecentAuthIpWriterSlot {
+        store_key: store_key.to_string(),
+    })
 }
 
 fn claim_recent_auth_ip_touch(store_key: &str, ip: &str, now: i64) -> bool {
@@ -980,6 +1023,15 @@ mod tests {
             "203.0.113.10",
             99,
         ));
+    }
+
+    #[test]
+    fn recent_verified_ip_background_writes_are_bounded_per_store() {
+        let store_key = "writer-slot-test-store";
+        let first = claim_recent_auth_ip_writer(store_key).expect("first writer slot");
+        assert!(claim_recent_auth_ip_writer(store_key).is_none());
+        drop(first);
+        assert!(claim_recent_auth_ip_writer(store_key).is_some());
     }
 
     #[test]

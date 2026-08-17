@@ -72,6 +72,7 @@ async fn stats(
         .clamp(60, 30 * 24 * 3600);
     let now_sec = now_unix_seconds();
     let from_sec = now_sec - range_sec;
+    let error_history_from_sec = from_sec.min(now_sec - 7 * 24 * 3600);
     let host_ref = (!host.is_empty()).then_some(host.as_str());
 
     let result = tokio::try_join!(
@@ -83,23 +84,15 @@ async fn stats(
             .storage
             .store
             .list_traffic_points(&user_id, "out", from_sec, now_sec, host_ref),
-        state
-            .storage
-            .store
-            .list_error5xx_points(&user_id, from_sec, now_sec, host_ref),
-        state
-            .storage
-            .store
-            .list_error5xx_points(&user_id, now_sec - 24 * 3600, now_sec, host_ref),
         state.storage.store.list_error5xx_points(
             &user_id,
-            now_sec - 7 * 24 * 3600,
+            error_history_from_sec,
             now_sec,
             host_ref
         )
     );
 
-    let (in_points, out_points, err5xx_points, err5xx_1d_points, err5xx_1w_points) = match result {
+    let (in_points, out_points, err5xx_points) = match result {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to load dashboard traffic metrics");
@@ -158,11 +151,11 @@ async fn stats(
         "totals": {
             "inBytes": sum_points(&in_points),
             "outBytes": sum_points(&out_points),
-            "error5xx": sum_points(&err5xx_points)
+            "error5xx": sum_points_since(&err5xx_points, from_sec)
         },
         "errors": {
-            "error5xx1d": sum_points(&err5xx_1d_points),
-            "error5xx1w": sum_points(&err5xx_1w_points)
+            "error5xx1d": sum_points_since(&err5xx_points, now_sec - 24 * 3600),
+            "error5xx1w": sum_points_since(&err5xx_points, now_sec - 7 * 24 * 3600)
         },
         "traffic": {
             "echarts": traffic_echarts
@@ -896,6 +889,14 @@ fn sum_points(points: &[TrafficDeltaPoint]) -> f64 {
     points.iter().map(|point| point.delta).sum()
 }
 
+fn sum_points_since(points: &[TrafficDeltaPoint], from_sec: i64) -> f64 {
+    points
+        .iter()
+        .filter(|point| point.ts >= from_sec)
+        .map(|point| point.delta)
+        .sum()
+}
+
 fn round3(value: f64) -> f64 {
     if !value.is_finite() {
         return 0.0;
@@ -1030,6 +1031,18 @@ mod tests {
             points_to_bps_data(&points, 60),
             vec![json!([10_000, 5.0]), json!([12_000, 5.0])]
         );
+    }
+
+    #[test]
+    fn sums_error_points_for_overlapping_dashboard_windows_from_one_history_read() {
+        let points = vec![
+            TrafficDeltaPoint { ts: 10, delta: 1.0 },
+            TrafficDeltaPoint { ts: 20, delta: 2.0 },
+            TrafficDeltaPoint { ts: 30, delta: 4.0 },
+        ];
+        assert_eq!(sum_points_since(&points, 0), 7.0);
+        assert_eq!(sum_points_since(&points, 20), 6.0);
+        assert_eq!(sum_points_since(&points, 31), 0.0);
     }
 
     #[test]

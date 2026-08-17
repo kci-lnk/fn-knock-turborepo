@@ -24,7 +24,6 @@ use crate::grpc_proto::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
-const AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 128;
 const AUTHORIZE_HTTP_V1_CAPABILITY: &str = "authorize_http_v1";
 
 pub(crate) fn start_auth_bridge(state: AppState) -> JoinHandle<()> {
@@ -65,8 +64,9 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
     let mut client = AuthBridgeServiceClient::new(channel)
         .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
-    let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(128);
-    let limiter = Arc::new(Semaphore::new(AUTH_BRIDGE_MAX_IN_FLIGHT));
+    let max_in_flight = state.settings.auth_bridge_max_in_flight;
+    let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(max_in_flight);
+    let limiter = Arc::new(Semaphore::new(max_in_flight));
 
     // Queue the handshake before opening the stream. The Go server sends its
     // initial headers eagerly, but having Ready available immediately also

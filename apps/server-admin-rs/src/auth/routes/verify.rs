@@ -320,10 +320,10 @@ pub(super) async fn resolve_auth_access_with_normal_access_and_rule_match(
         {
             tracing::warn!(%error, %client_ip, "failed to sync trusted auth mobility request");
         }
-        if let Err(error) = common_auth_locations::record_recent_verified_ip(state, client_ip).await
-        {
-            tracing::debug!(%error, %client_ip, "failed to record recent verified auth IP");
-        }
+        // Recent-IP bookkeeping feeds scanner noise reduction and common
+        // location statistics; it is not authorization authority. Do not make
+        // a successful auth decision wait behind unrelated SQLite work.
+        common_auth_locations::schedule_recent_verified_ip(state, client_ip);
         let grant_type = normal_access.grant_type.clone();
         let message = match grant_type.as_deref() {
             Some("local_exempt") => auth_route_text(translator, "localNetworkAccessAllowed"),

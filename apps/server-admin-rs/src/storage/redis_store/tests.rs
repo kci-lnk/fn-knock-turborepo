@@ -8667,6 +8667,44 @@ fn parses_traffic_members_and_ignores_invalid_values() {
     );
 }
 
+#[tokio::test]
+async fn traffic_history_reads_do_not_wait_for_primary_storage_executor() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = tokio::spawn(async move {
+        manager
+            .call(move |_conn| -> crate::storage::StorageResult<()> {
+                let _ = started_tx.send(());
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .map_err(|error| {
+                        crate::storage::storage_error(format!("release blocker: {error}"))
+                    })?;
+                Ok(())
+            })
+            .await
+            .expect("primary executor blocker");
+    });
+    started_rx.await.expect("primary executor started");
+
+    let points = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        store.list_traffic_points("global", "in", 0, 10, None),
+    )
+    .await;
+    release_tx.send(()).expect("release primary executor");
+    let points = points
+        .expect("analytics read should use its isolated executor")
+        .expect("traffic history read");
+    assert!(points.is_empty());
+    blocker.await.expect("primary executor task");
+}
+
 #[test]
 fn traffic_cleanup_maps_metric_keys_to_last_total_keys() {
     assert_eq!(

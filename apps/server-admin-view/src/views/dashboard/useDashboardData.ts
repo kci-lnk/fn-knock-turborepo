@@ -145,7 +145,10 @@ export function useDashboardData({
 
   const refreshAll = () => void load();
   const autoRefreshPoller = createVisibilityPoller({
-    intervalMs: 15_000,
+    // Historical traffic is collected every 30 seconds. Polling twice inside
+    // that window only repeats the same SQLite scans and can starve auth work
+    // on low-power NAS CPUs, so keep the automatic history refresh relaxed.
+    intervalMs: 60_000,
     immediate: false,
     enabled: () => isAutoRefresh.value,
     task: (signal) => load(signal),

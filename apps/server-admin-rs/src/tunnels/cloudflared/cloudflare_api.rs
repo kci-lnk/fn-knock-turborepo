@@ -526,8 +526,17 @@ impl CloudflareApi {
         if status.is_success() && value.get("success").and_then(Value::as_bool) != Some(false) {
             return Ok(value);
         }
+        let authentication_error = cloudflare_authentication_error(&value);
         Err(CloudflareApiError {
-            status: Some(status),
+            // Cloudflare commonly reports an invalid, revoked, or unusable API
+            // token as HTTP 403 + error 10000. Normalize that to an
+            // authentication failure so callers do not misdiagnose it as a
+            // missing Tunnel/DNS permission.
+            status: Some(if authentication_error {
+                StatusCode::UNAUTHORIZED
+            } else {
+                status
+            }),
             message: cloudflare_error_message(&value, status),
         })
     }
@@ -583,6 +592,10 @@ fn required_result(value: Value, action: &str) -> Result<Value, CloudflareApiErr
 }
 
 fn cloudflare_error_message(value: &Value, status: StatusCode) -> String {
+    if cloudflare_authentication_error(value) {
+        return "Cloudflare API Token authentication failed (10000). Replace the saved credential with a Cloudflare API Token that can access the current account and Zone, then retry; a Tunnel Token cannot manage Cloudflare resources."
+            .to_string();
+    }
     let messages = value
         .get("errors")
         .and_then(Value::as_array)
@@ -607,6 +620,25 @@ fn cloudflare_error_message(value: &Value, status: StatusCode) -> String {
     }
 }
 
+fn cloudflare_authentication_error(value: &Value) -> bool {
+    value
+        .get("errors")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|item| {
+            item.get("code").and_then(Value::as_i64) == Some(10_000)
+                && item
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|message| {
+                        message
+                            .to_ascii_lowercase()
+                            .contains("authentication error")
+                    })
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -625,7 +657,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn formats_cloudflare_error_without_echoing_request_credentials() {
+    fn turns_cloudflare_authentication_error_into_actionable_guidance() {
         let value = json!({
             "errors": [
                 { "code": 10000, "message": "Authentication error" },
@@ -634,7 +666,7 @@ mod tests {
         });
         assert_eq!(
             cloudflare_error_message(&value, StatusCode::FORBIDDEN),
-            "Authentication error (10000); Permission denied"
+            "Cloudflare API Token authentication failed (10000). Replace the saved credential with a Cloudflare API Token that can access the current account and Zone, then retry; a Tunnel Token cannot manage Cloudflare resources."
         );
     }
 
@@ -643,6 +675,43 @@ mod tests {
         assert_eq!(api_token_kind("cfut_example"), ApiTokenKind::User);
         assert_eq!(api_token_kind("cfat_example"), ApiTokenKind::Account);
         assert_eq!(api_token_kind("legacy-token"), ApiTokenKind::Legacy);
+    }
+
+    #[tokio::test]
+    async fn normalizes_cloudflare_error_10000_as_authentication_failure() {
+        async fn reject() -> Response {
+            (
+                StatusCode::FORBIDDEN,
+                Json(json!({
+                    "success": false,
+                    "errors": [{ "code": 10000, "message": "Authentication error" }]
+                })),
+            )
+                .into_response()
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock Cloudflare API");
+        let address = listener.local_addr().expect("mock API address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().route("/zones", get(reject)))
+                .await
+                .expect("serve mock Cloudflare API");
+        });
+        let api = CloudflareApi::with_base_url(
+            Client::new(),
+            "cfut_test-token",
+            format!("http://{address}"),
+        );
+
+        let error = api
+            .find_zone("example.com")
+            .await
+            .expect_err("reject invalid API token");
+        assert_eq!(error.status, Some(StatusCode::UNAUTHORIZED));
+        assert!(error.message.contains("Tunnel Token cannot manage"));
+        server.abort();
     }
 
     #[tokio::test]

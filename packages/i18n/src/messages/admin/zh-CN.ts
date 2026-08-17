@@ -2529,6 +2529,8 @@ export const zhCNAdmin = {
       disconnected: "已移除本地 API 凭据，远端资源保持不变",
       disconnectFailed: "移除 API 凭据失败",
       previewFailed: "远端变更预检失败",
+      apiAuthenticationFailed:
+        "已保存的 Cloudflare API Token 无法通过认证。请在“API 连接”中更换有效的 API Token（不是 Tunnel Token），确认它可访问当前账号和 Zone 后重试。",
       applied: "Cloudflare 配置已完成对账",
       applyFailed: "应用 Cloudflare 配置失败",
       removeManaged: "移除 fn-knock 托管资源",

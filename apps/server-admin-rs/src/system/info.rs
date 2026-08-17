@@ -62,6 +62,7 @@ fn resolve_access_entry_info_from_sources(
     local_gateway_port: Option<String>,
 ) -> AccessEntryInfo {
     if is_reverse_proxy_subdomain_mode(config)
+        && !is_cloudflared_reverse_proxy_subdomain_mode(config)
         && let Some(port) = frpc_remote_port
     {
         return AccessEntryInfo {
@@ -71,6 +72,15 @@ fn resolve_access_entry_info_from_sources(
         };
     }
     resolve_local_gateway_port_from_env(local_gateway_port)
+}
+
+fn is_cloudflared_reverse_proxy_subdomain_mode(config: &Value) -> bool {
+    is_reverse_proxy_subdomain_mode(config)
+        && config
+            .get("default_tunnel")
+            .and_then(Value::as_str)
+            .unwrap_or("frp")
+            == "cloudflared"
 }
 
 pub(crate) fn resolve_public_gateway_port(config: &Value) -> Option<i64> {
@@ -276,6 +286,32 @@ mod tests {
             resolve_public_gateway_port_from_sources(
                 &reverse_subdomain,
                 None,
+                Some("7999".to_string())
+            ),
+            Some(7999)
+        );
+
+        let cloudflared_reverse_subdomain = json!({
+            "run_type": 1,
+            "reverse_proxy_submode": "subdomain",
+            "default_tunnel": "cloudflared"
+        });
+        assert_eq!(
+            resolve_access_entry_info_from_sources(
+                &cloudflared_reverse_subdomain,
+                Some(15101),
+                Some("7999".to_string())
+            ),
+            AccessEntryInfo {
+                env: "GO_REPROXY_PORT",
+                port: "7999".to_string(),
+                is_default: false
+            }
+        );
+        assert_eq!(
+            resolve_public_gateway_port_from_sources(
+                &cloudflared_reverse_subdomain,
+                Some(15101),
                 Some("7999".to_string())
             ),
             Some(7999)

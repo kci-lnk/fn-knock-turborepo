@@ -2484,6 +2484,8 @@ export const zhHantAdmin = {
       disconnected: "已移除本機 API 憑證，遠端資源維持不變",
       disconnectFailed: "移除 API 憑證失敗",
       previewFailed: "遠端變更預檢失敗",
+      apiAuthenticationFailed:
+        "已儲存的 Cloudflare API Token 無法通過驗證。請在「API 連線」中更換有效的 API Token（不是 Tunnel Token），確認它可存取目前帳號和 Zone 後重試。",
       applied: "Cloudflare 資源已完成對帳",
       applyFailed: "套用 Cloudflare 設定失敗",
       removeManaged: "移除 fn-knock 託管資源",

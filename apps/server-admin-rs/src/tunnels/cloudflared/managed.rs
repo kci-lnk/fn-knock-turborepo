@@ -27,10 +27,7 @@ const PLAN_TTL_MS: i64 = 10 * 60 * 1000;
 const HTTP_MANAGE_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 const RECONCILE_JOB_START_DELAY: Duration = Duration::from_millis(250);
 const DNS_COMMENT_PREFIX: &str = "Managed by fn-knock";
-// The Go gateway listens on this dedicated loopback destination so it can
-// distinguish managed Cloudflare Tunnel traffic from FRP and other local
-// ingress before trusting CF-Connecting-IP for security decisions.
-const MANAGED_CLOUDFLARE_INGRESS_PORT: u16 = 17999;
+const DEFAULT_GO_REPROXY_PORT: u16 = 7999;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2275,7 +2272,13 @@ fn root_domain(config: &Value) -> Result<String, String> {
 }
 
 fn local_gateway_service() -> String {
-    format!("http://127.0.0.1:{MANAGED_CLOUDFLARE_INGRESS_PORT}")
+    local_gateway_service_from_port(std::env::var("GO_REPROXY_PORT").ok())
+}
+
+fn local_gateway_service_from_port(port: Option<String>) -> String {
+    let port =
+        crate::proxy_utils::parse_env_port_u16_with_fallback_value(port, DEFAULT_GO_REPROXY_PORT);
+    format!("http://127.0.0.1:{port}")
 }
 
 fn operation(id: &str, kind: &str, action: &str, target: impl Into<String>, owned: bool) -> Value {
@@ -2577,8 +2580,11 @@ fn string_field(value: &Value, key: &str) -> String {
 }
 
 fn cloudflare_error_response(error: CloudflareApiError) -> Response {
+    if error.status == Some(StatusCode::UNAUTHORIZED) {
+        return response::error_with_code(StatusCode::FORBIDDEN, Some(10_000), error.message);
+    }
     let status = match error.status {
-        Some(StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) => StatusCode::FORBIDDEN,
+        Some(StatusCode::FORBIDDEN) => StatusCode::FORBIDDEN,
         Some(StatusCode::NOT_FOUND) => StatusCode::NOT_FOUND,
         Some(StatusCode::CONFLICT) => StatusCode::CONFLICT,
         Some(status) if status.is_client_error() => StatusCode::BAD_REQUEST,
@@ -2613,10 +2619,9 @@ fn custom_hostname_access_conflict(error: CloudflareApiError) -> Value {
 }
 
 fn missing_permission_response(permission: &str, error: CloudflareApiError) -> Response {
-    if matches!(
-        error.status,
-        Some(StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN)
-    ) {
+    if error.status == Some(StatusCode::UNAUTHORIZED) {
+        cloudflare_error_response(error)
+    } else if error.status == Some(StatusCode::FORBIDDEN) {
         response::error(
             StatusCode::FORBIDDEN,
             format!("Cloudflare Token needs {permission}: {error}"),
@@ -2672,8 +2677,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn managed_tunnel_uses_dedicated_loopback_ingress() {
-        assert_eq!(local_gateway_service(), "http://127.0.0.1:17999");
+    fn managed_tunnel_uses_go_reproxy_port() {
+        assert_eq!(
+            local_gateway_service_from_port(Some("15101".to_string())),
+            "http://127.0.0.1:15101"
+        );
+        assert_eq!(
+            local_gateway_service_from_port(Some("7999".to_string())),
+            "http://127.0.0.1:7999"
+        );
+        assert_eq!(
+            local_gateway_service_from_port(None),
+            "http://127.0.0.1:7999"
+        );
     }
 
     fn legacy_managed_ownership() -> Value {
@@ -2798,11 +2814,11 @@ mod tests {
             "root": "example.com",
             "selectedTunnelId": "tunnel-id",
             "desiredHosts": ["app.example.com", "auth.example.com"],
-            "desiredService": "http://127.0.0.1:17999",
+            "desiredService": "http://127.0.0.1:7999",
             "tunnelConfig": {
                 "version": 10,
                 "config": { "ingress": [
-                    { "hostname": "*.example.com", "service": "http://127.0.0.1:17999" },
+                    { "hostname": "*.example.com", "service": "http://127.0.0.1:7999" },
                     { "service": "http_status:404" }
                 ] }
             },
@@ -2910,9 +2926,9 @@ mod tests {
             "root": "example.com",
             "selectedTunnelId": "tunnel-id",
             "desiredHosts": ["auth.example.com"],
-            "desiredService": "http://127.0.0.1:17999",
+            "desiredService": "http://127.0.0.1:7999",
             "tunnelConfig": { "config": { "ingress": [
-                { "hostname": "*.example.com", "service": "http://127.0.0.1:17999" },
+                { "hostname": "*.example.com", "service": "http://127.0.0.1:7999" },
                 { "service": "http_status:404" }
             ] } },
             "wildcardDns": [{
@@ -2964,8 +2980,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn permission_probe_only_labels_cloudflare_auth_failures_as_missing_scope() {
+    #[tokio::test]
+    async fn permission_probe_distinguishes_invalid_credentials_from_missing_scope() {
+        let unauthorized = missing_permission_response(
+            "Zone DNS Edit",
+            CloudflareApiError {
+                status: Some(StatusCode::UNAUTHORIZED),
+                message: "Cloudflare API Token authentication failed (10000)".to_string(),
+            },
+        );
+        assert_eq!(unauthorized.status(), StatusCode::FORBIDDEN);
+        let unauthorized_body = axum::body::to_bytes(unauthorized.into_body(), usize::MAX)
+            .await
+            .expect("read authentication response");
+        let unauthorized_body: Value =
+            serde_json::from_slice(&unauthorized_body).expect("parse authentication response");
+        assert_eq!(
+            unauthorized_body.get("code").and_then(Value::as_u64),
+            Some(10_000)
+        );
+        assert_eq!(
+            unauthorized_body.get("message").and_then(Value::as_str),
+            Some("Cloudflare API Token authentication failed (10000)")
+        );
+
         let forbidden = missing_permission_response(
             "Zone DNS Edit",
             CloudflareApiError {

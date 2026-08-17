@@ -161,6 +161,12 @@ describe("managed Cloudflare Tunnel", () => {
     assert.match(managed, /toLocaleString\(locale\)/u);
     assert.doesNotMatch(managed, /text-muted-foreground">Tunnel</u);
 
+    const managedController = readSource(
+      "../src/views/tunnel/cloudflare/useCloudflareManagedTunnel.ts",
+    );
+    assert.match(managedController, /apiAuthenticationFailed/u);
+    assert.match(managedController, /code === 10_000/u);
+
     const optimization = readOptimizationUi();
     const optimizationPresentation = readSource(
       "../src/views/tunnel/cloudflare/cloudflareOptimizationPresentation.ts",

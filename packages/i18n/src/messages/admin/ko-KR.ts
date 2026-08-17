@@ -2710,6 +2710,8 @@ export const koKRAdmin = {
         "로컬 API 자격 증명이 제거되었으며 원격 리소스는 유지됩니다.",
       disconnectFailed: "API 자격 증명 제거 실패",
       previewFailed: "원격 변경 미리보기 실패",
+      apiAuthenticationFailed:
+        "저장된 Cloudflare API Token을 인증할 수 없습니다. 'API 연결'에서 현재 계정과 Zone에 접근할 수 있는 API Token(Tunnel Token 아님)으로 교체한 후 다시 시도하세요.",
       applied: "Cloudflare 리소스 동기화 완료",
       applyFailed: "Cloudflare 설정 적용 실패",
       removeManaged: "fn-knock 관리 리소스 제거",

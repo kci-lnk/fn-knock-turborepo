@@ -2735,6 +2735,8 @@ export const enAdmin = {
         "Local API credential removed; remote resources were left intact",
       disconnectFailed: "Failed to remove API credential",
       previewFailed: "Failed to preview remote changes",
+      apiAuthenticationFailed:
+        "The saved Cloudflare API Token could not be authenticated. Replace it under API connection with an API Token (not a Tunnel Token) that can access the current account and Zone, then retry.",
       applied: "Cloudflare resources reconciled",
       applyFailed: "Failed to apply Cloudflare configuration",
       removeManaged: "Remove fn-knock managed resources",

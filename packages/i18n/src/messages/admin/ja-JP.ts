@@ -2733,6 +2733,8 @@ export const jaJPAdmin = {
         "ローカル認証情報を削除しました。リモートリソースは維持されます",
       disconnectFailed: "API 認証情報の削除に失敗しました",
       previewFailed: "リモート変更のプレビューに失敗しました",
+      apiAuthenticationFailed:
+        "保存済みの Cloudflare API Token を認証できませんでした。「API 接続」で、現在のアカウントと Zone にアクセスできる API Token（Tunnel Token ではありません）に交換してから再試行してください。",
       applied: "Cloudflare リソースを同期しました",
       applyFailed: "Cloudflare 設定の適用に失敗しました",
       removeManaged: "fn-knock 管理リソースを削除",

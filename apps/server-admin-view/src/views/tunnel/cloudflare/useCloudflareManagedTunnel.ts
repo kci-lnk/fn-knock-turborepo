@@ -7,9 +7,7 @@ import {
   type CloudflareReconcilePlan,
 } from "@/lib/api/tunnel";
 import { createVisibilityPoller } from "@/composables/useVisibilityPolling";
-import {
-  extractErrorMessage,
-} from "@admin-shared/composables/useAsyncAction";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import type { CloudflareTranslate } from "./cloudflareTunnelTypes";
 
@@ -59,6 +57,19 @@ export const useCloudflareManagedTunnel = ({
         !takeoverResourceIds.value.includes(conflict.id),
     );
   });
+
+  const reconcilePreviewErrorMessage = (error: unknown) => {
+    const message = extractErrorMessage(
+      error,
+      t("admin.cloudflareTunnel.managed.previewFailed"),
+    );
+    const code = (error as { response?: { data?: { code?: number | null } } })
+      ?.response?.data?.code;
+    if (code === 10_000 || /authentication error\s*\(10000\)/iu.test(message)) {
+      return t("admin.cloudflareTunnel.managed.apiAuthenticationFailed");
+    }
+    return message;
+  };
 
   const loadManagedState = async (options?: { silent?: boolean }) => {
     if (isLoadingManagedState.value) return;
@@ -146,10 +157,7 @@ export const useCloudflareManagedTunnel = ({
       });
     } catch (error) {
       toast.error(t("admin.cloudflareTunnel.managed.previewFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.cloudflareTunnel.managed.previewFailed"),
-        ),
+        description: reconcilePreviewErrorMessage(error),
       });
     } finally {
       isPreviewingReconcile.value = false;
@@ -176,10 +184,7 @@ export const useCloudflareManagedTunnel = ({
       });
     } catch (error) {
       toast.error(t("admin.cloudflareTunnel.managed.previewFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.cloudflareTunnel.managed.previewFailed"),
-        ),
+        description: reconcilePreviewErrorMessage(error),
       });
     } finally {
       isPreviewingReconcile.value = false;

@@ -21,10 +21,11 @@ const createConfig = (
 const createHostFormatters = (
   subdomainMode: SubdomainModeConfig,
   overrides: Partial<AppConfig> = {},
+  accessEntryPort = "7999",
 ) => {
   const config = createConfig(subdomainMode, overrides);
   return useSubdomainPortDisplay({
-    accessEntryPort: ref("7999"),
+    accessEntryPort: ref(accessEntryPort),
     currentModeConfig: computed(() => config.subdomain_mode),
     getConfig: () => config,
     modeForm: { ...subdomainMode },
@@ -104,6 +105,38 @@ test("cloudflared omits a stale explicitly configured public port", () => {
   assert.equal(
     formatAuthServiceHostWithPublicPort("auth.example.com"),
     "auth.example.com",
+  );
+});
+
+test("FRP reverse subdomain mode uses the access entry instead of public_https_port", () => {
+  const subdomainMode = {
+    ...createDefaultModeForm(),
+    public_https_port: 7999,
+  };
+  const {
+    authServicePublicPort,
+    formatAuthServiceHostWithPublicPort,
+    formatHostWithAccessEntryPort,
+    omitPublicPortConfiguration,
+  } = createHostFormatters(
+    subdomainMode,
+    {
+      run_type: 1,
+      reverse_proxy_submode: "subdomain",
+      default_tunnel: "frp",
+    },
+    "15101",
+  );
+
+  assert.equal(omitPublicPortConfiguration.value, true);
+  assert.equal(authServicePublicPort.value, 15101);
+  assert.equal(
+    formatHostWithAccessEntryPort("app.example.com"),
+    "app.example.com:15101",
+  );
+  assert.equal(
+    formatAuthServiceHostWithPublicPort("auth.example.com"),
+    "auth.example.com:15101",
   );
 });
 

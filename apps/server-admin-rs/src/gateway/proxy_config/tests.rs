@@ -3321,6 +3321,24 @@ fn builds_gateway_auth_config_from_auth_mapping() {
 }
 
 #[test]
+fn reverse_proxy_gateway_auth_ignores_configured_public_https_port() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "frp",
+        "subdomain_mode": {
+            "public_auth_base_url": "",
+            "public_https_port": 7999
+        }
+    });
+
+    assert_eq!(
+        resolve_auth_public_port_for_scheme(&config, "https", "", false),
+        None
+    );
+}
+
+#[test]
 fn gateway_auth_config_omits_origin_port_for_edge_providers() {
     for (provider, aliyun_esa_enabled, tencent_edgeone_enabled) in [
         ("Aliyun ESA", true, false),

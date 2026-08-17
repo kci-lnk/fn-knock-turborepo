@@ -177,6 +177,7 @@ export const resolveConfiguredAuthServicePublicPort = (
     SubdomainModeConfig,
     "public_auth_base_url" | "public_http_port" | "public_https_port"
   >,
+  allowConfiguredPort = true,
 ): number => {
   const explicitHttpsPort = parsePublicAuthBaseUrlPort(
     config.public_auth_base_url,
@@ -191,8 +192,7 @@ export const resolveConfiguredAuthServicePublicPort = (
   return (
     explicitHttpsPort ||
     explicitHttpPort ||
-    configuredHttpsPort ||
-    configuredHttpPort
+    (allowConfiguredPort ? configuredHttpsPort || configuredHttpPort : 0)
   );
 };
 
@@ -201,6 +201,7 @@ export const resolveConfiguredAccessEntryPublicPort = (
     SubdomainModeConfig,
     "public_auth_base_url" | "public_http_port" | "public_https_port"
   >,
+  allowConfiguredPort = true,
 ): number => {
   const explicitHttpsPort = parsePublicAuthBaseUrlPort(
     config.public_auth_base_url,
@@ -214,9 +215,8 @@ export const resolveConfiguredAccessEntryPublicPort = (
   const configuredHttpPort = normalizePublicPort(config.public_http_port);
   const configuredPort =
     explicitHttpsPort ||
-    configuredHttpsPort ||
     explicitHttpPort ||
-    configuredHttpPort;
+    (allowConfiguredPort ? configuredHttpsPort || configuredHttpPort : 0);
   return configuredPort > 0 ? configuredPort : 0;
 };
 

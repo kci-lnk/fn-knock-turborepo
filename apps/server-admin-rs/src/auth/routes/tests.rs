@@ -149,6 +149,24 @@ fn public_auth_base_url_applies_configured_public_https_port() {
 }
 
 #[test]
+fn reverse_proxy_auth_port_ignores_configured_public_https_port() {
+    let config = json!({
+        "run_type": 1,
+        "reverse_proxy_submode": "subdomain",
+        "default_tunnel": "frp",
+        "subdomain_mode": {
+            "public_auth_base_url": "",
+            "public_https_port": 7999
+        }
+    });
+
+    assert_eq!(
+        resolve_auth_public_port_for_scheme(&config, "https", "", false),
+        None
+    );
+}
+
+#[test]
 fn shared_auth_redirect_does_not_redirect_to_same_hostname_with_mismatched_origin() {
     let config = shared_auth_test_config();
     let mut headers = forwarded_headers("auth.example.com:7999");

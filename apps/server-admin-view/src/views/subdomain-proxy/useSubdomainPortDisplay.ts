@@ -1,6 +1,9 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import type { AppConfig, SubdomainModeConfig } from "@/types";
-import { isCloudflaredReverseProxySubdomainMode } from "@/lib/reverse-proxy-submode";
+import {
+  isCloudflaredReverseProxySubdomainMode,
+  isReverseProxySubdomainMode,
+} from "@/lib/reverse-proxy-submode";
 import {
   formatHostWithOptionalPort,
   isDefaultPublicPort,
@@ -26,8 +29,14 @@ export const useSubdomainPortDisplay = ({
   const defaultAuthServicePublicPort = computed(
     () => normalizePublicPort(accessEntryPort.value) || 7999,
   );
+  const isReverseProxySubdomain = computed(() =>
+    isReverseProxySubdomainMode(getConfig()),
+  );
   const configuredAuthServicePublicPort = computed(() =>
-    resolveConfiguredAuthServicePublicPort(modeForm),
+    resolveConfiguredAuthServicePublicPort(
+      modeForm,
+      !isReverseProxySubdomain.value,
+    ),
   );
   const authServicePublicPort = computed({
     get: () => {
@@ -50,7 +59,10 @@ export const useSubdomainPortDisplay = ({
     String(authServicePublicPort.value || defaultAuthServicePublicPort.value),
   );
   const configuredAccessEntryPort = computed(() =>
-    resolveConfiguredAccessEntryPublicPort(currentModeConfig.value),
+    resolveConfiguredAccessEntryPublicPort(
+      currentModeConfig.value,
+      !isReverseProxySubdomain.value,
+    ),
   );
   const displayAccessEntryPort = computed(() =>
     configuredAccessEntryPort.value > 0
@@ -81,11 +93,14 @@ export const useSubdomainPortDisplay = ({
       isEdgeClientIPModeEditable.value &&
       activeEdgeClientIpProvider.value !== null,
   );
-  const omitPublicPortConfiguration = computed(() =>
-    isCloudflaredReverseProxySubdomainMode(getConfig()),
+  const omitPublicPortConfiguration = computed(
+    () => isReverseProxySubdomain.value,
   );
   const shouldOmitAccessEntryPort = computed(() => {
-    if (isSavedEdgeClientIPActive.value || omitPublicPortConfiguration.value) {
+    if (
+      isSavedEdgeClientIPActive.value ||
+      isCloudflaredReverseProxySubdomainMode(getConfig())
+    ) {
       return true;
     }
     return isDefaultPublicPort(displayAccessEntryPort.value);
@@ -97,7 +112,10 @@ export const useSubdomainPortDisplay = ({
       shouldOmitAccessEntryPort.value,
     );
   const shouldOmitDraftAuthServicePublicPort = computed(() => {
-    if (isEdgeClientIPActive.value || omitPublicPortConfiguration.value) {
+    if (
+      isEdgeClientIPActive.value ||
+      isCloudflaredReverseProxySubdomainMode(getConfig())
+    ) {
       return true;
     }
     return isDefaultPublicPort(authServicePublicPort.value);

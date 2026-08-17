@@ -7,6 +7,7 @@ use crate::state::AppState;
 
 const SYNC_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(30);
 const SYNC_RETRY_DELAY: Duration = Duration::from_secs(1);
+const SYNC_MAX_RETRY_DELAY: Duration = Duration::from_secs(8);
 
 pub(super) async fn sync_memory(
     state: &AppState,
@@ -99,8 +100,9 @@ where
             Err(error) if !is_transient_error(&error) => return Err(error),
             Err(error) => error,
         };
+        let current_retry_delay = retry_delay_for_attempt(retry_delay, attempts);
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining <= retry_delay {
+        if remaining <= current_retry_delay {
             return Err(format!(
                 "{operation_name} startup sync failed after {attempts} attempts: {error}"
             ));
@@ -108,15 +110,21 @@ where
         tracing::warn!(
             operation = operation_name,
             attempt = attempts,
-            retry_delay_ms = retry_delay.as_millis(),
+            retry_delay_ms = current_retry_delay.as_millis(),
             %error,
             "transient gateway startup sync failure; retrying"
         );
         tokio::select! {
             _ = shutdown.cancelled() => return Err("startup cancelled".to_string()),
-            _ = tokio::time::sleep(retry_delay.min(remaining)) => {}
+            _ = tokio::time::sleep(current_retry_delay.min(remaining)) => {}
         }
     }
+}
+
+fn retry_delay_for_attempt(base: Duration, attempts: u32) -> Duration {
+    let exponent = attempts.saturating_sub(1).min(3);
+    base.saturating_mul(1_u32 << exponent)
+        .min(SYNC_MAX_RETRY_DELAY)
 }
 
 fn is_transient_error(error: &str) -> bool {
@@ -126,6 +134,7 @@ fn is_transient_error(error: &str) -> bool {
         "timed out",
         "deadline exceeded",
         "deadlineexceeded",
+        "returned 500 internal server error",
         "returned 502 bad gateway",
         "returned 503 service unavailable",
         "returned 504 gateway timeout",
@@ -206,6 +215,7 @@ mod tests {
             "Timeout expired",
             "request timed out",
             "deadline exceeded",
+            "returned 500 Internal Server Error",
             "returned 502 Bad Gateway",
             "returned 503 Service Unavailable",
             "returned 504 Gateway Timeout",
@@ -223,6 +233,26 @@ mod tests {
         ] {
             assert!(!is_transient_error(error), "expected permanent: {error}");
         }
+    }
+
+    #[test]
+    fn transient_retry_delay_is_bounded_exponential_backoff() {
+        let base = Duration::from_secs(1);
+        let delays = (1..=7)
+            .map(|attempt| retry_delay_for_attempt(base, attempt))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            delays,
+            vec![
+                Duration::from_secs(1),
+                Duration::from_secs(2),
+                Duration::from_secs(4),
+                Duration::from_secs(8),
+                Duration::from_secs(8),
+                Duration::from_secs(8),
+                Duration::from_secs(8),
+            ]
+        );
     }
 
     #[tokio::test]

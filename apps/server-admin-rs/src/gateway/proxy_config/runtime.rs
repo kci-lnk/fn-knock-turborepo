@@ -31,7 +31,7 @@ async fn sync_go_host_rules_with_client_locked(
         "host_rules_pending",
         Map::new(),
     );
-    let result = async {
+    let result: Result<(), String> = async {
         let response = client
             .set_host_rules(rules)
             .await
@@ -50,16 +50,56 @@ async fn sync_go_host_rules_with_client_locked(
             "host_rules_applied",
             Map::new(),
         );
-    } else {
+    } else if let Err(error) = &result {
+        let mut fields = Map::new();
+        fields.insert(
+            "failure_class".to_string(),
+            Value::String(host_rules_failure_class(error).to_string()),
+        );
         state.runtime_health.operational_log(
             "ERROR",
             "config_sync",
             "apply_failed",
             "host_rules_rejected",
-            Map::new(),
+            fields,
         );
     }
     result
+}
+
+fn host_rules_failure_class(error: &str) -> &'static str {
+    let error = error.to_ascii_lowercase();
+    if error.contains("returned 400 bad request") || error.contains("invalid host rule") {
+        "validation"
+    } else if error.contains("returned 401 unauthorized")
+        || error.contains("returned 403 forbidden")
+    {
+        "authorization"
+    } else if error.contains("did not apply")
+        || error.contains("missing data")
+        || error.contains("upgrade the gateway backend")
+    {
+        "compatibility"
+    } else if [
+        "timed out",
+        "timeout expired",
+        "deadline exceeded",
+        "returned 500 internal server error",
+        "returned 502 bad gateway",
+        "returned 503 service unavailable",
+        "returned 504 gateway timeout",
+        "status: unavailable",
+        "transport error",
+        "connection refused",
+        "connection reset",
+    ]
+    .iter()
+    .any(|marker| error.contains(marker))
+    {
+        "transient_gateway"
+    } else {
+        "unknown"
+    }
 }
 
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
@@ -215,6 +255,27 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod failure_class_tests {
+    use super::host_rules_failure_class;
+
+    #[test]
+    fn classifies_host_rules_failures_without_exporting_error_details() {
+        assert_eq!(
+            host_rules_failure_class("set_host_rules returned 502 Bad Gateway: disk error"),
+            "transient_gateway"
+        );
+        assert_eq!(
+            host_rules_failure_class("set_host_rules returned 400 Bad Request"),
+            "validation"
+        );
+        assert_eq!(
+            host_rules_failure_class("Go backend did not apply host mapping example.test"),
+            "compatibility"
+        );
+    }
 }
 
 fn host_rule_items(value: &Value) -> Option<&Vec<Value>> {

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import type { HostMapping } from "@/types";
+import PanelSyncMenuItem from "./PanelSyncMenuItem.vue";
 
 defineProps<{
   allMappingsCount: number;
@@ -218,6 +219,7 @@ const { t } = useI18n();
                   : t("admin.subdomainProxy.syncRoutes")
               }}
             </DropdownMenuItem>
+            <PanelSyncMenuItem />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               :disabled="isRefreshingTitles || allMappingsCount === 0"

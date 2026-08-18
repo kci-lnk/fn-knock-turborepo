@@ -151,6 +151,53 @@ async fn boot_migration_reenables_unvalidated_stream_mappings() {
 }
 
 #[tokio::test]
+async fn boot_migration_backfills_panel_sync_ids_through_host_mapping_cas() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let initial = vec![
+        json!({"host": "one.example.com", "service_role": "app"}),
+        json!({"host": "two.example.com", "service_role": "app"}),
+    ];
+    let mut config = state
+        .storage
+        .store
+        .compare_and_set_host_mappings(&[], &initial)
+        .await
+        .expect("seed host mappings")
+        .expect("host mapping seed should win");
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(applied.contains(&"host_mapping_sync_ids"));
+
+    let persisted = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload config");
+    let mappings = persisted["host_mappings"]
+        .as_array()
+        .expect("host mappings array");
+    assert_eq!(mappings.len(), 2);
+    let ids = mappings
+        .iter()
+        .map(|mapping| {
+            let value = mapping["sync_id"].as_str().expect("stable sync id");
+            uuid::Uuid::parse_str(value).expect("valid sync UUID");
+            value
+        })
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(ids.len(), 2);
+
+    let mut persisted = persisted;
+    let reapplied = apply_boot_config_migrations(&state, &mut persisted)
+        .await
+        .expect("reapply config migrations");
+    assert!(!reapplied.contains(&"host_mapping_sync_ids"));
+}
+
+#[tokio::test]
 async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
 

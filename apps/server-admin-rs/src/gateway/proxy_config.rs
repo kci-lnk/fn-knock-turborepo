@@ -41,6 +41,9 @@ mod subdomain;
 use advanced_auth::*;
 pub(crate) use auth_payload::*;
 use bookmarks::*;
+pub(crate) use bookmarks::{
+    public_host_link_context, public_host_url, public_panel_icon_url, resolve_public_host_title,
+};
 use groups::*;
 use metadata_fetch::*;
 use metadata_html::*;
@@ -68,6 +71,36 @@ pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(
 
 pub(crate) fn enable_unvalidated_stream_mappings(config: &mut Value) -> usize {
     stream_security::enable_unvalidated_stream_mappings(config)
+}
+
+/// Backfill the installation-owned stable identity used by panel sync.
+pub(crate) fn ensure_host_mapping_sync_ids(config: &mut Value) -> usize {
+    let Some(mappings) = config
+        .get_mut("host_mappings")
+        .and_then(Value::as_array_mut)
+    else {
+        return 0;
+    };
+    let mut seen = HashSet::with_capacity(mappings.len());
+    let mut changed = 0;
+    for mapping in mappings {
+        let Some(object) = mapping.as_object_mut() else {
+            continue;
+        };
+        let retained = object
+            .get("sync_id")
+            .and_then(Value::as_str)
+            .filter(|value| uuid::Uuid::parse_str(value).is_ok())
+            .filter(|value| seen.insert((*value).to_string()))
+            .map(str::to_string);
+        if retained.is_none() {
+            let sync_id = uuid::Uuid::new_v4().to_string();
+            seen.insert(sync_id.clone());
+            object.insert("sync_id".to_string(), Value::String(sync_id));
+            changed += 1;
+        }
+    }
+    changed
 }
 
 pub(crate) fn referenced_host_ipset_policy_ids<'a>(
@@ -1657,7 +1690,6 @@ async fn update_host_mappings(
         updated_config.clone(),
     );
     crate::cloudflared::schedule_managed_reconcile_after_host_mappings_change(state.clone());
-
     host_mappings_response(normalized)
 }
 
@@ -2147,5 +2179,6 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
 
     let mut data = next.as_object().cloned().unwrap_or_else(Map::new);
     data.insert("ssl_auto_selection".to_string(), ssl_auto_selection);
+    crate::panel_sync::notify_source_changed(&state);
     response::ok(Value::Object(data)).into_response()
 }

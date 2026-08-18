@@ -163,6 +163,7 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_panel_session = crate::admin::panel::panel_session_routes().into_openapi();
     let typed_totp_bootstrap = crate::admin_control::totp_bootstrap_routes().into_openapi();
     let typed_totp_management = crate::admin_control::totp_management_routes().into_openapi();
+    let typed_panel_sync = crate::panel_sync::panel_sync_routes().into_openapi();
     let typed_health_operation = serde_json::to_value(typed_health)
         .ok()
         .and_then(|value| value.pointer("/paths/~1api~1admin~1healthz/get").cloned());
@@ -192,6 +193,13 @@ pub(crate) fn build_openapi_document() -> Value {
         }),
     );
     schemas.extend(domain_contracts::components());
+    if let Ok(panel_sync_document) = serde_json::to_value(&typed_panel_sync)
+        && let Some(panel_sync_schemas) = panel_sync_document
+            .pointer("/components/schemas")
+            .and_then(Value::as_object)
+    {
+        schemas.extend(panel_sync_schemas.clone());
+    }
     components.insert(
         "securitySchemes".to_string(),
         json!({
@@ -226,6 +234,98 @@ pub(crate) fn build_openapi_document() -> Value {
         "/api/admin/system/access-entry",
         "get",
         "AccessEntryData",
+        None,
+        None,
+    );
+    insert_typed_array_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/providers",
+        "get",
+        "ProviderDescriptor",
+    );
+    insert_typed_array_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections",
+        "get",
+        "PanelConnection",
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections",
+        "post",
+        "PanelConnection",
+        None,
+        Some("ConnectionInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections/{id}",
+        "put",
+        "PanelConnection",
+        None,
+        Some("ConnectionUpdateInput"),
+    );
+    insert_typed_message_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections/{id}",
+        "delete",
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/test",
+        "post",
+        "ProbeResult",
+        None,
+        Some("TestConnectionInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections/{id}/preview",
+        "post",
+        "SyncPreview",
+        None,
+        Some("PreviewRequest"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections/{id}/sync",
+        "post",
+        "SyncAccepted",
+        None,
+        Some("SyncRequest"),
+    );
+    if let Some(responses) = paths
+        .get_mut("/api/admin/panel-sync/connections/{id}/sync")
+        .and_then(Value::as_object_mut)
+        .and_then(|path| path.get_mut("post"))
+        .and_then(|operation| operation.get_mut("responses"))
+        .and_then(Value::as_object_mut)
+        && let Some(success) = responses.get("200").cloned()
+    {
+        responses.insert("202".to_string(), success);
+    }
+    insert_typed_array_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/connections/{id}/runs",
+        "get",
+        "SyncRun",
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_panel_sync,
+        "/api/admin/panel-sync/runs/{run_id}",
+        "get",
+        "SyncRun",
         None,
         None,
     );
@@ -3750,7 +3850,6 @@ pub(crate) fn build_openapi_document() -> Value {
     ssl_docs::apply(&mut paths, &mut components);
     let mut tags = baseline_docs::tags();
     tags.push(ssl_docs::tag());
-
     json!({
         "openapi": "3.1.0",
         "info": {
@@ -4593,7 +4692,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 424);
+        assert_eq!(operations, 438);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5286,7 +5385,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 424);
+        assert_eq!(operations.len(), 438);
         assert!(
             operations
                 .iter()

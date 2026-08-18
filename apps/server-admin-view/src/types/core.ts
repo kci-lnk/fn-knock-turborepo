@@ -140,6 +140,7 @@ export interface HostLocation {
 
 export interface HostMapping {
   host: string;
+  sync_id?: string;
   group_id: string | null;
   target: string;
   target_path_mode: HostTargetPathMode;

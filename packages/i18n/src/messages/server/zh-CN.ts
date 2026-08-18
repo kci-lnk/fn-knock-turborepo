@@ -2331,6 +2331,8 @@ export const zhCNServer = {
         runtimeHealthFailed: "组件健康检查失败",
         runtimeRecovered: "组件已恢复",
         runtimeAbnormalExit: "组件异常退出",
+        panelSyncFailed: "同步到导航面板失败",
+        panelSyncRecovered: "同步到导航面板已恢复",
       },
       ruleName: "{event} 通知",
       levels: {

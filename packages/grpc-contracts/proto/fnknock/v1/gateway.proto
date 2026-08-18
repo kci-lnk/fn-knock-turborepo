@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 15;
+  CONTROL_API_VERSION_CURRENT = 16;
 }
 
 message RpcStatus {
@@ -134,6 +134,7 @@ message HostRule {
   optional string group_id = 17;
   optional string group_name = 18;
   string target_path_mode = 19;
+  string website_icon_path = 20;
 }
 
 message StreamRule {

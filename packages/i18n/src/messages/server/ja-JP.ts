@@ -2703,6 +2703,8 @@ export const jaJPServer = {
         runtimeHealthFailed: "ヘルスチェック失敗",
         runtimeRecovered: "コンポーネント復旧",
         runtimeAbnormalExit: "コンポーネント異常終了",
+        panelSyncFailed: "ナビゲーションパネルへの同期失敗",
+        panelSyncRecovered: "ナビゲーションパネルへの同期復旧",
       },
       ruleName: "{event}通知",
       levels: {

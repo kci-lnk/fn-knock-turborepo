@@ -35,6 +35,141 @@ export const enAdmin = {
     skipToContent: "Skip to main content",
     openGithub: "Open GitHub project",
   },
+  panelSync: {
+    title: "Sync to navigation panel",
+    description:
+      "Export enabled application domains to a dashboard. Internal targets and authentication services are never exposed.",
+    menuEntry: "Sync to navigation panel",
+    addConnection: "Add panel",
+    empty: "No panel connections yet",
+    emptyDescription: "Add and test a connection, then preview the first sync.",
+    status: { verified: "Verified", draft: "Unverified draft" },
+    lastRun: "Latest result",
+    nextRun: "Next sync",
+    autoSync: "Automatic sync",
+    everyMinutes:
+      "Sync after every subdomain mapping change and also reconcile every {count} minutes",
+    testing: "Testing…",
+    test: "Test connection",
+    testDraft: "Test current values",
+    previewing: "Preparing preview…",
+    preview: "Preview sync",
+    history: "Run history",
+    minutes: "minutes",
+    syncing: "Syncing…",
+    saving: "Saving…",
+    loadingHistory: "Loading run history…",
+    loadingConnections: "Loading panel connections…",
+    confirmSync: "Confirm and sync",
+    previewTitle: "Sync preview · {name}",
+    previewDescription:
+      "The plan is recomputed before execution. Source changes require a new preview.",
+    historyTitle: "Run history · {name}",
+    historyDescription:
+      "Up to 20 runs per connection are retained for 30 days.",
+    noHistory: "No runs yet",
+    deleteConfirm:
+      "Detach “{name}”? Remote objects will not be deleted automatically.",
+    deleteTitle: "Detach panel connection",
+    remoteRetained:
+      "Remote objects were retained. Verify them in the panel before cleaning up.",
+    remoteCleaned: "Remote objects registered by this connection were removed.",
+    cleanupRemote: "Remove owned remote objects before detaching",
+    cleanupRemoteDescription:
+      "Only registered categories and links are removed. Review the latest preview first; unregistered objects are never adopted or deleted.",
+    cleanupPreviewing: "Inspecting the panel and preparing a cleanup preview…",
+    cleanupPreviewReady: "Cleanup preview is ready",
+    cleanupPreviewCounts:
+      "This will remove {groups} categories and {links} links.",
+    sunPanelDetachOnly:
+      "Sun-Panel has no stable delete API, so it can only be detached. Registered objects will remain remotely.",
+    actions: {
+      create: "Create",
+      update: "Update",
+      delete: "Delete",
+      unchanged: "Unchanged",
+      residual: "Residual",
+      conflict: "Conflict",
+    },
+    actionDetails: {
+      createGroup: "Create a dedicated category",
+      createLink: "Create link",
+      updateGroup: "Synchronize the category name",
+      updateLink: "Synchronize the latest fn-knock content",
+      deleteGroup: "Delete the category registered by this connection",
+      deleteLink: "Delete the link registered by this connection",
+      unchangedGroup: "Category is already up to date",
+      unchangedLink: "Link is already up to date",
+      residualGroup: "The public API cannot delete this remote category",
+      residualLink: "The public API cannot delete this remote link",
+      conflictGroup: "The matching category is not owned by this connection",
+      conflictLink: "The matching link is not owned by this connection",
+    },
+    warnings: {
+      sunResidual:
+        "Sun-Panel's public API has no stable delete operation. Obsolete items will remain in the panel.",
+    },
+    runStatus: {
+      queued: "Queued",
+      running: "Running",
+      success: "Succeeded",
+      failed: "Failed",
+      skipped: "Skipped",
+      conflict: "Conflict",
+    },
+    triggers: {
+      manual: "Manual",
+      config_change: "Configuration change",
+      periodic: "Periodic reconciliation",
+    },
+    editor: {
+      createTitle: "Add panel connection",
+      editTitle: "Edit panel connection",
+      description:
+        "Unverified drafts can be saved, but cannot sync or enable automation.",
+      provider: "Panel type",
+      providerPlaceholder: "Select a panel type",
+      name: "Connection name",
+      endpointUrl: "Complete API URL",
+      endpointHint: "Enter the full HTTP(S) URL including the API root path.",
+      credential: "API token / credential",
+      credentialKeep: "Leave blank to retain the current credential",
+      clearCredential: "Explicitly clear the current credential",
+      groupMode: "Grouping strategy",
+      mirror: "Match fn-knock",
+      single: "Put everything in one category",
+      namespace: "Category namespace",
+      singleGroup: "Destination category",
+      advanced: "Advanced settings",
+      apiPath: "API root path",
+      invalidTls: "Allow invalid TLS certificates",
+      invalidTlsWarning:
+        "Only use for a self-signed environment when you understand the risk.",
+      autoHint:
+        "Automatically syncs after each subdomain mapping change and reconciles remote state at the interval below.",
+      draftTested:
+        "These values passed the test. Saving will verify the connection and activate automatic sync.",
+      unverifiedHint:
+        "Automatic sync remains paused until the connection is verified, then activates with the current settings.",
+    },
+    messages: {
+      loadFailed: "Failed to load panel connections",
+      created: "Panel connection created",
+      updated: "Panel connection updated",
+      saveFailed: "Failed to save panel connection",
+      invalidEndpoint: "Enter a valid complete API URL",
+      testSuccess: "Panel connection verified",
+      testFailed: "Panel connection test failed",
+      deleted: "Panel connection detached",
+      deleteFailed: "Failed to delete panel connection",
+      cleanupPreviewFailed: "Failed to prepare remote cleanup preview",
+      previewFailed: "Failed to prepare sync preview",
+      syncSuccess: "Synced to navigation panel",
+      syncFailed: "Failed to sync to navigation panel",
+      planChanged: "Configuration changed; review the new preview",
+      historyFailed: "Failed to load run history",
+    },
+  },
   wol: {
     title: "Wake-on-LAN",
     description:
@@ -5913,6 +6048,8 @@ export const enAdmin = {
       FN_EVENT_RUNTIME_HEALTH_FAILED: "Component health failed",
       FN_EVENT_RUNTIME_RECOVERED: "Component recovered",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "Component exited abnormally",
+      FN_EVENT_PANEL_SYNC_FAILED: "Failed to sync to navigation panel",
+      FN_EVENT_PANEL_SYNC_RECOVERED: "Navigation panel sync recovered",
     },
     groupBy: {
       GLOBAL: "Global",
@@ -6113,6 +6250,7 @@ export const enAdmin = {
       wolWakeCompleted: "Device {target} via {relay}: {result} ({latency} ms)",
       wolShutdownCompleted:
         "Device {target} via SSH host {host}: {result} ({latency} ms)",
+      panelSyncStatus: "Connection {connection}: {event}; {message}",
       gatewayThrottleBlocked: "{ip} triggered throttling for {seconds}s",
       gatewayVisibilityBlocked:
         "{ip} was blocked by visibility rules while accessing {host}{path}",

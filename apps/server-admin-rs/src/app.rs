@@ -33,6 +33,7 @@ use crate::{
     maintenance::start_automatic_backup_tasks,
     memory,
     notifications::start_notification_tasks,
+    panel_sync::start_panel_sync_tasks,
     runtime_health::{install_panic_hook, start_runtime_monitor},
     runtime_profile,
     scanner::migrate_scanner_cidr_ipset_on_boot,
@@ -186,6 +187,7 @@ pub(crate) async fn run_with_settings(
     start_traffic_tasks(state.clone());
     start_ip_location_worker(state.clone());
     start_notification_tasks(state.clone());
+    start_panel_sync_tasks(state.clone());
     start_automatic_backup_tasks(state.clone());
     start_wol_tasks(state.clone());
     let profile = runtime_profile::get_runtime_profile(&state);

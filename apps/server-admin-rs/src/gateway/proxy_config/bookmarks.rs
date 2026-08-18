@@ -1,5 +1,43 @@
 use super::*;
 
+#[derive(Clone, Debug)]
+pub(crate) struct PublicHostLinkContext {
+    scheme: &'static str,
+    access_entry_port: String,
+    omit_access_entry_port: bool,
+}
+
+pub(crate) fn public_host_link_context(config: &Value) -> PublicHostLinkContext {
+    let scheme = resolve_bookmark_scheme(config);
+    let raw_public_base_url = config
+        .pointer("/subdomain_mode/public_auth_base_url")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let resolved_public_port =
+        resolve_public_port_for_scheme(config, scheme, raw_public_base_url, true, false);
+    PublicHostLinkContext {
+        scheme,
+        access_entry_port: resolved_public_port
+            .map(|port| port.to_string())
+            .unwrap_or_else(|| crate::system_info::resolve_access_entry_port(config)),
+        omit_access_entry_port: should_omit_public_access_entry_port(config)
+            && resolved_public_port.is_none(),
+    }
+}
+
+pub(crate) fn public_host_url(context: &PublicHostLinkContext, host: &str) -> String {
+    build_bookmark_url(
+        host,
+        context.scheme,
+        Some(&context.access_entry_port),
+        context.omit_access_entry_port,
+    )
+}
+
+pub(crate) fn resolve_public_host_title(object: &Map<String, Value>, host: &str) -> String {
+    resolve_bookmark_title(object, host)
+}
+
 pub(super) use crate::http_utils::html_escape as escape_html;
 
 pub(super) fn build_bookmarks_document(
@@ -277,6 +315,39 @@ pub(super) fn resolve_bookmark_icon(object: &Map<String, Value>) -> Option<&str>
                     .get(..11)
                     .is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:image/"))
         })
+}
+
+pub(super) fn website_icon_path(object: &Map<String, Value>, sync_id: &str) -> String {
+    let extension = resolve_bookmark_icon(object)
+        .and_then(|value| value.split_once(',').map(|(metadata, _)| metadata))
+        .and_then(|metadata| metadata.strip_prefix("data:"))
+        .and_then(|metadata| metadata.split(';').next())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+        .map(|content_type| match content_type {
+            "image/avif" => "avif",
+            "image/gif" => "gif",
+            "image/jpeg" => "jpg",
+            "image/svg+xml" => "svg",
+            "image/vnd.microsoft.icon" | "image/x-icon" => "ico",
+            "image/webp" => "webp",
+            _ => "png",
+        })
+        .unwrap_or("png");
+    format!("/__assets__/website_icon.{sync_id}.{extension}")
+}
+
+pub(crate) fn public_panel_icon_url(
+    context: &PublicHostLinkContext,
+    object: &Map<String, Value>,
+    host: &str,
+    sync_id: &str,
+) -> String {
+    format!(
+        "{}{}",
+        public_host_url(context, host).trim_end_matches('/'),
+        website_icon_path(object, sync_id)
+    )
 }
 
 pub(super) fn build_bookmark_filename(config: &Value) -> String {

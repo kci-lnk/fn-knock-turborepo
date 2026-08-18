@@ -2614,6 +2614,8 @@ export const koKRServer = {
         runtimeHealthFailed: "상태 검사 실패",
         runtimeRecovered: "컴포넌트 복구",
         runtimeAbnormalExit: "컴포넌트 비정상 종료",
+        panelSyncFailed: "탐색 패널로 동기화 실패",
+        panelSyncRecovered: "탐색 패널 동기화 복구",
       },
       ruleName: "{event} 알림",
       levels: {

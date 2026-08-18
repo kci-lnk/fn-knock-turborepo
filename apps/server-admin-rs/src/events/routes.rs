@@ -43,6 +43,8 @@ pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_RUNTIME_HEALTH_FAILED",
     "FN_EVENT_RUNTIME_RECOVERED",
     "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+    "FN_EVENT_PANEL_SYNC_FAILED",
+    "FN_EVENT_PANEL_SYNC_RECOVERED",
 ];
 pub(crate) const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
 pub(crate) const SYSTEM_EVENT_SOURCES: &[&str] = &[
@@ -59,6 +61,7 @@ pub(crate) const SYSTEM_EVENT_SUBJECT_KINDS: &[&str] = &[
     "APPLICATION",
     "TUNNEL",
     "COMPONENT",
+    "PANEL_SYNC",
 ];
 const APP_UPDATE_EVENT_DEDUPE_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 const GATEWAY_VISIBILITY_EVENT_DEDUPE_KEY: &str = "gateway-visibility:global";
@@ -265,6 +268,40 @@ pub async fn publish_ddns_update_completed_event(
         payload,
     };
     publish_system_event_body(state, body).await
+}
+
+pub async fn publish_panel_sync_event(
+    state: &AppState,
+    connection_id: &str,
+    success: bool,
+    recovered: bool,
+    message: Option<&str>,
+) -> anyhow::Result<bool> {
+    publish_system_event_body(
+        state,
+        InternalSystemEventBody {
+            event_type: if recovered {
+                "FN_EVENT_PANEL_SYNC_RECOVERED"
+            } else {
+                "FN_EVENT_PANEL_SYNC_FAILED"
+            }
+            .to_string(),
+            source: "SERVER_ADMIN".to_string(),
+            level: Some(if success { "INFO" } else { "ERROR" }.to_string()),
+            happened_at: None,
+            dedupe_key: (!success).then(|| format!("panel-sync:{connection_id}:failure")),
+            dedupe_ttl_seconds: (!success).then_some(300.0),
+            subject: Some(json!({ "kind": "PANEL_SYNC", "id": connection_id })),
+            tags: Some(vec!["panel-sync".to_string()]),
+            payload: json!({
+                "connection_id": connection_id,
+                "success": success,
+                "recovered": recovered,
+                "message": message.unwrap_or_default(),
+            }),
+        },
+    )
+    .await
 }
 
 pub async fn publish_wol_wake_completed_event(
@@ -1330,6 +1367,7 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         | "FN_EVENT_RUNTIME_RESTARTED"
         | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => Some("runtime_lifecycle"),
         "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" => Some("runtime_health"),
+        "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" => Some("panel_sync"),
         _ => None,
     }
 }
@@ -1349,7 +1387,8 @@ fn default_event_level(event_type: &str) -> &'static str {
         | "FN_EVENT_SSH_LOGIN_SUCCESS"
         | "FN_EVENT_RUNTIME_STARTED"
         | "FN_EVENT_RUNTIME_STOPPED"
-        | "FN_EVENT_RUNTIME_RECOVERED" => "INFO",
+        | "FN_EVENT_RUNTIME_RECOVERED"
+        | "FN_EVENT_PANEL_SYNC_RECOVERED" => "INFO",
         "FN_EVENT_RUNTIME_RESTARTED" => "WARN",
         "FN_EVENT_SYSTEM_CPU_ALERT"
         | "FN_EVENT_SYSTEM_MEMORY_ALERT"

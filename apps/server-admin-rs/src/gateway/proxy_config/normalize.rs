@@ -329,6 +329,15 @@ pub(super) fn normalize_host_mappings_for_catalog(
                         disappeared.next().is_none().then_some(candidate)
                     })
             });
+        // Stable server-owned identity for external panel synchronization.
+        // It survives host renames and ignores any client attempt to replace
+        // the identity of an existing mapping.
+        let sync_id = previous
+            .and_then(|value| value.get("sync_id"))
+            .and_then(Value::as_str)
+            .filter(|value| uuid::Uuid::parse_str(value).is_ok())
+            .map(str::to_string)
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let target_path_mode = if service_role == "auth" {
             "entry".to_string()
         } else if object.contains_key("target_path_mode") {
@@ -409,6 +418,7 @@ pub(super) fn normalize_host_mappings_for_catalog(
         }
 
         object.insert("host".to_string(), Value::String(host.clone()));
+        object.insert("sync_id".to_string(), Value::String(sync_id));
         object.insert("target".to_string(), Value::String(target));
         object.insert(
             "target_path_mode".to_string(),

@@ -2331,6 +2331,8 @@ export const zhHantServer = {
         runtimeHealthFailed: "元件健康檢查失敗",
         runtimeRecovered: "元件已恢復",
         runtimeAbnormalExit: "元件異常結束",
+        panelSyncFailed: "同步到導航面板失敗",
+        panelSyncRecovered: "同步到導航面板已恢復",
       },
       ruleName: "{event} 通知",
       levels: {

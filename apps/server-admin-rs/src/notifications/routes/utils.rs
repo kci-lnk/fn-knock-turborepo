@@ -333,6 +333,8 @@ pub(super) fn notification_event_label_key(event_type: &str) -> Option<&'static 
         "FN_EVENT_RUNTIME_HEALTH_FAILED" => "events.runtimeHealthFailed",
         "FN_EVENT_RUNTIME_RECOVERED" => "events.runtimeRecovered",
         "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => "events.runtimeAbnormalExit",
+        "FN_EVENT_PANEL_SYNC_FAILED" => "events.panelSyncFailed",
+        "FN_EVENT_PANEL_SYNC_RECOVERED" => "events.panelSyncRecovered",
         _ => return None,
     })
 }

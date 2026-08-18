@@ -25,6 +25,8 @@ const auditedBudgets = new Map(
     "gateway/proxy_config/tests.rs": 8,
     "infra/background_tasks.rs": 1,
     "notifications/routes/tests.rs": 1,
+    // Test-only local HTTP fixtures; every returned handle is awaited by its test.
+    "panel_sync/tests.rs": 2,
     "runtime_health.rs": 1,
     "security/whitelist/tests.rs": 1,
     "storage/redis_store/tests.rs": 22,

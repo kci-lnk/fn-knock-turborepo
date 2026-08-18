@@ -74,6 +74,9 @@ pub struct AppStateInner {
     /// together makes lock ordering and task ownership explicit at the domain
     /// boundary instead of growing the process-wide state bag.
     pub maintenance: MaintenanceState,
+    /// Panel connection configuration locks, single-flight guards and the
+    /// bounded global outbound synchronization pool.
+    pub panel_sync: crate::panel_sync::PanelSyncRuntime,
     /// Wake-on-LAN locks, reload signals and non-secret runtime status.
     pub wol: WolState,
     /// Tunnel process ownership, runtime locks and Cloudflare scheduling state.
@@ -472,6 +475,7 @@ impl AppState {
                     "failed_target_ids": []
                 })),
                 maintenance: MaintenanceState::default(),
+                panel_sync: crate::panel_sync::PanelSyncRuntime::new(),
                 wol: WolState::default(),
                 tunnel: TunnelState::default(),
             }),

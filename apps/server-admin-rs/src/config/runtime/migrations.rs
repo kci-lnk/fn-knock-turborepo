@@ -10,6 +10,35 @@ pub(super) async fn apply_boot_config_migrations(
     let mut mark_resource_alerts_patch_done = false;
     let mut mark_gateway_wol_default_patch_done = false;
 
+    // Host mappings are guarded by their own generation fence and cannot be
+    // persisted through `save_config`. Backfill their installation-owned
+    // identities through the same CAS path used by normal mapping updates,
+    // then continue the remaining migrations from the refreshed snapshot.
+    let previous_host_mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if proxy_config::ensure_host_mapping_sync_ids(config) > 0 {
+        let replacement_host_mappings = config
+            .get("host_mappings")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let Some(persisted) = state
+            .storage
+            .store
+            .compare_and_set_host_mappings(&previous_host_mappings, &replacement_host_mappings)
+            .await?
+        else {
+            return Err(crate::storage::storage_error(
+                "host mappings changed while backfilling panel sync identities",
+            ));
+        };
+        *config = persisted;
+        applied.push("host_mapping_sync_ids");
+    }
+
     if ensure_runtime_event_config(config) {
         config_changed = true;
         applied.push("runtime_health_events");

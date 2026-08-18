@@ -1,3 +1,5 @@
+import { zhCNAdmin } from "./zh-CN";
+
 export const koKRAdmin = {
   tunnelSupervisor: {
     states: {
@@ -34,6 +36,142 @@ export const koKRAdmin = {
     navigationMenu: "탐색 메뉴",
     skipToContent: "주요 콘텐츠로 건너뛰기",
     openGithub: "GitHub 프로젝트 열기",
+  },
+  panelSync: {
+    ...zhCNAdmin.panelSync,
+    title: "탐색 패널로 동기화",
+    description:
+      "활성화된 앱 서브도메인을 탐색 패널로 단방향 동기화합니다. 내부 대상과 인증 서비스는 노출하지 않습니다.",
+    menuEntry: "탐색 패널로 동기화",
+    addConnection: "패널 추가",
+    empty: "패널 연결이 없습니다",
+    emptyDescription:
+      "연결을 추가하고 테스트한 다음 첫 동기화를 미리 확인하세요.",
+    status: { verified: "검증됨", draft: "미검증 초안" },
+    lastRun: "최근 결과",
+    nextRun: "다음 동기화",
+    autoSync: "자동 동기화",
+    everyMinutes:
+      "서브도메인 매핑이 변경될 때마다 자동 동기화하고 {count}분마다 추가로 조정합니다",
+    testing: "테스트 중…",
+    test: "연결 테스트",
+    testDraft: "현재 입력 테스트",
+    previewing: "미리보기 생성 중…",
+    preview: "동기화 미리보기",
+    history: "실행 기록",
+    minutes: "분",
+    syncing: "동기화 중…",
+    saving: "저장 중…",
+    loadingHistory: "실행 기록을 불러오는 중…",
+    loadingConnections: "패널 연결을 불러오는 중…",
+    confirmSync: "확인 후 동기화",
+    previewTitle: "동기화 미리보기 · {name}",
+    previewDescription:
+      "실행 전에 다시 계산합니다. 원본이 변경되면 새 미리보기가 필요합니다.",
+    historyTitle: "실행 기록 · {name}",
+    historyDescription: "연결별 최대 20회, 30일 동안 보관합니다.",
+    noHistory: "실행 기록이 없습니다",
+    deleteConfirm:
+      "‘{name}’ 연결을 해제할까요? 원격 항목은 자동 삭제되지 않습니다.",
+    deleteTitle: "패널 연결 해제",
+    remoteRetained:
+      "원격 항목은 유지되었습니다. 정리하기 전에 패널에서 확인하세요.",
+    remoteCleaned: "이 연결이 등록한 원격 항목을 정리했습니다.",
+    cleanupRemote: "소유한 원격 항목을 정리한 뒤 연결 해제",
+    cleanupRemoteDescription:
+      "이 연결이 등록한 카테고리와 링크만 삭제합니다. 최신 미리보기를 먼저 확인하며 등록되지 않은 항목은 삭제하지 않습니다.",
+    cleanupPreviewing: "원격 상태를 확인하고 정리 미리보기를 만드는 중…",
+    cleanupPreviewReady: "정리 미리보기가 준비되었습니다",
+    cleanupPreviewCounts: "카테고리 {groups}개와 링크 {links}개를 삭제합니다.",
+    sunPanelDetachOnly:
+      "Sun-Panel에는 안정적인 삭제 API가 없어 연결만 해제할 수 있습니다. 등록된 항목은 원격에 남습니다.",
+    actions: {
+      create: "생성",
+      update: "업데이트",
+      delete: "삭제",
+      unchanged: "변경 없음",
+      residual: "잔여",
+      conflict: "충돌",
+    },
+    actionDetails: {
+      createGroup: "전용 카테고리 생성",
+      createLink: "링크 생성",
+      updateGroup: "카테고리 이름 동기화",
+      updateLink: "fn-knock의 최신 내용 동기화",
+      deleteGroup: "이 연결이 등록한 카테고리 삭제",
+      deleteLink: "이 연결이 등록한 링크 삭제",
+      unchangedGroup: "카테고리가 최신 상태입니다",
+      unchangedLink: "링크가 최신 상태입니다",
+      residualGroup: "공개 API로 이 원격 카테고리를 삭제할 수 없습니다",
+      residualLink: "공개 API로 이 원격 링크를 삭제할 수 없습니다",
+      conflictGroup: "같은 이름의 카테고리는 이 연결의 소유가 아닙니다",
+      conflictLink: "같은 이름의 링크는 이 연결의 소유가 아닙니다",
+    },
+    warnings: {
+      sunResidual:
+        "Sun-Panel 공개 API에는 안정적인 삭제 기능이 없어 비활성 항목이 패널에 남습니다.",
+    },
+    runStatus: {
+      queued: "대기 중",
+      running: "실행 중",
+      success: "성공",
+      failed: "실패",
+      skipped: "건너뜀",
+      conflict: "충돌",
+    },
+    triggers: {
+      manual: "수동",
+      config_change: "설정 변경",
+      periodic: "주기 조정",
+    },
+    editor: {
+      ...zhCNAdmin.panelSync.editor,
+      createTitle: "패널 연결 추가",
+      editTitle: "패널 연결 편집",
+      description:
+        "미검증 초안은 저장할 수 있지만 동기화와 자동 동기화는 사용할 수 없습니다.",
+      provider: "패널 유형",
+      providerPlaceholder: "패널 유형 선택",
+      name: "연결 이름",
+      endpointUrl: "전체 API URL",
+      endpointHint: "API 루트 경로를 포함한 전체 HTTP(S) URL을 입력하세요.",
+      credential: "API 토큰 / 자격 증명",
+      credentialKeep: "비워 두면 현재 자격 증명 유지",
+      clearCredential: "현재 자격 증명을 명시적으로 삭제",
+      groupMode: "그룹 방식",
+      mirror: "fn-knock과 일치",
+      single: "하나의 카테고리에 모두 배치",
+      namespace: "카테고리 네임스페이스",
+      singleGroup: "대상 카테고리",
+      advanced: "고급 설정",
+      apiPath: "API 루트 경로",
+      invalidTls: "유효하지 않은 TLS 인증서 허용",
+      invalidTlsWarning:
+        "위험을 이해한 자체 서명 인증서 환경에서만 사용하세요.",
+      autoHint:
+        "서브도메인 매핑이 변경될 때마다 자동 동기화하고 아래 주기에 따라 원격 상태를 조정합니다.",
+      draftTested:
+        "현재 입력이 테스트를 통과했습니다. 저장하면 연결 검증이 완료되고 자동 동기화가 활성화됩니다.",
+      unverifiedHint:
+        "연결이 검증될 때까지 자동 동기화는 일시 중지되며 검증 후 현재 설정으로 자동 활성화됩니다.",
+    },
+    messages: {
+      loadFailed: "패널 연결을 불러오지 못했습니다",
+      created: "패널 연결을 생성했습니다",
+      updated: "패널 연결을 업데이트했습니다",
+      saveFailed: "패널 연결을 저장하지 못했습니다",
+      invalidEndpoint: "유효한 전체 API URL을 입력하세요",
+      testSuccess: "패널 연결이 검증되었습니다",
+      testFailed: "패널 연결 테스트에 실패했습니다",
+      deleted: "패널 연결을 해제했습니다",
+      deleteFailed: "패널 연결을 삭제하지 못했습니다",
+      cleanupPreviewFailed: "원격 정리 미리보기를 만들지 못했습니다",
+      previewFailed: "동기화 미리보기를 만들지 못했습니다",
+      syncSuccess: "탐색 패널로 동기화했습니다",
+      syncFailed: "탐색 패널로 동기화하지 못했습니다",
+      planChanged: "설정이 변경되었습니다. 새 미리보기를 확인하세요",
+      historyFailed: "실행 기록을 불러오지 못했습니다",
+    },
   },
   wol: {
     title: "Wake-on-LAN",
@@ -5863,6 +6001,8 @@ export const koKRAdmin = {
       FN_EVENT_RUNTIME_HEALTH_FAILED: "상태 검사 실패",
       FN_EVENT_RUNTIME_RECOVERED: "컴포넌트 복구",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "컴포넌트 비정상 종료",
+      FN_EVENT_PANEL_SYNC_FAILED: "탐색 패널로 동기화 실패",
+      FN_EVENT_PANEL_SYNC_RECOVERED: "탐색 패널 동기화 복구",
     },
     groupBy: {
       GLOBAL: "글로벌",
@@ -6064,6 +6204,7 @@ export const koKRAdmin = {
       wolWakeCompleted: "장치 {target}, Relay {relay}: {result} ({latency}ms)",
       wolShutdownCompleted:
         "장치 {target}, SSH 호스트 {host}: {result} ({latency}ms)",
+      panelSyncStatus: "연결 {connection}: {event}; {message}",
       gatewayThrottleBlocked:
         "{ip}(이)가 요청 제한에 걸려 {seconds}초 동안 차단되었습니다.",
       gatewayVisibilityBlocked:

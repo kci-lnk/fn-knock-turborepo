@@ -335,6 +335,13 @@ where
                     maintenance_clear_text(&translator, "clearFailed"),
                 );
             }
+            if let Err(error) = panel_sync::clear_all_credentials(&state) {
+                tracing::error!(%error, "failed to clear panel sync credentials after clearing data");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    maintenance_clear_text(&translator, "clearFailed"),
+                );
+            }
             state.maintenance.automatic_backup_notify.notify_one();
             response::ok(json!({
                 "cleared_keys": cleared_keys,

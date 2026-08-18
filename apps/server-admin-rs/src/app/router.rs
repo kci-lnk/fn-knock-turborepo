@@ -33,6 +33,7 @@ use crate::{
     notifications::notification_routes,
     oidc_admin::oidc_admin_routes,
     openapi_docs::openapi_docs_routes,
+    panel_sync_routes,
     proxy_config::proxy_config_routes,
     response,
     runtime_config::{
@@ -105,6 +106,7 @@ fn backend_router_with_capabilities(
     let run_type_config_routes: Router<AppState> = run_type_config_routes().into();
     let wol_feature_config_routes: Router<AppState> = wol_feature_config_routes().into();
     let sync_routes_config_routes: Router<AppState> = sync_routes_config_routes().into();
+    let panel_sync_routes: Router<AppState> = panel_sync_routes().into();
     let mut api = Router::new()
         .route("/api/admin/healthz", axum::routing::get(response::healthz))
         .merge(openapi_docs_routes())
@@ -114,6 +116,7 @@ fn backend_router_with_capabilities(
         .merge(whitelist_routes())
         .merge(proxy_config_routes())
         .merge(sync_routes_config_routes)
+        .merge(panel_sync_routes)
         .merge(fnos_port_icon_hijack_routes)
         .merge(fnos_network_tuning_routes)
         .merge(fnos_share_bypass_routes)
@@ -655,7 +658,7 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 424, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 438, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

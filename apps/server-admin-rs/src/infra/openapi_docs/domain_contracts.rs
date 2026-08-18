@@ -294,6 +294,7 @@ enum HostTargetPathModeData {
 #[derive(Serialize, ToSchema)]
 struct HostMappingData {
     host: String,
+    sync_id: String,
     group_id: Option<String>,
     target: String,
     target_path_mode: HostTargetPathModeData,

@@ -34,6 +34,16 @@ function validateContract(openapiPath) {
     throw new Error(`expected OpenAPI 3.1.0, got ${document.openapi}`);
   }
   const typedDomainOperations = new Map([
+    ["get /api/admin/panel-sync/providers", null],
+    ["get /api/admin/panel-sync/connections", null],
+    ["post /api/admin/panel-sync/connections", "ConnectionInput"],
+    ["put /api/admin/panel-sync/connections/{id}", "ConnectionUpdateInput"],
+    ["delete /api/admin/panel-sync/connections/{id}", null],
+    ["post /api/admin/panel-sync/test", "TestConnectionInput"],
+    ["post /api/admin/panel-sync/connections/{id}/preview", "PreviewRequest"],
+    ["post /api/admin/panel-sync/connections/{id}/sync", "SyncRequest"],
+    ["get /api/admin/panel-sync/connections/{id}/runs", null],
+    ["get /api/admin/panel-sync/runs/{run_id}", null],
     ["post /api/internal/system-events", "SystemEventPublishBodyData"],
     ["get /api/admin/events", null],
     ["delete /api/admin/events", "SystemEventDeleteBodyData"],
@@ -356,10 +366,7 @@ function validateContract(openapiPath) {
     ["get /api/admin/scanner/settings", null],
     ["post /api/admin/scanner/settings", "ScannerSettingsUpdateData"],
     ["get /api/admin/scanner/path-whitelist", null],
-    [
-      "put /api/admin/scanner/path-whitelist",
-      "ScannerPathWhitelistUpdateData",
-    ],
+    ["put /api/admin/scanner/path-whitelist", "ScannerPathWhitelistUpdateData"],
     [
       "post /api/admin/scanner/path-whitelist/false-positive",
       "ScannerFalsePositiveBodyData",

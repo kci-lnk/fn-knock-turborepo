@@ -39,6 +39,14 @@ export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
     labelKey: "admin.eventCenter.eventTypes.FN_EVENT_WOL_WAKE_COMPLETED",
   },
   {
+    value: "FN_EVENT_PANEL_SYNC_FAILED" as SystemEventType,
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_PANEL_SYNC_FAILED",
+  },
+  {
+    value: "FN_EVENT_PANEL_SYNC_RECOVERED" as SystemEventType,
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_PANEL_SYNC_RECOVERED",
+  },
+  {
     value: "FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
     labelKey: "admin.eventCenter.eventTypes.FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
   },
@@ -195,6 +203,8 @@ export const DEFAULT_GROUP_BY_BY_EVENT_TYPE: Record<
   FN_EVENT_DDNS_UPDATE_COMPLETED: "PROVIDER",
   FN_EVENT_WOL_WAKE_COMPLETED: "SUBJECT",
   FN_EVENT_WOL_SHUTDOWN_COMPLETED: "SUBJECT",
+  FN_EVENT_PANEL_SYNC_FAILED: "SUBJECT",
+  FN_EVENT_PANEL_SYNC_RECOVERED: "SUBJECT",
   FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "IP",
   FN_EVENT_GATEWAY_VISIBILITY_BLOCKED: "GLOBAL",
   FN_EVENT_WAF_BLOCKED: "IP",

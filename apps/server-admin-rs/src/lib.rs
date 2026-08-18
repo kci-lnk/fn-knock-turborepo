@@ -18,6 +18,7 @@ pub(crate) mod events;
 pub(crate) mod gateway;
 pub(crate) mod infra;
 pub(crate) mod notifications;
+pub(crate) mod panel_sync;
 pub(crate) mod runtime_health;
 pub(crate) mod security;
 pub(crate) mod shared;
@@ -46,6 +47,7 @@ pub(crate) use infra::{
     app_version, go_backend, i18n, memory, openapi_docs, response, runtime_profile, settings,
     state, static_files,
 };
+pub(crate) use panel_sync::panel_sync_routes;
 pub(crate) use security::{
     general_blacklist, overview as security_overview, ssh as ssh_security, whitelist,
 };

@@ -110,6 +110,11 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     "group_name": group_name,
                     "title": title,
                     "favicon": favicon,
+                    "website_icon_path": object
+                        .get("sync_id")
+                        .and_then(Value::as_str)
+                        .map(|sync_id| website_icon_path(object, sync_id))
+                        .unwrap_or_default(),
                     "basic_auth": object.get("basic_auth").cloned().unwrap_or_else(disabled_host_basic_auth),
                     "locations": object.get("locations").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
                 })

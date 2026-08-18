@@ -55,6 +55,11 @@ const router = createRouter({
           component: () => import("../views/SubdomainProxy.vue"),
         },
         {
+          path: "subdomains/panel-sync",
+          name: "PanelSync",
+          component: () => import("../views/PanelSync.vue"),
+        },
+        {
           path: "subdomains/:host/advanced-auth",
           name: "SubdomainAdvancedAuth",
           component: () =>

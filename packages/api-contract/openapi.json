@@ -1597,6 +1597,37 @@
         ],
         "type": "object"
       },
+      "AdapterCapabilities": {
+        "properties": {
+          "can_create": {
+            "type": "boolean"
+          },
+          "can_delete": {
+            "type": "boolean"
+          },
+          "can_update": {
+            "type": "boolean"
+          },
+          "can_update_groups": {
+            "type": "boolean"
+          },
+          "residual_on_delete": {
+            "type": "boolean"
+          },
+          "supports_icon": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "can_create",
+          "can_update",
+          "can_update_groups",
+          "can_delete",
+          "supports_icon",
+          "residual_on_delete"
+        ],
+        "type": "object"
+      },
       "AdvancedAuthConditionData": {
         "properties": {
           "cidr_source": {
@@ -2615,6 +2646,19 @@
         "required": [
           "auto_manage_firewall"
         ],
+        "type": "object"
+      },
+      "AutoSyncConfig": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "interval_minutes": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "AutomaticBackupConfigData": {
@@ -5523,6 +5567,88 @@
           "uptimeMs",
           "diagnosis",
           "resources"
+        ],
+        "type": "object"
+      },
+      "ConnectionInput": {
+        "properties": {
+          "allow_invalid_tls": {
+            "type": "boolean"
+          },
+          "api_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_sync": {
+            "$ref": "#/components/schemas/AutoSyncConfig"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "clear_credential": {
+            "type": "boolean"
+          },
+          "credential": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grouping": {
+            "$ref": "#/components/schemas/GroupingConfig"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PanelProvider"
+          }
+        },
+        "required": [
+          "name",
+          "provider",
+          "base_url"
+        ],
+        "type": "object"
+      },
+      "ConnectionUpdateInput": {
+        "properties": {
+          "allow_invalid_tls": {
+            "type": "boolean"
+          },
+          "api_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_sync": {
+            "$ref": "#/components/schemas/AutoSyncConfig"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "clear_credential": {
+            "type": "boolean"
+          },
+          "credential": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grouping": {
+            "$ref": "#/components/schemas/GroupingConfig"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "base_url"
         ],
         "type": "object"
       },
@@ -12119,6 +12245,30 @@
         ],
         "type": "object"
       },
+      "GroupMode": {
+        "enum": [
+          "mirror",
+          "single"
+        ],
+        "type": "string"
+      },
+      "GroupingConfig": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/GroupMode"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "single_group_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
       "HostMappingBasicAuthInputData": {
         "properties": {
           "enabled": {
@@ -12276,6 +12426,9 @@
           "suppress_toolbar": {
             "type": "boolean"
           },
+          "sync_id": {
+            "type": "string"
+          },
           "target": {
             "type": "string"
           },
@@ -12298,6 +12451,7 @@
         },
         "required": [
           "host",
+          "sync_id",
           "target",
           "target_path_mode",
           "waf_enabled",
@@ -14265,7 +14419,9 @@
               "FN_EVENT_RUNTIME_RESTARTED",
               "FN_EVENT_RUNTIME_HEALTH_FAILED",
               "FN_EVENT_RUNTIME_RECOVERED",
-              "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+              "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+              "FN_EVENT_PANEL_SYNC_FAILED",
+              "FN_EVENT_PANEL_SYNC_RECOVERED"
             ],
             "type": "string"
           },
@@ -14408,7 +14564,9 @@
               "FN_EVENT_RUNTIME_RESTARTED",
               "FN_EVENT_RUNTIME_HEALTH_FAILED",
               "FN_EVENT_RUNTIME_RECOVERED",
-              "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+              "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+              "FN_EVENT_PANEL_SYNC_FAILED",
+              "FN_EVENT_PANEL_SYNC_RECOVERED"
             ],
             "type": "string"
           },
@@ -14585,7 +14743,9 @@
               "FN_EVENT_RUNTIME_RESTARTED",
               "FN_EVENT_RUNTIME_HEALTH_FAILED",
               "FN_EVENT_RUNTIME_RECOVERED",
-              "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+              "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+              "FN_EVENT_PANEL_SYNC_FAILED",
+              "FN_EVENT_PANEL_SYNC_RECOVERED"
             ],
             "type": [
               "string",
@@ -15528,6 +15688,82 @@
         ],
         "type": "object"
       },
+      "PanelConnection": {
+        "properties": {
+          "allow_invalid_tls": {
+            "type": "boolean"
+          },
+          "api_path": {
+            "type": "string"
+          },
+          "auto_sync": {
+            "$ref": "#/components/schemas/AutoSyncConfig"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "credential_configured": {
+            "type": "boolean"
+          },
+          "grouping": {
+            "$ref": "#/components/schemas/GroupingConfig"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunSummary"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_sync_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PanelProvider"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "base_url",
+          "api_path",
+          "credential_configured",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "PanelLoginBodyData": {
         "properties": {
           "password": {
@@ -15583,6 +15819,14 @@
         ],
         "type": "object"
       },
+      "PanelProvider": {
+        "enum": [
+          "sun_panel",
+          "one_nav",
+          "van_nav"
+        ],
+        "type": "string"
+      },
       "PasskeyCredentialData": {
         "properties": {
           "counter": {
@@ -15629,6 +15873,132 @@
           "counter",
           "deviceName",
           "createdAt"
+        ],
+        "type": "object"
+      },
+      "PlanAction": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlanActionKind"
+          },
+          "object_type": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "object_type",
+          "title",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "PlanActionKind": {
+        "enum": [
+          "create",
+          "update",
+          "delete",
+          "unchanged",
+          "residual",
+          "conflict"
+        ],
+        "type": "string"
+      },
+      "PlanCounts": {
+        "properties": {
+          "conflict": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "create": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "delete": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "residual": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unchanged": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "update": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "create",
+          "update",
+          "delete",
+          "unchanged",
+          "residual",
+          "conflict"
+        ],
+        "type": "object"
+      },
+      "PreviewRequest": {
+        "properties": {
+          "cleanup_remote": {
+            "type": "boolean"
+          },
+          "refresh_remote": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ProbeResult": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/AdapterCapabilities"
+          },
+          "message": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PanelProvider"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "provider",
+          "message",
+          "capabilities"
         ],
         "type": "object"
       },
@@ -15695,6 +16065,40 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ProviderDescriptor": {
+        "properties": {
+          "default_api_path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PanelProvider"
+          },
+          "supports_delete": {
+            "type": "boolean"
+          },
+          "supports_icon": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "name",
+          "default_api_path",
+          "supports_delete",
+          "supports_icon",
+          "notes"
+        ],
         "type": "object"
       },
       "ProxyMappingData": {
@@ -15814,6 +16218,60 @@
           }
         },
         "type": "object"
+      },
+      "RunStatus": {
+        "enum": [
+          "queued",
+          "running",
+          "success",
+          "failed",
+          "skipped",
+          "conflict"
+        ],
+        "type": "string"
+      },
+      "RunSummary": {
+        "properties": {
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/RunTrigger"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "trigger",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "RunTrigger": {
+        "enum": [
+          "manual",
+          "config_change",
+          "periodic"
+        ],
+        "type": "string"
       },
       "RunTypeUpdateData": {
         "properties": {
@@ -19888,6 +20346,77 @@
         ],
         "type": "object"
       },
+      "SyncAccepted": {
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "SyncPreview": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PlanAction"
+            },
+            "type": "array"
+          },
+          "can_apply": {
+            "type": "boolean"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/PlanCounts"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "plan_hash": {
+            "type": "string"
+          },
+          "source_revision": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connection_id",
+          "source_revision",
+          "plan_hash",
+          "counts",
+          "actions",
+          "warnings",
+          "can_apply",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "SyncRequest": {
+        "properties": {
+          "plan_hash": {
+            "type": "string"
+          },
+          "source_revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_revision",
+          "plan_hash"
+        ],
+        "type": "object"
+      },
       "SyncRoutesData": {
         "properties": {
           "synced_gateway_logging": {
@@ -19919,6 +20448,64 @@
           "synced_gateway_logging",
           "synced_waf",
           "waf_bundle_id"
+        ],
+        "type": "object"
+      },
+      "SyncRun": {
+        "properties": {
+          "connection_id": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/PlanCounts"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan_hash": {
+            "type": "string"
+          },
+          "source_revision": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/RunTrigger"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "connection_id",
+          "trigger",
+          "status",
+          "source_revision",
+          "plan_hash",
+          "counts",
+          "warnings",
+          "started_at"
         ],
         "type": "object"
       },
@@ -20248,7 +20835,9 @@
               "FN_EVENT_RUNTIME_RESTARTED",
               "FN_EVENT_RUNTIME_HEALTH_FAILED",
               "FN_EVENT_RUNTIME_RECOVERED",
-              "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+              "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+              "FN_EVENT_PANEL_SYNC_FAILED",
+              "FN_EVENT_PANEL_SYNC_RECOVERED"
             ],
             "type": "string"
           }
@@ -20394,7 +20983,9 @@
               "FN_EVENT_RUNTIME_RESTARTED",
               "FN_EVENT_RUNTIME_HEALTH_FAILED",
               "FN_EVENT_RUNTIME_RECOVERED",
-              "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+              "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+              "FN_EVENT_PANEL_SYNC_FAILED",
+              "FN_EVENT_PANEL_SYNC_RECOVERED"
             ],
             "type": "string"
           }
@@ -20446,7 +21037,8 @@
               "RESOURCE",
               "APPLICATION",
               "TUNNEL",
-              "COMPONENT"
+              "COMPONENT",
+              "PANEL_SYNC"
             ],
             "type": "string"
           }
@@ -20902,6 +21494,27 @@
           "detectionSource",
           "version"
         ],
+        "type": "object"
+      },
+      "TestConnectionInput": {
+        "properties": {
+          "connection_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "TotpBindBody": {
@@ -33494,7 +34107,7 @@
                 }
               }
             },
-            "description": "「查看仪表盘stream active ips」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「查看仪表盘流映射活跃 IP」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -33507,7 +34120,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "查看仪表盘stream active ips",
+        "summary": "查看仪表盘流映射活跃 IP",
         "tags": [
           "dashboard"
         ],
@@ -35654,7 +36267,9 @@
                 "FN_EVENT_RUNTIME_RESTARTED",
                 "FN_EVENT_RUNTIME_HEALTH_FAILED",
                 "FN_EVENT_RUNTIME_RECOVERED",
-                "FN_EVENT_RUNTIME_ABNORMAL_EXIT"
+                "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
+                "FN_EVENT_PANEL_SYNC_FAILED",
+                "FN_EVENT_PANEL_SYNC_RECOVERED"
               ],
               "type": "string"
             }
@@ -39728,6 +40343,685 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/admin/panel-sync/connections": {
+      "get": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/connections` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/PanelConnection"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "post": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PanelConnection"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/connections/{id}": {
+      "delete": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`DELETE /api/admin/panel-sync/connections/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cleanup_remote",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_revision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_hash",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "「删除NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "删除NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "put": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`PUT /api/admin/panel-sync/connections/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionUpdateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PanelConnection"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「更新NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "更新NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/connections/{id}/preview": {
+      "post": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections/{id}/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SyncPreview"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「预览NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "预览NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/connections/{id}/runs": {
+      "get": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/connections/{id}/runs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/SyncRun"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看NAS 面板同步同步记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看NAS 面板同步同步记录",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/connections/{id}/sync": {
+      "post": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections/{id}/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "sync",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SyncAccepted"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「同步NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SyncAccepted"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "已受理「同步NAS 面板同步面板连接」请求；请按响应中的任务或状态信息继续查询。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "同步NAS 面板同步面板连接",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/providers": {
+      "get": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ProviderDescriptor"
+                      },
+                      "type": "array"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看NAS 面板同步提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看NAS 面板同步提供者",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/runs/{run_id}": {
+      "get": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/runs/{run_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SyncRun"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看NAS 面板同步同步记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看NAS 面板同步同步记录",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/panel-sync/test": {
+      "post": {
+        "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "test",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestConnectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ProbeResult"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「测试NAS 面板同步」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "测试NAS 面板同步",
+        "tags": [
+          "panel-sync"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/panel/bootstrap": {
       "get": {
         "description": "管理 Docker 管理面板的初始化、登录、密码和会话状态。。`GET /api/admin/panel/bootstrap` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
@@ -41291,7 +42585,7 @@
                 }
               }
             },
-            "description": "「查看扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「查看扫描器路径白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -41304,7 +42598,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "查看扫描器path whitelist",
+        "summary": "查看扫描器路径白名单",
         "tags": [
           "scanner"
         ],
@@ -41352,7 +42646,7 @@
                 }
               }
             },
-            "description": "「更新扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「更新扫描器路径白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -41365,7 +42659,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "更新扫描器path whitelist",
+        "summary": "更新扫描器路径白名单",
         "tags": [
           "scanner"
         ],
@@ -41415,7 +42709,7 @@
                 }
               }
             },
-            "description": "「提交扫描器false positive」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交扫描器误报反馈」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -41428,7 +42722,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交扫描器false positive",
+        "summary": "提交扫描器误报反馈",
         "tags": [
           "scanner"
         ],
@@ -49854,6 +51148,10 @@
     {
       "description": "管理通知提供者、规则、触发记录和投递记录。",
       "name": "notifications"
+    },
+    {
+      "description": "管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。",
+      "name": "panel-sync"
     },
     {
       "description": "管理 Docker 管理面板的初始化、登录、密码和会话状态。",

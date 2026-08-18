@@ -257,27 +257,6 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     Ok(())
 }
 
-#[cfg(test)]
-mod failure_class_tests {
-    use super::host_rules_failure_class;
-
-    #[test]
-    fn classifies_host_rules_failures_without_exporting_error_details() {
-        assert_eq!(
-            host_rules_failure_class("set_host_rules returned 502 Bad Gateway: disk error"),
-            "transient_gateway"
-        );
-        assert_eq!(
-            host_rules_failure_class("set_host_rules returned 400 Bad Request"),
-            "validation"
-        );
-        assert_eq!(
-            host_rules_failure_class("Go backend did not apply host mapping example.test"),
-            "compatibility"
-        );
-    }
-}
-
 fn host_rule_items(value: &Value) -> Option<&Vec<Value>> {
     value
         .get("items")
@@ -505,5 +484,27 @@ pub(super) async fn sync_host_mappings_runtime(
             .await
             .map_err(|error| error.to_string())?;
     }
+    crate::panel_sync::notify_source_changed(state);
     Ok(())
+}
+
+#[cfg(test)]
+mod failure_class_tests {
+    use super::host_rules_failure_class;
+
+    #[test]
+    fn classifies_host_rules_failures_without_exporting_error_details() {
+        assert_eq!(
+            host_rules_failure_class("set_host_rules returned 502 Bad Gateway: disk error"),
+            "transient_gateway"
+        );
+        assert_eq!(
+            host_rules_failure_class("set_host_rules returned 400 Bad Request"),
+            "validation"
+        );
+        assert_eq!(
+            host_rules_failure_class("Go backend did not apply host mapping example.test"),
+            "compatibility"
+        );
+    }
 }

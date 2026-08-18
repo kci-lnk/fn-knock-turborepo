@@ -1,3 +1,5 @@
+import { zhCNAdmin } from "./zh-CN";
+
 export const jaJPAdmin = {
   tunnelSupervisor: {
     states: {
@@ -34,6 +36,144 @@ export const jaJPAdmin = {
     navigationMenu: "ナビゲーション",
     skipToContent: "メインコンテンツへ移動",
     openGithub: "GitHub プロジェクトを開く",
+  },
+  panelSync: {
+    ...zhCNAdmin.panelSync,
+    title: "ナビゲーションパネルへ同期",
+    description:
+      "有効なアプリのサブドメインをナビゲーションパネルへ一方向で同期します。内部ターゲットと認証サービスは公開しません。",
+    menuEntry: "ナビゲーションパネルへ同期",
+    addConnection: "パネルを追加",
+    empty: "パネル接続がありません",
+    emptyDescription:
+      "接続を追加してテストし、初回同期をプレビューしてください。",
+    status: { verified: "検証済み", draft: "未検証の下書き" },
+    lastRun: "最新結果",
+    nextRun: "次回同期",
+    autoSync: "自動同期",
+    everyMinutes:
+      "サブドメインマッピングの変更後に自動同期し、さらに {count} 分ごとに整合します",
+    testing: "テスト中…",
+    test: "接続テスト",
+    testDraft: "現在の入力をテスト",
+    previewing: "プレビュー作成中…",
+    preview: "同期をプレビュー",
+    history: "実行履歴",
+    minutes: "分",
+    syncing: "同期中…",
+    saving: "保存中…",
+    loadingHistory: "実行履歴を読み込み中…",
+    loadingConnections: "パネル接続を読み込み中…",
+    confirmSync: "確認して同期",
+    previewTitle: "同期プレビュー · {name}",
+    previewDescription:
+      "実行前に再計算します。ソースが変わった場合は再プレビューが必要です。",
+    historyTitle: "実行履歴 · {name}",
+    historyDescription: "接続ごとに最大 20 件、30 日間保持します。",
+    noHistory: "実行履歴はありません",
+    deleteConfirm:
+      "「{name}」を切断しますか？リモート項目は自動削除されません。",
+    deleteTitle: "パネル接続を解除",
+    remoteRetained:
+      "リモート項目は保持されました。削除前にパネル側で確認してください。",
+    remoteCleaned: "この接続が登録したリモート項目を削除しました。",
+    cleanupRemote: "所有するリモート項目を削除してから接続を解除",
+    cleanupRemoteDescription:
+      "この接続が登録したカテゴリとリンクだけを削除します。最新のプレビューを確認してください。未登録の項目は削除しません。",
+    cleanupPreviewing: "リモートを確認して削除プレビューを作成中…",
+    cleanupPreviewReady: "削除プレビューの準備ができました",
+    cleanupPreviewCounts:
+      "{groups} 件のカテゴリと {links} 件のリンクを削除します。",
+    sunPanelDetachOnly:
+      "Sun-Panel には安定した削除 API がないため、接続の解除のみ可能です。登録済み項目はリモートに残ります。",
+    actions: {
+      create: "作成",
+      update: "更新",
+      delete: "削除",
+      unchanged: "変更なし",
+      residual: "残存",
+      conflict: "競合",
+    },
+    actionDetails: {
+      createGroup: "専用カテゴリを作成",
+      createLink: "リンクを作成",
+      updateGroup: "カテゴリ名を同期",
+      updateLink: "fn-knock の最新内容を同期",
+      deleteGroup: "この接続が登録したカテゴリを削除",
+      deleteLink: "この接続が登録したリンクを削除",
+      unchangedGroup: "カテゴリは最新です",
+      unchangedLink: "リンクは最新です",
+      residualGroup: "公開 API ではこのカテゴリを削除できません",
+      residualLink: "公開 API ではこのリンクを削除できません",
+      conflictGroup: "同名カテゴリはこの接続の所有ではありません",
+      conflictLink: "同名リンクはこの接続の所有ではありません",
+    },
+    warnings: {
+      sunResidual:
+        "Sun-Panel の公開 API には安定した削除機能がないため、無効な項目はパネルに残ります。",
+    },
+    runStatus: {
+      queued: "待機中",
+      running: "実行中",
+      success: "成功",
+      failed: "失敗",
+      skipped: "スキップ",
+      conflict: "競合",
+    },
+    triggers: {
+      manual: "手動",
+      config_change: "設定変更",
+      periodic: "定期整合",
+    },
+    editor: {
+      ...zhCNAdmin.panelSync.editor,
+      createTitle: "パネル接続を追加",
+      editTitle: "パネル接続を編集",
+      description:
+        "未検証の下書きは保存できますが、同期と自動同期は利用できません。",
+      provider: "パネル種別",
+      providerPlaceholder: "パネル種別を選択",
+      name: "接続名",
+      endpointUrl: "完全な API URL",
+      endpointHint:
+        "API ルートパスを含む完全な HTTP(S) URL を入力してください。",
+      credential: "API トークン / 認証情報",
+      credentialKeep: "空欄の場合は現在の認証情報を保持",
+      clearCredential: "現在の認証情報を明示的に削除",
+      groupMode: "グループ方式",
+      mirror: "fn-knock と一致",
+      single: "1 つのカテゴリにまとめる",
+      namespace: "カテゴリ名前空間",
+      singleGroup: "同期先カテゴリ",
+      advanced: "詳細設定",
+      apiPath: "API ルートパス",
+      invalidTls: "無効な TLS 証明書を許可",
+      invalidTlsWarning:
+        "リスクを理解した自己署名証明書環境でのみ使用してください。",
+      autoHint:
+        "サブドメインマッピングの変更後に自動同期し、下記の周期でリモート状態を整合します。",
+      draftTested:
+        "現在の入力はテスト済みです。保存すると接続が検証され、自動同期が有効になります。",
+      unverifiedHint:
+        "接続が検証されるまで自動同期は一時停止し、検証後に現在の設定で自動的に有効になります。",
+    },
+    messages: {
+      loadFailed: "パネル接続の読み込みに失敗しました",
+      created: "パネル接続を作成しました",
+      updated: "パネル接続を更新しました",
+      saveFailed: "パネル接続の保存に失敗しました",
+      invalidEndpoint: "有効な完全 API URL を入力してください",
+      testSuccess: "パネル接続を検証しました",
+      testFailed: "パネル接続テストに失敗しました",
+      deleted: "パネル接続を解除しました",
+      deleteFailed: "パネル接続の削除に失敗しました",
+      cleanupPreviewFailed: "リモート削除プレビューを作成できませんでした",
+      previewFailed: "同期プレビューの作成に失敗しました",
+      syncSuccess: "ナビゲーションパネルへ同期しました",
+      syncFailed: "ナビゲーションパネルへの同期に失敗しました",
+      planChanged: "設定が変更されました。新しいプレビューを確認してください",
+      historyFailed: "実行履歴の読み込みに失敗しました",
+    },
   },
   wol: {
     title: "Wake-on-LAN",
@@ -5906,6 +6046,8 @@ export const jaJPAdmin = {
       FN_EVENT_RUNTIME_HEALTH_FAILED: "ヘルスチェック失敗",
       FN_EVENT_RUNTIME_RECOVERED: "コンポーネント復旧",
       FN_EVENT_RUNTIME_ABNORMAL_EXIT: "コンポーネント異常終了",
+      FN_EVENT_PANEL_SYNC_FAILED: "ナビゲーションパネルへの同期失敗",
+      FN_EVENT_PANEL_SYNC_RECOVERED: "ナビゲーションパネルへの同期復旧",
     },
     groupBy: {
       GLOBAL: "グローバル",
@@ -6108,6 +6250,7 @@ export const jaJPAdmin = {
       wolWakeCompleted: "デバイス {target} / {relay}: {result}（{latency} ms）",
       wolShutdownCompleted:
         "デバイス {target} / SSH ホスト {host}: {result}（{latency} ms）",
+      panelSyncStatus: "接続 {connection}: {event}; {message}",
       gatewayThrottleBlocked: "{ip} に {seconds}秒間のレート制限を適用しました",
       gatewayVisibilityBlocked:
         "{ip} から {host}{path} へのアクセスを公開範囲ルールがブロックしました",

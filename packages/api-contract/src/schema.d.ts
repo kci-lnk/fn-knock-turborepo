@@ -2700,7 +2700,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看仪表盘stream active ips
+         * 查看仪表盘流映射活跃 IP
          * @description 读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/stream-active-ips` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["get_api_admin_dashboard_stream_active_ips"];
@@ -4280,6 +4280,174 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/panel-sync/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/connections` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["list"];
+        put?: never;
+        /**
+         * 提交NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 更新NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`PUT /api/admin/panel-sync/connections/{id}` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        put: operations["update"];
+        post?: never;
+        /**
+         * 删除NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`DELETE /api/admin/panel-sync/connections/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/connections/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 预览NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections/{id}/preview` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/connections/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看NAS 面板同步同步记录
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/connections/{id}/runs` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/connections/{id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 同步NAS 面板同步面板连接
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/connections/{id}/sync` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["sync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看NAS 面板同步提供者
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/providers` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看NAS 面板同步同步记录
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`GET /api/admin/panel-sync/runs/{run_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/panel-sync/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 测试NAS 面板同步
+         * @description 管理 Sun-Panel、OneNav 与 Van Nav 的单向链接同步。。`POST /api/admin/panel-sync/test` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/panel/bootstrap": {
         parameters: {
             query?: never;
@@ -4696,12 +4864,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看扫描器path whitelist
+         * 查看扫描器路径白名单
          * @description 管理扫描器设置、结果和黑名单记录。。`GET /api/admin/scanner/path-whitelist` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         get: operations["get_api_admin_scanner_path_whitelist"];
         /**
-         * 更新扫描器path whitelist
+         * 更新扫描器路径白名单
          * @description 管理扫描器设置、结果和黑名单记录。。`PUT /api/admin/scanner/path-whitelist` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         put: operations["put_api_admin_scanner_path_whitelist"];
@@ -4722,7 +4890,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交扫描器false positive
+         * 提交扫描器误报反馈
          * @description 管理扫描器设置、结果和黑名单记录。。`POST /api/admin/scanner/path-whitelist/false-positive` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["post_api_admin_scanner_path_whitelist_false_positive"];
@@ -7298,6 +7466,14 @@ export interface components {
             uncovered_hosts: string[];
             warnings: string[];
         };
+        AdapterCapabilities: {
+            can_create: boolean;
+            can_delete: boolean;
+            can_update: boolean;
+            can_update_groups: boolean;
+            residual_on_delete: boolean;
+            supports_icon: boolean;
+        };
         AdvancedAuthConditionData: {
             cidr_source?: string;
             cidr_source_fingerprint?: string;
@@ -7543,6 +7719,11 @@ export interface components {
         };
         AutoManageFirewallUpdateData: {
             auto_manage_firewall: boolean;
+        };
+        AutoSyncConfig: {
+            enabled?: boolean;
+            /** Format: int32 */
+            interval_minutes?: number;
         };
         AutomaticBackupConfigData: {
             enabled: boolean;
@@ -8202,6 +8383,27 @@ export interface components {
             startedAt: string | null;
             /** Format: int64 */
             uptimeMs: number;
+        };
+        ConnectionInput: {
+            allow_invalid_tls?: boolean;
+            api_path?: string | null;
+            auto_sync?: components["schemas"]["AutoSyncConfig"];
+            base_url: string;
+            clear_credential?: boolean;
+            credential?: string | null;
+            grouping?: components["schemas"]["GroupingConfig"];
+            name: string;
+            provider: components["schemas"]["PanelProvider"];
+        };
+        ConnectionUpdateInput: {
+            allow_invalid_tls?: boolean;
+            api_path?: string | null;
+            auto_sync?: components["schemas"]["AutoSyncConfig"];
+            base_url: string;
+            clear_credential?: boolean;
+            credential?: string | null;
+            grouping?: components["schemas"]["GroupingConfig"];
+            name: string;
         };
         CredentialImportBodyData: {
             payload: components["schemas"]["CredentialTransferData"];
@@ -9831,6 +10033,13 @@ export interface components {
                 [key: string]: components["schemas"]["GeneralBlacklistRecordData"];
             };
         };
+        /** @enum {string} */
+        GroupMode: "mirror" | "single";
+        GroupingConfig: {
+            mode: components["schemas"]["GroupMode"];
+            namespace?: string;
+            single_group_name?: string;
+        };
         HostMappingBasicAuthInputData: {
             enabled: boolean;
             password: string;
@@ -9873,6 +10082,7 @@ export interface components {
             protocol_mode: string;
             service_role: string;
             suppress_toolbar: boolean;
+            sync_id: string;
             target: string;
             target_path_mode: components["schemas"]["HostTargetPathModeData"];
             title: string;
@@ -10325,7 +10535,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -10346,7 +10556,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             id: string;
@@ -10374,7 +10584,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string|null} */
-            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | null;
+            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | null;
             /** @enum {string|null} */
             group_by?: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER" | null;
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -10568,6 +10778,23 @@ export interface components {
             /** Format: date-time */
             session_expires_at: string | null;
         };
+        PanelConnection: {
+            allow_invalid_tls?: boolean;
+            api_path: string;
+            auto_sync?: components["schemas"]["AutoSyncConfig"];
+            base_url: string;
+            created_at: string;
+            credential_configured: boolean;
+            grouping?: components["schemas"]["GroupingConfig"];
+            id: string;
+            last_run?: null | components["schemas"]["RunSummary"];
+            name: string;
+            next_sync_at?: string | null;
+            provider: components["schemas"]["PanelProvider"];
+            updated_at: string;
+            verified_at?: string | null;
+            verified_version?: string | null;
+        };
         PanelLoginBodyData: {
             /** @description 6-128 UTF-8 bytes, no whitespace, with at least one ASCII letter and digit */
             password: string;
@@ -10586,6 +10813,8 @@ export interface components {
             /** @description 6-128 UTF-8 bytes, no whitespace, with at least one ASCII letter and digit */
             password: string;
         };
+        /** @enum {string} */
+        PanelProvider: "sun_panel" | "one_nav" | "van_nav";
         PasskeyCredentialData: {
             /** Format: int32 */
             counter: number;
@@ -10597,6 +10826,35 @@ export interface components {
             totpId: string;
             transports?: string[] | null;
             webauthnCredential?: unknown;
+        };
+        PlanAction: {
+            detail: string;
+            kind: components["schemas"]["PlanActionKind"];
+            object_type: string;
+            remote_id?: string | null;
+            source_id?: string | null;
+            title: string;
+        };
+        /** @enum {string} */
+        PlanActionKind: "create" | "update" | "delete" | "unchanged" | "residual" | "conflict";
+        PlanCounts: {
+            conflict: number;
+            create: number;
+            delete: number;
+            residual: number;
+            unchanged: number;
+            update: number;
+        };
+        PreviewRequest: {
+            cleanup_remote?: boolean;
+            refresh_remote?: boolean | null;
+        };
+        ProbeResult: {
+            capabilities: components["schemas"]["AdapterCapabilities"];
+            message: string;
+            provider: components["schemas"]["PanelProvider"];
+            success: boolean;
+            version?: string | null;
         };
         ProtocolMappingAvailabilityData: {
             /** @constant */
@@ -10611,6 +10869,14 @@ export interface components {
         ProtocolMappingFeatureUpdateData: {
             availability?: null | components["schemas"]["ProtocolMappingAvailabilityData"];
             enabled?: boolean | null;
+        };
+        ProviderDescriptor: {
+            default_api_path: string;
+            name: string;
+            notes: string[];
+            provider: components["schemas"]["PanelProvider"];
+            supports_delete: boolean;
+            supports_icon: boolean;
         };
         ProxyMappingData: {
             path?: string | null;
@@ -10638,6 +10904,18 @@ export interface components {
             subdomainToReverseProxy?: boolean | null;
             switchToSubdomain?: boolean | null;
         };
+        /** @enum {string} */
+        RunStatus: "queued" | "running" | "success" | "failed" | "skipped" | "conflict";
+        RunSummary: {
+            finished_at?: string | null;
+            id: string;
+            message?: string | null;
+            started_at: string;
+            status: components["schemas"]["RunStatus"];
+            trigger: components["schemas"]["RunTrigger"];
+        };
+        /** @enum {string} */
+        RunTrigger: "manual" | "config_change" | "periodic";
         RunTypeUpdateData: {
             /** @enum {string|null} */
             reverse_proxy_submode?: "path" | "subdomain" | null;
@@ -11691,6 +11969,23 @@ export interface components {
             label: string;
             message: string;
         };
+        SyncAccepted: {
+            run_id: string;
+        };
+        SyncPreview: {
+            actions: components["schemas"]["PlanAction"][];
+            can_apply: boolean;
+            connection_id: string;
+            counts: components["schemas"]["PlanCounts"];
+            expires_at: string;
+            plan_hash: string;
+            source_revision: string;
+            warnings: string[];
+        };
+        SyncRequest: {
+            plan_hash: string;
+            source_revision: string;
+        };
         SyncRoutesData: {
             synced_gateway_logging: boolean;
             synced_host_rules: number;
@@ -11698,6 +11993,19 @@ export interface components {
             synced_stream_rules: number;
             synced_waf: boolean;
             waf_bundle_id: string;
+        };
+        SyncRun: {
+            connection_id: string;
+            counts: components["schemas"]["PlanCounts"];
+            finished_at?: string | null;
+            id: string;
+            message?: string | null;
+            plan_hash: string;
+            source_revision: string;
+            started_at: string;
+            status: components["schemas"]["RunStatus"];
+            trigger: components["schemas"]["RunTrigger"];
+            warnings: string[];
         };
         SystemAssetDownloadProgressData: {
             error: string | null;
@@ -11772,7 +12080,7 @@ export interface components {
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
         };
         SystemEventDeleteBodyData: {
             ids: string[];
@@ -11797,7 +12105,7 @@ export interface components {
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
         };
         SystemEventPublishResultData: {
             data: null | components["schemas"]["SystemEventData"];
@@ -11808,7 +12116,7 @@ export interface components {
         SystemEventSubjectData: {
             id: string;
             /** @enum {string} */
-            kind: "IP" | "SESSION" | "DDNS" | "RESOURCE" | "APPLICATION" | "TUNNEL" | "COMPONENT";
+            kind: "IP" | "SESSION" | "DDNS" | "RESOURCE" | "APPLICATION" | "TUNNEL" | "COMPONENT" | "PANEL_SYNC";
         };
         TerminalAttachmentData: {
             created_at: string;
@@ -11928,6 +12236,10 @@ export interface components {
             /** @enum {string} */
             status: "uninstalled" | "installing" | "installed" | "error";
             version: string;
+        };
+        TestConnectionInput: {
+            connection_id?: string | null;
+            draft?: null | components["schemas"]["ConnectionInput"];
         };
         TotpBindBody: {
             comment?: string | null;
@@ -18882,7 +19194,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看仪表盘stream active ips」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看仪表盘流映射活跃 IP」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20140,7 +20452,7 @@ export interface operations {
                 page?: number;
                 limit?: string;
                 search?: string;
-                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT";
+                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
                 level?: "INFO" | "WARN" | "ERROR" | "CRITICAL";
                 source?: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
             };
@@ -22637,6 +22949,411 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PanelConnection"][];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PanelConnection"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description 「更新NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["PanelConnection"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: {
+                cleanup_remote?: boolean;
+                source_revision?: string;
+                plan_hash?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「删除NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccessEnvelope"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 「预览NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncPreview"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看NAS 面板同步同步记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncRun"][];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncRequest"];
+            };
+        };
+        responses: {
+            /** @description 「同步NAS 面板同步面板连接」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncAccepted"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 已受理「同步NAS 面板同步面板连接」请求；请按响应中的任务或状态信息继续查询。 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncAccepted"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看NAS 面板同步提供者」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ProviderDescriptor"][];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看NAS 面板同步同步记录」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["SyncRun"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestConnectionInput"];
+            };
+        };
+        responses: {
+            /** @description 「测试NAS 面板同步」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ProbeResult"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
     get_api_admin_panel_bootstrap: {
         parameters: {
             query?: never;
@@ -23628,7 +24345,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看扫描器路径白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23668,7 +24385,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「更新扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「更新扫描器路径白名单」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23708,7 +24425,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交扫描器false positive」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「提交扫描器误报反馈」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

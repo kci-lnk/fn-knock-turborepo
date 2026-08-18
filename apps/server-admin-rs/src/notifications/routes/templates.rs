@@ -583,6 +583,10 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
             read_payload_value(event, "component"),
             read_payload_value(event, "reason_code"),
         ]),
+        "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" => join_compact_parts(&[
+            read_payload_value(event, "message"),
+            read_payload_value(event, "connection_id"),
+        ]),
         _ => String::new(),
     }
 }

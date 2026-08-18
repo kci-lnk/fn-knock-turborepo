@@ -222,6 +222,21 @@ fn validates_and_applies_custom_host_mapping_icons() {
 }
 
 #[test]
+fn host_rules_expose_only_the_stable_uuid_icon_asset_path() {
+    let sync_id = "550e8400-e29b-41d4-a716-446655440000";
+    let payload = build_host_rules_payload(&[json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "sync_id": sync_id,
+        "favicon": "data:image/webp;base64,UklGRg=="
+    })]);
+    assert_eq!(
+        payload[0]["website_icon_path"],
+        format!("/__assets__/website_icon.{sync_id}.webp")
+    );
+}
+
+#[test]
 fn ordinary_host_mapping_updates_cannot_inject_uncompiled_advanced_auth() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({
@@ -2425,6 +2440,52 @@ fn host_mapping_rename_preserves_advanced_auth_across_identity_edges() {
         disabled_auth[1]["advanced_auth"]["groups"],
         advanced_auth["groups"]
     );
+}
+
+#[test]
+fn host_mapping_sync_id_is_server_owned_and_survives_rename() {
+    let sync_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    let previous = json!({
+        "host_mappings": [{
+            "host": "old.example.com",
+            "target": "http://127.0.0.1:8080",
+            "sync_id": sync_id
+        }]
+    });
+    let renamed = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "new.example.com",
+            "previous_host": "old.example.com",
+            "target": "http://127.0.0.1:9090",
+            "sync_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        })],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(renamed[0]["sync_id"], sync_id);
+}
+
+#[test]
+fn host_mapping_sync_id_backfill_repairs_missing_invalid_and_duplicate_ids() {
+    let retained = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    let mut config = json!({
+        "host_mappings": [
+            {"host": "one.example.com", "sync_id": retained},
+            {"host": "two.example.com", "sync_id": retained},
+            {"host": "three.example.com", "sync_id": "invalid"},
+            {"host": "four.example.com"}
+        ]
+    });
+    assert_eq!(ensure_host_mapping_sync_ids(&mut config), 3);
+    assert_eq!(config["host_mappings"][0]["sync_id"], retained);
+    let ids = config["host_mappings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|mapping| mapping["sync_id"].as_str().unwrap())
+        .collect::<HashSet<_>>();
+    assert_eq!(ids.len(), 4);
+    assert_eq!(ensure_host_mapping_sync_ids(&mut config), 0);
 }
 
 #[test]

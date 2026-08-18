@@ -1197,6 +1197,7 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                         .map(ToString::to_string),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
+                    website_icon_path: string_field(item, "website_icon_path"),
                     basic_auth: item.get("basic_auth").map(parse_basic_auth),
                     locations: item
                         .get("locations")

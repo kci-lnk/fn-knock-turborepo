@@ -2598,6 +2598,8 @@ export const enServer = {
         runtimeHealthFailed: "Component health failed",
         runtimeRecovered: "Component recovered",
         runtimeAbnormalExit: "Component exited abnormally",
+        panelSyncFailed: "Failed to sync to navigation panel",
+        panelSyncRecovered: "Navigation panel sync recovered",
       },
       ruleName: "{event} notification",
       levels: {

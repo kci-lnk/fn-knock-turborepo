@@ -22,6 +22,7 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
         apply_ssl_deployment_to_gateway(state, &target).await?;
         let current = state.storage.store.get_config().await?;
         if same_ssl_configuration(&target, &current) {
+            crate::panel_sync::notify_source_changed(state);
             return Ok(());
         }
         target = current;

@@ -8,6 +8,7 @@ import { normalizeHostMappingAvailability } from "../host-mapping-availability";
 type HostMappingUpdatePayload = Pick<
   HostMapping,
   | "host"
+  | "sync_id"
   | "group_id"
   | "target"
   | "target_path_mode"
@@ -75,6 +76,7 @@ export const toHostMappingUpdatePayload = (
   } = {},
 ): HostMappingUpdatePayload => ({
   host: mapping.host,
+  sync_id: mapping.sync_id,
   group_id: mapping.group_id || null,
   target: mapping.target,
   target_path_mode:

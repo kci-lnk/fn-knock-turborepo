@@ -204,6 +204,13 @@ export const describeSystemEvent = (
             ),
         latency: String(payload.latency_ms ?? "-"),
       });
+    case "FN_EVENT_PANEL_SYNC_FAILED":
+    case "FN_EVENT_PANEL_SYNC_RECOVERED":
+      return translate("admin.eventCenter.events.panelSyncStatus", {
+        connection: String(payload.connection_id || event.subject?.id || "-"),
+        event: translate(`admin.eventCenter.eventTypes.${event.type}`),
+        message: String(payload.message || "-"),
+      });
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED":
       return translate("admin.eventCenter.events.gatewayThrottleBlocked", {
         ip: formatIpDisplay(payload.ip),

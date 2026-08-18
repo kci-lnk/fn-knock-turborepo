@@ -32,10 +32,11 @@ pub fn project(config: &Value, grouping: &GroupingConfig) -> PanelLinkProjection
         .into_iter()
         .flatten()
         .filter_map(|group| {
-            Some((
-                group.get("id")?.as_str()?.to_string(),
-                group.get("name")?.as_str()?.trim().to_string(),
-            ))
+            let name = group.get("name")?.as_str()?.trim();
+            if name.is_empty() {
+                return None;
+            }
+            Some((group.get("id")?.as_str()?.to_string(), name.to_string()))
         })
         .collect::<BTreeMap<_, _>>();
     let namespace = grouping.namespace.trim();
@@ -81,12 +82,10 @@ pub fn project(config: &Value, grouping: &GroupingConfig) -> PanelLinkProjection
                     .get("group_id")
                     .and_then(Value::as_str)
                     .filter(|id| group_names.contains_key(*id));
-                let source_id = raw.unwrap_or("ungrouped").to_string();
-                let label = raw
-                    .and_then(|id| group_names.get(id))
-                    .map(String::as_str)
-                    .unwrap_or("未分组");
-                (source_id, format!("{namespace} · {label}"))
+                match raw {
+                    Some(id) => (id.to_string(), format!("{namespace} · {}", group_names[id])),
+                    None => ("ungrouped".to_string(), namespace.to_string()),
+                }
             }
         };
         groups

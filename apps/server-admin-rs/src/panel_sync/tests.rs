@@ -160,6 +160,48 @@ fn projection_filters_auth_and_disabled_mappings_and_never_exports_targets() {
     );
 }
 
+#[test]
+fn mirror_projection_never_exports_an_ungrouped_placeholder() {
+    let config = json!({
+        "host_mapping_groups": [
+            {"id": "media", "name": "影音"},
+            {"id": "blank", "name": "   "}
+        ],
+        "host_mappings": [
+            {"host":"plain.example.test","sync_id":"11111111-1111-4111-8111-111111111111","service_role":"app","disabled":false},
+            {"host":"media.example.test","sync_id":"22222222-2222-4222-8222-222222222222","group_id":"media","service_role":"app","disabled":false},
+            {"host":"blank.example.test","sync_id":"33333333-3333-4333-8333-333333333333","group_id":"blank","service_role":"app","disabled":false}
+        ]
+    });
+    let projection = project(
+        &config,
+        &GroupingConfig {
+            mode: GroupMode::Mirror,
+            namespace: "NAS".to_string(),
+            single_group_name: String::new(),
+        },
+    );
+
+    assert_eq!(projection.groups.len(), 2);
+    assert!(
+        projection
+            .groups
+            .iter()
+            .any(|group| { group.source_id == "ungrouped" && group.name == "NAS" })
+    );
+    assert!(
+        projection
+            .groups
+            .iter()
+            .any(|group| { group.source_id == "media" && group.name == "NAS · 影音" })
+    );
+    assert!(
+        !serde_json::to_string(&projection)
+            .unwrap()
+            .contains("未分组")
+    );
+}
+
 #[tokio::test]
 async fn sun_panel_treats_an_empty_remote_icon_as_no_icon() {
     let (base_url, requests) = mock_json_responses(vec![

@@ -450,6 +450,128 @@ async fn unauthorized_normal_access_still_honors_scanner_blacklist() {
     );
 }
 
+#[tokio::test]
+async fn scanner_exempts_sync_event_register_but_not_subpaths() {
+    let (_directory, state) = auth_route_test_state("sync-event-register-scanner-exemption").await;
+    state
+        .storage
+        .store
+        .save_scanner_settings(&json!({
+            "enabled": true,
+            "windowMinutes": 5,
+            "threshold": 1,
+            "blacklistTtlSeconds": 3600
+        }))
+        .await
+        .expect("enable scanner");
+
+    let config = json!({"run_type": 1});
+    let exempt_ip = "203.0.113.79";
+    for path in [
+        "/sync/event/register",
+        "/sync/event/register?source=test",
+        "/sync/event/register/",
+        "/sync/event/register",
+    ] {
+        let mut headers = forwarded_headers("app.example.com");
+        headers.insert("x-forwarded-path", HeaderValue::from_static(path));
+        let mut response = Response::new(Body::empty());
+        apply_preflight_behavior_with_normal_access(
+            &state,
+            &headers,
+            &Uri::from_static("/"),
+            &mut response,
+            &config,
+            exempt_ip,
+            RequestedAccessMode::LoginFirst,
+            &PreflightNormalAccess::default(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("apply scanner-exempt preflight");
+
+        assert!(response.headers().get("X-Option").is_none());
+    }
+
+    assert!(
+        state
+            .storage
+            .store
+            .scanner_suspicious_hits_since(exempt_ip, 0)
+            .await
+            .expect("read exempt path hits")
+            .is_empty(),
+        "the exact sync registration path must not increment scanner counters"
+    );
+    assert!(
+        !state
+            .storage
+            .store
+            .scanner_blacklist_exists(exempt_ip)
+            .await
+            .expect("read exempt IP scanner status"),
+        "the exact sync registration path must not blacklist its caller"
+    );
+
+    let uncommon_ip = "203.0.113.80";
+    let mut headers = forwarded_headers("app.example.com");
+    headers.insert(
+        "x-forwarded-path",
+        HeaderValue::from_static("/sync/event/register/child"),
+    );
+    let mut first_response = Response::new(Body::empty());
+    apply_preflight_behavior_with_normal_access(
+        &state,
+        &headers,
+        &Uri::from_static("/"),
+        &mut first_response,
+        &config,
+        uncommon_ip,
+        RequestedAccessMode::LoginFirst,
+        &PreflightNormalAccess::default(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("apply uncommon-path preflight");
+    assert!(
+        state
+            .storage
+            .store
+            .scanner_blacklist_exists(uncommon_ip)
+            .await
+            .expect("read uncommon IP scanner status"),
+        "a subpath must remain subject to scanner blocking"
+    );
+
+    let mut blocked_response = Response::new(Body::empty());
+    apply_preflight_behavior_with_normal_access(
+        &state,
+        &headers,
+        &Uri::from_static("/"),
+        &mut blocked_response,
+        &config,
+        uncommon_ip,
+        RequestedAccessMode::LoginFirst,
+        &PreflightNormalAccess::default(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("apply blocked uncommon-path preflight");
+    assert_eq!(
+        blocked_response
+            .headers()
+            .get("X-Option")
+            .and_then(|value| value.to_str().ok()),
+        Some("Deny")
+    );
+}
+
 #[test]
 fn strict_whitelist_access_mode_matches_node_header_parsing() {
     let mut headers = HeaderMap::new();

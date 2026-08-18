@@ -122,6 +122,7 @@ pub(crate) async fn is_common_path_for_preflight(
         "/static/bg/wallpaper-1.webp",
         "/api/config",
         "/identity/connect/token",
+        "/sync/event/register",
     ];
     if COMMON_PATHS.contains(&clean_path.as_str()) {
         return Ok(true);

@@ -1750,6 +1750,7 @@ export const enServer = {
     outbound: "Outbound",
     upstreamUnavailable: "Upstream service is unavailable",
     hostRequired: "host is required",
+    streamRequired: "A valid TCP or UDP mapping is required",
     statsLoadFailed: "Failed to load dashboard stats",
     configLoadFailed: "Failed to load dashboard config",
     displayConfigSaveFailed: "Failed to save dashboard display config",

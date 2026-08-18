@@ -6047,6 +6047,12 @@
             },
             "type": "array"
           },
+          "by_stream": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardStreamTrafficData"
+            },
+            "type": "array"
+          },
           "error_5xx": {
             "format": "double",
             "type": "number"
@@ -6071,6 +6077,7 @@
           "active_conns",
           "error_5xx",
           "by_host",
+          "by_stream",
           "timestamp"
         ],
         "type": "object"
@@ -6162,6 +6169,89 @@
           "inBytes",
           "outBytes",
           "error5xx"
+        ],
+        "type": "object"
+      },
+      "DashboardStreamActiveIpsData": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardActiveIpData"
+            },
+            "type": "array"
+          },
+          "key": {
+            "type": "string"
+          },
+          "listen_port": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Unix timestamp in milliseconds",
+            "format": "int64",
+            "type": "integer"
+          },
+          "window_seconds": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "protocol",
+          "listen_port",
+          "key",
+          "window_seconds",
+          "items",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "DashboardStreamTrafficData": {
+        "properties": {
+          "active_conns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "active_ip_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error_5xx": {
+            "format": "double",
+            "type": "number"
+          },
+          "key": {
+            "type": "string"
+          },
+          "listen_port": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "total_in": {
+            "format": "double",
+            "type": "number"
+          },
+          "total_out": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "protocol",
+          "listen_port",
+          "key",
+          "total_in",
+          "total_out",
+          "error_5xx",
+          "active_conns",
+          "active_ip_count"
         ],
         "type": "object"
       },
@@ -33229,6 +33319,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "stream",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -33274,6 +33372,69 @@
           }
         },
         "summary": "查看仪表盘统计数据",
+        "tags": [
+          "dashboard"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/dashboard/stream-active-ips": {
+      "get": {
+        "description": "读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/stream-active-ips` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_api_admin_dashboard_stream_active_ips",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "stream",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DashboardStreamActiveIpsData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看仪表盘stream active ips」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看仪表盘stream active ips",
         "tags": [
           "dashboard"
         ],

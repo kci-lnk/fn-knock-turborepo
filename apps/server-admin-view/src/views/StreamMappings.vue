@@ -105,6 +105,8 @@
           :mappings="allMappings"
           :removing-mapping-key="removingMappingKey"
           :probing-mapping-key="probingMappingKey"
+          :traffic-timestamp="trafficRealtimeStats?.timestamp ?? null"
+          :get-stream-traffic-sample="getStreamTrafficSample"
           :on-remove="removeMapping"
           :on-save-comment="updateComment"
           @edit="openEditDialog"
@@ -150,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Clock3, Info, Plus, RefreshCw } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -172,8 +174,9 @@ import {
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "@/lib/api/config";
+import { DashboardAPI } from "@/lib/api/dashboard";
 import { useConfigStore } from "../store/config";
-import type { StreamMapping } from "../types";
+import type { StreamMapping, StreamTrafficStats } from "../types";
 import StreamMappingDisabledAlert from "./stream-mappings/StreamMappingDisabledAlert.vue";
 import StreamMappingAvailabilityDialog from "./stream-mappings/StreamMappingAvailabilityDialog.vue";
 import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
@@ -186,12 +189,14 @@ import {
   getMappingKey,
   normalizeStreamMapping,
   removeStreamMapping,
+  streamTrafficKey,
   type StreamMappingEditorSubmission,
   updateStreamMappingComment,
 } from "./stream-mappings/streamMappingModel";
 import { useStreamMappingAvailability } from "./stream-mappings/useStreamMappingAvailability";
 import { useStreamMappingNavigation } from "./stream-mappings/useStreamMappingNavigation";
 import { useStreamMappingSecurity } from "./stream-mappings/useStreamMappingSecurity";
+import { useTrafficRealtime } from "./subdomain-proxy/useTrafficRealtime";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -236,6 +241,33 @@ const allMappings = computed(() =>
 const protocolMappingEnabled = computed(
   () => configStore.config?.protocol_mapping_feature?.enabled === true,
 );
+
+const {
+  startTrafficRealtimePolling,
+  stopTrafficRealtimePolling,
+  trafficRealtimeStats,
+} = useTrafficRealtime({
+  load: () => DashboardAPI.getRealtime(),
+  onError: (error) => {
+    console.warn("load stream traffic realtime failed:", error);
+  },
+});
+
+const streamTrafficSamples = computed(() => {
+  const samples = new Map<string, StreamTrafficStats>();
+  for (const item of trafficRealtimeStats.value?.by_stream ?? []) {
+    if (item.key) samples.set(item.key, item);
+  }
+  return samples;
+});
+
+const getStreamTrafficSample = (
+  mapping: StreamMapping,
+): StreamTrafficStats | null =>
+  streamTrafficSamples.value.get(streamTrafficKey(mapping)) ?? null;
+
+onMounted(startTrafficRealtimePolling);
+onBeforeUnmount(stopTrafficRealtimePolling);
 
 function openCreateDialog() {
   editingMapping.value = null;

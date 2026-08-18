@@ -1,6 +1,7 @@
 import type {
   DashboardStats,
   HostActiveIpsPayload,
+  StreamActiveIpsPayload,
   TrafficStats,
 } from "../../types";
 import type { operations as ApiContractOperations } from "@fn-knock/api-contract";
@@ -13,17 +14,21 @@ type DashboardStatsQuery = NonNullable<
 >;
 type DashboardActiveIpsQuery =
   ApiContractOperations["get_api_admin_dashboard_active_ips"]["parameters"]["query"];
+type DashboardStreamActiveIpsQuery =
+  ApiContractOperations["get_api_admin_dashboard_stream_active_ips"]["parameters"]["query"];
 
 export type {
   DashboardStats,
   HostActiveIpsPayload,
+  StreamActiveIpsPayload,
   TrafficStats,
 } from "../../types";
 
 export const DashboardAPI = {
   async getStats(
     rangeSec: number,
-    userIdOrOptions?: string | { userId?: string; host?: string },
+    userIdOrOptions?:
+      string | { userId?: string; host?: string; stream?: string },
     signal?: AbortSignal,
   ): Promise<DashboardStats> {
     const options =
@@ -44,6 +49,13 @@ export const DashboardAPI = {
   async getHostActiveIps(host: string): Promise<HostActiveIpsPayload> {
     const params = { host } satisfies DashboardActiveIpsQuery;
     const res = await apiClient.get("/dashboard/active-ips", {
+      params,
+    });
+    return res.data.data;
+  },
+  async getStreamActiveIps(stream: string): Promise<StreamActiveIpsPayload> {
+    const params = { stream } satisfies DashboardStreamActiveIpsQuery;
+    const res = await apiClient.get("/dashboard/stream-active-ips", {
       params,
     });
     return res.data.data;

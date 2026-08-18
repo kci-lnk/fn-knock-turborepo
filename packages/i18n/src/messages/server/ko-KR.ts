@@ -1762,6 +1762,7 @@ export const koKRServer = {
     outbound: "아웃바운드",
     upstreamUnavailable: "업스트림 서비스를 사용할 수 없습니다.",
     hostRequired: "호스트가 필요합니다",
+    streamRequired: "유효한 TCP 또는 UDP 매핑을 선택하세요",
     statsLoadFailed: "대시보드 통계를 불러오지 못했습니다.",
     configLoadFailed: "대시보드 설정을 불러오지 못했습니다.",
     displayConfigSaveFailed: "대시보드 표시 설정을 저장하지 못했습니다.",

@@ -8,8 +8,9 @@ impl Store {
         from_sec: i64,
         to_sec: i64,
         host: Option<&str>,
+        stream: Option<&str>,
     ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
-        let key = traffic_key(user_id, direction, host);
+        let key = traffic_key(user_id, direction, host, stream);
         let mut conn = self.conn();
         let members: Vec<String> = conn.zrangebyscore_analytics(key, from_sec, to_sec).await?;
         Ok(parse_traffic_points(&members))
@@ -21,8 +22,9 @@ impl Store {
         from_sec: i64,
         to_sec: i64,
         host: Option<&str>,
+        stream: Option<&str>,
     ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
-        let key = error5xx_key(user_id, host);
+        let key = error5xx_key(user_id, host, stream);
         let mut conn = self.conn();
         let members: Vec<String> = conn.zrangebyscore_analytics(key, from_sec, to_sec).await?;
         Ok(parse_traffic_points(&members))
@@ -47,13 +49,19 @@ impl Store {
                 user_id,
                 "in",
                 record.host.as_deref(),
+                record.stream.as_deref(),
             ));
             last_keys.push(traffic_last_total_key(
                 user_id,
                 "out",
                 record.host.as_deref(),
+                record.stream.as_deref(),
             ));
-            last_keys.push(error5xx_last_total_key(user_id, record.host.as_deref()));
+            last_keys.push(error5xx_last_total_key(
+                user_id,
+                record.host.as_deref(),
+                record.stream.as_deref(),
+            ));
         }
 
         let mut conn = self.conn();
@@ -76,28 +84,48 @@ impl Store {
             let delta_out = compute_counter_delta(record.total_out, last_out);
             let delta_5xx = compute_counter_delta(record.error_5xx, last_5xx);
 
-            if record.host.is_none() {
+            if record.host.is_none() && record.stream.is_none() {
                 global_delta_in = delta_in;
                 global_delta_out = delta_out;
                 global_delta_5xx = delta_5xx;
             }
 
-            let key_in = traffic_key(user_id, "in", record.host.as_deref());
-            let key_out = traffic_key(user_id, "out", record.host.as_deref());
-            let key_5xx = error5xx_key(user_id, record.host.as_deref());
+            let key_in = traffic_key(
+                user_id,
+                "in",
+                record.host.as_deref(),
+                record.stream.as_deref(),
+            );
+            let key_out = traffic_key(
+                user_id,
+                "out",
+                record.host.as_deref(),
+                record.stream.as_deref(),
+            );
+            let key_5xx = error5xx_key(user_id, record.host.as_deref(), record.stream.as_deref());
 
             pipe.set(
-                traffic_last_total_key(user_id, "in", record.host.as_deref()),
+                traffic_last_total_key(
+                    user_id,
+                    "in",
+                    record.host.as_deref(),
+                    record.stream.as_deref(),
+                ),
                 finite_number_string(record.total_in),
             )
             .ignore();
             pipe.set(
-                traffic_last_total_key(user_id, "out", record.host.as_deref()),
+                traffic_last_total_key(
+                    user_id,
+                    "out",
+                    record.host.as_deref(),
+                    record.stream.as_deref(),
+                ),
                 finite_number_string(record.total_out),
             )
             .ignore();
             pipe.set(
-                error5xx_last_total_key(user_id, record.host.as_deref()),
+                error5xx_last_total_key(user_id, record.host.as_deref(), record.stream.as_deref()),
                 finite_number_string(record.error_5xx),
             )
             .ignore();

@@ -42,6 +42,10 @@ export const createMappingKey = (
 export const getMappingKey = (mapping: StreamMapping): string =>
   createMappingKey(normalizeProtocol(mapping.protocol), mapping.listen_port);
 
+// 协议映射流量采样 key，与 Go 端 streamRuleKey.String() 一致（斜杠分隔，非冒号）
+export const streamTrafficKey = (mapping: StreamMapping): string =>
+  `${normalizeProtocol(mapping.protocol)}/${mapping.listen_port}`;
+
 export const compareStreamMappings = (
   a: StreamMapping,
   b: StreamMapping,

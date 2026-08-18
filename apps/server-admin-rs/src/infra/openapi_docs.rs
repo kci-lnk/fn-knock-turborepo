@@ -2130,6 +2130,12 @@ pub(crate) fn build_openapi_document() -> Value {
                 "in": "query",
                 "required": false,
                 "schema": { "type": "string" }
+            },
+            {
+                "name": "stream",
+                "in": "query",
+                "required": false,
+                "schema": { "type": "string" }
             }
         ])),
         None,
@@ -2151,6 +2157,20 @@ pub(crate) fn build_openapi_document() -> Value {
         "DashboardActiveIpsData",
         Some(json!([{
             "name": "host",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+        }])),
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_dashboard,
+        "/api/admin/dashboard/stream-active-ips",
+        "get",
+        "DashboardStreamActiveIpsData",
+        Some(json!([{
+            "name": "stream",
             "in": "query",
             "required": true,
             "schema": { "type": "string" }
@@ -4589,6 +4609,7 @@ mod tests {
             ("/api/admin/dashboard/stats", "get"),
             ("/api/admin/dashboard/realtime", "get"),
             ("/api/admin/dashboard/active-ips", "get"),
+            ("/api/admin/dashboard/stream-active-ips", "get"),
             ("/api/admin/update/status", "get"),
             ("/api/admin/update/check", "post"),
             ("/api/admin/update/check-and-download", "post"),
@@ -5964,10 +5985,25 @@ mod tests {
         assert!(active_ip_parameters.iter().any(|parameter| {
             parameter["name"] == "host" && parameter["required"] == json!(true)
         }));
+        let stream_active_ip_parameters = document
+            .pointer("/paths/~1api~1admin~1dashboard~1stream-active-ips/get/parameters")
+            .and_then(Value::as_array)
+            .expect("dashboard stream active IP query parameters");
+        assert!(stream_active_ip_parameters.iter().any(|parameter| {
+            parameter["name"] == "stream" && parameter["required"] == json!(true)
+        }));
         for (schema, fields) in [
-            ("DashboardRealtimeData", &["by_host", "timestamp"][..]),
+            (
+                "DashboardRealtimeData",
+                &["by_host", "by_stream", "timestamp"][..],
+            ),
             ("DashboardHostTrafficData", &["active_ip_count"][..]),
+            (
+                "DashboardStreamTrafficData",
+                &["key", "active_conns", "active_ip_count"][..],
+            ),
             ("DashboardActiveIpsData", &["timestamp"][..]),
+            ("DashboardStreamActiveIpsData", &["timestamp"][..]),
         ] {
             let required = document
                 .pointer(&format!("/components/schemas/{schema}/required"))

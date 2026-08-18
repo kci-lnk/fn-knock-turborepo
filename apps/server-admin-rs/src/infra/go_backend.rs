@@ -1857,6 +1857,16 @@ fn traffic_to_json(stats: crate::grpc_proto::TrafficStats) -> Value {
             "total_out": item.total_out,
             "error_5xx": item.error_5xx,
             "active_ip_count": item.active_ip_count
+        })).collect::<Vec<_>>(),
+        "by_stream": stats.by_stream.into_iter().map(|item| json!({
+            "protocol": item.protocol,
+            "listen_port": item.listen_port,
+            "key": item.key,
+            "total_in": item.total_in,
+            "total_out": item.total_out,
+            "error_5xx": item.error_5xx,
+            "active_conns": item.active_conns,
+            "active_ip_count": item.active_ip_count
         })).collect::<Vec<_>>()
     })
 }
@@ -1872,6 +1882,16 @@ fn active_ip_to_json(item: HostActiveIpStats) -> Value {
 fn active_ips_to_json(stats: crate::grpc_proto::HostActiveIpsStats) -> Value {
     json!({
         "host": stats.host,
+        "window_seconds": stats.window_seconds,
+        "items": stats.items.into_iter().map(active_ip_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn stream_active_ips_to_json(stats: crate::grpc_proto::StreamActiveIpsStats) -> Value {
+    json!({
+        "protocol": stats.protocol,
+        "listen_port": stats.listen_port,
+        "key": stats.key,
         "window_seconds": stats.window_seconds,
         "items": stats.items.into_iter().map(active_ip_to_json).collect::<Vec<_>>()
     })

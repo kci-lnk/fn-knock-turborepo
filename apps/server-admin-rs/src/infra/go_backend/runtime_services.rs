@@ -3,10 +3,12 @@ use serde_json::Value;
 
 use super::{
     GoBackendClient, active_ips_to_json, grpc_error, ok, parse_ssl_config, parse_waf_config,
-    rpc_status_response, ssl_info_to_json, status_value, traffic_to_json, waf_drain_to_json,
-    waf_status_to_json,
+    rpc_status_response, ssl_info_to_json, status_value, stream_active_ips_to_json,
+    traffic_to_json, waf_drain_to_json, waf_status_to_json,
 };
-use crate::grpc_proto::{HostRequest, WafBundleRequest, WafDrainOperation, WafDrainRequest};
+use crate::grpc_proto::{
+    HostRequest, StreamRequest, WafBundleRequest, WafDrainOperation, WafDrainRequest,
+};
 
 #[allow(dead_code)]
 impl GoBackendClient {
@@ -25,6 +27,24 @@ impl GoBackendClient {
             .await
         {
             Ok(response) => Ok(ok(active_ips_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn get_stream_active_ips(
+        &self,
+        protocol: String,
+        listen_port: i32,
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.traffic.clone();
+        match client
+            .get_stream_active_ips(self.request(StreamRequest {
+                protocol,
+                listen_port,
+            }))
+            .await
+        {
+            Ok(response) => Ok(ok(stream_active_ips_to_json(response.into_inner()))),
             Err(error) => Ok(grpc_error(error)),
         }
     }

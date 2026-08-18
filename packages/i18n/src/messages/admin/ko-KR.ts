@@ -3363,6 +3363,7 @@ export const koKRAdmin = {
     commentUpdated: "메모가 업데이트되었습니다.",
     commentUpdateFailed: "메모를 업데이트하지 못했습니다.",
     target: "대상 주소",
+    traffic: "트래픽",
     authStatus: "로그인 요구 사항",
     empty: "아직 설정된 프로토콜 매핑이 없습니다.",
     authRequired: "로그인 필요",
@@ -5574,6 +5575,11 @@ export const koKRAdmin = {
       lastActive: "마지막 활동",
       connections: "연결",
     },
+  },
+  streamTraffic: {
+    detailsAria: "{title} {key} 트래픽 세부정보",
+    activeConns: "활성 연결",
+    activeConnsWithCount: "활성 연결 {count}",
   },
   sessions: {
     loadFailed: "불러오기 실패",

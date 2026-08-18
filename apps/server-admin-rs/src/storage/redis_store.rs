@@ -650,44 +650,54 @@ fn whitelist_ip_records_key(ip: &str) -> String {
     format!("fn_knock:whitelist:ip_records:{ip}")
 }
 
-fn traffic_scope_segment(user_id: &str, host: Option<&str>) -> String {
+fn traffic_scope_segment(user_id: &str, host: Option<&str>, stream: Option<&str>) -> String {
     let host = host.map(str::trim).filter(|value| !value.is_empty());
-    match host {
-        Some(host) => {
+    let stream = stream.map(str::trim).filter(|value| !value.is_empty());
+    match (host, stream) {
+        (Some(host), _) => {
             let encoded = crate::http_utils::url_encode_component(host);
             format!("{user_id}:host:{encoded}")
         }
-        None => user_id.to_string(),
+        (None, Some(stream)) => {
+            let encoded = crate::http_utils::url_encode_component(stream);
+            format!("{user_id}:stream:{encoded}")
+        }
+        (None, None) => user_id.to_string(),
     }
 }
 
-fn traffic_key(user_id: &str, direction: &str, host: Option<&str>) -> String {
+fn traffic_key(user_id: &str, direction: &str, host: Option<&str>, stream: Option<&str>) -> String {
     format!(
         "fn_knock:traffic:{}:{}",
-        traffic_scope_segment(user_id, host),
+        traffic_scope_segment(user_id, host, stream),
         direction
     )
 }
 
-fn traffic_last_total_key(user_id: &str, direction: &str, host: Option<&str>) -> String {
+fn traffic_last_total_key(
+    user_id: &str,
+    direction: &str,
+    host: Option<&str>,
+    stream: Option<&str>,
+) -> String {
     format!(
         "fn_knock:traffic:last:{}:{}",
-        traffic_scope_segment(user_id, host),
+        traffic_scope_segment(user_id, host, stream),
         direction
     )
 }
 
-fn error5xx_key(user_id: &str, host: Option<&str>) -> String {
+fn error5xx_key(user_id: &str, host: Option<&str>, stream: Option<&str>) -> String {
     format!(
         "fn_knock:errors:{}:5xx",
-        traffic_scope_segment(user_id, host)
+        traffic_scope_segment(user_id, host, stream)
     )
 }
 
-fn error5xx_last_total_key(user_id: &str, host: Option<&str>) -> String {
+fn error5xx_last_total_key(user_id: &str, host: Option<&str>, stream: Option<&str>) -> String {
     format!(
         "fn_knock:errors:last:{}:5xx",
-        traffic_scope_segment(user_id, host)
+        traffic_scope_segment(user_id, host, stream)
     )
 }
 

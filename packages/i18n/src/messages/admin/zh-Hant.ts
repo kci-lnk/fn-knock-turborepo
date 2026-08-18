@@ -3107,6 +3107,7 @@ export const zhHantAdmin = {
     commentUpdated: "備註已更新",
     commentUpdateFailed: "更新備註失敗",
     target: "目標地址",
+    traffic: "流量",
     authStatus: "登入要求",
     empty: "還沒有配置任何協議映射。",
     authRequired: "需要登入",
@@ -5151,6 +5152,11 @@ export const zhHantAdmin = {
       lastActive: "最近活躍",
       connections: "連接",
     },
+  },
+  streamTraffic: {
+    detailsAria: "{title} {key} 流量詳情",
+    activeConns: "活躍連線",
+    activeConnsWithCount: "活躍連線 {count}",
   },
   sessions: {
     loadFailed: "載入失敗",

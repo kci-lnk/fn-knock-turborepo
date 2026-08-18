@@ -13,10 +13,11 @@
       <colgroup>
         <col class="w-[8%]" />
         <col class="w-[10%]" />
+        <col class="w-[14%]" />
         <col class="w-[16%]" />
         <col class="w-[18%]" />
-        <col class="w-[22%]" />
-        <col class="w-[14%]" />
+        <col class="w-[10%]" />
+        <col class="w-[12%]" />
         <col class="w-[12%]" />
       </colgroup>
       <TableHeader>
@@ -26,6 +27,7 @@
           <TableHead>{{ t("admin.streamMappings.comment") }}</TableHead>
           <TableHead>{{ t("admin.streamMappings.target") }}</TableHead>
           <TableHead>{{ t("admin.streamMappings.serviceProfile") }}</TableHead>
+          <TableHead>{{ t("admin.streamMappings.traffic") }}</TableHead>
           <TableHead>{{ t("admin.streamMappings.authStatus") }}</TableHead>
           <TableHead class="text-right">{{
             t("admin.sessions.table.actions")
@@ -34,7 +36,7 @@
       </TableHeader>
       <TableBody>
         <TableRow v-if="filteredMappings.length === 0">
-          <TableCell colspan="7" class="py-8 text-center text-muted-foreground">
+          <TableCell colspan="8" class="py-8 text-center text-muted-foreground">
             {{ t("admin.streamMappings.empty") }}
           </TableCell>
         </TableRow>
@@ -98,6 +100,14 @@
               </span>
             </div>
           </TableCell>
+          <TableCell class="w-[7rem] min-w-[7rem] max-w-[7rem]">
+            <StreamTrafficActivity
+              :stream-key="streamTrafficKey(mapping)"
+              :title="formatMappingLabel(mapping)"
+              :sample="getStreamTrafficSample(mapping)"
+              :timestamp="trafficTimestamp ?? null"
+            />
+          </TableCell>
           <TableCell class="whitespace-normal">
             <div
               class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
@@ -155,14 +165,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { StreamMapping } from "../../types";
+import type { StreamMapping, StreamTrafficStats } from "../../types";
+import StreamTrafficActivity from "@/components/StreamTrafficActivity.vue";
 import StreamMappingRowActions from "./StreamMappingRowActions.vue";
-import { formatProtocolLabel, getMappingKey } from "./streamMappingModel";
+import {
+  formatMappingLabel,
+  formatProtocolLabel,
+  getMappingKey,
+  streamTrafficKey,
+} from "./streamMappingModel";
 
 const props = defineProps<{
   mappings: StreamMapping[];
   removingMappingKey: string | null;
   probingMappingKey: string | null;
+  trafficTimestamp: number | null;
+  getStreamTrafficSample: (mapping: StreamMapping) => StreamTrafficStats | null;
   onRemove: (mapping: StreamMapping) => Promise<boolean>;
   onSaveComment: (mapping: StreamMapping, comment: string) => Promise<void>;
 }>();

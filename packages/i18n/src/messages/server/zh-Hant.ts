@@ -1546,6 +1546,7 @@ export const zhHantServer = {
     outbound: "出站",
     upstreamUnavailable: "上游服務不可用",
     hostRequired: "host 不能為空",
+    streamRequired: "請選擇有效的 TCP 或 UDP 映射",
     statsLoadFailed: "載入儀表盤統計失敗",
     configLoadFailed: "載入儀表盤配置失敗",
     displayConfigSaveFailed: "保存儀表盤展示配置失敗",

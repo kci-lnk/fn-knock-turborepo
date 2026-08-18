@@ -198,14 +198,12 @@ export type SubdomainCertificateLibraryCoverage =
   ApiContractComponents["schemas"]["SslCertificateLibraryCoverageData"];
 export type SSLCertificateSummary =
   ApiContractComponents["schemas"]["SslCertificateSummaryData"];
-export type SSLStatus =
-  ApiContractComponents["schemas"]["SslStatusData"];
+export type SSLStatus = ApiContractComponents["schemas"]["SslStatusData"];
 export type SharedDataFileEntry =
   ApiContractComponents["schemas"]["SslSharedFileData"];
 export type SSLSharedFilesPayload =
   ApiContractComponents["schemas"]["SslSharedFilesData"];
-export type SSLCAStatus =
-  ApiContractComponents["schemas"]["SslCaStatusData"];
+export type SSLCAStatus = ApiContractComponents["schemas"]["SslCaStatusData"];
 export type ExternalCertificateBinding =
   ApiContractComponents["schemas"]["ExternalCertificateBindingData"];
 export type ExternalCertificateBindingCredential =
@@ -433,9 +431,13 @@ export type TrafficStats =
   ApiContractComponents["schemas"]["DashboardRealtimeData"];
 export type HostTrafficStats =
   ApiContractComponents["schemas"]["DashboardHostTrafficData"];
+export type StreamTrafficStats =
+  ApiContractComponents["schemas"]["DashboardStreamTrafficData"];
 export type HostActiveIp =
   ApiContractComponents["schemas"]["DashboardActiveIpData"];
 export type HostActiveIpsPayload =
   ApiContractComponents["schemas"]["DashboardActiveIpsData"];
+export type StreamActiveIpsPayload =
+  ApiContractComponents["schemas"]["DashboardStreamActiveIpsData"];
 export type DashboardStats =
   ApiContractComponents["schemas"]["DashboardStatsData"];

@@ -3400,6 +3400,7 @@ export const enAdmin = {
     commentUpdated: "Comment updated",
     commentUpdateFailed: "Failed to update comment",
     target: "Target address",
+    traffic: "Traffic",
     authStatus: "Login requirement",
     empty: "No protocol mappings configured yet.",
     authRequired: "Login required",
@@ -5626,6 +5627,11 @@ export const enAdmin = {
       lastActive: "Last active",
       connections: "Connections",
     },
+  },
+  streamTraffic: {
+    detailsAria: "{title} {key} traffic details",
+    activeConns: "Active connections",
+    activeConnsWithCount: "Active connections {count}",
   },
   sessions: {
     loadFailed: "Load failed",

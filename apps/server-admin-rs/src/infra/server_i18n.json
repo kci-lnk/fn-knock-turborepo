@@ -1412,7 +1412,8 @@
       "hostRequired": "host 不能为空",
       "statsLoadFailed": "加载仪表盘统计失败",
       "configLoadFailed": "加载仪表盘配置失败",
-      "displayConfigSaveFailed": "保存仪表盘展示配置失败"
+      "displayConfigSaveFailed": "保存仪表盘展示配置失败",
+      "streamRequired": "请选择有效的 TCP 或 UDP 映射"
     },
     "acme": {
       "alreadyInstalled": "acme.sh 已经安装过了",
@@ -4622,7 +4623,8 @@
       "hostRequired": "host 不能為空",
       "statsLoadFailed": "載入儀表盤統計失敗",
       "configLoadFailed": "載入儀表盤配置失敗",
-      "displayConfigSaveFailed": "保存儀表盤展示配置失敗"
+      "displayConfigSaveFailed": "保存儀表盤展示配置失敗",
+      "streamRequired": "請選擇有效的 TCP 或 UDP 映射"
     },
     "acme": {
       "alreadyInstalled": "acme.sh 已經安裝過了",
@@ -7832,7 +7834,8 @@
       "hostRequired": "host is required",
       "statsLoadFailed": "Failed to load dashboard stats",
       "configLoadFailed": "Failed to load dashboard config",
-      "displayConfigSaveFailed": "Failed to save dashboard display config"
+      "displayConfigSaveFailed": "Failed to save dashboard display config",
+      "streamRequired": "A valid TCP or UDP mapping is required"
     },
     "acme": {
       "alreadyInstalled": "acme.sh is already installed",
@@ -11042,7 +11045,8 @@
       "hostRequired": "호스트가 필요합니다",
       "statsLoadFailed": "대시보드 통계를 불러오지 못했습니다.",
       "configLoadFailed": "대시보드 설정을 불러오지 못했습니다.",
-      "displayConfigSaveFailed": "대시보드 표시 설정을 저장하지 못했습니다."
+      "displayConfigSaveFailed": "대시보드 표시 설정을 저장하지 못했습니다.",
+      "streamRequired": "유효한 TCP 또는 UDP 매핑을 선택하세요"
     },
     "acme": {
       "alreadyInstalled": "acme.sh가 이미 설치되어 있습니다.",
@@ -14252,7 +14256,8 @@
       "hostRequired": "ホストは必須です",
       "statsLoadFailed": "ダッシュボード統計の読み込みに失敗しました",
       "configLoadFailed": "ダッシュボード設定の読み込みに失敗しました",
-      "displayConfigSaveFailed": "ダッシュボード表示設定の保存に失敗しました"
+      "displayConfigSaveFailed": "ダッシュボード表示設定の保存に失敗しました",
+      "streamRequired": "有効な TCP または UDP マッピングを選択してください"
     },
     "acme": {
       "alreadyInstalled": "acme.sh はインストール済みです",

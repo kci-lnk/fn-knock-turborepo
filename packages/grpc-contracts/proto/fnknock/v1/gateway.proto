@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 14;
+  CONTROL_API_VERSION_CURRENT = 15;
 }
 
 message RpcStatus {
@@ -829,6 +829,7 @@ message TrafficStats {
   int64 active_conns = 3;
   uint64 error_5xx = 4;
   repeated HostTrafficStats by_host = 5;
+  repeated StreamTrafficStats by_stream = 6;
 }
 
 message HostTrafficStats {
@@ -837,6 +838,17 @@ message HostTrafficStats {
   uint64 total_out = 3;
   uint64 error_5xx = 4;
   int32 active_ip_count = 5;
+}
+
+message StreamTrafficStats {
+  string protocol = 1;
+  int32 listen_port = 2;
+  string key = 3;
+  uint64 total_in = 4;
+  uint64 total_out = 5;
+  uint64 error_5xx = 6;
+  int64 active_conns = 7;
+  int32 active_ip_count = 8;
 }
 
 message HostActiveIpStats {
@@ -849,6 +861,14 @@ message HostActiveIpsStats {
   string host = 1;
   int32 window_seconds = 2;
   repeated HostActiveIpStats items = 3;
+}
+
+message StreamActiveIpsStats {
+  string protocol = 1;
+  int32 listen_port = 2;
+  string key = 3;
+  int32 window_seconds = 4;
+  repeated HostActiveIpStats items = 5;
 }
 
 message IptablesRule {
@@ -948,6 +968,11 @@ message GeneralBlacklistListRequest {
 
 message HostRequest {
   string host = 1;
+}
+
+message StreamRequest {
+  string protocol = 1;
+  int32 listen_port = 2;
 }
 
 message WafBundleRequest {
@@ -1247,6 +1272,7 @@ service SecurityService {
 service TrafficService {
   rpc GetTrafficStats(google.protobuf.Empty) returns (TrafficStats);
   rpc GetHostActiveIps(HostRequest) returns (HostActiveIpsStats);
+  rpc GetStreamActiveIps(StreamRequest) returns (StreamActiveIpsStats);
 }
 
 service WafService {

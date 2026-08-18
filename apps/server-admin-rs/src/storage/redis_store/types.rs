@@ -378,6 +378,7 @@ pub struct TrafficDeltaPoint {
 #[derive(Clone, Debug)]
 pub struct TrafficSnapshotRecord {
     pub host: Option<String>,
+    pub stream: Option<String>,
     pub total_in: f64,
     pub total_out: f64,
     pub error_5xx: f64,

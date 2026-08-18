@@ -7470,20 +7470,28 @@ fn docker_admin_session_record_accepts_legacy_missing_ttl() {
 
 #[test]
 fn traffic_scope_matches_node_uri_encoding() {
-    assert_eq!(traffic_scope_segment("global", None), "global");
-    assert_eq!(traffic_scope_segment("", None), "");
-    assert_eq!(traffic_scope_segment(" user ", None), " user ");
+    assert_eq!(traffic_scope_segment("global", None, None), "global");
+    assert_eq!(traffic_scope_segment("", None, None), "");
+    assert_eq!(traffic_scope_segment(" user ", None, None), " user ");
     assert_eq!(
-        traffic_scope_segment("global", Some("example.com")),
+        traffic_scope_segment("global", Some("example.com"), None),
         "global:host:example.com"
     );
     assert_eq!(
-        traffic_scope_segment(" user ", Some("example.com")),
+        traffic_scope_segment(" user ", Some("example.com"), None),
         " user :host:example.com"
     );
     assert_eq!(
-        traffic_scope_segment("u", Some("[2001:db8::1]")),
+        traffic_scope_segment("u", Some("[2001:db8::1]"), None),
         "u:host:%5B2001%3Adb8%3A%3A1%5D"
+    );
+    assert_eq!(
+        traffic_scope_segment("global", None, Some("tcp/3306")),
+        "global:stream:tcp%2F3306"
+    );
+    assert_eq!(
+        traffic_scope_segment("global", Some("example.com"), Some("tcp/3306")),
+        "global:host:example.com"
     );
 }
 
@@ -8694,7 +8702,7 @@ async fn traffic_history_reads_do_not_wait_for_primary_storage_executor() {
 
     let points = tokio::time::timeout(
         std::time::Duration::from_secs(2),
-        store.list_traffic_points("global", "in", 0, 10, None),
+        store.list_traffic_points("global", "in", 0, 10, None, None),
     )
     .await;
     release_tx.send(()).expect("release primary executor");

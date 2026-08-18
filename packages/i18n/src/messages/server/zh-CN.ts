@@ -1546,6 +1546,7 @@ export const zhCNServer = {
     outbound: "出站",
     upstreamUnavailable: "上游服务不可用",
     hostRequired: "host 不能为空",
+    streamRequired: "请选择有效的 TCP 或 UDP 映射",
     statsLoadFailed: "加载仪表盘统计失败",
     configLoadFailed: "加载仪表盘配置失败",
     displayConfigSaveFailed: "保存仪表盘展示配置失败",

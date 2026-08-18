@@ -2692,6 +2692,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/dashboard/stream-active-ips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看仪表盘stream active ips
+         * @description 读取管理端仪表盘的实时统计、流量和活跃 IP 数据。。`GET /api/admin/dashboard/stream-active-ips` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get_api_admin_dashboard_stream_active_ips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ddns/config/{provider}": {
         parameters: {
             query?: never;
@@ -8249,6 +8269,7 @@ export interface components {
             /** Format: int64 */
             active_conns: number;
             by_host: components["schemas"]["DashboardHostTrafficData"][];
+            by_stream: components["schemas"]["DashboardStreamTrafficData"][];
             /** Format: double */
             error_5xx: number;
             /**
@@ -8288,6 +8309,36 @@ export interface components {
             inBytes: number;
             /** Format: double */
             outBytes: number;
+        };
+        DashboardStreamActiveIpsData: {
+            items: components["schemas"]["DashboardActiveIpData"][];
+            key: string;
+            /** Format: int64 */
+            listen_port: number;
+            protocol: string;
+            /**
+             * Format: int64
+             * @description Unix timestamp in milliseconds
+             */
+            timestamp: number;
+            /** Format: int64 */
+            window_seconds: number;
+        };
+        DashboardStreamTrafficData: {
+            /** Format: int64 */
+            active_conns: number;
+            /** Format: int64 */
+            active_ip_count: number;
+            /** Format: double */
+            error_5xx: number;
+            key: string;
+            /** Format: int64 */
+            listen_port: number;
+            protocol: string;
+            /** Format: double */
+            total_in: number;
+            /** Format: double */
+            total_out: number;
         };
         DashboardTrafficData: {
             echarts: components["schemas"]["DashboardEchartsData"];
@@ -18724,6 +18775,7 @@ export interface operations {
                 rangeSec?: number;
                 userId?: string;
                 host?: string;
+                stream?: string;
             };
             header?: never;
             path?: never;
@@ -18739,6 +18791,44 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["DashboardStatsData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_dashboard_stream_active_ips: {
+        parameters: {
+            query: {
+                stream: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看仪表盘stream active ips」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["DashboardStreamActiveIpsData"];
                         message?: string | null;
                         /** @constant */
                         success: true;

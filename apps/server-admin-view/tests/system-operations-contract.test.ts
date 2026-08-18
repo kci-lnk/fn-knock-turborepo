@@ -70,6 +70,7 @@ describe("dashboard and update API contract", () => {
       ["get", "/api/admin/dashboard/stats"],
       ["get", "/api/admin/dashboard/realtime"],
       ["get", "/api/admin/dashboard/active-ips"],
+      ["get", "/api/admin/dashboard/stream-active-ips"],
       ["get", "/api/admin/update/status"],
       ["post", "/api/admin/update/check"],
       ["post", "/api/admin/update/check-and-download"],
@@ -100,11 +101,20 @@ describe("dashboard and update API contract", () => {
       )?.required,
       true,
     );
+    assert.equal(
+      contract.paths[
+        "/api/admin/dashboard/stream-active-ips"
+      ].get.parameters?.find((parameter) => parameter.name === "stream")
+        ?.required,
+      true,
+    );
 
     for (const [schema, fields] of [
       ["DashboardRealtimeData", ["by_host", "timestamp"]],
       ["DashboardHostTrafficData", ["active_ip_count"]],
+      ["DashboardStreamTrafficData", ["active_ip_count"]],
       ["DashboardActiveIpsData", ["timestamp"]],
+      ["DashboardStreamActiveIpsData", ["timestamp"]],
     ] as const) {
       const required = contract.components.schemas[schema].required ?? [];
       for (const field of fields) assert.ok(required.includes(field), field);

@@ -65,3 +65,4 @@ apps/fn-knock-desktop/src-tauri/tauri.ci.conf.json
 dist/windows/
 /Go-Reauth-Proxy/
 apps/fn-knock/app/server/server-admin-rs-linux-arm64
+.workbuddy-ai

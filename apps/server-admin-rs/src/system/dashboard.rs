@@ -33,6 +33,7 @@ struct DashboardStatsQuery {
     #[serde(rename = "userId")]
     user_id: Option<String>,
     host: Option<String>,
+    stream: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,11 +41,17 @@ struct ActiveIpsQuery {
     host: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct StreamActiveIpsQuery {
+    stream: Option<String>,
+}
+
 pub fn dashboard_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(stats))
         .routes(routes!(realtime))
         .routes(routes!(active_ips))
+        .routes(routes!(stream_active_ips))
         .routes(routes!(get_dashboard_display, update_dashboard_display))
 }
 
@@ -68,27 +75,30 @@ async fn stats(
     let translator = Translator::from_state(&state).await;
     let user_id = dashboard_user_id(query.user_id.as_deref(), &state.settings.traffic_user_id);
     let host = normalize_traffic_host(query.host.as_deref().unwrap_or(""));
+    let stream = normalize_stream_traffic_key(query.stream.as_deref().unwrap_or(""));
     let range_sec = crate::node_compat::parse_i64_or(query.range_sec.as_deref(), 3600)
         .clamp(60, 30 * 24 * 3600);
     let now_sec = now_unix_seconds();
     let from_sec = now_sec - range_sec;
     let error_history_from_sec = from_sec.min(now_sec - 7 * 24 * 3600);
     let host_ref = (!host.is_empty()).then_some(host.as_str());
+    let stream_ref = (!stream.is_empty()).then_some(stream.as_str());
 
     let result = tokio::try_join!(
         state
             .storage
             .store
-            .list_traffic_points(&user_id, "in", from_sec, now_sec, host_ref),
+            .list_traffic_points(&user_id, "in", from_sec, now_sec, host_ref, stream_ref),
         state
             .storage
             .store
-            .list_traffic_points(&user_id, "out", from_sec, now_sec, host_ref),
+            .list_traffic_points(&user_id, "out", from_sec, now_sec, host_ref, stream_ref),
         state.storage.store.list_error5xx_points(
             &user_id,
             error_history_from_sec,
             now_sec,
-            host_ref
+            host_ref,
+            stream_ref
         )
     );
 
@@ -104,18 +114,32 @@ async fn stats(
     };
 
     let current = fetch_traffic_stats(&state).await.ok().and_then(|value| {
-        if host.is_empty() {
+        if host.is_empty() && stream.is_empty() {
             return Some(value);
         }
+        if !host.is_empty() {
+            return value
+                .get("by_host")
+                .and_then(Value::as_array)
+                .and_then(|items| {
+                    items
+                        .iter()
+                        .find(|item| normalize_traffic_host_value(item.get("host")) == host)
+                        .cloned()
+                });
+        }
         value
-            .get("by_host")
+            .get("by_stream")
             .and_then(Value::as_array)
             .and_then(|items| {
-                items
-                    .iter()
-                    .find(|item| normalize_traffic_host_value(item.get("host")) == host)
-                    .cloned()
+                items.iter().find(|item| {
+                    item.get("key")
+                        .and_then(Value::as_str)
+                        .map(normalize_stream_traffic_key)
+                        .is_some_and(|key| key == stream)
+                })
             })
+            .cloned()
     });
 
     let traffic_echarts = json!({
@@ -297,6 +321,113 @@ async fn active_ips(
 
 #[utoipa::path(
     get,
+    path = "/api/admin/dashboard/stream-active-ips",
+    tag = "dashboard",
+    operation_id = "get_api_admin_dashboard_stream_active_ips",
+    responses((status = 200, description = "Active client addresses for one TCP or UDP mapping"))
+)]
+async fn stream_active_ips(
+    State(state): State<AppState>,
+    Query(query): Query<StreamActiveIpsQuery>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let Some((protocol, listen_port, key)) =
+        parse_stream_traffic_key(query.stream.as_deref().unwrap_or(""))
+    else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            dashboard_text(&translator, "streamRequired"),
+        );
+    };
+
+    let (status, envelope) = match state
+        .gateway
+        .client
+        .get_stream_active_ips(protocol.clone(), listen_port)
+        .await
+    {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, %key, "failed to read stream active IP stats from Go backend");
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                dashboard_text(&translator, "upstreamUnavailable"),
+            );
+        }
+    };
+
+    if status.as_u16() == 404 || envelope_code(&envelope) == Some(404) {
+        return response::ok(json!({
+            "protocol": protocol,
+            "listen_port": listen_port,
+            "key": key,
+            "window_seconds": 120,
+            "items": [],
+            "timestamp": time_utils::now_ms()
+        }))
+        .into_response();
+    }
+
+    if !status.is_success()
+        || !envelope
+            .get("success")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    {
+        let code = envelope_code(&envelope)
+            .filter(|code| (400..=599).contains(code))
+            .unwrap_or(502);
+        let status = StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_GATEWAY);
+        let message = envelope
+            .get("message")
+            .and_then(Value::as_str)
+            .filter(|message| !message.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| dashboard_text(&translator, "upstreamUnavailable"));
+        return response::error(status, message);
+    }
+
+    let data = envelope.get("data").cloned().unwrap_or_else(|| json!({}));
+    let mut items = data
+        .get("items")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(normalize_active_ip_item)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    items.sort_by(|left, right| {
+        let left_seen = left
+            .get("last_seen_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let right_seen = right
+            .get("last_seen_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        right_seen.cmp(left_seen).then_with(|| {
+            left.get("ip")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .cmp(right.get("ip").and_then(Value::as_str).unwrap_or_default())
+        })
+    });
+
+    response::ok(json!({
+        "protocol": protocol,
+        "listen_port": listen_port,
+        "key": key,
+        "window_seconds": normalize_active_ip_window_seconds(data.get("window_seconds")),
+        "items": items,
+        "timestamp": time_utils::now_ms()
+    }))
+    .into_response()
+}
+
+#[utoipa::path(
+    get,
     path = "/api/admin/config/dashboard_display",
     tag = "config",
     operation_id = "get_api_admin_config_dashboard_display",
@@ -448,6 +579,10 @@ async fn build_realtime_payload(state: &AppState) -> anyhow::Result<Option<Value
             .and_then(Value::as_array)
             .map(|items| items.iter().filter_map(normalize_host_traffic_item).collect::<Vec<_>>())
             .unwrap_or_default(),
+        "by_stream": data.get("by_stream")
+            .and_then(Value::as_array)
+            .map(|items| items.iter().filter_map(normalize_stream_traffic_item).collect::<Vec<_>>())
+            .unwrap_or_default(),
         "timestamp": time_utils::now_ms()
     })))
 }
@@ -485,13 +620,15 @@ fn default_traffic_snapshot() -> Value {
         "total_out": 0,
         "active_conns": 0,
         "error_5xx": 0,
-        "by_host": []
+        "by_host": [],
+        "by_stream": []
     })
 }
 
 fn build_snapshot_records(snapshot: &Value) -> Vec<TrafficSnapshotRecord> {
     let mut records = vec![TrafficSnapshotRecord {
         host: None,
+        stream: None,
         total_in: normalize_f64_or_zero(snapshot.get("total_in").unwrap_or(&Value::Null)),
         total_out: normalize_f64_or_zero(snapshot.get("total_out").unwrap_or(&Value::Null)),
         error_5xx: normalize_f64_or_zero(snapshot.get("error_5xx").unwrap_or(&Value::Null)),
@@ -512,6 +649,7 @@ fn build_snapshot_records(snapshot: &Value) -> Vec<TrafficSnapshotRecord> {
             host.clone(),
             TrafficSnapshotRecord {
                 host: Some(host),
+                stream: None,
                 total_in: normalize_f64_or_zero(item.get("total_in").unwrap_or(&Value::Null)),
                 total_out: normalize_f64_or_zero(item.get("total_out").unwrap_or(&Value::Null)),
                 error_5xx: normalize_f64_or_zero(item.get("error_5xx").unwrap_or(&Value::Null)),
@@ -519,6 +657,30 @@ fn build_snapshot_records(snapshot: &Value) -> Vec<TrafficSnapshotRecord> {
         );
     }
     records.extend(by_host.into_values());
+
+    let mut by_stream = HashMap::<String, TrafficSnapshotRecord>::new();
+    for item in snapshot
+        .get("by_stream")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let key = normalize_stream_traffic_key_value(item.get("key"));
+        if key.is_empty() {
+            continue;
+        }
+        by_stream.insert(
+            key.clone(),
+            TrafficSnapshotRecord {
+                host: None,
+                stream: Some(key),
+                total_in: normalize_f64_or_zero(item.get("total_in").unwrap_or(&Value::Null)),
+                total_out: normalize_f64_or_zero(item.get("total_out").unwrap_or(&Value::Null)),
+                error_5xx: normalize_f64_or_zero(item.get("error_5xx").unwrap_or(&Value::Null)),
+            },
+        );
+    }
+    records.extend(by_stream.into_values());
     records
 }
 
@@ -532,6 +694,45 @@ fn normalize_host_traffic_item(item: &Value) -> Option<Value> {
         "total_in": normalize_f64_or_zero(item.get("total_in").unwrap_or(&Value::Null)),
         "total_out": normalize_f64_or_zero(item.get("total_out").unwrap_or(&Value::Null)),
         "error_5xx": normalize_f64_or_zero(item.get("error_5xx").unwrap_or(&Value::Null)),
+        "active_ip_count": normalize_active_ip_count(item.get("active_ip_count"))
+    }))
+}
+
+fn normalize_stream_traffic_key(value: &str) -> String {
+    value.trim().to_string()
+}
+
+fn parse_stream_traffic_key(value: &str) -> Option<(String, i32, String)> {
+    let (protocol, port) = value.trim().split_once('/')?;
+    let protocol = protocol.trim().to_ascii_lowercase();
+    if protocol != "tcp" && protocol != "udp" {
+        return None;
+    }
+    let listen_port = port.trim().parse::<i32>().ok()?;
+    if !(1..=65535).contains(&listen_port) {
+        return None;
+    }
+    let key = format!("{protocol}/{listen_port}");
+    Some((protocol, listen_port, key))
+}
+
+fn normalize_stream_traffic_key_value(value: Option<&Value>) -> String {
+    normalize_stream_traffic_key(js_string_nullish_empty(value).as_str())
+}
+
+fn normalize_stream_traffic_item(item: &Value) -> Option<Value> {
+    let key = normalize_stream_traffic_key_value(item.get("key"));
+    if key.is_empty() {
+        return None;
+    }
+    Some(json!({
+        "protocol": js_string_nullish_empty(item.get("protocol")),
+        "listen_port": normalize_i64_or_zero(item.get("listen_port").unwrap_or(&Value::Null)),
+        "key": key,
+        "total_in": normalize_f64_or_zero(item.get("total_in").unwrap_or(&Value::Null)),
+        "total_out": normalize_f64_or_zero(item.get("total_out").unwrap_or(&Value::Null)),
+        "error_5xx": normalize_f64_or_zero(item.get("error_5xx").unwrap_or(&Value::Null)),
+        "active_conns": normalize_i64_or_zero(item.get("active_conns").unwrap_or(&Value::Null)),
         "active_ip_count": normalize_active_ip_count(item.get("active_ip_count"))
     }))
 }
@@ -1137,5 +1338,72 @@ mod tests {
                 .iter()
                 .any(|record| record.host.as_deref() == Some("example.com"))
         );
+    }
+
+    #[test]
+    fn builds_snapshot_records_for_stream_traffic() {
+        let records = build_snapshot_records(&json!({
+            "total_in": 100,
+            "total_out": 40,
+            "error_5xx": 2,
+            "by_stream": [
+                { "protocol": "tcp", "listen_port": 3306, "key": "tcp/3306", "total_in": 30, "total_out": 12, "error_5xx": 1 },
+                { "protocol": "udp", "listen_port": 53, "key": "", "total_in": 999 }
+            ]
+        }));
+        assert!(records.iter().any(|record| record.host.is_none()
+            && record.stream.is_none()
+            && record.total_in == 100.0));
+        assert!(
+            records
+                .iter()
+                .any(|record| record.stream.as_deref() == Some("tcp/3306")
+                    && record.total_in == 30.0
+                    && record.total_out == 12.0)
+        );
+        assert!(
+            !records
+                .iter()
+                .any(|record| record.stream.as_deref() == Some(""))
+        );
+    }
+
+    #[test]
+    fn normalizes_stream_traffic_item() {
+        let item = normalize_stream_traffic_item(&json!({
+            "protocol": "tcp",
+            "listen_port": 3306,
+            "key": "tcp/3306",
+            "total_in": 30.5,
+            "total_out": 12,
+            "error_5xx": 1,
+            "active_conns": 3,
+            "active_ip_count": 2
+        }))
+        .expect("stream traffic item");
+        assert_eq!(item.get("protocol"), Some(&json!("tcp")));
+        assert_eq!(item.get("listen_port"), Some(&json!(3306)));
+        assert_eq!(item.get("key"), Some(&json!("tcp/3306")));
+        assert_eq!(item.get("total_in"), Some(&json!(30.5)));
+        assert_eq!(item.get("total_out"), Some(&json!(12.0)));
+        assert_eq!(item.get("error_5xx"), Some(&json!(1.0)));
+        assert_eq!(item.get("active_conns"), Some(&json!(3)));
+        assert_eq!(item.get("active_ip_count"), Some(&json!(2)));
+        assert!(normalize_stream_traffic_item(&json!({ "key": "" })).is_none());
+    }
+
+    #[test]
+    fn parses_canonical_stream_traffic_keys() {
+        assert_eq!(
+            parse_stream_traffic_key(" TCP/3306 "),
+            Some(("tcp".to_string(), 3306, "tcp/3306".to_string()))
+        );
+        assert_eq!(
+            parse_stream_traffic_key("udp/53"),
+            Some(("udp".to_string(), 53, "udp/53".to_string()))
+        );
+        assert!(parse_stream_traffic_key("http/80").is_none());
+        assert!(parse_stream_traffic_key("tcp/0").is_none());
+        assert!(parse_stream_traffic_key("tcp/65536").is_none());
     }
 }

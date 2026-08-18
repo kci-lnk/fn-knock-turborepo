@@ -3387,6 +3387,7 @@ export const jaJPAdmin = {
     commentUpdated: "コメントを更新しました",
     commentUpdateFailed: "コメントの更新に失敗しました",
     target: "転送先",
+    traffic: "トラフィック",
     authStatus: "ログイン要件",
     empty: "プロトコルマッピングはまだありません。",
     authRequired: "ログインが必要",
@@ -5619,6 +5620,11 @@ export const jaJPAdmin = {
       lastActive: "最終アクセス",
       connections: "接続",
     },
+  },
+  streamTraffic: {
+    detailsAria: "{title} {key} のトラフィック詳細",
+    activeConns: "アクティブ接続",
+    activeConnsWithCount: "アクティブ接続 {count}",
   },
   sessions: {
     loadFailed: "読み込みに失敗しました",

@@ -3153,6 +3153,7 @@ export const zhCNAdmin = {
     commentUpdated: "备注已更新",
     commentUpdateFailed: "更新备注失败",
     target: "目标地址",
+    traffic: "流量",
     authStatus: "登录要求",
     empty: "还没有配置任何协议映射。",
     authRequired: "需要登录",
@@ -5225,6 +5226,11 @@ export const zhCNAdmin = {
       lastActive: "最近活跃",
       connections: "连接",
     },
+  },
+  streamTraffic: {
+    detailsAria: "{title} {key} 流量详情",
+    activeConns: "活跃连接",
+    activeConnsWithCount: "活跃连接 {count}",
   },
   sessions: {
     loadFailed: "加载失败",

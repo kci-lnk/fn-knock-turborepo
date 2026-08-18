@@ -1830,6 +1830,7 @@ export const jaJPServer = {
     outbound: "送信",
     upstreamUnavailable: "アップストリームサービスを利用できません",
     hostRequired: "ホストは必須です",
+    streamRequired: "有効な TCP または UDP マッピングを選択してください",
     statsLoadFailed: "ダッシュボード統計の読み込みに失敗しました",
     configLoadFailed: "ダッシュボード設定の読み込みに失敗しました",
     displayConfigSaveFailed: "ダッシュボード表示設定の保存に失敗しました",

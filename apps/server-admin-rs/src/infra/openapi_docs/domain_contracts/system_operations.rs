@@ -786,7 +786,20 @@ pub(super) struct DashboardRealtimeData {
     active_conns: i64,
     error_5xx: f64,
     by_host: Vec<DashboardHostTrafficData>,
+    by_stream: Vec<DashboardStreamTrafficData>,
     timestamp: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct DashboardStreamTrafficData {
+    protocol: String,
+    listen_port: i64,
+    key: String,
+    total_in: f64,
+    total_out: f64,
+    error_5xx: f64,
+    active_conns: i64,
+    active_ip_count: i64,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -799,6 +812,16 @@ pub(super) struct DashboardActiveIpData {
 #[derive(Serialize, ToSchema)]
 pub(super) struct DashboardActiveIpsData {
     host: String,
+    window_seconds: i64,
+    items: Vec<DashboardActiveIpData>,
+    timestamp: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct DashboardStreamActiveIpsData {
+    protocol: String,
+    listen_port: i64,
+    key: String,
     window_seconds: i64,
     items: Vec<DashboardActiveIpData>,
     timestamp: i64,

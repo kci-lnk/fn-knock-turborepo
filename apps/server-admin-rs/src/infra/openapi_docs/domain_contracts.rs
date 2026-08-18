@@ -1072,8 +1072,10 @@ struct BackupImportResultData {
     DashboardStatsData,
     DashboardHostTrafficData,
     DashboardRealtimeData,
+    DashboardStreamTrafficData,
     DashboardActiveIpData,
     DashboardActiveIpsData,
+    DashboardStreamActiveIpsData,
     UpdateLatestData,
     UpdateCheckData,
     UpdateDownloadData,
@@ -4203,6 +4205,7 @@ pub(super) fn components() -> Map<String, Value> {
     for (schema, property) in [
         ("DashboardRealtimeData", "timestamp"),
         ("DashboardActiveIpsData", "timestamp"),
+        ("DashboardStreamActiveIpsData", "timestamp"),
         ("UpdateCheckData", "lastCheckedAt"),
     ] {
         set_property_metadata(
@@ -5067,9 +5070,14 @@ fn query_parameters(contract: &DomainOperation) -> Vec<Value> {
             ),
             query_parameter("userId", json!({ "type": "string", "minLength": 1 })),
             query_parameter("host", json!({ "type": "string", "minLength": 1 })),
+            query_parameter("stream", json!({ "type": "string", "minLength": 1 })),
         ],
         ("get", "/api/admin/dashboard/active-ips") => vec![required_query_parameter(
             "host",
+            json!({ "type": "string", "minLength": 1 }),
+        )],
+        ("get", "/api/admin/dashboard/stream-active-ips") => vec![required_query_parameter(
+            "stream",
             json!({ "type": "string", "minLength": 1 }),
         )],
         ("get", "/api/admin/events") => vec![

@@ -8,7 +8,12 @@ import type {
 import { browserT } from "@fn-knock/i18n/vue/admin";
 import { useIpLocationBatch } from "./useIpLocationBatch";
 
-type HostSource = string | Ref<string> | (() => string);
+type ActiveIpSource = string | Ref<string> | (() => string);
+type ActiveIpPayload = {
+  items?: HostActiveIp[];
+  window_seconds?: number;
+  timestamp?: number;
+};
 
 export type HostActiveIpDisplayItem = HostActiveIp & {
   locationText: string;
@@ -18,7 +23,7 @@ export type HostActiveIpDisplayItem = HostActiveIp & {
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 
-const readHost = (source: HostSource) => {
+const readSource = (source: ActiveIpSource) => {
   if (typeof source === "function") {
     return source().trim();
   }
@@ -49,9 +54,10 @@ const normalizeWindowSeconds = (value: unknown) => {
   return Math.max(1, Math.floor(seconds));
 };
 
-export const useHostActiveIps = (
-  host: HostSource,
+const useActiveIps = (
+  source: ActiveIpSource,
   open: Ref<boolean>,
+  loadActiveIps: (value: string) => Promise<ActiveIpPayload>,
   options: { pollIntervalMs?: number } = {},
 ) => {
   const items = ref<HostActiveIp[]>([]);
@@ -86,11 +92,11 @@ export const useHostActiveIps = (
   };
 
   const load = async (loadOptions: { silent?: boolean } = {}) => {
-    const currentHost = readHost(host);
+    const currentSource = readSource(source);
     const currentRequestId = ++requestId;
     clearPollTimer();
 
-    if (!currentHost) {
+    if (!currentSource) {
       items.value = [];
       trackIps([]);
       error.value = "";
@@ -105,7 +111,7 @@ export const useHostActiveIps = (
     error.value = "";
 
     try {
-      const result = await DashboardAPI.getHostActiveIps(currentHost);
+      const result = await loadActiveIps(currentSource);
       if (currentRequestId !== requestId) return;
 
       items.value = result.items ?? [];
@@ -139,7 +145,7 @@ export const useHostActiveIps = (
   );
 
   watch(
-    [open, () => readHost(host)],
+    [open, () => readSource(source)],
     ([isOpen]) => {
       requestId += 1;
       clearPollTimer();
@@ -164,3 +170,27 @@ export const useHostActiveIps = (
     refresh: load,
   };
 };
+
+export const useHostActiveIps = (
+  host: ActiveIpSource,
+  open: Ref<boolean>,
+  options: { pollIntervalMs?: number } = {},
+) =>
+  useActiveIps(
+    host,
+    open,
+    DashboardAPI.getHostActiveIps.bind(DashboardAPI),
+    options,
+  );
+
+export const useStreamActiveIps = (
+  stream: ActiveIpSource,
+  open: Ref<boolean>,
+  options: { pollIntervalMs?: number } = {},
+) =>
+  useActiveIps(
+    stream,
+    open,
+    DashboardAPI.getStreamActiveIps.bind(DashboardAPI),
+    options,
+  );

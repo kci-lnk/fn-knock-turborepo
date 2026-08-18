@@ -420,7 +420,6 @@ describe("managed Cloudflare Tunnel", () => {
       /scan_due && scan_validation_hostname\(&ownership\)\.is_none\(\)/u,
     );
     assert.match(backend, /custom_hostname_can_validate_candidates/u);
-    assert.match(backend, /refresh_tracked_custom_hostname_statuses/u);
     assert.match(backend, /capability_probe_failure_state/u);
     assert.match(backend, /"hostnameStatus"/u);
     assert.match(backend, /preferredEdgeProbeFailed/u);

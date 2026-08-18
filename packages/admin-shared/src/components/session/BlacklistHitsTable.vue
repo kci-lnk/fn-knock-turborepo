@@ -21,11 +21,16 @@ const props = withDefaults(
   defineProps<{
     rows: BlacklistHitRow[];
     emptyText?: string;
+    actionHeader?: string;
   }>(),
   {},
 );
 
 const { t } = useI18n();
+const slots = defineSlots<{
+  action?: (props: { row: BlacklistHitRow }) => unknown;
+}>();
+const hasActions = computed(() => Boolean(slots.action));
 const resolvedEmptyText = computed(
   () => props.emptyText || t("admin.components.blacklistHitsTable.empty"),
 );
@@ -45,12 +50,18 @@ const resolvedEmptyText = computed(
           <TableHead class="w-[160px]">{{
             t("admin.components.blacklistHitsTable.interval")
           }}</TableHead>
+          <TableHead v-if="hasActions" class="w-[240px] text-right">
+            {{
+              props.actionHeader ||
+              t("admin.components.blacklistHitsTable.actions")
+            }}
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-if="props.rows.length === 0">
           <TableCell
-            colspan="3"
+            :colspan="hasActions ? 4 : 3"
             class="text-center text-muted-foreground py-6"
             >{{ resolvedEmptyText }}</TableCell
           >
@@ -61,6 +72,9 @@ const resolvedEmptyText = computed(
           <TableCell class="whitespace-nowrap text-muted-foreground">{{
             row.interval
           }}</TableCell>
+          <TableCell v-if="hasActions" class="text-right">
+            <slot name="action" :row="row" />
+          </TableCell>
         </TableRow>
       </TableBody>
     </Table>

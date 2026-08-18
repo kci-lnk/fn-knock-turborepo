@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { ShieldCheck } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import BlacklistHitsTable from "@admin-shared/components/session/BlacklistHitsTable.vue";
 import type { IpBlacklistPageController } from "./useIpBlacklistPage";
@@ -12,6 +14,8 @@ const {
   formatDate,
   isDetailLoading,
   isDetailsModalOpen,
+  isResolvingFalsePositive,
+  resolveFalsePositive,
 } = props.controller;
 </script>
 
@@ -78,7 +82,20 @@ const {
         </div>
       </div>
 
-      <BlacklistHitsTable :rows="detailHitRows" />
+      <BlacklistHitsTable :rows="detailHitRows">
+        <template #action="{ row }">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="isResolvingFalsePositive"
+            @click="resolveFalsePositive(row.path)"
+          >
+            <ShieldCheck class="mr-2 h-4 w-4" />
+            {{ t("admin.sessions.ipBlacklist.allowFalsePositive") }}
+          </Button>
+        </template>
+      </BlacklistHitsTable>
     </div>
   </DetailDialog>
 </template>

@@ -9,6 +9,25 @@ impl Store {
         self.set_json_value(SCANNER_SETTINGS_KEY, value).await
     }
 
+    pub async fn save_scanner_settings_and_remove_blacklist(
+        &self,
+        value: &Value,
+        ip: &str,
+    ) -> crate::storage::StorageResult<bool> {
+        let mut conn = self.conn();
+        let mut pipe = redis::pipe();
+        pipe.set(
+            SCANNER_SETTINGS_KEY,
+            serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string()),
+        )
+        .ignore();
+        pipe.del(scanner_blacklist_data_key(ip));
+        pipe.del(scanner_suspicious_key(ip)).ignore();
+        pipe.zrem(SCANNER_BLACKLIST_INDEX_KEY, ip).ignore();
+        let deleted: Vec<i64> = pipe.query_async(&mut conn).await?;
+        Ok(deleted.first().copied().unwrap_or_default() > 0)
+    }
+
     pub async fn list_scanner_blacklist(
         &self,
         page: i64,

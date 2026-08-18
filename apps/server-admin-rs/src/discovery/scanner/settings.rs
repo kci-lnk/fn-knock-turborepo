@@ -6,6 +6,7 @@ const EFFECTIVE_POLICY_FIELD: &str = "cidrExemptionPolicy";
 pub(crate) async fn migrate_scanner_cidr_ipset_on_boot(
     state: &AppState,
 ) -> Result<(), ScannerError> {
+    let _guard = state.security.scanner_settings_update_lock.lock().await;
     let Some(raw) = state.storage.store.scanner_settings_raw().await? else {
         state
             .security
@@ -35,10 +36,24 @@ pub(super) async fn load_scanner_settings(
     ))
 }
 
+pub(super) async fn load_scanner_preflight_inputs(
+    state: &AppState,
+) -> Result<(ScannerSettings, HashSet<String>), ScannerError> {
+    let raw = state.storage.store.scanner_settings_raw().await?;
+    ensure_effective_policy_loaded(state, raw.as_ref())?;
+    Ok((
+        scanner_settings_from_raw(raw.as_ref(), scanner_env_defaults()),
+        scanner_path_whitelist_from_raw(raw.as_ref())?
+            .into_iter()
+            .collect(),
+    ))
+}
+
 pub(super) async fn save_scanner_settings(
     state: &AppState,
     body: UpdateScannerSettingsBody,
 ) -> Result<ScannerSettings, ScannerError> {
+    let _guard = state.security.scanner_settings_update_lock.lock().await;
     let previous_raw = state.storage.store.scanner_settings_raw().await?;
     let previous = scanner_settings_from_raw(previous_raw.as_ref(), scanner_env_defaults());
     let manual_cidrs = match body.cidr_exemptions.as_ref() {

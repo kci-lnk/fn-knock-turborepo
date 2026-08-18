@@ -673,6 +673,12 @@ export const enServer = {
     blacklistRecordDeleteFailed: "Failed to delete scanner blacklist record",
     blacklistRecordsDeleteFailed: "Failed to delete scanner blacklist records",
     cidrExemptionsInvalid: "CIDR exemption format is invalid: {cidrs}",
+    pathWhitelistInvalid: "The path allowlist format is invalid",
+    pathRequired: "Path is required",
+    pathMustBeAbsolute: "Path must start with /",
+    pathContainsControlCharacters: "Path cannot contain control characters",
+    ipRequired: "IP is required",
+    pathWhitelistOperationFailed: "Path allowlist operation failed",
   },
   gatewayLogging: {
     syncConfigFailed: "Failed to sync gateway request log configuration",

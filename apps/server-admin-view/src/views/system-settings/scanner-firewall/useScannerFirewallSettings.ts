@@ -164,6 +164,9 @@ export const useScannerFirewallSettings = () => {
   const goToBlacklist = () => {
     void router.push({ path: "/sessions", query: { tab: "ip-blacklist" } });
   };
+  const goToPathWhitelist = () => {
+    void router.push({ path: "/system/scanner-path-whitelist" });
+  };
 
   onMounted(() => void fetchSettings());
 
@@ -173,6 +176,7 @@ export const useScannerFirewallSettings = () => {
     derivedWindowMinutes,
     form,
     goToBlacklist,
+    goToPathWhitelist,
     invalidCidrExemptions,
     isDirty,
     isLoading,

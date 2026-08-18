@@ -542,7 +542,13 @@
       "blacklistRecordLoadFailed": "读取扫描器黑名单记录失败",
       "blacklistRecordDeleteFailed": "删除扫描器黑名单记录失败",
       "blacklistRecordsDeleteFailed": "批量删除扫描器黑名单记录失败",
-      "cidrExemptionsInvalid": "CIDR 豁免格式不正确：{cidrs}"
+      "cidrExemptionsInvalid": "CIDR 豁免格式不正确：{cidrs}",
+      "pathWhitelistInvalid": "路径白名单格式不正确",
+      "pathRequired": "路径不能为空",
+      "pathMustBeAbsolute": "路径必须以 / 开头",
+      "pathContainsControlCharacters": "路径不能包含控制字符",
+      "ipRequired": "IP 不能为空",
+      "pathWhitelistOperationFailed": "路径白名单操作失败"
     },
     "gatewayLogging": {
       "syncConfigFailed": "同步网关请求日志配置失败"
@@ -3753,7 +3759,13 @@
       "blacklistRecordLoadFailed": "讀取掃描器黑名單記錄失敗",
       "blacklistRecordDeleteFailed": "刪除掃描器黑名單記錄失敗",
       "blacklistRecordsDeleteFailed": "批量刪除掃描器黑名單記錄失敗",
-      "cidrExemptionsInvalid": "CIDR 豁免格式不正確：{cidrs}"
+      "cidrExemptionsInvalid": "CIDR 豁免格式不正確：{cidrs}",
+      "pathWhitelistInvalid": "路徑白名單格式不正確",
+      "pathRequired": "路徑不能為空",
+      "pathMustBeAbsolute": "路徑必須以 / 開頭",
+      "pathContainsControlCharacters": "路徑不能包含控制字符",
+      "ipRequired": "IP 不能為空",
+      "pathWhitelistOperationFailed": "路徑白名單操作失敗"
     },
     "gatewayLogging": {
       "syncConfigFailed": "同步網關請求日誌配置失敗"
@@ -6964,7 +6976,13 @@
       "blacklistRecordLoadFailed": "Failed to load scanner blacklist record",
       "blacklistRecordDeleteFailed": "Failed to delete scanner blacklist record",
       "blacklistRecordsDeleteFailed": "Failed to delete scanner blacklist records",
-      "cidrExemptionsInvalid": "CIDR exemption format is invalid: {cidrs}"
+      "cidrExemptionsInvalid": "CIDR exemption format is invalid: {cidrs}",
+      "pathWhitelistInvalid": "The path allowlist format is invalid",
+      "pathRequired": "Path is required",
+      "pathMustBeAbsolute": "Path must start with /",
+      "pathContainsControlCharacters": "Path cannot contain control characters",
+      "ipRequired": "IP is required",
+      "pathWhitelistOperationFailed": "Path allowlist operation failed"
     },
     "gatewayLogging": {
       "syncConfigFailed": "Failed to sync gateway request log configuration"
@@ -10175,7 +10193,13 @@
       "blacklistRecordLoadFailed": "스캐너 차단 목록 기록을 불러오지 못했습니다.",
       "blacklistRecordDeleteFailed": "스캐너 차단 목록 기록을 삭제하지 못했습니다.",
       "blacklistRecordsDeleteFailed": "스캐너 차단 목록 기록을 삭제하지 못했습니다.",
-      "cidrExemptionsInvalid": "CIDR 면제 형식이 잘못되었습니다. {cidrs}"
+      "cidrExemptionsInvalid": "CIDR 면제 형식이 잘못되었습니다. {cidrs}",
+      "pathWhitelistInvalid": "경로 허용 목록 형식이 올바르지 않습니다.",
+      "pathRequired": "경로가 필요합니다.",
+      "pathMustBeAbsolute": "경로는 /로 시작해야 합니다.",
+      "pathContainsControlCharacters": "경로에 제어 문자를 포함할 수 없습니다.",
+      "ipRequired": "IP가 필요합니다.",
+      "pathWhitelistOperationFailed": "경로 허용 목록 작업에 실패했습니다."
     },
     "gatewayLogging": {
       "syncConfigFailed": "게이트웨이 요청 로그 설정을 동기화하지 못했습니다."
@@ -13386,7 +13410,13 @@
       "blacklistRecordLoadFailed": "スキャナー ブラックリスト レコードの読み込みに失敗しました",
       "blacklistRecordDeleteFailed": "スキャナー ブラックリスト レコードの削除に失敗しました",
       "blacklistRecordsDeleteFailed": "スキャナー ブラックリスト レコードの一括削除に失敗しました",
-      "cidrExemptionsInvalid": "CIDR 免除の形式が正しくありません: {cidrs}"
+      "cidrExemptionsInvalid": "CIDR 免除の形式が正しくありません: {cidrs}",
+      "pathWhitelistInvalid": "パス許可リストの形式が正しくありません",
+      "pathRequired": "パスは必須です",
+      "pathMustBeAbsolute": "パスは / で始めてください",
+      "pathContainsControlCharacters": "パスに制御文字は使用できません",
+      "ipRequired": "IP は必須です",
+      "pathWhitelistOperationFailed": "パス許可リストの操作に失敗しました"
     },
     "gatewayLogging": {
       "syncConfigFailed": "ゲートウェイのリクエストログ設定の同期に失敗しました"

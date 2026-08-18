@@ -41,95 +41,75 @@ pub(crate) fn is_request_exempt_from_scan(headers: &HeaderMap, uri: &Uri, config
         == Some(false)
 }
 
-pub(crate) async fn is_blacklisted_for_preflight(
+pub(crate) async fn load_preflight_policy(
     state: &AppState,
     ip: &str,
-) -> anyhow::Result<bool> {
-    let clean_ip = normalize_scanner_ip(ip);
-    if clean_ip.is_empty() || is_scanner_local_address(&clean_ip) {
-        return Ok(false);
-    }
+) -> anyhow::Result<ScannerPreflightPolicy> {
+    let (settings, path_whitelist) = settings::load_scanner_preflight_inputs(state).await?;
+    let client_ip = normalize_scanner_ip(ip);
+    let ip_exempt = client_ip.is_empty()
+        || is_scanner_local_address(&client_ip)
+        || !settings.enabled
+        || is_scanner_exempt_ip(state, &client_ip, &settings).await?;
+    Ok(ScannerPreflightPolicy {
+        settings,
+        path_whitelist,
+        client_ip,
+        ip_exempt,
+    })
+}
 
-    let settings = load_scanner_settings(state).await?;
-    if !settings.enabled || is_scanner_exempt_ip(state, &clean_ip, &settings).await? {
+pub(crate) async fn is_blacklisted_for_preflight(
+    state: &AppState,
+    policy: &ScannerPreflightPolicy,
+) -> anyhow::Result<bool> {
+    if policy.ip_exempt {
         return Ok(false);
     }
 
     Ok(state
         .storage
         .store
-        .scanner_blacklist_exists(&clean_ip)
+        .scanner_blacklist_exists(&policy.client_ip)
         .await?)
 }
 
-pub(crate) async fn is_common_path_for_preflight(
-    state: &AppState,
+pub(crate) fn is_common_path_for_preflight(
     path: &str,
-) -> anyhow::Result<bool> {
+    config: &Value,
+    policy: &ScannerPreflightPolicy,
+) -> bool {
     let clean_path = normalize_scanner_path(path);
     if is_known_subsonic_rest_path(path) {
-        return Ok(true);
+        return true;
     }
     if clean_path == "/__auth__" || clean_path.starts_with("/__auth__/") {
-        return Ok(true);
+        return true;
     }
     if clean_path == "/api/auth/passkey" || clean_path.starts_with("/api/auth/passkey/") {
-        return Ok(true);
+        return true;
     }
     if clean_path == "/websocket" {
-        return Ok(true);
+        return true;
     }
     if clean_path == "/api/admin/terminal" || clean_path.starts_with("/api/admin/terminal/") {
-        return Ok(true);
+        return true;
     }
     if clean_path == "/cgi/ThirdParty" || clean_path.starts_with("/cgi/ThirdParty/") {
-        return Ok(true);
+        return true;
     }
-    if clean_path == "/assets/" || clean_path.starts_with("/assets/") {
-        return Ok(true);
+    if clean_path == "/assets" || clean_path.starts_with("/assets/") {
+        return true;
     }
-    if clean_path == "/s/" || clean_path.starts_with("/s/") {
-        return Ok(true);
-    }
-
-    const COMMON_PATHS: &[&str] = &[
-        "/",
-        "/index.html",
-        "/robots.txt",
-        "/sitemap.xml",
-        "/favicon.ico",
-        "/favicon.svg",
-        "/api/auth/bootstrap",
-        "/api/auth/captcha/config",
-        "/api/auth/challenge",
-        "/api/auth/login",
-        "/api/auth/ip",
-        "/api/auth/ip/location",
-        "/api/auth/session",
-        "/api/auth/verify",
-        "/api/auth/passkey/status",
-        "/trimcon",
-        "/.well-known/ai-plugin.json",
-        "/apple-touch-icon.png",
-        "/manifest.json",
-        "/login",
-        "/locales/zh-CN/os.json",
-        "/license/v1/device/baseInfo",
-        "/locales/zh-CN/apps/setting.json",
-        "/app-center/v1/check-update?language=zh-CN",
-        "/sac/rpcproxy/v1/new-user-guide/status",
-        "/locales/zh-CN/pages/login.json",
-        "/static/bg/wallpaper-1.webp",
-        "/api/config",
-        "/identity/connect/token",
-        "/sync/event/register",
-    ];
-    if COMMON_PATHS.contains(&clean_path.as_str()) {
-        return Ok(true);
+    if clean_path == "/s" || clean_path.starts_with("/s/") {
+        return true;
     }
 
-    let config = state.storage.store.get_config().await?;
-    Ok(config
+    if policy.path_whitelist.contains(&clean_path) {
+        return true;
+    }
+
+    config
         .get("proxy_mappings")
         .and_then(Value::as_array)
         .into_iter()
@@ -139,30 +119,23 @@ pub(crate) async fn is_common_path_for_preflight(
                 .get("path")
                 .and_then(Value::as_str)
                 .is_some_and(|mapping_path| is_known_proxy_path(&clean_path, mapping_path))
-        }))
+        })
 }
 
 pub(crate) async fn record_uncommon_path_for_preflight(
     state: &AppState,
-    ip: &str,
     path: &str,
+    policy: &ScannerPreflightPolicy,
 ) -> anyhow::Result<ScannerPreflightRecordResult> {
-    let clean_ip = normalize_scanner_ip(ip);
-    if clean_ip.is_empty() || is_scanner_local_address(&clean_ip) {
+    let settings = &policy.settings;
+    if policy.ip_exempt {
         return Ok(ScannerPreflightRecordResult {
             hit_count: 0,
             blocked: false,
         });
     }
 
-    let settings = load_scanner_settings(state).await?;
-    if !settings.enabled || is_scanner_exempt_ip(state, &clean_ip, &settings).await? {
-        return Ok(ScannerPreflightRecordResult {
-            hit_count: 0,
-            blocked: false,
-        });
-    }
-
+    let clean_ip = &policy.client_ip;
     let now = time_utils::now_ms();
     let clean_path = normalize_scanner_path(path);
     let hit = json!({ "path": clean_path, "createdAt": now });
@@ -172,7 +145,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
         .storage
         .store
         .record_scanner_suspicious_hit(
-            &clean_ip,
+            clean_ip,
             &hit,
             now,
             min_score,
@@ -181,11 +154,17 @@ pub(crate) async fn record_uncommon_path_for_preflight(
         )
         .await?;
 
-    if hit_count >= settings.threshold && !is_blacklisted_for_preflight(state, &clean_ip).await? {
+    if hit_count >= settings.threshold
+        && !state
+            .storage
+            .store
+            .scanner_blacklist_exists(clean_ip)
+            .await?
+    {
         let hits = state
             .storage
             .store
-            .scanner_suspicious_hits_since(&clean_ip, window_min_score)
+            .scanner_suspicious_hits_since(clean_ip, window_min_score)
             .await?
             .into_iter()
             .filter(|value| {
@@ -196,7 +175,7 @@ pub(crate) async fn record_uncommon_path_for_preflight(
         let ip_location = state
             .storage
             .store
-            .get_ip_location_cache(&clean_ip)
+            .get_ip_location_cache(clean_ip)
             .await?
             .and_then(|value| {
                 value
@@ -220,11 +199,11 @@ pub(crate) async fn record_uncommon_path_for_preflight(
         state
             .storage
             .store
-            .add_scanner_blacklist_record(&clean_ip, &record, now, settings.blacklist_ttl_seconds)
+            .add_scanner_blacklist_record(clean_ip, &record, now, settings.blacklist_ttl_seconds)
             .await?;
         let registered_location = ip_location::register_usage(
             state,
-            &clean_ip,
+            clean_ip,
             vec![format!("scanner-blacklist|{clean_ip}")],
         )
         .await

@@ -19,6 +19,7 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 import { toast } from "@admin-shared/utils/toast";
 import type { TimeSeriesChartSeries } from "@/components/charts/TimeSeriesChart.vue";
+import { useScannerFalsePositive } from "./useScannerFalsePositive";
 
 export function useIpBlacklistPage() {
   const { t, locale } = useI18n();
@@ -135,6 +136,14 @@ export function useIpBlacklistPage() {
     },
   });
 
+  const { isResolvingFalsePositive, resolveFalsePositive } =
+    useScannerFalsePositive({
+      clearSelection,
+      detailRecord,
+      isDetailsModalOpen,
+      fetchBlacklist,
+    });
+
   const showTableSkeleton = useDelayedLoading(
     () => loading.value && records.value.length === 0,
   );
@@ -227,6 +236,7 @@ export function useIpBlacklistPage() {
     isDeleting,
     isDetailLoading,
     isDetailsModalOpen,
+    isResolvingFalsePositive,
     isThreatLoading,
     limit,
     loading,
@@ -234,6 +244,7 @@ export function useIpBlacklistPage() {
     rangeKey,
     ranges,
     records,
+    resolveFalsePositive,
     searchQuery,
     selectedIps,
     showTableSkeleton,

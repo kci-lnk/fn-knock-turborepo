@@ -41,6 +41,9 @@ type SshLoginLogsParams = {
 };
 
 export type ScannerSettings = SecuritySchemas["ScannerSettingsData"];
+export type ScannerPathWhitelist = SecuritySchemas["ScannerPathWhitelistData"];
+export type ScannerFalsePositiveResult =
+  SecuritySchemas["ScannerFalsePositiveResultData"];
 export type ScannerBlacklistHit = SecuritySchemas["ScannerBlacklistHitData"];
 export type ScannerBlacklistRecord =
   SecuritySchemas["ScannerBlacklistRecordData"];
@@ -59,6 +62,9 @@ type SecurityOverviewQuery = NonNullable<
   ApiContractOperations["get_api_admin_security_overview"]["parameters"]["query"]
 >;
 type ScannerSettingsUpdate = SecuritySchemas["ScannerSettingsUpdateData"];
+type ScannerPathWhitelistUpdate =
+  SecuritySchemas["ScannerPathWhitelistUpdateData"];
+type ScannerFalsePositiveBody = SecuritySchemas["ScannerFalsePositiveBodyData"];
 type IpListBody = SecuritySchemas["IpListBodyData"];
 type GeneralBlacklistAddBody = SecuritySchemas["GeneralBlacklistAddBodyData"];
 type ScannerBlacklistQuery = NonNullable<
@@ -89,6 +95,25 @@ export const ScannerAPI = {
   },
   async saveSettings(payload: ScannerSettingsUpdate): Promise<ScannerSettings> {
     const res = await apiClient.post("/scanner/settings", payload);
+    return res.data.data;
+  },
+  async getPathWhitelist(): Promise<ScannerPathWhitelist> {
+    const res = await apiClient.get("/scanner/path-whitelist");
+    return res.data.data;
+  },
+  async updatePathWhitelist(
+    payload: ScannerPathWhitelistUpdate,
+  ): Promise<ScannerPathWhitelist> {
+    const res = await apiClient.put("/scanner/path-whitelist", payload);
+    return res.data.data;
+  },
+  async resolveFalsePositive(
+    payload: ScannerFalsePositiveBody,
+  ): Promise<ScannerFalsePositiveResult> {
+    const res = await apiClient.post(
+      "/scanner/path-whitelist/false-positive",
+      payload,
+    );
     return res.data.data;
   },
   async getBlacklist(

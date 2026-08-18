@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import ScannerFirewallExemptions from "./scanner-firewall/ScannerFirewallExemptions.vue";
+import ScannerPathWhitelistEntry from "./scanner-firewall/ScannerPathWhitelistEntry.vue";
 import ScannerFirewallThresholds from "./scanner-firewall/ScannerFirewallThresholds.vue";
 import { useScannerFirewallSettings } from "./scanner-firewall/useScannerFirewallSettings";
 
@@ -67,6 +68,8 @@ const model = useScannerFirewallSettings();
         </div>
         <Switch :id="`${a11yId}-enabled`" v-model="model.form.enabled" />
       </div>
+
+      <ScannerPathWhitelistEntry @open="model.goToPathWhitelist" />
 
       <div
         v-show="model.form.enabled"

@@ -2557,6 +2557,33 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_scanner,
+        "/api/admin/scanner/path-whitelist",
+        "get",
+        "ScannerPathWhitelistData",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_scanner,
+        "/api/admin/scanner/path-whitelist",
+        "put",
+        "ScannerPathWhitelistData",
+        None,
+        Some("ScannerPathWhitelistUpdateData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_scanner,
+        "/api/admin/scanner/path-whitelist/false-positive",
+        "post",
+        "ScannerFalsePositiveResultData",
+        None,
+        Some("ScannerFalsePositiveBodyData"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_scanner,
         "/api/admin/scanner/blacklist",
         "get",
         "ScannerBlacklistListData",
@@ -6722,6 +6749,8 @@ mod tests {
             "CidrConnectionTestData",
             "SecurityOverviewData",
             "ScannerSettingsData",
+            "ScannerPathWhitelistData",
+            "ScannerFalsePositiveResultData",
             "ScannerBlacklistRecordData",
             "GeneralBlacklistRecordData",
             "GeneralBlacklistMutationData",

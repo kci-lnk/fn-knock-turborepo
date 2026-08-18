@@ -72,6 +72,32 @@ pub(super) struct ScannerSettingsUpdateData {
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ScannerPathWhitelistData {
+    paths: Vec<String>,
+    default_paths: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ScannerPathWhitelistUpdateData {
+    paths: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ScannerFalsePositiveBodyData {
+    ip: String,
+    path: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct ScannerFalsePositiveResultData {
+    ip: String,
+    path: String,
+    added: bool,
+    unblocked: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ScannerBlacklistHitData {
     path: String,
     created_at: i64,

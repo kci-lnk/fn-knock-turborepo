@@ -187,6 +187,9 @@ pub struct SecurityState {
     /// Serializes CAPTCHA validation with its read-modify-write persistence so
     /// concurrent provider or nested difficulty patches cannot be lost.
     pub captcha_settings_update_lock: Mutex<()>,
+    /// Serializes scanner policy writes so the main settings form and the
+    /// independently managed path whitelist cannot overwrite one another.
+    pub scanner_settings_update_lock: Mutex<()>,
     /// Serializes rule-file/state mutations with gateway reloads so rollback
     /// cannot overwrite a concurrent WAF rule update.
     pub waf_rules_update_lock: Mutex<()>,
@@ -201,6 +204,7 @@ impl Default for SecurityState {
             ipsets: IpSetRegistry::default(),
             whitelist_runtime_sync_lock: Mutex::new(()),
             captcha_settings_update_lock: Mutex::new(()),
+            scanner_settings_update_lock: Mutex::new(()),
             waf_rules_update_lock: Mutex::new(()),
             waf_event_drain_lock: Mutex::new(()),
         }

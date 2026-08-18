@@ -584,6 +584,12 @@ export const zhHantServer = {
     blacklistRecordDeleteFailed: "刪除掃描器黑名單記錄失敗",
     blacklistRecordsDeleteFailed: "批量刪除掃描器黑名單記錄失敗",
     cidrExemptionsInvalid: "CIDR 豁免格式不正確：{cidrs}",
+    pathWhitelistInvalid: "路徑白名單格式不正確",
+    pathRequired: "路徑不能為空",
+    pathMustBeAbsolute: "路徑必須以 / 開頭",
+    pathContainsControlCharacters: "路徑不能包含控制字符",
+    ipRequired: "IP 不能為空",
+    pathWhitelistOperationFailed: "路徑白名單操作失敗",
   },
   gatewayLogging: {
     syncConfigFailed: "同步網關請求日誌配置失敗",

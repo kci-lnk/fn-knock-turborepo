@@ -706,6 +706,12 @@ export const jaJPServer = {
     blacklistRecordsDeleteFailed:
       "スキャナー ブラックリスト レコードの一括削除に失敗しました",
     cidrExemptionsInvalid: "CIDR 免除の形式が正しくありません: {cidrs}",
+    pathWhitelistInvalid: "パス許可リストの形式が正しくありません",
+    pathRequired: "パスは必須です",
+    pathMustBeAbsolute: "パスは / で始めてください",
+    pathContainsControlCharacters: "パスに制御文字は使用できません",
+    ipRequired: "IP は必須です",
+    pathWhitelistOperationFailed: "パス許可リストの操作に失敗しました",
   },
   gatewayLogging: {
     syncConfigFailed: "ゲートウェイのリクエストログ設定の同期に失敗しました",

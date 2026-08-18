@@ -36,6 +36,9 @@ describe("core security API contract", () => {
       ["get", "/api/admin/security/overview"],
       ["get", "/api/admin/scanner/settings"],
       ["post", "/api/admin/scanner/settings"],
+      ["get", "/api/admin/scanner/path-whitelist"],
+      ["put", "/api/admin/scanner/path-whitelist"],
+      ["post", "/api/admin/scanner/path-whitelist/false-positive"],
       ["get", "/api/admin/scanner/blacklist"],
       ["delete", "/api/admin/scanner/blacklist"],
       ["get", "/api/admin/scanner/blacklist/{ip}"],
@@ -82,6 +85,18 @@ describe("core security API contract", () => {
       assert.ok(required.includes(field), field);
     }
 
+    const pathWhitelistRequired =
+      contract.components.schemas.ScannerPathWhitelistData.required ?? [];
+    for (const field of ["paths", "defaultPaths"]) {
+      assert.ok(pathWhitelistRequired.includes(field), field);
+    }
+
+    const falsePositiveRequired =
+      contract.components.schemas.ScannerFalsePositiveResultData.required ?? [];
+    for (const field of ["ip", "path", "added", "unblocked"]) {
+      assert.ok(falsePositiveRequired.includes(field), field);
+    }
+
     const point =
       contract.components.schemas.SecurityOverviewSeriesData.properties
         ?.failedLogins.items;
@@ -97,6 +112,8 @@ describe("core security API contract", () => {
     );
 
     assert.match(api, /ScannerSettingsData/u);
+    assert.match(api, /ScannerPathWhitelistData/u);
+    assert.match(api, /ScannerFalsePositiveResultData/u);
     assert.match(api, /GeneralBlacklistRecordData/u);
     assert.match(api, /operations as ApiContractOperations/u);
     assert.match(api, /satisfies ScannerBlacklistQuery/u);

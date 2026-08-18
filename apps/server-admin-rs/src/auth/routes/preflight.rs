@@ -175,7 +175,8 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         && config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
         && !scanner::is_request_exempt_from_scan(headers, uri, config)
     {
-        if scanner::is_blacklisted_for_preflight(state, client_ip).await? {
+        let scanner_policy = scanner::load_preflight_policy(state, client_ip).await?;
+        if scanner::is_blacklisted_for_preflight(state, &scanner_policy).await? {
             response
                 .headers_mut()
                 .insert("X-Option", HeaderValue::from_static("Deny"));
@@ -186,10 +187,14 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
             .await?
             && !share_decision_handled
             && !forwarded_path.is_empty()
-            && !scanner::is_common_path_for_preflight(state, &forwarded_path).await?
+            && !scanner::is_common_path_for_preflight(&forwarded_path, config, &scanner_policy)
         {
-            let _ = scanner::record_uncommon_path_for_preflight(state, client_ip, &forwarded_path)
-                .await?;
+            let _ = scanner::record_uncommon_path_for_preflight(
+                state,
+                &forwarded_path,
+                &scanner_policy,
+            )
+            .await?;
         }
     }
 

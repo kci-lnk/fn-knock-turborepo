@@ -2422,6 +2422,39 @@ export const jaJPAdmin = {
     discard: "破棄",
     saveChanges: "変更を保存",
   },
+  scannerPathWhitelist: {
+    entryTitle: "パス許可リスト",
+    entryDescription:
+      "スキャナーの異常アクセスとして集計しない信頼済みパスを管理します。",
+    systemSettings: "システム設定",
+    scannerFirewall: "ブロック",
+    title: "パス許可リスト",
+    description:
+      "これらのパスと完全一致するリクエストはスキャナーの異常アクセスに加算されません。クエリと末尾のスラッシュは保存時に正規化されます。",
+    restoreDefaults: "デフォルトに戻す",
+    loadFailed: "パス許可リストを読み込めませんでした",
+    loadFailedDescription: "現在のパス許可リストを取得できません。",
+    retry: "再読み込み",
+    saveFailed: "パス許可リストを保存できませんでした",
+    saveFailedDescription: "パス許可リストを更新できません。",
+    saved: "パス許可リストを更新しました",
+    empty:
+      "パス許可リストは空です。組み込みの除外対象以外はすべてスキャンされます。",
+    pathLabel: "パス {index}",
+    pathPlaceholder: "/example/path",
+    addPath: "パスを追加",
+    removePath: "パスを削除",
+    pathRequired: "パスを入力してください",
+    pathMustBeAbsolute: "パスは / で始めてください",
+    pathContainsControlCharacters: "制御文字は使用できません",
+    duplicatePath: "他のパスと重複しています",
+    validationFailed: "パスの検証に失敗しました",
+    validationFailedDescription: "無効なパスを修正してから保存してください。",
+    dirty: "未保存の変更があります",
+    clean: "すべての設定は最新です",
+    discard: "破棄",
+    save: "変更を保存",
+  },
   gatewayProxyHeadersSettings: {
     loadDescription: "プロキシヘッダー設定の読み込みに失敗しました",
     saveFailed: "保存に失敗しました",
@@ -4946,6 +4979,7 @@ export const jaJPAdmin = {
       path: "パス",
       interval: "間隔",
       empty: "アクセス記録はありません",
+      actions: "操作",
     },
     dockerAdminGate: {
       forgotPassword: "パスワードを忘れた場合",
@@ -5720,6 +5754,13 @@ export const jaJPAdmin = {
         "この IP をブロックした理由とアクセス先パスを表示します。",
       triggerWindow: "トリガーウィンドウ",
       triggerThreshold: "トリガー閾値",
+      allowFalsePositive: "誤検知？パスを許可",
+      falsePositiveFailed: "誤検知を処理できませんでした",
+      falsePositiveFailedDescription:
+        "パスの許可と現在の IP のブロック解除に失敗しました。",
+      falsePositiveResolved: "{path} を許可し、IP {ip} を解除しました",
+      falsePositiveResolvedExisting:
+        "{path} は許可済みです。IP {ip} を解除しました",
     },
     generalBlacklist: {
       loadFailed: "読み込みに失敗しました",

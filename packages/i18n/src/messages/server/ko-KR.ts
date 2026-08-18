@@ -677,6 +677,12 @@ export const koKRServer = {
     blacklistRecordsDeleteFailed:
       "스캐너 차단 목록 기록을 삭제하지 못했습니다.",
     cidrExemptionsInvalid: "CIDR 면제 형식이 잘못되었습니다. {cidrs}",
+    pathWhitelistInvalid: "경로 허용 목록 형식이 올바르지 않습니다.",
+    pathRequired: "경로가 필요합니다.",
+    pathMustBeAbsolute: "경로는 /로 시작해야 합니다.",
+    pathContainsControlCharacters: "경로에 제어 문자를 포함할 수 없습니다.",
+    ipRequired: "IP가 필요합니다.",
+    pathWhitelistOperationFailed: "경로 허용 목록 작업에 실패했습니다.",
   },
   gatewayLogging: {
     syncConfigFailed: "게이트웨이 요청 로그 설정을 동기화하지 못했습니다.",

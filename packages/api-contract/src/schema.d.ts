@@ -4688,6 +4688,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/scanner/path-whitelist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看扫描器path whitelist
+         * @description 管理扫描器设置、结果和黑名单记录。。`GET /api/admin/scanner/path-whitelist` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get_api_admin_scanner_path_whitelist"];
+        /**
+         * 更新扫描器path whitelist
+         * @description 管理扫描器设置、结果和黑名单记录。。`PUT /api/admin/scanner/path-whitelist` 用于提交完整更新；未提供的字段是否保留以该接口的请求 schema 为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        put: operations["put_api_admin_scanner_path_whitelist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/scanner/path-whitelist/false-positive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交扫描器false positive
+         * @description 管理扫描器设置、结果和黑名单记录。。`POST /api/admin/scanner/path-whitelist/false-positive` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_scanner_path_whitelist_false_positive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/scanner/settings": {
         parameters: {
             query?: never;
@@ -10938,6 +10982,23 @@ export interface components {
             operator?: "电信" | "联通" | "移动" | null;
             province: string;
             query_city?: string | null;
+        };
+        ScannerFalsePositiveBodyData: {
+            ip: string;
+            path: string;
+        };
+        ScannerFalsePositiveResultData: {
+            added: boolean;
+            ip: string;
+            path: string;
+            unblocked: boolean;
+        };
+        ScannerPathWhitelistData: {
+            defaultPaths: string[];
+            paths: string[];
+        };
+        ScannerPathWhitelistUpdateData: {
+            paths: string[];
         };
         ScannerSettingsData: {
             /** Format: int64 */
@@ -23545,6 +23606,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccessEnvelope"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_scanner_path_whitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ScannerPathWhitelistData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    put_api_admin_scanner_path_whitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannerPathWhitelistUpdateData"];
+            };
+        };
+        responses: {
+            /** @description 「更新扫描器path whitelist」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ScannerPathWhitelistData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_scanner_path_whitelist_false_positive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannerFalsePositiveBodyData"];
+            };
+        };
+        responses: {
+            /** @description 「提交扫描器false positive」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ScannerFalsePositiveResultData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

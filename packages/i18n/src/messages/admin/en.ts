@@ -2426,6 +2426,39 @@ export const enAdmin = {
     discard: "Discard",
     saveChanges: "Save changes",
   },
+  scannerPathWhitelist: {
+    entryTitle: "Path allowlist",
+    entryDescription:
+      "Manage trusted request paths that do not count as scanner hits.",
+    systemSettings: "System settings",
+    scannerFirewall: "Blocking",
+    title: "Path allowlist",
+    description:
+      "Requests that exactly match these paths do not count as scanner hits. Query parameters and trailing slashes are normalized when saved.",
+    restoreDefaults: "Restore defaults",
+    loadFailed: "Failed to load path allowlist",
+    loadFailedDescription: "The current path allowlist could not be loaded.",
+    retry: "Reload",
+    saveFailed: "Failed to save path allowlist",
+    saveFailedDescription: "The path allowlist could not be updated.",
+    saved: "Path allowlist updated",
+    empty:
+      "The path allowlist is empty. All paths without a built-in exemption are scanned.",
+    pathLabel: "Path {index}",
+    pathPlaceholder: "/example/path",
+    addPath: "Add path",
+    removePath: "Remove path",
+    pathRequired: "Enter a path",
+    pathMustBeAbsolute: "The path must start with /",
+    pathContainsControlCharacters: "The path cannot contain control characters",
+    duplicatePath: "This path duplicates another entry",
+    validationFailed: "Path validation failed",
+    validationFailedDescription: "Fix the invalid paths before saving.",
+    dirty: "You have unsaved changes",
+    clean: "All settings are up to date",
+    discard: "Discard",
+    save: "Save changes",
+  },
   gatewayProxyHeadersSettings: {
     loadDescription: "Failed to load proxy header config",
     saveFailed: "Save failed",
@@ -4959,6 +4992,7 @@ export const enAdmin = {
       path: "Path",
       interval: "Interval",
       empty: "No visit records",
+      actions: "Actions",
     },
     dockerAdminGate: {
       forgotPassword: "Forgot password?",
@@ -5727,6 +5761,13 @@ export const enAdmin = {
         "View why this IP was blocked and which paths were accessed.",
       triggerWindow: "Trigger window",
       triggerThreshold: "Trigger threshold",
+      allowFalsePositive: "False positive? Allow path",
+      falsePositiveFailed: "Failed to resolve false positive",
+      falsePositiveFailedDescription:
+        "The path could not be allowed and the current IP could not be unblocked.",
+      falsePositiveResolved: "Allowed {path} and unblocked IP {ip}",
+      falsePositiveResolvedExisting:
+        "{path} was already allowed; unblocked IP {ip}",
     },
     generalBlacklist: {
       loadFailed: "Load failed",

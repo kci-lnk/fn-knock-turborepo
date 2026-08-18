@@ -9,6 +9,301 @@ fn defaults() -> ScannerEnvDefaults {
     }
 }
 
+fn preflight_policy(paths: &[&str]) -> ScannerPreflightPolicy {
+    ScannerPreflightPolicy {
+        settings: scanner_settings_from_raw(None, defaults()),
+        path_whitelist: paths.iter().map(|path| (*path).to_string()).collect(),
+        client_ip: String::new(),
+        ip_exempt: true,
+    }
+}
+
+async fn scanner_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = "http://127.0.0.1:1".to_string();
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
+#[test]
+fn scanner_path_whitelist_uses_defaults_only_when_override_is_absent() {
+    let defaults = default_scanner_path_whitelist();
+    assert!(defaults.contains(&"/sync/event/register".to_string()));
+    assert!(defaults.contains(&"/app-center/v1/check-update".to_string()));
+    assert!(!defaults.iter().any(|path| path.contains('?')));
+    assert_eq!(scanner_path_whitelist_from_raw(None).unwrap(), defaults);
+    assert!(
+        scanner_path_whitelist_from_raw(Some(&json!({ "pathWhitelist": [] })))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn scanner_path_whitelist_normalizes_and_stably_deduplicates_entries() {
+    assert_eq!(
+        normalize_scanner_path_whitelist(vec![
+            " /custom/path/?source=test ".to_string(),
+            "/custom/path".to_string(),
+            "/CaseSensitive".to_string(),
+        ])
+        .unwrap(),
+        vec!["/custom/path", "/CaseSensitive"]
+    );
+    assert!(normalize_scanner_path_whitelist(vec![String::new()]).is_err());
+    assert!(normalize_scanner_path_whitelist(vec!["relative".to_string()]).is_err());
+    assert!(normalize_scanner_path_whitelist(vec!["/bad\npath".to_string()]).is_err());
+    assert!(normalize_scanner_path_whitelist(vec!["/bad-path\n".to_string()]).is_err());
+    assert!(normalize_scanner_path_whitelist(vec!["/bad\u{0085}path".to_string()]).is_err());
+}
+
+#[test]
+fn scanner_path_whitelist_matches_exact_normalized_paths_only() {
+    let policy = preflight_policy(&["/custom/path"]);
+    let config = json!({});
+    assert!(is_common_path_for_preflight(
+        "/custom/path/?source=test",
+        &config,
+        &policy,
+    ));
+    assert!(!is_common_path_for_preflight(
+        "/custom/path/child",
+        &config,
+        &policy,
+    ));
+    assert!(!is_common_path_for_preflight(
+        "/Custom/Path",
+        &config,
+        &policy,
+    ));
+}
+
+#[test]
+fn scanner_path_whitelist_removal_does_not_change_structural_exemptions() {
+    let policy = preflight_policy(&[]);
+    assert!(!is_common_path_for_preflight(
+        "/robots.txt",
+        &json!({}),
+        &policy,
+    ));
+    assert!(is_common_path_for_preflight(
+        "/assets/app.js",
+        &json!({}),
+        &policy,
+    ));
+    assert!(is_common_path_for_preflight(
+        "/assets/",
+        &json!({}),
+        &policy,
+    ));
+    assert!(is_common_path_for_preflight("/s/", &json!({}), &policy,));
+    assert!(is_common_path_for_preflight(
+        "/rest/ping.view?u=test",
+        &json!({}),
+        &policy,
+    ));
+    assert!(is_common_path_for_preflight(
+        "/mapped/child",
+        &json!({ "proxy_mappings": [{ "path": "/mapped" }] }),
+        &policy,
+    ));
+}
+
+#[tokio::test]
+async fn scanner_path_whitelist_persists_an_explicit_empty_override() {
+    let (_directory, state) = scanner_test_state().await;
+    let saved = replace_scanner_path_whitelist(&state, Vec::new())
+        .await
+        .unwrap();
+    assert!(saved.paths.is_empty());
+    assert!(!saved.default_paths.is_empty());
+    assert!(
+        load_scanner_path_whitelist(&state)
+            .await
+            .unwrap()
+            .paths
+            .is_empty()
+    );
+    let raw = state
+        .storage
+        .store
+        .scanner_settings_raw()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(raw["pathWhitelist"], json!([]));
+}
+
+#[tokio::test]
+async fn concurrent_scanner_settings_and_path_whitelist_saves_preserve_both_updates() {
+    let (_directory, state) = scanner_test_state().await;
+    state
+        .storage
+        .store
+        .save_scanner_settings(&json!({
+            "enabled": true,
+            "windowMinutes": 5,
+            "threshold": 2,
+            "blacklistTtlSeconds": 3600,
+            "pathWhitelist": ["/initial"]
+        }))
+        .await
+        .unwrap();
+    let update = UpdateScannerSettingsBody {
+        enabled: false,
+        window_minutes: 10.0,
+        threshold: 4.0,
+        blacklist_ttl_seconds: 7200.0,
+        common_location_exempt_enabled: Some(false),
+        cidr_exemptions: Some(Vec::new()),
+        cidr_exemption_regions: Some(Vec::new()),
+    };
+
+    let (settings_result, whitelist_result) = tokio::join!(
+        save_scanner_settings(&state, update),
+        replace_scanner_path_whitelist(&state, vec!["/custom".to_string()]),
+    );
+    settings_result.unwrap();
+    whitelist_result.unwrap();
+
+    let raw = state
+        .storage
+        .store
+        .scanner_settings_raw()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(raw["enabled"], json!(false));
+    assert_eq!(raw["windowMinutes"], json!(10));
+    assert_eq!(raw["pathWhitelist"], json!(["/custom"]));
+}
+
+#[tokio::test]
+async fn scanner_false_positive_adds_path_and_unblocks_ip_idempotently() {
+    let (_directory, state) = scanner_test_state().await;
+    let ip = "203.0.113.88";
+    let now = time_utils::now_ms();
+    state
+        .storage
+        .store
+        .save_scanner_settings(&json!({
+            "enabled": true,
+            "windowMinutes": 5,
+            "threshold": 2,
+            "blacklistTtlSeconds": 3600
+        }))
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .record_scanner_suspicious_hit(
+            ip,
+            &json!({ "path": "/legitimate/", "createdAt": now }),
+            now,
+            0,
+            0,
+            3600,
+        )
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .add_scanner_blacklist_record(ip, &json!({ "ip": ip, "hits": [] }), now, 3600)
+        .await
+        .unwrap();
+
+    let first = resolve_scanner_false_positive(&state, ip, "/legitimate/?from=test")
+        .await
+        .unwrap();
+    assert!(first.added);
+    assert!(first.unblocked);
+    assert_eq!(first.path, "/legitimate");
+    assert!(
+        !state
+            .storage
+            .store
+            .scanner_blacklist_exists(ip)
+            .await
+            .unwrap()
+    );
+    assert!(
+        state
+            .storage
+            .store
+            .scanner_suspicious_hits_since(ip, 0)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    state
+        .storage
+        .store
+        .record_scanner_suspicious_hit(
+            ip,
+            &json!({ "path": "/legitimate", "createdAt": now + 1 }),
+            now + 1,
+            0,
+            0,
+            3600,
+        )
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .add_scanner_blacklist_record(ip, &json!({ "ip": ip, "hits": [] }), now + 1, 3600)
+        .await
+        .unwrap();
+    let second = resolve_scanner_false_positive(&state, ip, "/legitimate")
+        .await
+        .unwrap();
+    assert!(!second.added);
+    assert!(second.unblocked);
+    assert!(
+        state
+            .storage
+            .store
+            .scanner_suspicious_hits_since(ip, 0)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let third = resolve_scanner_false_positive(&state, ip, "/legitimate")
+        .await
+        .unwrap();
+    assert!(!third.added);
+    assert!(!third.unblocked);
+    let raw = state
+        .storage
+        .store
+        .scanner_settings_raw()
+        .await
+        .unwrap()
+        .unwrap();
+    let paths = raw["pathWhitelist"].as_array().unwrap();
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|value| value.as_str() == Some("/legitimate"))
+            .count(),
+        1
+    );
+}
+
 #[test]
 fn scanner_settings_preserve_node_defaults_and_effective_cidrs() {
     let raw = json!({
@@ -292,6 +587,14 @@ fn localizes_scanner_and_cidr_route_errors() {
     assert_eq!(
         localize_scanner_error(&translator, "At least one IP is required"),
         "请至少提供一个 IP"
+    );
+    assert_eq!(
+        localize_scanner_error(&translator, "Path must be absolute"),
+        "路径必须以 / 开头"
+    );
+    assert_eq!(
+        localize_scanner_error(&translator, "Path contains control characters"),
+        "路径不能包含控制字符"
     );
     assert_eq!(
         localize_scanner_error(&translator, "Invalid CIDR exemptions: 10.0.0.0/33"),

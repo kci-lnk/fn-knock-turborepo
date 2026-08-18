@@ -2401,6 +2401,39 @@ export const koKRAdmin = {
     discard: "변경 취소",
     saveChanges: "변경사항 저장",
   },
+  scannerPathWhitelist: {
+    entryTitle: "경로 허용 목록",
+    entryDescription:
+      "스캐너 비정상 접근 횟수에 포함하지 않을 신뢰 경로를 관리합니다.",
+    systemSettings: "시스템 설정",
+    scannerFirewall: "차단",
+    title: "경로 허용 목록",
+    description:
+      "이 경로와 정확히 일치하는 요청은 스캐너 비정상 접근에 누적되지 않습니다. 쿼리와 끝 슬래시는 저장할 때 정규화됩니다.",
+    restoreDefaults: "기본값 복원",
+    loadFailed: "경로 허용 목록을 불러오지 못했습니다.",
+    loadFailedDescription: "현재 경로 허용 목록을 가져올 수 없습니다.",
+    retry: "다시 불러오기",
+    saveFailed: "경로 허용 목록을 저장하지 못했습니다.",
+    saveFailedDescription: "경로 허용 목록을 업데이트할 수 없습니다.",
+    saved: "경로 허용 목록이 업데이트되었습니다.",
+    empty:
+      "경로 허용 목록이 비어 있습니다. 기본 예외가 아닌 모든 경로를 검사합니다.",
+    pathLabel: "경로 {index}",
+    pathPlaceholder: "/example/path",
+    addPath: "경로 추가",
+    removePath: "경로 삭제",
+    pathRequired: "경로를 입력하세요.",
+    pathMustBeAbsolute: "경로는 /로 시작해야 합니다.",
+    pathContainsControlCharacters: "경로에 제어 문자를 포함할 수 없습니다.",
+    duplicatePath: "다른 항목과 중복된 경로입니다.",
+    validationFailed: "경로 검증 실패",
+    validationFailedDescription: "저장하기 전에 잘못된 경로를 수정하세요.",
+    dirty: "저장되지 않은 변경사항이 있습니다.",
+    clean: "모든 설정이 최신 상태입니다.",
+    discard: "변경 취소",
+    save: "변경사항 저장",
+  },
   gatewayProxyHeadersSettings: {
     loadDescription: "프록시 헤더 설정을 불러오지 못했습니다.",
     saveFailed: "저장 실패",
@@ -4910,6 +4943,7 @@ export const koKRAdmin = {
       path: "경로",
       interval: "간격",
       empty: "방문기록이 없습니다",
+      actions: "작업",
     },
     dockerAdminGate: {
       forgotPassword: "비밀번호를 잊으셨나요?",
@@ -5675,6 +5709,14 @@ export const koKRAdmin = {
         "이 IP가 차단된 이유와 어떤 경로에 접근했는지 확인하세요.",
       triggerWindow: "트리거 창",
       triggerThreshold: "트리거 임계값",
+      allowFalsePositive: "오탐인가요? 경로 허용",
+      falsePositiveFailed: "오탐을 처리하지 못했습니다.",
+      falsePositiveFailedDescription:
+        "경로를 허용하고 현재 IP 차단을 해제하지 못했습니다.",
+      falsePositiveResolved:
+        "{path} 경로를 허용하고 IP {ip} 차단을 해제했습니다.",
+      falsePositiveResolvedExisting:
+        "{path} 경로는 이미 허용되어 있습니다. IP {ip} 차단을 해제했습니다.",
     },
     generalBlacklist: {
       loadFailed: "불러오기 실패",

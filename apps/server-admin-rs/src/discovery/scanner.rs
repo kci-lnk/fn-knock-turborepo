@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, env, net::IpAddr};
+use std::{
+    collections::{BTreeSet, HashSet},
+    env,
+    net::IpAddr,
+};
 
 use axum::{
     Json,
@@ -118,6 +122,15 @@ fn localize_scanner_error(translator: &Translator, message: &str) -> String {
         "Invalid request body" => return scanner_text(translator, "invalidRequestBody"),
         "At least one IP is required" => return scanner_text(translator, "atLeastOneIpRequired"),
         "Record not found" => return scanner_text(translator, "recordNotFound"),
+        "Invalid scanner path whitelist" => {
+            return scanner_text(translator, "pathWhitelistInvalid");
+        }
+        "Path must not be empty" => return scanner_text(translator, "pathRequired"),
+        "Path must be absolute" => return scanner_text(translator, "pathMustBeAbsolute"),
+        "Path contains control characters" => {
+            return scanner_text(translator, "pathContainsControlCharacters");
+        }
+        "IP is required" => return scanner_text(translator, "ipRequired"),
         "province is required" => return cidr_text(translator, "provinceRequired"),
         "CIDR operator filtering is unsupported" => {
             return cidr_text(translator, "operatorUnsupported");
@@ -194,6 +207,17 @@ struct UpdateScannerSettingsBody {
     cidr_exemption_regions: Option<Vec<ScannerCidrExemptionRegionBody>>,
 }
 
+#[derive(Deserialize)]
+struct UpdateScannerPathWhitelistBody {
+    paths: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct ScannerFalsePositiveBody {
+    ip: String,
+    path: String,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 struct ScannerCidrExemptionRegionBody {
     province: String,
@@ -236,6 +260,29 @@ struct ScannerSettings {
     cidr_exemption_range_count: usize,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ScannerPathWhitelist {
+    paths: Vec<String>,
+    default_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ScannerFalsePositiveResult {
+    ip: String,
+    path: String,
+    added: bool,
+    unblocked: bool,
+}
+
+pub(crate) struct ScannerPreflightPolicy {
+    settings: ScannerSettings,
+    path_whitelist: HashSet<String>,
+    client_ip: String,
+    ip_exempt: bool,
+}
+
 #[derive(Clone, Copy)]
 struct ScannerEnvDefaults {
     enabled: bool,
@@ -260,13 +307,15 @@ pub(crate) struct ScannerPreflightRecordResult {
 
 mod cidr_routes;
 mod handlers;
+mod path_whitelist;
 mod preflight;
 mod settings;
 mod utils;
 
+use path_whitelist::*;
 pub(crate) use preflight::{
     is_blacklisted_for_preflight, is_common_path_for_preflight, is_request_exempt_from_scan,
-    record_uncommon_path_for_preflight,
+    load_preflight_policy, record_uncommon_path_for_preflight,
 };
 pub(crate) use settings::migrate_scanner_cidr_ipset_on_boot;
 use settings::{load_scanner_settings, save_scanner_settings};

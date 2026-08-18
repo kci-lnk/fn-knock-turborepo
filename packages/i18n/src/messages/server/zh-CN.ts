@@ -584,6 +584,12 @@ export const zhCNServer = {
     blacklistRecordDeleteFailed: "删除扫描器黑名单记录失败",
     blacklistRecordsDeleteFailed: "批量删除扫描器黑名单记录失败",
     cidrExemptionsInvalid: "CIDR 豁免格式不正确：{cidrs}",
+    pathWhitelistInvalid: "路径白名单格式不正确",
+    pathRequired: "路径不能为空",
+    pathMustBeAbsolute: "路径必须以 / 开头",
+    pathContainsControlCharacters: "路径不能包含控制字符",
+    ipRequired: "IP 不能为空",
+    pathWhitelistOperationFailed: "路径白名单操作失败",
   },
   gatewayLogging: {
     syncConfigFailed: "同步网关请求日志配置失败",

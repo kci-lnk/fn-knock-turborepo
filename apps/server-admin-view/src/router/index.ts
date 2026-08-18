@@ -153,6 +153,12 @@ const router = createRouter({
           component: () => import("../views/SystemSettings.vue"),
         },
         {
+          path: "system/scanner-path-whitelist",
+          name: "ScannerPathWhitelistSettings",
+          component: () =>
+            import("../views/system-settings/ScannerPathWhitelistSettings.vue"),
+        },
+        {
           path: "system/gateway-visibility",
           name: "GatewayVisibilitySettings",
           component: () =>

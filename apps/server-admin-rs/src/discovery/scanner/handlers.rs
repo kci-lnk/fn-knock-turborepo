@@ -4,8 +4,81 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 pub(super) fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_settings, update_settings))
+        .routes(routes!(get_path_whitelist, update_path_whitelist))
+        .routes(routes!(resolve_false_positive))
         .routes(routes!(list_blacklist, delete_blacklist))
         .routes(routes!(get_blacklist_record, delete_blacklist_record))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/scanner/path-whitelist",
+    tag = "scanner",
+    operation_id = "get_api_admin_scanner_path_whitelist",
+    responses((status = 200, description = "Scanner path whitelist"))
+)]
+pub(super) async fn get_path_whitelist(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match path_whitelist::load_scanner_path_whitelist(&state).await {
+        Ok(settings) => response::ok(settings).into_response(),
+        Err(error) => scanner_path_whitelist_error(&translator, error, "load"),
+    }
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/admin/scanner/path-whitelist",
+    tag = "scanner",
+    operation_id = "put_api_admin_scanner_path_whitelist",
+    responses((status = 200, description = "Updated scanner path whitelist"))
+)]
+pub(super) async fn update_path_whitelist(
+    State(state): State<AppState>,
+    Json(body): Json<UpdateScannerPathWhitelistBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match path_whitelist::replace_scanner_path_whitelist(&state, body.paths).await {
+        Ok(settings) => response::ok(settings).into_response(),
+        Err(error) => scanner_path_whitelist_error(&translator, error, "update"),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/scanner/path-whitelist/false-positive",
+    tag = "scanner",
+    operation_id = "post_api_admin_scanner_path_whitelist_false_positive",
+    responses((status = 200, description = "Allowed scanner false positive"))
+)]
+pub(super) async fn resolve_false_positive(
+    State(state): State<AppState>,
+    Json(body): Json<ScannerFalsePositiveBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match path_whitelist::resolve_scanner_false_positive(&state, &body.ip, &body.path).await {
+        Ok(result) => response::ok(result).into_response(),
+        Err(error) => scanner_path_whitelist_error(&translator, error, "false-positive"),
+    }
+}
+
+fn scanner_path_whitelist_error(
+    translator: &Translator,
+    error: ScannerError,
+    operation: &str,
+) -> Response {
+    match error {
+        ScannerError::BadRequest(message) => response::error(
+            StatusCode::BAD_REQUEST,
+            localize_scanner_error(translator, &message),
+        ),
+        error => {
+            tracing::warn!(%error, operation, "scanner path whitelist operation failed");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                scanner_text(translator, "pathWhitelistOperationFailed"),
+            )
+        }
+    }
 }
 
 #[utoipa::path(

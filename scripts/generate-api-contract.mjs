@@ -355,6 +355,15 @@ function validateContract(openapiPath) {
     ["get /api/admin/security/overview", null],
     ["get /api/admin/scanner/settings", null],
     ["post /api/admin/scanner/settings", "ScannerSettingsUpdateData"],
+    ["get /api/admin/scanner/path-whitelist", null],
+    [
+      "put /api/admin/scanner/path-whitelist",
+      "ScannerPathWhitelistUpdateData",
+    ],
+    [
+      "post /api/admin/scanner/path-whitelist/false-positive",
+      "ScannerFalsePositiveBodyData",
+    ],
     ["get /api/admin/scanner/blacklist", null],
     ["delete /api/admin/scanner/blacklist", "IpListBodyData"],
     ["get /api/admin/scanner/blacklist/{ip}", null],

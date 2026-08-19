@@ -44,12 +44,25 @@ async fn acme_command_preserves_spaced_paths_and_uses_unspaced_http_workspace() 
     tokio::fs::create_dir_all(executable.parent().expect("ACME executable parent"))
         .await
         .expect("create ACME executable parent");
+    let dns_api_fixture = acme_home_dir(&state).join("dnsapi/dns_cf.sh");
+    tokio::fs::create_dir_all(dns_api_fixture.parent().expect("dnsapi parent"))
+        .await
+        .expect("create dnsapi parent");
+    tokio::fs::write(&dns_api_fixture, "#!/bin/sh\n")
+        .await
+        .expect("write dns_cf.sh hook fixture");
     tokio::fs::write(
         &executable,
         r#"#!/bin/sh
 {
   printf 'HTTP_HEADER=%s\n' "$HTTP_HEADER"
   printf 'LE_TEMP_DIR=%s\n' "$LE_TEMP_DIR"
+  printf '_SCRIPT_HOME=%s\n' "$_SCRIPT_HOME"
+  if [ -f "$_SCRIPT_HOME/dnsapi/dns_cf.sh" ]; then
+    printf 'HOOK_RESOLVED=1\n'
+  else
+    printf 'HOOK_RESOLVED=0\n'
+  fi
   for argument in "$@"; do
     printf 'ARG=%s\n' "$argument"
   done
@@ -83,8 +96,10 @@ async fn acme_command_preserves_spaced_paths_and_uses_unspaced_http_workspace() 
     };
     let http_header = value("HTTP_HEADER=");
     let temp_dir = value("LE_TEMP_DIR=");
+    let script_home = value("_SCRIPT_HOME=");
     assert!(!http_header.chars().any(char::is_whitespace));
     assert!(!temp_dir.chars().any(char::is_whitespace));
+    assert!(!script_home.chars().any(char::is_whitespace));
     assert_eq!(Path::new(http_header).parent(), Some(Path::new(temp_dir)));
     assert!(!Path::new(temp_dir).exists(), "workspace must be removed");
 
@@ -106,6 +121,21 @@ async fn acme_command_preserves_spaced_paths_and_uses_unspaced_http_workspace() 
         "home link must be removed"
     );
     assert_eq!(&recorded_args[4..], &args[4..]);
+    assert_eq!(
+        script_home,
+        recorded_args[1],
+        "_SCRIPT_HOME must point at the same space-free home symlink as --home"
+    );
+    assert_eq!(
+        Path::new(&script_home).parent(),
+        Some(Path::new(temp_dir)),
+        "_SCRIPT_HOME must live inside the per-command workspace"
+    );
+    assert_eq!(
+        value("HOOK_RESOLVED="),
+        "1",
+        "_SCRIPT_HOME must resolve hooks back to the real ACME home"
+    );
     assert!(args[1].contains("Application Support"));
     assert!(acme_home_dir(&state).join("acme.sh").is_file());
 }

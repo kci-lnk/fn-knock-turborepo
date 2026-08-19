@@ -492,6 +492,15 @@ impl AcmeCommandWorkspace {
         // therefore reject whitespace in --home altogether. Use a private,
         // command-scoped symlink as the shell-facing home while retaining all
         // account and certificate state in the configured FnKnock data dir.
+        //
+        // The same problem also affects the executable path ($0): acme.sh
+        // derives _SCRIPT_HOME from it via `readlink -f` (which resolves
+        // symlinks), so a space-containing path survives into _findHook and
+        // into the d_api field of each DNS entry, where `for entry in
+        // $dns_entries` (unquoted) splits it into a bogus "domain". That is
+        // fixed in configure_command by pre-seeding _SCRIPT_HOME with this
+        // command_home symlink, which acme.sh honors because __initHome only
+        // derives it when it is still empty.
         #[cfg(unix)]
         let temporary_root = PathBuf::from("/tmp");
         #[cfg(not(unix))]
@@ -542,7 +551,12 @@ impl AcmeCommandWorkspace {
     pub(super) fn configure_command(&self, command: &mut Command) {
         command
             .env("HTTP_HEADER", self.path.join("http.header"))
-            .env("LE_TEMP_DIR", &self.path);
+            .env("LE_TEMP_DIR", &self.path)
+            // acme.sh derives _SCRIPT_HOME from $0 via `readlink -f` when it is
+            // unset, which would resurrect the space-containing data path and
+            // make _findHook emit a d_api with whitespace. Pre-seed it with the
+            // space-free command_home symlink so hook paths stay unspaced.
+            .env("_SCRIPT_HOME", &self.command_home);
     }
 }
 

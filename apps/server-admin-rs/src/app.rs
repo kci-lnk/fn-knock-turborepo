@@ -20,14 +20,11 @@ use crate::{
     auto_https::sync_auto_https_on_boot,
     cidr::migrate_cidr_query_caches_on_boot,
     cloudflared::start_cloudflared_tasks,
-    common_auth_locations::{
-        migrate_common_auth_location_ipset_on_boot, start_common_auth_location_tasks,
-    },
+    common_auth_locations::start_common_auth_location_tasks,
     dashboard::start_traffic_tasks,
     ddns_status::start_ddns_tasks,
     fnos_certificate_sync::start_fnos_certificate_sync_tasks,
     frpc::start_frpc_tasks,
-    gateway_settings::migrate_visibility_policies_on_boot,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
     maintenance::start_automatic_backup_tasks,
@@ -45,7 +42,7 @@ use crate::{
     terminal::start_terminal_tasks,
     update::start_update_tasks,
     waf::start_waf_tasks,
-    whitelist::{migrate_whitelist_ipsets_on_boot, start_whitelist_tasks},
+    whitelist::start_whitelist_tasks,
     wol::start_wol_tasks,
 };
 
@@ -160,9 +157,20 @@ pub(crate) async fn run_with_settings(
             "migrated CIDR query caches to compiled policies"
         );
     }
-    migrate_visibility_policies_on_boot(&state)
-        .await
-        .map_err(anyhow::Error::msg)?;
+    // This migration publishes HostRules and gateway visibility before it
+    // persists the candidate. Keep the whole transaction inside the startup
+    // retry boundary: retrying only the later HostRules sync leaves an earlier
+    // transient visibility failure fatal on slower DSM storage.
+    startup_gateway::migrate_visibility_policies(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "gateway visibility policy migration",
+        )?,
+    )
+    .await?;
     // The migration validates CIDR-bearing candidates, but even an empty
     // policy table can contain Host fields that require the matching gateway.
     // Publish the complete generation before listeners and readiness open.
@@ -179,8 +187,29 @@ pub(crate) async fn run_with_settings(
     )
     .await?;
     migrate_scanner_cidr_ipset_on_boot(&state).await?;
-    migrate_common_auth_location_ipset_on_boot(&state).await?;
-    migrate_whitelist_ipsets_on_boot(&state).await?;
+    // These migrations also publish derived security runtimes to Go. They are
+    // idempotent, but a transient control-plane failure must not turn a valid
+    // persisted configuration into a DSM startup failure.
+    startup_gateway::migrate_common_auth_locations(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "common authentication locations",
+        )?,
+    )
+    .await?;
+    startup_gateway::migrate_whitelist_runtime(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            "whitelist gateway runtime",
+        )?,
+    )
+    .await?;
     migrate_ssh_ipset_on_boot(&state).await?;
     sync_auto_https_on_boot(state.clone()).await;
     let boot_sync_completed = boot::start_boot_sync_tasks(state.clone());

@@ -1,6 +1,6 @@
 use std::{future::Future, time::Duration};
 
-use serde_json::Value;
+use serde_json::{Map, Value, json};
 use tokio_util::sync::CancellationToken;
 
 use crate::state::AppState;
@@ -14,7 +14,8 @@ pub(super) async fn sync_memory(
     shutdown: &CancellationToken,
     total_timeout: Duration,
 ) -> anyhow::Result<()> {
-    retry_operation(
+    retry_state_operation(
+        state,
         "gateway memory configuration",
         shutdown,
         total_timeout,
@@ -40,7 +41,8 @@ pub(super) async fn sync_host_rules(
     shutdown: &CancellationToken,
     total_timeout: Duration,
 ) -> anyhow::Result<()> {
-    retry_operation(
+    retry_state_operation(
+        state,
         "gateway host rules",
         shutdown,
         total_timeout,
@@ -58,17 +60,181 @@ pub(super) async fn sync_host_rules(
     .map_err(anyhow::Error::msg)
 }
 
+pub(super) async fn migrate_visibility_policies(
+    state: &AppState,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+) -> anyhow::Result<()> {
+    retry_state_operation(
+        state,
+        "gateway visibility policy migration",
+        shutdown,
+        total_timeout,
+        SYNC_ATTEMPT_TIMEOUT,
+        SYNC_RETRY_DELAY,
+        |_| async move {
+            crate::gateway_settings::migrate_visibility_policies_on_boot(state)
+                .await
+                .map_err(|error| format!("{error:#}"))
+        },
+    )
+    .await
+    .map_err(anyhow::Error::msg)
+}
+
+pub(super) async fn migrate_common_auth_locations(
+    state: &AppState,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+) -> anyhow::Result<()> {
+    retry_state_operation(
+        state,
+        "common authentication locations",
+        shutdown,
+        total_timeout,
+        SYNC_ATTEMPT_TIMEOUT,
+        SYNC_RETRY_DELAY,
+        |_| async move {
+            crate::common_auth_locations::migrate_common_auth_location_ipset_on_boot(state)
+                .await
+                .map_err(|error| format!("{error:#}"))
+        },
+    )
+    .await
+    .map_err(anyhow::Error::msg)
+}
+
+pub(super) async fn migrate_whitelist_runtime(
+    state: &AppState,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+) -> anyhow::Result<()> {
+    retry_state_operation(
+        state,
+        "whitelist gateway runtime",
+        shutdown,
+        total_timeout,
+        SYNC_ATTEMPT_TIMEOUT,
+        SYNC_RETRY_DELAY,
+        |_| async move {
+            crate::whitelist::migrate_whitelist_ipsets_on_boot(state)
+                .await
+                .map_err(|error| format!("{error:#}"))
+        },
+    )
+    .await
+    .map_err(anyhow::Error::msg)
+}
+
+async fn retry_state_operation<F, Fut>(
+    state: &AppState,
+    operation_name: &'static str,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+    attempt_timeout: Duration,
+    retry_delay: Duration,
+    operation: F,
+) -> Result<(), String>
+where
+    F: FnMut(Duration) -> Fut,
+    Fut: Future<Output = Result<(), String>>,
+{
+    state.runtime_health.operational_log(
+        "INFO",
+        "startup_sync",
+        "apply_started",
+        "gateway_sync_pending",
+        Map::from_iter([("operation".to_string(), json!(operation_name))]),
+    );
+    let result = retry_operation_with_observer(
+        operation_name,
+        shutdown,
+        total_timeout,
+        attempt_timeout,
+        retry_delay,
+        |attempt, retry_delay, error| {
+            state.runtime_health.operational_log(
+                "WARN",
+                "startup_sync",
+                "retry_scheduled",
+                "transient_gateway",
+                Map::from_iter([
+                    ("operation".to_string(), json!(operation_name)),
+                    ("attempt".to_string(), json!(attempt)),
+                    ("retry_delay_ms".to_string(), json!(retry_delay.as_millis())),
+                    (
+                        "failure_class".to_string(),
+                        json!(startup_failure_class(error)),
+                    ),
+                ]),
+            );
+        },
+        operation,
+    )
+    .await;
+    match &result {
+        Ok(()) => state.runtime_health.operational_log(
+            "INFO",
+            "startup_sync",
+            "apply_completed",
+            "gateway_sync_applied",
+            Map::from_iter([("operation".to_string(), json!(operation_name))]),
+        ),
+        Err(error) => state.runtime_health.operational_log(
+            "ERROR",
+            "startup_sync",
+            "apply_failed",
+            "gateway_sync_rejected",
+            Map::from_iter([
+                ("operation".to_string(), json!(operation_name)),
+                (
+                    "failure_class".to_string(),
+                    json!(startup_failure_class(error)),
+                ),
+            ]),
+        ),
+    }
+    result
+}
+
+#[cfg(test)]
 async fn retry_operation<F, Fut>(
     operation_name: &'static str,
     shutdown: &CancellationToken,
     total_timeout: Duration,
     attempt_timeout: Duration,
     retry_delay: Duration,
+    operation: F,
+) -> Result<(), String>
+where
+    F: FnMut(Duration) -> Fut,
+    Fut: Future<Output = Result<(), String>>,
+{
+    retry_operation_with_observer(
+        operation_name,
+        shutdown,
+        total_timeout,
+        attempt_timeout,
+        retry_delay,
+        |_, _, _| {},
+        operation,
+    )
+    .await
+}
+
+async fn retry_operation_with_observer<F, Fut, O>(
+    operation_name: &'static str,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+    attempt_timeout: Duration,
+    retry_delay: Duration,
+    mut on_retry: O,
     mut operation: F,
 ) -> Result<(), String>
 where
     F: FnMut(Duration) -> Fut,
     Fut: Future<Output = Result<(), String>>,
+    O: FnMut(u32, Duration, &str),
 {
     let deadline = tokio::time::Instant::now() + total_timeout;
     let mut attempts = 0_u32;
@@ -107,6 +273,7 @@ where
                 "{operation_name} startup sync failed after {attempts} attempts: {error}"
             ));
         }
+        on_retry(attempts, current_retry_delay, &error);
         tracing::warn!(
             operation = operation_name,
             attempt = attempts,
@@ -118,6 +285,16 @@ where
             _ = shutdown.cancelled() => return Err("startup cancelled".to_string()),
             _ = tokio::time::sleep(current_retry_delay.min(remaining)) => {}
         }
+    }
+}
+
+fn startup_failure_class(error: &str) -> &'static str {
+    if is_transient_error(error) {
+        "transient_gateway"
+    } else if error.eq_ignore_ascii_case("startup cancelled") {
+        "cancelled"
+    } else {
+        "permanent"
     }
 }
 
@@ -173,6 +350,38 @@ mod tests {
                 async move {
                     if attempt == 0 {
                         Err("set_host_rules returned 502 Bad Gateway: Timeout expired".to_string())
+                    } else {
+                        Ok(())
+                    }
+                }
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn gateway_visibility_transport_error_is_retried() {
+        let shutdown = CancellationToken::new();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let operation_attempts = attempts.clone();
+
+        retry_operation(
+            "gateway visibility policy migration",
+            &shutdown,
+            Duration::from_secs(1),
+            Duration::from_millis(50),
+            Duration::from_millis(1),
+            move |_| {
+                let attempt = operation_attempts.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    if attempt == 0 {
+                        Err(
+                            "set_gateway_visibility returned 502 Bad Gateway: transport error"
+                                .to_string(),
+                        )
                     } else {
                         Ok(())
                     }

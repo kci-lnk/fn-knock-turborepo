@@ -312,9 +312,10 @@ build_openwrt_rust_backend() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" --bin server-admin-rs && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
+  fn_knock_app_version "${ROOT_DIR}" > "${out_bin}.version"
   validate_elf_arch "${out_bin}" "${gateway_arch}" "OpenWrt Rust backend ${gateway_arch}"
   bytes="$(file_size_bytes "${out_bin}")"
   log "OpenWrt Rust backend ${gateway_arch} size: $(format_bytes "${bytes}")"
@@ -391,6 +392,36 @@ rust_backend_source_for_arch() {
     return 0
   }
   return 1
+}
+
+validate_rust_backend_version() {
+  local bin="$1"
+  local expected_version="$2"
+  local label="$3"
+  local version_file="${bin}.version"
+  local actual_version
+
+  [ -f "${version_file}" ] || \
+    fail "${label} is missing product version metadata: ${version_file}"
+  actual_version="$(tr -d '\r\n' < "${version_file}")"
+  [ "${actual_version}" = "${expected_version}" ] || \
+    fail "${label} product version mismatch: expected ${expected_version}, got ${actual_version:-<empty>}"
+}
+
+validate_rust_backend_versions() {
+  local expected_version="$1"
+  shift
+  local gateway_arch
+  local rust_backend_src
+
+  for gateway_arch in "$@"; do
+    rust_backend_src="$(rust_backend_source_for_arch "${gateway_arch}")" || \
+      fail "missing Rust backend binary for ${gateway_arch}"
+    validate_rust_backend_version \
+      "${rust_backend_src}" \
+      "${expected_version}" \
+      "OpenWrt Rust backend ${gateway_arch}"
+  done
 }
 
 ensure_apk_tooling() {
@@ -625,6 +656,8 @@ validate_payload_listing() {
     fail "data payload missing /etc/config/fn-knock"
   grep -Fxq "etc/init.d/fn-knock" <<<"${listing}" || \
     fail "data payload missing /etc/init.d/fn-knock"
+  grep -Fxq "usr/libexec/fn-knock-firewall" <<<"${listing}" || \
+    fail "data payload missing /usr/libexec/fn-knock-firewall"
   grep -Fxq "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" <<<"${listing}" || \
     fail "data payload missing ACME bundled resource"
   grep -Fxq "usr/lib/fn-knock/server/server-admin-rs" <<<"${listing}" || \
@@ -682,6 +715,8 @@ validate_extracted_payload() {
     "packaged Rust backend binary"
   [ -x "${extract_dir}/etc/init.d/fn-knock" ] || \
     fail "init script is not executable"
+  [ -x "${extract_dir}/usr/libexec/fn-knock-firewall" ] || \
+    fail "firewall helper is not executable"
   [ -x "${extract_dir}/usr/bin/fn-knock-reset-panel-password" ] || \
     fail "reset command is not executable"
 }
@@ -1427,6 +1462,7 @@ main() {
   done < <(collect_gateway_arches "${matrix_items[@]}")
 
   prepare_runtime "${gateway_arches[@]}"
+  validate_rust_backend_versions "${version}" "${gateway_arches[@]}"
 
   for item in "${matrix_items[@]}"; do
     build_packages_for_arch "${item}" "${version}" "${package_formats[@]}"

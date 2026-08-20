@@ -234,9 +234,14 @@ validate_elf_arch() {
 rust_backend_is_fresh() {
   local bin="$1"
   local commit_file="${bin}.gateway-commit"
+  local version_file="${bin}.version"
+  local expected_version
 
   [ "${FN_KNOCK_FORCE_ARTIFACT_REBUILD:-0}" != "1" ] || return 1
   [ -f "${bin}" ] || return 1
+  expected_version="$(fn_knock_app_version "${ROOT_DIR}")" || return 1
+  [ -f "${version_file}" ] || return 1
+  [ "$(tr -d '\r\n' < "${version_file}")" = "${expected_version}" ] || return 1
   if [ -n "${FN_KNOCK_GATEWAY_COMMIT:-}" ]; then
     [ -f "${commit_file}" ] || return 1
     [ "$(tr -d '\r\n' < "${commit_file}")" = "${FN_KNOCK_GATEWAY_COMMIT}" ] || return 1
@@ -275,6 +280,7 @@ copy_existing_rust_backend() {
     if [ "${candidate}" != "${out_bin}" ]; then
       cp "${candidate}" "${out_bin}"
       cp "${candidate}.gateway-commit" "${out_bin}.gateway-commit"
+      cp "${candidate}.version" "${out_bin}.version"
       chmod 755 "${out_bin}"
     fi
     validate_elf_arch "${out_bin}" "${arch}" "${label}"
@@ -394,10 +400,11 @@ build_fpk_rust_backend_with_docker() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --bin server-admin-rs && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
   printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
+  fn_knock_app_version "${ROOT_DIR}" > "${out_bin}.version"
   validate_elf_arch "${out_bin}" "${arch}" "FPK Rust backend ${arch}"
   log_binary_size "${out_bin}" "FPK Rust backend ${arch}"
 }
@@ -423,6 +430,7 @@ build_fpk_rust_backend_with_zig() {
     --locked \
     --release \
     --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml" \
+    --bin server-admin-rs \
     --target "${target_arg}"
 
   built_bin="$(find "${target_dir}" -type f -path '*/release/server-admin-rs' | head -n1)"
@@ -430,6 +438,7 @@ build_fpk_rust_backend_with_zig() {
   cp "${built_bin}" "${out_bin}"
   chmod 755 "${out_bin}"
   printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
+  fn_knock_app_version "${ROOT_DIR}" > "${out_bin}.version"
   validate_elf_arch "${out_bin}" "${arch}" "FPK Rust backend ${arch}"
   log_binary_size "${out_bin}" "FPK Rust backend ${arch}"
 }
@@ -548,10 +557,11 @@ build_musl_rust_backend() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" --bin server-admin-rs && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
   printf '%s\n' "${FN_KNOCK_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
+  fn_knock_app_version "${ROOT_DIR}" > "${out_bin}.version"
   validate_elf_arch "${out_bin}" "${arch}" "musl Rust backend ${arch}"
   log_binary_size "${out_bin}" "musl Rust backend ${arch}"
 }

@@ -3,10 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 mkdir -p "${ROOT_DIR}/dist"
-WORK_DIR="$(mktemp -d "${ROOT_DIR}/dist/openwrt-tar-compat-test.XXXXXX")"
+TEST_DIR="$(mktemp -d "${ROOT_DIR}/dist/openwrt-tar-compat-test.XXXXXX")"
 
 cleanup() {
-  rm -rf "${WORK_DIR}"
+  rm -rf "${TEST_DIR}"
 }
 trap cleanup EXIT
 
@@ -16,6 +16,19 @@ test_fail() {
 }
 
 source "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
+
+VERSION_FIXTURE="${TEST_DIR}/server-admin-rs"
+EXPECTED_VERSION="$(fn_knock_app_version "${ROOT_DIR}")"
+printf 'binary fixture\n' > "${VERSION_FIXTURE}"
+if (validate_rust_backend_version "${VERSION_FIXTURE}" "${EXPECTED_VERSION}" "fixture") >/dev/null 2>&1; then
+  test_fail "Rust backend validation accepted missing product version metadata"
+fi
+printf '0.0.0\n' > "${VERSION_FIXTURE}.version"
+if (validate_rust_backend_version "${VERSION_FIXTURE}" "${EXPECTED_VERSION}" "fixture") >/dev/null 2>&1; then
+  test_fail "Rust backend validation accepted stale product version metadata"
+fi
+printf '%s\n' "${EXPECTED_VERSION}" > "${VERSION_FIXTURE}.version"
+validate_rust_backend_version "${VERSION_FIXTURE}" "${EXPECTED_VERSION}" "fixture"
 
 MOUNT_SAFE_CHECK_COUNT="$(
   grep -Fc 'find /inspect -mindepth 1' "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
@@ -45,11 +58,11 @@ case "${TAR_FLAVOR}" in
     ;;
 esac
 
-SOURCE_DIR="${WORK_DIR}/source"
-PACKAGE_DIR="${WORK_DIR}/package"
-CONTENT_TAR="${WORK_DIR}/content.tar.gz"
-NON_ROOT_TAR="${WORK_DIR}/non-root.tar.gz"
-IPK_TAR="${WORK_DIR}/package.ipk"
+SOURCE_DIR="${TEST_DIR}/source"
+PACKAGE_DIR="${TEST_DIR}/package"
+CONTENT_TAR="${TEST_DIR}/content.tar.gz"
+NON_ROOT_TAR="${TEST_DIR}/non-root.tar.gz"
+IPK_TAR="${TEST_DIR}/package.ipk"
 mkdir -p "${SOURCE_DIR}" "${PACKAGE_DIR}"
 printf 'fixture\n' > "${SOURCE_DIR}/payload"
 
@@ -88,6 +101,7 @@ LARGE_PAYLOAD_LISTING="$({
   printf '%s\n' \
     "etc/config/fn-knock" \
     "etc/init.d/fn-knock" \
+    "usr/libexec/fn-knock-firewall" \
     "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" \
     "usr/lib/fn-knock/server/server-admin-rs" \
     "usr/lib/fn-knock/bin/server-admin-rs" \

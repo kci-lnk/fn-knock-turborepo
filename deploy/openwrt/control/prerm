@@ -11,4 +11,10 @@ if [ -x /etc/init.d/fn-knock ]; then
 	/etc/init.d/fn-knock disable >/dev/null 2>&1 || true
 fi
 
+if [ -x /usr/libexec/fn-knock-firewall ]; then
+	if ! /usr/libexec/fn-knock-firewall remove >/dev/null 2>&1; then
+		echo "fn-knock: warning: failed to remove the managed OpenWrt firewall rule" >&2
+	fi
+fi
+
 exit 0

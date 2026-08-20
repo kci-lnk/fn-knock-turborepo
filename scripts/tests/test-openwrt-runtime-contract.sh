@@ -271,4 +271,6 @@ fi
 grep -Fxq -- "stop" "${STOP_FAILURE_INIT_LOG}" || \
   fail "service stop failure test did not attempt to stop fn-knock"
 
+bash "${ROOT_DIR}/scripts/tests/test-openwrt-firewall.sh"
+
 printf '[test-openwrt-runtime-contract] OpenWrt package and runtime contract passed\n'

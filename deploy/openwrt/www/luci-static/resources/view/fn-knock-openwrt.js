@@ -71,6 +71,26 @@ function addPortOption(section, name, title, placeholder, description) {
 	return option;
 }
 
+function firewallStatusText(result) {
+	var status;
+
+	try {
+		status = result && result.stdout ? JSON.parse(result.stdout) : null;
+	} catch (err) {
+		status = null;
+	}
+
+	if (!status)
+		return '状态未知；请检查系统日志。';
+	if (status.state === 'active')
+		return '已开放 WAN TCP %s（IPv4/IPv6）。'.format(status.port);
+	if (status.state === 'conflict')
+		return '存在同名但不属于敲门 Knock 的防火墙规则，已拒绝覆盖。';
+	if (status.state === 'error')
+		return '规则同步失败；服务仍可供局域网使用，请检查系统日志。';
+	return '未开放 WAN 入站端口。';
+}
+
 function saveAndApply(mode) {
 	var tasks = [];
 
@@ -98,7 +118,8 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			L.resolveDefault(uci.load('fn-knock'), null),
-			L.resolveDefault(fs.exec('/etc/init.d/fn-knock', [ 'status' ]), null)
+			L.resolveDefault(fs.exec('/etc/init.d/fn-knock', [ 'status' ]), null),
+			L.resolveDefault(fs.exec('/usr/libexec/fn-knock-firewall', [ 'status' ]), null)
 		]);
 	},
 
@@ -144,6 +165,16 @@ return view.extend({
 		o = s.option(form.Flag, 'enabled', '启用服务');
 		o.default = o.enabled;
 		o.rmempty = false;
+
+		o = s.option(form.Flag, 'auto_open_firewall', '自动开放网关端口', '在 OpenWrt 的 wan 区域开放当前 Go 网关 TCP 代理端口，同时覆盖 IPv4 和 IPv6。不会开放 7991 管理后台或任何内部端口；自定义防火墙区域请关闭此项并自行配置规则。');
+		o.default = o.disabled;
+		o.rmempty = false;
+		o.depends('enabled', '1');
+
+		o = s.option(form.DummyValue, '_firewall_status', '防火墙状态');
+		o.cfgvalue = function() {
+			return firewallStatusText(data && data[2] ? data[2] : null);
+		};
 
 		addPortOption(s, 'admin_view_port', '管理后台端口', '7991', '从 LuCI 打开敲门 Knock 管理后台时使用的公网 Web 端口。');
 		addPortOption(s, 'go_reproxy_port', '网关代理端口', '7999', 'Go 网关对外提供服务的代理端口。');

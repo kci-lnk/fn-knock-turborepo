@@ -5,6 +5,7 @@ export const ROUTE_TYPE_TRANSLATION_KEYS = {
   stream_rule: "admin.wafLogs.routeTypes.streamRule",
   fn_connect: "admin.wafLogs.routeTypes.fnConnect",
   auth_proxy: "admin.wafLogs.routeTypes.authProxy",
+  certificate_deploy: "admin.wafLogs.routeTypes.certificateDeploy",
   select: "admin.wafLogs.routeTypes.select",
   wol: "admin.wafLogs.routeTypes.wol",
   preflight: "admin.wafLogs.routeTypes.preflight",
@@ -27,10 +28,11 @@ export const routeTypeLabel = (
   value: string | undefined,
   translate: RouteTypeTranslator,
 ) => {
-  if (!value) return "-";
+  const normalized = value?.trim().toLowerCase() || "";
+  if (!normalized) return "-";
   const key =
     ROUTE_TYPE_TRANSLATION_KEYS[
-      value as keyof typeof ROUTE_TYPE_TRANSLATION_KEYS
+      normalized as keyof typeof ROUTE_TYPE_TRANSLATION_KEYS
     ];
-  return key ? translate(key) : value;
+  return key ? translate(key) : value || "-";
 };

@@ -92,7 +92,7 @@ export const wafActionLabel = (
   value: string | undefined,
   t: GatewayLogTranslator,
 ) => {
-  switch (value) {
+  switch (value?.trim().toLowerCase()) {
     case "block":
     case "deny":
       return t("admin.wafLogs.actions.block");
@@ -110,7 +110,7 @@ export const wafModeLabel = (
   value: string | undefined,
   t: GatewayLogTranslator,
 ) => {
-  switch (value) {
+  switch (value?.trim().toLowerCase()) {
     case "detection":
       return t("admin.wafLogs.modes.detection");
     case "blocking":
@@ -150,7 +150,13 @@ export const wafBadgeTitle = (
   t: GatewayLogTranslator,
 ) => {
   const parts = [wafBadgeLabel(entry, t)];
-  if (entry.waf_trace_id) parts.push(`Trace: ${entry.waf_trace_id}`);
+  if (entry.waf_trace_id) {
+    parts.push(
+      t("admin.gatewayRequestLogs.wafBadges.trace", {
+        trace: entry.waf_trace_id,
+      }),
+    );
+  }
   if (entry.waf_rule_ids?.length) {
     parts.push(
       t("admin.gatewayRequestLogs.wafBadges.rules", {
@@ -186,7 +192,7 @@ export const authGrantStateLabel = (
   value: string | undefined,
   t: GatewayLogTranslator,
 ) => {
-  switch (value) {
+  switch (value?.trim().toLowerCase()) {
     case "issued":
       return t("admin.gatewayRequestLogs.grantStates.issued");
     case "renewed":
@@ -213,8 +219,24 @@ export const credentialMethodLabel = (
       return t("admin.gatewayRequestLogs.credentialMethods.oidc");
     case "LDAP":
       return t("admin.gatewayRequestLogs.credentialMethods.ldap");
+    case "PASSWORD":
+      return t("admin.gatewayRequestLogs.credentialMethods.password");
     default:
       return value || "";
+  }
+};
+
+export const accessModeLabel = (
+  value: string | undefined,
+  t: GatewayLogTranslator,
+) => {
+  switch (value?.trim().toLowerCase()) {
+    case "login_first":
+      return t("admin.gatewayRequestLogs.accessModes.loginFirst");
+    case "strict_whitelist":
+      return t("admin.gatewayRequestLogs.accessModes.strictWhitelist");
+    default:
+      return value || "-";
   }
 };
 

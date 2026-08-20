@@ -8,6 +8,7 @@ import {
 
 const gatewayRouteTypes = [
   "auth_proxy",
+  "certificate_deploy",
   "crawler_blocker",
   "default_host_redirect",
   "favicon",

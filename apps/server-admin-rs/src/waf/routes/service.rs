@@ -86,8 +86,6 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
     if let Some(object) = full_config.as_object_mut() {
         object.insert("waf".to_string(), next.clone());
     }
-    state.storage.store.save_config(&full_config).await?;
-
     let should_apply_to_gateway = has_any_key(
         patch,
         &[
@@ -97,19 +95,69 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "private_ip_exempt_enabled",
         ],
     );
-    if should_apply_to_gateway {
-        apply_waf_config_to_gateway(
+    let should_sync_common_auth_locations =
+        should_apply_to_gateway || has_any_key(patch, &["common_location_exempt_enabled"]);
+
+    // Keep persisted configuration aligned with the gateway runtime. In
+    // particular, a failed private-IP-exemption update must not become active
+    // only after the next gateway restart.
+    if should_apply_to_gateway
+        && let Err(error) = apply_waf_config_to_gateway(
             state,
             &next,
             "Enable WAF after at least one rule is enabled",
         )
-        .await?;
+        .await
+    {
+        return Err(error);
     }
-    if should_apply_to_gateway || has_any_key(patch, &["common_location_exempt_enabled"]) {
-        sync_common_auth_location_exemptions_to_gateway(state, &next).await?;
+    if should_sync_common_auth_locations
+        && let Err(error) = sync_common_auth_location_exemptions_to_gateway(state, &next).await
+    {
+        restore_waf_runtime_after_failed_config_update(
+            state,
+            &current,
+            should_apply_to_gateway,
+            should_sync_common_auth_locations,
+        )
+        .await;
+        return Err(error);
+    }
+    if let Err(error) = state.storage.store.save_config(&full_config).await {
+        restore_waf_runtime_after_failed_config_update(
+            state,
+            &current,
+            should_apply_to_gateway,
+            should_sync_common_auth_locations,
+        )
+        .await;
+        return Err(error.into());
     }
 
     get_waf_details(state).await
+}
+
+async fn restore_waf_runtime_after_failed_config_update(
+    state: &AppState,
+    previous: &Value,
+    restore_waf_config: bool,
+    restore_common_auth_locations: bool,
+) {
+    if restore_waf_config
+        && let Err(error) = apply_waf_config_to_gateway(
+            state,
+            previous,
+            "Enable WAF after at least one rule is enabled",
+        )
+        .await
+    {
+        tracing::warn!(%error, "failed to restore WAF gateway runtime after rejected config update");
+    }
+    if restore_common_auth_locations
+        && let Err(error) = sync_common_auth_location_exemptions_to_gateway(state, previous).await
+    {
+        tracing::warn!(%error, "failed to restore common-auth exemptions after rejected WAF config update");
+    }
 }
 
 pub(crate) async fn sync_waf_config_to_gateway(

@@ -159,11 +159,8 @@ pub(super) async fn sync_smart_connect_on_boot(
         .unwrap_or("")
         .trim()
         .to_string();
-    if Path::new(SMART_CONNECT_MANAGED_CONF_PATH).exists() {
-        fs::remove_file(SMART_CONNECT_MANAGED_CONF_PATH).map_err(|error| error.to_string())?;
-        let translator = Translator::from_state(state).await;
-        restart_dnsmasq_service(&translator)?;
-    }
+    let translator = Translator::from_state(state).await;
+    clear_smart_connect_managed_config(&translator)?;
     let runtime = json!({
         "selected_ipv4": selected_ipv4,
         "synced_domains": [],
@@ -401,15 +398,26 @@ pub(super) fn apply_smart_connect_managed_config(
     let tmp = format!("{}.tmp", SMART_CONNECT_MANAGED_CONF_PATH);
     fs::write(&tmp, content).map_err(|error| error.to_string())?;
     fs::rename(&tmp, SMART_CONNECT_MANAGED_CONF_PATH).map_err(|error| error.to_string())?;
-    restart_dnsmasq_service(translator)
+    system_assets::activate_dnsmasq_service(translator)
 }
 
 pub(super) fn clear_smart_connect_managed_config(translator: &Translator) -> Result<(), String> {
-    if Path::new(SMART_CONNECT_MANAGED_CONF_PATH).exists() {
-        fs::remove_file(SMART_CONNECT_MANAGED_CONF_PATH).map_err(|error| error.to_string())?;
-        restart_dnsmasq_service(translator)?;
+    clear_smart_connect_managed_config_at(Path::new(SMART_CONNECT_MANAGED_CONF_PATH), || {
+        system_assets::deactivate_dnsmasq_service(translator)
+    })
+}
+
+pub(super) fn clear_smart_connect_managed_config_at<F>(
+    path: &Path,
+    deactivate: F,
+) -> Result<(), String>
+where
+    F: FnOnce() -> Result<(), String>,
+{
+    if path.exists() {
+        fs::remove_file(path).map_err(|error| error.to_string())?;
     }
-    Ok(())
+    deactivate()
 }
 
 pub(super) fn build_smart_connect_managed_config(
@@ -440,22 +448,4 @@ pub(super) fn build_smart_connect_managed_config(
     }
     lines.push(String::new());
     lines.join("\n")
-}
-
-pub(super) fn restart_dnsmasq_service(translator: &Translator) -> Result<(), String> {
-    if Command::new("systemctl")
-        .args(["restart", "dnsmasq"])
-        .status()
-        .is_ok_and(|status| status.success())
-    {
-        return Ok(());
-    }
-    if Command::new("service")
-        .args(["dnsmasq", "restart"])
-        .status()
-        .is_ok_and(|status| status.success())
-    {
-        return Ok(());
-    }
-    Err(smart_connect_text(translator, "syncFailed"))
 }

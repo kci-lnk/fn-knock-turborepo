@@ -138,6 +138,101 @@ fn builds_dnsmasq_bootstrap_config_like_node() {
 }
 
 #[test]
+fn dnsmasq_service_commands_are_symmetric_for_systemd_and_sysv() {
+    let signatures = |kind, activate| {
+        dnsmasq_service_commands(kind, activate)
+            .iter()
+            .map(|command| (command.program, command.args.to_vec(), command.failure_key))
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        signatures(DnsmasqServiceKind::Systemd, true),
+        vec![
+            (
+                "systemctl",
+                vec!["enable", "dnsmasq"],
+                "enableServiceFailed"
+            ),
+            ("systemctl", vec!["restart", "dnsmasq"], "restartFailed"),
+        ]
+    );
+    assert_eq!(
+        signatures(DnsmasqServiceKind::Systemd, false),
+        vec![(
+            "systemctl",
+            vec!["disable", "--now", "dnsmasq"],
+            "disableServiceFailed"
+        )]
+    );
+    assert_eq!(
+        signatures(DnsmasqServiceKind::SysV, true),
+        vec![
+            (
+                "update-rc.d",
+                vec!["dnsmasq", "defaults"],
+                "enableServiceFailed"
+            ),
+            ("service", vec!["dnsmasq", "restart"], "restartFailed"),
+        ]
+    );
+    assert_eq!(
+        signatures(DnsmasqServiceKind::SysV, false),
+        vec![
+            ("service", vec!["dnsmasq", "stop"], "stopServiceFailed"),
+            (
+                "update-rc.d",
+                vec!["-f", "dnsmasq", "remove"],
+                "disableServiceFailed"
+            ),
+        ]
+    );
+}
+
+#[test]
+fn dnsmasq_service_kind_requires_a_live_systemd_runtime() {
+    assert_eq!(
+        dnsmasq_service_kind_for(true, true, true),
+        Some(DnsmasqServiceKind::Systemd)
+    );
+    assert_eq!(
+        dnsmasq_service_kind_for(false, true, true),
+        Some(DnsmasqServiceKind::SysV)
+    );
+    assert_eq!(dnsmasq_service_kind_for(false, true, false), None);
+}
+
+#[test]
+fn dnsmasq_activation_failure_does_not_start_the_service() {
+    let commands = dnsmasq_service_commands(DnsmasqServiceKind::Systemd, true);
+    let mut seen = Vec::new();
+    let result = run_dnsmasq_service_commands_with(commands, |command| {
+        seen.push(command.args);
+        Err("enable failed".to_string())
+    });
+
+    assert_eq!(result, Err("enable failed".to_string()));
+    assert_eq!(seen, vec![&["enable", "dnsmasq"][..]]);
+}
+
+#[test]
+fn dnsmasq_service_command_failure_is_propagated_without_skipping_cleanup() {
+    let commands = dnsmasq_service_commands(DnsmasqServiceKind::SysV, false);
+    let mut seen = Vec::new();
+    let result = run_dnsmasq_service_commands_with(commands, |command| {
+        seen.push(command.program);
+        if command.program == "service" {
+            Err("stop failed with detail".to_string())
+        } else {
+            Ok(())
+        }
+    });
+
+    assert_eq!(result, Err("stop failed with detail".to_string()));
+    assert_eq!(seen, vec!["service", "update-rc.d"]);
+}
+
+#[test]
 fn localizes_system_asset_and_dnsmasq_messages() {
     let zh = Translator::new("zh-CN");
     assert_eq!(
@@ -195,6 +290,22 @@ fn localizes_system_asset_and_dnsmasq_messages() {
     assert_eq!(
         dnsmasq_text(&en, "checkingEnvironment"),
         "Checking dnsmasq environment..."
+    );
+    assert_eq!(
+        dnsmasq_text(&en, "disableServiceFailed"),
+        "Failed to disable dnsmasq on boot"
+    );
+    assert_eq!(
+        normalize_dnsmasq_error(
+            &en,
+            "systemctl failed: permission denied",
+            "disableServiceFailed"
+        ),
+        "Failed to disable dnsmasq on boot: systemctl failed: permission denied"
+    );
+    assert_eq!(
+        normalize_dnsmasq_error(&en, "apt permission denied", "aptUpdateFailed"),
+        "apt permission denied"
     );
 }
 

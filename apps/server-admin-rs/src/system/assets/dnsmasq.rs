@@ -11,6 +11,69 @@ use super::{
     text::{dnsmasq_text, dnsmasq_text_params},
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum DnsmasqServiceKind {
+    Systemd,
+    SysV,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct DnsmasqServiceCommand {
+    pub(super) program: &'static str,
+    pub(super) args: &'static [&'static str],
+    pub(super) failure_key: &'static str,
+    pub(super) continue_after_failure: bool,
+}
+
+const SYSTEMD_ACTIVATE_COMMANDS: &[DnsmasqServiceCommand] = &[
+    DnsmasqServiceCommand {
+        program: "systemctl",
+        args: &["enable", "dnsmasq"],
+        failure_key: "enableServiceFailed",
+        continue_after_failure: false,
+    },
+    DnsmasqServiceCommand {
+        program: "systemctl",
+        args: &["restart", "dnsmasq"],
+        failure_key: "restartFailed",
+        continue_after_failure: false,
+    },
+];
+const SYSTEMD_DEACTIVATE_COMMANDS: &[DnsmasqServiceCommand] = &[DnsmasqServiceCommand {
+    program: "systemctl",
+    args: &["disable", "--now", "dnsmasq"],
+    failure_key: "disableServiceFailed",
+    continue_after_failure: false,
+}];
+const SYSV_ACTIVATE_COMMANDS: &[DnsmasqServiceCommand] = &[
+    DnsmasqServiceCommand {
+        program: "update-rc.d",
+        args: &["dnsmasq", "defaults"],
+        failure_key: "enableServiceFailed",
+        continue_after_failure: false,
+    },
+    DnsmasqServiceCommand {
+        program: "service",
+        args: &["dnsmasq", "restart"],
+        failure_key: "restartFailed",
+        continue_after_failure: false,
+    },
+];
+const SYSV_DEACTIVATE_COMMANDS: &[DnsmasqServiceCommand] = &[
+    DnsmasqServiceCommand {
+        program: "service",
+        args: &["dnsmasq", "stop"],
+        failure_key: "stopServiceFailed",
+        continue_after_failure: true,
+    },
+    DnsmasqServiceCommand {
+        program: "update-rc.d",
+        args: &["-f", "dnsmasq", "remove"],
+        failure_key: "disableServiceFailed",
+        continue_after_failure: false,
+    },
+];
+
 pub(crate) fn build_dnsmasq_status_with_translator(translator: &Translator) -> Value {
     let current = dnsmasq_install_state();
     let executable = detect_dnsmasq_executable();
@@ -139,12 +202,15 @@ pub(super) fn detect_dnsmasq_executable() -> Option<(String, String)> {
 }
 
 pub(super) fn dnsmasq_service_active() -> bool {
-    if has_systemd_unit()
-        && run_process_success("systemctl", &["is-active", "--quiet", "dnsmasq"]).is_ok()
-    {
-        return true;
+    match dnsmasq_service_kind() {
+        Some(DnsmasqServiceKind::Systemd) => {
+            run_process_success("systemctl", &["is-active", "--quiet", "dnsmasq"]).is_ok()
+        }
+        Some(DnsmasqServiceKind::SysV) => {
+            run_process_success("service", &["dnsmasq", "status"]).is_ok()
+        }
+        None => false,
     }
-    has_init_script() && run_process_success("service", &["dnsmasq", "status"]).is_ok()
 }
 
 pub(super) fn dnsmasq_can_initialize(executable_path: &str) -> bool {
@@ -228,14 +294,7 @@ pub(super) fn initialize_dnsmasq(translator: &Translator) -> Result<(), String> 
         72,
         dnsmasq_text(translator, "enablingService"),
     );
-    enable_dnsmasq_on_boot();
-
-    set_dnsmasq_install_state(
-        "installing",
-        90,
-        dnsmasq_text(translator, "startingService"),
-    );
-    restart_dnsmasq_service(translator)?;
+    activate_dnsmasq_service(translator)?;
 
     set_dnsmasq_install_state(
         "installed",
@@ -302,45 +361,87 @@ pub(super) fn validate_dnsmasq_config(executable_path: &str, content: &str) -> R
     result.map(|_| ())
 }
 
-pub(super) fn restart_dnsmasq_service(translator: &Translator) -> Result<(), String> {
-    let mut errors = Vec::new();
-    if has_systemd_unit() {
-        match run_dnsmasq_process_success(
-            translator,
-            "systemctl",
-            &["restart", "dnsmasq"],
-            "restartFailed",
-        ) {
-            Ok(()) => return Ok(()),
-            Err(error) => errors.push(error),
-        }
+pub(super) fn dnsmasq_service_kind() -> Option<DnsmasqServiceKind> {
+    dnsmasq_service_kind_for(
+        Path::new("/run/systemd/system").is_dir(),
+        has_systemd_unit(),
+        has_init_script(),
+    )
+}
+
+pub(super) fn dnsmasq_service_kind_for(
+    systemd_running: bool,
+    has_systemd_unit: bool,
+    has_init_script: bool,
+) -> Option<DnsmasqServiceKind> {
+    if systemd_running && has_systemd_unit {
+        Some(DnsmasqServiceKind::Systemd)
+    } else if has_init_script {
+        Some(DnsmasqServiceKind::SysV)
+    } else {
+        None
     }
-    if has_init_script() {
-        match run_dnsmasq_process_success(
-            translator,
-            "service",
-            &["dnsmasq", "restart"],
-            "restartFailed",
-        ) {
-            Ok(()) => return Ok(()),
-            Err(error) => errors.push(error),
+}
+
+pub(super) fn dnsmasq_service_commands(
+    kind: DnsmasqServiceKind,
+    activate: bool,
+) -> &'static [DnsmasqServiceCommand] {
+    match (kind, activate) {
+        (DnsmasqServiceKind::Systemd, true) => SYSTEMD_ACTIVATE_COMMANDS,
+        (DnsmasqServiceKind::Systemd, false) => SYSTEMD_DEACTIVATE_COMMANDS,
+        (DnsmasqServiceKind::SysV, true) => SYSV_ACTIVATE_COMMANDS,
+        (DnsmasqServiceKind::SysV, false) => SYSV_DEACTIVATE_COMMANDS,
+    }
+}
+
+pub(super) fn run_dnsmasq_service_commands_with<F>(
+    commands: &[DnsmasqServiceCommand],
+    mut run: F,
+) -> Result<(), String>
+where
+    F: FnMut(&DnsmasqServiceCommand) -> Result<(), String>,
+{
+    let mut errors = Vec::new();
+    for command in commands {
+        if let Err(error) = run(command) {
+            errors.push(error);
+            if !command.continue_after_failure {
+                break;
+            }
         }
     }
     if errors.is_empty() {
-        Err(dnsmasq_text(translator, "serviceDefinitionMissing"))
+        Ok(())
     } else {
         Err(errors.join(" | "))
     }
 }
 
-pub(super) fn enable_dnsmasq_on_boot() {
-    if has_systemd_unit() {
-        let _ = run_process_success("systemctl", &["enable", "dnsmasq"]);
-        return;
-    }
-    if has_init_script() {
-        let _ = run_process_success("update-rc.d", &["dnsmasq", "defaults"]);
-    }
+fn run_dnsmasq_service_commands(translator: &Translator, activate: bool) -> Result<(), String> {
+    let Some(kind) = dnsmasq_service_kind() else {
+        return if activate {
+            Err(dnsmasq_text(translator, "serviceDefinitionMissing"))
+        } else {
+            Ok(())
+        };
+    };
+    run_dnsmasq_service_commands_with(dnsmasq_service_commands(kind, activate), |command| {
+        run_dnsmasq_process_success(
+            translator,
+            command.program,
+            command.args,
+            command.failure_key,
+        )
+    })
+}
+
+pub(crate) fn activate_dnsmasq_service(translator: &Translator) -> Result<(), String> {
+    run_dnsmasq_service_commands(translator, true)
+}
+
+pub(crate) fn deactivate_dnsmasq_service(translator: &Translator) -> Result<(), String> {
+    run_dnsmasq_service_commands(translator, false)
 }
 
 pub(super) fn has_service_definition() -> bool {
@@ -432,10 +533,14 @@ pub(super) fn normalize_dnsmasq_error(
 ) -> String {
     let detail = message.trim();
     let lower = detail.to_ascii_lowercase();
-    if lower.contains("address already in use")
-        || lower.contains("failed to create listening socket")
-        || lower.contains("failed to bind listening socket")
-        || lower.contains("permission denied")
+    let service_lifecycle_error = matches!(
+        fallback_key,
+        "enableServiceFailed" | "stopServiceFailed" | "disableServiceFailed"
+    );
+    if !service_lifecycle_error
+        && (lower.contains("address already in use")
+            || lower.contains("failed to create listening socket")
+            || lower.contains("failed to bind listening socket"))
     {
         return if detail.is_empty() {
             dnsmasq_text(translator, "dnsPortUnavailable")
@@ -449,6 +554,8 @@ pub(super) fn normalize_dnsmasq_error(
     }
     if detail.is_empty() {
         dnsmasq_text(translator, fallback_key)
+    } else if service_lifecycle_error {
+        format!("{}: {detail}", dnsmasq_text(translator, fallback_key))
     } else {
         detail.to_string()
     }

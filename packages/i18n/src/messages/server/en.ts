@@ -1371,7 +1371,10 @@ export const enServer = {
       "dnsmasq service installation finished, but no usable system service definition was detected.",
     executableMissing: "dnsmasq executable was not detected",
     configTestFailed: "dnsmasq configuration validation failed",
+    enableServiceFailed: "Failed to enable dnsmasq on boot",
     restartFailed: "Failed to restart dnsmasq",
+    stopServiceFailed: "Failed to stop dnsmasq",
+    disableServiceFailed: "Failed to disable dnsmasq on boot",
     serviceDefinitionMissing:
       "dnsmasq system service definition was not detected. Finish initialization to complete the service environment.",
     readyWithVersion: "dnsmasq is ready: {version}",

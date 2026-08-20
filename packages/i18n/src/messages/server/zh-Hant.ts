@@ -1203,7 +1203,10 @@ export const zhHantServer = {
       "dnsmasq 服務安裝完成後仍未檢測到可用的系統服務定義",
     executableMissing: "未檢測到 dnsmasq 可執行文件",
     configTestFailed: "dnsmasq 配置校驗失敗",
+    enableServiceFailed: "啟用 dnsmasq 自動啟動失敗",
     restartFailed: "重啟 dnsmasq 失敗",
+    stopServiceFailed: "停止 dnsmasq 服務失敗",
+    disableServiceFailed: "停用 dnsmasq 自動啟動失敗",
     serviceDefinitionMissing:
       "未檢測到 dnsmasq 系統服務定義，請先完成初始化補全服務環境",
     readyWithVersion: "dnsmasq 已就緒：{version}",

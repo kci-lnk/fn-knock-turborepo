@@ -1419,7 +1419,10 @@ export const jaJPServer = {
       "dnsmasq サービスのインストール後に、利用可能なシステム サービス定義が検出されません。",
     executableMissing: "dnsmasq 実行ファイルを検出できません",
     configTestFailed: "dnsmasq 設定の検証に失敗しました",
+    enableServiceFailed: "dnsmasq の自動起動を有効にできませんでした",
     restartFailed: "dnsmasq の再起動に失敗しました",
+    stopServiceFailed: "dnsmasq を停止できませんでした",
+    disableServiceFailed: "dnsmasq の自動起動を無効にできませんでした",
     serviceDefinitionMissing:
       "dnsmasq システムサービス定義が検出されません。サービス環境を完成させるために、まず初期化を完了してください。",
     readyWithVersion: "dnsmasq の準備が完了しました: {version}",

@@ -24,7 +24,9 @@ use handlers::{
     dnsmasq_install, dnsmasq_status, frp_cancel, frp_delete, frp_download, frp_status,
 };
 
-pub(crate) use dnsmasq::build_dnsmasq_status_with_translator;
+pub(crate) use dnsmasq::{
+    activate_dnsmasq_service, build_dnsmasq_status_with_translator, deactivate_dnsmasq_service,
+};
 
 #[cfg(test)]
 use clock::{
@@ -33,8 +35,10 @@ use clock::{
 };
 #[cfg(test)]
 use dnsmasq::{
-    dnsmasq_bootstrap_config, dnsmasq_detected_message, dnsmasq_install_state_to_json,
-    dnsmasq_ready_message, dnsmasq_state, normalize_dnsmasq_error, resolve_dnsmasq_install_state,
+    DnsmasqServiceKind, dnsmasq_bootstrap_config, dnsmasq_detected_message,
+    dnsmasq_install_state_to_json, dnsmasq_ready_message, dnsmasq_service_commands,
+    dnsmasq_service_kind_for, dnsmasq_state, normalize_dnsmasq_error,
+    resolve_dnsmasq_install_state, run_dnsmasq_service_commands_with,
 };
 #[cfg(test)]
 use downloads::{detect_frp_platform, frp_binary_path, localize_asset_progress_error};

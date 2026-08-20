@@ -1378,7 +1378,10 @@ export const koKRServer = {
       "dnsmasq 서비스 설치가 완료되었지만 사용 가능한 시스템 서비스 정의가 감지되지 않았습니다.",
     executableMissing: "dnsmasq 실행 파일이 감지되지 않았습니다.",
     configTestFailed: "dnsmasq 설정 검증에 실패했습니다.",
+    enableServiceFailed: "dnsmasq 자동 시작을 활성화하지 못했습니다.",
     restartFailed: "dnsmasq를 다시 시작하지 못했습니다.",
+    stopServiceFailed: "dnsmasq를 중지하지 못했습니다.",
+    disableServiceFailed: "dnsmasq 자동 시작을 비활성화하지 못했습니다.",
     serviceDefinitionMissing:
       "dnsmasq 시스템 서비스 정의가 감지되지 않았습니다. 초기화를 완료하여 서비스 환경을 완성합니다.",
     readyWithVersion: "dnsmasq가 준비되었습니다: {version}",

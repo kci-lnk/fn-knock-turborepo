@@ -1099,7 +1099,10 @@
       "checkingEnvironment": "正在检查 dnsmasq 环境...",
       "validatingConfig": "正在校验 dnsmasq 配置...",
       "startingService": "正在启动 dnsmasq 服务...",
-      "initializeFailed": "dnsmasq 初始化失败"
+      "initializeFailed": "dnsmasq 初始化失败",
+      "enableServiceFailed": "启用 dnsmasq 自启动失败",
+      "stopServiceFailed": "停止 dnsmasq 服务失败",
+      "disableServiceFailed": "禁用 dnsmasq 自启动失败"
     },
     "firewall": {
       "goBackendCallFailed": "Go 后端接口调用失败: {message}",
@@ -4319,7 +4322,10 @@
       "checkingEnvironment": "正在檢查 dnsmasq 環境...",
       "validatingConfig": "正在校驗 dnsmasq 配置...",
       "startingService": "正在啟動 dnsmasq 服務...",
-      "initializeFailed": "dnsmasq 初始化失敗"
+      "initializeFailed": "dnsmasq 初始化失敗",
+      "enableServiceFailed": "啟用 dnsmasq 自動啟動失敗",
+      "stopServiceFailed": "停止 dnsmasq 服務失敗",
+      "disableServiceFailed": "停用 dnsmasq 自動啟動失敗"
     },
     "firewall": {
       "goBackendCallFailed": "Go 後端接口調用失敗: {message}",
@@ -7539,7 +7545,10 @@
       "checkingEnvironment": "Checking dnsmasq environment...",
       "validatingConfig": "Validating dnsmasq configuration...",
       "startingService": "Starting dnsmasq service...",
-      "initializeFailed": "dnsmasq initialization failed"
+      "initializeFailed": "dnsmasq initialization failed",
+      "enableServiceFailed": "Failed to enable dnsmasq on boot",
+      "stopServiceFailed": "Failed to stop dnsmasq",
+      "disableServiceFailed": "Failed to disable dnsmasq on boot"
     },
     "firewall": {
       "goBackendCallFailed": "Go backend API call failed: {message}",
@@ -10759,7 +10768,10 @@
       "checkingEnvironment": "dnsmasq 환경을 확인하는 중...",
       "validatingConfig": "dnsmasq 설정 검증 중...",
       "startingService": "DNSmasq 서비스 시작 중...",
-      "initializeFailed": "dnsmasq 초기화 실패"
+      "initializeFailed": "dnsmasq 초기화 실패",
+      "enableServiceFailed": "dnsmasq 자동 시작을 활성화하지 못했습니다.",
+      "stopServiceFailed": "dnsmasq를 중지하지 못했습니다.",
+      "disableServiceFailed": "dnsmasq 자동 시작을 비활성화하지 못했습니다."
     },
     "firewall": {
       "goBackendCallFailed": "Go 백엔드 API 호출 실패: {message}",
@@ -13979,7 +13991,10 @@
       "checkingEnvironment": "dnsmasq 環境を確認しています...",
       "validatingConfig": "dnsmasq 設定を確認しています...",
       "startingService": "dnsmasq サービスを開始しています...",
-      "initializeFailed": "dnsmasq の初期化に失敗しました"
+      "initializeFailed": "dnsmasq の初期化に失敗しました",
+      "enableServiceFailed": "dnsmasq の自動起動を有効にできませんでした",
+      "stopServiceFailed": "dnsmasq を停止できませんでした",
+      "disableServiceFailed": "dnsmasq の自動起動を無効にできませんでした"
     },
     "firewall": {
       "goBackendCallFailed": "Go バックエンド API の呼び出しに失敗しました: {message}",

@@ -1203,7 +1203,10 @@ export const zhCNServer = {
       "dnsmasq 服务安装完成后仍未检测到可用的系统服务定义",
     executableMissing: "未检测到 dnsmasq 可执行文件",
     configTestFailed: "dnsmasq 配置校验失败",
+    enableServiceFailed: "启用 dnsmasq 自启动失败",
     restartFailed: "重启 dnsmasq 失败",
+    stopServiceFailed: "停止 dnsmasq 服务失败",
+    disableServiceFailed: "禁用 dnsmasq 自启动失败",
     serviceDefinitionMissing:
       "未检测到 dnsmasq 系统服务定义，请先完成初始化补全服务环境",
     readyWithVersion: "dnsmasq 已就绪：{version}",

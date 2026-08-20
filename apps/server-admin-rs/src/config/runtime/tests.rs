@@ -1265,6 +1265,40 @@ fn builds_smart_connect_managed_config_like_node() {
 }
 
 #[test]
+fn smart_connect_cleanup_deactivates_dnsmasq_even_without_managed_config() {
+    let directory = tempfile::tempdir().unwrap();
+    let managed_config = directory.path().join("missing-smart-connect.conf");
+    let calls = std::cell::Cell::new(0);
+
+    clear_smart_connect_managed_config_at(&managed_config, || {
+        calls.set(calls.get() + 1);
+        Ok(())
+    })
+    .expect("deactivate dnsmasq without managed config");
+
+    assert_eq!(calls.get(), 1);
+    assert!(!managed_config.exists());
+}
+
+#[test]
+fn smart_connect_cleanup_removes_managed_config_and_propagates_deactivation_failure() {
+    let directory = tempfile::tempdir().unwrap();
+    let managed_config = directory.path().join("fn-knock-smart-connect.conf");
+    std::fs::write(&managed_config, "address=/example.com/192.168.1.20\n").unwrap();
+
+    let error = clear_smart_connect_managed_config_at(&managed_config, || {
+        Err("failed to disable dnsmasq on boot: permission denied".to_string())
+    })
+    .expect_err("propagate dnsmasq deactivation failure");
+
+    assert_eq!(
+        error,
+        "failed to disable dnsmasq on boot: permission denied"
+    );
+    assert!(!managed_config.exists());
+}
+
+#[test]
 fn gateway_port_matches_node_parse_int_fallback() {
     assert_eq!(gateway_port_from_env(None), 7999);
     assert_eq!(gateway_port_from_env(Some(String::new())), 7999);

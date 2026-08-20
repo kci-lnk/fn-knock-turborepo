@@ -247,6 +247,10 @@ pub(super) async fn match_discovery_analyzer_rule(
     {
         return discovery_rule("1Panel", "1Panel", "/1panel", false, true, false);
     }
+    if body_contains(result, "api/app/favicon") && body_contains(result, "static/icons/iconfont.js")
+    {
+        return discovery_rule("certd", "Certd", "/certd", false, true, false);
+    }
 
     build_generic_http_rule(result)
 }

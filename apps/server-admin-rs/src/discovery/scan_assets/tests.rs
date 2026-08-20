@@ -769,6 +769,18 @@ async fn discovery_analyzer_matches_all_node_static_rule_shapes() {
             expected_use_root_mode: true,
             expected_is_default: false,
         },
+        StaticRuleCase {
+            case_name: "certd",
+            port: 7001,
+            status: 200,
+            headers: vec![],
+            body: "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"/><link rel=\"icon\" href=\"api/app/favicon\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\"/><title>Loading</title><script src=\"static/icons/iconfont.js?v=1.43.0\"></script><link rel=\"stylesheet\" href=\"static/index.css?v=1.43.0\"/><script type=\"module\" crossorigin src=\"./assets/index-C8EIeze_.js\"></script></head><body><div id=\"app\"></div></body></html>",
+            expected_name: "certd",
+            expected_path: "/certd",
+            expected_rewrite_html: false,
+            expected_use_root_mode: true,
+            expected_is_default: false,
+        },
     ];
 
     for case in cases {

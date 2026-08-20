@@ -1,0 +1,138 @@
+import { tryOnScopeDispose } from "@vueuse/core";
+import { ref, watch, type Ref } from "vue";
+
+export interface DragScrollOptions {
+  /**
+   * Minimum horizontal pointer travel (in pixels) before a gesture is treated
+   * as a drag. Movements below this threshold are treated as a plain click so
+   * links and buttons inside the scrollable region keep working.
+   */
+  dragThreshold?: number;
+}
+
+/**
+ * Enables horizontal drag-to-scroll for a scrollable element using a mouse
+ * ("grab" hand cursor). Touch devices keep their native `overflow-x-auto`
+ * panning, so only mouse gestures are intercepted here.
+ *
+ * Pointer move/end are tracked on `window` (not the element) so the drag always
+ * ends cleanly even when the cursor leaves the element or the window loses
+ * focus mid-drag.
+ */
+export const useDragScroll = (
+  elementRef: Ref<HTMLElement | null>,
+  { dragThreshold = 4 }: DragScrollOptions = {},
+) => {
+  const isDragging = ref(false);
+
+  let activePointerId: number | null = null;
+  let startClientX = 0;
+  let startScrollLeft = 0;
+  let dragged = false;
+
+  const removeGlobalListeners = () => {
+    window.removeEventListener("pointermove", handleGlobalPointerMove);
+    window.removeEventListener("pointerup", handleGlobalPointerUp);
+    window.removeEventListener("pointercancel", handleGlobalPointerUp);
+    window.removeEventListener("blur", handleWindowBlur);
+  };
+
+  const handleGlobalPointerMove = (event: PointerEvent) => {
+    if (activePointerId === null || event.pointerId !== activePointerId) return;
+    const el = elementRef.value;
+    if (!el) return;
+
+    const deltaX = event.clientX - startClientX;
+    if (!dragged && Math.abs(deltaX) >= dragThreshold) {
+      dragged = true;
+    }
+    if (dragged) {
+      el.scrollLeft = startScrollLeft - deltaX;
+    }
+  };
+
+  const endDrag = () => {
+    if (activePointerId === null) return;
+    const el = elementRef.value;
+    if (el?.hasPointerCapture?.(activePointerId)) {
+      el.releasePointerCapture(activePointerId);
+    }
+    activePointerId = null;
+    isDragging.value = false;
+    removeGlobalListeners();
+  };
+
+  const handleGlobalPointerUp = (event: PointerEvent) => {
+    if (activePointerId === null || event.pointerId !== activePointerId) return;
+    endDrag();
+  };
+
+  const handleWindowBlur = () => {
+    if (activePointerId !== null) endDrag();
+  };
+
+  const addGlobalListeners = () => {
+    window.addEventListener("pointermove", handleGlobalPointerMove);
+    window.addEventListener("pointerup", handleGlobalPointerUp);
+    window.addEventListener("pointercancel", handleGlobalPointerUp);
+    window.addEventListener("blur", handleWindowBlur);
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    const el = elementRef.value;
+    if (!el || event.button !== 0 || event.pointerType !== "mouse") return;
+
+    // Nothing to drag when the content already fits within the viewport.
+    if (el.scrollWidth <= el.clientWidth) return;
+
+    activePointerId = event.pointerId;
+    startClientX = event.clientX;
+    startScrollLeft = el.scrollLeft;
+    dragged = false;
+    isDragging.value = true;
+
+    // Suppress native text selection / image drag while panning.
+    event.preventDefault();
+    el.setPointerCapture?.(event.pointerId);
+    addGlobalListeners();
+  };
+
+  /**
+   * Fires in the capture phase, before the click reaches any child link. After
+   * a real drag the synthetic click must not open the dragged link.
+   */
+  const handleClickCapture = (event: MouseEvent) => {
+    if (!dragged) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragged = false;
+  };
+
+  // Register the click guard with addEventListener so the element's template
+  // stays free of a click handler on a non-interactive element.
+  const stopClickGuard = watch(
+    elementRef,
+    (el, previous) => {
+      previous?.removeEventListener("click", handleClickCapture, true);
+      el?.addEventListener("click", handleClickCapture, true);
+    },
+    { immediate: true },
+  );
+
+  tryOnScopeDispose(() => {
+    stopClickGuard();
+    removeGlobalListeners();
+    const el = elementRef.value;
+    el?.removeEventListener("click", handleClickCapture, true);
+    if (activePointerId !== null && el?.hasPointerCapture?.(activePointerId)) {
+      el.releasePointerCapture(activePointerId);
+    }
+    activePointerId = null;
+    isDragging.value = false;
+  });
+
+  return {
+    isDragging,
+    onPointerDown,
+  };
+};

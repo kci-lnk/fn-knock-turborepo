@@ -113,6 +113,8 @@ describe("ConsoleApplicationBar", () => {
     expect(nav.classes()).toContain("overflow-hidden");
     expect(nav.classes()).toContain("shadow-none");
     expect(wrapper.get("ul").classes()).toContain("overflow-x-auto");
+    expect(wrapper.get("ul").classes()).toContain("cursor-grab");
+    expect(wrapper.get("ul").classes()).toContain("snap-x");
     const barLink = wrapper.get("ul a");
     expect(barLink.attributes("href")).toMatch(/:7999\/photos\/$/u);
 

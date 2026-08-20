@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
+import { useDragScroll } from "@/composables/useDragScroll";
 import { useConfigStore } from "@/store/config";
 import {
   buildConsoleApplicationItems,
@@ -21,6 +22,8 @@ const { t } = useI18n();
 const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
 const brokenIcons = ref<Set<string>>(new Set());
 const isDialogOpen = ref(false);
+const applicationListRef = ref<HTMLElement | null>(null);
+const { isDragging, onPointerDown } = useDragScroll(applicationListRef);
 const isVisible = computed(() =>
   shouldShowConsoleApplicationList({
     deploymentTarget: configStore.runtimeProfile?.deployment_target,
@@ -76,7 +79,12 @@ watch(
 
     <ul
       v-if="items.length > 0"
-      class="flex min-w-0 flex-1 snap-x items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      ref="applicationListRef"
+      :class="[
+        'flex min-w-0 flex-1 select-none items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+        isDragging ? 'cursor-grabbing snap-none' : 'cursor-grab snap-x',
+      ]"
+      @pointerdown="onPointerDown"
     >
       <li v-for="item in items" :key="item.key" class="shrink-0 snap-start">
         <a

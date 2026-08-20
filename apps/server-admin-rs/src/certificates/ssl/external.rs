@@ -2,7 +2,10 @@ use super::*;
 use axum::{
     body::to_bytes,
     extract::{DefaultBodyLimit, Request},
-    http::{HeaderMap, header::AUTHORIZATION},
+    http::{
+        HeaderMap,
+        header::{AUTHORIZATION, HOST},
+    },
 };
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
@@ -14,6 +17,7 @@ const EXTERNAL_CERTIFICATE_BODY_LIMIT: usize = 1024 * 1024;
 const MAX_BINDING_NAME_LENGTH: usize = 80;
 const MAX_BINDING_ERROR_LENGTH: usize = 500;
 const TOKEN_PREFIX: &str = "fnk_cert_";
+const PUBLIC_CERTIFICATE_DEPLOY_PATH_PREFIX: &str = "/__certificates__";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct ExternalCertificateBinding {
@@ -37,6 +41,16 @@ struct ExternalCertificateBinding {
     last_valid_to: Option<String>,
     #[serde(default)]
     last_dns_names: Vec<String>,
+    #[serde(default)]
+    last_replaced_certificate_count: usize,
+    #[serde(default)]
+    last_replaced_sources: Vec<String>,
+    #[serde(default)]
+    last_disabled_external_binding_count: usize,
+    #[serde(default)]
+    last_disabled_acme_renewal_count: usize,
+    #[serde(default)]
+    last_takeover_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -56,12 +70,21 @@ pub(super) struct ExternalCertificateBindingData {
     last_dns_names: Vec<String>,
     deploy_path: String,
     deploy_port: u16,
+    #[schema(required = true)]
+    public_deploy_url: Option<String>,
+    public_deploy_status: String,
     setup_kind: String,
     request_method: Option<String>,
     request_body_template: Option<String>,
     success_marker: Option<String>,
     script_template: Option<String>,
     usage_instructions: Option<String>,
+    last_replaced_certificate_count: usize,
+    last_replaced_sources: Vec<String>,
+    last_disabled_external_binding_count: usize,
+    last_disabled_acme_renewal_count: usize,
+    #[schema(required = true)]
+    last_takeover_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -98,6 +121,10 @@ pub(super) struct ExternalCertificateDeployData {
     fingerprint_sha256: String,
     valid_to: String,
     dns_names: Vec<String>,
+    replaced_certificate_count: usize,
+    replaced_sources: Vec<String>,
+    disabled_external_binding_count: usize,
+    disabled_acme_renewal_count: usize,
 }
 
 #[derive(Debug)]
@@ -249,6 +276,20 @@ struct PreparedExternalCertificateUpdate {
     changed: bool,
     should_sync_gateway: bool,
     is_active: bool,
+    takeover: ExternalCertificateTakeover,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ExternalCertificateTakeover {
+    replaced_certificate_ids: BTreeSet<String>,
+    replaced_sources: BTreeSet<String>,
+    acme_application_ids: BTreeSet<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ExternalCertificateDeploymentEndpoints {
+    public_deploy_base_url: Option<String>,
+    public_deploy_status: String,
 }
 
 #[derive(Debug)]
@@ -323,6 +364,10 @@ pub(crate) fn external_certificate_routes() -> Router<AppState> {
     external_certificate_openapi_routes().into()
 }
 
+pub(crate) fn public_external_certificate_routes() -> Router<AppState> {
+    public_external_certificate_openapi_routes().into()
+}
+
 pub(crate) fn external_certificate_openapi_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new().routes(
         routes!(deploy_external_certificate)
@@ -330,9 +375,85 @@ pub(crate) fn external_certificate_openapi_routes() -> OpenApiRouter<AppState> {
     )
 }
 
+pub(crate) fn public_external_certificate_openapi_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(
+        routes!(deploy_public_external_certificate)
+            .layer(DefaultBodyLimit::max(EXTERNAL_CERTIFICATE_BODY_LIMIT)),
+    )
+}
+
+async fn external_certificate_deployment_endpoints(
+    state: &AppState,
+) -> ExternalCertificateDeploymentEndpoints {
+    let Ok(config) = state.storage.store.get_config().await else {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "auth_host_unconfigured".to_string(),
+        };
+    };
+    let auth = crate::proxy_config::build_gateway_auth_config(&config);
+    let auth_host = auth
+        .get("auth_host")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let Some(auth_host) = auth_host else {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "auth_host_unconfigured".to_string(),
+        };
+    };
+    let public_base_url = auth
+        .get("public_auth_base_url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let Some(public_base_url) = public_base_url else {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "auth_host_unconfigured".to_string(),
+        };
+    };
+    let Ok(url) = url::Url::parse(public_base_url) else {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "https_required".to_string(),
+        };
+    };
+    if url.scheme() != "https" {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "https_required".to_string(),
+        };
+    }
+    let Ok(auth_authority) = auth_host.parse::<http::uri::Authority>() else {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "auth_host_unconfigured".to_string(),
+        };
+    };
+    let mut public_url = url::Url::parse("https://certificate-deploy.invalid")
+        .expect("static certificate deployment base URL must parse");
+    if public_url.set_host(Some(auth_authority.host())).is_err()
+        || public_url
+            .set_port(url.port().or_else(|| auth_authority.port_u16()))
+            .is_err()
+    {
+        return ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: None,
+            public_deploy_status: "auth_host_unconfigured".to_string(),
+        };
+    }
+    ExternalCertificateDeploymentEndpoints {
+        public_deploy_base_url: Some(public_url.as_str().trim_end_matches('/').to_string()),
+        public_deploy_status: "ready".to_string(),
+    }
+}
+
 fn binding_view(
     binding: &ExternalCertificateBinding,
     deploy_port: u16,
+    endpoints: &ExternalCertificateDeploymentEndpoints,
 ) -> ExternalCertificateBindingData {
     let adapter = provider_adapter(&binding.provider).unwrap_or(&CERTD_PROVIDER_ADAPTER);
     let (
@@ -367,6 +488,12 @@ fn binding_view(
             Some(usage_instructions.to_string()),
         ),
     };
+    let public_deploy_url = endpoints.public_deploy_base_url.as_ref().map(|base| {
+        format!(
+            "{base}{PUBLIC_CERTIFICATE_DEPLOY_PATH_PREFIX}/{}",
+            binding.id
+        )
+    });
     ExternalCertificateBindingData {
         id: binding.id.clone(),
         name: binding.name.clone(),
@@ -383,12 +510,19 @@ fn binding_view(
         last_dns_names: binding.last_dns_names.clone(),
         deploy_path: format!("/api/integrations/certificates/{}", binding.id),
         deploy_port,
+        public_deploy_url,
+        public_deploy_status: endpoints.public_deploy_status.clone(),
         setup_kind: setup_kind.to_string(),
         request_method,
         request_body_template,
         success_marker,
         script_template,
         usage_instructions,
+        last_replaced_certificate_count: binding.last_replaced_certificate_count,
+        last_replaced_sources: binding.last_replaced_sources.clone(),
+        last_disabled_external_binding_count: binding.last_disabled_external_binding_count,
+        last_disabled_acme_renewal_count: binding.last_disabled_acme_renewal_count,
+        last_takeover_at: binding.last_takeover_at.clone(),
     }
 }
 
@@ -526,6 +660,33 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
+fn normalized_request_host(headers: &HeaderMap) -> Option<String> {
+    let authority = headers.get(HOST)?.to_str().ok()?.trim();
+    let authority = authority.parse::<http::uri::Authority>().ok()?;
+    let host = authority
+        .host()
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    (!host.is_empty()).then_some(host)
+}
+
+async fn public_deploy_host_matches(state: &AppState, headers: &HeaderMap) -> bool {
+    let Some(request_host) = normalized_request_host(headers) else {
+        return false;
+    };
+    let Ok(config) = state.storage.store.get_config().await else {
+        return false;
+    };
+    let auth = crate::proxy_config::build_gateway_auth_config(&config);
+    auth.get("auth_host")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
+        .filter(|host| !host.is_empty())
+        .is_some_and(|host| host == request_host)
+}
+
 fn certificate_metadata(cert: &str) -> Result<CertificateMetadata, String> {
     let mut remaining = cert.as_bytes();
     let mut leaf = None;
@@ -640,13 +801,28 @@ fn validate_external_certificate(
     Ok((cert, key, metadata))
 }
 
+fn normalized_domain_set(values: &[String]) -> BTreeSet<String> {
+    values
+        .iter()
+        .map(|value| crate::certificates::domain_utils::normalize_domain_name(value))
+        .filter(|value| !value.is_empty())
+        .collect()
+}
+
+fn stored_certificate_metadata(certificate: &Value) -> Option<CertificateMetadata> {
+    certificate
+        .get("cert")
+        .and_then(Value::as_str)
+        .and_then(|cert| certificate_metadata(cert).ok())
+}
+
 fn prepare_external_certificate_update(
     config: &Value,
     binding: &ExternalCertificateBinding,
     cert: &str,
     key: &str,
     metadata: &CertificateMetadata,
-) -> Result<(Value, bool, bool, bool), ExternalDeployError> {
+) -> Result<(Value, bool, bool, bool, ExternalCertificateTakeover), ExternalDeployError> {
     let ssl = normalize_ssl_config(config.get("ssl"));
     let certificates = ssl
         .get("certificates")
@@ -659,18 +835,72 @@ fn prepare_external_certificate_update(
             item.get("id").and_then(Value::as_str) == Some(binding.certificate_id.as_str())
         })
         .cloned();
+    let incoming_domains = normalized_domain_set(&metadata.dns_names);
+    let mut takeover = ExternalCertificateTakeover::default();
+    for candidate in &certificates {
+        let candidate_id = candidate.get("id").and_then(Value::as_str).unwrap_or("");
+        if candidate_id.is_empty() || candidate_id == binding.certificate_id {
+            continue;
+        }
+        let Some(candidate_metadata) = stored_certificate_metadata(candidate) else {
+            continue;
+        };
+        let candidate_domains = normalized_domain_set(&candidate_metadata.dns_names);
+        if candidate_domains.is_disjoint(&incoming_domains) {
+            continue;
+        }
+        if candidate_domains != incoming_domains {
+            return Err(ExternalDeployError::Conflict(
+                "Incoming certificate partially overlaps an existing certificate; resolve the overlapping SANs in the certificate library before retrying"
+                    .to_string(),
+            ));
+        }
+        if metadata.not_after_ms < candidate_metadata.not_after_ms {
+            return Err(ExternalDeployError::Conflict(format!(
+                "Incoming certificate expires before an existing same-SAN certificate ({})",
+                candidate_metadata.valid_to
+            )));
+        }
+        takeover
+            .replaced_certificate_ids
+            .insert(candidate_id.to_string());
+        let source = normalize_certificate_source(candidate.get("source").and_then(Value::as_str));
+        takeover.replaced_sources.insert(source.to_string());
+        if source == "acme"
+            && let Some(application_id) = candidate
+                .get("source_ref_id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        {
+            takeover
+                .acme_application_ids
+                .insert(application_id.to_string());
+        }
+    }
     let active_id = ssl
         .get("active_cert_id")
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    let is_active = active_id == binding.certificate_id || active_id.is_empty();
+    let is_active = active_id == binding.certificate_id
+        || active_id.is_empty()
+        || takeover.replaced_certificate_ids.contains(&active_id);
 
     if let Some(existing) = existing.as_ref() {
         let existing_cert = existing.get("cert").and_then(Value::as_str).unwrap_or("");
         let existing_key = existing.get("key").and_then(Value::as_str).unwrap_or("");
-        if existing_cert.trim() == cert && existing_key.trim() == key {
-            return Ok((ssl, false, false, active_id == binding.certificate_id));
+        if existing_cert.trim() == cert
+            && existing_key.trim() == key
+            && takeover.replaced_certificate_ids.is_empty()
+        {
+            return Ok((
+                ssl,
+                false,
+                false,
+                active_id == binding.certificate_id,
+                ExternalCertificateTakeover::default(),
+            ));
         }
         if let Ok(existing_metadata) = certificate_metadata(existing_cert)
             && metadata.not_after_ms < existing_metadata.not_after_ms
@@ -707,7 +937,8 @@ fn prepare_external_certificate_update(
     let mut next_certificates = certificates
         .into_iter()
         .filter(|item| {
-            item.get("id").and_then(Value::as_str) != Some(binding.certificate_id.as_str())
+            let id = item.get("id").and_then(Value::as_str).unwrap_or("");
+            id != binding.certificate_id && !takeover.replaced_certificate_ids.contains(id)
         })
         .collect::<Vec<_>>();
     next_certificates.insert(0, Value::Object(certificate));
@@ -720,7 +951,7 @@ fn prepare_external_certificate_update(
     }
     let should_sync_gateway =
         is_active || next_ssl.get("deployment_mode").and_then(Value::as_str) == Some("multi_sni");
-    Ok((next_ssl, true, should_sync_gateway, is_active))
+    Ok((next_ssl, true, should_sync_gateway, is_active, takeover))
 }
 
 async fn prepare_and_store_external_certificate(
@@ -738,7 +969,7 @@ async fn prepare_and_store_external_certificate(
             .await
             .map_err(|error| ExternalDeployError::Storage(error.to_string()))?;
         let previous_ssl = config.get("ssl").cloned();
-        let (next_ssl, changed, should_sync_gateway, is_active) =
+        let (next_ssl, changed, should_sync_gateway, is_active, takeover) =
             prepare_external_certificate_update(&config, binding, cert, key, metadata)?;
         if !changed {
             return Ok(PreparedExternalCertificateUpdate {
@@ -747,6 +978,7 @@ async fn prepare_and_store_external_certificate(
                 changed,
                 should_sync_gateway,
                 is_active,
+                takeover,
             });
         }
         let stored = state
@@ -763,6 +995,7 @@ async fn prepare_and_store_external_certificate(
                 changed,
                 should_sync_gateway,
                 is_active,
+                takeover,
             });
         }
     }
@@ -774,6 +1007,7 @@ async fn prepare_and_store_external_certificate(
 async fn rollback_external_certificate(
     state: &AppState,
     prepared: &PreparedExternalCertificateUpdate,
+    reapply_gateway: bool,
 ) -> Result<(), ExternalDeployError> {
     let restored = state
         .storage
@@ -791,9 +1025,12 @@ async fn rollback_external_certificate(
             )
         })?;
     crate::fnos_certificate_sync::notify_certificate_library_changed(state);
-    sync_ssl_deployment_to_gateway(state, Some(&restored))
-        .await
-        .map_err(|error| ExternalDeployError::Gateway(error.to_string()))
+    if reapply_gateway {
+        sync_ssl_deployment_to_gateway(state, Some(&restored))
+            .await
+            .map_err(|error| ExternalDeployError::Gateway(error.to_string()))?;
+    }
+    Ok(())
 }
 
 fn binding_has_success_metadata(
@@ -816,11 +1053,12 @@ async fn save_binding_deployment_result(
     binding_index: usize,
     metadata: Option<&CertificateMetadata>,
     error: Option<&str>,
+    takeover: Option<(&ExternalCertificateTakeover, usize, usize)>,
 ) -> Result<(), ExternalDeployError> {
     let now = time_utils::now_iso();
     let binding = &mut bindings[binding_index];
     binding.updated_at = now.clone();
-    binding.last_deployed_at = Some(now);
+    binding.last_deployed_at = Some(now.clone());
     if let Some(error) = error {
         binding.last_result = Some("failed".to_string());
         binding.last_error = Some(truncate_binding_error(error));
@@ -830,6 +1068,17 @@ async fn save_binding_deployment_result(
         binding.last_fingerprint_sha256 = Some(metadata.fingerprint_sha256.clone());
         binding.last_valid_to = Some(metadata.valid_to.clone());
         binding.last_dns_names = metadata.dns_names.clone();
+        if let Some((takeover, disabled_external_bindings, disabled_acme_renewals)) = takeover {
+            binding.last_replaced_certificate_count = takeover.replaced_certificate_ids.len();
+            binding.last_replaced_sources = takeover.replaced_sources.iter().cloned().collect();
+            binding.last_disabled_external_binding_count = disabled_external_bindings;
+            binding.last_disabled_acme_renewal_count = disabled_acme_renewals;
+            binding.last_takeover_at = if takeover.replaced_certificate_ids.is_empty() {
+                None
+            } else {
+                Some(now.clone())
+            };
+        }
     }
     save_bindings(state, bindings)
         .await
@@ -856,7 +1105,8 @@ async fn record_binding_deployment_failure(
         "external certificate deployment failed"
     );
     if let Err(error) =
-        save_binding_deployment_result(state, bindings, binding_index, None, Some(&detail)).await
+        save_binding_deployment_result(state, bindings, binding_index, None, Some(&detail), None)
+            .await
     {
         tracing::warn!(
             %binding_id,
@@ -869,6 +1119,63 @@ async fn record_binding_deployment_failure(
     }
 }
 
+fn disable_superseded_external_bindings(
+    bindings: &mut [ExternalCertificateBinding],
+    current_binding_index: usize,
+    takeover: &ExternalCertificateTakeover,
+    current_binding_id: &str,
+) -> usize {
+    let now = time_utils::now_iso();
+    let mut disabled = 0;
+    for (index, binding) in bindings.iter_mut().enumerate() {
+        if index == current_binding_index
+            || !binding.enabled
+            || !takeover
+                .replaced_certificate_ids
+                .contains(&binding.certificate_id)
+        {
+            continue;
+        }
+        binding.enabled = false;
+        binding.updated_at = now.clone();
+        binding.last_result = Some("superseded".to_string());
+        binding.last_error = Some(truncate_binding_error(&format!(
+            "Certificate ownership was transferred to external binding {current_binding_id}"
+        )));
+        disabled += 1;
+    }
+    disabled
+}
+
+async fn rollback_external_takeover(
+    state: &AppState,
+    prepared: &PreparedExternalCertificateUpdate,
+    previous_bindings: &[ExternalCertificateBinding],
+    acme_snapshot: Option<&crate::acme::ExternalCertificateTakeoverSnapshot>,
+    reapply_gateway: bool,
+) -> Result<(), String> {
+    let mut failures = Vec::new();
+    if let Some(snapshot) = acme_snapshot
+        && let Err(error) =
+            crate::acme::restore_external_certificate_takeover(state, snapshot).await
+    {
+        failures.push(format!("ACME state: {error}"));
+    }
+    if let Err(error) = save_bindings(state, previous_bindings).await {
+        failures.push(format!("external bindings: {error}"));
+    }
+    if prepared.changed
+        && let Err(error) = rollback_external_certificate(state, prepared, reapply_gateway).await
+    {
+        failures.push(format!("SSL/gateway: {error:?}"));
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/admin/ssl/external-bindings",
@@ -877,11 +1184,12 @@ async fn record_binding_deployment_failure(
     responses((status = 200, description = "External certificate deployment bindings"))
 )]
 pub(super) async fn list_external_certificate_bindings(State(state): State<AppState>) -> Response {
+    let endpoints = external_certificate_deployment_endpoints(&state).await;
     match load_bindings(&state).await {
         Ok(bindings) => response::ok(
             bindings
                 .iter()
-                .map(|binding| binding_view(binding, state.settings.backend_port))
+                .map(|binding| binding_view(binding, state.settings.backend_port, &endpoints))
                 .collect::<Vec<_>>(),
         )
         .into_response(),
@@ -934,13 +1242,19 @@ pub(super) async fn create_external_certificate_binding(
         last_fingerprint_sha256: None,
         last_valid_to: None,
         last_dns_names: Vec::new(),
+        last_replaced_certificate_count: 0,
+        last_replaced_sources: Vec::new(),
+        last_disabled_external_binding_count: 0,
+        last_disabled_acme_renewal_count: 0,
+        last_takeover_at: None,
     };
     bindings.push(binding.clone());
     if let Err(error) = save_bindings(&state, &bindings).await {
         return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
     }
+    let endpoints = external_certificate_deployment_endpoints(&state).await;
     credential_response(ExternalCertificateBindingCredentialData {
-        binding: binding_view(&binding, state.settings.backend_port),
+        binding: binding_view(&binding, state.settings.backend_port, &endpoints),
         token,
     })
 }
@@ -980,10 +1294,12 @@ pub(super) async fn update_external_certificate_binding(
         binding.enabled = enabled;
     }
     binding.updated_at = time_utils::now_iso();
-    let view = binding_view(binding, state.settings.backend_port);
+    let binding = binding.clone();
     if let Err(error) = save_bindings(&state, &bindings).await {
         return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
     }
+    let endpoints = external_certificate_deployment_endpoints(&state).await;
+    let view = binding_view(&binding, state.settings.backend_port, &endpoints);
     response::ok(view).into_response()
 }
 
@@ -1012,10 +1328,12 @@ pub(super) async fn rotate_external_certificate_binding_token(
     let token = new_deployment_token();
     binding.token_hash = deployment_token_hash(&token);
     binding.updated_at = time_utils::now_iso();
-    let view = binding_view(binding, state.settings.backend_port);
+    let binding = binding.clone();
     if let Err(error) = save_bindings(&state, &bindings).await {
         return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
     }
+    let endpoints = external_certificate_deployment_endpoints(&state).await;
+    let view = binding_view(&binding, state.settings.backend_port, &endpoints);
     credential_response(ExternalCertificateBindingCredentialData {
         binding: view,
         token,
@@ -1064,6 +1382,37 @@ pub(super) async fn delete_external_certificate_binding(
 pub(super) async fn deploy_external_certificate(
     State(state): State<AppState>,
     AxumPath(binding_id): AxumPath<String>,
+    request: Request,
+) -> Response {
+    deploy_external_certificate_inner(state, binding_id, request).await
+}
+
+#[utoipa::path(
+    put,
+    path = "/__certificates__/{binding_id}",
+    tag = "ssl",
+    operation_id = "put_public_certificates_by_binding_id",
+    request_body = ExternalCertificateDeployBody,
+    params(("binding_id" = String, Path, description = "External certificate binding identifier")),
+    responses((status = 200, description = "Deployed external certificate through the authentication host"))
+)]
+async fn deploy_public_external_certificate(
+    State(state): State<AppState>,
+    AxumPath(binding_id): AxumPath<String>,
+    request: Request,
+) -> Response {
+    let mut response = if !public_deploy_host_matches(&state, request.headers()).await {
+        ExternalDeployError::Unavailable.into_response()
+    } else {
+        deploy_external_certificate_inner(state, binding_id, request).await
+    };
+    crate::http_utils::apply_no_store_headers(response.headers_mut());
+    response
+}
+
+async fn deploy_external_certificate_inner(
+    state: AppState,
+    binding_id: String,
     request: Request,
 ) -> Response {
     let supplied_token = bearer_token(request.headers())
@@ -1144,13 +1493,88 @@ pub(super) async fn deploy_external_certificate(
             return error.into_response();
         }
     };
+    let previous_bindings = bindings.clone();
+    let disabled_external_binding_count = disable_superseded_external_bindings(
+        &mut bindings,
+        binding_index,
+        &prepared.takeover,
+        &binding.id,
+    );
+    let acme_snapshot = match crate::acme::apply_external_certificate_takeover(
+        &state,
+        &prepared.takeover.replaced_certificate_ids,
+        &prepared.takeover.acme_application_ids,
+    )
+    .await
+    {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let detail = format!("failed to disable superseded ACME automation: {error}");
+            let rollback =
+                rollback_external_takeover(&state, &prepared, &previous_bindings, None, false)
+                    .await;
+            bindings = previous_bindings;
+            record_binding_deployment_failure(
+                &state,
+                &mut bindings,
+                binding_index,
+                "storage",
+                &detail,
+            )
+            .await;
+            return match rollback {
+                Ok(()) => ExternalDeployError::Storage(detail).into_response(),
+                Err(rollback_error) => ExternalDeployError::GatewayRollbackFailed(format!(
+                    "{detail}; rollback failed: {rollback_error}"
+                ))
+                .into_response(),
+            };
+        }
+    };
+    let disabled_acme_renewal_count = acme_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.disabled_renewal_count)
+        .unwrap_or(0);
+    // Revoke superseded binding credentials before applying the new gateway
+    // configuration. This closes the window in which an old external binding
+    // could still authenticate after its certificate has been removed.
+    if disabled_external_binding_count > 0
+        && let Err(error) = save_bindings(&state, &bindings).await
+    {
+        let detail = format!("failed to disable superseded external bindings: {error}");
+        let rollback = rollback_external_takeover(
+            &state,
+            &prepared,
+            &previous_bindings,
+            acme_snapshot.as_ref(),
+            false,
+        )
+        .await;
+        bindings = previous_bindings;
+        record_binding_deployment_failure(&state, &mut bindings, binding_index, "storage", &detail)
+            .await;
+        return match rollback {
+            Ok(()) => ExternalDeployError::Storage(detail).into_response(),
+            Err(rollback_error) => ExternalDeployError::GatewayRollbackFailed(format!(
+                "{detail}; rollback failed: {rollback_error}"
+            ))
+            .into_response(),
+        };
+    }
     let mut gateway_applied = false;
     if prepared.changed && prepared.should_sync_gateway {
         if let Err(error) =
             sync_ssl_deployment_to_gateway(&state, Some(&prepared.next_config)).await
         {
             let deployment_error = error.to_string();
-            let rollback = rollback_external_certificate(&state, &prepared).await;
+            let rollback = rollback_external_takeover(
+                &state,
+                &prepared,
+                &previous_bindings,
+                acme_snapshot.as_ref(),
+                true,
+            )
+            .await;
             let (detail, response_error) = match rollback {
                 Ok(()) => {
                     let detail = deployment_error;
@@ -1158,11 +1582,12 @@ pub(super) async fn deploy_external_certificate(
                     (detail, response_error)
                 }
                 Err(rollback_error) => {
-                    let detail = format!("{deployment_error}; rollback failed: {rollback_error:?}");
+                    let detail = format!("{deployment_error}; rollback failed: {rollback_error}");
                     let response_error = ExternalDeployError::GatewayRollbackFailed(detail.clone());
                     (detail, response_error)
                 }
             };
+            bindings = previous_bindings;
             record_binding_deployment_failure(
                 &state,
                 &mut bindings,
@@ -1186,10 +1611,33 @@ pub(super) async fn deploy_external_certificate(
             binding_index,
             Some(&metadata),
             None,
+            Some((
+                &prepared.takeover,
+                disabled_external_binding_count,
+                disabled_acme_renewal_count,
+            )),
         )
         .await
     {
-        return error.into_response();
+        let detail = format!("certificate deployment audit state failed: {error:?}");
+        let rollback = rollback_external_takeover(
+            &state,
+            &prepared,
+            &previous_bindings,
+            acme_snapshot.as_ref(),
+            gateway_applied,
+        )
+        .await;
+        return match rollback {
+            Ok(()) => error.into_response(),
+            Err(rollback_error) => ExternalDeployError::GatewayRollbackFailed(format!(
+                "{detail}; rollback failed: {rollback_error}"
+            ))
+            .into_response(),
+        };
+    }
+    if prepared.changed {
+        crate::panel_sync::notify_source_changed(&state);
     }
     tracing::info!(
         binding_id = %binding.id,
@@ -1199,6 +1647,9 @@ pub(super) async fn deploy_external_certificate(
         gateway_applied,
         fingerprint_sha256 = %metadata.fingerprint_sha256,
         valid_to = %metadata.valid_to,
+        replaced_certificate_count = prepared.takeover.replaced_certificate_ids.len(),
+        disabled_external_binding_count,
+        disabled_acme_renewal_count,
         "external certificate deployment completed"
     );
     response::ok(ExternalCertificateDeployData {
@@ -1210,6 +1661,10 @@ pub(super) async fn deploy_external_certificate(
         fingerprint_sha256: metadata.fingerprint_sha256,
         valid_to: metadata.valid_to,
         dns_names: metadata.dns_names,
+        replaced_certificate_count: prepared.takeover.replaced_certificate_ids.len(),
+        replaced_sources: prepared.takeover.replaced_sources.into_iter().collect(),
+        disabled_external_binding_count,
+        disabled_acme_renewal_count,
     })
     .into_response()
 }
@@ -1240,6 +1695,18 @@ mod tests {
             last_fingerprint_sha256: None,
             last_valid_to: None,
             last_dns_names: Vec::new(),
+            last_replaced_certificate_count: 0,
+            last_replaced_sources: Vec::new(),
+            last_disabled_external_binding_count: 0,
+            last_disabled_acme_renewal_count: 0,
+            last_takeover_at: None,
+        }
+    }
+
+    fn test_endpoints() -> ExternalCertificateDeploymentEndpoints {
+        ExternalCertificateDeploymentEndpoints {
+            public_deploy_base_url: Some("https://auth.example.com".to_string()),
+            public_deploy_status: "ready".to_string(),
         }
     }
 
@@ -1352,7 +1819,8 @@ mod tests {
     #[test]
     fn provider_adapters_emit_their_native_setup_contracts() {
         let binding = test_binding();
-        let view = binding_view(&binding, 7998);
+        let endpoints = test_endpoints();
+        let view = binding_view(&binding, 7998, &endpoints);
         assert_eq!(view.setup_kind, "webhook");
         assert_eq!(view.request_method.as_deref(), Some("PUT"));
         assert_eq!(
@@ -1362,12 +1830,16 @@ mod tests {
         assert!(view.script_template.is_none());
         assert_eq!(view.deploy_path, "/api/integrations/certificates/binding-1");
         assert_eq!(view.deploy_port, 7998);
+        assert_eq!(
+            view.public_deploy_url.as_deref(),
+            Some("https://auth.example.com/__certificates__/binding-1")
+        );
         assert_eq!(normalize_provider(None).as_deref(), Ok("certd"));
 
         for provider in ["acme_sh", "lego", "certbot"] {
             let mut binding = test_binding();
             binding.provider = provider.to_string();
-            let view = binding_view(&binding, 7998);
+            let view = binding_view(&binding, 7998, &endpoints);
             let script = view.script_template.as_deref().unwrap();
             assert_eq!(view.setup_kind, "deploy_hook");
             assert!(view.request_method.is_none());
@@ -1394,6 +1866,7 @@ mod tests {
                 ..test_binding()
             },
             7998,
+            &endpoints,
         );
         assert!(acme_sh.script_template.unwrap().contains("$5"));
         let lego = binding_view(
@@ -1402,6 +1875,7 @@ mod tests {
                 ..test_binding()
             },
             7998,
+            &endpoints,
         );
         let lego_script = lego.script_template.unwrap();
         assert!(lego_script.contains("LEGO_HOOK_CERT_PATH"));
@@ -1413,6 +1887,7 @@ mod tests {
                 ..test_binding()
             },
             7998,
+            &endpoints,
         );
         assert!(certbot.script_template.unwrap().contains("RENEWED_LINEAGE"));
 
@@ -1487,21 +1962,30 @@ mod tests {
         let binding = test_binding();
         let (cert, key) = generated_certificate(&["example.com"]);
         let metadata = certificate_metadata(&cert).unwrap();
-        let (first_ssl, changed, should_sync, active) =
+        let (first_ssl, changed, should_sync, active, takeover) =
             prepare_external_certificate_update(&json!({}), &binding, &cert, &key, &metadata)
                 .unwrap();
         assert!((changed, should_sync, active) == (true, true, true));
+        assert!(takeover.replaced_certificate_ids.is_empty());
         assert_eq!(first_ssl["active_cert_id"], json!(binding.certificate_id));
         assert_eq!(first_ssl["certificates"].as_array().unwrap().len(), 1);
 
         let config = json!({ "ssl": first_ssl });
-        let (_, changed, should_sync, active) =
+        let (_, changed, should_sync, active, _) =
             prepare_external_certificate_update(&config, &binding, &cert, &key, &metadata).unwrap();
         assert!((changed, should_sync, active) == (false, false, true));
 
         let (manual_cert, manual_key) = generated_certificate(&["manual.example.com"]);
         let (incoming_cert, incoming_key) = generated_certificate(&["new.example.com"]);
         let incoming_metadata = certificate_metadata(&incoming_cert).unwrap();
+        let manual_metadata = certificate_metadata(&manual_cert).unwrap();
+        assert!(
+            normalized_domain_set(&manual_metadata.dns_names)
+                .is_disjoint(&normalized_domain_set(&incoming_metadata.dns_names)),
+            "manual={:?} incoming={:?}",
+            manual_metadata.dns_names,
+            incoming_metadata.dns_names
+        );
         let inactive_config = json!({
             "ssl": {
                 "deployment_mode": "single_active",
@@ -1517,7 +2001,7 @@ mod tests {
                 }]
             }
         });
-        let (_, changed, should_sync, active) = prepare_external_certificate_update(
+        let (_, changed, should_sync, active, _) = prepare_external_certificate_update(
             &inactive_config,
             &binding,
             &incoming_cert,
@@ -1529,7 +2013,7 @@ mod tests {
 
         let mut multi_sni_config = inactive_config;
         multi_sni_config["ssl"]["deployment_mode"] = json!("multi_sni");
-        let (_, changed, should_sync, active) = prepare_external_certificate_update(
+        let (_, changed, should_sync, active, _) = prepare_external_certificate_update(
             &multi_sni_config,
             &binding,
             &incoming_cert,
@@ -1543,7 +2027,7 @@ mod tests {
         let renewed_metadata = certificate_metadata(&renewed_cert).unwrap();
         let mut active_multi_sni_config = config;
         active_multi_sni_config["ssl"]["deployment_mode"] = json!("multi_sni");
-        let (_, changed, should_sync, active) = prepare_external_certificate_update(
+        let (_, changed, should_sync, active, _) = prepare_external_certificate_update(
             &active_multi_sni_config,
             &binding,
             &renewed_cert,
@@ -1552,6 +2036,86 @@ mod tests {
         )
         .unwrap();
         assert!((changed, should_sync, active) == (true, true, true));
+    }
+
+    #[test]
+    fn exact_normalized_san_set_is_taken_over_but_partial_overlap_is_rejected() {
+        let binding = test_binding();
+        let (existing_cert, existing_key) =
+            generated_certificate(&["EXAMPLE.COM.", "www.example.com"]);
+        let (incoming_cert, incoming_key) =
+            generated_certificate(&["www.example.com", "example.com"]);
+        let incoming_metadata = certificate_metadata(&incoming_cert).unwrap();
+        let config = json!({
+            "ssl": {
+                "deployment_mode": "multi_sni",
+                "active_cert_id": "manual-1",
+                "certificates": [{
+                    "id": "manual-1",
+                    "source": "manual",
+                    "cert": existing_cert,
+                    "key": existing_key
+                }]
+            }
+        });
+        let (next, changed, should_sync, active, takeover) = prepare_external_certificate_update(
+            &config,
+            &binding,
+            &incoming_cert,
+            &incoming_key,
+            &incoming_metadata,
+        )
+        .unwrap();
+        assert!((changed, should_sync, active) == (true, true, true));
+        assert_eq!(
+            takeover.replaced_certificate_ids,
+            BTreeSet::from(["manual-1".to_string()])
+        );
+        assert_eq!(
+            takeover.replaced_sources,
+            BTreeSet::from(["manual".to_string()])
+        );
+        assert_eq!(next["active_cert_id"], json!(binding.certificate_id));
+        assert_eq!(next["certificates"].as_array().unwrap().len(), 1);
+
+        let (partial_cert, partial_key) =
+            generated_certificate(&["example.com", "api.example.com"]);
+        let partial_metadata = certificate_metadata(&partial_cert).unwrap();
+        let error = prepare_external_certificate_update(
+            &config,
+            &binding,
+            &partial_cert,
+            &partial_key,
+            &partial_metadata,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, ExternalDeployError::Conflict(message) if message.contains("partially overlaps"))
+        );
+    }
+
+    #[test]
+    fn takeover_disables_only_superseded_external_bindings() {
+        let mut current = test_binding();
+        current.certificate_id = "external-current".to_string();
+        let mut superseded = test_binding();
+        superseded.id = "binding-old".to_string();
+        superseded.certificate_id = "external-old".to_string();
+        let mut unrelated = test_binding();
+        unrelated.id = "binding-unrelated".to_string();
+        unrelated.certificate_id = "external-unrelated".to_string();
+        let takeover = ExternalCertificateTakeover {
+            replaced_certificate_ids: BTreeSet::from(["external-old".to_string()]),
+            ..Default::default()
+        };
+        let mut bindings = vec![current, superseded, unrelated];
+        assert_eq!(
+            disable_superseded_external_bindings(&mut bindings, 0, &takeover, "binding-1"),
+            1
+        );
+        assert!(!bindings[1].enabled);
+        assert_eq!(bindings[1].last_result.as_deref(), Some("superseded"));
+        assert!(bindings[2].enabled);
     }
 
     #[test]
@@ -1739,6 +2303,217 @@ mod tests {
         assert_eq!(revoked.status(), StatusCode::NOT_FOUND);
         let config = state.storage.store.get_config().await.unwrap();
         assert_eq!(config["ssl"]["certificates"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn exact_san_takeover_disables_the_previous_external_binding_and_token() {
+        let (_directory, state) = test_state().await;
+        let current_token = new_deployment_token();
+        let old_token = new_deployment_token();
+        let mut current = test_binding();
+        current.token_hash = deployment_token_hash(&current_token);
+        let mut old = test_binding();
+        old.id = "binding-old".to_string();
+        old.certificate_id = "external-old".to_string();
+        old.token_hash = deployment_token_hash(&old_token);
+        save_bindings(&state, &[current.clone(), old.clone()])
+            .await
+            .unwrap();
+
+        let (active_cert, active_key) = generated_certificate(&["active.example.com"]);
+        let (old_cert, old_key) = generated_certificate(&["takeover.example.com"]);
+        state
+            .storage
+            .store
+            .save_config(&json!({
+                "ssl": {
+                    "deployment_mode": "single_active",
+                    "active_cert_id": "manual-active",
+                    "certificates": [
+                        {
+                            "id": "manual-active",
+                            "source": "manual",
+                            "cert": active_cert,
+                            "key": active_key
+                        },
+                        {
+                            "id": old.certificate_id,
+                            "source": "external",
+                            "source_ref_id": old.id,
+                            "cert": old_cert,
+                            "key": old_key
+                        }
+                    ]
+                }
+            }))
+            .await
+            .unwrap();
+        let (incoming_cert, incoming_key) = generated_certificate(&["takeover.example.com"]);
+        let deployed = deploy_external_certificate(
+            State(state.clone()),
+            AxumPath(current.id.clone()),
+            deployment_request(&current_token, &incoming_cert, &incoming_key),
+        )
+        .await;
+        assert_eq!(deployed.status(), StatusCode::OK);
+        let deployed = response_json(deployed).await;
+        assert_eq!(deployed["data"]["replaced_certificate_count"], json!(1));
+        assert_eq!(deployed["data"]["replaced_sources"], json!(["external"]));
+        assert_eq!(
+            deployed["data"]["disabled_external_binding_count"],
+            json!(1)
+        );
+        assert_eq!(deployed["data"]["gateway_applied"], json!(false));
+
+        let bindings = load_bindings(&state).await.unwrap();
+        assert!(bindings[0].enabled);
+        assert!(!bindings[1].enabled);
+        assert_eq!(bindings[1].last_result.as_deref(), Some("superseded"));
+        let takeover_at = bindings[0]
+            .last_takeover_at
+            .clone()
+            .expect("takeover time should be recorded");
+        let config = state.storage.store.get_config().await.unwrap();
+        let certificate_ids = config["ssl"]["certificates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|certificate| {
+                certificate
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<BTreeSet<_>>();
+        assert!(certificate_ids.contains(&current.certificate_id));
+        assert!(!certificate_ids.contains(&old.certificate_id));
+
+        let failed_retry = deploy_external_certificate(
+            State(state.clone()),
+            AxumPath(current.id.clone()),
+            deployment_request(&current_token, "not-a-certificate", "not-a-key"),
+        )
+        .await;
+        assert_eq!(failed_retry.status(), StatusCode::BAD_REQUEST);
+        let after_failure = load_bindings(&state).await.unwrap();
+        assert_eq!(after_failure[0].last_result.as_deref(), Some("failed"));
+        assert_eq!(
+            after_failure[0].last_takeover_at.as_deref(),
+            Some(takeover_at.as_str())
+        );
+        assert_eq!(after_failure[0].last_replaced_certificate_count, 1);
+
+        let revoked = deploy_external_certificate(
+            State(state),
+            AxumPath(old.id),
+            deployment_request(&old_token, &incoming_cert, &incoming_key),
+        )
+        .await;
+        assert_eq!(revoked.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn public_alias_enforces_auth_host_and_reuses_local_validation_limits() {
+        let (_directory, state) = test_state().await;
+        let token = new_deployment_token();
+        let mut binding = test_binding();
+        binding.token_hash = deployment_token_hash(&token);
+        save_bindings(&state, &[binding.clone()]).await.unwrap();
+        state
+            .storage
+            .store
+            .save_config(&json!({
+                "run_type": 3,
+                "host_mappings": [{
+                    "host": "auth.example.com",
+                    "target": "http://127.0.0.1:7997"
+                }],
+                "subdomain_mode": {
+                    "public_auth_base_url": "https://auth.example.com"
+                }
+            }))
+            .await
+            .unwrap();
+
+        let invalid_json = |host: &str, body: Body| {
+            Request::builder()
+                .header(HOST, host)
+                .header(AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(body)
+                .unwrap()
+        };
+        let wrong_host = deploy_public_external_certificate(
+            State(state.clone()),
+            AxumPath(binding.id.clone()),
+            invalid_json("other.example.com", Body::from("{")),
+        )
+        .await;
+        assert_eq!(wrong_host.status(), StatusCode::NOT_FOUND);
+
+        let public_invalid = deploy_public_external_certificate(
+            State(state.clone()),
+            AxumPath(binding.id.clone()),
+            invalid_json("AUTH.EXAMPLE.COM.:443", Body::from("{")),
+        )
+        .await;
+        assert_eq!(public_invalid.status(), StatusCode::BAD_REQUEST);
+        let local_invalid = deploy_external_certificate(
+            State(state.clone()),
+            AxumPath(binding.id.clone()),
+            invalid_json("127.0.0.1:18080", Body::from("{")),
+        )
+        .await;
+        assert_eq!(local_invalid.status(), StatusCode::BAD_REQUEST);
+
+        let oversized = deploy_public_external_certificate(
+            State(state.clone()),
+            AxumPath(binding.id.clone()),
+            invalid_json(
+                "auth.example.com",
+                Body::from(vec![b'x'; EXTERNAL_CERTIFICATE_BODY_LIMIT + 1]),
+            ),
+        )
+        .await;
+        assert_eq!(oversized.status(), StatusCode::PAYLOAD_TOO_LARGE);
+
+        let mut disabled = load_bindings(&state).await.unwrap();
+        disabled[0].enabled = false;
+        save_bindings(&state, &disabled).await.unwrap();
+        let disabled_response = deploy_public_external_certificate(
+            State(state),
+            AxumPath(binding.id),
+            invalid_json("auth.example.com", Body::from("{")),
+        )
+        .await;
+        assert_eq!(disabled_response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn public_deploy_url_is_rooted_on_the_configured_auth_host() {
+        let (_directory, state) = test_state().await;
+        state
+            .storage
+            .store
+            .save_config(&json!({
+                "run_type": 3,
+                "host_mappings": [{
+                    "host": "auth.example.com",
+                    "target": "http://127.0.0.1:7997"
+                }],
+                "subdomain_mode": {
+                    "public_auth_base_url": "https://unrelated.example.net:8443/nested?token=wrong"
+                }
+            }))
+            .await
+            .unwrap();
+
+        let endpoints = external_certificate_deployment_endpoints(&state).await;
+        assert_eq!(endpoints.public_deploy_status, "ready");
+        assert_eq!(
+            endpoints.public_deploy_base_url.as_deref(),
+            Some("https://auth.example.com:8443")
+        );
     }
 
     #[tokio::test]

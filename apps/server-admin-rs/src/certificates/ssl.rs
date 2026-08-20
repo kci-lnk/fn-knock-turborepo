@@ -51,7 +51,10 @@ use external::{
     delete_external_certificate_binding, list_external_certificate_bindings,
     rotate_external_certificate_binding_token, update_external_certificate_binding,
 };
-pub(crate) use external::{external_certificate_openapi_routes, external_certificate_routes};
+pub(crate) use external::{
+    external_certificate_openapi_routes, external_certificate_routes,
+    public_external_certificate_openapi_routes, public_external_certificate_routes,
+};
 use handlers::*;
 use handlers::{
     __path_activate_certificate, __path_active_cert_pem, __path_active_cert_zip,

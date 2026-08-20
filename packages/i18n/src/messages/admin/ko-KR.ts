@@ -3360,7 +3360,7 @@ export const koKRAdmin = {
       "사용 중인 인증서 도구를 선택하세요. 생성된 수신 구성을 도구에 복사하면 신규 및 갱신 인증서를 fn-knock으로 푸시할 수 있습니다.",
     externalSecurityTitle: "여기서는 인증서를 받으며 발급하지 않습니다",
     externalSecurityDescription:
-      "Certd, acme.sh, lego 또는 Certbot이 발급과 갱신을 담당하고, fn-knock은 수신 후 검증, 저장 및 게이트웨이 적용을 담당합니다. 활성 인증서가 없으면 처음 받은 인증서가 자동으로 활성화됩니다.",
+      "Certd, acme.sh, lego 또는 Certbot이 발급과 갱신을 담당합니다. 바인딩 Token은 인증서 관리자 자격 증명입니다. 소유자는 임의의 SAN을 푸시하고 동일 SAN의 모든 소스를 인계할 수 있습니다. 비밀번호 보관소에 저장하고 유출이 의심되면 즉시 교체하거나 비활성화하세요.",
     externalProviderLabel: "인증서 도구",
     externalNameLabel: "엔드포인트 이름",
     externalNamePlaceholder: "예: Certd 기본 인증서",
@@ -3368,12 +3368,23 @@ export const koKRAdmin = {
     externalCreate: "수신 엔드포인트 만들기",
     externalCredentialTitle: "다음 단계: 이 구성을 {provider}에 복사",
     externalCredentialDescription:
-      "인증서 배포 작업에 추가하고 한 번 테스트하세요. 이후 발급과 갱신은 fn-knock으로 푸시됩니다. Token은 한 번만 표시되므로 지금 설정을 완료하세요.",
-    externalLoopbackTitle: "기본 주소는 동일 호스트에서 푸시할 때 사용합니다",
+      "인증서 배포 작업에 추가하고 한 번 테스트하세요. 관리자 권한 Token은 한 번만 표시되므로 지금 설정을 완료하고 안전하게 저장하세요.",
+    externalPublicReadyTitle: "권장: HTTPS 인증 호스트를 통해 푸시",
+    externalPublicUnavailableTitle:
+      "공개 인증서 푸시를 아직 사용할 수 없습니다",
+    externalPublicReadyDescription:
+      "다른 컴퓨터의 작업에서 이 안전한 공개 URL을 직접 사용할 수 있습니다: {url}",
+    externalPublicUnconfiguredDescription:
+      "먼저 인증 하위 도메인을 구성하세요. 관리 포트를 노출하지 않고 fn-knock이 HTTPS 공개 푸시 URL을 자동 생성합니다.",
+    externalPublicHttpsRequiredDescription:
+      "인증 호스트가 HTTPS를 사용하지 않습니다. 공개 인증서 푸시 전에 HTTPS를 활성화하세요. 안전하지 않은 공개 HTTP URL은 생성되지 않습니다.",
+    externalLoopbackTitle: "로컬 호환 URL",
     externalLoopbackDescription:
-      "fn-knock은 로컬 주소 127.0.0.1:{port}에서만 인증서를 받습니다. 인증서 도구가 같은 호스트에서 실행되면 아래 주소를 그대로 사용할 수 있습니다. 다른 컴퓨터에서 푸시하려면 먼저 127.0.0.1:{port}를 접근 가능한 주소로 리버스 프록시한 뒤 푸시 URL의 호스트와 포트를 바꾸세요. 리버스 프록시는 HTTP 또는 HTTPS를 사용할 수 있습니다.",
+      "127.0.0.1:{port} URL은 동일 호스트 작업이나 인증 호스트 인증서·네트워크 장애 시를 위해 항상 유지됩니다. 이 관리 리스너를 인터넷에 직접 노출하지 마세요.",
     externalMethodLabel: "요청 방식",
     externalUrlLabel: "푸시 주소",
+    externalPublicUrlLabel: "권장 공개 푸시 URL",
+    externalLocalUrlLabel: "로컬 호환 푸시 URL",
     externalHeaderLabel: "인증 Header",
     externalBodyLabel: "푸시 내용",
     externalSuccessMarkerLabel: "성공 표시",
@@ -3388,6 +3399,7 @@ export const koKRAdmin = {
     externalDisabled: "일시 중지됨",
     externalLastSuccess: "최근 수신 성공",
     externalLastFailed: "최근 수신 실패",
+    externalSuperseded: "다른 바인딩이 인계함",
     externalDisable: "수신 일시 중지",
     externalEnable: "수신 재개",
     externalRename: "이름 저장",
@@ -3403,6 +3415,8 @@ export const koKRAdmin = {
     externalLastDeployment: "최근 수신",
     externalExpiresAt: "인증서 만료",
     externalDomains: "인증서 도메인",
+    externalTakeoverSummary:
+      "{time}에 동일 SAN 인증서 {certificates}개(소스: {sources})를 인계하고 외부 바인딩 {bindings}개와 ACME 자동 갱신 {acme}개를 비활성화했습니다.",
     externalNeverDeployed: "첫 푸시 대기 중",
     externalLoadFailed: "인증서 수신 엔드포인트를 불러오지 못했습니다",
     externalCreateSuccess: "인증서 수신 엔드포인트가 생성되었습니다",

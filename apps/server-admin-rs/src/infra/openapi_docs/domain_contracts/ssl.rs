@@ -191,12 +191,21 @@ pub(super) struct ExternalCertificateBindingData {
     last_dns_names: Vec<String>,
     deploy_path: String,
     deploy_port: u16,
+    #[schema(required = true)]
+    public_deploy_url: Option<String>,
+    public_deploy_status: String,
     setup_kind: String,
     request_method: Option<String>,
     request_body_template: Option<String>,
     success_marker: Option<String>,
     script_template: Option<String>,
     usage_instructions: Option<String>,
+    last_replaced_certificate_count: usize,
+    last_replaced_sources: Vec<String>,
+    last_disabled_external_binding_count: usize,
+    last_disabled_acme_renewal_count: usize,
+    #[schema(required = true)]
+    last_takeover_at: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -221,4 +230,8 @@ pub(super) struct ExternalCertificateDeployData {
     fingerprint_sha256: String,
     valid_to: String,
     dns_names: Vec<String>,
+    replaced_certificate_count: usize,
+    replaced_sources: Vec<String>,
+    disabled_external_binding_count: usize,
+    disabled_acme_renewal_count: usize,
 }

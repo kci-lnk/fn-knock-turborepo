@@ -1,5 +1,99 @@
 use super::*;
 
+#[tokio::test]
+async fn external_takeover_disables_acme_renewal_unlinks_and_restores_snapshot() {
+    let (_directory, state) = acme_test_state().await;
+    let application = test_application("app-takeover", &["example.test"]);
+    write_acme_applications(&state, std::slice::from_ref(&application))
+        .await
+        .unwrap();
+    save_acme_issued_certificate(
+        &state,
+        "app-takeover",
+        "example.test",
+        "audit-certificate",
+        "audit-key",
+        test_cert_info(&["example.test"], "audit"),
+    )
+    .await
+    .unwrap();
+    link_issued_certificate_to_library(&state, "app-takeover", "acme-library-1")
+        .await
+        .unwrap();
+
+    let snapshot = apply_external_certificate_takeover(
+        &state,
+        &BTreeSet::from(["acme-library-1".to_string()]),
+        &BTreeSet::new(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(snapshot.disabled_renewal_count, 1);
+    assert_eq!(
+        read_acme_applications_raw(&state).await.unwrap()[0]["renewEnabled"],
+        json!(false)
+    );
+    let unlinked = read_issued_certificates(&state).await.unwrap();
+    assert!(unlinked[0].get("libraryCertificateId").is_none());
+    assert_eq!(unlinked[0]["cert"], json!("audit-certificate"));
+
+    restore_external_certificate_takeover(&state, &snapshot)
+        .await
+        .unwrap();
+    assert_eq!(
+        read_acme_applications_raw(&state).await.unwrap()[0]["renewEnabled"],
+        json!(true)
+    );
+    assert_eq!(
+        read_issued_certificates(&state).await.unwrap()[0]["libraryCertificateId"],
+        json!("acme-library-1")
+    );
+}
+
+#[tokio::test]
+async fn acme_library_deploy_cannot_reclaim_external_owned_domain() {
+    let Some((external_cert, external_key)) = generate_acme_test_cert_pair("example.test") else {
+        return;
+    };
+    let Some((issued_cert, issued_key)) = generate_acme_test_cert_pair("example.test") else {
+        return;
+    };
+    let (_directory, state) = acme_test_state().await;
+    let application = test_application("app-reclaim", &["example.test"]);
+    save_acme_issued_certificate(
+        &state,
+        "app-reclaim",
+        "example.test",
+        &issued_cert,
+        &issued_key,
+        ssl::parse_cert_info(&issued_cert).unwrap(),
+    )
+    .await
+    .unwrap();
+    save_test_ssl_config(
+        &state,
+        json!({
+            "deployment_mode": "multi_sni",
+            "certificates": [test_managed_certificate(
+                "external-owner",
+                "external",
+                Some("binding-owner"),
+                "example.test",
+                &external_cert,
+                &external_key,
+            )]
+        }),
+    )
+    .await;
+
+    let error = prepare_acme_library_after_issue(&state, &application, &Translator::new("en"))
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("external-owner"));
+    assert!(error.to_string().contains("overlapping SAN"));
+}
+
 async fn acme_test_state_with_data_dir(data_dir: PathBuf, runtime_target: &str) -> AppState {
     let mut settings = {
         let _environment = crate::test_support::EnvGuard::new(&[]);
@@ -122,8 +216,7 @@ async fn acme_command_preserves_spaced_paths_and_uses_unspaced_http_workspace() 
     );
     assert_eq!(&recorded_args[4..], &args[4..]);
     assert_eq!(
-        script_home,
-        recorded_args[1],
+        script_home, recorded_args[1],
         "_SCRIPT_HOME must point at the same space-free home symlink as --home"
     );
     assert_eq!(

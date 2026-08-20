@@ -413,6 +413,45 @@ pub(super) fn replacement_library_certificate(
         .cloned()
 }
 
+fn normalized_certificate_domains(certificate: &Value) -> BTreeSet<String> {
+    certificate
+        .get("cert")
+        .and_then(Value::as_str)
+        .and_then(ssl::parse_cert_info)
+        .and_then(|info| info.get("dnsNames").and_then(Value::as_array).cloned())
+        .into_iter()
+        .flatten()
+        .filter_map(|domain| domain.as_str().map(normalize_domain_name))
+        .filter(|domain| !domain.is_empty())
+        .collect()
+}
+
+fn external_certificate_domain_conflict(
+    normalized_ssl: &Value,
+    issued_certificate: &Value,
+) -> Option<String> {
+    let incoming_domains = normalized_certificate_domains(issued_certificate);
+    if incoming_domains.is_empty() {
+        return None;
+    }
+    normalized_ssl
+        .get("certificates")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|certificate| certificate.get("source").and_then(Value::as_str) == Some("external"))
+        .find_map(|certificate| {
+            let external_domains = normalized_certificate_domains(certificate);
+            (!external_domains.is_disjoint(&incoming_domains)).then(|| {
+                certificate
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("external certificate")
+                    .to_string()
+            })
+        })
+}
+
 pub(super) async fn prepare_acme_library_after_issue(
     state: &AppState,
     application: &Value,
@@ -428,6 +467,13 @@ pub(super) async fn prepare_acme_library_after_issue(
     let previous_config = state.storage.store.get_config().await?;
     let previous_ssl = previous_config.get("ssl").cloned();
     let normalized_previous_ssl = ssl::normalize_ssl_config(previous_config.get("ssl"));
+    if let Some(conflicting_certificate_id) =
+        external_certificate_domain_conflict(&normalized_previous_ssl, &issued_certificate)
+    {
+        anyhow::bail!(
+            "ACME certificate deployment is blocked because external certificate {conflicting_certificate_id} owns an overlapping SAN set"
+        );
+    }
     let linked =
         replacement_library_certificate(&previous_config, application_id, &issued_certificate);
     if let Some(linked_id) = linked

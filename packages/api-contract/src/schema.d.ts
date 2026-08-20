@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/__certificates__/{binding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 通过鉴权域部署外部证书
+         * @description 鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。
+         */
+        put: operations["put_public_certificates_by_binding_id"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/acme": {
         parameters: {
             query?: never;
@@ -9095,7 +9115,7 @@ export interface components {
             deploy_path: string;
             /**
              * Format: int32
-             * @description fn-knock 证书接收端口，取自运行时 `BACKEND_PORT`。服务默认只监听 `127.0.0.1`；同机工具直接使用，其他机器需先反向代理该端口，再将代理地址与 `deploy_path` 组合。
+             * @description fn-knock 本机兼容证书接收端口，取自运行时 `BACKEND_PORT`，与 `deploy_path` 组合为 127.0.0.1 回环地址。不要直接暴露到公网。
              */
             deploy_port: number;
             /** @description 绑定是否允许继续部署。 */
@@ -9104,14 +9124,27 @@ export interface components {
             id: string;
             /** @description 最近一次成功或失败部署尝试的时间。 */
             last_deployed_at?: string | null;
+            /** @description 最近一次接管自动停用的 ACME 自动续期数。 */
+            last_disabled_acme_renewal_count: number;
+            /** @description 最近一次接管自动停用的其他外部绑定数。 */
+            last_disabled_external_binding_count: number;
             /** @description 最近成功部署证书的 DNS SAN。 */
             last_dns_names: string[];
             /** @description 最近一次失败的截断错误信息；绝不包含 PEM、私钥或 Token。 */
             last_error?: string | null;
             /** @description 最近成功部署证书的 SHA-256 指纹。 */
             last_fingerprint_sha256?: string | null;
-            /** @description 最近一次部署结果：`success` 或 `failed`。 */
-            last_result?: string | null;
+            /** @description 最近一次成功部署接管的同 SAN 证书库条目数。 */
+            last_replaced_certificate_count: number;
+            /** @description 最近一次接管所替换的证书来源类型。 */
+            last_replaced_sources: string[];
+            /**
+             * @description 最近一次部署结果：`success`、`failed` 或因同 SAN 接管而产生的 `superseded`。
+             * @enum {string|null}
+             */
+            last_result?: "success" | "failed" | "superseded" | null;
+            /** @description 最近一次成功接管同 SAN 证书的时间；尚未发生接管时为 null。 */
+            last_takeover_at: string | null;
             /** @description 最近成功部署证书的到期时间。 */
             last_valid_to?: string | null;
             /** @description 绑定的管理员显示名称。 */
@@ -9121,6 +9154,13 @@ export interface components {
              * @enum {string}
              */
             provider: "certd" | "acme_sh" | "lego" | "certbot";
+            /**
+             * @description 公网部署入口状态：`ready`、`auth_host_unconfigured` 或 `https_required`。
+             * @enum {string}
+             */
+            public_deploy_status: "ready" | "auth_host_unconfigured" | "https_required";
+            /** @description 鉴权域启用 HTTPS 时生成的推荐公网部署 URL；其他状态为 null。 */
+            public_deploy_url: string | null;
             /** @description Webhook JSON 模板；Certd 模板包含 `${crt}` 与 `${key}`，仅 `webhook` 类型返回。 */
             request_body_template?: string | null;
             /** @description Webhook 请求方法；仅 `webhook` 类型返回。 */
@@ -9160,6 +9200,10 @@ export interface components {
             certificate_id: string;
             /** @description 证书或私钥是否发生变化；为 `false` 时不写配置、不重载网关。 */
             changed: boolean;
+            /** @description 本次接管停用的 ACME 自动续期数。 */
+            disabled_acme_renewal_count: number;
+            /** @description 本次接管停用的其他外部绑定数。 */
+            disabled_external_binding_count: number;
             /** @description 证书声明的 DNS SAN。 */
             dns_names: string[];
             /** @description 叶证书 DER 内容的 SHA-256 指纹。 */
@@ -9168,6 +9212,10 @@ export interface components {
             gateway_applied: boolean;
             /** @description 该稳定槽位是否为当前激活证书。 */
             is_active: boolean;
+            /** @description 本次部署接管的同 SAN 证书库条目数。 */
+            replaced_certificate_count: number;
+            /** @description 本次部署接管的来源类型。 */
+            replaced_sources: string[];
             /** @description 证书到期时间。 */
             valid_to: string;
         };
@@ -12957,6 +13005,160 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    put_public_certificates_by_binding_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                binding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalCertificateDeployBodyData"];
+            };
+        };
+        responses: {
+            /** @description 证书已保存并在需要时同步到网关；响应包含本次同 SAN 接管及被停用自动化的摘要。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ExternalCertificateDeployData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 缺少绑定专用 Bearer Token，或 Token 已轮换、已撤销或不属于当前绑定。 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 请求的证书、CA 文件、共享文件或证书库记录不存在。 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 新证书的到期时间早于当前槽位中的证书，或 SSL 配置在部署期间发生并发变更；客户端应检查证书并重试。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 证书部署请求超过 1 MiB 限制。 */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 新证书无法下发到网关；fn-knock 会尝试恢复旧配置和旧网关证书，并在无法确认恢复时明确返回该状态，证书客户端应将本次部署标记为失败并重试。 */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
     uninstall_acme: {
         parameters: {
             query?: never;

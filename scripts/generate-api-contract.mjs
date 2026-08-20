@@ -239,6 +239,10 @@ function validateContract(openapiPath) {
       "put /api/integrations/certificates/{binding_id}",
       "ExternalCertificateDeployBodyData",
     ],
+    [
+      "put /__certificates__/{binding_id}",
+      "ExternalCertificateDeployBodyData",
+    ],
     ["get /api/admin/waf/details", null],
     ["get /api/admin/waf/status", null],
     ["post /api/admin/waf/config", "WafConfigUpdateData"],
@@ -1386,11 +1390,25 @@ function validateContract(openapiPath) {
     document.components?.schemas?.ExternalCertificateDeployBodyData ?? {};
   const externalDeploy =
     document.paths?.["/api/integrations/certificates/{binding_id}"]?.put ?? {};
+  const publicExternalDeploy =
+    document.paths?.["/__certificates__/{binding_id}"]?.put ?? {};
   if (
     externalCredential.properties?.token?.writeOnly !== true ||
     externalDeployBody.properties?.key?.writeOnly !== true ||
     externalBinding.properties?.token !== undefined ||
-    !["certificate_id", "provider", "deploy_port", "setup_kind"].every(
+    ![
+      "certificate_id",
+      "provider",
+      "deploy_port",
+      "public_deploy_url",
+      "public_deploy_status",
+      "setup_kind",
+      "last_replaced_certificate_count",
+      "last_replaced_sources",
+      "last_disabled_external_binding_count",
+      "last_disabled_acme_renewal_count",
+      "last_takeover_at",
+    ].every(
       (field) => (externalBinding.required ?? []).includes(field),
     ) ||
     externalBinding.properties?.deploy_port?.description?.includes(
@@ -1402,6 +1420,8 @@ function validateContract(openapiPath) {
       JSON.stringify(["certd", "acme_sh", "lego", "certbot"]) ||
     JSON.stringify(externalBinding.properties?.setup_kind?.enum) !==
       JSON.stringify(["webhook", "deploy_hook"]) ||
+    JSON.stringify(externalBinding.properties?.public_deploy_status?.enum) !==
+      JSON.stringify(["ready", "auth_host_unconfigured", "https_required"]) ||
     ![
       "request_method",
       "request_body_template",
@@ -1409,6 +1429,8 @@ function validateContract(openapiPath) {
       "usage_instructions",
     ].every((field) => externalBinding.properties?.[field]) ||
     JSON.stringify(externalDeploy.security) !==
+      JSON.stringify([{ certificateDeploymentToken: [] }]) ||
+    JSON.stringify(publicExternalDeploy.security) !==
       JSON.stringify([{ certificateDeploymentToken: [] }]) ||
     document.components?.securitySchemes?.certificateDeploymentToken?.scheme !==
       "bearer" ||
@@ -1488,6 +1510,7 @@ function validateContract(openapiPath) {
           "enabled",
           "executing_paranoia_level",
           "paranoia_level",
+          "private_ip_exempt_enabled",
           "system_rules_auto_update_enabled",
         ].sort(),
       )

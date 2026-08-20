@@ -20,10 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import WAFRuleList from "./waf-settings/WAFRuleList.vue";
+import WAFSettingSwitchRow from "./waf-settings/WAFSettingSwitchRow.vue";
 import { useWAFSettings } from "./waf-settings/useWAFSettings";
 
 const a11yId = useId();
@@ -119,114 +119,41 @@ void uploadInputRef;
           </Alert>
         </section>
 
-        <section
-          class="flex flex-col gap-4 bg-muted/10 p-6 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div class="space-y-1 pr-6">
-            <Label
-              :for="`${a11yId}-wafsettings-1`"
-              class="cursor-pointer text-base font-medium"
-              @click="handleEnabledChange(!form.enabled)"
-            >
-              {{ t("admin.wafSettings.enableWaf") }}
-            </Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.wafSettings.enableWafDescription") }}
-            </div>
-          </div>
-          <Switch
-            :id="`${a11yId}-wafsettings-1`"
-            :model-value="form.enabled"
-            :disabled="isBusy"
-            @update:model-value="(value) => handleEnabledChange(value === true)"
-          />
-        </section>
+        <WAFSettingSwitchRow
+          :description="t('admin.wafSettings.enableWafDescription')"
+          :disabled="isBusy"
+          :model-value="form.enabled"
+          muted
+          :title="t('admin.wafSettings.enableWaf')"
+          @change="handleEnabledChange"
+        />
 
-        <section
+        <WAFSettingSwitchRow
           v-if="form.enabled"
-          class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div class="space-y-1 pr-6">
-            <Label
-              :for="`${a11yId}-wafsettings-2`"
-              class="cursor-pointer text-base font-medium"
-              @click="
-                handleAutoUpdateChange(!form.system_rules_auto_update_enabled)
-              "
-            >
-              {{ t("admin.wafSettings.autoUpdate") }}
-            </Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.wafSettings.autoUpdateDescription") }}
-            </div>
-          </div>
-          <Switch
-            :id="`${a11yId}-wafsettings-2`"
-            :model-value="form.system_rules_auto_update_enabled"
-            :disabled="isBusy"
-            @update:model-value="
-              (value) => handleAutoUpdateChange(value === true)
-            "
-          />
-        </section>
+          :description="t('admin.wafSettings.autoUpdateDescription')"
+          :disabled="isBusy"
+          :model-value="form.system_rules_auto_update_enabled"
+          :title="t('admin.wafSettings.autoUpdate')"
+          @change="handleAutoUpdateChange"
+        />
 
-        <section
+        <WAFSettingSwitchRow
           v-if="form.enabled"
-          class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div class="space-y-1 pr-6">
-            <Label
-              :for="`${a11yId}-wafsettings-3`"
-              class="cursor-pointer text-base font-medium"
-              @click="
-                handleCommonLocationExemptChange(
-                  !form.common_location_exempt_enabled,
-                )
-              "
-            >
-              {{ t("admin.wafSettings.commonLocationExempt") }}
-            </Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.wafSettings.commonLocationExemptDescription") }}
-            </div>
-          </div>
-          <Switch
-            :id="`${a11yId}-wafsettings-3`"
-            :model-value="form.common_location_exempt_enabled"
-            :disabled="isBusy"
-            @update:model-value="
-              (value) => handleCommonLocationExemptChange(value === true)
-            "
-          />
-        </section>
+          :description="t('admin.wafSettings.commonLocationExemptDescription')"
+          :disabled="isBusy"
+          :model-value="form.common_location_exempt_enabled"
+          :title="t('admin.wafSettings.commonLocationExempt')"
+          @change="handleCommonLocationExemptChange"
+        />
 
-        <section
+        <WAFSettingSwitchRow
           v-if="form.enabled"
-          class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div class="space-y-1 pr-6">
-            <Label
-              :for="`${a11yId}-wafsettings-6`"
-              class="cursor-pointer text-base font-medium"
-              @click="
-                handlePrivateIPExemptChange(!form.private_ip_exempt_enabled)
-              "
-            >
-              {{ t("admin.wafSettings.privateIpExempt") }}
-            </Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.wafSettings.privateIpExemptDescription") }}
-            </div>
-          </div>
-          <Switch
-            :id="`${a11yId}-wafsettings-6`"
-            :model-value="form.private_ip_exempt_enabled"
-            :disabled="isBusy"
-            @update:model-value="
-              (value) => handlePrivateIPExemptChange(value === true)
-            "
-          />
-        </section>
+          :description="t('admin.wafSettings.privateIpExemptDescription')"
+          :disabled="isBusy"
+          :model-value="form.private_ip_exempt_enabled"
+          :title="t('admin.wafSettings.privateIpExempt')"
+          @change="handlePrivateIPExemptChange"
+        />
 
         <template v-if="form.enabled">
           <section

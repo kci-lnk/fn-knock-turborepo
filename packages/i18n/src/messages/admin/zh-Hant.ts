@@ -3087,7 +3087,7 @@ export const zhHantAdmin = {
       "選擇你正在使用的證書工具。建立後，把產生的接收設定複製到該工具，它就能把新證書和續期證書推送到 fn-knock。",
     externalSecurityTitle: "這裡負責接收，不負責申請證書",
     externalSecurityDescription:
-      "Certd、acme.sh、lego 或 Certbot 負責申請和續期；fn-knock 收到後負責校驗、儲存並更新閘道。目前沒有證書時，第一張推送過來的證書會自動啟用。",
+      "Certd、acme.sh、lego 或 Certbot 負責申請和續期；fn-knock 收到後負責校驗、儲存並更新閘道。綁定 Token 等同證書管理員憑據：持有者可推送任意 SAN，並接管所有同 SAN 來源。請存入密碼庫，疑似外洩時立即輪換或停用。",
     externalProviderLabel: "證書工具",
     externalNameLabel: "入口名稱",
     externalNamePlaceholder: "例如：Certd 主證書",
@@ -3095,12 +3095,21 @@ export const zhHantAdmin = {
     externalCreate: "建立接收入口",
     externalCredentialTitle: "下一步：把下面的設定複製到 {provider}",
     externalCredentialDescription:
-      "將設定填入證書部署任務並執行一次測試。以後每次簽發或續期，證書都會推送到 fn-knock。Token 只顯示一次，請現在完成設定。",
-    externalLoopbackTitle: "預設位址用於同機推送",
+      "將設定填入證書部署任務並執行一次測試。Token 只顯示一次且具有證書管理員權限，請立即完成設定並安全保存。",
+    externalPublicReadyTitle: "建議：透過 HTTPS 鑑權網域推送",
+    externalPublicUnavailableTitle: "公網推送入口尚不可用",
+    externalPublicReadyDescription: "異機任務可直接使用安全公網位址：{url}",
+    externalPublicUnconfiguredDescription:
+      "請先設定鑑權子網域。完成後 fn-knock 會自動產生 HTTPS 公網推送位址，無需暴露管理連接埠。",
+    externalPublicHttpsRequiredDescription:
+      "鑑權網域目前不是 HTTPS。請啟用 HTTPS 後再使用公網證書推送；系統不會產生不安全的 HTTP 公網位址。",
+    externalLoopbackTitle: "本機相容位址",
     externalLoopbackDescription:
-      "fn-knock 只在本機 127.0.0.1:{port} 接收證書。證書工具與 fn-knock 在同一台機器時可直接使用下方位址；如果位於其他機器，請先將 127.0.0.1:{port} 反向代理到可存取位址，再替換推送位址中的主機和連接埠。反向代理可使用 HTTP 或 HTTPS。",
+      "127.0.0.1:{port} 位址始終保留，供同機任務或鑑權網域證書過期、網路故障時使用。不要把該管理監聽連接埠直接暴露到公網。",
     externalMethodLabel: "請求方式",
     externalUrlLabel: "推送位址",
+    externalPublicUrlLabel: "建議公網推送位址",
+    externalLocalUrlLabel: "本機相容推送位址",
     externalHeaderLabel: "認證 Header",
     externalBodyLabel: "推送內容",
     externalSuccessMarkerLabel: "成功標誌",
@@ -3115,6 +3124,7 @@ export const zhHantAdmin = {
     externalDisabled: "已暫停",
     externalLastSuccess: "最近接收成功",
     externalLastFailed: "最近接收失敗",
+    externalSuperseded: "已被其他綁定接管",
     externalDisable: "暫停接收",
     externalEnable: "恢復接收",
     externalRename: "儲存名稱",
@@ -3130,6 +3140,8 @@ export const zhHantAdmin = {
     externalLastDeployment: "最近接收",
     externalExpiresAt: "證書到期",
     externalDomains: "證書網域",
+    externalTakeoverSummary:
+      "{time} 接管了 {certificates} 張同 SAN 證書（來源：{sources}），停用 {bindings} 個外部綁定及 {acme} 個 ACME 自動續期。",
     externalNeverDeployed: "等待首次推送",
     externalLoadFailed: "讀取證書接收入口失敗",
     externalCreateSuccess: "證書接收入口已建立",

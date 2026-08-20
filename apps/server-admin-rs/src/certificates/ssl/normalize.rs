@@ -210,15 +210,13 @@ pub(crate) fn parse_cert_info(cert_pem: &str) -> Option<Value> {
             }
         }
     }
-    if let Some(cn) = cert
-        .subject()
-        .iter_common_name()
-        .next()
-        .and_then(|cn| cn.as_str().ok())
-        .map(str::to_string)
-        && !dns_names
-            .iter()
-            .any(|entry| entry.eq_ignore_ascii_case(&cn))
+    if dns_names.is_empty()
+        && let Some(cn) = cert
+            .subject()
+            .iter_common_name()
+            .next()
+            .and_then(|cn| cn.as_str().ok())
+            .map(str::to_string)
     {
         dns_names.push(cn);
     }

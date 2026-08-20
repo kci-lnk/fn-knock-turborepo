@@ -156,6 +156,8 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_ssl = crate::ssl::ssl_openapi_routes().into_openapi();
     let typed_external_certificates =
         crate::ssl::external_certificate_openapi_routes().into_openapi();
+    let typed_public_external_certificates =
+        crate::ssl::public_external_certificate_openapi_routes().into_openapi();
     let typed_ddns = crate::ddns::ddns_openapi_routes().into_openapi();
     let typed_cloudflared = crate::cloudflared::cloudflared_openapi_routes().into_openapi();
     let typed_frpc = crate::frpc::frpc_openapi_routes().into_openapi();
@@ -1799,6 +1801,28 @@ pub(crate) fn build_openapi_document() -> Value {
     );
     if let Some(operation) = paths
         .get_mut(external_deploy_path)
+        .and_then(Value::as_object_mut)
+        .and_then(|item| item.get_mut("put"))
+    {
+        operation["security"] = json!([{ "certificateDeploymentToken": [] }]);
+    }
+    let public_external_deploy_path = "/__certificates__/{binding_id}";
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_public_external_certificates,
+        public_external_deploy_path,
+        "put",
+        "ExternalCertificateDeployData",
+        Some(json!([{
+            "name": "binding_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+        }])),
+        Some("ExternalCertificateDeployBodyData"),
+    );
+    if let Some(operation) = paths
+        .get_mut(public_external_deploy_path)
         .and_then(Value::as_object_mut)
         .and_then(|item| item.get_mut("put"))
     {

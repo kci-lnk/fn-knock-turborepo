@@ -3388,7 +3388,7 @@ export const enAdmin = {
     externalSecurityTitle:
       "This endpoint receives certificates; it does not issue them",
     externalSecurityDescription:
-      "Certd, acme.sh, lego, or Certbot handles issuance and renewal. fn-knock validates, stores, and applies certificates to the gateway. If no certificate is active, the first received certificate is activated automatically.",
+      "Certd, acme.sh, lego, or Certbot handles issuance and renewal. A binding token is a certificate-administrator credential: its holder can push any SAN and take over every same-SAN source. Store it in a password vault and rotate or disable it immediately if exposure is suspected.",
     externalProviderLabel: "Certificate tool",
     externalNameLabel: "Endpoint name",
     externalNamePlaceholder: "For example: Certd primary certificate",
@@ -3396,12 +3396,22 @@ export const enAdmin = {
     externalCreate: "Create receiving endpoint",
     externalCredentialTitle: "Next: copy this configuration to {provider}",
     externalCredentialDescription:
-      "Add it to a certificate deployment task and run one test. Future issuances and renewals will be pushed to fn-knock. The token is shown only once, so finish the setup now.",
-    externalLoopbackTitle: "The default address is for same-host pushes",
+      "Add it to a certificate deployment task and run one test. The administrator-level token is shown only once, so finish setup now and store it securely.",
+    externalPublicReadyTitle: "Recommended: push through the HTTPS auth host",
+    externalPublicUnavailableTitle: "Public certificate push is not ready",
+    externalPublicReadyDescription:
+      "Tasks on another machine can use this secure public URL directly: {url}",
+    externalPublicUnconfiguredDescription:
+      "Configure an authentication subdomain first. fn-knock will then generate an HTTPS public push URL without exposing the management port.",
+    externalPublicHttpsRequiredDescription:
+      "The authentication host is not using HTTPS. Enable HTTPS before public certificate pushes; fn-knock will not generate an unsafe public HTTP URL.",
+    externalLoopbackTitle: "Local compatibility URL",
     externalLoopbackDescription:
-      "fn-knock receives certificates only on local address 127.0.0.1:{port}. Use the address below directly when the certificate tool runs on the same host. From another machine, first reverse proxy 127.0.0.1:{port} to a reachable address, then replace the host and port in the push URL. The reverse proxy may use HTTP or HTTPS.",
+      "The 127.0.0.1:{port} URL is always retained for same-host jobs or fallback when the auth-host certificate or network is unavailable. Do not expose this management listener directly to the Internet.",
     externalMethodLabel: "Method",
     externalUrlLabel: "Push URL",
+    externalPublicUrlLabel: "Recommended public push URL",
+    externalLocalUrlLabel: "Local compatibility push URL",
     externalHeaderLabel: "Authorization header",
     externalBodyLabel: "Push content",
     externalSuccessMarkerLabel: "Success marker",
@@ -3416,6 +3426,7 @@ export const enAdmin = {
     externalDisabled: "Paused",
     externalLastSuccess: "Last receive succeeded",
     externalLastFailed: "Last receive failed",
+    externalSuperseded: "Taken over by another binding",
     externalDisable: "Pause receiving",
     externalEnable: "Resume receiving",
     externalRename: "Save name",
@@ -3431,6 +3442,8 @@ export const enAdmin = {
     externalLastDeployment: "Last received",
     externalExpiresAt: "Certificate expires",
     externalDomains: "Certificate domains",
+    externalTakeoverSummary:
+      "At {time}, took over {certificates} same-SAN certificate(s) from {sources}; disabled {bindings} external binding(s) and {acme} ACME auto-renewal(s).",
     externalNeverDeployed: "Waiting for first push",
     externalLoadFailed: "Failed to load certificate receiving endpoints",
     externalCreateSuccess: "Certificate receiving endpoint created",

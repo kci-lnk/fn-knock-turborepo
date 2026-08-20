@@ -1,5 +1,48 @@
 use super::*;
 
+fn normalized_certificate_domain_set(cert: &str) -> BTreeSet<String> {
+    parse_cert_info(cert)
+        .map(|info| certificate_info_dns_names(&info))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|domain| crate::certificates::domain_utils::normalize_domain_name(&domain))
+        .filter(|domain| !domain.is_empty())
+        .collect()
+}
+
+fn reject_acme_external_domain_conflict(
+    certificates: &[Value],
+    incoming_cert: &str,
+) -> anyhow::Result<()> {
+    let incoming_domains = normalized_certificate_domain_set(incoming_cert);
+    if incoming_domains.is_empty() {
+        return Ok(());
+    }
+    if let Some(conflicting_id) = certificates
+        .iter()
+        .filter(|certificate| certificate.get("source").and_then(Value::as_str) == Some("external"))
+        .find_map(|certificate| {
+            let domains = certificate
+                .get("cert")
+                .and_then(Value::as_str)
+                .map(normalized_certificate_domain_set)
+                .unwrap_or_default();
+            (!domains.is_disjoint(&incoming_domains)).then(|| {
+                certificate
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("external certificate")
+                    .to_string()
+            })
+        })
+    {
+        anyhow::bail!(
+            "ACME certificate deployment is blocked because external certificate {conflicting_id} owns an overlapping SAN set"
+        );
+    }
+    Ok(())
+}
+
 pub(super) async fn save_ssl_certificate(
     state: &AppState,
     input: SaveCertificateBody,
@@ -39,6 +82,9 @@ pub(super) async fn save_ssl_certificate(
         .cloned();
     let now = now_node_iso();
     let source = normalize_certificate_source(input.source.as_deref());
+    if source == "acme" {
+        reject_acme_external_domain_conflict(&certificates, &cert)?;
+    }
     let source_provider = input
         .source_provider
         .as_deref()

@@ -2387,6 +2387,18 @@ pub(super) fn components() -> Map<String, Value> {
         "setup_kind",
         &["webhook", "deploy_hook"],
     );
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingData",
+        "public_deploy_status",
+        &["ready", "auth_host_unconfigured", "https_required"],
+    );
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingData",
+        "last_result",
+        &["success", "failed", "superseded"],
+    );
     set_property_metadata(
         &mut schemas,
         "SslCertificateSaveBodyData",

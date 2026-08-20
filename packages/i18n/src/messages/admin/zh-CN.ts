@@ -3143,7 +3143,7 @@ export const zhCNAdmin = {
       "选择你正在使用的证书工具。创建后，把生成的接收配置复制到该工具，它就能把新证书和续期证书推送到 fn-knock。",
     externalSecurityTitle: "这里负责接收，不负责申请证书",
     externalSecurityDescription:
-      "Certd、acme.sh、lego 或 Certbot 负责申请和续期；fn-knock 收到后负责校验、保存并更新网关。当前没有证书时，第一张推送过来的证书会自动启用。",
+      "Certd、acme.sh、lego 或 Certbot 负责申请和续期；fn-knock 收到后负责校验、保存并更新网关。绑定 Token 等同于证书管理员凭据：持有者可以推送任意 SAN，并接管所有同 SAN 来源。请存入密码库，疑似泄露时立即轮换或停用。",
     externalProviderLabel: "证书工具",
     externalNameLabel: "入口名称",
     externalNamePlaceholder: "例如：Certd 主证书",
@@ -3151,12 +3151,21 @@ export const zhCNAdmin = {
     externalCreate: "创建接收入口",
     externalCredentialTitle: "下一步：把下面的配置复制到 {provider}",
     externalCredentialDescription:
-      "将配置填入证书部署任务并执行一次测试。以后每次签发或续期，证书都会推送到 fn-knock。Token 只显示一次，请现在完成配置。",
-    externalLoopbackTitle: "默认地址用于同机推送",
+      "将配置填入证书部署任务并执行一次测试。Token 只显示一次且具有证书管理员权限，请现在完成配置并安全保存。",
+    externalPublicReadyTitle: "推荐：通过 HTTPS 鉴权域推送",
+    externalPublicUnavailableTitle: "公网推送入口尚不可用",
+    externalPublicReadyDescription: "异机任务可直接使用安全公网地址：{url}",
+    externalPublicUnconfiguredDescription:
+      "请先配置鉴权子域。完成后 fn-knock 会自动生成 HTTPS 公网推送地址，无需暴露管理端口。",
+    externalPublicHttpsRequiredDescription:
+      "鉴权域当前不是 HTTPS。请启用 HTTPS 后再使用公网证书推送；系统不会生成不安全的 HTTP 公网地址。",
+    externalLoopbackTitle: "本机兼容地址",
     externalLoopbackDescription:
-      "fn-knock 只在本机 127.0.0.1:{port} 接收证书。证书工具与 fn-knock 在同一台机器时可直接使用下方地址；如果位于其他机器，请先将 127.0.0.1:{port} 反向代理到可访问地址，再替换推送地址中的主机和端口。反向代理可使用 HTTP 或 HTTPS。",
+      "127.0.0.1:{port} 地址始终保留，供同机任务或鉴权域证书过期、网络故障时使用。不要把该管理监听端口直接暴露到公网。",
     externalMethodLabel: "请求方式",
     externalUrlLabel: "推送地址",
+    externalPublicUrlLabel: "推荐公网推送地址",
+    externalLocalUrlLabel: "本机兼容推送地址",
     externalHeaderLabel: "认证 Header",
     externalBodyLabel: "推送内容",
     externalSuccessMarkerLabel: "成功标志",
@@ -3171,6 +3180,7 @@ export const zhCNAdmin = {
     externalDisabled: "已暂停",
     externalLastSuccess: "最近接收成功",
     externalLastFailed: "最近接收失败",
+    externalSuperseded: "已被其他绑定接管",
     externalDisable: "暂停接收",
     externalEnable: "恢复接收",
     externalRename: "保存名称",
@@ -3186,6 +3196,8 @@ export const zhCNAdmin = {
     externalLastDeployment: "最近接收",
     externalExpiresAt: "证书到期",
     externalDomains: "证书域名",
+    externalTakeoverSummary:
+      "{time} 接管了 {certificates} 张同 SAN 证书（来源：{sources}），停用 {bindings} 个外部绑定和 {acme} 个 ACME 自动续期。",
     externalNeverDeployed: "等待首次推送",
     externalLoadFailed: "读取证书接收入口失败",
     externalCreateSuccess: "证书接收入口已创建",

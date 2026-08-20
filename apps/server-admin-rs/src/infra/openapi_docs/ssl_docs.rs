@@ -268,6 +268,22 @@ const OPERATIONS: &[OperationDocumentation] = &[
             BAD_GATEWAY,
         ],
     },
+    OperationDocumentation {
+        method: "put",
+        path: "/__certificates__/{binding_id}",
+        summary: "通过鉴权域部署外部证书",
+        description: "鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
+        success_description: "证书已保存并在需要时同步到网关；响应包含本次同 SAN 接管及被停用自动化的摘要。",
+        errors: &[
+            BAD_REQUEST,
+            UNAUTHORIZED,
+            NOT_FOUND,
+            CONFLICT,
+            PAYLOAD_TOO_LARGE,
+            INTERNAL_ERROR,
+            BAD_GATEWAY,
+        ],
+    },
 ];
 
 const SCHEMA_DESCRIPTIONS: &[(&str, &str)] = &[
@@ -795,7 +811,7 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
     (
         "ExternalCertificateBindingData",
         "last_result",
-        "最近一次部署结果：`success` 或 `failed`。",
+        "最近一次部署结果：`success`、`failed` 或因同 SAN 接管而产生的 `superseded`。",
     ),
     (
         "ExternalCertificateBindingData",
@@ -825,7 +841,17 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
     (
         "ExternalCertificateBindingData",
         "deploy_port",
-        "fn-knock 证书接收端口，取自运行时 `BACKEND_PORT`。服务默认只监听 `127.0.0.1`；同机工具直接使用，其他机器需先反向代理该端口，再将代理地址与 `deploy_path` 组合。",
+        "fn-knock 本机兼容证书接收端口，取自运行时 `BACKEND_PORT`，与 `deploy_path` 组合为 127.0.0.1 回环地址。不要直接暴露到公网。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "public_deploy_url",
+        "鉴权域启用 HTTPS 时生成的推荐公网部署 URL；其他状态为 null。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "public_deploy_status",
+        "公网部署入口状态：`ready`、`auth_host_unconfigured` 或 `https_required`。",
     ),
     (
         "ExternalCertificateBindingData",
@@ -856,6 +882,31 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
         "ExternalCertificateBindingData",
         "usage_instructions",
         "保存和注册部署钩子的简短说明，仅 `deploy_hook` 类型返回。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_replaced_certificate_count",
+        "最近一次成功部署接管的同 SAN 证书库条目数。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_replaced_sources",
+        "最近一次接管所替换的证书来源类型。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_disabled_external_binding_count",
+        "最近一次接管自动停用的其他外部绑定数。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_disabled_acme_renewal_count",
+        "最近一次接管自动停用的 ACME 自动续期数。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "last_takeover_at",
+        "最近一次成功接管同 SAN 证书的时间；尚未发生接管时为 null。",
     ),
     (
         "ExternalCertificateBindingCredentialData",
@@ -917,12 +968,32 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
         "dns_names",
         "证书声明的 DNS SAN。",
     ),
+    (
+        "ExternalCertificateDeployData",
+        "replaced_certificate_count",
+        "本次部署接管的同 SAN 证书库条目数。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "replaced_sources",
+        "本次部署接管的来源类型。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "disabled_external_binding_count",
+        "本次接管停用的其他外部绑定数。",
+    ),
+    (
+        "ExternalCertificateDeployData",
+        "disabled_acme_renewal_count",
+        "本次接管停用的 ACME 自动续期数。",
+    ),
 ];
 
 pub(super) fn tag() -> Value {
     json!({
         "name": "ssl",
-        "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。"
+        "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与鉴权域上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。"
     })
 }
 
@@ -1026,9 +1097,8 @@ fn document_parameter_examples(operation: &mut Map<String, Value>, method: &str,
         | ("post", "/api/admin/ssl/external-bindings/{id}/rotate-token") => {
             Some("a17f93f95c2d4e9db7d41b8122345678")
         }
-        ("put", "/api/integrations/certificates/{binding_id}") => {
-            Some("a17f93f95c2d4e9db7d41b8122345678")
-        }
+        ("put", "/api/integrations/certificates/{binding_id}")
+        | ("put", "/__certificates__/{binding_id}") => Some("a17f93f95c2d4e9db7d41b8122345678"),
         _ => None,
     };
     let Some(example) = example else {

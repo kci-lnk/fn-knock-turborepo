@@ -8511,7 +8511,7 @@
             "type": "string"
           },
           "deploy_port": {
-            "description": "fn-knock 证书接收端口，取自运行时 `BACKEND_PORT`。服务默认只监听 `127.0.0.1`；同机工具直接使用，其他机器需先反向代理该端口，再将代理地址与 `deploy_path` 组合。",
+            "description": "fn-knock 本机兼容证书接收端口，取自运行时 `BACKEND_PORT`，与 `deploy_path` 组合为 127.0.0.1 回环地址。不要直接暴露到公网。",
             "format": "int32",
             "minimum": 0,
             "type": "integer"
@@ -8530,6 +8530,16 @@
               "string",
               "null"
             ]
+          },
+          "last_disabled_acme_renewal_count": {
+            "description": "最近一次接管自动停用的 ACME 自动续期数。",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_disabled_external_binding_count": {
+            "description": "最近一次接管自动停用的其他外部绑定数。",
+            "minimum": 0,
+            "type": "integer"
           },
           "last_dns_names": {
             "description": "最近成功部署证书的 DNS SAN。",
@@ -8552,8 +8562,32 @@
               "null"
             ]
           },
+          "last_replaced_certificate_count": {
+            "description": "最近一次成功部署接管的同 SAN 证书库条目数。",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_replaced_sources": {
+            "description": "最近一次接管所替换的证书来源类型。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "last_result": {
-            "description": "最近一次部署结果：`success` 或 `failed`。",
+            "description": "最近一次部署结果：`success`、`failed` 或因同 SAN 接管而产生的 `superseded`。",
+            "enum": [
+              "success",
+              "failed",
+              "superseded"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_takeover_at": {
+            "description": "最近一次成功接管同 SAN 证书的时间；尚未发生接管时为 null。",
             "type": [
               "string",
               "null"
@@ -8579,6 +8613,22 @@
               "certbot"
             ],
             "type": "string"
+          },
+          "public_deploy_status": {
+            "description": "公网部署入口状态：`ready`、`auth_host_unconfigured` 或 `https_required`。",
+            "enum": [
+              "ready",
+              "auth_host_unconfigured",
+              "https_required"
+            ],
+            "type": "string"
+          },
+          "public_deploy_url": {
+            "description": "鉴权域启用 HTTPS 时生成的推荐公网部署 URL；其他状态为 null。",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "request_body_template": {
             "description": "Webhook JSON 模板；Certd 模板包含 `${crt}` 与 `${key}`，仅 `webhook` 类型返回。",
@@ -8638,7 +8688,14 @@
           "last_dns_names",
           "deploy_path",
           "deploy_port",
-          "setup_kind"
+          "public_deploy_url",
+          "public_deploy_status",
+          "setup_kind",
+          "last_replaced_certificate_count",
+          "last_replaced_sources",
+          "last_disabled_external_binding_count",
+          "last_disabled_acme_renewal_count",
+          "last_takeover_at"
         ],
         "type": "object"
       },
@@ -8698,6 +8755,16 @@
             "description": "证书或私钥是否发生变化；为 `false` 时不写配置、不重载网关。",
             "type": "boolean"
           },
+          "disabled_acme_renewal_count": {
+            "description": "本次接管停用的 ACME 自动续期数。",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "disabled_external_binding_count": {
+            "description": "本次接管停用的其他外部绑定数。",
+            "minimum": 0,
+            "type": "integer"
+          },
           "dns_names": {
             "description": "证书声明的 DNS SAN。",
             "items": {
@@ -8717,6 +8784,18 @@
             "description": "该稳定槽位是否为当前激活证书。",
             "type": "boolean"
           },
+          "replaced_certificate_count": {
+            "description": "本次部署接管的同 SAN 证书库条目数。",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "replaced_sources": {
+            "description": "本次部署接管的来源类型。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "valid_to": {
             "description": "证书到期时间。",
             "type": "string"
@@ -8730,7 +8809,11 @@
           "is_active",
           "fingerprint_sha256",
           "valid_to",
-          "dns_names"
+          "dns_names",
+          "replaced_certificate_count",
+          "replaced_sources",
+          "disabled_external_binding_count",
+          "disabled_acme_renewal_count"
         ],
         "type": "object"
       },
@@ -24450,6 +24533,191 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/__certificates__/{binding_id}": {
+      "put": {
+        "description": "鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
+        "operationId": "put_public_certificates_by_binding_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "binding_id",
+            "required": true,
+            "schema": {
+              "example": "a17f93f95c2d4e9db7d41b8122345678",
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalCertificateDeployBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExternalCertificateDeployData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "证书已保存并在需要时同步到网关；响应包含本次同 SAN 接管及被停用自动化的摘要。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "缺少绑定专用 Bearer Token，或 Token 已轮换、已撤销或不属于当前绑定。"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求的证书、CA 文件、共享文件或证书库记录不存在。"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "新证书的到期时间早于当前槽位中的证书，或 SSL 配置在部署期间发生并发变更；客户端应检查证书并重试。"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "证书部署请求超过 1 MiB 限制。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "新证书无法下发到网关；fn-knock 会尝试恢复旧配置和旧网关证书，并在无法确认恢复时明确返回该状态，证书客户端应将本次部署标记为失败并重试。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "security": [
+          {
+            "certificateDeploymentToken": []
+          }
+        ],
+        "summary": "通过鉴权域部署外部证书",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/acme": {
       "delete": {
         "description": "管理 ACME 客户端、证书申请、部署和运行任务。。`DELETE /api/admin/acme` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
@@ -51228,7 +51496,7 @@
       "name": "wol"
     },
     {
-      "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。",
+      "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与鉴权域上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。",
       "name": "ssl"
     }
   ]

@@ -50,6 +50,7 @@ use crate::{
     scanner::{cidr_routes, scanner_routes},
     security_overview::security_overview_routes,
     ssh_security::ssh_security_routes,
+    ssl::public_external_certificate_routes,
     ssl::{external_certificate_routes, ssl_routes},
     state::AppState,
     static_files,
@@ -274,8 +275,13 @@ pub(super) fn auth_router(state: AppState) -> Router {
             state.clone(),
             hmac_middleware,
         ));
+    let public_external_certificate_routes = public_external_certificate_routes();
+    #[cfg(test)]
+    let public_external_certificate_routes = public_external_certificate_routes
+        .layer(middleware::from_fn(route_contract_probe_middleware));
 
     Router::new()
+        .merge(public_external_certificate_routes)
         .merge(api)
         .merge(auth_static_routes())
         .fallback(static_files::auth_fallback)
@@ -617,6 +623,7 @@ mod tests {
         capabilities.ssh_security_available = true;
         capabilities.cloudflared_available = true;
         capabilities.frpc_available = true;
+        let auth_app = auth_router(state.clone());
         let app = backend_router_with_capabilities(state, false, capabilities);
         let document = crate::openapi_docs::build_openapi_document();
         let paths = document["paths"]
@@ -640,8 +647,12 @@ mod tests {
                     .header("x-fn-knock-route-contract-probe", "1")
                     .body(Body::empty())
                     .expect("route contract probe request");
-                let response = app
-                    .clone()
+                let route_app = if contract_path.starts_with("/__certificates__/") {
+                    auth_app.clone()
+                } else {
+                    app.clone()
+                };
+                let response = route_app
                     .oneshot(request)
                     .await
                     .expect("route contract probe response");
@@ -658,7 +669,7 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 438, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 439, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]

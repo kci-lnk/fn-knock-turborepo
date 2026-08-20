@@ -51,10 +51,12 @@ export function useExternalCertificateBindings() {
     () => {
       const value = credential.value;
       if (!value) return [];
+      const publicUrl = value.binding.public_deploy_url ?? "";
+      const localUrl = localDeployUrl(value.binding);
       if (value.binding.setup_kind === "deploy_hook") {
         const script = renderDeployHook(
           value.binding,
-          absoluteDeployUrl(value.binding),
+          preferredDeployUrl(value.binding),
           value.token,
         );
         return [
@@ -68,6 +70,10 @@ export function useExternalCertificateBindings() {
             value: script,
             multiline: true,
           },
+          {
+            label: t("admin.certConfig.externalLocalUrlLabel"),
+            value: localUrl,
+          },
         ].filter((field) => field.value);
       }
       return [
@@ -76,8 +82,12 @@ export function useExternalCertificateBindings() {
           value: value.binding.request_method ?? "",
         },
         {
-          label: t("admin.certConfig.externalUrlLabel"),
-          value: absoluteDeployUrl(value.binding),
+          label: t("admin.certConfig.externalPublicUrlLabel"),
+          value: publicUrl,
+        },
+        {
+          label: t("admin.certConfig.externalLocalUrlLabel"),
+          value: localUrl,
         },
         {
           label: t("admin.certConfig.externalHeaderLabel"),
@@ -275,6 +285,7 @@ export function useExternalCertificateBindings() {
     pendingBindingId,
     provider,
     providerOptions,
+    publicDeployStatusDescription,
     providerName,
     renameBinding,
     revokeBinding,
@@ -284,11 +295,28 @@ export function useExternalCertificateBindings() {
   };
 }
 
-function absoluteDeployUrl(binding: ExternalCertificateBinding) {
+function localDeployUrl(binding: ExternalCertificateBinding) {
   return new URL(
     binding.deploy_path,
     `http://127.0.0.1:${binding.deploy_port}`,
   ).toString();
+}
+
+function preferredDeployUrl(binding: ExternalCertificateBinding) {
+  return binding.public_deploy_status === "ready" && binding.public_deploy_url
+    ? binding.public_deploy_url
+    : localDeployUrl(binding);
+}
+
+function publicDeployStatusDescription(binding: ExternalCertificateBinding) {
+  switch (binding.public_deploy_status) {
+    case "ready":
+      return "admin.certConfig.externalPublicReadyDescription";
+    case "https_required":
+      return "admin.certConfig.externalPublicHttpsRequiredDescription";
+    default:
+      return "admin.certConfig.externalPublicUnconfiguredDescription";
+  }
 }
 
 function authorizationHeader(token: string) {

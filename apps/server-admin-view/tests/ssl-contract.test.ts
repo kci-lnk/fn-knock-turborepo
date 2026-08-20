@@ -88,6 +88,7 @@ describe("SSL certificate API contract", () => {
       ["post", "/api/admin/ssl/external-bindings/{id}/rotate-token"],
       ["delete", "/api/admin/ssl/external-bindings/{id}"],
       ["put", "/api/integrations/certificates/{binding_id}"],
+      ["put", "/__certificates__/{binding_id}"],
     ] as const) {
       assert.equal(
         contract.paths[path]?.[method]?.["x-fn-knock-contract-source"],
@@ -137,7 +138,7 @@ describe("SSL certificate API contract", () => {
           operation.tags?.includes("ssl"),
       ),
     );
-    assert.equal(sslOperations.length, 26);
+    assert.equal(sslOperations.length, 27);
     for (const operation of sslOperations) {
       assert.match(operation.summary ?? "", /[\u4e00-\u9fff]/u);
       assert.match(operation.description ?? "", /[\u4e00-\u9fff]/u);
@@ -167,12 +168,16 @@ describe("SSL certificate API contract", () => {
       contract.components.schemas.ExternalCertificateDeployBodyData;
     const deployOperation =
       contract.paths["/api/integrations/certificates/{binding_id}"].put;
+    const publicDeployOperation =
+      contract.paths["/__certificates__/{binding_id}"].put;
 
     assert.equal(credential.properties?.token?.writeOnly, true);
     assert.equal(deployment.properties?.key?.writeOnly, true);
     assert.equal(binding.properties?.token, undefined);
     assert.ok(binding.required?.includes("certificate_id"));
     assert.ok(binding.required?.includes("deploy_port"));
+    assert.ok(binding.required?.includes("public_deploy_url"));
+    assert.ok(binding.required?.includes("public_deploy_status"));
     assert.match(
       binding.properties?.deploy_port?.description ?? "",
       /BACKEND_PORT/u,
@@ -188,10 +193,20 @@ describe("SSL certificate API contract", () => {
       "webhook",
       "deploy_hook",
     ]);
+    assert.deepEqual(binding.properties?.public_deploy_status?.enum, [
+      "ready",
+      "auth_host_unconfigured",
+      "https_required",
+    ]);
+    assert.ok(binding.required?.includes("last_replaced_sources"));
+    assert.ok(binding.required?.includes("last_takeover_at"));
     assert.ok(binding.properties?.request_body_template);
     assert.ok(binding.properties?.script_template);
     assert.ok(binding.properties?.usage_instructions);
     assert.deepEqual(deployOperation.security, [
+      { certificateDeploymentToken: [] },
+    ]);
+    assert.deepEqual(publicDeployOperation.security, [
       { certificateDeploymentToken: [] },
     ]);
     assert.equal(
@@ -332,7 +347,12 @@ describe("SSL certificate API contract", () => {
     assert.match(controller, /__FN_KNOCK_DEPLOY_URL__/u);
     assert.match(controller, /__FN_KNOCK_DEPLOY_TOKEN__/u);
     assert.match(controller, /binding\.deploy_port/u);
-    assert.match(controller, /http:\/\/127\.0\.0\.1:\$\{binding\.deploy_port\}/u);
+    assert.match(
+      controller,
+      /http:\/\/127\.0\.0\.1:\$\{binding\.deploy_port\}/u,
+    );
+    assert.match(controller, /binding\.public_deploy_url/u);
+    assert.match(controller, /binding\.public_deploy_status/u);
     assert.doesNotMatch(controller, /window\.location\.(?:hostname|origin)/u);
     assert.match(
       controller,
@@ -344,7 +364,7 @@ describe("SSL certificate API contract", () => {
     assert.doesNotMatch(controller, /localStorage|sessionStorage/u);
     assert.match(zhCN, /externalAutomationTitle: "接收外部证书"/u);
     assert.match(zhCN, /这里负责接收，不负责申请证书/u);
-    assert.match(zhCN, /只在本机 127\.0\.0\.1:\{port\} 接收证书/u);
-    assert.match(zhCN, /反向代理/u);
+    assert.match(zhCN, /推荐：通过 HTTPS 鉴权域推送/u);
+    assert.match(zhCN, /不要把该管理监听端口直接暴露到公网/u);
   });
 });

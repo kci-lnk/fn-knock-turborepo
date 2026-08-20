@@ -37,6 +37,7 @@ const {
   provider,
   providerName,
   providerOptions,
+  publicDeployStatusDescription,
   renameBinding,
   revokeBinding,
   rotateToken,
@@ -148,6 +149,21 @@ onMounted(() => void loadBindings());
           </Alert>
           <Alert>
             <AlertTitle>{{
+              credential.binding.public_deploy_status === "ready"
+                ? t("admin.certConfig.externalPublicReadyTitle")
+                : t("admin.certConfig.externalPublicUnavailableTitle")
+            }}</AlertTitle>
+            <AlertDescription>
+              {{
+                t(publicDeployStatusDescription(credential.binding), {
+                  url: credential.binding.public_deploy_url,
+                  port: credential.binding.deploy_port,
+                })
+              }}
+            </AlertDescription>
+          </Alert>
+          <Alert>
+            <AlertTitle>{{
               t("admin.certConfig.externalLoopbackTitle")
             }}</AlertTitle>
             <AlertDescription>
@@ -235,7 +251,9 @@ onMounted(() => void loadBindings());
                         ? t("admin.certConfig.externalLastSuccess")
                         : binding.last_result === "failed"
                           ? t("admin.certConfig.externalLastFailed")
-                          : t("admin.certConfig.externalNeverDeployed")
+                          : binding.last_result === "superseded"
+                            ? t("admin.certConfig.externalSuperseded")
+                            : t("admin.certConfig.externalNeverDeployed")
                     }}
                   </Badge>
                 </div>
@@ -323,6 +341,20 @@ onMounted(() => void loadBindings());
                 class="break-words text-destructive sm:col-span-2"
               >
                 {{ binding.last_error }}
+              </div>
+              <div
+                v-if="binding.last_replaced_certificate_count > 0"
+                class="break-words rounded-md border bg-background/70 p-2 sm:col-span-2"
+              >
+                {{
+                  t("admin.certConfig.externalTakeoverSummary", {
+                    certificates: binding.last_replaced_certificate_count,
+                    sources: binding.last_replaced_sources.join(", "),
+                    bindings: binding.last_disabled_external_binding_count,
+                    acme: binding.last_disabled_acme_renewal_count,
+                    time: formatDate(binding.last_takeover_at),
+                  })
+                }}
               </div>
             </div>
           </div>

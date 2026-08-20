@@ -3383,7 +3383,7 @@ export const jaJPAdmin = {
       "使用中の証明書ツールを選択します。生成された受信設定をツールへコピーすると、新規・更新済み証明書を fn-knock に送信できます。",
     externalSecurityTitle: "ここでは証明書を受信します。発行は行いません",
     externalSecurityDescription:
-      "Certd、acme.sh、lego、Certbot が発行と更新を行い、fn-knock が受信後に検証、保存、ゲートウェイへの反映を行います。有効な証明書がない場合、最初に受信した証明書が自動で有効になります。",
+      "Certd、acme.sh、lego、Certbot が発行と更新を行います。バインド Token は証明書管理者の認証情報です。保持者は任意の SAN を送信し、同一 SAN の全ソースを引き継げます。パスワード保管庫に保存し、漏えいの疑いがあれば直ちにローテーションまたは無効化してください。",
     externalProviderLabel: "証明書ツール",
     externalNameLabel: "受信先の名前",
     externalNamePlaceholder: "例：Certd メイン証明書",
@@ -3391,12 +3391,22 @@ export const jaJPAdmin = {
     externalCreate: "受信先を作成",
     externalCredentialTitle: "次の手順：この設定を {provider} にコピー",
     externalCredentialDescription:
-      "証明書デプロイタスクに設定して、一度テストしてください。以後の発行と更新は fn-knock に送信されます。Token は一度しか表示されないため、今すぐ設定を完了してください。",
-    externalLoopbackTitle: "既定のアドレスは同一ホストからの送信用です",
+      "証明書デプロイタスクに設定して一度テストしてください。管理者権限の Token は一度しか表示されないため、今すぐ設定を完了し安全に保存してください。",
+    externalPublicReadyTitle: "推奨：HTTPS 認証ホスト経由で送信",
+    externalPublicUnavailableTitle: "公開証明書送信はまだ利用できません",
+    externalPublicReadyDescription:
+      "別のマシンのタスクから、この安全な公開 URL を直接使用できます：{url}",
+    externalPublicUnconfiguredDescription:
+      "先に認証サブドメインを設定してください。管理ポートを公開せずに、fn-knock が HTTPS 公開送信 URL を自動生成します。",
+    externalPublicHttpsRequiredDescription:
+      "認証ホストが HTTPS ではありません。公開証明書送信の前に HTTPS を有効化してください。安全でない HTTP 公開 URL は生成されません。",
+    externalLoopbackTitle: "ローカル互換 URL",
     externalLoopbackDescription:
-      "fn-knock はローカルの 127.0.0.1:{port} でのみ証明書を受信します。証明書ツールが同じホストにある場合は、下のアドレスをそのまま使用できます。別のマシンから送信する場合は、127.0.0.1:{port} を到達可能なアドレスへリバースプロキシし、送信先 URL のホストとポートを置き換えてください。リバースプロキシには HTTP または HTTPS を使用できます。",
+      "127.0.0.1:{port} URL は、同一ホストのジョブや認証ホストの証明書・ネットワーク障害時のため常に保持されます。この管理リスナーをインターネットへ直接公開しないでください。",
     externalMethodLabel: "リクエスト方式",
     externalUrlLabel: "送信先 URL",
+    externalPublicUrlLabel: "推奨公開送信 URL",
+    externalLocalUrlLabel: "ローカル互換送信 URL",
     externalHeaderLabel: "認証 Header",
     externalBodyLabel: "送信内容",
     externalSuccessMarkerLabel: "成功判定文字列",
@@ -3411,6 +3421,7 @@ export const jaJPAdmin = {
     externalDisabled: "一時停止中",
     externalLastSuccess: "前回の受信は成功",
     externalLastFailed: "前回の受信は失敗",
+    externalSuperseded: "別のバインドに引き継がれました",
     externalDisable: "受信を一時停止",
     externalEnable: "受信を再開",
     externalRename: "名前を保存",
@@ -3426,6 +3437,8 @@ export const jaJPAdmin = {
     externalLastDeployment: "最終受信",
     externalExpiresAt: "証明書の有効期限",
     externalDomains: "証明書のドメイン",
+    externalTakeoverSummary:
+      "{time} に同一 SAN 証明書 {certificates} 件（ソース：{sources}）を引き継ぎ、外部バインド {bindings} 件と ACME 自動更新 {acme} 件を無効化しました。",
     externalNeverDeployed: "最初の送信を待機中",
     externalLoadFailed: "証明書の受信先を読み込めませんでした",
     externalCreateSuccess: "証明書の受信先を作成しました",

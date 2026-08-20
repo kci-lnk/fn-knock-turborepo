@@ -8325,9 +8325,12 @@ export interface components {
         CloudflaredAssetStatusData: {
             downloaded: boolean;
             /** @enum {string} */
+            installation_status: "missing" | "outdated" | "current";
+            /** @enum {string} */
             platform: "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-386" | "linux-arm64" | "linux-armhf" | "linux-arm" | "windows-amd64" | "windows-386" | "unsupported";
             progress: components["schemas"]["SystemAssetDownloadProgressData"];
             supported: boolean;
+            target_version: string;
         };
         CloudflaredConfigData: {
             accountId: string | null;

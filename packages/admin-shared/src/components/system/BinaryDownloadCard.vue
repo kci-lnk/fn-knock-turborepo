@@ -20,6 +20,7 @@ const props = withDefaults(
     supported: boolean;
     platform: string;
     downloaded: boolean;
+    installationStatus?: "missing" | "outdated" | "current";
     status: "idle" | "downloading" | "completed" | "error";
     percent: number;
     error?: string;
@@ -29,6 +30,12 @@ const props = withDefaults(
     pendingLabel?: string;
     downloadButtonText?: string;
     downloadingText?: string;
+    outdatedLabel?: string;
+    outdatedTitle?: string;
+    outdatedDescription?: string;
+    updateButtonText?: string;
+    updateConfirmTitle?: string;
+    updateConfirmDescription?: string;
     redownloadConfirmTitle?: string;
     redownloadConfirmDescription?: string;
     deleteConfirmTitle?: string;
@@ -38,11 +45,13 @@ const props = withDefaults(
     error: "",
     isCancelling: false,
     allowManage: true,
+    installationStatus: "missing",
   },
 );
 
 const emit = defineEmits<{
   start: [];
+  update: [];
   cancel: [];
   redownload: [];
   delete: [];
@@ -99,18 +108,31 @@ const emit = defineEmits<{
           <div
             :class="[
               'px-2 py-0.5 rounded text-xs font-medium',
-              props.downloaded
-                ? 'bg-green-100 text-green-700 border border-green-200'
-                : 'bg-yellow-100 text-yellow-700 border border-yellow-200',
+              props.installationStatus === 'outdated'
+                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                : props.downloaded
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'bg-yellow-100 text-yellow-700 border border-yellow-200',
             ]"
           >
             {{
-              props.downloaded
-                ? (props.readyLabel ?? t("shared.binaryDownload.readyLabel"))
-                : (props.pendingLabel ??
-                  t("shared.binaryDownload.pendingLabel"))
+              props.installationStatus === "outdated"
+                ? (props.outdatedLabel ?? props.pendingLabel)
+                : props.downloaded
+                  ? (props.readyLabel ?? t("shared.binaryDownload.readyLabel"))
+                  : (props.pendingLabel ??
+                    t("shared.binaryDownload.pendingLabel"))
             }}
           </div>
+        </div>
+        <div
+          v-if="props.installationStatus === 'outdated'"
+          class="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+          role="alert"
+          data-testid="binary-outdated-warning"
+        >
+          <p class="text-sm font-medium">{{ props.outdatedTitle }}</p>
+          <p class="mt-1 text-xs">{{ props.outdatedDescription }}</p>
         </div>
         <div v-if="props.status === 'downloading'" class="mt-4">
           <div
@@ -136,8 +158,50 @@ const emit = defineEmits<{
 
     <template #footer>
       <template v-if="props.status !== 'downloading'">
+        <Popover
+          v-if="props.installationStatus === 'outdated' && props.allowManage"
+          v-slot="{ close }"
+        >
+          <PopoverTrigger as-child>
+            <Button :disabled="!props.supported">
+              {{
+                props.updateButtonText ??
+                t("shared.binaryDownload.downloadButton")
+              }}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="w-80 text-left">
+            <div class="grid gap-3">
+              <p class="text-sm font-medium">
+                {{ props.updateConfirmTitle }}
+              </p>
+              <p class="text-xs text-muted-foreground">
+                {{ props.updateConfirmDescription }}
+              </p>
+              <div class="flex justify-end gap-2">
+                <Button variant="outline" size="sm" @click="close">
+                  {{ t("common.cancel") }}
+                </Button>
+                <Button
+                  size="sm"
+                  @click="
+                    async () => {
+                      emit('update');
+                      close();
+                    }
+                  "
+                >
+                  {{
+                    props.updateButtonText ??
+                    t("shared.binaryDownload.downloadButton")
+                  }}
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
         <Button
-          v-if="!props.downloaded && props.allowManage"
+          v-else-if="!props.downloaded && props.allowManage"
           @click="emit('start')"
           :disabled="!props.supported"
         >

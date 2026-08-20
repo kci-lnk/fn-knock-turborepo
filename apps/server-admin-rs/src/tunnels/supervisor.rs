@@ -197,6 +197,11 @@ impl SupervisorHandle {
         if !self.snapshot().desired_running {
             return self.start().await;
         }
+        self.pause_for_restart().await?;
+        self.start().await
+    }
+
+    pub async fn pause_for_restart(&self) -> Result<(), String> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(SupervisorCommand::StopForRestart(reply_tx))
@@ -204,8 +209,7 @@ impl SupervisorHandle {
             .map_err(|_| "process supervisor is unavailable".to_string())?;
         reply_rx
             .await
-            .map_err(|_| "process supervisor stopped before restarting".to_string())??;
-        self.start().await
+            .map_err(|_| "process supervisor stopped before pausing".to_string())?
     }
 }
 
@@ -1923,6 +1927,27 @@ mod tests {
         assert_eq!(snapshot.state, SupervisorPhase::Running);
         assert!(snapshot.desired_running);
         assert_eq!(snapshot.pid, Some(second_pid));
+        handle.stop().await.unwrap();
+        shutdown.cancel();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn update_pause_stops_the_child_without_clearing_intent() {
+        let adapter = TestAdapter::shell("while :; do :; done");
+        let shutdown = CancellationToken::new();
+        let handle = spawn_supervisor(adapter, SupervisorSnapshot::default(), shutdown.clone());
+        let first_pid = handle.start().await.unwrap();
+
+        handle.pause_for_restart().await.unwrap();
+        let paused = handle.snapshot();
+        assert_eq!(paused.state, SupervisorPhase::Stopped);
+        assert!(paused.desired_running);
+        assert!(!paused.running);
+        assert!(paused.pid.is_none());
+
+        let second_pid = handle.start().await.unwrap();
+        assert_ne!(first_pid, second_pid);
         handle.stop().await.unwrap();
         shutdown.cancel();
     }

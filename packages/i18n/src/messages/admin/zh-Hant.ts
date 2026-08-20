@@ -2063,8 +2063,16 @@ export const zhHantAdmin = {
     cancelRequested: "已請求取消下載",
     readyLabel: "已就緒",
     pendingLabel: "未就緒",
+    outdatedLabel: "版本過舊",
+    outdatedTitle: "偵測到舊版 Cloudflared",
+    outdatedDescription:
+      "本機 Cloudflared 不是目前要求的 {version}。更新時隧道會短暫重新連線。",
     downloadButton: "下載資源",
+    updateButton: "更新至最新版",
     downloading: "下載中，請稍候...",
+    updateConfirmTitle: "將 Cloudflared 更新至最新版？",
+    updateConfirmDescription:
+      "更新會先停止正在執行的舊程序，替換完成後自動恢復。期間隧道會短暫中斷。",
     redownloadConfirmTitle: "確認重新下載 Cloudflared 資源？",
     redownloadConfirmDescription: "此操作會覆蓋現有文件。",
     deleteConfirmTitle: "確認刪除 Cloudflared 資源？",
@@ -2508,6 +2516,13 @@ export const zhHantAdmin = {
     notInitializedTitle: "Cloudflared 未初始化",
     notInitializedDescription: "請先在 系統設置 -> 其他資源 中完成安裝。",
     goInitialize: "前往初始化",
+    outdatedRunningTitle: "舊版 Cloudflared 仍在執行",
+    outdatedRunningDescription:
+      "為避免立即中斷服務，系統不會自動停止它。請儘快更新至 {version}；更新期間隧道會短暫重新連線。",
+    outdatedStoppedTitle: "Cloudflared 版本過舊",
+    outdatedStoppedDescription:
+      "舊版已停止且無法再次啟動。請先更新至 {version}。",
+    goUpdate: "前往更新",
     saveFailed: "保存失敗",
     clearLogsFailed: "清空日誌失敗",
     loadStatusFailed: "載入狀態失敗",

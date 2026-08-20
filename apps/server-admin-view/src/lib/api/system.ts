@@ -71,8 +71,10 @@ type SystemAssetMutationResponse =
   ApiContractComponents["schemas"]["SystemAssetMutationResponseData"];
 type FrpAssetStatusResponse =
   ApiContractOperations["get_api_admin_system_frp_status"]["responses"][200]["content"]["application/json"];
-type CloudflaredAssetStatusResponse =
+export type CloudflaredAssetStatusResponse =
   ApiContractOperations["get_api_admin_system_cloudflared_status"]["responses"][200]["content"]["application/json"];
+export type CloudflaredInstallationStatus =
+  ApiContractComponents["schemas"]["CloudflaredAssetStatusData"]["installation_status"];
 
 export const SystemAPI = {
   async getClockStatus(): Promise<SystemClockStatus> {

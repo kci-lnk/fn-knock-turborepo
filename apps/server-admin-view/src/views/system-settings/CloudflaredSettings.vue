@@ -10,6 +10,7 @@ import BinaryResourceSettings from "./BinaryResourceSettings.vue";
     :start-download="SystemAPI.startCloudflaredDownload"
     :cancel-download="SystemAPI.cancelCloudflaredDownload"
     :delete-resource="SystemAPI.deleteCloudflared"
+    version-aware
     :allow-manage-platforms="[
       'darwin-amd64',
       'darwin-arm64',

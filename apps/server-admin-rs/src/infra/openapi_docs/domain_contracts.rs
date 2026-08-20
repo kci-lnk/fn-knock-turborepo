@@ -2189,6 +2189,12 @@ pub(super) fn components() -> Map<String, Value> {
     );
     set_property_enum(
         &mut schemas,
+        "CloudflaredAssetStatusData",
+        "installation_status",
+        &["missing", "outdated", "current"],
+    );
+    set_property_enum(
+        &mut schemas,
         "FrpAssetStatusData",
         "platform",
         &[

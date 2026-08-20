@@ -2297,8 +2297,16 @@ export const jaJPAdmin = {
     cancelRequested: "ダウンロードのキャンセルを要求しました",
     readyLabel: "準備完了",
     pendingLabel: "未準備",
+    outdatedLabel: "旧バージョン",
+    outdatedTitle: "古い Cloudflared が検出されました",
+    outdatedDescription:
+      "ローカルの Cloudflared は必要なバージョン {version} と一致しません。更新中、Tunnel は一時的に再接続されます。",
     downloadButton: "リソースをダウンロード",
+    updateButton: "最新版に更新",
     downloading: "ダウンロード中です。しばらくお待ちください...",
+    updateConfirmTitle: "Cloudflared を最新版に更新しますか？",
+    updateConfirmDescription:
+      "更新では実行中の旧プロセスを停止して置き換え、以前の実行状態を復元します。その間、Tunnel は一時的に中断されます。",
     redownloadConfirmTitle: "Cloudflared リソースを再ダウンロードしますか？",
     redownloadConfirmDescription: "既存のファイルは上書きされます。",
     deleteConfirmTitle: "Cloudflared リソースを削除しますか？",
@@ -2774,6 +2782,13 @@ export const jaJPAdmin = {
     notInitializedDescription:
       "先に「システム設定 → その他のリソース」からインストールしてください。",
     goInitialize: "初期化する",
+    outdatedRunningTitle: "古い Cloudflared が実行中です",
+    outdatedRunningDescription:
+      "即時の停止を避けるため、自動では停止しません。早めに {version} へ更新してください。更新中、Tunnel は一時的に再接続されます。",
+    outdatedStoppedTitle: "Cloudflared が古くなっています",
+    outdatedStoppedDescription:
+      "旧バージョンは停止しており、再起動できません。先に {version} へ更新してください。",
+    goUpdate: "更新へ移動",
     saveFailed: "保存に失敗しました",
     clearLogsFailed: "ログのクリアに失敗しました",
     loadStatusFailed: "状態の読み込みに失敗しました",

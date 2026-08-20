@@ -12,6 +12,8 @@ import { toast } from "@admin-shared/utils/toast";
 
 type ResourceDownloadStatus =
   ApiContractComponents["schemas"]["SystemAssetDownloadProgressData"]["status"];
+type CloudflaredInstallationStatus =
+  ApiContractComponents["schemas"]["CloudflaredAssetStatusData"]["installation_status"];
 
 type ResourceStatusPayload =
   | ApiContractComponents["schemas"]["CloudflaredAssetStatusData"]
@@ -32,9 +34,11 @@ const props = withDefaults(
     ) => Promise<ResourceApiResponse<ResourceStatusPayload>>;
     messageKeyPrefix: string;
     startDownload: () => Promise<ResourceApiResponse>;
+    versionAware?: boolean;
   }>(),
   {
     allowManagePlatforms: () => [],
+    versionAware: false,
   },
 );
 
@@ -43,10 +47,13 @@ const { t } = useI18n();
 const supported = ref(false);
 const platform = ref("unsupported");
 const downloaded = ref(false);
+const installationStatus = ref<CloudflaredInstallationStatus>("missing");
+const targetVersion = ref("");
 const status = ref<ResourceDownloadStatus>("idle");
 const percent = ref(0);
 const error = ref("");
-const message = (key: string) => t(`${props.messageKeyPrefix}.${key}`);
+const message = (key: string, params?: Record<string, string>) =>
+  t(`${props.messageKeyPrefix}.${key}`, params ?? {});
 
 const allowManage = computed(
   () =>
@@ -77,6 +84,13 @@ const { isInitializing, refresh: refreshStatus } = usePollingResourceStatus({
     supported.value = res.data.supported;
     platform.value = res.data.platform;
     downloaded.value = res.data.downloaded;
+    if ("installation_status" in res.data) {
+      installationStatus.value = res.data.installation_status;
+      targetVersion.value = res.data.target_version;
+    } else {
+      installationStatus.value = res.data.downloaded ? "current" : "missing";
+      targetVersion.value = "";
+    }
     status.value = res.data.progress?.status || "idle";
     percent.value = res.data.progress?.percent || 0;
     error.value = res.data.progress?.error || "";
@@ -131,6 +145,7 @@ const cancelResourceDownload = async () => {
     :supported="supported"
     :platform="platform"
     :downloaded="downloaded"
+    :installation-status="installationStatus"
     :status="status"
     :percent="percent"
     :error="error"
@@ -140,11 +155,28 @@ const cancelResourceDownload = async () => {
     :pending-label="message('pendingLabel')"
     :download-button-text="message('downloadButton')"
     :downloading-text="message('downloading')"
+    :outdated-label="props.versionAware ? message('outdatedLabel') : undefined"
+    :outdated-title="props.versionAware ? message('outdatedTitle') : undefined"
+    :outdated-description="
+      props.versionAware
+        ? message('outdatedDescription', { version: targetVersion })
+        : undefined
+    "
+    :update-button-text="
+      props.versionAware ? message('updateButton') : undefined
+    "
+    :update-confirm-title="
+      props.versionAware ? message('updateConfirmTitle') : undefined
+    "
+    :update-confirm-description="
+      props.versionAware ? message('updateConfirmDescription') : undefined
+    "
     :redownload-confirm-title="message('redownloadConfirmTitle')"
     :redownload-confirm-description="message('redownloadConfirmDescription')"
     :delete-confirm-title="message('deleteConfirmTitle')"
     :delete-confirm-description="message('deleteConfirmDescription')"
     @start="startResourceDownload"
+    @update="startResourceDownload"
     @cancel="cancelResourceDownload"
     @redownload="startResourceDownload"
     @delete="deleteManagedResource"

@@ -387,6 +387,19 @@ describe("system-managed binary and dnsmasq API contract", () => {
     assert.ok(cloudflaredPlatforms.includes("linux-armhf"));
     assert.ok(!frpPlatforms.includes("windows-amd64"));
     assert.ok(frpPlatforms.includes("unsupported"));
+    assert.deepEqual(
+      contract.components.schemas.CloudflaredAssetStatusData.properties
+        ?.installation_status?.enum,
+      ["missing", "outdated", "current"],
+    );
+    for (const field of ["installation_status", "target_version"] as const) {
+      assert.ok(
+        contract.components.schemas.CloudflaredAssetStatusData.required?.includes(
+          field,
+        ),
+        field,
+      );
+    }
 
     for (const [method, path] of [
       ["post", "/api/admin/system/cloudflared/download"],

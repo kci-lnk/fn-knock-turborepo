@@ -22,8 +22,10 @@ const controller = useCloudflareTunnelController();
 const {
   canStart,
   canStop,
+  cloudflaredInstallationStatus,
   cloudflaredLogAnalysis,
   cloudflaredLogAnalysisMessage,
+  cloudflaredTargetVersion,
   configLoaded,
   gotoResources,
   hasSubdomainRoot,
@@ -74,6 +76,38 @@ const {
         </Button>
       </div>
     </div>
+
+    <Alert
+      v-if="cloudflaredInstallationStatus === 'outdated'"
+      class="items-start rounded-xl border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+      data-testid="cloudflared-outdated-warning"
+    >
+      <TriangleAlert class="size-4 text-amber-700" />
+      <AlertTitle>
+        {{
+          t(
+            running
+              ? "admin.cloudflareTunnel.outdatedRunningTitle"
+              : "admin.cloudflareTunnel.outdatedStoppedTitle",
+          )
+        }}
+      </AlertTitle>
+      <AlertDescription class="space-y-3 text-amber-900 dark:text-amber-100">
+        <p>
+          {{
+            t(
+              running
+                ? "admin.cloudflareTunnel.outdatedRunningDescription"
+                : "admin.cloudflareTunnel.outdatedStoppedDescription",
+              { version: cloudflaredTargetVersion },
+            )
+          }}
+        </p>
+        <Button variant="outline" size="sm" @click="gotoResources">
+          {{ t("admin.cloudflareTunnel.goUpdate") }}
+        </Button>
+      </AlertDescription>
+    </Alert>
 
     <Alert
       v-if="!isReverseProxySubdomainMode || !hasSubdomainRoot"

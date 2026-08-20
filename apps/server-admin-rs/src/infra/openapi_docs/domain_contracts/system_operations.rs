@@ -272,6 +272,8 @@ pub(super) struct CloudflaredAssetStatusData {
     supported: bool,
     platform: String,
     downloaded: bool,
+    installation_status: String,
+    target_version: String,
     progress: SystemAssetDownloadProgressData,
 }
 

@@ -26,8 +26,8 @@ use secrets::{CloudflaredSecretStore, SecretKind, atomic_private_write};
 
 use crate::{
     cloudflared_utils::{
-        cloudflared_asset_name, cloudflared_binary_checksum_is_current, cloudflared_binary_path,
-        cloudflared_install_is_current, detect_cloudflared_platform,
+        cloudflared_asset_name, cloudflared_binary_path, cloudflared_install_is_current,
+        detect_cloudflared_platform,
     },
     i18n::Translator,
     response,
@@ -625,9 +625,7 @@ impl CloudflaredManager {
         }
         let data_dir = self.dir.parent().unwrap_or(&self.dir);
         let platform = detect_cloudflared_platform();
-        if cloudflared_install_is_current(data_dir, platform)
-            && cloudflared_binary_checksum_is_current(data_dir, platform)
-        {
+        if cloudflared_install_is_current(data_dir, platform) {
             Ok(self.bin_path.to_string_lossy().to_string())
         } else {
             Err("Cloudflared is not initialized".to_string())
@@ -752,11 +750,16 @@ pub(crate) async fn ensure_cloudflared_supervisor(
 pub(crate) async fn pause_cloudflared_for_asset_update(state: &AppState) -> Result<bool, String> {
     let handle = ensure_cloudflared_supervisor(state).await?;
     let snapshot = handle.snapshot();
-    let should_resume = snapshot.desired_running || snapshot.running;
+    let should_resume =
+        should_resume_cloudflared_after_asset_update(snapshot.desired_running, snapshot.running);
     if should_resume {
-        handle.stop().await?;
+        handle.pause_for_restart().await?;
     }
     Ok(should_resume)
+}
+
+fn should_resume_cloudflared_after_asset_update(desired_running: bool, running: bool) -> bool {
+    desired_running || running
 }
 
 pub(crate) async fn resume_cloudflared_after_asset_update(
@@ -1650,6 +1653,14 @@ mod tests {
             "cloudflared version 2025.3.2"
         ));
         assert!(!cloudflared_version_supports_token_file("unknown"));
+    }
+
+    #[test]
+    fn preserves_the_pre_update_running_intent() {
+        assert!(!should_resume_cloudflared_after_asset_update(false, false));
+        assert!(should_resume_cloudflared_after_asset_update(false, true));
+        assert!(should_resume_cloudflared_after_asset_update(true, false));
+        assert!(should_resume_cloudflared_after_asset_update(true, true));
     }
 
     #[test]

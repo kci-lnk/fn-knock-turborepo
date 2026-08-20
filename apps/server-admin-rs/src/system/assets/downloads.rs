@@ -15,7 +15,7 @@ use crate::{
     cloudflared,
     cloudflared_utils::{
         CloudflaredAssetSpec, cloudflared_asset_spec, cloudflared_binary_path,
-        cloudflared_install_is_current, cloudflared_install_metadata_path,
+        cloudflared_install_metadata_path, cloudflared_installation_status,
     },
     frp_utils,
     fs_utils::{chmod_executable, replace_file},
@@ -40,11 +40,13 @@ use super::{
 
 pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_cloudflared_platform();
-    let downloaded = cloudflared_install_is_current(data_dir, platform);
+    let installation_status = cloudflared_installation_status(data_dir, platform);
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
-        "downloaded": downloaded,
+        "downloaded": installation_status.as_str() == "current",
+        "installation_status": installation_status.as_str(),
+        "target_version": crate::cloudflared_utils::CLOUDFLARED_VERSION,
         "progress": progress_json("cloudflared", translator)
     })
 }
@@ -119,19 +121,27 @@ pub(super) async fn download_cloudflared(state: AppState) {
         if let Err(start_error) =
             cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await
         {
-            transaction.rollback()?;
+            let rollback = transaction.rollback();
             let recovery =
                 cloudflared::resume_cloudflared_after_asset_update(&state, should_resume).await;
-            return Err(match recovery {
-                Ok(()) => format!(
+            return Err(match (rollback, recovery) {
+                (Ok(()), Ok(())) => format!(
                     "Cloudflared update failed to start ({start_error}); previous binary restored"
                 ),
-                Err(recovery_error) => format!(
+                (Ok(()), Err(recovery_error)) => format!(
                     "Cloudflared update failed to start ({start_error}); previous binary restored but restart failed: {recovery_error}"
+                ),
+                (Err(rollback_error), Ok(())) => format!(
+                    "Cloudflared update failed to start ({start_error}); {rollback_error}; recovery start succeeded"
+                ),
+                (Err(rollback_error), Err(recovery_error)) => format!(
+                    "Cloudflared update failed to start ({start_error}); {rollback_error}; recovery start failed: {recovery_error}"
                 ),
             });
         }
-        transaction.commit()?;
+        if let Err(error) = transaction.commit() {
+            tracing::warn!(%error, "cloudflared update succeeded but backup cleanup was incomplete");
+        }
         Ok(())
     }
     .await;
@@ -188,9 +198,21 @@ impl CloudflaredInstallTransaction {
     }
 
     fn commit(self) -> Result<(), String> {
-        reset_path(&self.target_backup)?;
-        reset_path(&self.metadata_backup)?;
-        reset_path(&self.metadata_temp)
+        let mut errors = Vec::new();
+        for (label, path) in [
+            ("binary backup", &self.target_backup),
+            ("metadata backup", &self.metadata_backup),
+            ("metadata temporary file", &self.metadata_temp),
+        ] {
+            if let Err(error) = reset_path(path) {
+                errors.push(format!("remove {label}: {error}"));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
     }
 }
 
@@ -250,8 +272,10 @@ fn install_cloudflared_binary_transactionally(
     }
     let had_metadata = metadata.exists();
     if had_metadata && let Err(error) = replace_file(&metadata, &metadata_backup) {
-        if had_target {
-            let _ = replace_file(&target_backup, target);
+        if had_target && let Err(restore_error) = replace_file(&target_backup, target) {
+            return Err(format!(
+                "Cloudflared metadata backup failed ({error}); previous binary restore failed: {restore_error}"
+            ));
         }
         return Err(error.to_string());
     }
@@ -893,5 +917,34 @@ mod cloudflared_install_tests {
         transaction.rollback().unwrap();
         assert_eq!(fs::read(&target).unwrap(), b"previous");
         assert_eq!(fs::read(&metadata).unwrap(), b"previous metadata");
+    }
+
+    #[test]
+    fn commits_the_replacement_and_removes_transaction_backups() {
+        let directory = tempfile::tempdir().unwrap();
+        let data_dir = directory.path();
+        let cloudflared_dir = data_dir.join("cloudflared");
+        fs::create_dir_all(&cloudflared_dir).unwrap();
+        let downloaded = cloudflared_dir.join("cloudflared.tmp");
+        let target = cloudflared_dir.join("cloudflared");
+        let metadata = cloudflared_install_metadata_path(data_dir);
+        fs::write(&downloaded, b"binary").unwrap();
+        fs::write(&target, b"previous").unwrap();
+        fs::write(&metadata, b"previous metadata").unwrap();
+
+        let transaction =
+            install_cloudflared_binary_transactionally(&downloaded, &target, data_dir, TEST_ASSET)
+                .unwrap();
+        transaction.commit().unwrap();
+
+        assert_eq!(fs::read(&target).unwrap(), b"binary");
+        assert!(
+            fs::read_to_string(&metadata)
+                .unwrap()
+                .contains(TEST_ASSET.sha256)
+        );
+        assert!(!cloudflared_dir.join("cloudflared.previous").exists());
+        assert!(!cloudflared_dir.join("install.previous.json").exists());
+        assert!(!cloudflared_dir.join("install.tmp.json").exists());
     }
 }

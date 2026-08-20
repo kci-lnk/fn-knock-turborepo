@@ -2294,8 +2294,16 @@ export const enAdmin = {
     cancelRequested: "Download cancellation requested",
     readyLabel: "Ready",
     pendingLabel: "Not ready",
+    outdatedLabel: "Outdated",
+    outdatedTitle: "An outdated Cloudflared installation was detected",
+    outdatedDescription:
+      "The local Cloudflared does not match the required version {version}. The tunnel will reconnect briefly during the update.",
     downloadButton: "Download resource",
+    updateButton: "Update to latest",
     downloading: "Downloading, please wait...",
+    updateConfirmTitle: "Update Cloudflared to the latest version?",
+    updateConfirmDescription:
+      "The update stops the old process, replaces it, and restores its previous running state. The tunnel will be briefly interrupted.",
     redownloadConfirmTitle: "Download the Cloudflared resource again?",
     redownloadConfirmDescription: "This overwrites the existing file.",
     deleteConfirmTitle: "Delete the Cloudflared resource?",
@@ -2771,6 +2779,13 @@ export const enAdmin = {
     notInitializedDescription:
       "Install it first in System Settings -> Other resources.",
     goInitialize: "Go initialize",
+    outdatedRunningTitle: "An outdated Cloudflared process is still running",
+    outdatedRunningDescription:
+      "It will not be stopped automatically to avoid an immediate outage. Update to {version} soon; the tunnel will reconnect briefly during the update.",
+    outdatedStoppedTitle: "Cloudflared is outdated",
+    outdatedStoppedDescription:
+      "The old version is stopped and cannot be started again. Update to {version} first.",
+    goUpdate: "Go to update",
     saveFailed: "Save failed",
     clearLogsFailed: "Failed to clear logs",
     loadStatusFailed: "Failed to load status",

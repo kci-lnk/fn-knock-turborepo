@@ -7,7 +7,10 @@ import {
   type TunnelSupervisorStatus,
 } from "@/lib/api/tunnel";
 import { ConfigAPI } from "@/lib/api/config";
-import { SystemAPI } from "@/lib/api/system";
+import {
+  SystemAPI,
+  type CloudflaredInstallationStatus,
+} from "@/lib/api/system";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -55,6 +58,9 @@ export const useCloudflaredRuntime = ({
   const configStore = useConfigStore();
   const isInit = ref(false);
   const running = ref(false);
+  const cloudflaredInstallationStatus =
+    ref<CloudflaredInstallationStatus>("missing");
+  const cloudflaredTargetVersion = ref("");
   const pid = ref<number | null>(null);
   const supervisor = ref<TunnelSupervisorStatus>(stoppedSupervisor());
   const logs = ref<string[]>([]);
@@ -228,7 +234,16 @@ export const useCloudflaredRuntime = ({
       supervisor.value = status.supervisor;
       if (!isInit.value) {
         const systemStatus = await SystemAPI.getCloudflaredStatus();
-        if (!systemStatus?.data?.downloaded) showInitDialog.value = true;
+        const asset = systemStatus?.data;
+        cloudflaredInstallationStatus.value =
+          asset?.installation_status ??
+          (asset?.downloaded ? "current" : "missing");
+        cloudflaredTargetVersion.value = asset?.target_version ?? "";
+        showInitDialog.value =
+          cloudflaredInstallationStatus.value === "missing";
+      } else {
+        cloudflaredInstallationStatus.value = "current";
+        showInitDialog.value = false;
       }
     });
   };
@@ -364,12 +379,14 @@ export const useCloudflaredRuntime = ({
     authServiceHost,
     canStart,
     canStop,
+    cloudflaredInstallationStatus,
     cloudflaredLogAnalysis,
     cloudflaredLogAnalysisMessage,
     cloudflaredOriginServiceUrl,
     cloudflaredProtocolDescription,
     cloudflaredProtocolLabel,
     cloudflaredProtocolOptions,
+    cloudflaredTargetVersion,
     configLoaded,
     gotoResources,
     hasSubdomainRoot,

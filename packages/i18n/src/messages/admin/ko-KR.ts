@@ -2275,8 +2275,16 @@ export const koKRAdmin = {
     cancelRequested: "다운로드 취소를 요청했습니다",
     readyLabel: "사용 가능",
     pendingLabel: "사용 불가",
+    outdatedLabel: "오래된 버전",
+    outdatedTitle: "오래된 Cloudflared가 감지되었습니다",
+    outdatedDescription:
+      "로컬 Cloudflared가 필요한 버전 {version}과 일치하지 않습니다. 업데이트 중 터널이 잠시 다시 연결됩니다.",
     downloadButton: "리소스 다운로드",
+    updateButton: "최신 버전으로 업데이트",
     downloading: "다운로드 중입니다. 잠시 기다려 주세요...",
+    updateConfirmTitle: "Cloudflared를 최신 버전으로 업데이트할까요?",
+    updateConfirmDescription:
+      "업데이트는 실행 중인 이전 프로세스를 중지하고 교체한 뒤 기존 실행 상태를 복원합니다. 이 과정에서 터널이 잠시 중단됩니다.",
     redownloadConfirmTitle: "Cloudflared 리소스를 다시 다운로드하시겠습니까?",
     redownloadConfirmDescription: "기존 파일을 덮어씁니다.",
     deleteConfirmTitle: "Cloudflared 리소스를 삭제하시겠습니까?",
@@ -2750,6 +2758,13 @@ export const koKRAdmin = {
     notInitializedDescription:
       "시스템 설정 -> 기타 리소스에서 먼저 설치하세요.",
     goInitialize: "초기화로 이동",
+    outdatedRunningTitle: "오래된 Cloudflared가 아직 실행 중입니다",
+    outdatedRunningDescription:
+      "즉시 중단되지 않도록 자동으로 멈추지 않습니다. 가능한 한 빨리 {version}(으)로 업데이트하세요. 업데이트 중 터널이 잠시 다시 연결됩니다.",
+    outdatedStoppedTitle: "Cloudflared 버전이 오래되었습니다",
+    outdatedStoppedDescription:
+      "이전 버전은 중지되어 있으며 다시 시작할 수 없습니다. 먼저 {version}(으)로 업데이트하세요.",
+    goUpdate: "업데이트로 이동",
     saveFailed: "저장 실패",
     clearLogsFailed: "로그를 지우지 못했습니다.",
     loadStatusFailed: "상태를 불러오지 못했습니다.",

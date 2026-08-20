@@ -6,6 +6,7 @@ pub(super) struct WafConfigData {
     enabled: bool,
     system_rules_auto_update_enabled: bool,
     common_location_exempt_enabled: bool,
+    private_ip_exempt_enabled: bool,
     mode: String,
     active_bundle_id: String,
     rules_dir: String,
@@ -30,6 +31,7 @@ pub(super) struct WafConfigUpdateData {
     enabled: Option<bool>,
     system_rules_auto_update_enabled: Option<bool>,
     common_location_exempt_enabled: Option<bool>,
+    private_ip_exempt_enabled: Option<bool>,
     paranoia_level: Option<i64>,
     executing_paranoia_level: Option<i64>,
 }

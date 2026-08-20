@@ -1619,6 +1619,8 @@ export const enAdmin = {
     disabledDescription: "The Go gateway will skip WAF checks immediately.",
     commonLocationEnabled: "Common-location exemption enabled",
     commonLocationDisabled: "Common-location exemption disabled",
+    privateIpExemptEnabled: "LAN exemption enabled",
+    privateIpExemptDisabled: "LAN exemption disabled",
     autoUpdateEnabled: "Automatic updates enabled",
     autoUpdateDisabled: "Automatic updates disabled",
     autoUpdateEnabledDescription:
@@ -1657,6 +1659,9 @@ export const enAdmin = {
     commonLocationExempt: "Common-location exemption",
     commonLocationExemptDescription:
       "Requests from recently used login regions skip WAF checks.",
+    privateIpExempt: "LAN exemption",
+    privateIpExemptDescription:
+      "Requests from LAN, loopback, link-local, and carrier-grade NAT addresses skip WAF checks.",
     protectionLevel: "Protection level",
     protectionLevelDescription:
       "Level 1 is recommended for daily use. Higher levels are stricter and may cause more false positives.",

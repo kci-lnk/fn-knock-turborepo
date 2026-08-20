@@ -1601,6 +1601,8 @@ export const koKRAdmin = {
     disabledDescription: "Go 게이트웨이는 WAF 검사를 즉시 건너뜁니다.",
     commonLocationEnabled: "자주 접속한 지역 예외 사용",
     commonLocationDisabled: "자주 접속한 지역 예외 사용 안 함",
+    privateIpExemptEnabled: "LAN 예외 사용",
+    privateIpExemptDisabled: "LAN 예외 사용 안 함",
     autoUpdateEnabled: "자동 업데이트 사용",
     autoUpdateDisabled: "자동 업데이트 사용 안 함",
     autoUpdateEnabledDescription:
@@ -1638,6 +1640,9 @@ export const koKRAdmin = {
     commonLocationExempt: "자주 접속한 지역 예외",
     commonLocationExemptDescription:
       "최근 로그인한 지역에서 들어온 요청은 WAF 검사를 건너뜁니다.",
+    privateIpExempt: "LAN 예외",
+    privateIpExemptDescription:
+      "LAN, 루프백, 링크 로컬 및 캐리어급 NAT 주소에서 들어온 요청은 WAF 검사를 건너뜁니다.",
     protectionLevel: "보호 수준",
     protectionLevelDescription:
       "레벨 1은 일상적인 사용을 권장합니다. 수준이 높을수록 더 엄격해지고 오탐지가 더 많이 발생할 수 있습니다.",

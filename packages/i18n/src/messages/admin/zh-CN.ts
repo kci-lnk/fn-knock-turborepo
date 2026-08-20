@@ -1480,6 +1480,8 @@ export const zhCNAdmin = {
     disabledDescription: "Go 网关会立即跳过 WAF 检查。",
     commonLocationEnabled: "常用地豁免已开启",
     commonLocationDisabled: "常用地豁免已关闭",
+    privateIpExemptEnabled: "局域网豁免已开启",
+    privateIpExemptDisabled: "局域网豁免已关闭",
     autoUpdateEnabled: "自动更新已开启",
     autoUpdateDisabled: "自动更新已关闭",
     autoUpdateEnabledDescription: "后端会自动维护 WAF 系统规则更新。",
@@ -1514,6 +1516,9 @@ export const zhCNAdmin = {
     commonLocationExempt: "常用地豁免",
     commonLocationExemptDescription:
       "来自最近登录常用地区的请求会跳过 WAF 检查。",
+    privateIpExempt: "局域网豁免",
+    privateIpExemptDescription:
+      "来自局域网、回环、链路本地及运营商级 NAT 地址的请求会跳过 WAF 检查。",
     protectionLevel: "防护强度",
     protectionLevelDescription:
       "日常使用建议保持 1 级。等级越高越严格，也越可能误拦截。",

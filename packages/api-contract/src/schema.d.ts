@@ -12363,6 +12363,7 @@ export interface components {
             outbound_anomaly_threshold: 4;
             /** Format: int64 */
             paranoia_level: number;
+            private_ip_exempt_enabled: boolean;
             /** @constant */
             request_body_access: true;
             /** Format: int64 */
@@ -12383,6 +12384,7 @@ export interface components {
             executing_paranoia_level?: number | null;
             /** Format: int64 */
             paranoia_level?: number | null;
+            private_ip_exempt_enabled?: boolean | null;
             system_rules_auto_update_enabled?: boolean | null;
         };
         WafCustomDetailsData: {

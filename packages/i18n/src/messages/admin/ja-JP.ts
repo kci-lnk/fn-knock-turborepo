@@ -1624,6 +1624,8 @@ export const jaJPAdmin = {
     disabledDescription: "Go ゲートウェイは直ちに WAF チェックを停止します。",
     commonLocationEnabled: "よく使う地域の除外を有効にしました",
     commonLocationDisabled: "よく使う地域の除外を無効にしました",
+    privateIpExemptEnabled: "LAN 除外を有効にしました",
+    privateIpExemptDisabled: "LAN 除外を無効にしました",
     autoUpdateEnabled: "自動更新を有効にしました",
     autoUpdateDisabled: "自動更新を無効にしました",
     autoUpdateEnabledDescription:
@@ -1662,6 +1664,9 @@ export const jaJPAdmin = {
     commonLocationExempt: "よく使う地域を除外",
     commonLocationExemptDescription:
       "最近のログインでよく使われている地域からのリクエストは、WAF チェックを省略します。",
+    privateIpExempt: "LAN を除外",
+    privateIpExemptDescription:
+      "LAN、ループバック、リンクローカル、キャリアグレード NAT アドレスからのリクエストは WAF チェックを省略します。",
     protectionLevel: "保護レベル",
     protectionLevelDescription:
       "通常はレベル1を推奨します。レベルを上げるほど判定が厳しくなり、誤検知が増える可能性があります。",

@@ -62,6 +62,7 @@ pub fn default_config() -> Value {
         "enabled": false,
         "system_rules_auto_update_enabled": true,
         "common_location_exempt_enabled": false,
+        "private_ip_exempt_enabled": false,
         "mode": "blocking",
         "active_bundle_id": "local",
         "rules_dir": waf_rules_dir,

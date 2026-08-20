@@ -21951,6 +21951,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "private_ip_exempt_enabled": {
+            "type": "boolean"
+          },
           "request_body_access": {
             "const": true,
             "type": "boolean"
@@ -21989,6 +21992,7 @@
           "enabled",
           "system_rules_auto_update_enabled",
           "common_location_exempt_enabled",
+          "private_ip_exempt_enabled",
           "mode",
           "active_bundle_id",
           "rules_dir",
@@ -22037,6 +22041,12 @@
             "minimum": 1,
             "type": [
               "integer",
+              "null"
+            ]
+          },
+          "private_ip_exempt_enabled": {
+            "type": [
+              "boolean",
               "null"
             ]
           },

@@ -364,6 +364,7 @@ message WafConfig {
   repeated string disabled_hosts = 13;
   repeated string disabled_path_prefixes = 14;
   string updated_at = 15;
+  bool private_ip_exempt_enabled = 16;
 }
 
 message WafStatus {

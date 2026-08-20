@@ -27,6 +27,7 @@ export function useWAFSettings() {
     enabled: false,
     system_rules_auto_update_enabled: true,
     common_location_exempt_enabled: false,
+    private_ip_exempt_enabled: false,
     paranoia_level: 1,
     executing_paranoia_level: 1,
   });
@@ -110,6 +111,8 @@ export function useWAFSettings() {
       data.config.system_rules_auto_update_enabled !== false;
     form.common_location_exempt_enabled =
       data.config.common_location_exempt_enabled === true;
+    form.private_ip_exempt_enabled =
+      data.config.private_ip_exempt_enabled === true;
     const level = clampLevel(data.config.paranoia_level, 1);
     form.paranoia_level = level;
     form.executing_paranoia_level = level;
@@ -150,6 +153,7 @@ export function useWAFSettings() {
           system_rules_auto_update_enabled:
             form.system_rules_auto_update_enabled,
           common_location_exempt_enabled: form.common_location_exempt_enabled,
+          private_ip_exempt_enabled: form.private_ip_exempt_enabled,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         }),
@@ -185,6 +189,7 @@ export function useWAFSettings() {
           system_rules_auto_update_enabled:
             form.system_rules_auto_update_enabled,
           common_location_exempt_enabled: form.common_location_exempt_enabled,
+          private_ip_exempt_enabled: form.private_ip_exempt_enabled,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         });
@@ -235,6 +240,29 @@ export function useWAFSettings() {
     );
   };
 
+  const handlePrivateIPExemptChange = async (enabled: boolean) => {
+    if (form.private_ip_exempt_enabled === enabled || isBusy.value) return;
+    const previousEnabled = form.private_ip_exempt_enabled;
+    form.private_ip_exempt_enabled = enabled;
+    await runSaveSettings(
+      () => WAFAPI.updateConfig({ private_ip_exempt_enabled: enabled }),
+      {
+        onSuccess: (data) => {
+          applyFromDetails(data);
+          toast.success(
+            enabled
+              ? t("admin.wafSettings.privateIpExemptEnabled")
+              : t("admin.wafSettings.privateIpExemptDisabled"),
+          );
+        },
+        onError: () => {
+          form.private_ip_exempt_enabled = previousEnabled;
+          if (details.value) applyFromDetails(details.value);
+        },
+      },
+    );
+  };
+
   const handleAutoUpdateChange = async (enabled: boolean) => {
     if (form.system_rules_auto_update_enabled === enabled || isBusy.value) {
       return;
@@ -275,6 +303,7 @@ export function useWAFSettings() {
     handleCommonLocationExemptChange,
     handleEnabledChange,
     handleParanoiaLevelChange,
+    handlePrivateIPExemptChange,
     isBusy,
     isLoading,
     levelOptions,

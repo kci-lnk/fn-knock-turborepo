@@ -75,6 +75,7 @@ describe("WAF API contract", () => {
       "enabled",
       "executing_paranoia_level",
       "paranoia_level",
+      "private_ip_exempt_enabled",
       "system_rules_auto_update_enabled",
     ]);
   });

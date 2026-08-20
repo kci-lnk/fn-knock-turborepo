@@ -66,6 +66,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "enabled",
             "system_rules_auto_update_enabled",
             "common_location_exempt_enabled",
+            "private_ip_exempt_enabled",
             "paranoia_level",
             "executing_paranoia_level",
         ] {
@@ -89,7 +90,12 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
 
     let should_apply_to_gateway = has_any_key(
         patch,
-        &["enabled", "paranoia_level", "executing_paranoia_level"],
+        &[
+            "enabled",
+            "paranoia_level",
+            "executing_paranoia_level",
+            "private_ip_exempt_enabled",
+        ],
     );
     if should_apply_to_gateway {
         apply_waf_config_to_gateway(
@@ -618,8 +624,15 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    // A missing lease while events are present means the gateway ran in legacy
+    // immediate-drain mode (an older data plane, or the backward-compatible
+    // path). The events are already removed from the gateway store, so persist
+    // them best-effort without a delivery lease instead of failing the drain.
     if !raw_events.is_empty() && lease_id.is_empty() {
-        anyhow::bail!("Go backend returned WAF events without a delivery lease");
+        tracing::debug!(
+            event_count = raw_events.len(),
+            "drained WAF events without a delivery lease (legacy gateway)"
+        );
     }
     let leased_event_count = raw_events.len();
     let events = raw_events
@@ -792,6 +805,10 @@ pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState
             .unwrap_or(true),
         "common_location_exempt_enabled": raw
             .and_then(|object| object.get("common_location_exempt_enabled"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "private_ip_exempt_enabled": raw
+            .and_then(|object| object.get("private_ip_exempt_enabled"))
             .and_then(Value::as_bool)
             .unwrap_or(false),
         "mode": "blocking",

@@ -1470,6 +1470,7 @@ fn parse_waf_config(value: &Value) -> WafConfig {
         disabled_hosts: string_vec_field(value, "disabled_hosts"),
         disabled_path_prefixes: string_vec_field(value, "disabled_path_prefixes"),
         updated_at: string_field(value, "updated_at"),
+        private_ip_exempt_enabled: bool_field(value, "private_ip_exempt_enabled", false),
     }
 }
 
@@ -2321,6 +2322,19 @@ mod tests {
         assert_eq!(value["acknowledged"], 2);
         assert_eq!(value["drained"], 2);
         assert_eq!(value["remaining"], 1);
+    }
+
+    #[test]
+    fn waf_config_parse_preserves_private_ip_exempt_flag() {
+        let value = parse_waf_config(&json!({
+            "enabled": true,
+            "private_ip_exempt_enabled": true,
+        }));
+        assert!(value.enabled);
+        assert!(value.private_ip_exempt_enabled);
+
+        let value = parse_waf_config(&json!({}));
+        assert!(!value.private_ip_exempt_enabled);
     }
 
     #[test]

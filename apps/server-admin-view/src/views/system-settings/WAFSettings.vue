@@ -50,6 +50,7 @@ const {
   handleCommonLocationExemptChange,
   handleEnabledChange,
   handleParanoiaLevelChange,
+  handlePrivateIPExemptChange,
   handleUploadChange,
   isBusy,
   isChangingRules,
@@ -195,6 +196,34 @@ void uploadInputRef;
             :disabled="isBusy"
             @update:model-value="
               (value) => handleCommonLocationExemptChange(value === true)
+            "
+          />
+        </section>
+
+        <section
+          v-if="form.enabled"
+          class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="space-y-1 pr-6">
+            <Label
+              :for="`${a11yId}-wafsettings-6`"
+              class="cursor-pointer text-base font-medium"
+              @click="
+                handlePrivateIPExemptChange(!form.private_ip_exempt_enabled)
+              "
+            >
+              {{ t("admin.wafSettings.privateIpExempt") }}
+            </Label>
+            <div class="text-sm text-muted-foreground">
+              {{ t("admin.wafSettings.privateIpExemptDescription") }}
+            </div>
+          </div>
+          <Switch
+            :id="`${a11yId}-wafsettings-6`"
+            :model-value="form.private_ip_exempt_enabled"
+            :disabled="isBusy"
+            @update:model-value="
+              (value) => handlePrivateIPExemptChange(value === true)
             "
           />
         </section>

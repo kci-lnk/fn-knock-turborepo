@@ -107,6 +107,7 @@ pub(crate) fn default_route_config_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_default_tunnel))
 }
 
+#[allow(deprecated)] // Retain the legacy managed FRP runtime API during migration.
 pub(crate) fn proxy_protocol_force_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_proxy_protocol_force))

@@ -239,10 +239,7 @@ function validateContract(openapiPath) {
       "put /api/integrations/certificates/{binding_id}",
       "ExternalCertificateDeployBodyData",
     ],
-    [
-      "put /__certificates__/{binding_id}",
-      "ExternalCertificateDeployBodyData",
-    ],
+    ["put /__certificates__/{binding_id}", "ExternalCertificateDeployBodyData"],
     ["get /api/admin/waf/details", null],
     ["get /api/admin/waf/status", null],
     ["post /api/admin/waf/config", "WafConfigUpdateData"],
@@ -541,6 +538,11 @@ function validateContract(openapiPath) {
     [
       "post /api/admin/config/gateway/host-response",
       "GatewayHostResponseUpdateData",
+    ],
+    ["get /api/admin/config/gateway/proxy-protocol", null],
+    [
+      "post /api/admin/config/gateway/proxy-protocol",
+      "GatewayProxyProtocolUpdateData",
     ],
     ["get /api/admin/gateway-logs/config", null],
     ["post /api/admin/gateway-logs/config", "GatewayLoggingConfigUpdateData"],
@@ -1408,9 +1410,7 @@ function validateContract(openapiPath) {
       "last_disabled_external_binding_count",
       "last_disabled_acme_renewal_count",
       "last_takeover_at",
-    ].every(
-      (field) => (externalBinding.required ?? []).includes(field),
-    ) ||
+    ].every((field) => (externalBinding.required ?? []).includes(field)) ||
     externalBinding.properties?.deploy_port?.description?.includes(
       "BACKEND_PORT",
     ) !== true ||

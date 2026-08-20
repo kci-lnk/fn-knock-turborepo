@@ -79,6 +79,7 @@ export type {
   GatewayLoggingConfig,
   GatewayPortalConfig,
   GatewayProxyHeadersDetails,
+  GatewayProxyProtocolConfig,
   GatewaySettings,
   GatewayVisibilityDetails,
   HostMapping,

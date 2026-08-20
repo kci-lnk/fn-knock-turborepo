@@ -3,6 +3,9 @@ import type { components as ApiContractComponents } from "@fn-knock/api-contract
 export type ProxyProtocolForce =
   ApiContractComponents["schemas"]["ProxyProtocolForceData"];
 
+export type GatewayProxyProtocolConfig =
+  ApiContractComponents["schemas"]["GatewayProxyProtocolData"];
+
 export type ReverseProxyThrottleConfig =
   ApiContractComponents["schemas"]["GatewayReverseProxyThrottleData"];
 

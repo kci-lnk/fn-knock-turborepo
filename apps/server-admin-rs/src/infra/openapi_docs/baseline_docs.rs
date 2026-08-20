@@ -610,6 +610,7 @@ fn segment_label(segment: &str) -> String {
         "protocol_mapping_feature" => "协议映射功能".to_string(),
         "provinces" => "省份".to_string(),
         "proxy-headers" => "代理请求头".to_string(),
+        "proxy-protocol" => "PROXY 协议".to_string(),
         "proxy_mappings" => "代理映射".to_string(),
         "proxy_protocol_force" => "强制 PROXY 协议".to_string(),
         "public-check" => "公网检测".to_string(),

@@ -2775,6 +2775,11 @@ pub(crate) fn build_openapi_document() -> Value {
             "GatewayHostResponseDetailsData",
             "GatewayHostResponseUpdateData",
         ),
+        (
+            "/api/admin/config/gateway/proxy-protocol",
+            "GatewayProxyProtocolData",
+            "GatewayProxyProtocolUpdateData",
+        ),
     ] {
         insert_typed_enveloped_operation(
             &mut paths,
@@ -4628,7 +4633,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(ssl_operations, 26);
+        assert_eq!(ssl_operations, 27);
 
         assert!(
             document
@@ -4716,7 +4721,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 438);
+        assert_eq!(operations, 441);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -4810,6 +4815,8 @@ mod tests {
             ("/api/admin/config/gateway/proxy-headers", "post"),
             ("/api/admin/config/gateway/host-response", "get"),
             ("/api/admin/config/gateway/host-response", "post"),
+            ("/api/admin/config/gateway/proxy-protocol", "get"),
+            ("/api/admin/config/gateway/proxy-protocol", "post"),
             ("/api/admin/config/fnos_certificate_sync/details", "get"),
             ("/api/admin/config/fnos_certificate_sync", "post"),
             ("/api/admin/config/fnos_certificate_sync/sync", "post"),
@@ -5409,7 +5416,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 438);
+        assert_eq!(operations.len(), 441);
         assert!(
             operations
                 .iter()

@@ -14,6 +14,8 @@ import FloatingActionDock from "@admin-shared/components/common/FloatingActionDo
 import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 import GatewayEditorRow from "./GatewayEditorRow.vue";
 import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
+import GatewayPortalSummaryRow from "./GatewayPortalSummaryRow.vue";
+import GatewayProxyProtocolSummaryRow from "./GatewayProxyProtocolSummaryRow.vue";
 import GatewayUnmatchedRouteSettingRow from "./GatewayUnmatchedRouteSettingRow.vue";
 import GatewayUpstreamErrorSettingRow from "./GatewayUpstreamErrorSettingRow.vue";
 import { useGatewaySettingsController } from "./useGatewaySettingsController";
@@ -35,6 +37,7 @@ const {
   openLocationsEditor,
   openPortalEditor,
   openProxyHeadersEditor,
+  openProxyProtocolEditor,
   openVisibilityEditor,
   portalDisplaySummary,
   portalEnabledSummary,
@@ -42,6 +45,7 @@ const {
   portalSummary,
   portalVersionSummary,
   proxyHeadersDisabledReason,
+  proxyProtocolSummary,
   resetForm,
   saveSettings,
   showLoadingSkeleton,
@@ -159,39 +163,15 @@ const {
         @change="form.crawler_blocker.enabled = $event"
       />
 
-      <GatewayEditorRow
-        :title="t('admin.gatewaySettings.portal')"
-        :description="t('admin.gatewaySettings.portalDescription')"
-        :action-label="t('admin.gatewaySettings.editPortal')"
+      <GatewayPortalSummaryRow
+        :enabled="portalSummary?.enabled !== false"
+        :show-app-icon="portalSummary?.show_app_icon !== false"
+        :enabled-label="portalEnabledSummary"
+        :display-label="portalDisplaySummary"
+        :version-label="portalVersionSummary"
+        :icon-label="portalIconSummary"
         @action="openPortalEditor"
-      >
-        <template #badges>
-          <Badge
-            :variant="
-              portalSummary?.enabled !== false ? 'default' : 'secondary'
-            "
-            class="rounded-full px-2.5"
-          >
-            {{ portalEnabledSummary }}
-          </Badge>
-          <Badge variant="secondary" class="rounded-full px-2.5">
-            {{ portalDisplaySummary }}
-          </Badge>
-          <Badge variant="secondary" class="rounded-full px-2.5">{{ portalVersionSummary }}</Badge>
-          <Badge
-            :variant="
-              portalSummary?.show_app_icon !== false ? 'default' : 'secondary'
-            "
-            class="rounded-full px-2.5"
-          >
-            {{
-              t("admin.gatewaySettings.portalIconSummary", {
-                state: portalIconSummary,
-              })
-            }}
-          </Badge>
-        </template>
-      </GatewayEditorRow>
+      />
 
       <GatewayUnmatchedRouteSettingRow
         v-model="form.unmatched_route.behavior"
@@ -227,6 +207,11 @@ const {
           </Badge>
         </template>
       </GatewayEditorRow>
+
+      <GatewayProxyProtocolSummaryRow
+        :summary="proxyProtocolSummary"
+        @action="openProxyProtocolEditor"
+      />
 
       <GatewayEditorRow
         :title="t('admin.gatewaySettings.proxyHeaders')"

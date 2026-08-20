@@ -17,7 +17,7 @@ use crate::grpc_proto::{
     AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
     BoolValue, CommonLocationExemptionsRuntime, ControlApiVersion, CrawlerBlockerConfig,
     FnosConnectIngressConfig, FnosConnectIngressStatus, FnosPortIconHijackConfig,
-    GatewayListenerConfig, GatewayMemoryConfig, GatewayPortalConfig,
+    GatewayListenerConfig, GatewayMemoryConfig, GatewayPortalConfig, GatewayProxyProtocolConfig,
     GatewayTrustedClientIpsRuntime, GatewayUnmatchedRouteConfig, GatewayVisibilityConfig,
     HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
     HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
@@ -412,6 +412,33 @@ impl GoBackendClient {
         Ok(response.scope)
     }
 
+    pub async fn get_gateway_proxy_protocol_config(&self) -> anyhow::Result<(bool, Vec<String>)> {
+        let mut client = self.control.clone();
+        let response = client
+            .get_gateway_proxy_protocol_config(self.request(()))
+            .await
+            .context("get Go gateway PROXY protocol config")?
+            .into_inner();
+        Ok((response.enabled, response.trusted_sources))
+    }
+
+    pub async fn set_gateway_proxy_protocol_config(
+        &self,
+        enabled: bool,
+        trusted_sources: Vec<String>,
+    ) -> anyhow::Result<(bool, Vec<String>)> {
+        let mut client = self.control.clone();
+        let response = client
+            .set_gateway_proxy_protocol_config(self.request(GatewayProxyProtocolConfig {
+                enabled,
+                trusted_sources,
+            }))
+            .await
+            .context("set Go gateway PROXY protocol config")?
+            .into_inner();
+        Ok((response.enabled, response.trusted_sources))
+    }
+
     pub async fn set_rules(&self, rules: &Value) -> anyhow::Result<Value> {
         let mut client = self.control.clone();
         let result = match client
@@ -540,6 +567,7 @@ impl GoBackendClient {
         )
     }
 
+    #[allow(deprecated)] // Compatibility path for the managed FRP runtime mode.
     async fn get_proxy_protocol_force_status(&self) -> anyhow::Result<(StatusCode, Value)> {
         let mut client = self.control.clone();
         match client.get_proxy_protocol_force(self.request(())).await {
@@ -557,6 +585,7 @@ impl GoBackendClient {
         )
     }
 
+    #[allow(deprecated)] // Compatibility path for the managed FRP runtime mode.
     async fn set_proxy_protocol_force_status(
         &self,
         force: bool,

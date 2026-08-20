@@ -182,6 +182,12 @@ const router = createRouter({
             import("../views/system-settings/GatewayProxyHeadersSettings.vue"),
         },
         {
+          path: "system/gateway-proxy-protocol",
+          name: "GatewayProxyProtocolSettings",
+          component: () =>
+            import("../views/system-settings/GatewayProxyProtocolSettings.vue"),
+        },
+        {
           path: "system/gateway-host-response",
           name: "GatewayHostResponseSettings",
           component: () =>

@@ -823,8 +823,42 @@ export const jaJPAdmin = {
     locationsDescription:
       "指定したホストに、パス単位のリバースプロキシまたは固定レスポンスを設定します",
     editLocations: "パス別応答を編集",
+    proxyProtocol: "PROXY Protocol",
+    proxyProtocolDescription:
+      "信頼済みアップストリームから実際の訪問者 IP を取得します",
+    editProxyProtocol: "PROXY Protocol を編集",
+    proxyProtocolManagedFrp: "管理対象 FRP",
+    proxyProtocolTrustedCount: "信頼済み接続元 {count} 件",
     reset: "リセット",
     saveSettings: "設定を保存",
+  },
+  gatewayProxyProtocolSettings: {
+    ...zhCNAdmin.gatewayProxyProtocolSettings,
+    systemSettings: "システム設定",
+    gateway: "ゲートウェイ",
+    description:
+      "指定した HAProxy、Nginx stream、またはロードバランサーから PROXY Protocol v1/v2 を使用して、HTTP ゲートウェイへ実際の訪問者 IP を渡せるようにします。",
+    loading: "PROXY Protocol 設定を読み込んでいます...",
+    loadFailedDescription: "PROXY Protocol 設定を読み込めませんでした",
+    saveFailed: "保存に失敗しました",
+    saveFailedDescription: "PROXY Protocol 設定を保存できませんでした",
+    updated: "PROXY Protocol 設定を更新しました",
+    effectiveEnabled: "現在有効",
+    effectiveDisabled: "現在無効",
+    managedFrpEnabled: "管理対象 FRP により自動的に有効",
+    externalEnabled: "信頼済み外部アップストリームを許可",
+    externalEnabledHint:
+      "有効にすると、下記の socket 接続元だけが PROXY ヘッダーを提供できます。その他の接続元は引き続き直接接続できます。",
+    trustedSources: "信頼済みアップストリーム IP / CIDR",
+    trustedSourcesHint:
+      "1 行に 1 件入力します。訪問者 IP ではなく、接続元のプロキシまたはロードバランサーのアドレスを指定してください。",
+    invalidEntries: "無効な接続元",
+    invalidSources: "無効な信頼済み接続元を修正してください",
+    sourceRequired: "有効にするには信頼済み接続元が 1 件以上必要です",
+    securityWarning:
+      "PROXY Protocol 自体は接続元を認証しません。公開ネットワーク全体を信頼せず、既存の「信頼済みクライアント IP」リストを流用しないでください。偽装された X-Forwarded-For や X-Real-IP は PROXY Protocol のアドレスを上書きできません。",
+    reset: "リセット",
+    save: "設定を保存",
   },
   gatewayPortalSettings: {
     loadFailedDescription: "ポータル設定の読み込みに失敗しました",

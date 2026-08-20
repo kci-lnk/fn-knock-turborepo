@@ -65,6 +65,20 @@ pub(super) struct GatewayUnmatchedRouteUpdateData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct GatewayProxyProtocolData {
+    enabled: bool,
+    trusted_sources: Vec<String>,
+    managed_frp_enabled: bool,
+    effective_enabled: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct GatewayProxyProtocolUpdateData {
+    enabled: bool,
+    trusted_sources: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct GatewaySettingsData {
     auth_cache_ttl_seconds: i64,
     auth_cache_unauthorized_ttl_seconds: i64,
@@ -72,6 +86,7 @@ pub(super) struct GatewaySettingsData {
     visibility: GatewayVisibilitySummaryData,
     proxy_headers: GatewayProxyHeadersSummaryData,
     host_response: GatewayHostResponseSummaryData,
+    proxy_protocol: GatewayProxyProtocolData,
     crawler_blocker: GatewayCrawlerBlockerData,
     portal: GatewayPortalData,
     unmatched_route: GatewayUnmatchedRouteData,

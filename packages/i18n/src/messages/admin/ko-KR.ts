@@ -810,8 +810,42 @@ export const koKRAdmin = {
     locationsDescription:
       "특정 Host에 경로별 리버스 프록시 또는 고정 응답을 설정합니다.",
     editLocations: "경로 응답 편집",
+    proxyProtocol: "PROXY Protocol",
+    proxyProtocolDescription:
+      "신뢰할 수 있는 업스트림에서 실제 방문자 IP를 가져옵니다.",
+    editProxyProtocol: "PROXY Protocol 편집",
+    proxyProtocolManagedFrp: "관리형 FRP",
+    proxyProtocolTrustedCount: "신뢰 소스 {count}개",
     reset: "재설정",
     saveSettings: "설정 저장",
+  },
+  gatewayProxyProtocolSettings: {
+    ...zhCNAdmin.gatewayProxyProtocolSettings,
+    systemSettings: "시스템 설정",
+    gateway: "게이트웨이",
+    description:
+      "지정한 HAProxy, Nginx stream 또는 로드 밸런서가 PROXY Protocol v1/v2로 실제 방문자 IP를 HTTP 게이트웨이에 전달하도록 허용합니다.",
+    loading: "PROXY Protocol 설정을 불러오는 중...",
+    loadFailedDescription: "PROXY Protocol 설정을 불러오지 못했습니다.",
+    saveFailed: "저장 실패",
+    saveFailedDescription: "PROXY Protocol 설정을 저장하지 못했습니다.",
+    updated: "PROXY Protocol 설정이 업데이트되었습니다.",
+    effectiveEnabled: "현재 사용 중",
+    effectiveDisabled: "현재 사용 안 함",
+    managedFrpEnabled: "관리형 FRP에서 자동으로 사용",
+    externalEnabled: "신뢰할 수 있는 외부 업스트림 허용",
+    externalEnabledHint:
+      "사용하면 아래에 등록된 socket 피어만 PROXY 헤더를 제공할 수 있습니다. 다른 소스는 계속 직접 연결할 수 있습니다.",
+    trustedSources: "신뢰할 업스트림 IP / CIDR",
+    trustedSourcesHint:
+      "한 줄에 하나씩 입력합니다. 최종 방문자 IP가 아니라 연결하는 프록시 또는 로드 밸런서 주소를 입력하세요.",
+    invalidEntries: "잘못된 소스",
+    invalidSources: "잘못된 신뢰 소스를 수정하세요.",
+    sourceRequired: "사용하려면 신뢰 소스가 하나 이상 필요합니다.",
+    securityWarning:
+      "PROXY Protocol 자체는 피어를 인증하지 않습니다. 전체 공용 네트워크를 신뢰하거나 기존 ‘신뢰할 수 있는 클라이언트 IP’ 목록을 재사용하지 마세요. 위조된 X-Forwarded-For 또는 X-Real-IP는 PROXY Protocol 주소를 덮어쓸 수 없습니다.",
+    reset: "재설정",
+    save: "설정 저장",
   },
   gatewayPortalSettings: {
     loadFailedDescription: "포털 설정을 불러오지 못했습니다.",

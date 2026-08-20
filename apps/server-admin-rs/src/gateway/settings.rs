@@ -286,6 +286,7 @@ mod hosts;
 mod migrate;
 mod normalize;
 mod patch;
+mod proxy_protocol;
 mod rollback;
 mod runtime;
 
@@ -296,6 +297,7 @@ use hosts::*;
 pub(crate) use migrate::{migrate_visibility_policies_locked, migrate_visibility_policies_on_boot};
 use normalize::*;
 use patch::*;
+use proxy_protocol::*;
 use rollback::*;
 use runtime::{
     apply_gateway_portal_host_rules_patches_if_needed, sync_gateway_host_response_runtime,

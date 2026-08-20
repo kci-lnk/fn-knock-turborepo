@@ -79,6 +79,8 @@ pub(super) async fn build_gateway_settings_response_from_config(
         build_gateway_proxy_header_items(&visible_hosts, &proxy_headers_config);
     let host_response_items =
         build_gateway_host_response_items(&visible_hosts, &host_response_config);
+    let proxy_protocol =
+        build_gateway_proxy_protocol_response(&config).map_err(anyhow::Error::msg)?;
 
     Ok(json!({
         "auth_cache_ttl_seconds": subdomain
@@ -93,10 +95,21 @@ pub(super) async fn build_gateway_settings_response_from_config(
         "visibility": build_gateway_visibility_summary(&visibility_config, &visibility_runtime),
         "proxy_headers": build_gateway_proxy_headers_summary(&proxy_header_items, &proxy_headers_runtime),
         "host_response": build_gateway_host_response_summary(&host_response_items, &host_response_runtime),
+        "proxy_protocol": proxy_protocol,
         "crawler_blocker": crawler_blocker,
         "portal": portal,
         "unmatched_route": unmatched_route,
     }))
+}
+
+pub(super) async fn get_gateway_proxy_protocol_details(state: &AppState) -> Result<Value, String> {
+    let config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .map_err(|error| error.to_string())?;
+    build_gateway_proxy_protocol_response(&config)
 }
 
 pub(super) async fn get_gateway_visibility_details(state: &AppState) -> anyhow::Result<Value> {

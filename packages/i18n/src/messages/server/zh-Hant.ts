@@ -291,6 +291,7 @@ export const zhHantServer = {
       loadRuntimeFailed: "載入運行態失敗",
       loadGatewayProxyHeadersFailed: "載入網關協議頭失敗",
       loadGatewayHostResponseFailed: "載入網關 Host 響應失敗",
+      loadGatewayProxyProtocolFailed: "載入網關 PROXY Protocol 設定失敗",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "載入驗證碼配置失敗",

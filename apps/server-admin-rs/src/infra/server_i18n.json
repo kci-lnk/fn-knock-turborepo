@@ -267,7 +267,8 @@
         "loadGatewayVisibilityFailed": "加载网关可见性失败",
         "loadRuntimeFailed": "加载运行态失败",
         "loadGatewayProxyHeadersFailed": "加载网关协议头失败",
-        "loadGatewayHostResponseFailed": "加载网关 Host 响应失败"
+        "loadGatewayHostResponseFailed": "加载网关 Host 响应失败",
+        "loadGatewayProxyProtocolFailed": "加载网关 PROXY Protocol 设置失败"
       },
       "runtimeConfigRoutes": {
         "loadCaptchaFailed": "加载验证码配置失败",
@@ -2145,7 +2146,9 @@
           "runtimeRecovered": "组件已恢复",
           "runtimeAbnormalExit": "组件异常退出",
           "wolWakeCompleted": "远程唤醒完成",
-          "wolShutdownCompleted": "SSH 远程关机完成"
+          "wolShutdownCompleted": "SSH 远程关机完成",
+          "panelSyncFailed": "同步到导航面板失败",
+          "panelSyncRecovered": "同步到导航面板已恢复"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -3484,7 +3487,8 @@
         "loadGatewayVisibilityFailed": "載入網關可見性失敗",
         "loadRuntimeFailed": "載入運行態失敗",
         "loadGatewayProxyHeadersFailed": "載入網關協議頭失敗",
-        "loadGatewayHostResponseFailed": "載入網關 Host 響應失敗"
+        "loadGatewayHostResponseFailed": "載入網關 Host 響應失敗",
+        "loadGatewayProxyProtocolFailed": "載入網關 PROXY Protocol 設定失敗"
       },
       "runtimeConfigRoutes": {
         "loadCaptchaFailed": "載入驗證碼配置失敗",
@@ -5362,7 +5366,9 @@
           "runtimeRecovered": "元件已恢復",
           "runtimeAbnormalExit": "元件異常結束",
           "wolWakeCompleted": "遠端喚醒完成",
-          "wolShutdownCompleted": "SSH 遠端關機完成"
+          "wolShutdownCompleted": "SSH 遠端關機完成",
+          "panelSyncFailed": "同步到導航面板失敗",
+          "panelSyncRecovered": "同步到導航面板已恢復"
         },
         "ruleName": "{event} 通知",
         "levels": {
@@ -6701,7 +6707,8 @@
         "loadGatewayVisibilityFailed": "Failed to load gateway visibility",
         "loadRuntimeFailed": "Failed to load runtime",
         "loadGatewayProxyHeadersFailed": "Failed to load gateway proxy headers",
-        "loadGatewayHostResponseFailed": "Failed to load gateway Host response"
+        "loadGatewayHostResponseFailed": "Failed to load gateway Host response",
+        "loadGatewayProxyProtocolFailed": "Failed to load gateway PROXY protocol settings"
       },
       "runtimeConfigRoutes": {
         "loadCaptchaFailed": "Failed to load captcha config",
@@ -8579,7 +8586,9 @@
           "runtimeRecovered": "Component recovered",
           "runtimeAbnormalExit": "Component exited abnormally",
           "wolWakeCompleted": "Wake-on-LAN completed",
-          "wolShutdownCompleted": "SSH remote shutdown completed"
+          "wolShutdownCompleted": "SSH remote shutdown completed",
+          "panelSyncFailed": "Failed to sync to navigation panel",
+          "panelSyncRecovered": "Navigation panel sync recovered"
         },
         "ruleName": "{event} notification",
         "levels": {
@@ -9918,7 +9927,8 @@
         "loadGatewayVisibilityFailed": "게이트웨이 표시 상태를 불러오지 못했습니다.",
         "loadRuntimeFailed": "런타임 상태를 불러오지 못했습니다.",
         "loadGatewayProxyHeadersFailed": "게이트웨이 프록시 헤더를 불러오지 못했습니다.",
-        "loadGatewayHostResponseFailed": "게이트웨이 Host 응답을 불러오지 못했습니다."
+        "loadGatewayHostResponseFailed": "게이트웨이 Host 응답을 불러오지 못했습니다.",
+        "loadGatewayProxyProtocolFailed": "게이트웨이 PROXY Protocol 설정을 불러오지 못했습니다."
       },
       "runtimeConfigRoutes": {
         "loadCaptchaFailed": "캡차 설정을 불러오지 못했습니다.",
@@ -11796,7 +11806,9 @@
           "runtimeRecovered": "컴포넌트 복구",
           "runtimeAbnormalExit": "컴포넌트 비정상 종료",
           "wolWakeCompleted": "Wake-on-LAN 완료",
-          "wolShutdownCompleted": "SSH 원격 종료 완료"
+          "wolShutdownCompleted": "SSH 원격 종료 완료",
+          "panelSyncFailed": "탐색 패널로 동기화 실패",
+          "panelSyncRecovered": "탐색 패널 동기화 복구"
         },
         "ruleName": "{event} 알림",
         "levels": {
@@ -13135,7 +13147,8 @@
         "loadGatewayVisibilityFailed": "ゲートウェイの公開範囲を読み込めませんでした",
         "loadRuntimeFailed": "実行状態の読み込みに失敗しました",
         "loadGatewayProxyHeadersFailed": "ゲートウェイのプロキシヘッダー読み込みに失敗しました",
-        "loadGatewayHostResponseFailed": "ゲートウェイの Host ヘッダー設定の読み込みに失敗しました"
+        "loadGatewayHostResponseFailed": "ゲートウェイの Host ヘッダー設定の読み込みに失敗しました",
+        "loadGatewayProxyProtocolFailed": "ゲートウェイの PROXY Protocol 設定を読み込めませんでした"
       },
       "runtimeConfigRoutes": {
         "loadCaptchaFailed": "CAPTCHA 設定の読み込みに失敗しました",
@@ -15013,7 +15026,9 @@
           "runtimeRecovered": "コンポーネント復旧",
           "runtimeAbnormalExit": "コンポーネント異常終了",
           "wolWakeCompleted": "Wake-on-LAN 完了",
-          "wolShutdownCompleted": "SSH リモートシャットダウン完了"
+          "wolShutdownCompleted": "SSH リモートシャットダウン完了",
+          "panelSyncFailed": "ナビゲーションパネルへの同期失敗",
+          "panelSyncRecovered": "ナビゲーションパネルへの同期復旧"
         },
         "ruleName": "{event}通知",
         "levels": {

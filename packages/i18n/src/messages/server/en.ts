@@ -348,6 +348,8 @@ export const enServer = {
       loadRuntimeFailed: "Failed to load runtime",
       loadGatewayProxyHeadersFailed: "Failed to load gateway proxy headers",
       loadGatewayHostResponseFailed: "Failed to load gateway Host response",
+      loadGatewayProxyProtocolFailed:
+        "Failed to load gateway PROXY protocol settings",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "Failed to load captcha config",

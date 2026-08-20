@@ -360,6 +360,8 @@ export const jaJPServer = {
         "ゲートウェイのプロキシヘッダー読み込みに失敗しました",
       loadGatewayHostResponseFailed:
         "ゲートウェイの Host ヘッダー設定の読み込みに失敗しました",
+      loadGatewayProxyProtocolFailed:
+        "ゲートウェイの PROXY Protocol 設定を読み込めませんでした",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "CAPTCHA 設定の読み込みに失敗しました",

@@ -345,6 +345,8 @@ export const koKRServer = {
         "게이트웨이 프록시 헤더를 불러오지 못했습니다.",
       loadGatewayHostResponseFailed:
         "게이트웨이 Host 응답을 불러오지 못했습니다.",
+      loadGatewayProxyProtocolFailed:
+        "게이트웨이 PROXY Protocol 설정을 불러오지 못했습니다.",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "캡차 설정을 불러오지 못했습니다.",

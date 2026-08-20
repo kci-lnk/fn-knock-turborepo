@@ -1613,7 +1613,10 @@ pub(super) async fn update_default_tunnel(
     path = "/api/admin/config/proxy_protocol_force",
     tag = "config",
     operation_id = "get_api_admin_config_proxy_protocol_force",
-    responses((status = 200, description = "Proxy protocol force setting"))
+    responses((status = 200, description = "Deprecated managed FRP PROXY protocol runtime control"))
+)]
+#[deprecated(
+    note = "managed FRP runtime compatibility control; use gateway PROXY protocol config for external upstreams"
 )]
 pub(super) async fn get_proxy_protocol_force(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
@@ -1645,7 +1648,10 @@ pub(super) async fn get_proxy_protocol_force(State(state): State<AppState>) -> R
     tag = "config",
     operation_id = "post_api_admin_config_proxy_protocol_force",
     request_body = serde_json::Value,
-    responses((status = 200, description = "Updated proxy protocol force setting"))
+    responses((status = 200, description = "Deprecated managed FRP PROXY protocol runtime control"))
+)]
+#[deprecated(
+    note = "managed FRP runtime compatibility control; use gateway PROXY protocol config for external upstreams"
 )]
 pub(super) async fn update_proxy_protocol_force(
     State(state): State<AppState>,

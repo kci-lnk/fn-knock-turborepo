@@ -291,6 +291,7 @@ export const zhCNServer = {
       loadRuntimeFailed: "加载运行态失败",
       loadGatewayProxyHeadersFailed: "加载网关协议头失败",
       loadGatewayHostResponseFailed: "加载网关 Host 响应失败",
+      loadGatewayProxyProtocolFailed: "加载网关 PROXY Protocol 设置失败",
     },
     runtimeConfigRoutes: {
       loadCaptchaFailed: "加载验证码配置失败",

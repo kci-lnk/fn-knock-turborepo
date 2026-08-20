@@ -6,6 +6,7 @@ import type {
   AdvancedAuthConfig,
   GatewayHostResponseDetails,
   GatewayProxyHeadersDetails,
+  GatewayProxyProtocolConfig,
   GatewaySettings,
   GatewayVisibilityDetails,
   HostMapping,
@@ -33,8 +34,6 @@ import {
   type RevisionedHostMappings,
 } from "./config-revisions";
 
-type ProxyProtocolForceContract =
-  ApiContractComponents["schemas"]["ProxyProtocolForceData"];
 type ProxyMappingsUpdate =
   ApiContractComponents["schemas"]["ProxyMappingsUpdateData"];
 type SubdomainModeUpdate =
@@ -53,6 +52,8 @@ type GatewayProxyHeadersUpdate =
   ApiContractComponents["schemas"]["GatewayProxyHeadersUpdateData"];
 type GatewayHostResponseUpdate =
   ApiContractComponents["schemas"]["GatewayHostResponseUpdateData"];
+type GatewayProxyProtocolUpdate =
+  ApiContractComponents["schemas"]["GatewayProxyProtocolUpdateData"];
 type GatewaySettingsUpdate =
   ApiContractComponents["schemas"]["GatewaySettingsUpdateData"];
 type DefaultRouteUpdate =
@@ -408,17 +409,14 @@ export const configProxyApi = {
     const res = await apiClient.post("/config/gateway/host-response", payload);
     return res.data.data;
   },
-  async getProxyProtocolForce(): Promise<ProxyProtocolForceContract> {
-    const res = await apiClient.get("/config/proxy_protocol_force");
+  async getGatewayProxyProtocol(): Promise<GatewayProxyProtocolConfig> {
+    const res = await apiClient.get("/config/gateway/proxy-protocol");
     return res.data.data;
   },
-  async setProxyProtocolForce(
-    proxy_protocol_force: boolean,
-  ): Promise<ProxyProtocolForceContract> {
-    const body = {
-      proxy_protocol_force,
-    } satisfies ProxyProtocolForceContract;
-    const res = await apiClient.post("/config/proxy_protocol_force", body);
+  async updateGatewayProxyProtocol(
+    payload: GatewayProxyProtocolUpdate,
+  ): Promise<GatewayProxyProtocolConfig> {
+    const res = await apiClient.post("/config/gateway/proxy-protocol", payload);
     return res.data.data;
   },
   // TOTP

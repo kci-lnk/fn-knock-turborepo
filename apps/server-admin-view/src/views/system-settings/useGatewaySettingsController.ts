@@ -120,6 +120,9 @@ export const useGatewaySettingsController = () => {
   );
 
   const visibilitySummary = computed(() => settings.value?.visibility ?? null);
+  const proxyProtocolSummary = computed(
+    () => settings.value?.proxy_protocol ?? null,
+  );
   const portalSummary = computed(() => settings.value?.portal ?? null);
   const portalEnabledSummary = computed(() =>
     portalSummary.value?.enabled !== false
@@ -158,6 +161,8 @@ export const useGatewaySettingsController = () => {
       void router.push("/system/gateway-proxy-headers");
     }
   };
+  const openProxyProtocolEditor = () =>
+    void router.push("/system/gateway-proxy-protocol");
   const openHostResponseEditor = () => {
     if (isHostResponseAvailable.value) {
       void router.push("/system/gateway-host-response");
@@ -276,6 +281,7 @@ export const useGatewaySettingsController = () => {
     openLocationsEditor,
     openPortalEditor,
     openProxyHeadersEditor,
+    openProxyProtocolEditor,
     openVisibilityEditor,
     portalDisplaySummary,
     portalEnabledSummary,
@@ -283,6 +289,7 @@ export const useGatewaySettingsController = () => {
     portalSummary,
     portalVersionSummary,
     proxyHeadersDisabledReason,
+    proxyProtocolSummary,
     resetForm,
     saveSettings,
     settings,

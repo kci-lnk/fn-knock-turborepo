@@ -14,6 +14,61 @@ pub(super) fn routes() -> OpenApiRouter<AppState> {
             get_gateway_host_response,
             update_gateway_host_response
         ))
+        .routes(routes!(
+            get_gateway_proxy_protocol,
+            update_gateway_proxy_protocol
+        ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/config/gateway/proxy-protocol",
+    tag = "config",
+    operation_id = "get_api_admin_config_gateway_proxy_protocol",
+    responses((status = 200, description = "Gateway PROXY protocol settings"))
+)]
+pub(super) async fn get_gateway_proxy_protocol(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match get_gateway_proxy_protocol_details(&state).await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load gateway PROXY protocol settings");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                gateway_route_text(&translator, "loadGatewayProxyProtocolFailed"),
+            )
+        }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/gateway/proxy-protocol",
+    tag = "config",
+    operation_id = "post_api_admin_config_gateway_proxy_protocol",
+    responses((status = 200, description = "Updated gateway PROXY protocol settings"))
+)]
+pub(super) async fn update_gateway_proxy_protocol(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    if let Err(message) = gateway_proxy_protocol_from_body(&body) {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_gateway_route_message(&translator, &message),
+        );
+    }
+    match update_gateway_proxy_protocol_inner(&state, &body).await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(message) => {
+            tracing::warn!(%message, "failed to update gateway PROXY protocol settings");
+            response::error(
+                StatusCode::BAD_GATEWAY,
+                localize_gateway_route_message(&translator, &message),
+            )
+        }
+    }
 }
 
 #[utoipa::path(

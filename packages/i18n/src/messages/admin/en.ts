@@ -821,8 +821,42 @@ export const enAdmin = {
     locationsDescription:
       "Configure path-level reverse proxying or fixed responses for specific hosts",
     editLocations: "Edit path responses",
+    proxyProtocol: "PROXY Protocol",
+    proxyProtocolDescription: "Get the real visitor IP from trusted upstreams",
+    editProxyProtocol: "Edit PROXY Protocol",
+    proxyProtocolManagedFrp: "Managed FRP",
+    proxyProtocolTrustedCount: "{count} trusted sources",
     reset: "Reset",
     saveSettings: "Save settings",
+  },
+  gatewayProxyProtocolSettings: {
+    systemSettings: "System settings",
+    gateway: "Gateway",
+    title: "PROXY Protocol",
+    description:
+      "Allow selected HAProxy, Nginx stream, or load balancers to pass the real visitor IP to the HTTP gateway using PROXY Protocol v1/v2.",
+    loading: "Loading PROXY Protocol settings...",
+    loadFailedDescription: "Failed to load PROXY Protocol settings",
+    saveFailed: "Save failed",
+    saveFailedDescription: "Failed to save PROXY Protocol settings",
+    updated: "PROXY Protocol settings updated",
+    effectiveEnabled: "Currently enabled",
+    effectiveDisabled: "Currently disabled",
+    managedFrpEnabled: "Automatically enabled by managed FRP",
+    externalEnabled: "Accept trusted external upstreams",
+    externalEnabledHint:
+      "When enabled, only socket peers listed below may provide a PROXY header. Other sources can still connect directly.",
+    trustedSources: "Trusted upstream IP / CIDR",
+    trustedSourcesHint:
+      "Enter one upstream per line. These are the connecting proxy or load balancer addresses, not visitor IPs.",
+    placeholder: "127.0.0.1\n192.168.1.10\n10.0.0.0/24\n2001:db8::/64",
+    invalidEntries: "Invalid sources",
+    invalidSources: "Correct the invalid trusted sources",
+    sourceRequired: "At least one trusted source is required when enabled",
+    securityWarning:
+      "PROXY Protocol does not authenticate peers. Do not trust an entire public network, and do not reuse the existing “trusted client IP” list here. Spoofed X-Forwarded-For or X-Real-IP headers cannot override the PROXY Protocol address.",
+    reset: "Reset",
+    save: "Save settings",
   },
   gatewayPortalSettings: {
     loadFailedDescription: "Failed to load portal settings",

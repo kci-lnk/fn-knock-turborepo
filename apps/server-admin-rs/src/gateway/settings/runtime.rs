@@ -255,6 +255,7 @@ pub(crate) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> R
 }
 
 async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result<(), String> {
+    sync_gateway_proxy_protocol_runtime(state, config).await?;
     ensure_go_success(
         state
             .gateway

@@ -184,11 +184,8 @@ pub(super) fn resolve_shared_auth_login_redirect(
     let request_proto = resolve_forwarded_proto(headers);
     let request_host = resolve_forwarded_host(headers)?;
     let current_origin = format!("{request_proto}://{request_host}");
-    if let Ok(current_origin_url) = url::Url::parse(&current_origin) {
-        if same_origin(&shared_auth_url, &current_origin_url) {
-            return None;
-        }
-    } else {
+    let current_origin_url = url::Url::parse(&current_origin).ok()?;
+    if same_origin(&shared_auth_url, &current_origin_url) {
         return None;
     }
 
@@ -201,7 +198,16 @@ pub(super) fn resolve_shared_auth_login_redirect(
         return None;
     }
 
-    let safe_redirect_uri = safe_redirect(config, headers, redirect_uri);
+    let safe_redirect_uri = safe_redirect(config, headers, redirect_uri).and_then(|redirect_uri| {
+        if redirect_uri.starts_with('/') {
+            current_origin_url
+                .join(&redirect_uri)
+                .ok()
+                .map(|target| target.to_string())
+        } else {
+            Some(redirect_uri)
+        }
+    });
     build_shared_auth_login_url(&shared_auth_base_url, safe_redirect_uri.as_deref())
 }
 

@@ -145,7 +145,33 @@ fn public_auth_base_url_applies_configured_public_https_port() {
     let redirect =
         resolve_shared_auth_login_redirect(&config, &headers, Some("/dashboard")).unwrap();
     assert!(redirect.starts_with("https://auth.example.com:8443/?redirect_uri="));
-    assert!(redirect.contains("%2Fdashboard"));
+    assert!(redirect.contains("https%3A%2F%2Fapp.example.com%2Fdashboard"));
+    assert!(!redirect.contains("redirect_uri=%2Fdashboard"));
+}
+
+#[test]
+fn shared_auth_absolutizes_relative_admin_redirect_before_crossing_origins() {
+    let config = json!({
+        "run_type": 3,
+        "subdomain_mode": {
+            "root_domain": "example.com",
+            "auth_host": "auth.example.com",
+            "public_https_port": 443
+        }
+    });
+    let headers = forwarded_headers("admin.example.com");
+    let redirect =
+        resolve_shared_auth_login_redirect(&config, &headers, Some("/whitelist?tab=manual"))
+            .unwrap();
+    let login_url = url::Url::parse(&redirect).unwrap();
+    let redirect_uri = login_url
+        .query_pairs()
+        .find_map(|(key, value)| (key == "redirect_uri").then(|| value.into_owned()));
+
+    assert_eq!(
+        redirect_uri.as_deref(),
+        Some("https://admin.example.com/whitelist?tab=manual")
+    );
 }
 
 #[test]

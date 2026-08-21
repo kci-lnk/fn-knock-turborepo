@@ -85,6 +85,7 @@ watch(
         isDragging ? 'cursor-grabbing snap-none' : 'cursor-grab snap-x',
       ]"
       @pointerdown="onPointerDown"
+      @dragstart.prevent
     >
       <li v-for="item in items" :key="item.key" class="shrink-0 snap-start">
         <a
@@ -134,7 +135,9 @@ watch(
         class="max-h-[calc(100dvh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
       >
         <DialogHeader class="border-b px-5 py-4 text-left">
-          <DialogTitle>{{ t("admin.consoleApplicationList.label") }}</DialogTitle>
+          <DialogTitle>{{
+            t("admin.consoleApplicationList.label")
+          }}</DialogTitle>
           <DialogDescription class="sr-only">
             {{ t("admin.consoleApplicationList.ariaLabel") }}
           </DialogDescription>

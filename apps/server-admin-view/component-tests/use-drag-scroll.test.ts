@@ -53,10 +53,14 @@ const downEvent = (clientX: number): PointerEvent =>
   }) as unknown as PointerEvent;
 
 const moveEvent = (clientX: number): PointerEvent =>
-  ({ pointerId: 1, clientX }) as unknown as PointerEvent;
+  ({
+    pointerId: 1,
+    clientX,
+    preventDefault: vi.fn(),
+  }) as unknown as PointerEvent;
 
 const upEvent = (): PointerEvent =>
-  ({ pointerId: 1 }) as unknown as PointerEvent;
+  ({ pointerId: 1, type: "pointerup" }) as unknown as PointerEvent;
 
 let windowListeners: Record<string, Listener[]>;
 
@@ -101,22 +105,26 @@ describe("useDragScroll", () => {
 
     const down = downEvent(100);
     onPointerDown(down);
-    expect(isDragging.value).toBe(true);
-    expect(down.preventDefault).toHaveBeenCalledTimes(1);
-    expect(el.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(isDragging.value).toBe(false);
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(el.setPointerCapture).not.toHaveBeenCalled();
     expect(windowListeners["pointermove"]).toHaveLength(1);
 
-    // Below the 4px threshold: no scrolling yet.
+    // Below the 6px threshold: no scrolling yet and the gesture remains a click.
     emitWindow("pointermove", moveEvent(102));
     expect(el.scrollLeft).toBe(100);
+    expect(isDragging.value).toBe(false);
 
     // Dragging 50px to the right scrolls content 50px to the left.
-    emitWindow("pointermove", moveEvent(150));
+    const move = moveEvent(150);
+    emitWindow("pointermove", move);
     expect(el.scrollLeft).toBe(50);
+    expect(isDragging.value).toBe(true);
+    expect(move.preventDefault).toHaveBeenCalledTimes(1);
 
     emitWindow("pointerup", upEvent());
     expect(isDragging.value).toBe(false);
-    expect(el.releasePointerCapture).toHaveBeenCalledWith(1);
+    expect(el.releasePointerCapture).not.toHaveBeenCalled();
     expect(windowListeners["pointermove"]).toHaveLength(0);
   });
 
@@ -141,6 +149,7 @@ describe("useDragScroll", () => {
     const { isDragging, onPointerDown } = useDragScroll(elRef);
 
     onPointerDown(downEvent(100));
+    emitWindow("pointermove", moveEvent(120));
     expect(isDragging.value).toBe(true);
 
     emitWindow("blur", new Event("blur"));
@@ -173,6 +182,40 @@ describe("useDragScroll", () => {
     const click = dispatchClick(el);
     expect(click.preventDefault).not.toHaveBeenCalled();
     expect(click.stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it("keeps a click with small pointer jitter clickable", () => {
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { isDragging, onPointerDown } = useDragScroll(elRef);
+
+    const down = downEvent(100);
+    onPointerDown(down);
+    emitWindow("pointermove", moveEvent(105));
+    emitWindow("pointerup", upEvent());
+
+    const click = dispatchClick(el);
+    expect(isDragging.value).toBe(false);
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(click.preventDefault).not.toHaveBeenCalled();
+    expect(click.stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it("does not suppress a later click when a drag produces no click", () => {
+    vi.useFakeTimers();
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+
+    onPointerDown(downEvent(100));
+    emitWindow("pointermove", moveEvent(130));
+    emitWindow("pointerup", upEvent());
+    vi.runAllTimers();
+
+    const click = dispatchClick(el);
+    expect(click.preventDefault).not.toHaveBeenCalled();
+    expect(click.stopPropagation).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("ignores non-mouse pointers so touch keeps native panning", () => {

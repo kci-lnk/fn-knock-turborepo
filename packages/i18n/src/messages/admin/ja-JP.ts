@@ -3423,16 +3423,34 @@ export const jaJPAdmin = {
     coverageMissing: "対象外",
     uncoveredHostsMore: "{preview} など {count}",
     externalAutomationTitle: "外部証明書を受信",
+    externalBindingsTab: "ツールとバインド",
+    externalEndpointsTab: "プッシュ先",
+    externalCreateDescription: "ツールを選び、この配備に名前を付けます。",
+    externalCredentialOneTime: "一度だけ表示",
+    externalBindingsDescription: "接続済みの証明書ツールを管理します。",
+    externalNoBindingsHint: "上で証明書ツールを選び、バインドを作成します。",
+    externalEndpointNoBindingsTitle: "送信先 URL はまだありません",
+    externalEndpointNoBindingsDescription:
+      "バインドを作成すると、公開、LAN、ローカル URL が表示されます。",
+    externalEndpointOverviewDescription:
+      "ツールの実行場所に合う URL を選びます。",
+    externalEndpointPending: "利用不可",
+    externalPublicEndpointDescription:
+      "HTTPS 認証ホストを設定すると、別の端末から送信できます。",
+    externalEndpointAlwaysReady: "利用可能",
+    externalLanConfigure: "LAN 設定",
+    externalLanEdit: "設定",
+    externalLanClose: "閉じる",
     externalBindingsSummary: "{count} 件の証明書受信先を作成済み",
     externalNoBindingsSummary:
       "Certd などの外部ツールから fn-knock へ証明書を送信します",
     externalManage: "設定",
-    externalCreateTitle: "証明書の受信先を作成",
+    externalCreateTitle: "証明書ツールを追加",
     externalDescription:
-      "使用中の証明書ツールを選択します。生成された受信設定をツールへコピーすると、新規・更新済み証明書を fn-knock に送信できます。",
-    externalSecurityTitle: "ここでは証明書を受信します。発行は行いません",
+      "Certd、acme.sh、lego、Certbot 用の送信認証情報を作成します。",
+    externalSecurityTitle: "Token を安全に保管してください",
     externalSecurityDescription:
-      "Certd、acme.sh、lego、Certbot が発行と更新を行います。バインド Token は証明書管理者の認証情報です。保持者は任意の SAN を送信し、同一 SAN の全ソースを引き継げます。パスワード保管庫に保存し、漏えいの疑いがあれば直ちにローテーションまたは無効化してください。",
+      "Token は任意のドメインの証明書を送信し、同じドメインの既存証明書を置き換えられます。漏えい時はすぐにローテーションまたは無効化してください。",
     externalProviderLabel: "証明書ツール",
     externalNameLabel: "受信先の名前",
     externalNamePlaceholder: "例：Certd メイン証明書",
@@ -3444,14 +3462,51 @@ export const jaJPAdmin = {
     externalPublicReadyTitle: "推奨：HTTPS 認証ホスト経由で送信",
     externalPublicUnavailableTitle: "公開証明書送信はまだ利用できません",
     externalPublicReadyDescription:
-      "別のマシンのタスクから、この安全な公開 URL を直接使用できます：{url}",
+      "別の端末やクラウドで動く証明書ツール向けです。",
     externalPublicUnconfiguredDescription:
-      "先に認証サブドメインを設定してください。管理ポートを公開せずに、fn-knock が HTTPS 公開送信 URL を自動生成します。",
+      "認証ホストを設定すると、管理ポートを開かずにインターネット経由で送信できます。",
     externalPublicHttpsRequiredDescription:
-      "認証ホストが HTTPS ではありません。公開証明書送信の前に HTTPS を有効化してください。安全でない HTTP 公開 URL は生成されません。",
+      "認証ホストがまだ HTTPS ではないため、公開送信は利用できません。",
     externalLoopbackTitle: "ローカル互換 URL",
     externalLoopbackDescription:
-      "127.0.0.1:{port} URL は、同一ホストのジョブや認証ホストの証明書・ネットワーク障害時のため常に保持されます。この管理リスナーをインターネットへ直接公開しないでください。",
+      "このホストで動く証明書ツール専用です。ポート {port} をインターネットへ公開しないでください。",
+    externalLanTitle: "LAN プッシュ",
+    externalLanDescription:
+      "LAN 端末からゲートウェイポート {port} へ証明書を送信できます。",
+    externalLanSecurityTitle: "既定証明書と -k",
+    externalLanSecurityDescription:
+      "IP アドレスは通常、既定証明書と一致しないため、生成設定では -k を使います。信頼できる LAN 内だけで使い、Token を安全に保管してください。",
+    externalLanStatus_ready: "利用可能",
+    externalLanStatus_disabled: "無効",
+    externalLanStatus_ssl_unavailable: "既定 SSL 証明書が利用不可",
+    externalLanStatus_listener_loopback: "ゲートウェイはループバックのみ",
+    externalLanStatus_gateway_unavailable: "ゲートウェイ利用不可",
+    externalLanAddressesLabel: "許可する IPv4 アドレス",
+    externalLanAddressesHelp:
+      "1 行に 1 件、最大 16 件。Docker ホストのアドレスも手動追加できます。",
+    externalLanDetectedLabel: "利用可能なアドレス",
+    externalLanNoneDetected:
+      "利用可能なアドレスを検出できません。手動で入力してください。",
+    externalLanListener: "ゲートウェイのリスナー",
+    externalLanListenerAll: "すべてのネットワークインターフェース",
+    externalLanListenerLoopback: "このホストのみ",
+    externalLanSaveAddresses: "保存",
+    externalLanDisable: "無効化",
+    externalLanEnable: "有効化",
+    externalLanEnabledSuccess:
+      "LAN 証明書プッシュを有効化し TLS を同期しました",
+    externalLanDisabledSuccess: "LAN 証明書プッシュを無効化しました",
+    externalLanSaveFailed: "LAN 証明書プッシュ設定を保存できませんでした",
+    externalEndpointLabel: "生成設定で使用するプッシュ先",
+    externalEndpointPublic: "公開 HTTPS",
+    externalEndpointLan: "LAN HTTPS",
+    externalEndpointLoopback: "ローカル URL",
+    externalLanUrlLabel: "LAN HTTPS プッシュ URL",
+    externalLanTrustLabel: "LAN TLS の注意事項",
+    externalLanInsecureNotice:
+      "指定どおり、この LAN スクリプトは curl -k で証明書名エラーを無視します。公開エンドポイントには使用しないでください。",
+    externalLanCertdInsecure:
+      "この LAN IP は既定証明書を再利用するため通常は名前が一致しません。Certd の TLS 証明書エラー無視はこの配備タスクだけで有効にし、全体では無効にしないでください。",
     externalMethodLabel: "リクエスト方式",
     externalUrlLabel: "送信先 URL",
     externalPublicUrlLabel: "推奨公開送信 URL",
@@ -3464,8 +3519,7 @@ export const jaJPAdmin = {
     externalCopy: "コピー",
     externalCopyAll: "設定をすべてコピー",
     externalBindingsTitle: "証明書の受信先",
-    externalNoBindings:
-      "受信先はまだありません。作成すると、外部の証明書ツールから fn-knock へ送信できます。",
+    externalNoBindings: "証明書ツールはまだ接続されていません。",
     externalEnabled: "受信中",
     externalDisabled: "一時停止中",
     externalLastSuccess: "前回の受信は成功",

@@ -225,6 +225,11 @@ function validateContract(openapiPath) {
     ["post /api/admin/ssl/deployment-mode", "SslDeploymentModeBodyData"],
     ["delete /api/admin/ssl", null],
     ["get /api/admin/ssl/external-bindings", null],
+    ["get /api/admin/ssl/external-bindings/lan", null],
+    [
+      "put /api/admin/ssl/external-bindings/lan",
+      "LanCertificateDeploymentUpdateBodyData",
+    ],
     [
       "post /api/admin/ssl/external-bindings",
       "ExternalCertificateBindingCreateBodyData",

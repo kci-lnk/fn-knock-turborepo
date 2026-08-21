@@ -209,6 +209,8 @@ export type ExternalCertificateBinding =
   ApiContractComponents["schemas"]["ExternalCertificateBindingData"];
 export type ExternalCertificateBindingCredential =
   ApiContractComponents["schemas"]["ExternalCertificateBindingCredentialData"];
+export type LanCertificateDeployment =
+  ApiContractComponents["schemas"]["LanCertificateDeploymentData"];
 
 export type FnosShareBypassConfig =
   ApiContractComponents["schemas"]["FnosShareBypassData"];

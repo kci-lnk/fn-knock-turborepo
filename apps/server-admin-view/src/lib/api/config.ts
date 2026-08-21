@@ -14,6 +14,7 @@ import { apiClient } from "./client";
 import { configAuthApi } from "./config-auth-api";
 import { configCoreApi } from "./config-core-api";
 import { configProxyApi } from "./config-proxy-api";
+import { configSslLanApi } from "./config-ssl-lan-api";
 import {
   configStreamApi,
   STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE,
@@ -30,6 +31,7 @@ type MaintenanceClearResult =
 export const ConfigAPI = {
   ...configCoreApi,
   ...configProxyApi,
+  ...configSslLanApi,
   ...configStreamApi,
   ...configAuthApi,
 };

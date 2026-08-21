@@ -20,6 +20,8 @@ impl Store {
         values: &[(&str, &Value)],
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
+        // redis_compat executes every pipeline in one SQLite IMMEDIATE
+        // transaction, so takeover readers cannot observe a partial snapshot.
         let mut pipe = redis::pipe();
         for (key, value) in values {
             pipe.set(

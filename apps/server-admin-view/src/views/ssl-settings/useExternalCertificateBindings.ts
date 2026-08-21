@@ -7,6 +7,7 @@ import { ConfigAPI } from "@/lib/api/config";
 import type {
   ExternalCertificateBinding,
   ExternalCertificateBindingCredential,
+  LanCertificateDeployment,
 } from "@/types";
 
 export type ExternalCertificateCredentialField = {
@@ -32,6 +33,10 @@ export function useExternalCertificateBindings() {
   const isLoading = ref(true);
   const isCreating = ref(false);
   const pendingBindingId = ref<string | null>(null);
+  const lanSettings = ref<LanCertificateDeployment | null>(null);
+  const lanAddressDraft = ref("");
+  const isSavingLan = ref(false);
+  const selectedDeployUrl = ref("");
 
   const configured = computed(() => bindings.value.length > 0);
   const providerOptions = Object.entries(PROVIDER_NAMES).map(
@@ -51,13 +56,16 @@ export function useExternalCertificateBindings() {
     () => {
       const value = credential.value;
       if (!value) return [];
-      const publicUrl = value.binding.public_deploy_url ?? "";
       const localUrl = localDeployUrl(value.binding);
+      const deployUrl =
+        selectedDeployUrl.value || preferredDeployUrl(value.binding);
+      const lanSelected = value.binding.lan_deploy_urls.includes(deployUrl);
       if (value.binding.setup_kind === "deploy_hook") {
         const script = renderDeployHook(
           value.binding,
-          preferredDeployUrl(value.binding),
+          deployUrl,
           value.token,
+          lanSelected,
         );
         return [
           {
@@ -74,6 +82,15 @@ export function useExternalCertificateBindings() {
             label: t("admin.certConfig.externalLocalUrlLabel"),
             value: localUrl,
           },
+          ...(lanSelected
+            ? [
+                {
+                  label: t("admin.certConfig.externalLanTrustLabel"),
+                  value: t("admin.certConfig.externalLanInsecureNotice"),
+                  multiline: true,
+                },
+              ]
+            : []),
         ].filter((field) => field.value);
       }
       return [
@@ -82,8 +99,8 @@ export function useExternalCertificateBindings() {
           value: value.binding.request_method ?? "",
         },
         {
-          label: t("admin.certConfig.externalPublicUrlLabel"),
-          value: publicUrl,
+          label: t("admin.certConfig.externalUrlLabel"),
+          value: deployUrl,
         },
         {
           label: t("admin.certConfig.externalLocalUrlLabel"),
@@ -101,9 +118,52 @@ export function useExternalCertificateBindings() {
           label: t("admin.certConfig.externalSuccessMarkerLabel"),
           value: value.binding.success_marker ?? "",
         },
+        ...(lanSelected
+          ? [
+              {
+                label: t("admin.certConfig.externalLanTrustLabel"),
+                value: t("admin.certConfig.externalLanCertdInsecure"),
+                multiline: true,
+              },
+            ]
+          : []),
       ].filter((field) => field.value);
     },
   );
+
+  const deployUrlOptions = computed(() => {
+    const binding = credential.value?.binding;
+    if (!binding) return [];
+    const options: Array<{ value: string; label: string }> = [];
+    if (binding.public_deploy_status === "ready" && binding.public_deploy_url) {
+      options.push({
+        value: binding.public_deploy_url,
+        label: t("admin.certConfig.externalEndpointPublic"),
+      });
+    }
+    for (const url of binding.lan_deploy_urls) {
+      options.push({
+        value: url,
+        label: `${t("admin.certConfig.externalEndpointLan")} · ${url}`,
+      });
+    }
+    const local = localDeployUrl(binding);
+    options.push({
+      value: local,
+      label: t("admin.certConfig.externalEndpointLoopback"),
+    });
+    return options;
+  });
+
+  watch(credential, (value) => {
+    if (!value) {
+      selectedDeployUrl.value = "";
+      return;
+    }
+    if (!bindingDeployUrls(value.binding).includes(selectedDeployUrl.value)) {
+      selectedDeployUrl.value = preferredDeployUrl(value.binding);
+    }
+  });
 
   watch(provider, (nextProvider, previousProvider) => {
     const currentName = bindingName.value.trim();
@@ -115,14 +175,74 @@ export function useExternalCertificateBindings() {
   async function loadBindings() {
     isLoading.value = true;
     try {
-      bindings.value = await ConfigAPI.getExternalCertificateBindings();
+      const [loadedBindings, loadedLan] = await Promise.all([
+        ConfigAPI.getExternalCertificateBindings(),
+        ConfigAPI.getLanCertificateDeployment(),
+      ]);
+      bindings.value = loadedBindings;
+      lanSettings.value = loadedLan;
+      lanAddressDraft.value = loadedLan.configured_addresses.join("\n");
       bindingNameDrafts.value = Object.fromEntries(
         bindings.value.map((binding) => [binding.id, binding.name]),
       );
+      if (credential.value) {
+        const refreshedBinding = bindings.value.find(
+          (binding) => binding.id === credential.value?.binding.id,
+        );
+        if (refreshedBinding) {
+          credential.value = {
+            ...credential.value,
+            binding: refreshedBinding,
+          };
+        } else {
+          credential.value = null;
+        }
+      }
+      return true;
     } catch (error) {
       showError(error, "admin.certConfig.externalLoadFailed");
+      return false;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  function addDetectedLanAddress(address: string) {
+    const addresses = new Set(
+      lanAddressDraft.value
+        .split(/\s+/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+    addresses.add(address);
+    lanAddressDraft.value = [...addresses].sort().join("\n");
+  }
+
+  async function saveLanSettings(enabled: boolean) {
+    isSavingLan.value = true;
+    try {
+      lanSettings.value = await ConfigAPI.updateLanCertificateDeployment({
+        enabled,
+        addresses: lanAddressDraft.value
+          .split(/\s+/)
+          .map((value) => value.trim())
+          .filter(Boolean),
+      });
+      lanAddressDraft.value = lanSettings.value.configured_addresses.join("\n");
+      await loadBindings();
+      toast.success(
+        t(
+          enabled
+            ? "admin.certConfig.externalLanEnabledSuccess"
+            : "admin.certConfig.externalLanDisabledSuccess",
+        ),
+      );
+      return true;
+    } catch (error) {
+      showError(error, "admin.certConfig.externalLanSaveFailed");
+      return false;
+    } finally {
+      isSavingLan.value = false;
     }
   }
 
@@ -177,15 +297,17 @@ export function useExternalCertificateBindings() {
 
   async function renameBinding(binding: ExternalCertificateBinding) {
     const name = (bindingNameDrafts.value[binding.id] ?? "").trim();
-    if (!name || name === binding.name) return;
+    if (!name || name === binding.name) return false;
     pendingBindingId.value = binding.id;
     try {
       replaceBinding(
         await ConfigAPI.updateExternalCertificateBinding(binding.id, { name }),
       );
       toast.success(t("admin.certConfig.externalRenameSuccess"));
+      return true;
     } catch (error) {
       showError(error, "admin.certConfig.externalUpdateFailed");
+      return false;
     } finally {
       pendingBindingId.value = null;
     }
@@ -280,11 +402,18 @@ export function useExternalCertificateBindings() {
     credentialFields,
     formatDate,
     isCreating,
+    isSavingLan,
     isLoading,
     loadBindings,
     pendingBindingId,
     provider,
     providerOptions,
+    deployUrlOptions,
+    selectedDeployUrl,
+    lanSettings,
+    lanAddressDraft,
+    addDetectedLanAddress,
+    saveLanSettings,
     publicDeployStatusDescription,
     providerName,
     renameBinding,
@@ -303,9 +432,20 @@ function localDeployUrl(binding: ExternalCertificateBinding) {
 }
 
 function preferredDeployUrl(binding: ExternalCertificateBinding) {
-  return binding.public_deploy_status === "ready" && binding.public_deploy_url
-    ? binding.public_deploy_url
+  if (binding.public_deploy_status === "ready" && binding.public_deploy_url) {
+    return binding.public_deploy_url;
+  }
+  return binding.lan_deploy_status === "ready" && binding.lan_deploy_urls[0]
+    ? binding.lan_deploy_urls[0]
     : localDeployUrl(binding);
+}
+
+function bindingDeployUrls(binding: ExternalCertificateBinding) {
+  return [
+    ...(binding.public_deploy_url ? [binding.public_deploy_url] : []),
+    ...binding.lan_deploy_urls,
+    localDeployUrl(binding),
+  ];
 }
 
 function publicDeployStatusDescription(binding: ExternalCertificateBinding) {
@@ -331,10 +471,15 @@ function renderDeployHook(
   binding: ExternalCertificateBinding,
   deployUrl: string,
   token: string,
+  lan: boolean,
 ) {
-  return (binding.script_template ?? "")
+  let script = (binding.script_template ?? "")
     .split("__FN_KNOCK_DEPLOY_URL__")
     .join(deployUrl)
     .split("__FN_KNOCK_DEPLOY_TOKEN__")
     .join(token);
+  if (lan) {
+    script = script.split("curl --silent").join("curl -k --silent");
+  }
+  return script;
 }

@@ -8537,6 +8537,24 @@
             "description": "绑定的稳定标识符，也是部署 URL 的一部分。",
             "type": "string"
           },
+          "lan_deploy_status": {
+            "description": "局域网部署入口状态；不可用时不会生成 HTTP 替代 URL。",
+            "enum": [
+              "ready",
+              "disabled",
+              "ssl_unavailable",
+              "listener_loopback",
+              "gateway_unavailable"
+            ],
+            "type": "string"
+          },
+          "lan_deploy_urls": {
+            "description": "显式启用且网关默认证书可用时，为每个允许的 RFC1918 IPv4 生成的 HTTPS 部署 URL。IP 访问预期存在名称不匹配，调用方需显式允许该错误。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "last_deployed_at": {
             "description": "最近一次成功或失败部署尝试的时间。",
             "type": [
@@ -8703,6 +8721,8 @@
           "deploy_port",
           "public_deploy_url",
           "public_deploy_status",
+          "lan_deploy_urls",
+          "lan_deploy_status",
           "setup_kind",
           "last_replaced_certificate_count",
           "last_replaced_sources",
@@ -13018,6 +13038,78 @@
         },
         "required": [
           "url"
+        ],
+        "type": "object"
+      },
+      "LanCertificateDeploymentData": {
+        "properties": {
+          "configured_addresses": {
+            "description": "当前持久化并获准命中保留部署路由的地址。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "detected_addresses": {
+            "description": "只读检测到的候选宿主机地址；不会自动加入允许列表。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "description": "局域网 HTTPS 证书推送是否已显式启用。",
+            "type": "boolean"
+          },
+          "gateway_port": {
+            "description": "局域网 HTTPS 入口复用的 Go 网关端口。",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "listener_scope": {
+            "description": "Go 网关当前监听范围；`loopback` 状态不允许启用局域网入口。",
+            "type": "string"
+          },
+          "status": {
+            "description": "局域网入口的可操作状态。",
+            "enum": [
+              "ready",
+              "disabled",
+              "ssl_unavailable",
+              "listener_loopback",
+              "gateway_unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "configured_addresses",
+          "detected_addresses",
+          "gateway_port",
+          "listener_scope",
+          "status"
+        ],
+        "type": "object"
+      },
+      "LanCertificateDeploymentUpdateBodyData": {
+        "properties": {
+          "addresses": {
+            "description": "管理员确认的 RFC1918 IPv4 列表，去重后最多 16 个。",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "description": "是否显式启用局域网 HTTPS 证书推送。",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "addresses"
         ],
         "type": "object"
       },
@@ -24596,7 +24688,7 @@
   "paths": {
     "/__certificates__/{binding_id}": {
       "put": {
-        "description": "鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
+        "description": "该保留路径可由 HTTPS 鉴权域或管理员显式允许的 RFC1918 IPv4 命中。局域网 IP 入口要求 HTTPS 和私网真实对端，并复用默认证书；调用工具需要按管理员选择使用 `-k` 处理名称不匹配。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
         "operationId": "put_public_certificates_by_binding_id",
         "parameters": [
           {
@@ -24772,7 +24864,7 @@
             "certificateDeploymentToken": []
           }
         ],
-        "summary": "通过鉴权域部署外部证书",
+        "summary": "通过网关保留路径部署外部证书",
         "tags": [
           "ssl"
         ],
@@ -29437,7 +29529,7 @@
                 }
               }
             },
-            "description": "「提交Cloudflare 隧道故障回退」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交Cloudflare 隧道备用配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -29450,7 +29542,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Cloudflare 隧道故障回退",
+        "summary": "提交Cloudflare 隧道备用配置",
         "tags": [
           "cloudflared"
         ],
@@ -45775,6 +45867,195 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
+    "/api/admin/ssl/external-bindings/lan": {
+      "get": {
+        "description": "返回管理员确认的 RFC1918 IPv4 允许列表、只读检测地址、网关端口与监听状态。局域网入口复用当前默认 SSL 证书，因此通过 IP 访问通常会发生证书名称不匹配。",
+        "operationId": "get_api_admin_ssl_external_bindings_lan",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/LanCertificateDeploymentData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "返回局域网证书推送的配置与可用状态。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "查看局域网证书推送设置",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "put": {
+        "description": "显式启用或停用局域网 HTTPS 保留入口，并保存最多 16 个 RFC1918 IPv4。启用时要求网关不是仅回环监听且已有默认 SSL 证书；不会新增端口、签发独立证书或暴露 Rust 管理监听器。同步失败会恢复原配置。",
+        "operationId": "put_api_admin_ssl_external_bindings_lan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanCertificateDeploymentUpdateBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/LanCertificateDeploymentData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "已保存并同步局域网证书推送设置。"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "网关仅监听回环地址，或当前没有可复用的激活 SSL 证书；修正前置配置后才能启用局域网入口。"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "code": null,
+                  "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                  "success": false
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "无法读取或更新 Go 网关状态；服务会恢复之前的局域网配置，并在无法确认恢复时返回明确错误。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。"
+          }
+        },
+        "summary": "配置局域网证书推送",
+        "tags": [
+          "ssl"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
     "/api/admin/ssl/external-bindings/{id}": {
       "delete": {
         "description": "永久撤销该绑定及其 Token。对应的证书库条目默认保留，不会删除或停用正在运行的证书。",
@@ -51673,7 +51954,7 @@
       "name": "wol"
     },
     {
-      "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与鉴权域上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。",
+      "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与网关上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。后者仅允许 HTTPS 鉴权域，或显式启用且通过来源校验的局域网 IP。下载 ZIP 或读取共享文件内容可能暴露私钥。",
       "name": "ssl"
     }
   ]

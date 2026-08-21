@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 17;
+  CONTROL_API_VERSION_CURRENT = 18;
 }
 
 message RpcStatus {
@@ -470,15 +470,30 @@ message SslDeployedCertificateInfo {
   bool is_default = 4;
 }
 
+// Opt-in LAN certificate deployment routing. TLS continues to use the
+// ordinary default certificate; these addresses only authorize the reserved
+// deployment route.
+message SslLanDeployment {
+  bool enabled = 1;
+  repeated string addresses = 2;
+}
+
+message SslLanDeploymentInfo {
+  bool enabled = 1;
+  repeated string addresses = 2;
+}
+
 message SslConfig {
   string deployment_mode = 1;
   repeated SslDeployedCertificate certificates = 2;
+  SslLanDeployment lan_deployment = 3;
 }
 
 message SslInfo {
   bool enabled = 1;
   string deployment_mode = 2;
   repeated SslDeployedCertificateInfo certificates = 3;
+  SslLanDeploymentInfo lan_deployment = 4;
 }
 
 message GatewayLogEntry {

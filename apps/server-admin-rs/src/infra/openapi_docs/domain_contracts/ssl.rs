@@ -175,6 +175,22 @@ pub(super) struct ExternalCertificateBindingUpdateBodyData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct LanCertificateDeploymentUpdateBodyData {
+    enabled: bool,
+    addresses: Vec<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct LanCertificateDeploymentData {
+    enabled: bool,
+    configured_addresses: Vec<String>,
+    detected_addresses: Vec<String>,
+    gateway_port: u16,
+    listener_scope: String,
+    status: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct ExternalCertificateBindingData {
     id: String,
     name: String,
@@ -194,6 +210,8 @@ pub(super) struct ExternalCertificateBindingData {
     #[schema(required = true)]
     public_deploy_url: Option<String>,
     public_deploy_status: String,
+    lan_deploy_urls: Vec<String>,
+    lan_deploy_status: String,
     setup_kind: String,
     request_method: Option<String>,
     request_body_template: Option<String>,

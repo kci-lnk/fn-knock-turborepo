@@ -3427,17 +3427,35 @@ export const enAdmin = {
     coverageMissing: "Not covered",
     uncoveredHostsMore: "{preview} and {count} more",
     externalAutomationTitle: "Receive external certificates",
+    externalBindingsTab: "Tools and bindings",
+    externalEndpointsTab: "Push endpoints",
+    externalCreateDescription: "Choose a tool and name this deployment.",
+    externalCredentialOneTime: "Shown once",
+    externalBindingsDescription: "Manage connected certificate tools.",
+    externalNoBindingsHint:
+      "Choose a certificate tool above and create a binding.",
+    externalEndpointNoBindingsTitle: "No push URLs yet",
+    externalEndpointNoBindingsDescription:
+      "Create a binding to see public, LAN, and local URLs here.",
+    externalEndpointOverviewDescription:
+      "Choose a URL based on where the tool runs.",
+    externalEndpointPending: "Unavailable",
+    externalPublicEndpointDescription:
+      "Configure an HTTPS auth host to push from another device.",
+    externalEndpointAlwaysReady: "Ready",
+    externalLanConfigure: "LAN settings",
+    externalLanEdit: "Settings",
+    externalLanClose: "Collapse",
     externalBindingsSummary: "{count} certificate receiving endpoints created",
     externalNoBindingsSummary:
       "Let Certd and other tools push certificates into fn-knock",
     externalManage: "Settings",
-    externalCreateTitle: "Create a certificate receiving endpoint",
+    externalCreateTitle: "Add a certificate tool",
     externalDescription:
-      "Choose the certificate tool you use. Copy the generated receiving configuration into that tool so it can push new and renewed certificates to fn-knock.",
-    externalSecurityTitle:
-      "This endpoint receives certificates; it does not issue them",
+      "Create push credentials for Certd, acme.sh, lego, or Certbot.",
+    externalSecurityTitle: "Keep the token safe",
     externalSecurityDescription:
-      "Certd, acme.sh, lego, or Certbot handles issuance and renewal. A binding token is a certificate-administrator credential: its holder can push any SAN and take over every same-SAN source. Store it in a password vault and rotate or disable it immediately if exposure is suspected.",
+      "The token can push certificates for any domain and replace existing certificates for the same domains. Rotate or disable it immediately if exposed.",
     externalProviderLabel: "Certificate tool",
     externalNameLabel: "Endpoint name",
     externalNamePlaceholder: "For example: Certd primary certificate",
@@ -3449,14 +3467,51 @@ export const enAdmin = {
     externalPublicReadyTitle: "Recommended: push through the HTTPS auth host",
     externalPublicUnavailableTitle: "Public certificate push is not ready",
     externalPublicReadyDescription:
-      "Tasks on another machine can use this secure public URL directly: {url}",
+      "For certificate tools running on another device or in the cloud.",
     externalPublicUnconfiguredDescription:
-      "Configure an authentication subdomain first. fn-knock will then generate an HTTPS public push URL without exposing the management port.",
+      "Set up an auth host to push over the Internet without opening the management port.",
     externalPublicHttpsRequiredDescription:
-      "The authentication host is not using HTTPS. Enable HTTPS before public certificate pushes; fn-knock will not generate an unsafe public HTTP URL.",
+      "The auth host does not use HTTPS yet, so public push is unavailable.",
     externalLoopbackTitle: "Local compatibility URL",
     externalLoopbackDescription:
-      "The 127.0.0.1:{port} URL is always retained for same-host jobs or fallback when the auth-host certificate or network is unavailable. Do not expose this management listener directly to the Internet.",
+      "For certificate tools running on this host. Do not expose port {port} to the Internet.",
+    externalLanTitle: "LAN push",
+    externalLanDescription:
+      "Allow LAN devices to push certificates through gateway port {port}.",
+    externalLanSecurityTitle: "Default certificate and -k",
+    externalLanSecurityDescription:
+      "The default certificate usually will not match the IP address, so generated configuration uses -k. Use it only on a trusted LAN and keep the token safe.",
+    externalLanStatus_ready: "Ready",
+    externalLanStatus_disabled: "Disabled",
+    externalLanStatus_ssl_unavailable: "Default SSL certificate unavailable",
+    externalLanStatus_listener_loopback: "Gateway listens on loopback only",
+    externalLanStatus_gateway_unavailable: "Gateway unavailable",
+    externalLanAddressesLabel: "Allowed IPv4 addresses",
+    externalLanAddressesHelp:
+      "One per line, up to 16. Docker host addresses can also be added manually.",
+    externalLanDetectedLabel: "Available addresses",
+    externalLanNoneDetected: "No addresses detected. Enter one manually.",
+    externalLanListener: "Gateway listener",
+    externalLanListenerAll: "All network interfaces",
+    externalLanListenerLoopback: "This host only",
+    externalLanSaveAddresses: "Save",
+    externalLanDisable: "Disable",
+    externalLanEnable: "Enable",
+    externalLanEnabledSuccess:
+      "LAN certificate deployment is enabled and TLS is synchronized",
+    externalLanDisabledSuccess: "LAN certificate deployment is disabled",
+    externalLanSaveFailed: "Failed to save LAN certificate deployment settings",
+    externalEndpointLabel:
+      "Deployment endpoint used by generated configuration",
+    externalEndpointPublic: "Public HTTPS",
+    externalEndpointLan: "LAN HTTPS",
+    externalEndpointLoopback: "Local URL",
+    externalLanUrlLabel: "LAN HTTPS deployment URL",
+    externalLanTrustLabel: "LAN TLS notice",
+    externalLanInsecureNotice:
+      "As requested, this LAN script uses curl -k to ignore the certificate-name error. Never reuse it for the public endpoint.",
+    externalLanCertdInsecure:
+      "This LAN IP reuses the default certificate and will usually have a name mismatch. Enable Certd's ignore TLS certificate errors option only for this deployment task, not globally.",
     externalMethodLabel: "Method",
     externalUrlLabel: "Push URL",
     externalPublicUrlLabel: "Recommended public push URL",
@@ -3469,8 +3524,7 @@ export const enAdmin = {
     externalCopy: "Copy",
     externalCopyAll: "Copy all configuration",
     externalBindingsTitle: "Certificate receiving endpoints",
-    externalNoBindings:
-      "No receiving endpoint yet. Create one before an external certificate tool can push certificates to fn-knock.",
+    externalNoBindings: "No certificate tool is connected yet.",
     externalEnabled: "Receiving",
     externalDisabled: "Paused",
     externalLastSuccess: "Last receive succeeded",

@@ -73,6 +73,8 @@ pub(super) struct ExternalCertificateBindingData {
     #[schema(required = true)]
     public_deploy_url: Option<String>,
     public_deploy_status: String,
+    lan_deploy_urls: Vec<String>,
+    lan_deploy_status: String,
     setup_kind: String,
     request_method: Option<String>,
     request_body_template: Option<String>,
@@ -290,6 +292,8 @@ struct ExternalCertificateTakeover {
 struct ExternalCertificateDeploymentEndpoints {
     public_deploy_base_url: Option<String>,
     public_deploy_status: String,
+    lan_deploy_base_urls: Vec<String>,
+    lan_deploy_status: String,
 }
 
 #[derive(Debug)]
@@ -389,7 +393,43 @@ async fn external_certificate_deployment_endpoints(
         return ExternalCertificateDeploymentEndpoints {
             public_deploy_base_url: None,
             public_deploy_status: "auth_host_unconfigured".to_string(),
+            lan_deploy_base_urls: Vec::new(),
+            lan_deploy_status: "gateway_unavailable".to_string(),
         };
+    };
+    let lan = normalize_lan_deployment(config.get(SSL_LAN_DEPLOYMENT_KEY));
+    let lan_enabled = lan.get("enabled").and_then(Value::as_bool).unwrap_or(false);
+    let mut lan_status = if lan_enabled {
+        "ready".to_string()
+    } else {
+        "disabled".to_string()
+    };
+    if lan_enabled && !default_ssl_available(&config) {
+        lan_status = "ssl_unavailable".to_string();
+    } else if lan_enabled {
+        match state.gateway.client.get_gateway_listener_scope().await {
+            Ok(scope) if scope == "loopback" => lan_status = "listener_loopback".to_string(),
+            Ok(_) => {}
+            Err(_) => lan_status = "gateway_unavailable".to_string(),
+        }
+    }
+    let lan_deploy_base_urls = if lan_status == "ready" {
+        lan.get("addresses")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|address| format!("https://{address}:{}", super::lan::gateway_port()))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let public_unavailable = |status: &str| ExternalCertificateDeploymentEndpoints {
+        public_deploy_base_url: None,
+        public_deploy_status: status.to_string(),
+        lan_deploy_base_urls: lan_deploy_base_urls.clone(),
+        lan_deploy_status: lan_status.clone(),
     };
     let auth = crate::proxy_config::build_gateway_auth_config(&config);
     let auth_host = auth
@@ -398,10 +438,7 @@ async fn external_certificate_deployment_endpoints(
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let Some(auth_host) = auth_host else {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "auth_host_unconfigured".to_string(),
-        };
+        return public_unavailable("auth_host_unconfigured");
     };
     let public_base_url = auth
         .get("public_auth_base_url")
@@ -409,28 +446,16 @@ async fn external_certificate_deployment_endpoints(
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let Some(public_base_url) = public_base_url else {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "auth_host_unconfigured".to_string(),
-        };
+        return public_unavailable("auth_host_unconfigured");
     };
     let Ok(url) = url::Url::parse(public_base_url) else {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "https_required".to_string(),
-        };
+        return public_unavailable("https_required");
     };
     if url.scheme() != "https" {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "https_required".to_string(),
-        };
+        return public_unavailable("https_required");
     }
     let Ok(auth_authority) = auth_host.parse::<http::uri::Authority>() else {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "auth_host_unconfigured".to_string(),
-        };
+        return public_unavailable("auth_host_unconfigured");
     };
     let mut public_url = url::Url::parse("https://certificate-deploy.invalid")
         .expect("static certificate deployment base URL must parse");
@@ -439,14 +464,13 @@ async fn external_certificate_deployment_endpoints(
             .set_port(url.port().or_else(|| auth_authority.port_u16()))
             .is_err()
     {
-        return ExternalCertificateDeploymentEndpoints {
-            public_deploy_base_url: None,
-            public_deploy_status: "auth_host_unconfigured".to_string(),
-        };
+        return public_unavailable("auth_host_unconfigured");
     }
     ExternalCertificateDeploymentEndpoints {
         public_deploy_base_url: Some(public_url.as_str().trim_end_matches('/').to_string()),
         public_deploy_status: "ready".to_string(),
+        lan_deploy_base_urls,
+        lan_deploy_status: lan_status,
     }
 }
 
@@ -494,6 +518,16 @@ fn binding_view(
             binding.id
         )
     });
+    let lan_deploy_urls = endpoints
+        .lan_deploy_base_urls
+        .iter()
+        .map(|base| {
+            format!(
+                "{base}{PUBLIC_CERTIFICATE_DEPLOY_PATH_PREFIX}/{}",
+                binding.id
+            )
+        })
+        .collect();
     ExternalCertificateBindingData {
         id: binding.id.clone(),
         name: binding.name.clone(),
@@ -512,6 +546,8 @@ fn binding_view(
         deploy_port,
         public_deploy_url,
         public_deploy_status: endpoints.public_deploy_status.clone(),
+        lan_deploy_urls,
+        lan_deploy_status: endpoints.lan_deploy_status.clone(),
         setup_kind: setup_kind.to_string(),
         request_method,
         request_body_template,
@@ -660,7 +696,7 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-fn normalized_request_host(headers: &HeaderMap) -> Option<String> {
+pub(super) fn normalized_request_host(headers: &HeaderMap) -> Option<String> {
     let authority = headers.get(HOST)?.to_str().ok()?.trim();
     let authority = authority.parse::<http::uri::Authority>().ok()?;
     let host = authority
@@ -669,22 +705,6 @@ fn normalized_request_host(headers: &HeaderMap) -> Option<String> {
         .trim_end_matches('.')
         .to_ascii_lowercase();
     (!host.is_empty()).then_some(host)
-}
-
-async fn public_deploy_host_matches(state: &AppState, headers: &HeaderMap) -> bool {
-    let Some(request_host) = normalized_request_host(headers) else {
-        return false;
-    };
-    let Ok(config) = state.storage.store.get_config().await else {
-        return false;
-    };
-    let auth = crate::proxy_config::build_gateway_auth_config(&config);
-    auth.get("auth_host")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
-        .filter(|host| !host.is_empty())
-        .is_some_and(|host| host == request_host)
 }
 
 fn certificate_metadata(cert: &str) -> Result<CertificateMetadata, String> {
@@ -732,11 +752,17 @@ fn certificate_metadata(cert: &str) -> Result<CertificateMetadata, String> {
     validate_certificate_chain(&chain)?;
     let info = parse_cert_info(cert)
         .ok_or_else(|| "Certificate metadata could not be parsed".to_string())?;
+    let dns_names = certificate_info_dns_names(&info);
+    if dns_names.is_empty() {
+        return Err(
+            "Certificate leaf must contain at least one DNS/IP SAN or a common name".to_string(),
+        );
+    }
     Ok(CertificateMetadata {
         fingerprint_sha256: crate::crypto_utils::sha256_hex_bytes(&leaf_der),
         valid_to: time_utils::iso_from_ms(not_after_ms),
         not_after_ms,
-        dns_names: certificate_info_dns_names(&info),
+        dns_names,
     })
 }
 
@@ -1401,13 +1427,32 @@ async fn deploy_public_external_certificate(
     AxumPath(binding_id): AxumPath<String>,
     request: Request,
 ) -> Response {
-    let mut response = if !public_deploy_host_matches(&state, request.headers()).await {
+    let mut response = if !gateway_deploy_request_matches(&state, request.headers()).await {
         ExternalDeployError::Unavailable.into_response()
     } else {
         deploy_external_certificate_inner(state, binding_id, request).await
     };
     crate::http_utils::apply_no_store_headers(response.headers_mut());
     response
+}
+
+async fn gateway_deploy_request_matches(state: &AppState, headers: &HeaderMap) -> bool {
+    let Ok(config) = state.storage.store.get_config().await else {
+        return false;
+    };
+    let public_matches = normalized_request_host(headers).is_some_and(|request_host| {
+        if super::lan::configured_lan_host_matches(&config, &request_host) {
+            return false;
+        }
+        let auth = crate::proxy_config::build_gateway_auth_config(&config);
+        auth.get("auth_host")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
+            .filter(|host| !host.is_empty())
+            .is_some_and(|host| host == request_host)
+    });
+    public_matches || lan_deploy_request_matches(&config, headers)
 }
 
 async fn deploy_external_certificate_inner(
@@ -1707,6 +1752,8 @@ mod tests {
         ExternalCertificateDeploymentEndpoints {
             public_deploy_base_url: Some("https://auth.example.com".to_string()),
             public_deploy_status: "ready".to_string(),
+            lan_deploy_base_urls: vec!["https://192.168.31.98:7999".to_string()],
+            lan_deploy_status: "ready".to_string(),
         }
     }
 
@@ -1722,6 +1769,14 @@ mod tests {
             generated.cert.pem().trim().to_string(),
             generated.signing_key.serialize_pem().trim().to_string(),
         )
+    }
+
+    fn generated_unnamed_certificate() -> (String, String) {
+        let key = KeyPair::generate().unwrap();
+        let mut params = CertificateParams::new(Vec::<String>::new()).unwrap();
+        params.distinguished_name = DistinguishedName::new();
+        let certificate = params.self_signed(&key).unwrap();
+        (certificate.pem().trim().to_string(), key.serialize_pem())
     }
 
     fn test_ca() -> CertifiedIssuer<'static, KeyPair> {
@@ -1935,6 +1990,17 @@ mod tests {
             .is_err()
         );
         assert!(certificate_metadata(&format!("{cert}\nnot-a-certificate")).is_err());
+
+        let (unnamed_cert, unnamed_key) = generated_unnamed_certificate();
+        let unnamed_error = validate_external_certificate(&ExternalCertificateDeployBody {
+            cert: unnamed_cert,
+            key: unnamed_key,
+        })
+        .unwrap_err();
+        assert!(matches!(
+            unnamed_error,
+            ExternalDeployError::BadRequest(message) if message.contains("SAN or a common name")
+        ));
 
         let issuer = test_ca();
         let (leaf, leaf_key) = generated_signed_certificate(&issuer);

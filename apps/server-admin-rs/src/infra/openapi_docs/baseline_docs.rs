@@ -563,7 +563,7 @@ fn segment_label(segment: &str) -> String {
         "entries" => "日志条目".to_string(),
         "enabled" => "启用状态".to_string(),
         "events" => "事件".to_string(),
-        "fallback" => "故障回退".to_string(),
+        "fallback" => "备用配置".to_string(),
         "files" => "文件".to_string(),
         "firewall" => "防火墙".to_string(),
         "firewall_additional_ports" => "防火墙附加端口".to_string(),

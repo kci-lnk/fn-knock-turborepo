@@ -50,6 +50,14 @@ const BAD_GATEWAY: ErrorDocumentation = ErrorDocumentation {
     status: "502",
     description: "新证书无法下发到网关；fn-knock 会尝试恢复旧配置和旧网关证书，并在无法确认恢复时明确返回该状态，证书客户端应将本次部署标记为失败并重试。",
 };
+const LAN_CONFLICT: ErrorDocumentation = ErrorDocumentation {
+    status: "409",
+    description: "网关仅监听回环地址，或当前没有可复用的激活 SSL 证书；修正前置配置后才能启用局域网入口。",
+};
+const LAN_BAD_GATEWAY: ErrorDocumentation = ErrorDocumentation {
+    status: "502",
+    description: "无法读取或更新 Go 网关状态；服务会恢复之前的局域网配置，并在无法确认恢复时返回明确错误。",
+};
 
 const OPERATIONS: &[OperationDocumentation] = &[
     OperationDocumentation {
@@ -205,6 +213,22 @@ const OPERATIONS: &[OperationDocumentation] = &[
         errors: &[GATEWAY_SYNC_ERROR],
     },
     OperationDocumentation {
+        method: "get",
+        path: "/api/admin/ssl/external-bindings/lan",
+        summary: "查看局域网证书推送设置",
+        description: "返回管理员确认的 RFC1918 IPv4 允许列表、只读检测地址、网关端口与监听状态。局域网入口复用当前默认 SSL 证书，因此通过 IP 访问通常会发生证书名称不匹配。",
+        success_description: "返回局域网证书推送的配置与可用状态。",
+        errors: &[INTERNAL_ERROR],
+    },
+    OperationDocumentation {
+        method: "put",
+        path: "/api/admin/ssl/external-bindings/lan",
+        summary: "配置局域网证书推送",
+        description: "显式启用或停用局域网 HTTPS 保留入口，并保存最多 16 个 RFC1918 IPv4。启用时要求网关不是仅回环监听且已有默认 SSL 证书；不会新增端口、签发独立证书或暴露 Rust 管理监听器。同步失败会恢复原配置。",
+        success_description: "已保存并同步局域网证书推送设置。",
+        errors: &[BAD_REQUEST, LAN_CONFLICT, INTERNAL_ERROR, LAN_BAD_GATEWAY],
+    },
+    OperationDocumentation {
         method: "delete",
         path: "/api/admin/ssl",
         summary: "清除当前激活证书",
@@ -271,8 +295,8 @@ const OPERATIONS: &[OperationDocumentation] = &[
     OperationDocumentation {
         method: "put",
         path: "/__certificates__/{binding_id}",
-        summary: "通过鉴权域部署外部证书",
-        description: "鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
+        summary: "通过网关保留路径部署外部证书",
+        description: "该保留路径可由 HTTPS 鉴权域或管理员显式允许的 RFC1918 IPv4 命中。局域网 IP 入口要求 HTTPS 和私网真实对端，并复用默认证书；调用工具需要按管理员选择使用 `-k` 处理名称不匹配。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。",
         success_description: "证书已保存并在需要时同步到网关；响应包含本次同 SAN 接管及被停用自动化的摘要。",
         errors: &[
             BAD_REQUEST,
@@ -855,6 +879,56 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "ExternalCertificateBindingData",
+        "lan_deploy_urls",
+        "显式启用且网关默认证书可用时，为每个允许的 RFC1918 IPv4 生成的 HTTPS 部署 URL。IP 访问预期存在名称不匹配，调用方需显式允许该错误。",
+    ),
+    (
+        "ExternalCertificateBindingData",
+        "lan_deploy_status",
+        "局域网部署入口状态；不可用时不会生成 HTTP 替代 URL。",
+    ),
+    (
+        "LanCertificateDeploymentUpdateBodyData",
+        "enabled",
+        "是否显式启用局域网 HTTPS 证书推送。",
+    ),
+    (
+        "LanCertificateDeploymentUpdateBodyData",
+        "addresses",
+        "管理员确认的 RFC1918 IPv4 列表，去重后最多 16 个。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "configured_addresses",
+        "当前持久化并获准命中保留部署路由的地址。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "enabled",
+        "局域网 HTTPS 证书推送是否已显式启用。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "detected_addresses",
+        "只读检测到的候选宿主机地址；不会自动加入允许列表。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "gateway_port",
+        "局域网 HTTPS 入口复用的 Go 网关端口。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "listener_scope",
+        "Go 网关当前监听范围；`loopback` 状态不允许启用局域网入口。",
+    ),
+    (
+        "LanCertificateDeploymentData",
+        "status",
+        "局域网入口的可操作状态。",
+    ),
+    (
+        "ExternalCertificateBindingData",
         "setup_kind",
         "接入配置类型：`webhook` 用于 Certd，`deploy_hook` 用于命令行 ACME 客户端。",
     ),
@@ -993,7 +1067,7 @@ const PROPERTY_DESCRIPTIONS: &[(&str, &str, &str)] = &[
 pub(super) fn tag() -> Value {
     json!({
         "name": "ssl",
-        "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与鉴权域上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。下载 ZIP 或读取共享文件内容可能暴露私钥。"
+        "description": "SSL 证书库、共享文件导入、本地 CA 与外部证书自动部署管理。\n\n推荐流程：手工导入证书后激活并选择部署模式；初始化本地 CA、配置主机名后签发；或创建外部绑定，让 Certd、acme.sh、lego 或 Certbot 使用独立 Bearer Token 推送续期证书。\n\n`/api/admin/ssl/*` 需要同源管理面板会话；`/api/integrations/certificates/{binding_id}` 与网关上的 `/__certificates__/{binding_id}` 不使用管理会话，只接受绑定专用 Token。后者仅允许 HTTPS 鉴权域，或显式启用且通过来源校验的局域网 IP。下载 ZIP 或读取共享文件内容可能暴露私钥。"
     })
 }
 

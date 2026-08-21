@@ -33,13 +33,20 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
 }
 
 async fn apply_ssl_deployment_to_gateway(state: &AppState, config: &Value) -> anyhow::Result<()> {
-    let deployment = build_gateway_ssl_deployment(config.get("ssl"));
+    let deployment = build_gateway_ssl_deployment_with_lan(
+        config.get("ssl"),
+        config.get(SSL_LAN_DEPLOYMENT_KEY),
+    );
     let certificates = deployment
         .get("certificates")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let (status, value) = if certificates.is_empty() {
+    let lan_enabled = deployment
+        .pointer("/lan_deployment/enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let (status, value) = if certificates.is_empty() && !lan_enabled {
         state.gateway.client.clear_ssl().await?
     } else {
         state.gateway.client.set_ssl_deployment(&deployment).await?
@@ -55,6 +62,8 @@ async fn apply_ssl_deployment_to_gateway(state: &AppState, config: &Value) -> an
 
 fn same_ssl_configuration(left: &Value, right: &Value) -> bool {
     normalize_ssl_config(left.get("ssl")) == normalize_ssl_config(right.get("ssl"))
+        && normalize_lan_deployment(left.get(SSL_LAN_DEPLOYMENT_KEY))
+            == normalize_lan_deployment(right.get(SSL_LAN_DEPLOYMENT_KEY))
 }
 
 fn prefer_persisted_ssl_configuration(requested: &Value, persisted: Value) -> Value {
@@ -65,7 +74,15 @@ fn prefer_persisted_ssl_configuration(requested: &Value, persisted: Value) -> Va
     }
 }
 
+#[cfg(test)]
 pub(super) fn build_gateway_ssl_deployment(ssl: Option<&Value>) -> Value {
+    build_gateway_ssl_deployment_with_lan(ssl, None)
+}
+
+pub(super) fn build_gateway_ssl_deployment_with_lan(
+    ssl: Option<&Value>,
+    lan: Option<&Value>,
+) -> Value {
     let ssl = normalize_ssl_config(ssl);
     let deployment_mode =
         normalize_deployment_mode(ssl.get("deployment_mode").and_then(Value::as_str));
@@ -84,10 +101,12 @@ pub(super) fn build_gateway_ssl_deployment(ssl: Option<&Value>) -> Value {
         .find(|item| item.get("id").and_then(Value::as_str) == Some(active_id.as_str()))
         .cloned();
     if deployment_mode != "multi_sni" {
-        return json!({
+        let mut deployment = json!({
             "deployment_mode": "single_active",
             "certificates": active.as_ref().map(|certificate| gateway_certificate_payload(certificate, true)).into_iter().collect::<Vec<_>>()
         });
+        deployment["lan_deployment"] = gateway_lan_deployment_payload(lan);
+        return deployment;
     }
     let mut ordered = Vec::new();
     let mut seen = BTreeSet::new();
@@ -103,7 +122,7 @@ pub(super) fn build_gateway_ssl_deployment(ssl: Option<&Value>) -> Value {
             ordered.push(certificate);
         }
     }
-    json!({
+    let mut deployment = json!({
         "deployment_mode": "multi_sni",
         "certificates": ordered.iter().enumerate().map(|(index, certificate)| {
             let is_default = if active.is_some() {
@@ -113,6 +132,16 @@ pub(super) fn build_gateway_ssl_deployment(ssl: Option<&Value>) -> Value {
             };
             gateway_certificate_payload(certificate, is_default)
         }).collect::<Vec<_>>()
+    });
+    deployment["lan_deployment"] = gateway_lan_deployment_payload(lan);
+    deployment
+}
+
+fn gateway_lan_deployment_payload(lan: Option<&Value>) -> Value {
+    let lan = normalize_lan_deployment(lan);
+    json!({
+        "enabled": lan.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+        "addresses": lan.get("addresses").and_then(Value::as_array).cloned().unwrap_or_default()
     })
 }
 
@@ -144,8 +173,18 @@ mod tests {
             "ssl": { "deployment_mode": "multi_sni", "certificates": [] },
             "unrelated": 2
         });
+        let changed_lan = json!({
+            "ssl": { "deployment_mode": "single_active", "certificates": [] },
+            "ssl_lan_deployment": {
+                "enabled": true,
+                "addresses": ["192.168.31.98"],
+                "cert": "cert",
+                "key": "key"
+            }
+        });
         assert!(same_ssl_configuration(&first, &same_ssl));
         assert!(!same_ssl_configuration(&first, &changed_ssl));
+        assert!(!same_ssl_configuration(&first, &changed_lan));
         assert_eq!(
             prefer_persisted_ssl_configuration(&first, same_ssl),
             first,
@@ -155,6 +194,23 @@ mod tests {
             prefer_persisted_ssl_configuration(&first, changed_ssl.clone()),
             changed_ssl,
             "a newer persisted SSL snapshot must win before the gateway call",
+        );
+    }
+
+    #[test]
+    fn gateway_deployment_keeps_lan_allowlist_separate() {
+        let deployment = build_gateway_ssl_deployment_with_lan(
+            Some(&json!({ "deployment_mode": "single_active", "certificates": [] })),
+            Some(&json!({
+                "enabled": true,
+                "addresses": ["192.168.31.98"]
+            })),
+        );
+        assert_eq!(deployment["certificates"], json!([]));
+        assert_eq!(deployment["lan_deployment"]["enabled"], json!(true));
+        assert_eq!(
+            deployment["lan_deployment"]["addresses"],
+            json!(["192.168.31.98"])
         );
     }
 }

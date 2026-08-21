@@ -1007,6 +1007,8 @@ struct BackupImportResultData {
     SslCertificateSaveData,
     ExternalCertificateBindingCreateBodyData,
     ExternalCertificateBindingUpdateBodyData,
+    LanCertificateDeploymentUpdateBodyData,
+    LanCertificateDeploymentData,
     ExternalCertificateBindingData,
     ExternalCertificateBindingCredentialData,
     ExternalCertificateDeployBodyData,
@@ -2400,6 +2402,25 @@ pub(super) fn components() -> Map<String, Value> {
         "ExternalCertificateBindingData",
         "public_deploy_status",
         &["ready", "auth_host_unconfigured", "https_required"],
+    );
+    let lan_deploy_statuses = &[
+        "ready",
+        "disabled",
+        "ssl_unavailable",
+        "listener_loopback",
+        "gateway_unavailable",
+    ];
+    set_property_enum(
+        &mut schemas,
+        "ExternalCertificateBindingData",
+        "lan_deploy_status",
+        lan_deploy_statuses,
+    );
+    set_property_enum(
+        &mut schemas,
+        "LanCertificateDeploymentData",
+        "status",
+        lan_deploy_statuses,
     );
     set_property_enum(
         &mut schemas,

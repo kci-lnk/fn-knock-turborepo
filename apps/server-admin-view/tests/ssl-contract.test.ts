@@ -138,7 +138,9 @@ describe("SSL certificate API contract", () => {
           operation.tags?.includes("ssl"),
       ),
     );
-    assert.equal(sslOperations.length, 27);
+    assert.equal(sslOperations.length, 29);
+    assert.ok(contract.paths["/api/admin/ssl/external-bindings/lan"].get);
+    assert.ok(contract.paths["/api/admin/ssl/external-bindings/lan"].put);
     for (const operation of sslOperations) {
       assert.match(operation.summary ?? "", /[\u4e00-\u9fff]/u);
       assert.match(operation.description ?? "", /[\u4e00-\u9fff]/u);
@@ -162,6 +164,7 @@ describe("SSL certificate API contract", () => {
 
   it("keeps external deployment credentials scoped and write-only", () => {
     const binding = contract.components.schemas.ExternalCertificateBindingData;
+    const lan = contract.components.schemas.LanCertificateDeploymentData;
     const credential =
       contract.components.schemas.ExternalCertificateBindingCredentialData;
     const deployment =
@@ -178,6 +181,17 @@ describe("SSL certificate API contract", () => {
     assert.ok(binding.required?.includes("deploy_port"));
     assert.ok(binding.required?.includes("public_deploy_url"));
     assert.ok(binding.required?.includes("public_deploy_status"));
+    assert.ok(binding.required?.includes("lan_deploy_urls"));
+    assert.ok(binding.required?.includes("lan_deploy_status"));
+    assert.deepEqual(binding.properties?.lan_deploy_status?.enum, [
+      "ready",
+      "disabled",
+      "ssl_unavailable",
+      "listener_loopback",
+      "gateway_unavailable",
+    ]);
+    assert.ok(lan.required?.includes("configured_addresses"));
+    assert.ok(lan.required?.includes("detected_addresses"));
     assert.match(
       binding.properties?.deploy_port?.description ?? "",
       /BACKEND_PORT/u,
@@ -300,6 +314,7 @@ describe("SSL certificate API contract", () => {
   it("derives frontend SSL models, requests, and queries from OpenAPI", () => {
     const types = readSource("../src/types/core.ts");
     const api = readSource("../src/lib/api/config-proxy-api.ts");
+    const lanApi = readSource("../src/lib/api/config-ssl-lan-api.ts");
     for (const schema of [
       "SslCertificateSaveBodyData",
       "SslCertificateInfoData",
@@ -320,12 +335,17 @@ describe("SSL certificate API contract", () => {
     assert.match(api, /getExternalCertificateBindings/u);
     assert.match(api, /satisfies ExternalCertificateBindingCreateBody/u);
     assert.match(api, /rotateExternalCertificateBindingToken/u);
+    assert.match(lanApi, /getLanCertificateDeployment/u);
+    assert.match(lanApi, /updateLanCertificateDeployment/u);
   });
 
   it("encapsulates external deployment state outside the SSL composition root", () => {
     const root = readSource("../src/views/ssl-settings/CertConfig.vue");
     const card = readSource(
       "../src/views/ssl-settings/ExternalCertificateDeploymentCard.vue",
+    );
+    const lanEditor = readSource(
+      "../src/views/ssl-settings/ExternalCertificateLanEditor.vue",
     );
     const controller = readSource(
       "../src/views/ssl-settings/useExternalCertificateBindings.ts",
@@ -336,6 +356,28 @@ describe("SSL certificate API contract", () => {
 
     assert.match(root, /<ExternalCertificateDeploymentCard\s*\/>/u);
     assert.match(card, /useExternalCertificateBindings/u);
+    assert.match(card, /<TabsTrigger value="bindings"/u);
+    assert.match(card, /<TabsTrigger value="endpoints"/u);
+    assert.equal(
+      [...card.matchAll(/<ExternalCertificateLanEditor/gu)].length,
+      2,
+    );
+    assert.match(card, /v-if="!primaryBinding"/u);
+    assert.match(card, /v-model:address-draft="lanAddressDraft"/u);
+    assert.match(card, /editingBindingId === binding\.id/u);
+    assert.match(card, /\[overflow-wrap:anywhere\]/u);
+    assert.match(card, /overflow-hidden rounded-lg border divide-y/u);
+    assert.match(card, /externalEndpointNoBindingsTitle/u);
+    assert.match(card, /v-model="activeTab"/u);
+    assert.match(card, /aria-controls="external-lan-editor"/u);
+    assert.match(card, /max-w-2xl/u);
+    assert.match(lanEditor, /flex-col-reverse gap-2 sm:flex-row/u);
+    assert.match(lanEditor, /listenerLabel/u);
+    assert.match(lanEditor, /emit\('save', true\)/u);
+    assert.doesNotMatch(card, /lg:grid-cols-3/u);
+    assert.doesNotMatch(card, /grid-cols-\[1(?:80|90)px/u);
+    assert.doesNotMatch(card, /minmax\(220px,0\.7fr\)/u);
+    assert.doesNotMatch(card, /externalWorkspaceTitle/u);
     assert.match(card, /SelectItem/u);
     assert.match(card, /providerName\(binding\.provider\)/u);
     assert.doesNotMatch(card, /binding\.certificate_id/u);
@@ -353,18 +395,27 @@ describe("SSL certificate API contract", () => {
     );
     assert.match(controller, /binding\.public_deploy_url/u);
     assert.match(controller, /binding\.public_deploy_status/u);
+    assert.match(
+      controller,
+      /binding\.lan_deploy_urls\.includes\(deployUrl\)/u,
+    );
+    assert.match(controller, /curl -k --silent/u);
     assert.doesNotMatch(controller, /window\.location\.(?:hostname|origin)/u);
     assert.match(
       controller,
       /ConfigAPI\.rotateExternalCertificateBindingToken/u,
     );
+    assert.match(zhCN, /externalEndpointNoBindingsTitle/u);
+    assert.match(zhCN, /还没有可用的推送地址/u);
+    assert.match(zhCN, /externalLanListenerAll: "所有网络接口"/u);
+    assert.match(zhCN, /externalLanClose: "收起"/u);
     assert.match(controller, /function clearCredential\(\)/u);
     assert.match(controller, /credential\.value = null/u);
     assert.match(card, /collapseAndClear\(collapse\)/u);
     assert.doesNotMatch(controller, /localStorage|sessionStorage/u);
     assert.match(zhCN, /externalAutomationTitle: "接收外部证书"/u);
-    assert.match(zhCN, /这里负责接收，不负责申请证书/u);
-    assert.match(zhCN, /推荐：通过 HTTPS 鉴权域推送/u);
-    assert.match(zhCN, /不要把该管理监听端口直接暴露到公网/u);
+    assert.match(zhCN, /请妥善保存 Token/u);
+    assert.match(zhCN, /适合运行在其他设备或云端的证书工具/u);
+    assert.match(zhCN, /不要把 \{port\} 端口暴露到公网/u);
   });
 });

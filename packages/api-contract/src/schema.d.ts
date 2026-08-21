@@ -13,8 +13,8 @@ export interface paths {
         };
         get?: never;
         /**
-         * 通过鉴权域部署外部证书
-         * @description 鉴权域上的推荐 HTTPS 公网别名。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。
+         * 通过网关保留路径部署外部证书
+         * @description 该保留路径可由 HTTPS 鉴权域或管理员显式允许的 RFC1918 IPv4 命中。局域网 IP 入口要求 HTTPS 和私网真实对端，并复用默认证书；调用工具需要按管理员选择使用 `-k` 处理名称不匹配。它与本机兼容接口使用相同的绑定专用 Bearer Token、1 MiB 限制、证书校验、同 SAN 接管、幂等与回滚逻辑；不接受管理会话，不暴露管理 API。绑定 Token 属于不限制 SAN 的证书管理员凭据。
          */
         put: operations["put_public_certificates_by_binding_id"];
         post?: never;
@@ -1390,7 +1390,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Cloudflare 隧道故障回退
+         * 提交Cloudflare 隧道备用配置
          * @description 管理 Cloudflare Tunnel 进程、凭据、配置、协调任务和优选。。`POST /api/admin/cloudflared/optimization/fallback` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["post_api_admin_cloudflared_optimization_fallback"];
@@ -5522,6 +5522,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ssl/external-bindings/lan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看局域网证书推送设置
+         * @description 返回管理员确认的 RFC1918 IPv4 允许列表、只读检测地址、网关端口与监听状态。局域网入口复用当前默认 SSL 证书，因此通过 IP 访问通常会发生证书名称不匹配。
+         */
+        get: operations["get_api_admin_ssl_external_bindings_lan"];
+        /**
+         * 配置局域网证书推送
+         * @description 显式启用或停用局域网 HTTPS 保留入口，并保存最多 16 个 RFC1918 IPv4。启用时要求网关不是仅回环监听且已有默认 SSL 证书；不会新增端口、签发独立证书或暴露 Rust 管理监听器。同步失败会恢复原配置。
+         */
+        put: operations["put_api_admin_ssl_external_bindings_lan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/ssl/external-bindings/{id}": {
         parameters: {
             query?: never;
@@ -9151,6 +9175,13 @@ export interface components {
             enabled: boolean;
             /** @description 绑定的稳定标识符，也是部署 URL 的一部分。 */
             id: string;
+            /**
+             * @description 局域网部署入口状态；不可用时不会生成 HTTP 替代 URL。
+             * @enum {string}
+             */
+            lan_deploy_status: "ready" | "disabled" | "ssl_unavailable" | "listener_loopback" | "gateway_unavailable";
+            /** @description 显式启用且网关默认证书可用时，为每个允许的 RFC1918 IPv4 生成的 HTTPS 部署 URL。IP 访问预期存在名称不匹配，调用方需显式允许该错误。 */
+            lan_deploy_urls: string[];
             /** @description 最近一次成功或失败部署尝试的时间。 */
             last_deployed_at?: string | null;
             /** @description 最近一次接管自动停用的 ACME 自动续期数。 */
@@ -10280,6 +10311,32 @@ export interface components {
         };
         IpLocationTestUrlBodyData: {
             url: string;
+        };
+        LanCertificateDeploymentData: {
+            /** @description 当前持久化并获准命中保留部署路由的地址。 */
+            configured_addresses: string[];
+            /** @description 只读检测到的候选宿主机地址；不会自动加入允许列表。 */
+            detected_addresses: string[];
+            /** @description 局域网 HTTPS 证书推送是否已显式启用。 */
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description 局域网 HTTPS 入口复用的 Go 网关端口。
+             */
+            gateway_port: number;
+            /** @description Go 网关当前监听范围；`loopback` 状态不允许启用局域网入口。 */
+            listener_scope: string;
+            /**
+             * @description 局域网入口的可操作状态。
+             * @enum {string}
+             */
+            status: "ready" | "disabled" | "ssl_unavailable" | "listener_loopback" | "gateway_unavailable";
+        };
+        LanCertificateDeploymentUpdateBodyData: {
+            /** @description 管理员确认的 RFC1918 IPv4 列表，去重后最多 16 个。 */
+            addresses: string[];
+            /** @description 是否显式启用局域网 HTTPS 证书推送。 */
+            enabled: boolean;
         };
         LdapBindingData: {
             created_at: string;
@@ -16129,7 +16186,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「提交Cloudflare 隧道故障回退」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「提交Cloudflare 隧道备用配置」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -26480,6 +26537,162 @@ export interface operations {
             };
             /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_ssl_external_bindings_lan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 返回局域网证书推送的配置与可用状态。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["LanCertificateDeploymentData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 未分类的 SSL 操作失败时返回标准错误信封；请结合 HTTP 状态、错误消息和 SSL 状态排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    put_api_admin_ssl_external_bindings_lan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LanCertificateDeploymentUpdateBodyData"];
+            };
+        };
+        responses: {
+            /** @description 已保存并同步局域网证书推送设置。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["LanCertificateDeploymentData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 请求参数不符合 SSL 操作的前置条件，例如证书与私钥无效、主机名为空或本地 CA 主机列表为空。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 网关仅监听回环地址，或当前没有可复用的激活 SSL 证书；修正前置配置后才能启用局域网入口。 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description SSL 配置、证书处理、本地 CA 或网关同步失败；写操作可能已经保存本地变更，具体以后续状态查询为准。 */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": null,
+                     *       "message": "请求未完成；请根据接口说明检查输入和当前 SSL 状态。",
+                     *       "success": false
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+            /** @description 无法读取或更新 Go 网关状态；服务会恢复之前的局域网配置，并在无法确认恢复时返回明确错误。 */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

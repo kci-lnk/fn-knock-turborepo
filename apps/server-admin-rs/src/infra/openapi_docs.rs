@@ -246,6 +246,24 @@ pub(crate) fn build_openapi_document() -> Value {
         "get",
         "ProviderDescriptor",
     );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings/lan",
+        "get",
+        "LanCertificateDeploymentData",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_ssl,
+        "/api/admin/ssl/external-bindings/lan",
+        "put",
+        "LanCertificateDeploymentData",
+        None,
+        Some("LanCertificateDeploymentUpdateBodyData"),
+    );
     insert_typed_array_enveloped_operation(
         &mut paths,
         &typed_panel_sync,

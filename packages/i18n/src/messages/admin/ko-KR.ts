@@ -3400,16 +3400,34 @@ export const koKRAdmin = {
     coverageMissing: "포함 안 됨",
     uncoveredHostsMore: "{preview} 및 {count} 더보기",
     externalAutomationTitle: "외부 인증서 받기",
+    externalBindingsTab: "도구 및 바인딩",
+    externalEndpointsTab: "푸시 엔드포인트",
+    externalCreateDescription: "도구를 선택하고 이 배포의 이름을 정하세요.",
+    externalCredentialOneTime: "한 번만 표시",
+    externalBindingsDescription: "연결된 인증서 도구를 관리합니다.",
+    externalNoBindingsHint: "위에서 인증서 도구를 선택하고 바인딩을 만드세요.",
+    externalEndpointNoBindingsTitle: "아직 푸시 주소가 없습니다",
+    externalEndpointNoBindingsDescription:
+      "바인딩을 만들면 공개, LAN, 로컬 주소가 여기에 표시됩니다.",
+    externalEndpointOverviewDescription:
+      "도구가 실행되는 위치에 맞는 주소를 선택하세요.",
+    externalEndpointPending: "사용 불가",
+    externalPublicEndpointDescription:
+      "HTTPS 인증 호스트를 설정하면 다른 장치에서 푸시할 수 있습니다.",
+    externalEndpointAlwaysReady: "사용 가능",
+    externalLanConfigure: "LAN 설정",
+    externalLanEdit: "설정",
+    externalLanClose: "접기",
     externalBindingsSummary: "인증서 수신 엔드포인트 {count}개가 생성됨",
     externalNoBindingsSummary:
       "Certd 같은 외부 도구에서 fn-knock으로 인증서를 푸시합니다",
     externalManage: "설정",
-    externalCreateTitle: "인증서 수신 엔드포인트 만들기",
+    externalCreateTitle: "인증서 도구 추가",
     externalDescription:
-      "사용 중인 인증서 도구를 선택하세요. 생성된 수신 구성을 도구에 복사하면 신규 및 갱신 인증서를 fn-knock으로 푸시할 수 있습니다.",
-    externalSecurityTitle: "여기서는 인증서를 받으며 발급하지 않습니다",
+      "Certd, acme.sh, lego 또는 Certbot용 푸시 자격 증명을 만듭니다.",
+    externalSecurityTitle: "Token을 안전하게 보관하세요",
     externalSecurityDescription:
-      "Certd, acme.sh, lego 또는 Certbot이 발급과 갱신을 담당합니다. 바인딩 Token은 인증서 관리자 자격 증명입니다. 소유자는 임의의 SAN을 푸시하고 동일 SAN의 모든 소스를 인계할 수 있습니다. 비밀번호 보관소에 저장하고 유출이 의심되면 즉시 교체하거나 비활성화하세요.",
+      "Token은 모든 도메인의 인증서를 푸시하고 같은 도메인의 기존 인증서를 교체할 수 있습니다. 노출되면 즉시 교체하거나 비활성화하세요.",
     externalProviderLabel: "인증서 도구",
     externalNameLabel: "엔드포인트 이름",
     externalNamePlaceholder: "예: Certd 기본 인증서",
@@ -3422,14 +3440,51 @@ export const koKRAdmin = {
     externalPublicUnavailableTitle:
       "공개 인증서 푸시를 아직 사용할 수 없습니다",
     externalPublicReadyDescription:
-      "다른 컴퓨터의 작업에서 이 안전한 공개 URL을 직접 사용할 수 있습니다: {url}",
+      "다른 장치나 클라우드에서 실행되는 인증서 도구용입니다.",
     externalPublicUnconfiguredDescription:
-      "먼저 인증 하위 도메인을 구성하세요. 관리 포트를 노출하지 않고 fn-knock이 HTTPS 공개 푸시 URL을 자동 생성합니다.",
+      "인증 호스트를 설정하면 관리 포트를 열지 않고 인터넷에서 푸시할 수 있습니다.",
     externalPublicHttpsRequiredDescription:
-      "인증 호스트가 HTTPS를 사용하지 않습니다. 공개 인증서 푸시 전에 HTTPS를 활성화하세요. 안전하지 않은 공개 HTTP URL은 생성되지 않습니다.",
+      "인증 호스트가 아직 HTTPS를 사용하지 않아 공개 푸시를 사용할 수 없습니다.",
     externalLoopbackTitle: "로컬 호환 URL",
     externalLoopbackDescription:
-      "127.0.0.1:{port} URL은 동일 호스트 작업이나 인증 호스트 인증서·네트워크 장애 시를 위해 항상 유지됩니다. 이 관리 리스너를 인터넷에 직접 노출하지 마세요.",
+      "이 호스트에서 실행되는 인증서 도구 전용입니다. 포트 {port}를 인터넷에 노출하지 마세요.",
+    externalLanTitle: "LAN 푸시",
+    externalLanDescription:
+      "LAN 장치가 게이트웨이 포트 {port}로 인증서를 푸시하도록 허용합니다.",
+    externalLanSecurityTitle: "기본 인증서 및 -k",
+    externalLanSecurityDescription:
+      "IP 주소는 보통 기본 인증서와 일치하지 않아 생성된 구성에서 -k를 사용합니다. 신뢰할 수 있는 LAN에서만 사용하고 Token을 안전하게 보관하세요.",
+    externalLanStatus_ready: "사용 가능",
+    externalLanStatus_disabled: "비활성화됨",
+    externalLanStatus_ssl_unavailable: "기본 SSL 인증서 사용 불가",
+    externalLanStatus_listener_loopback: "게이트웨이가 루프백만 수신",
+    externalLanStatus_gateway_unavailable: "게이트웨이 사용 불가",
+    externalLanAddressesLabel: "허용할 IPv4 주소",
+    externalLanAddressesHelp:
+      "한 줄에 하나씩 최대 16개입니다. Docker 호스트 주소도 직접 추가할 수 있습니다.",
+    externalLanDetectedLabel: "사용 가능한 주소",
+    externalLanNoneDetected:
+      "사용 가능한 주소를 찾지 못했습니다. 직접 입력하세요.",
+    externalLanListener: "게이트웨이 수신",
+    externalLanListenerAll: "모든 네트워크 인터페이스",
+    externalLanListenerLoopback: "이 호스트만",
+    externalLanSaveAddresses: "저장",
+    externalLanDisable: "비활성화",
+    externalLanEnable: "활성화",
+    externalLanEnabledSuccess:
+      "LAN 인증서 푸시를 활성화하고 TLS를 동기화했습니다",
+    externalLanDisabledSuccess: "LAN 인증서 푸시를 비활성화했습니다",
+    externalLanSaveFailed: "LAN 인증서 푸시 설정을 저장하지 못했습니다",
+    externalEndpointLabel: "생성된 구성에서 사용할 푸시 엔드포인트",
+    externalEndpointPublic: "공개 HTTPS",
+    externalEndpointLan: "LAN HTTPS",
+    externalEndpointLoopback: "로컬 URL",
+    externalLanUrlLabel: "LAN HTTPS 푸시 URL",
+    externalLanTrustLabel: "LAN TLS 안내",
+    externalLanInsecureNotice:
+      "요청대로 이 LAN 스크립트는 curl -k로 인증서 이름 오류를 무시합니다. 공개 엔드포인트에는 사용하지 마세요.",
+    externalLanCertdInsecure:
+      "이 LAN IP는 기본 인증서를 재사용하므로 이름이 보통 일치하지 않습니다. Certd의 TLS 인증서 오류 무시는 이 배포 작업에만 활성화하고 전역으로 끄지 마세요.",
     externalMethodLabel: "요청 방식",
     externalUrlLabel: "푸시 주소",
     externalPublicUrlLabel: "권장 공개 푸시 URL",
@@ -3442,8 +3497,7 @@ export const koKRAdmin = {
     externalCopy: "복사",
     externalCopyAll: "전체 구성 복사",
     externalBindingsTitle: "인증서 수신 엔드포인트",
-    externalNoBindings:
-      "아직 수신 엔드포인트가 없습니다. 생성하면 외부 인증서 도구에서 fn-knock으로 인증서를 푸시할 수 있습니다.",
+    externalNoBindings: "아직 연결된 인증서 도구가 없습니다.",
     externalEnabled: "수신 중",
     externalDisabled: "일시 중지됨",
     externalLastSuccess: "최근 수신 성공",

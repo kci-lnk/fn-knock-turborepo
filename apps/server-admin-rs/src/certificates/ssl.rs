@@ -36,6 +36,7 @@ mod ca;
 mod deployment;
 mod external;
 mod handlers;
+mod lan;
 mod library;
 mod normalize;
 mod recommendation;
@@ -63,6 +64,7 @@ use handlers::{
     __path_clear_ssl, __path_delete_ca_host, __path_delete_certificate, __path_save_certificate,
     __path_set_deployment_mode, __path_shared_file_content, __path_shared_files, __path_status,
 };
+use lan::*;
 pub(crate) use library::*;
 pub(crate) use normalize::*;
 use recommendation::*;
@@ -299,6 +301,8 @@ pub(crate) fn ssl_openapi_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(delete_certificate))
         .routes(routes!(activate_certificate))
         .routes(routes!(set_deployment_mode))
+        .routes(routes!(get_lan_certificate_deployment))
+        .routes(routes!(update_lan_certificate_deployment))
         .routes(routes!(list_external_certificate_bindings))
         .routes(routes!(create_external_certificate_binding))
         .routes(routes!(update_external_certificate_binding))

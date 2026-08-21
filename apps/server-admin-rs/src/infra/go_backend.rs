@@ -22,9 +22,10 @@ use crate::grpc_proto::{
     HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
     HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
-    SslDeployedCertificate, StreamAvailability, StreamBypassCondition, StreamBypassGroup,
-    StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules, StreamServiceProfile,
-    StringValue, WafConfig, deep_monitor_service_client::DeepMonitorServiceClient,
+    SslDeployedCertificate, SslLanDeployment, StreamAvailability, StreamBypassCondition,
+    StreamBypassGroup, StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules,
+    StreamServiceProfile, StringValue, WafConfig,
+    deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -1522,6 +1523,10 @@ fn parse_ssl_config(value: &Value) -> SslConfig {
                     .collect()
             })
             .unwrap_or_default(),
+        lan_deployment: value.get("lan_deployment").map(|lan| SslLanDeployment {
+            enabled: bool_field(lan, "enabled", false),
+            addresses: string_vec_field(lan, "addresses"),
+        }),
     }
 }
 

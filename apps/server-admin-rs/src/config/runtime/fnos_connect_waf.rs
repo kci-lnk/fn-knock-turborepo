@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, Ipv6Addr},
     path::Path,
     process::Command,
@@ -54,6 +54,13 @@ impl FirewallFamily {
         match self {
             Self::Ipv4 => "127.0.0.1/32",
             Self::Ipv6 => "::1/128",
+        }
+    }
+
+    fn nft_name(self) -> &'static str {
+        match self {
+            Self::Ipv4 => "ip",
+            Self::Ipv6 => "ip6",
         }
     }
 }
@@ -930,7 +937,7 @@ async fn firewall_rules_active(
     local_networks: LocalNetworks,
 ) -> bool {
     tokio::task::spawn_blocking(move || {
-        let mut executor = SystemFirewallExecutor;
+        let mut executor = SystemFirewallExecutor::default();
         [FirewallFamily::Ipv4, FirewallFamily::Ipv6]
             .into_iter()
             .all(|family| {
@@ -987,7 +994,7 @@ fn install_firewall_rules_blocking(
     local_networks: &LocalNetworks,
 ) -> Result<(), String> {
     install_firewall_rules_with(
-        &mut SystemFirewallExecutor,
+        &mut SystemFirewallExecutor::default(),
         source_port,
         target_port,
         local_networks,
@@ -1053,67 +1060,44 @@ fn install_firewall_rules_with(
 }
 
 fn cleanup_firewall_rules_blocking() -> Result<(), String> {
-    cleanup_firewall_rules_with(&mut SystemFirewallExecutor)
+    cleanup_firewall_rules_with(&mut SystemFirewallExecutor::default())
 }
 
 fn cleanup_firewall_rules_with(executor: &mut impl FirewallExecutor) -> Result<(), String> {
     let mut errors = Vec::new();
     for family in [FirewallFamily::Ipv4, FirewallFamily::Ipv6] {
-        let nat_rules = match executor.list_rules(family, FirewallTable::Nat) {
-            Ok(rules) => Some(rules),
-            Err(error) => {
-                errors.push(error);
-                None
-            }
-        };
-        if let Some(rules) = nat_rules.as_ref() {
-            cleanup_chain_from_snapshot(
-                executor,
-                family,
-                FirewallTable::Nat,
-                FNOS_CONNECT_PREROUTING_CHAIN,
-                &[prerouting_parent_jump_args("-C")],
-                rules,
-                &mut errors,
-            );
-            cleanup_chain_from_snapshot(
-                executor,
-                family,
-                FirewallTable::Nat,
-                FNOS_CONNECT_OUTPUT_CHAIN,
-                &[output_parent_jump_args("-C", FNOS_CONNECT_OUTPUT_CHAIN)],
-                rules,
-                &mut errors,
-            );
-            cleanup_chain_from_snapshot(
-                executor,
-                family,
-                FirewallTable::Nat,
-                FNOS_CONNECT_LEGACY_CHAIN,
-                &[output_parent_jump_args("-C", FNOS_CONNECT_LEGACY_CHAIN)],
-                rules,
-                &mut errors,
-            );
-        }
-
-        let filter_rules = match executor.list_rules(family, FirewallTable::Filter) {
-            Ok(rules) => Some(rules),
-            Err(error) => {
-                errors.push(error);
-                None
-            }
-        };
-        if let Some(rules) = filter_rules.as_ref() {
-            cleanup_chain_from_snapshot(
-                executor,
-                family,
-                FirewallTable::Filter,
-                FNOS_CONNECT_INPUT_CHAIN,
-                &[input_parent_jump_args("-C")],
-                rules,
-                &mut errors,
-            );
-        }
+        cleanup_owned_chain(
+            executor,
+            family,
+            FirewallTable::Nat,
+            FNOS_CONNECT_PREROUTING_CHAIN,
+            &[prerouting_parent_jump_args("-C")],
+            &mut errors,
+        );
+        cleanup_owned_chain(
+            executor,
+            family,
+            FirewallTable::Nat,
+            FNOS_CONNECT_OUTPUT_CHAIN,
+            &[output_parent_jump_args("-C", FNOS_CONNECT_OUTPUT_CHAIN)],
+            &mut errors,
+        );
+        cleanup_owned_chain(
+            executor,
+            family,
+            FirewallTable::Nat,
+            FNOS_CONNECT_LEGACY_CHAIN,
+            &[output_parent_jump_args("-C", FNOS_CONNECT_LEGACY_CHAIN)],
+            &mut errors,
+        );
+        cleanup_owned_chain(
+            executor,
+            family,
+            FirewallTable::Filter,
+            FNOS_CONNECT_INPUT_CHAIN,
+            &[input_parent_jump_args("-C")],
+            &mut errors,
+        );
     }
     if errors.is_empty() {
         Ok(())
@@ -1122,20 +1106,26 @@ fn cleanup_firewall_rules_with(executor: &mut impl FirewallExecutor) -> Result<(
     }
 }
 
-fn cleanup_chain_from_snapshot(
+fn cleanup_owned_chain(
     executor: &mut impl FirewallExecutor,
     family: FirewallFamily,
     table: FirewallTable,
     chain: &str,
     parent_checks: &[Vec<String>],
-    rules: &[String],
     errors: &mut Vec<String>,
 ) {
-    let chain_rule = format!("-N {chain}");
-    if !rules.iter().any(|rule| rule == &chain_rule) {
-        // A jump cannot reference a non-existent user chain. Avoid `-C`
-        // because iptables-nft reports that ordinary clean state as status 2.
-        return;
+    match executor.chain_exists(family, table, chain) {
+        Ok(true) => {}
+        Ok(false) => {
+            // A jump cannot reference a non-existent user chain. Avoid `-C`
+            // because iptables-nft reports that ordinary clean state as an
+            // incompatible target rather than a simple missing rule.
+            return;
+        }
+        Err(error) => {
+            errors.push(error);
+            return;
+        }
     }
     for parent_check in parent_checks {
         remove_parent_jump_copies(executor, family, parent_check, errors);
@@ -1275,17 +1265,169 @@ fn string_args(values: &[&str]) -> Vec<String> {
 trait FirewallExecutor {
     fn run(&mut self, family: FirewallFamily, args: &[String]) -> Result<(), String>;
     fn check(&mut self, family: FirewallFamily, args: &[String]) -> Result<bool, String>;
-    fn list_rules(
+    fn chain_exists(
         &mut self,
         family: FirewallFamily,
         table: FirewallTable,
-    ) -> Result<Vec<String>, String>;
+        chain: &str,
+    ) -> Result<bool, String>;
 }
 
-struct SystemFirewallExecutor;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IptablesBackend {
+    Legacy,
+    Nft,
+}
+
+#[derive(Default)]
+struct SystemFirewallExecutor {
+    backends: BTreeMap<FirewallFamily, IptablesBackend>,
+    nft_chains: Option<BTreeSet<(String, String, String)>>,
+}
+
+impl SystemFirewallExecutor {
+    fn backend(&mut self, family: FirewallFamily) -> Result<IptablesBackend, String> {
+        if let Some(backend) = self.backends.get(&family).copied() {
+            return Ok(backend);
+        }
+        let output = Command::new(family.binary())
+            .arg("--version")
+            .output()
+            .map_err(|error| format!("检测 {} 后端失败: {error}", family.binary()))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(format!(
+                "检测 {} 后端失败（状态 {}）{}",
+                family.binary(),
+                output.status,
+                if stderr.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {stderr}")
+                }
+            ));
+        }
+        let version = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let backend = if version.contains("(nf_tables)") {
+            IptablesBackend::Nft
+        } else {
+            IptablesBackend::Legacy
+        };
+        self.backends.insert(family, backend);
+        Ok(backend)
+    }
+
+    fn nft_chain_exists(
+        &mut self,
+        family: FirewallFamily,
+        table: FirewallTable,
+        chain: &str,
+    ) -> Result<bool, String> {
+        if self.nft_chains.is_none() {
+            let output = Command::new("nft")
+                .args(["-j", "list", "chains"])
+                .output()
+                .map_err(|error| format!("执行 nft 链枚举失败: {error}"))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                return Err(format!(
+                    "nft 链枚举失败（状态 {}）{}",
+                    output.status,
+                    if stderr.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {stderr}")
+                    }
+                ));
+            }
+            self.nft_chains = Some(parse_nft_chain_snapshot(&output.stdout)?);
+        }
+        Ok(self.nft_chains.as_ref().is_some_and(|chains| {
+            chains.contains(&(
+                family.nft_name().to_string(),
+                table.name().to_string(),
+                chain.to_string(),
+            ))
+        }))
+    }
+
+    fn legacy_chain_exists(
+        &mut self,
+        family: FirewallFamily,
+        table: FirewallTable,
+        chain: &str,
+    ) -> Result<bool, String> {
+        let output = Command::new(family.binary())
+            .args(["-w", "5", "-t", table.name(), "-S", chain])
+            .output()
+            .map_err(|error| format!("执行 {} 自有链检查失败: {error}", family.binary()))?;
+        if output.status.success() {
+            return Ok(true);
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.contains("No chain/target/match by that name")
+            || stderr.contains("Chain '") && stderr.contains("does not exist")
+        {
+            return Ok(false);
+        }
+        Err(format!(
+            "{} 自有链检查失败（状态 {}）{}",
+            family.binary(),
+            output.status,
+            if stderr.is_empty() {
+                String::new()
+            } else {
+                format!(": {stderr}")
+            }
+        ))
+    }
+}
+
+fn parse_nft_chain_snapshot(bytes: &[u8]) -> Result<BTreeSet<(String, String, String)>, String> {
+    let document: Value =
+        serde_json::from_slice(bytes).map_err(|error| format!("解析 nft 链清单失败: {error}"))?;
+    let entries = document
+        .get("nftables")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "解析 nft 链清单失败: 缺少 nftables 数组".to_string())?;
+    let mut chains = BTreeSet::new();
+    for entry in entries {
+        let Some(chain) = entry.get("chain") else {
+            continue;
+        };
+        let family = chain
+            .get("family")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "解析 nft 链清单失败: chain.family 无效".to_string())?;
+        let table = chain
+            .get("table")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "解析 nft 链清单失败: chain.table 无效".to_string())?;
+        let name = chain
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "解析 nft 链清单失败: chain.name 无效".to_string())?;
+        chains.insert((family.to_string(), table.to_string(), name.to_string()));
+    }
+    Ok(chains)
+}
+
+fn iptables_check_means_rule_absent(status_code: Option<i32>, stderr: &str) -> bool {
+    status_code == Some(1)
+        && (stderr.is_empty()
+            || stderr.contains("Bad rule")
+            || stderr.contains("does a matching rule exist"))
+}
 
 impl FirewallExecutor for SystemFirewallExecutor {
     fn run(&mut self, family: FirewallFamily, args: &[String]) -> Result<(), String> {
+        // Every successful or failed mutation may change the kernel snapshot;
+        // never reuse native nft chain metadata across a write attempt.
+        self.nft_chains = None;
         let output = Command::new(family.binary())
             .args(args)
             .output()
@@ -1314,10 +1456,10 @@ impl FirewallExecutor for SystemFirewallExecutor {
         if output.status.success() {
             return Ok(true);
         }
-        if output.status.code() == Some(1) {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if iptables_check_means_rule_absent(output.status.code(), &stderr) {
             return Ok(false);
         }
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         Err(format!(
             "{} 检查失败（状态 {}）{}",
             family.binary(),
@@ -1330,35 +1472,16 @@ impl FirewallExecutor for SystemFirewallExecutor {
         ))
     }
 
-    fn list_rules(
+    fn chain_exists(
         &mut self,
         family: FirewallFamily,
         table: FirewallTable,
-    ) -> Result<Vec<String>, String> {
-        let args = string_args(&["-w", "5", "-t", table.name(), "-S"]);
-        let output = Command::new(family.binary())
-            .args(&args)
-            .output()
-            .map_err(|error| format!("执行 {} 规则枚举失败: {error}", family.binary()))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(format!(
-                "{} 规则枚举失败（状态 {}）{}",
-                family.binary(),
-                output.status,
-                if stderr.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {stderr}")
-                }
-            ));
+        chain: &str,
+    ) -> Result<bool, String> {
+        match self.backend(family)? {
+            IptablesBackend::Nft => self.nft_chain_exists(family, table, chain),
+            IptablesBackend::Legacy => self.legacy_chain_exists(family, table, chain),
         }
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(ToString::to_string)
-            .collect())
     }
 }
 
@@ -1371,8 +1494,9 @@ mod tests {
         chains: BTreeSet<(FirewallFamily, FirewallTable, String)>,
         jumps: BTreeSet<(FirewallFamily, FirewallTable, String, String)>,
         fail_ipv6_attach: bool,
-        fail_ipv4_rule_listing: bool,
+        fail_ipv4_chain_probe: bool,
         fail_parent_check_without_chain: bool,
+        chain_probes: Vec<(FirewallFamily, FirewallTable, String)>,
         calls: Vec<(FirewallFamily, Vec<String>)>,
     }
 
@@ -1456,34 +1580,20 @@ mod tests {
             Ok(false)
         }
 
-        fn list_rules(
+        fn chain_exists(
             &mut self,
             family: FirewallFamily,
             table: FirewallTable,
-        ) -> Result<Vec<String>, String> {
-            if self.fail_ipv4_rule_listing
+            chain: &str,
+        ) -> Result<bool, String> {
+            self.chain_probes.push((family, table, chain.to_string()));
+            if self.fail_ipv4_chain_probe
                 && family == FirewallFamily::Ipv4
                 && table == FirewallTable::Nat
             {
-                return Err("simulated IPv4 rule listing failure".to_string());
+                return Err("simulated IPv4 chain probe failure".to_string());
             }
-            let mut rules = self
-                .chains
-                .iter()
-                .filter(|(candidate_family, candidate_table, _)| {
-                    *candidate_family == family && *candidate_table == table
-                })
-                .map(|(_, _, chain)| format!("-N {chain}"))
-                .collect::<Vec<_>>();
-            rules.extend(
-                self.jumps
-                    .iter()
-                    .filter(|(candidate_family, candidate_table, _, _)| {
-                        *candidate_family == family && *candidate_table == table
-                    })
-                    .map(|(_, _, parent, chain)| format!("-A {parent} -j {chain}")),
-            );
-            Ok(rules)
+            Ok(self.chain(family, table, chain))
         }
     }
 
@@ -1664,6 +1774,64 @@ mod tests {
     }
 
     #[test]
+    fn parses_native_nft_chain_metadata_without_reading_shared_table_rules() {
+        let chains = parse_nft_chain_snapshot(
+            br#"{
+                "nftables": [
+                    {"metainfo":{"version":"1.0.6"}},
+                    {"chain":{"family":"ip","table":"filter","name":"INPUT"}},
+                    {"chain":{"family":"ip","table":"filter","name":"third_party"}},
+                    {"chain":{"family":"ip","table":"filter","name":"FNK_FNC_IN"}},
+                    {"chain":{"family":"ip6","table":"nat","name":"FNK_FNC_OUT"}}
+                ]
+            }"#,
+        )
+        .expect("valid nft chain metadata");
+        assert!(chains.contains(&(
+            "ip".to_string(),
+            "filter".to_string(),
+            FNOS_CONNECT_INPUT_CHAIN.to_string(),
+        )));
+        assert!(chains.contains(&(
+            "ip6".to_string(),
+            "nat".to_string(),
+            FNOS_CONNECT_OUTPUT_CHAIN.to_string(),
+        )));
+        assert!(!chains.contains(&(
+            "ip6".to_string(),
+            "filter".to_string(),
+            FNOS_CONNECT_INPUT_CHAIN.to_string(),
+        )));
+    }
+
+    #[test]
+    fn rejects_indeterminate_nft_chain_metadata() {
+        for payload in [
+            br#"{}"#.as_slice(),
+            br#"{"nftables":[{"chain":{"family":"ip","table":"filter"}}]}"#.as_slice(),
+            b"not-json".as_slice(),
+        ] {
+            assert!(parse_nft_chain_snapshot(payload).is_err());
+        }
+    }
+
+    #[test]
+    fn distinguishes_a_missing_rule_from_an_incompatible_iptables_table() {
+        assert!(iptables_check_means_rule_absent(
+            Some(1),
+            "iptables: Bad rule (does a matching rule exist in that chain?)."
+        ));
+        assert!(!iptables_check_means_rule_absent(
+            Some(1),
+            "iptables v1.8.9 (nf_tables): table `filter' is incompatible, use 'nft' tool."
+        ));
+        assert!(!iptables_check_means_rule_absent(
+            Some(2),
+            "iptables: Bad rule (does a matching rule exist in that chain?)."
+        ));
+    }
+
+    #[test]
     fn disabled_runtime_retries_cleanup_after_an_error() {
         assert!(!disabled_fnos_connect_waf_needs_reconcile(
             &json!({"effective": false, "last_error": null})
@@ -1738,9 +1906,49 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_does_not_treat_a_firewall_listing_failure_as_rule_absence() {
+    fn cleanup_leaves_unrelated_native_nft_chains_untouched() {
+        let unrelated_chain = "third_party_native";
+        let mut executor = FakeFirewallExecutor::default();
+        executor.chains.insert((
+            FirewallFamily::Ipv4,
+            FirewallTable::Filter,
+            unrelated_chain.to_string(),
+        ));
+        executor.chains.insert((
+            FirewallFamily::Ipv4,
+            FirewallTable::Filter,
+            FNOS_CONNECT_INPUT_CHAIN.to_string(),
+        ));
+        executor.jumps.insert((
+            FirewallFamily::Ipv4,
+            FirewallTable::Filter,
+            "INPUT".to_string(),
+            FNOS_CONNECT_INPUT_CHAIN.to_string(),
+        ));
+
+        cleanup_firewall_rules_with(&mut executor).expect("owned cleanup should succeed");
+
+        assert!(executor.chain(FirewallFamily::Ipv4, FirewallTable::Filter, unrelated_chain));
+        assert!(!executor.chain(
+            FirewallFamily::Ipv4,
+            FirewallTable::Filter,
+            FNOS_CONNECT_INPUT_CHAIN
+        ));
+        assert!(executor.chain_probes.iter().all(|(_, _, chain)| {
+            [
+                FNOS_CONNECT_PREROUTING_CHAIN,
+                FNOS_CONNECT_OUTPUT_CHAIN,
+                FNOS_CONNECT_LEGACY_CHAIN,
+                FNOS_CONNECT_INPUT_CHAIN,
+            ]
+            .contains(&chain.as_str())
+        }));
+    }
+
+    #[test]
+    fn cleanup_does_not_treat_a_chain_probe_failure_as_rule_absence() {
         let mut executor = FakeFirewallExecutor {
-            fail_ipv4_rule_listing: true,
+            fail_ipv4_chain_probe: true,
             ..Default::default()
         };
         executor.chains.insert((
@@ -1756,7 +1964,7 @@ mod tests {
         ));
         let error = cleanup_firewall_rules_with(&mut executor)
             .expect_err("indeterminate firewall state must keep the ingress alive");
-        assert!(error.contains("IPv4 rule listing failure"));
+        assert!(error.contains("IPv4 chain probe failure"));
         assert!(executor.jump(
             FirewallFamily::Ipv4,
             FirewallTable::Nat,

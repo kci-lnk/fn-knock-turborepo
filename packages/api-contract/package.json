@@ -1,6 +1,6 @@
 {
   "name": "@fn-knock/api-contract",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "private": true,
   "type": "module",
   "exports": {

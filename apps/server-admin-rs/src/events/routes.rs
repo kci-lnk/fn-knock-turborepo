@@ -874,6 +874,7 @@ async fn publish_system_event_body(
         .map_err(anyhow::Error::from)?;
     if written {
         hydrate_system_event_ip_locations(state, std::slice::from_mut(&mut event)).await;
+        state.request_notification_dispatch();
     }
     Ok(written)
 }

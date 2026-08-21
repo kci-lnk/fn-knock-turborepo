@@ -9,10 +9,7 @@ use std::{
 
 use ipnet::IpNet;
 use serde_json::{Value, json};
-use tokio::{
-    task::AbortHandle,
-    time::{self, MissedTickBehavior},
-};
+use tokio::{task::AbortHandle, time};
 
 use crate::{
     cidr::{CompiledIpSet, compile_ip_set},
@@ -57,6 +54,7 @@ impl Drop for RecentAuthIpWriterSlot {
 #[derive(Clone, Debug)]
 struct RecentAuthIpEntry {
     ip: String,
+    expires_at: i64,
     first_seen_at: i64,
     last_seen_at: i64,
     seen_count: i64,
@@ -89,27 +87,10 @@ pub fn start_common_auth_location_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("common-auth-locations", async move {
         tokio::select! {
-            _ = task_state.shutdown.cancelled() => return,
+            _ = task_state.shutdown.cancelled() => (),
             result = rebuild_common_auth_locations_runtime_state(&task_state) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "failed to rebuild common auth locations on boot");
-                }
-            }
-        }
-        let mut ticker = time::interval(std::time::Duration::from_secs(5 * 60));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
-        loop {
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
-            }
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                result = rebuild_common_auth_locations_runtime_state(&task_state) => {
-                    if let Err(error) = result {
-                        tracing::warn!(%error, "failed to rebuild common auth locations");
-                    }
                 }
             }
         }
@@ -459,11 +440,21 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         COMMON_LOCATION_IPSET_KEY,
         (policy.range_count() > 0).then_some(policy),
     );
-    if !pending_ips.is_empty() {
+    let expiry_delay = entries
+        .iter()
+        .map(|entry| entry.expires_at.saturating_sub(now_seconds()).max(1) as u64)
+        .min()
+        .map(Duration::from_secs);
+    let retry_delay = (!pending_ips.is_empty()).then(common_auth_locations_location_retry_delay);
+    if let Some(delay) = expiry_delay.into_iter().chain(retry_delay).min() {
         schedule_common_auth_locations_rebuild_after(
             state.clone(),
-            "ip-location-refresh",
-            common_auth_locations_location_retry_delay(),
+            if retry_delay == Some(delay) {
+                "ip-location-refresh"
+            } else {
+                "recent-auth-expiry"
+            },
+            delay,
         );
     }
     Ok(runtime)
@@ -734,6 +725,7 @@ fn parse_recent_auth_ip_entry(value: Value) -> Option<RecentAuthIpEntry> {
         .filter(|value| !value.is_empty())?;
     Some(RecentAuthIpEntry {
         ip,
+        expires_at: value.get("expiresAt").and_then(Value::as_i64).unwrap_or(0),
         first_seen_at: value
             .get("firstSeenAt")
             .and_then(Value::as_i64)
@@ -978,6 +970,7 @@ mod tests {
     fn recent_entry(ip: &str, seen_count: i64) -> RecentAuthIpEntry {
         RecentAuthIpEntry {
             ip: ip.to_string(),
+            expires_at: 30 * 24 * 60 * 60,
             first_seen_at: 1_000,
             last_seen_at: 2_000,
             seen_count,

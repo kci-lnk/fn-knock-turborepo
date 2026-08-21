@@ -140,8 +140,35 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
 /// Minimal, non-sensitive readiness endpoint consumed by the Windows desktop
 /// shell and installer rollback check. Detailed errors remain in service logs.
 pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
-    let (storage, bundle, process, dataplane, auth_bridge) = tokio::join!(
-        state.storage.store.ping(),
+    let recovering = state.runtime_health.recovery_active();
+    if recovering {
+        let (storage, process, dataplane, auth_bridge, config_sync) = tokio::join!(
+            state.runtime_health.component_ready("storage"),
+            state.runtime_health.component_ready("gateway_process"),
+            state.runtime_health.component_ready("gateway_dataplane"),
+            state.runtime_health.component_ready("auth_bridge"),
+            state.runtime_health.component_ready("config_sync"),
+        );
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "ready": false,
+                "version": APP_LOCAL_VERSION,
+                "control_api_version": GATEWAY_CONTROL_API_VERSION,
+                "components": {
+                    "storage": storage,
+                    "gateway_bundle": false,
+                    "gateway_process": process,
+                    "gateway_dataplane": dataplane,
+                    "auth_bridge": auth_bridge,
+                    "gateway_config_synced": config_sync,
+                }
+            })),
+        )
+            .into_response();
+    }
+    let (storage_ready, bundle, process, dataplane, auth_bridge) = tokio::join!(
+        state.runtime_health.component_ready("storage"),
         state.gateway.client.verify_bundle_compatibility(),
         state.gateway.client.health_serving(GATEWAY_HEALTH_PROCESS),
         state
@@ -153,13 +180,13 @@ pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
             .client
             .health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
     );
-    let storage_ready = storage.is_ok();
     let bundle_ready = bundle.is_ok();
     let process_ready = process.unwrap_or(false);
     let dataplane_ready = dataplane.unwrap_or(false);
     let auth_bridge_ready = auth_bridge.unwrap_or(false);
     let config_synced = state.gateway_config_synced();
     let ready = storage_ready
+        && !recovering
         && bundle_ready
         && process_ready
         && dataplane_ready

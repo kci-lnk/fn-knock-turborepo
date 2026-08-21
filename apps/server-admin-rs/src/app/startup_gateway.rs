@@ -1,13 +1,13 @@
 use std::{future::Future, time::Duration};
 
-use serde_json::{Map, Value, json};
+use serde_json::{Map, json};
 use tokio_util::sync::CancellationToken;
 
 use crate::state::AppState;
 
 const SYNC_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(30);
 const SYNC_RETRY_DELAY: Duration = Duration::from_secs(1);
-const SYNC_MAX_RETRY_DELAY: Duration = Duration::from_secs(8);
+const SYNC_MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
 
 pub(super) async fn sync_memory(
     state: &AppState,
@@ -35,9 +35,8 @@ pub(super) async fn sync_memory(
     .map_err(anyhow::Error::msg)
 }
 
-pub(super) async fn sync_host_rules(
+pub(super) async fn sync_current_host_rules(
     state: &AppState,
-    config: &Value,
     shutdown: &CancellationToken,
     total_timeout: Duration,
 ) -> anyhow::Result<()> {
@@ -48,12 +47,19 @@ pub(super) async fn sync_host_rules(
         total_timeout,
         SYNC_ATTEMPT_TIMEOUT,
         SYNC_RETRY_DELAY,
-        |attempt_timeout| {
+        |attempt_timeout| async move {
+            let config = state
+                .storage
+                .store
+                .get_config()
+                .await
+                .map_err(|error| error.to_string())?;
             crate::proxy_config::sync_go_host_rules_for_config_with_timeout_locked(
                 state,
-                config,
+                &config,
                 attempt_timeout,
             )
+            .await
         },
     )
     .await
@@ -120,6 +126,27 @@ pub(super) async fn migrate_whitelist_runtime(
             crate::whitelist::migrate_whitelist_ipsets_on_boot(state)
                 .await
                 .map_err(|error| format!("{error:#}"))
+        },
+    )
+    .await
+    .map_err(anyhow::Error::msg)
+}
+
+pub(super) async fn sync_boot_runtime(
+    state: &AppState,
+    shutdown: &CancellationToken,
+    total_timeout: Duration,
+) -> anyhow::Result<()> {
+    retry_state_operation(
+        state,
+        "application boot runtime",
+        shutdown,
+        total_timeout,
+        SYNC_ATTEMPT_TIMEOUT,
+        SYNC_RETRY_DELAY,
+        |_| {
+            let state = state.clone();
+            async move { super::boot::run_boot_sync_tasks(state).await }
         },
     )
     .await
@@ -299,7 +326,7 @@ fn startup_failure_class(error: &str) -> &'static str {
 }
 
 fn retry_delay_for_attempt(base: Duration, attempts: u32) -> Duration {
-    let exponent = attempts.saturating_sub(1).min(3);
+    let exponent = attempts.saturating_sub(1).min(5);
     base.saturating_mul(1_u32 << exponent)
         .min(SYNC_MAX_RETRY_DELAY)
 }
@@ -319,6 +346,10 @@ fn is_transient_error(error: &str) -> bool {
         "transport error",
         "connection refused",
         "connection reset",
+        "database is locked",
+        "database is busy",
+        "disk i/o error",
+        "temporarily unavailable",
     ]
     .iter()
     .any(|marker| error.contains(marker))
@@ -432,6 +463,10 @@ mod tests {
             "transport error",
             "connection refused",
             "connection reset by peer",
+            "database is locked",
+            "database is busy",
+            "disk I/O error",
+            "temporarily unavailable",
         ] {
             assert!(is_transient_error(error), "expected transient: {error}");
         }
@@ -457,9 +492,9 @@ mod tests {
                 Duration::from_secs(2),
                 Duration::from_secs(4),
                 Duration::from_secs(8),
-                Duration::from_secs(8),
-                Duration::from_secs(8),
-                Duration::from_secs(8),
+                Duration::from_secs(16),
+                Duration::from_secs(30),
+                Duration::from_secs(30),
             ]
         );
     }

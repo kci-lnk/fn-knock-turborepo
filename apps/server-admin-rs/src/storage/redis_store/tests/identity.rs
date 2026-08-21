@@ -301,6 +301,13 @@ async fn every_application_eval_operation_runs_on_sqlite() {
         .enqueue_notification_delivery("future", 30)
         .await
         .unwrap();
+    assert_eq!(
+        store
+            .next_notification_delivery_ready_at_ms()
+            .await
+            .unwrap(),
+        Some(10)
+    );
     assert!(
         store
             .conn()
@@ -315,6 +322,13 @@ async fn every_application_eval_operation_runs_on_sqlite() {
             .await
             .unwrap(),
         vec!["ready".to_string()]
+    );
+    assert_eq!(
+        store
+            .next_notification_delivery_ready_at_ms()
+            .await
+            .unwrap(),
+        Some(30)
     );
     assert!(
         store

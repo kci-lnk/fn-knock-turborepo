@@ -183,6 +183,7 @@ pub(super) async fn update_auth_credential_settings(
 
     match state.storage.store.save_config(&config).await {
         Ok(()) => {
+            state.request_auth_mobility_maintenance();
             if session_ip_mobility_changed {
                 whitelist::sync_reverse_proxy_trusted_ips(&state).await;
             }

@@ -8,7 +8,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
-use tokio::time::MissedTickBehavior;
 use url::Url;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -20,7 +19,7 @@ const IP_LOCATION_BATCH_LIMIT: usize = 20;
 const LOOKUP_SUCCESS_CACHE_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const LOOKUP_FAILED_STATE_TTL_SECONDS: usize = 300;
 const MAX_ATTEMPTS: i64 = 5;
-const QUEUE_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const QUEUE_ERROR_RETRY_DELAY: Duration = Duration::from_secs(1);
 const QUEUE_BATCH_SIZE: usize = 3;
 const DEFAULT_IP_LOOKUP_URL: &str = "https://ipaddress.fnknock.cn/api/v1";
 const USER_AGENT: &str = "fn-knock-server-admin/1.0";
@@ -96,20 +95,42 @@ pub fn ip_location_routes() -> OpenApiRouter<AppState> {
 pub fn start_ip_location_worker(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("ip-location-worker", async move {
-        let mut interval = tokio::time::interval(QUEUE_POLL_INTERVAL);
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        interval.tick().await;
         loop {
-            tokio::select! {
+            let result = tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                _ = interval.tick() => {}
-            }
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                result = process_queue(&task_state) => {
-                    if let Err(error) = result {
-                        tracing::warn!(%error, "IP location queue tick failed");
+                result = process_queue(&task_state) => result,
+            };
+            let wait_until_ms = match result {
+                Ok(count) if count > 0 => None,
+                Ok(_) => match task_state.storage.store.next_ip_location_due_at_ms().await {
+                    Ok(deadline) => deadline,
+                    Err(error) => {
+                        tracing::warn!(%error, "failed to read IP location queue deadline");
+                        Some(
+                            time_utils::now_ms()
+                                .saturating_add(QUEUE_ERROR_RETRY_DELAY.as_millis() as i64),
+                        )
                     }
+                },
+                Err(error) => {
+                    tracing::warn!(%error, "IP location queue tick failed");
+                    Some(
+                        time_utils::now_ms()
+                            .saturating_add(QUEUE_ERROR_RETRY_DELAY.as_millis() as i64),
+                    )
+                }
+            };
+            if let Some(deadline_ms) = wait_until_ms {
+                let delay_ms = deadline_ms.saturating_sub(time_utils::now_ms()).max(0) as u64;
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.ip_location_notify.notified() => {}
+                    _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => {}
+                }
+            } else {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.ip_location_notify.notified() => {}
                 }
             }
         }
@@ -384,20 +405,22 @@ async fn ensure_enqueued(
             LOOKUP_FAILED_STATE_TTL_SECONDS,
         )
         .await?;
+    state.request_ip_location_processing();
 
     Ok(build_snapshot(ip, &normalized_ip, &next_state))
 }
 
-async fn process_queue(state: &AppState) -> anyhow::Result<()> {
+async fn process_queue(state: &AppState) -> anyhow::Result<usize> {
     let due_ips = state
         .storage
         .store
         .due_ip_location_ips(time_utils::now_ms(), QUEUE_BATCH_SIZE)
         .await?;
     if due_ips.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
 
+    let count = due_ips.len();
     for ip in due_ips {
         let task_state = state.clone();
         state.spawn_background("ip-location-lookup", async move {
@@ -409,9 +432,11 @@ async fn process_queue(state: &AppState) -> anyhow::Result<()> {
                     }
                 }
             }
+            task_state.request_ip_location_processing();
+            task_state.request_notification_dispatch();
         });
     }
-    Ok(())
+    Ok(count)
 }
 
 async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
@@ -536,6 +561,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                             LOOKUP_FAILED_STATE_TTL_SECONDS,
                         )
                         .await?;
+                    state.request_ip_location_processing();
                 }
             }
         }

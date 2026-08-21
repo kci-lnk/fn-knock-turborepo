@@ -95,25 +95,20 @@ fi
 echo "Cleanup complete!"
 "#;
 
-pub(super) fn start_boot_sync_tasks(state: AppState) -> tokio::sync::oneshot::Receiver<()> {
-    let (completed_tx, completed_rx) = tokio::sync::oneshot::channel();
-    let task_state = state.clone();
-    state.spawn_background("boot-sync", async move {
-        if let Err(error) = cleanup_legacy_auth_log_storage(&task_state).await {
-            tracing::warn!(%error, "failed to cleanup legacy auth log storage on boot");
-        }
-        sync_runtime_config_on_boot(task_state.clone()).await;
-        sync_gateway_settings_on_boot(task_state.clone()).await;
-        sync_locale_config_on_boot(&task_state).await;
-        if let Err(error) = sync_ssl_deployment_to_gateway(&task_state, None).await {
-            tracing::warn!(%error, "failed to sync SSL deployment on boot");
-        }
-        if let Err(error) = init_clean_script_on_boot(&task_state) {
-            tracing::warn!(%error, "failed to initialize firewall cleanup script");
-        }
-        let _ = completed_tx.send(());
-    });
-    completed_rx
+pub(super) async fn run_boot_sync_tasks(state: AppState) -> Result<(), String> {
+    if let Err(error) = cleanup_legacy_auth_log_storage(&state).await {
+        tracing::warn!(%error, "failed to cleanup legacy auth log storage on boot");
+    }
+    sync_runtime_config_on_boot(state.clone()).await?;
+    sync_gateway_settings_on_boot(state.clone()).await;
+    sync_locale_config_on_boot(&state).await;
+    if let Err(error) = sync_ssl_deployment_to_gateway(&state, None).await {
+        tracing::warn!(%error, "failed to sync SSL deployment on boot");
+    }
+    if let Err(error) = init_clean_script_on_boot(&state) {
+        tracing::warn!(%error, "failed to initialize firewall cleanup script");
+    }
+    Ok(())
 }
 
 fn init_clean_script_on_boot(state: &AppState) -> anyhow::Result<()> {

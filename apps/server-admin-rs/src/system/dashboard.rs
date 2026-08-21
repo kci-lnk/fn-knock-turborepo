@@ -56,9 +56,7 @@ pub fn dashboard_routes() -> OpenApiRouter<AppState> {
 }
 
 pub fn start_traffic_tasks(state: AppState) {
-    let collect_state = state.clone();
-    state.spawn_background("traffic-collector", run_traffic_collect_loop(collect_state));
-    state.spawn_background("traffic-cleanup", run_traffic_cleanup_loop(state.clone()));
+    state.spawn_background("traffic-collector", run_traffic_collect_loop(state.clone()));
 }
 
 #[utoipa::path(
@@ -484,6 +482,7 @@ async fn run_traffic_collect_loop(state: AppState) {
     let mut ticker = interval(state.settings.traffic_collect_interval);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     ticker.tick().await;
+    let mut last_observed = None;
     loop {
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
@@ -491,7 +490,7 @@ async fn run_traffic_collect_loop(state: AppState) {
         }
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
-            result = collect_traffic_once(&state) => {
+            result = collect_traffic_once(&state, &mut last_observed) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "traffic collect task failed");
                 }
@@ -500,27 +499,20 @@ async fn run_traffic_collect_loop(state: AppState) {
     }
 }
 
-async fn run_traffic_cleanup_loop(state: AppState) {
-    let mut ticker = interval(state.settings.traffic_cleanup_interval);
-    ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    ticker.tick().await;
-    loop {
-        tokio::select! {
-            _ = state.shutdown.cancelled() => break,
-            _ = ticker.tick() => {}
-        }
-        tokio::select! {
-            _ = state.shutdown.cancelled() => break,
-            result = cleanup_traffic_once(&state) => {
-                if let Err(error) = result {
-                    tracing::warn!(%error, "traffic cleanup task failed");
-                }
-            }
-        }
+async fn collect_traffic_once(
+    state: &AppState,
+    last_observed: &mut Option<Vec<TrafficSnapshotRecord>>,
+) -> anyhow::Result<()> {
+    let snapshot = fetch_traffic_stats(state).await?;
+    let records = build_snapshot_records(&snapshot);
+    let Some(previous) = last_observed.as_ref() else {
+        *last_observed = Some(records);
+        return Ok(());
+    };
+    if previous == &records {
+        return Ok(());
     }
-}
 
-async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let acquired = state
         .storage
         .store
@@ -533,8 +525,6 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let snapshot = fetch_traffic_stats(state).await?;
-    let records = build_snapshot_records(&snapshot);
     state
         .storage
         .store
@@ -545,26 +535,17 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
             state.settings.traffic_keep_seconds,
         )
         .await?;
-    Ok(())
-}
-
-async fn cleanup_traffic_once(state: &AppState) -> anyhow::Result<()> {
-    let acquired = state
-        .storage
-        .store
-        .set_lock_if_not_exists(
-            "traffic-cleanup",
-            state.settings.traffic_cleanup_lock_ttl_seconds,
-        )
-        .await?;
-    if !acquired {
-        return Ok(());
-    }
-    let _ = state
+    *last_observed = Some(records);
+    if let Err(error) = state
         .storage
         .store
         .cleanup_traffic_metrics(state.settings.traffic_keep_seconds)
-        .await?;
+        .await
+    {
+        // The counters are already durable. Cleanup is opportunistic and must
+        // not make the same snapshot look new on every subsequent sample.
+        tracing::warn!(%error, "traffic metric cleanup failed after snapshot write");
+    }
     Ok(())
 }
 
@@ -681,6 +662,7 @@ fn build_snapshot_records(snapshot: &Value) -> Vec<TrafficSnapshotRecord> {
         );
     }
     records.extend(by_stream.into_values());
+    records.sort_by(|left, right| (&left.host, &left.stream).cmp(&(&right.host, &right.stream)));
     records
 }
 

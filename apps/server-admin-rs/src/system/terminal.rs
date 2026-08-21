@@ -26,7 +26,7 @@ use tokio::{
     process::Command,
     sync::Mutex,
     task,
-    time::{Instant, MissedTickBehavior, interval, sleep},
+    time::{Instant, sleep},
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
@@ -295,19 +295,30 @@ pub(crate) fn terminal_runtime_routes() -> OpenApiRouter<AppState> {
 pub fn start_terminal_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("terminal-session-cleanup", async move {
-        let mut ticker = interval(Duration::from_secs(60));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut next_wakeup_ms = Some(now_ms());
         loop {
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
+            if let Some(deadline_ms) = next_wakeup_ms.take() {
+                let delay_ms = deadline_ms.saturating_sub(now_ms()).max(0) as u64;
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.terminal_cleanup_notify.notified() => {}
+                    _ = sleep(Duration::from_millis(delay_ms)) => {}
+                }
+            } else {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.terminal_cleanup_notify.notified() => {}
+                }
             }
-            tokio::select! {
+            let result = tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                result = cleanup_expired_sessions(&task_state) => {
-                    if let Err(error) = result {
-                        tracing::warn!(%error, "failed to cleanup expired terminal sessions");
-                    }
+                result = cleanup_expired_sessions(&task_state) => result,
+            };
+            match result {
+                Ok(deadline) => next_wakeup_ms = deadline,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to cleanup expired terminal sessions");
+                    next_wakeup_ms = Some(now_ms().saturating_add(60_000));
                 }
             }
         }

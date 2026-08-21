@@ -15,13 +15,14 @@ pub(crate) async fn sync_go_host_rules_locked(
     state: &AppState,
     rules: &Value,
 ) -> Result<(), String> {
-    sync_go_host_rules_with_client_locked(state, &state.gateway.client, rules).await
+    sync_go_host_rules_with_client_locked(state, &state.gateway.client, rules, true).await
 }
 
 async fn sync_go_host_rules_with_client_locked(
     state: &AppState,
     client: &crate::go_backend::GoBackendClient,
     rules: &Value,
+    notify_reconciler_on_failure: bool,
 ) -> Result<(), String> {
     state.set_gateway_config_synced(false);
     state.runtime_health.operational_log(
@@ -63,11 +64,14 @@ async fn sync_go_host_rules_with_client_locked(
             "host_rules_rejected",
             fields,
         );
+        if notify_reconciler_on_failure {
+            state.request_gateway_config_reconcile();
+        }
     }
     result
 }
 
-fn host_rules_failure_class(error: &str) -> &'static str {
+pub(super) fn host_rules_failure_class(error: &str) -> &'static str {
     let error = error.to_ascii_lowercase();
     if error.contains("returned 400 bad request") || error.contains("invalid host rule") {
         "validation"
@@ -103,12 +107,13 @@ fn host_rules_failure_class(error: &str) -> &'static str {
 }
 
 pub(crate) async fn flush_go_host_rules_locked(state: &AppState) -> Result<(), String> {
-    flush_go_host_rules_with_client_locked(state, &state.gateway.client).await
+    flush_go_host_rules_with_client_locked(state, &state.gateway.client, true).await
 }
 
 async fn flush_go_host_rules_with_client_locked(
     state: &AppState,
     client: &crate::go_backend::GoBackendClient,
+    notify_reconciler_on_failure: bool,
 ) -> Result<(), String> {
     state.set_gateway_config_synced(false);
     let result = client
@@ -133,6 +138,9 @@ async fn flush_go_host_rules_with_client_locked(
             "host_rules_flush_failed",
             Map::new(),
         );
+        if notify_reconciler_on_failure {
+            state.request_gateway_config_reconcile();
+        }
     }
     result
 }
@@ -154,6 +162,18 @@ pub(crate) async fn sync_go_host_rules_for_config_locked(
     }
 }
 
+pub(crate) async fn sync_go_host_rules_for_config_without_reconcile_locked(
+    state: &AppState,
+    config: &Value,
+) -> Result<(), String> {
+    match host_rules_payload_for_config(config) {
+        Some(rules) => {
+            sync_go_host_rules_with_client_locked(state, &state.gateway.client, &rules, false).await
+        }
+        None => flush_go_host_rules_with_client_locked(state, &state.gateway.client, false).await,
+    }
+}
+
 pub(crate) async fn sync_go_host_rules_for_config_with_timeout_locked(
     state: &AppState,
     config: &Value,
@@ -165,8 +185,8 @@ pub(crate) async fn sync_go_host_rules_for_config_with_timeout_locked(
         .with_timeout(timeout)
         .map_err(|error| error.to_string())?;
     match host_rules_payload_for_config(config) {
-        Some(rules) => sync_go_host_rules_with_client_locked(state, &client, &rules).await,
-        None => flush_go_host_rules_with_client_locked(state, &client).await,
+        Some(rules) => sync_go_host_rules_with_client_locked(state, &client, &rules, true).await,
+        None => flush_go_host_rules_with_client_locked(state, &client, true).await,
     }
 }
 

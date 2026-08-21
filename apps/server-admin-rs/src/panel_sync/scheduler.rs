@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use tokio::time::{MissedTickBehavior, interval};
 
 use crate::state::AppState;
 
@@ -10,50 +9,58 @@ use super::{model::RunTrigger, repository::Repository, service};
 pub fn start(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("panel-sync-scheduler", async move {
-        let mut tick = interval(Duration::from_secs(60));
-        tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut next_wakeup = Some(Duration::ZERO);
         loop {
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                _ = task_state.panel_sync.source_changed.notified() => {
-                    loop {
-                        tokio::select! {
-                            _ = task_state.shutdown.cancelled() => return,
-                            _ = tokio::time::sleep(Duration::from_secs(5)) => break,
-                            _ = task_state.panel_sync.source_changed.notified() => continue,
-                        }
-                    }
-                    dispatch(&task_state, true).await;
+            let changed = if let Some(delay) = next_wakeup.take() {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.panel_sync.source_changed.notified() => true,
+                    _ = tokio::time::sleep(delay) => false,
                 }
-                _ = tick.tick() => dispatch(&task_state, false).await,
+            } else {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.panel_sync.source_changed.notified() => true,
+                }
+            };
+            if changed {
+                loop {
+                    tokio::select! {
+                        _ = task_state.shutdown.cancelled() => return,
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => break,
+                        _ = task_state.panel_sync.source_changed.notified() => continue,
+                    }
+                }
             }
+            next_wakeup = dispatch(&task_state, changed).await;
         }
     });
 }
 
-async fn dispatch(state: &AppState, changed: bool) {
+async fn dispatch(state: &AppState, changed: bool) -> Option<Duration> {
     let Ok(connections) = Repository::new(state).connections().await else {
-        return;
+        return Some(Duration::from_secs(60));
     };
+    let now = OffsetDateTime::now_utc();
+    let mut next_wakeup: Option<Duration> = None;
     for connection in connections
         .into_iter()
         .filter(|item| item.auto_sync.enabled && item.verified_at.is_some())
     {
-        let due = if changed {
-            true
-        } else {
-            let runs = Repository::new(state)
-                .runs(&connection.id)
-                .await
-                .unwrap_or_default();
-            let last = runs
-                .first()
-                .and_then(|run| OffsetDateTime::parse(&run.started_at, &Rfc3339).ok());
-            last.is_none_or(|last| {
-                OffsetDateTime::now_utc() - last
-                    >= time::Duration::minutes(connection.auto_sync.interval_minutes.into())
-            })
-        };
+        let interval = Duration::from_secs(
+            u64::from(connection.auto_sync.interval_minutes.max(1)).saturating_mul(60),
+        );
+        let interval_seconds = i64::try_from(interval.as_secs()).unwrap_or(i64::MAX);
+        let last = Repository::new(state)
+            .runs(&connection.id)
+            .await
+            .unwrap_or_default()
+            .first()
+            .and_then(|run| OffsetDateTime::parse(&run.started_at, &Rfc3339).ok());
+        let elapsed_seconds = last
+            .map(|last| (now - last).whole_seconds())
+            .unwrap_or(i64::MAX);
+        let due = changed || elapsed_seconds >= interval_seconds;
         if due {
             let task_state = state.clone();
             let trigger = if changed {
@@ -64,6 +71,13 @@ async fn dispatch(state: &AppState, changed: bool) {
             state.spawn_background("panel-sync-dispatch", async move {
                 service::enqueue_automatic(task_state, connection, trigger).await;
             });
+            next_wakeup = Some(next_wakeup.map_or(interval, |current| current.min(interval)));
+        } else {
+            let remaining = Duration::from_secs(
+                u64::try_from(interval_seconds.saturating_sub(elapsed_seconds)).unwrap_or(u64::MAX),
+            );
+            next_wakeup = Some(next_wakeup.map_or(remaining, |current| current.min(remaining)));
         }
     }
+    next_wakeup
 }

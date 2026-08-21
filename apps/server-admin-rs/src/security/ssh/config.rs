@@ -72,6 +72,7 @@ pub(super) async fn update_ssh_security_config(
     apply_ssh_security_config_once(state, &config, &runtime)
         .await
         .map_err(|error| SshError::Runtime(error.to_string()))?;
+    state.request_ssh_security_maintenance();
     ssh_security_details(state).await.map_err(SshError::Storage)
 }
 

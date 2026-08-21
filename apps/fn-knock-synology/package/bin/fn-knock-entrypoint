@@ -22,6 +22,9 @@ SUPERVISOR_EVENTS_DIR="${DATA_DIR}/runtime/supervisor-events"
 RUNTIME_PID_DIR="${DATA_DIR}/runtime/pids"
 GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
 MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
+READINESS_MARKER="${DATA_DIR}/runtime.ready"
+STOP_TIMEOUT_SECONDS="${FN_KNOCK_STOP_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS:-75}}"
+FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_FORCE_KILL_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS:-10}}"
 
 write_pid_file() {
   local path="$1"
@@ -120,12 +123,14 @@ wait_for_process_or_fail() {
 
 terminate_children() {
   local pid attempts=0 stop_failed=0
+  local graceful_attempts=$((STOP_TIMEOUT_SECONDS * 4))
+  local force_attempts=$((FORCE_KILL_TIMEOUT_SECONDS * 4))
   for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
     if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
       kill "${pid}" 2>/dev/null || true
     fi
   done
-  while [ "${attempts}" -lt 180 ]; do
+  while [ "${attempts}" -lt "${graceful_attempts}" ]; do
     local running=0
     for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
       if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
@@ -144,7 +149,7 @@ terminate_children() {
     fi
   done
   attempts=0
-  while [ "${attempts}" -lt 20 ]; do
+  while [ "${attempts}" -lt "${force_attempts}" ]; do
     local running=0
     for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
       if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
@@ -170,11 +175,13 @@ terminate_children() {
 cleanup() {
   local code=$?
   trap - EXIT INT TERM
-  if ! terminate_children && [ "${code}" -eq 0 ]; then
+  if terminate_children; then
+    remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
+    remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
+    rm -f "${READINESS_MARKER}"
+  else
     code=1
   fi
-  remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
-  remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   exit "${code}"
 }
 
@@ -188,6 +195,7 @@ stop_gracefully() {
   fi
   remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
   remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
+  rm -f "${READINESS_MARKER}"
   exit 0
 }
 
@@ -199,6 +207,7 @@ mkdir -p \
   "${DATA_DIR}/cloudflared" \
   "${DATA_DIR}/updates" \
   "${GATEWAY_CONFIG_DIR}"
+rm -f "${READINESS_MARKER}"
 
 load_or_create_secret ALTCHA_HMAC_KEY "${DATA_DIR}/altcha_hmac_key"
 load_or_create_secret HMAC_SECRET "${DATA_DIR}/hmac_secret"
@@ -237,6 +246,7 @@ echo "[fn-knock] starting Synology CGI backend: ${BACKEND_HOST}:${BACKEND_PORT}"
     GO_BACKEND_PORT GO_REPROXY_PORT GO_BACKEND_GRPC_ADDR \
     BACKEND_HOST AUTH_HOST ALTCHA_HMAC_KEY HMAC_SECRET \
     FN_KNOCK_INTERNAL_RPC_TOKEN ADMIN_PROXY_SECRET
+  export FN_KNOCK_READY_FILE="${READINESS_MARKER}"
   FN_KNOCK_DATA_DIR="${DATA_DIR}" \
   FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
   FN_KNOCK_RUNTIME_TARGET="synology" \
@@ -249,6 +259,14 @@ wait_for_process_or_fail "${BACKEND_PID}" "administration service"
 supervisor_log INFO management started supervisor_start null || true
 
 echo "[fn-knock] service processes started; waiting for application readiness"
+while kill -0 "${GATEWAY_PID}" 2>/dev/null && kill -0 "${BACKEND_PID}" 2>/dev/null; do
+  if [ -f "${READINESS_MARKER}" ]; then
+    echo "[fn-knock] services are ready"
+    supervisor_log INFO supervisor ready application_ready null || true
+    break
+  fi
+  sleep 0.25
+done
 while kill -0 "${GATEWAY_PID}" 2>/dev/null && kill -0 "${BACKEND_PID}" 2>/dev/null; do
   sleep 1
 done

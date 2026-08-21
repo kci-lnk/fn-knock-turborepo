@@ -68,6 +68,19 @@ wait_for_processes_started() {
   fail 'entrypoint did not report child startup within 8 seconds'
 }
 
+wait_for_application_ready() {
+  local attempts=0
+  while [ "${attempts}" -lt 40 ]; do
+    if grep -Fq '[fn-knock] services are ready' "${LOG_FILE}" 2>/dev/null; then
+      return 0
+    fi
+    process_is_alive "${SUPERVISOR_PID}" || fail 'entrypoint exited before application readiness'
+    attempts=$((attempts + 1))
+    sleep 0.1
+  done
+  fail 'entrypoint did not report marker-backed readiness'
+}
+
 wait_for_exit() {
   local pid="$1"
   local label="$2"
@@ -110,6 +123,8 @@ if grep -Fq '[fn-knock] services are ready' "${LOG_FILE}"; then
 fi
 GATEWAY_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/gateway.pid" 'gateway')"
 MANAGEMENT_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/management.pid" 'management')"
+: > "${DATA_DIR}/runtime.ready"
+wait_for_application_ready
 
 kill -TERM "${SUPERVISOR_PID}"
 set +e
@@ -123,6 +138,7 @@ wait_for_exit "${GATEWAY_PID}" 'gateway'
 wait_for_exit "${MANAGEMENT_PID}" 'management'
 [ ! -e "${DATA_DIR}/runtime/pids/gateway.pid" ] || fail 'gateway PID file remained after shutdown'
 [ ! -e "${DATA_DIR}/runtime/pids/management.pid" ] || fail 'management PID file remained after shutdown'
+[ ! -e "${DATA_DIR}/runtime.ready" ] || fail 'readiness marker remained after shutdown'
 grep -Fq '"event":"stop_requested"' "${DATA_DIR}/runtime/logs/supervisor.jsonl" || \
   fail 'supervisor stop event was not recorded'
 if grep -Eq 'unbound variable|missing argument to .?-exec|no terminating' "${LOG_FILE}"; then

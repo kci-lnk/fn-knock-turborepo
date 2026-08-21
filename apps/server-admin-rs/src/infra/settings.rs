@@ -48,8 +48,6 @@ pub struct Settings {
     pub traffic_keep_seconds: i64,
     pub traffic_collect_interval: Duration,
     pub traffic_collect_lock_ttl_seconds: usize,
-    pub traffic_cleanup_interval: Duration,
-    pub traffic_cleanup_lock_ttl_seconds: usize,
 }
 
 impl Settings {
@@ -172,15 +170,6 @@ impl Settings {
                 60,
             )
             .clamp(1, 3600) as usize,
-            traffic_cleanup_interval: Duration::from_secs(parse_cron_interval_seconds(
-                &env_string("TRAFFIC_CLEANUP_CRON", "0 * * * *"),
-                3600,
-            )),
-            traffic_cleanup_lock_ttl_seconds: crate::node_compat::env_i64(
-                "TRAFFIC_CLEANUP_LOCK_TTL",
-                300,
-            )
-            .clamp(30, 3600) as usize,
         }
     }
 

@@ -43,7 +43,6 @@ const PROCESSED_TTL_SECONDS: i64 = 7 * 24 * 3600;
 const STARTUP_BACKFILL_LOG_LIMIT: usize = 2000;
 const SUCCESS_LOG_COALESCE_WINDOW_MS: i64 = 30 * 1000;
 const SSH_SECURITY_TICK_SECONDS: u64 = 10;
-const DISABLED_SSH_SECURITY_TICK_SECONDS: u64 = 5 * 60;
 const AUTH_LOG_CANDIDATES: &[&str] = &[
     "/var/log/auth.log",
     "/var/log/auth.log.1",
@@ -111,14 +110,31 @@ pub fn start_ssh_security_tasks(state: AppState) {
             }
         }
 
+        let mut active = match ssh_security_config_active(&task_state).await {
+            Ok(active) => Some(active),
+            Err(error) => {
+                tracing::debug!(%error, "failed to read SSH security maintenance state");
+                None
+            }
+        };
         loop {
-            let interval = tokio::select! {
+            let reload = tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                interval = ssh_security_tick_interval(&task_state) => interval,
+                _ = task_state.ssh_security_maintenance_notify.notified() => true,
+                _ = tokio_time::sleep(Duration::from_secs(SSH_SECURITY_TICK_SECONDS)),
+                    if active != Some(false) => false,
             };
-            tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                _ = tokio_time::sleep(interval) => {}
+            if reload || active.is_none() {
+                active = match ssh_security_config_active(&task_state).await {
+                    Ok(active) => Some(active),
+                    Err(error) => {
+                        tracing::debug!(%error, "failed to read SSH security maintenance state");
+                        None
+                    }
+                };
+            }
+            if active != Some(true) {
+                continue;
             }
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
@@ -130,13 +146,6 @@ pub fn start_ssh_security_tasks(state: AppState) {
             }
         }
     });
-}
-
-async fn ssh_security_tick_interval(state: &AppState) -> Duration {
-    match ssh_security_config_active(state).await {
-        Ok(true) => Duration::from_secs(SSH_SECURITY_TICK_SECONDS),
-        Ok(false) | Err(_) => Duration::from_secs(DISABLED_SSH_SECURITY_TICK_SECONDS),
-    }
 }
 
 async fn ssh_security_config_active(state: &AppState) -> crate::storage::StorageResult<bool> {

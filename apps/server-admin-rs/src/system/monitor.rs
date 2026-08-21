@@ -15,55 +15,107 @@ struct CpuSnapshot {
     total: u64,
 }
 
+struct MonitorRuntimeState {
+    config: Value,
+    config_loaded: bool,
+    cpu: MetricRuntimeState,
+    memory: MetricRuntimeState,
+}
+
+struct MetricRuntimeState {
+    value: Value,
+    dirty: bool,
+}
+
+impl MonitorRuntimeState {
+    async fn load(state: &AppState) -> Self {
+        let config = state.storage.store.get_config().await.ok();
+        Self {
+            // Configuration changes explicitly wake this task. Keeping the
+            // snapshot in memory prevents the five-second sampler from
+            // reading SQLite while the appliance is otherwise idle.
+            config_loaded: config.is_some(),
+            config: config.unwrap_or(Value::Null),
+            cpu: MetricRuntimeState {
+                value: state
+                    .storage
+                    .store
+                    .get_json_value(CPU_STATE_KEY)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or(Value::Null),
+                dirty: false,
+            },
+            memory: MetricRuntimeState {
+                value: state
+                    .storage
+                    .store
+                    .get_json_value(MEMORY_STATE_KEY)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or(Value::Null),
+                dirty: false,
+            },
+        }
+    }
+}
+
 pub fn start_system_monitor_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("system-resource-monitor", async move {
+        let mut runtime = MonitorRuntimeState::load(&task_state).await;
         let mut ticker = time::interval(system_monitor_interval());
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
+            let reload = tokio::select! {
+                _ = task_state.shutdown.cancelled() => break,
+                _ = ticker.tick() => false,
+                _ = task_state.system_monitor_reload_notify.notified() => true,
+            };
+            if reload {
+                runtime = MonitorRuntimeState::load(&task_state).await;
+            }
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
-            }
-            let lock_result = tokio::select! {
-                _ = task_state.shutdown.cancelled() => break,
-                result = task_state.storage.store.set_lock_if_not_exists(
-                    "system-resource-monitor",
-                    system_monitor_lock_ttl_seconds(),
-                ) => result,
-            };
-            match lock_result {
-                Ok(true) => {
-                    tokio::select! {
-                        _ = task_state.shutdown.cancelled() => break,
-                        result = tick_system_monitor(&task_state) => {
-                            if let Err(error) = result {
-                                tracing::warn!(%error, "system resource monitor tick failed");
-                            }
-                        }
+                result = tick_system_monitor(&task_state, &mut runtime) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "system resource monitor tick failed");
                     }
-                }
-                Ok(false) => {}
-                Err(error) => {
-                    tracing::warn!(%error, "failed to acquire system monitor lock");
                 }
             }
         }
     });
 }
 
-async fn tick_system_monitor(state: &AppState) -> anyhow::Result<()> {
-    let config = state.storage.store.get_config().await?;
-    if !event_system_monitor_enabled(&config) {
-        reset_states(state).await;
+async fn tick_system_monitor(
+    state: &AppState,
+    runtime: &mut MonitorRuntimeState,
+) -> anyhow::Result<()> {
+    if !runtime.config_loaded {
+        runtime.config = state.storage.store.get_config().await?;
+        runtime.config_loaded = true;
+    }
+    let config = &runtime.config;
+    if !event_system_monitor_enabled(config) {
+        clear_metric_state(state, CPU_STATE_KEY, &mut runtime.cpu).await?;
+        clear_metric_state(state, MEMORY_STATE_KEY, &mut runtime.memory).await?;
         return Ok(());
     }
-    process_metric(state, "cpu", event_system_rule_value(&config, "cpu_alert")).await?;
+    process_metric(
+        state,
+        "cpu",
+        event_system_rule_value(config, "cpu_alert"),
+        &mut runtime.cpu,
+    )
+    .await?;
     process_metric(
         state,
         "memory",
-        event_system_rule_value(&config, "memory_alert"),
+        event_system_rule_value(config, "memory_alert"),
+        &mut runtime.memory,
     )
     .await?;
     Ok(())
@@ -73,23 +125,19 @@ async fn process_metric(
     state: &AppState,
     metric: &str,
     rule: Option<&Value>,
+    current: &mut MetricRuntimeState,
 ) -> anyhow::Result<()> {
     let rule = normalize_rule(rule);
     let state_key = metric_state_key(metric);
     if !rule.enabled {
-        state.storage.store.delete_key(state_key).await?;
+        clear_metric_state(state, state_key, current).await?;
         return Ok(());
     }
 
-    let current = state
-        .storage
-        .store
-        .get_json_value(state_key)
-        .await?
-        .unwrap_or_else(|| json!({ "status": "normal" }));
     let now = time_utils::now_ms();
     let sample_interval_ms = rule.sample_interval_seconds.max(1) * 1000;
     if current
+        .value
         .get("lastSampleAt")
         .and_then(Value::as_i64)
         .is_some_and(|last| now - last < sample_interval_ms)
@@ -98,11 +146,15 @@ async fn process_metric(
     }
 
     let (usage_percent, cpu_snapshot) = match metric {
-        "cpu" => read_cpu_usage_percent(current.get("cpuSnapshot")),
+        "cpu" => read_cpu_usage_percent(current.value.get("cpuSnapshot")),
         _ => (read_memory_usage_percent(), None),
     };
 
-    let mut next = current.as_object().cloned().unwrap_or_else(Map::new);
+    let mut next = current
+        .value
+        .as_object()
+        .cloned()
+        .unwrap_or_else(|| Map::from_iter([("status".to_string(), json!("normal"))]));
     next.insert("lastSampleAt".to_string(), json!(now));
     if let Some(snapshot) = cpu_snapshot {
         next.insert(
@@ -112,11 +164,7 @@ async fn process_metric(
     }
 
     let Some(usage_percent) = usage_percent else {
-        state
-            .storage
-            .store
-            .set_json_value(state_key, &Value::Object(next))
-            .await?;
+        update_metric_state(state, state_key, current, Value::Object(next)).await?;
         return Ok(());
     };
     next.insert("lastUsagePercent".to_string(), json!(usage_percent));
@@ -144,11 +192,7 @@ async fn process_metric(
                 return Ok(());
             }
         }
-        state
-            .storage
-            .store
-            .set_json_value(state_key, &Value::Object(next))
-            .await?;
+        update_metric_state(state, state_key, current, Value::Object(next)).await?;
         return Ok(());
     }
 
@@ -175,11 +219,7 @@ async fn process_metric(
             next.insert("aboveThresholdSince".to_string(), Value::Null);
             next.insert("belowRecoverSince".to_string(), Value::Null);
         }
-        state
-            .storage
-            .store
-            .set_json_value(state_key, &Value::Object(next))
-            .await?;
+        update_metric_state(state, state_key, current, Value::Object(next)).await?;
         return Ok(());
     }
 
@@ -188,11 +228,49 @@ async fn process_metric(
     } else {
         next.insert("aboveThresholdSince".to_string(), Value::Null);
     }
-    state
-        .storage
-        .store
-        .set_json_value(state_key, &Value::Object(next))
-        .await?;
+    update_metric_state(state, state_key, current, Value::Object(next)).await?;
+    Ok(())
+}
+
+async fn update_metric_state(
+    state: &AppState,
+    state_key: &str,
+    current: &mut MetricRuntimeState,
+    next: Value,
+) -> anyhow::Result<()> {
+    let previous_status = current
+        .value
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("normal");
+    let next_status = next
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("normal");
+    let persist = current.dirty || previous_status != next_status;
+    current.value = next;
+    if persist {
+        let result = state
+            .storage
+            .store
+            .set_json_value(state_key, &current.value)
+            .await;
+        current.dirty = result.is_err();
+        result?;
+    }
+    Ok(())
+}
+
+async fn clear_metric_state(
+    state: &AppState,
+    state_key: &str,
+    current: &mut MetricRuntimeState,
+) -> anyhow::Result<()> {
+    if !current.value.is_null() {
+        state.storage.store.delete_key(state_key).await?;
+        current.value = Value::Null;
+        current.dirty = false;
+    }
     Ok(())
 }
 
@@ -230,6 +308,7 @@ async fn publish_resource_event(
 pub(crate) async fn reset_states(state: &AppState) {
     let _ = state.storage.store.delete_key(CPU_STATE_KEY).await;
     let _ = state.storage.store.delete_key(MEMORY_STATE_KEY).await;
+    state.request_system_monitor_reload();
 }
 
 fn read_cpu_usage_percent(previous: Option<&Value>) -> (Option<f64>, Option<CpuSnapshot>) {
@@ -396,11 +475,6 @@ fn system_monitor_interval_from_values(
         .unwrap_or_else(|| parse_env_int_like_node(interval_seconds, 5))
         .clamp(1, 300) as u64;
     std::time::Duration::from_secs(seconds)
-}
-
-fn system_monitor_lock_ttl_seconds() -> usize {
-    parse_env_int_like_node(std::env::var("SYSTEM_MONITOR_LOCK_TTL").ok().as_deref(), 30)
-        .clamp(1, 300) as usize
 }
 
 fn parse_env_int_like_node(value: Option<&str>, fallback: i64) -> i64 {

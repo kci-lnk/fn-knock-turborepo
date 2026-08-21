@@ -1,6 +1,6 @@
 use super::service::{
     apply_recommended_lfi_rule_patch_if_needed, apply_recommended_system_rule_state,
-    should_sync_system_rules_for_restore,
+    should_sync_system_rules_for_restore, waf_drain_schedule,
 };
 use super::*;
 use serde_json::json;
@@ -22,6 +22,20 @@ async fn waf_test_state(go_backend_grpc_addr: &str) -> (tempfile::TempDir, AppSt
     settings.request_timeout = std::time::Duration::from_millis(100);
     let state = AppState::new(settings).await.unwrap();
     (directory, state)
+}
+
+#[tokio::test]
+async fn disabled_waf_has_no_periodic_drain_deadline() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+    let mut config = state.storage.store.get_config().await.unwrap();
+    config["waf"] = json!({"enabled": false});
+    state.storage.store.save_config(&config).await.unwrap();
+    assert_eq!(waf_drain_schedule(&state).await, None);
+
+    let mut config = state.storage.store.get_config().await.unwrap();
+    config["waf"] = json!({"enabled": true, "drain_interval_seconds": 17});
+    state.storage.store.save_config(&config).await.unwrap();
+    assert_eq!(waf_drain_schedule(&state).await, Some(17));
 }
 
 #[test]

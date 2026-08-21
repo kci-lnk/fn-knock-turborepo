@@ -46,11 +46,11 @@ use crate::{
     wol::start_wol_tasks,
 };
 
-// DSM gives the package supervisor 180 seconds by default. Keep one shared
+// Native package supervisors allow five minutes by default. Keep one shared
 // application budget so individually bounded startup phases cannot add up past
-// that window, while retaining time for error propagation and process cleanup.
-const DEFAULT_APPLICATION_STARTUP_TIMEOUT: Duration = Duration::from_secs(150);
-const SYNOLOGY_SUPERVISOR_SHUTDOWN_MARGIN: Duration = Duration::from_secs(30);
+// that window, while retaining 30 seconds for error propagation and cleanup.
+const DEFAULT_APPLICATION_STARTUP_TIMEOUT: Duration = Duration::from_secs(270);
+const PACKAGE_SUPERVISOR_SHUTDOWN_MARGIN: Duration = Duration::from_secs(30);
 const GATEWAY_STARTUP_PHASE_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub async fn run() -> anyhow::Result<()> {
@@ -174,14 +174,12 @@ pub(crate) async fn run_with_settings(
     // The migration validates CIDR-bearing candidates, but even an empty
     // policy table can contain Host fields that require the matching gateway.
     // Publish the complete generation before listeners and readiness open.
-    let startup_config = state.storage.store.get_config().await?;
-    startup_gateway::sync_host_rules(
+    startup_gateway::sync_current_host_rules(
         &state,
-        &startup_config,
         &runtime_shutdown,
         startup_phase_timeout(
             startup_deadline,
-            GATEWAY_STARTUP_PHASE_TIMEOUT,
+            DEFAULT_APPLICATION_STARTUP_TIMEOUT,
             "gateway host rules",
         )?,
     )
@@ -212,7 +210,18 @@ pub(crate) async fn run_with_settings(
     .await?;
     migrate_ssh_ipset_on_boot(&state).await?;
     sync_auto_https_on_boot(state.clone()).await;
-    let boot_sync_completed = boot::start_boot_sync_tasks(state.clone());
+    startup_gateway::sync_boot_runtime(
+        &state,
+        &runtime_shutdown,
+        startup_phase_timeout(
+            startup_deadline,
+            DEFAULT_APPLICATION_STARTUP_TIMEOUT,
+            "application boot runtime",
+        )?,
+    )
+    .await?;
+    crate::runtime_config::start_fnos_connect_waf_reconciler(state.clone());
+    crate::proxy_config::start_gateway_config_reconciler(state.clone());
     start_traffic_tasks(state.clone());
     start_ip_location_worker(state.clone());
     start_notification_tasks(state.clone());
@@ -364,7 +373,6 @@ pub(crate) async fn run_with_settings(
         tokio::fs::write(path, b"ready\n").await?;
     }
     state.spawn_background("startup-memory-trim", async move {
-        let _ = boot_sync_completed.await;
         memory::trim_allocated_memory_after(Duration::from_secs(5)).await;
     });
     if let Some(ready) = ready {
@@ -385,9 +393,9 @@ pub(crate) async fn run_with_settings(
         .shutdown_all(Duration::from_secs(10))
         .await;
     stop_auth_bridge(auth_bridge).await;
-    if let Some(path) = &readiness_marker {
-        let _ = tokio::fs::remove_file(path).await;
-    }
+    // Once readiness has been published, the native package supervisor owns
+    // marker removal so it can keep the file until both managed processes are
+    // confirmed stopped. Startup failures above still remove stale markers.
     stop_runtime_logging(&state).await;
     checkpoint_storage_for_shutdown(&state).await;
     result
@@ -516,7 +524,11 @@ async fn wait_for_gateway(
             } else {
                 false
             };
-            if bundle_ready && dataplane_ready && auth_bridge_ready && state.gateway_config_synced()
+            if bundle_ready
+                && dataplane_ready
+                && auth_bridge_ready
+                && state.gateway_config_synced()
+                && state.runtime_health.component_ready("storage").await
             {
                 return Ok(());
             }
@@ -548,7 +560,8 @@ fn startup_phase_timeout(
 }
 
 fn application_startup_timeout() -> Duration {
-    let supervisor_timeout = env::var("FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS")
+    let supervisor_timeout = env::var("FN_KNOCK_START_TIMEOUT_SECONDS")
+        .or_else(|_| env::var("FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS"))
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|seconds| *seconds > 0)
@@ -560,7 +573,7 @@ fn application_startup_timeout_for_supervisor(supervisor_timeout: Option<Duratio
     supervisor_timeout
         .map(|timeout| {
             timeout
-                .saturating_sub(SYNOLOGY_SUPERVISOR_SHUTDOWN_MARGIN)
+                .saturating_sub(PACKAGE_SUPERVISOR_SHUTDOWN_MARGIN)
                 .max(Duration::from_secs(1))
         })
         .unwrap_or(DEFAULT_APPLICATION_STARTUP_TIMEOUT)
@@ -666,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn synology_application_budget_leaves_supervisor_cleanup_margin() {
+    fn native_package_application_budget_leaves_supervisor_cleanup_margin() {
         assert_eq!(
             application_startup_timeout_for_supervisor(Some(Duration::from_secs(180))),
             Duration::from_secs(150)

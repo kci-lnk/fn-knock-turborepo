@@ -65,7 +65,7 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
                 // cursor on this event so a transient storage/provider setup
                 // failure cannot silently drop its notification.
                 tracing::warn!(%error, stream_id, "failed to fan out notification event");
-                break;
+                return Err(error);
             }
         }
         state
@@ -370,6 +370,7 @@ pub(super) async fn fanout_trigger_targets(
                 .store
                 .enqueue_notification_delivery(&delivery_id, time_utils::now_ms())
                 .await?;
+            state.request_notification_delivery();
             continue;
         }
 
@@ -384,6 +385,7 @@ pub(super) async fn fanout_trigger_targets(
                     resolve_delivery_ready_at_ms(&existing),
                 )
                 .await?;
+            state.request_notification_delivery();
         }
     }
 
@@ -444,6 +446,8 @@ pub(super) async fn process_ready_deliveries(
                     delivery_id = id,
                     "failed to requeue notification delivery after processing error"
                 );
+            } else {
+                state.request_notification_delivery();
             }
         }
     }
@@ -603,6 +607,7 @@ pub(super) async fn process_delivery(state: &AppState, delivery_id: &str) -> any
                 time_utils::parse_iso_ms(&next_retry_at).unwrap_or_else(time_utils::now_ms),
             )
             .await?;
+        state.request_notification_delivery();
         return Ok(());
     }
 

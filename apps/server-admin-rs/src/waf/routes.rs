@@ -38,7 +38,7 @@ use service::{
     apply_waf_config, apply_waf_config_to_gateway, check_and_sync_system_waf_rules_if_needed,
     delete_custom_waf_rule, drain_waf_events_now, get_waf_details, load_waf_config,
     read_waf_rule_file, set_recommended_system_rules, set_waf_rule_enabled, sync_waf_on_boot,
-    upload_custom_waf_rules, waf_drain_interval_seconds,
+    upload_custom_waf_rules, waf_drain_schedule,
 };
 pub(crate) use service::{
     disabled_hosts_for_config, restore_waf_runtime_after_import, sync_waf_config_to_gateway,
@@ -59,7 +59,6 @@ const MAX_ZIP_BYTES: usize = 20 * 1024 * 1024;
 const MAX_UNPACKED_ZIP_BYTES: usize = 60 * 1024 * 1024;
 const DEFAULT_DRAIN_LIMIT: i64 = 500;
 const DEFAULT_WAF_DRAIN_INTERVAL_SECONDS: u64 = 2;
-const DISABLED_WAF_DRAIN_INTERVAL_SECONDS: u64 = 30;
 const WAF_SYSTEM_RULES_AUTO_UPDATE_SECONDS: u64 = 2 * 24 * 60 * 60;
 const WAF_SYSTEM_RULES_AUTO_UPDATE_LOCK_TTL_SECONDS: i64 = 10 * 60;
 const UNFILTERED_QUERY_SCAN_CHUNK_SIZE: isize = 500;
@@ -227,13 +226,21 @@ pub fn start_waf_tasks(state: AppState) {
             }
         }
         loop {
-            let interval = tokio::select! {
+            let schedule = tokio::select! {
                 _ = drain_state.shutdown.cancelled() => break,
-                interval = waf_drain_interval_seconds(&drain_state) => interval,
+                schedule = waf_drain_schedule(&drain_state) => schedule,
             };
-            tokio::select! {
-                _ = drain_state.shutdown.cancelled() => break,
-                _ = tokio_time::sleep(std::time::Duration::from_secs(interval)) => {}
+            if let Some(interval) = schedule {
+                tokio::select! {
+                    _ = drain_state.shutdown.cancelled() => break,
+                    _ = drain_state.waf_event_drain_reload_notify.notified() => continue,
+                    _ = tokio_time::sleep(std::time::Duration::from_secs(interval)) => {}
+                }
+            } else {
+                tokio::select! {
+                    _ = drain_state.shutdown.cancelled() => break,
+                    _ = drain_state.waf_event_drain_reload_notify.notified() => continue,
+                }
             }
             tokio::select! {
                 _ = drain_state.shutdown.cancelled() => break,
@@ -359,7 +366,10 @@ async fn config(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match apply_waf_config(&state, &body).await {
-        Ok(data) => response::ok(data).into_response(),
+        Ok(data) => {
+            state.request_waf_event_drain_reload();
+            response::ok(data).into_response()
+        }
         Err(error) => {
             tracing::warn!(%error, "failed to save WAF config");
             waf_error_response(&translator, StatusCode::BAD_REQUEST, error.to_string())

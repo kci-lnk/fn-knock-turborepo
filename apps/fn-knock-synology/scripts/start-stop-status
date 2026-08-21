@@ -9,13 +9,13 @@ PID_FILE="${PKGVAR}/fn-knock.pid"
 LOG_FILE="${PKGVAR}/fn-knock.log"
 ENTRYPOINT="${PKGDEST}/bin/fn-knock-entrypoint"
 BACKEND_PORT="${BACKEND_PORT:-7998}"
-READINESS_URL="http://127.0.0.1:${BACKEND_PORT}/__fn-knock/readyz"
+READINESS_MARKER="${PKGVAR}/runtime.ready"
 RUNTIME_PID_DIR="${PKGVAR}/runtime/pids"
 GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
 MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
-START_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-180}"
-STOP_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS:-75}"
-FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS:-10}"
+START_TIMEOUT_SECONDS="${FN_KNOCK_START_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-300}}"
+STOP_TIMEOUT_SECONDS="${FN_KNOCK_STOP_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS:-75}}"
+FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_FORCE_KILL_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS:-10}}"
 
 is_positive_integer() {
     case "${1:-}" in
@@ -61,8 +61,11 @@ recorded_child_is_running() {
         ''|*[!0-9]*) return 1 ;;
     esac
     kill -0 "${CHILD_PID}" 2>/dev/null || return 1
-    [ -r "/proc/${CHILD_PID}/cmdline" ] || return 1
-    tr '\000' ' ' < "/proc/${CHILD_PID}/cmdline" | grep -q "${child_command}"
+    if [ -r "/proc/${CHILD_PID}/cmdline" ]; then
+        tr '\000' ' ' < "/proc/${CHILD_PID}/cmdline" | grep -q "${child_command}"
+    else
+        ps -o command= -p "${CHILD_PID}" 2>/dev/null | grep -q "${child_command}"
+    fi
 }
 
 recorded_children_are_running() {
@@ -86,7 +89,7 @@ signal_recorded_children() {
 }
 
 remove_runtime_pid_files() {
-    rm -f "${PID_FILE}" "${MANAGEMENT_PID_FILE}" "${GATEWAY_PID_FILE}"
+    rm -f "${PID_FILE}" "${MANAGEMENT_PID_FILE}" "${GATEWAY_PID_FILE}" "${READINESS_MARKER}"
 }
 
 signal_service() {
@@ -134,6 +137,7 @@ launch_service() {
         FN_KNOCK_APP_HOME="${PKGDEST}" \
         FN_KNOCK_DATA_DIR="${PKGVAR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        FN_KNOCK_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         BACKEND_PORT="${BACKEND_PORT}" \
         AUTH_PORT="${AUTH_PORT:-7997}" \
@@ -147,6 +151,7 @@ launch_service() {
         FN_KNOCK_APP_HOME="${PKGDEST}" \
         FN_KNOCK_DATA_DIR="${PKGVAR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        FN_KNOCK_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         BACKEND_PORT="${BACKEND_PORT}" \
         AUTH_PORT="${AUTH_PORT:-7997}" \
@@ -179,17 +184,21 @@ stop_service() {
 }
 
 start_service() {
+    service_already_running=0
     if pid_is_running; then
-        return 0
-    fi
-    if recorded_children_are_running; then
-        stop_service || return 1
+        service_already_running=1
     else
-        remove_runtime_pid_files
+        if recorded_children_are_running; then
+            stop_service || return 1
+        else
+            remove_runtime_pid_files
+        fi
     fi
-    mkdir -p "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"
-    write_runtime_ports
-    launch_service
+    if [ "${service_already_running}" -eq 0 ]; then
+        mkdir -p "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"
+        write_runtime_ports
+        launch_service
+    fi
 
     started_at="$(date '+%s')"
     deadline=$((started_at + START_TIMEOUT_SECONDS))
@@ -204,8 +213,9 @@ start_service() {
                 > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             return 1
         fi
-        if curl -fsS --max-time 5 "${READINESS_URL}" >/dev/null 2>&1; then
-            if pid_is_running; then
+        if [ -f "${READINESS_MARKER}" ]; then
+            if pid_is_running && recorded_child_is_running "${MANAGEMENT_PID_FILE}" 'server-admin-rs' && \
+                recorded_child_is_running "${GATEWAY_PID_FILE}" 'go-reauth-proxy'; then
                 return 0
             fi
             stop_service || true
@@ -239,19 +249,18 @@ case "${1:-}" in
         stop_service
         ;;
     status)
-        if pid_is_running; then
+        if pid_is_running && [ -f "${READINESS_MARKER}" ] && \
+            recorded_child_is_running "${MANAGEMENT_PID_FILE}" 'server-admin-rs' && \
+            recorded_child_is_running "${GATEWAY_PID_FILE}" 'go-reauth-proxy'; then
             exit 0
         fi
-        [ -e "${PID_FILE}" ] && exit 1
+        { [ -e "${PID_FILE}" ] || [ -e "${MANAGEMENT_PID_FILE}" ] || \
+            [ -e "${GATEWAY_PID_FILE}" ] || [ -e "${READINESS_MARKER}" ]; } && exit 1
         exit 3
         ;;
     prestart)
         [ -x "${ENTRYPOINT}" ] || {
             printf 'Missing executable: %s\n' "${ENTRYPOINT}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
-            exit 1
-        }
-        command -v curl >/dev/null 2>&1 || {
-            printf 'Missing required command: curl\n' > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             exit 1
         }
         validate_configuration || {

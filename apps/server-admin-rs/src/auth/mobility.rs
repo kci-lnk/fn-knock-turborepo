@@ -228,15 +228,28 @@ struct AuthCredentialSettings {
 pub fn start_auth_mobility_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("auth-mobility-maintenance", async move {
-        let mut ticker = time::interval(std::time::Duration::from_secs(
-            AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS,
-        ));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
         loop {
+            let enabled = task_state
+                .storage
+                .store
+                .get_config()
+                .await
+                .map(|config| {
+                    AuthCredentialSettings::from_config(&config).session_ip_mobility_enabled
+                })
+                .unwrap_or(true);
+            if !enabled {
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => break,
+                    _ = task_state.auth_mobility_notify.notified() => continue,
+                }
+            }
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
+                _ = task_state.auth_mobility_notify.notified() => continue,
+                _ = time::sleep(std::time::Duration::from_secs(
+                    AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS,
+                )) => {}
             }
             tokio::select! {
                 _ = task_state.shutdown.cancelled() => break,

@@ -9,7 +9,7 @@ PKGDEST="${WORK_DIR}/target"
 PKGVAR="${WORK_DIR}/var"
 PKGTMP="${WORK_DIR}/tmp"
 PKGHOME="${WORK_DIR}/home"
-READY_FILE="${WORK_DIR}/ready"
+READY_FILE="${PKGVAR}/runtime.ready"
 ENTRYPOINT_PID_FILE="${WORK_DIR}/entrypoint.pid"
 WORKER_PID_FILE="${WORK_DIR}/worker.pid"
 START_TIMEOUT_FILE="${WORK_DIR}/start-timeout"
@@ -26,6 +26,8 @@ trap cleanup EXIT
 
 fail() {
   printf '[test-synology-lifecycle] ERROR: %s\n' "$*" >&2
+  [ ! -f "${WORK_DIR}/synopkg-message.log" ] || sed -n '1,80p' "${WORK_DIR}/synopkg-message.log" >&2
+  [ ! -f "${PKGVAR}/fn-knock.log" ] || sed -n '1,120p' "${PKGVAR}/fn-knock.log" >&2
   exit 1
 }
 
@@ -41,6 +43,7 @@ run_lifecycle() {
   TEST_ENTRYPOINT_PID_FILE="${ENTRYPOINT_PID_FILE}" \
   TEST_WORKER_PID_FILE="${WORKER_PID_FILE}" \
   TEST_START_TIMEOUT_FILE="${START_TIMEOUT_FILE}" \
+  TEST_FAKE_BIN="${FAKE_BIN}" \
     sh "${LIFECYCLE}" "$@"
 }
 
@@ -81,31 +84,23 @@ PY
   chmod 755 "${FAKE_BIN}/setsid"
 fi
 
-cat > "${FAKE_BIN}/curl" <<'SH'
-#!/bin/sh
-last_argument=""
-for argument in "$@"; do
-  last_argument="${argument}"
-done
-[ "${last_argument}" = "http://127.0.0.1:7998/__fn-knock/readyz" ] || exit 64
-[ -f "${TEST_READY_FILE:?}" ]
-SH
-
 cat > "${PKGDEST}/bin/fn-knock-entrypoint" <<'SH'
 #!/bin/sh
 printf '%s\n' "$$" > "${TEST_ENTRYPOINT_PID_FILE:?}"
-printf '%s\n' "${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-missing}" \
+printf '%s\n' "${FN_KNOCK_START_TIMEOUT_SECONDS:-missing}" \
   > "${TEST_START_TIMEOUT_FILE:?}"
+mkdir -p "${SYNOPKG_PKGVAR:?}/runtime/pids"
 cleanup() {
   trap - TERM INT EXIT
   if [ -n "${ready_pid:-}" ]; then
     kill "${ready_pid}" 2>/dev/null || true
     wait "${ready_pid}" 2>/dev/null || true
   fi
-  if [ -n "${worker_pid:-}" ]; then
-    kill "${worker_pid}" 2>/dev/null || true
-    wait "${worker_pid}" 2>/dev/null || true
-  fi
+  for child_pid in "${management_pid:-}" "${gateway_pid:-}"; do
+    [ -n "${child_pid}" ] || continue
+    kill "${child_pid}" 2>/dev/null || true
+    wait "${child_pid}" 2>/dev/null || true
+  done
   exit 0
 }
 if [ "${TEST_IGNORE_TERM:-0}" = "1" ]; then
@@ -118,18 +113,19 @@ fi
   : > "${TEST_READY_FILE:?}"
 ) &
 ready_pid=$!
-(
-  if [ "${TEST_IGNORE_TERM:-0}" = "1" ]; then
-    trap '' TERM INT
-  fi
-  while :; do sleep 1; done
-) &
-worker_pid=$!
-printf '%s\n' "${worker_pid}" > "${TEST_WORKER_PID_FILE:?}"
+"${TEST_FAKE_BIN:?}/server-admin-rs" 1000 &
+management_pid=$!
+"${TEST_FAKE_BIN:?}/go-reauth-proxy" 1000 &
+gateway_pid=$!
+printf '%s\n' "${management_pid}" > "${SYNOPKG_PKGVAR}/runtime/pids/management.pid"
+printf '%s\n' "${gateway_pid}" > "${SYNOPKG_PKGVAR}/runtime/pids/gateway.pid"
+printf '%s\n' "${gateway_pid}" > "${TEST_WORKER_PID_FILE:?}"
 while :; do sleep 1; done
 SH
 
-chmod 755 "${FAKE_BIN}/curl" "${PKGDEST}/bin/fn-knock-entrypoint"
+ln -s /bin/sleep "${FAKE_BIN}/server-admin-rs"
+ln -s /bin/sleep "${FAKE_BIN}/go-reauth-proxy"
+chmod 755 "${PKGDEST}/bin/fn-knock-entrypoint"
 
 rm -f "${READY_FILE}" "${ENTRYPOINT_PID_FILE}"
 TEST_READY_DELAY_SECONDS=2 \
@@ -138,7 +134,7 @@ FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
   run_lifecycle start || fail 'ready service failed to start'
 
 [ -s "${PKGVAR}/fn-knock.pid" ] || fail 'successful start did not persist the supervisor PID'
-[ "$(cat "${START_TIMEOUT_FILE}")" = "180" ] || \
+[ "$(cat "${START_TIMEOUT_FILE}")" = "300" ] || \
   fail 'default DSM start timeout was not propagated to the application'
 supervisor_pid="$(cat "${PKGVAR}/fn-knock.pid")"
 kill -0 "${supervisor_pid}" 2>/dev/null || fail 'supervisor is not running after readiness'

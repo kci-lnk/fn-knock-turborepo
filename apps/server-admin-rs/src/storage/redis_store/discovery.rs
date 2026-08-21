@@ -356,6 +356,23 @@ impl Store {
             .await
     }
 
+    pub async fn next_ip_location_due_at_ms(&self) -> crate::storage::StorageResult<Option<i64>> {
+        let mut conn = self.conn();
+        let values: Vec<(String, f64)> = redis::cmd("ZRANGE")
+            .arg(IP_LOCATION_QUEUE_KEY)
+            .arg(0)
+            .arg(0)
+            .arg("WITHSCORES")
+            .query_async(&mut conn)
+            .await?;
+        Ok(values.first().and_then(|(_, score)| {
+            score
+                .is_finite()
+                .then_some(*score as i64)
+                .filter(|_| score.fract() == 0.0)
+        }))
+    }
+
     pub async fn acquire_ip_location_lock(
         &self,
         ip: &str,

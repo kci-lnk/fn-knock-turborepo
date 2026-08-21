@@ -143,6 +143,27 @@ impl Store {
         Ok(())
     }
 
+    pub async fn next_notification_delivery_ready_at_ms(
+        &self,
+    ) -> crate::storage::StorageResult<Option<i64>> {
+        self.verify_notification_runtime_shadow(NOTIFICATION_DELIVERIES_READY_KEY)
+            .await?;
+        let mut conn = self.conn();
+        let values: Vec<(String, f64)> = redis::cmd("ZRANGE")
+            .arg(NOTIFICATION_DELIVERIES_READY_KEY)
+            .arg(0)
+            .arg(0)
+            .arg("WITHSCORES")
+            .query_async(&mut conn)
+            .await?;
+        Ok(values.first().and_then(|(_, score)| {
+            score
+                .is_finite()
+                .then_some(*score as i64)
+                .filter(|_| score.fract() == 0.0)
+        }))
+    }
+
     pub async fn pull_ready_notification_delivery_ids(
         &self,
         limit: usize,

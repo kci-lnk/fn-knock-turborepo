@@ -3,7 +3,7 @@ use super::*;
 pub(super) async fn terminal_list_sessions(
     state: &AppState,
 ) -> anyhow::Result<Vec<TerminalSessionRecord>> {
-    cleanup_expired_sessions(state).await?;
+    let _ = cleanup_expired_sessions(state).await?;
     store_list_sessions(&state.storage.store).await
 }
 
@@ -27,7 +27,7 @@ pub(super) async fn terminal_create_session(
     input: CreateSessionBody,
     client_ip: &str,
 ) -> anyhow::Result<TerminalSessionRecord> {
-    cleanup_expired_sessions(state).await?;
+    let _ = cleanup_expired_sessions(state).await?;
     assert_create_allowed(state).await?;
 
     let config = terminal_feature_config(state).await?;
@@ -121,8 +121,8 @@ pub(super) async fn terminal_rename_session(
     if title.is_empty() {
         return Err(anyhow!(terminal_default_text("sessionTitleRequired", &[])));
     }
-    store_save_session(
-        &state.storage.store,
+    save_terminal_session(
+        state,
         normalize_session(TerminalSessionRecord {
             title,
             updated_at: now_iso(),
@@ -168,8 +168,8 @@ pub(super) async fn terminal_create_attachment(
     let runtime_session = ensure_session_runtime(state, session).await?;
     let now = now_iso();
     let config = terminal_feature_config(state).await?;
-    store_save_session(
-        &state.storage.store,
+    save_terminal_session(
+        state,
         normalize_session(TerminalSessionRecord {
             status: "attached".to_string(),
             updated_at: now.clone(),
@@ -360,9 +360,19 @@ pub(super) async fn terminal_wait_for_output(
     })
 }
 
-pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result<()> {
+async fn save_terminal_session(
+    state: &AppState,
+    session: TerminalSessionRecord,
+) -> anyhow::Result<TerminalSessionRecord> {
+    let saved = store_save_session(&state.storage.store, session).await?;
+    state.request_terminal_cleanup();
+    Ok(saved)
+}
+
+pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result<Option<i64>> {
     let sessions = store_list_sessions(&state.storage.store).await?;
     let now = now_ms();
+    let mut next_expiry_ms = None;
     for session in sessions {
         if parse_iso_ms(&session.expires_at).is_some_and(|expires_at| expires_at <= now) {
             if let Err(error) = terminal_kill_session(state, &session.id).await {
@@ -375,6 +385,10 @@ pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result
             store_delete_session(&state.storage.store, &session.id).await?;
             continue;
         }
+        if let Some(expires_at) = parse_iso_ms(&session.expires_at) {
+            next_expiry_ms =
+                Some(next_expiry_ms.map_or(expires_at, |current: i64| current.min(expires_at)));
+        }
         if session.status == "attached" {
             let attachments =
                 store_list_attachment_ids_for_session(&state.storage.store, &session.id).await?;
@@ -383,7 +397,7 @@ pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result
             }
         }
     }
-    Ok(())
+    Ok(next_expiry_ms)
 }
 
 pub(super) async fn assert_create_allowed(state: &AppState) -> anyhow::Result<()> {
@@ -524,8 +538,8 @@ pub(super) async fn configure_session_runtime(
     let input_pipe_path = ensure_input_pipe_path(state, &session).await?;
     let (pane_tty_path, cols, rows) = read_pane_runtime_metadata(&session).await?;
     configure_relay_pipe(&session, &output_log_path, &input_pipe_path).await?;
-    store_save_session(
-        &state.storage.store,
+    save_terminal_session(
+        state,
         normalize_session(TerminalSessionRecord {
             cols,
             rows,
@@ -570,8 +584,8 @@ pub(super) async fn ensure_session_runtime(
         {
             return Ok(session);
         }
-        return store_save_session(
-            &state.storage.store,
+        return save_terminal_session(
+            state,
             normalize_session(TerminalSessionRecord {
                 input_pipe_path: input_pipe_path.to_string_lossy().to_string(),
                 output_log_path: output_log_path.to_string_lossy().to_string(),
@@ -598,8 +612,8 @@ pub(super) async fn refresh_session_expiry(
     session: TerminalSessionRecord,
 ) -> anyhow::Result<TerminalSessionRecord> {
     let config = terminal_feature_config(state).await?;
-    store_save_session(
-        &state.storage.store,
+    save_terminal_session(
+        state,
         normalize_session(TerminalSessionRecord {
             updated_at: now_iso(),
             expires_at: iso_after_seconds(config.idle_timeout_seconds),

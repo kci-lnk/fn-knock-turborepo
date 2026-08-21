@@ -387,9 +387,9 @@ pub(super) async fn has_system_rule_files(state: &AppState) -> anyhow::Result<bo
     Ok(false)
 }
 
-pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
+pub(super) async fn waf_drain_schedule(state: &AppState) -> Option<u64> {
     let Ok(config) = state.storage.store.get_config().await else {
-        return DEFAULT_WAF_DRAIN_INTERVAL_SECONDS;
+        return Some(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS);
     };
     let waf = config.get("waf");
     if !waf
@@ -397,13 +397,15 @@ pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        return DISABLED_WAF_DRAIN_INTERVAL_SECONDS;
+        return None;
     }
 
-    waf.and_then(|value| value.get("drain_interval_seconds"))
-        .and_then(Value::as_i64)
-        .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
-        .clamp(1, 60) as u64
+    Some(
+        waf.and_then(|value| value.get("drain_interval_seconds"))
+            .and_then(Value::as_i64)
+            .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
+            .clamp(1, 60) as u64,
+    )
 }
 
 pub(super) async fn set_waf_rule_enabled(

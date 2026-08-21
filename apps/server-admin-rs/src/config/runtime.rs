@@ -30,7 +30,7 @@ mod smart_connect;
 mod store;
 mod utils;
 
-use fnos_connect_waf::start_fnos_connect_waf_reconciler;
+pub(crate) use fnos_connect_waf::start_fnos_connect_waf_reconciler;
 pub(crate) use fnos_connect_waf::{fnos_connect_waf_routes, normalize_fnos_connect_waf};
 use fnos_network::*;
 use handlers::*;
@@ -210,12 +210,12 @@ fn capability_blocked_text(state: &AppState, capability: &str, translator: &Tran
     runtime_profile::capability_unavailable_message(capability, &profile, translator)
 }
 
-pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
+pub(crate) async fn sync_runtime_config_on_boot(state: AppState) -> Result<(), String> {
     let mut config = match state.storage.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for boot runtime sync");
-            return;
+            return Err(error.to_string());
         }
     };
     match apply_boot_config_migrations(&state, &mut config).await {
@@ -233,9 +233,9 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
         Err(error) => tracing::warn!(%error, "failed to apply runtime config constraints"),
     }
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
-    if let Err(error) = apply_run_type_config(&state, &config, run_type).await {
-        tracing::warn!(%error, "failed to sync run type config on boot");
-    }
+    apply_run_type_config(&state, &config, run_type)
+        .await
+        .inspect_err(|error| tracing::warn!(%error, "failed to sync run type config on boot"))?;
 
     let gateway_logging = normalize_gateway_logging(config.get("gateway_logging"));
     if let Err(error) = state
@@ -268,7 +268,7 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
         tracing::warn!(%error, "failed to sync FnOS port icon hijack config on boot");
     }
 
-    start_fnos_connect_waf_reconciler(state);
+    Ok(())
 }
 
 pub(crate) async fn migrate_and_constrain_config_after_import(

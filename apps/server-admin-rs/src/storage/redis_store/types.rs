@@ -375,7 +375,7 @@ pub struct TrafficDeltaPoint {
     pub delta: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TrafficSnapshotRecord {
     pub host: Option<String>,
     pub stream: Option<String>,

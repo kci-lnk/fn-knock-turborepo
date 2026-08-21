@@ -57,7 +57,7 @@ use runtime::{
 };
 pub(crate) use runtime::{
     sync_go_host_rules_for_config_locked, sync_go_host_rules_for_config_with_timeout_locked,
-    sync_go_host_rules_locked,
+    sync_go_host_rules_for_config_without_reconcile_locked, sync_go_host_rules_locked,
 };
 use stream_security::*;
 use subdomain::*;
@@ -355,6 +355,82 @@ pub(crate) async fn sync_current_go_host_rules(state: &AppState) -> Result<(), S
         sync_go_host_rules_for_config_locked(&state, &config).await
     })
     .await
+}
+
+async fn reconcile_current_go_host_rules(state: &AppState) -> Result<(), String> {
+    with_host_mappings_runtime_transaction(state, |state| async move {
+        let config = state
+            .storage
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        sync_go_host_rules_for_config_without_reconcile_locked(&state, &config).await
+    })
+    .await
+}
+
+pub(crate) fn start_gateway_config_reconciler(state: AppState) {
+    let task_state = state.clone();
+    state.spawn_background("gateway-config-reconciler", async move {
+        const MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
+        loop {
+            tokio::select! {
+                _ = task_state.shutdown.cancelled() => break,
+                _ = task_state.gateway_config_reconcile_requested() => {}
+            }
+
+            let mut attempt = 0u32;
+            while !task_state.gateway_config_synced() {
+                attempt = attempt.saturating_add(1);
+                let result = reconcile_current_go_host_rules(&task_state).await;
+                let error = match result {
+                    Ok(()) => break,
+                    Err(error) => error,
+                };
+                let failure_class = runtime::host_rules_failure_class(&error);
+                if matches!(
+                    failure_class,
+                    "validation" | "authorization" | "compatibility"
+                ) {
+                    task_state.runtime_health.operational_log(
+                        "ERROR",
+                        "config_sync",
+                        "reconcile_stopped",
+                        "permanent_host_rules_failure",
+                        Map::from_iter([
+                            ("failure_class".to_string(), json!(failure_class)),
+                            ("attempt".to_string(), json!(attempt)),
+                        ]),
+                    );
+                    break;
+                }
+
+                let exponent = attempt.saturating_sub(1).min(5);
+                let delay = Duration::from_secs(1u64 << exponent).min(MAX_RETRY_DELAY);
+                task_state.runtime_health.operational_log(
+                    "WARN",
+                    "config_sync",
+                    "retry_scheduled",
+                    "transient_gateway",
+                    Map::from_iter([
+                        (
+                            "operation".to_string(),
+                            json!("gateway host rules reconcile"),
+                        ),
+                        ("failure_class".to_string(), json!(failure_class)),
+                        ("attempt".to_string(), json!(attempt)),
+                        ("retry_delay_ms".to_string(), json!(delay.as_millis())),
+                    ]),
+                );
+                tokio::select! {
+                    _ = task_state.shutdown.cancelled() => return,
+                    _ = tokio_time::sleep(delay) => {}
+                    _ = task_state.gateway_config_reconcile_requested() => {}
+                }
+            }
+        }
+    });
 }
 
 pub(crate) async fn sync_current_go_auth_config(state: &AppState) -> Result<(), String> {

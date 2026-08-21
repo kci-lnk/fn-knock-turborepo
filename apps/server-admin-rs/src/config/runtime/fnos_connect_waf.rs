@@ -213,37 +213,50 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("fnos-connect-waf-reconcile", async move {
         let state = task_state;
-        let mut interval = time::interval(FNOS_CONNECT_RECONCILE_INTERVAL);
-        interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         let mut first = true;
+        let mut enabled = None;
+        let mut retry_required = false;
+        let mut reload_config = true;
         loop {
-            tokio::select! {
-                _ = state.shutdown.cancelled() => {
-                    let _guard = state.fnos_connect_waf_update_lock.lock().await;
-                    if let Err(error) = disable_fnos_connect_waf_runtime(&state).await {
-                        tracing::warn!(%error, "failed to clean FN Connect WAF runtime on shutdown");
-                    }
-                    break;
+            if enabled.is_some() {
+                let periodic = enabled == Some(true) || retry_required;
+                let notified = tokio::select! {
+                    _ = state.shutdown.cancelled() => break,
+                    _ = state.fnos_connect_waf_notify.notified() => true,
+                    _ = time::sleep(FNOS_CONNECT_RECONCILE_INTERVAL), if periodic => false,
+                };
+                if notified {
+                    reload_config = true;
                 }
-                _ = interval.tick() => {}
-                _ = state.fnos_connect_waf_notify.notified() => {}
             }
 
+            if reload_config {
+                let config = match state.storage.store.get_config().await {
+                    Ok(config) => config,
+                    Err(error) => {
+                        tracing::warn!(%error, "failed to load FN Connect WAF config during reconcile");
+                        tokio::select! {
+                            _ = state.shutdown.cancelled() => break,
+                            _ = state.fnos_connect_waf_notify.notified() => {}
+                            _ = time::sleep(std::time::Duration::from_secs(60)) => {}
+                        }
+                        continue;
+                    }
+                };
+                enabled = Some(
+                    normalize_fnos_connect_waf(config.get("fnos_connect_waf"))
+                        .get("enabled")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                );
+                reload_config = false;
+            }
+
+            let enabled = enabled.unwrap_or(false);
             let _guard = state.fnos_connect_waf_update_lock.lock().await;
-            let config = match state.storage.store.get_config().await {
-                Ok(config) => config,
-                Err(error) => {
-                    tracing::warn!(%error, "failed to load FN Connect WAF config during reconcile");
-                    continue;
-                }
-            };
-            let enabled = normalize_fnos_connect_waf(config.get("fnos_connect_waf"))
-                .get("enabled")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
             if !enabled && !first {
                 let current = state.fnos_connect_waf_status.read().await;
-                if !disabled_fnos_connect_waf_needs_reconcile(&current) {
+                if !retry_required && !disabled_fnos_connect_waf_needs_reconcile(&current) {
                     continue;
                 }
             }
@@ -253,9 +266,15 @@ pub(crate) fn start_fnos_connect_waf_reconciler(state: AppState) {
             } else {
                 disable_fnos_connect_waf_runtime(&state).await
             };
+            retry_required = result.is_err();
             if let Err(error) = result {
                 tracing::warn!(%error, enabled, "failed to reconcile FN Connect WAF runtime");
             }
+        }
+
+        let _guard = state.fnos_connect_waf_update_lock.lock().await;
+        if let Err(error) = disable_fnos_connect_waf_runtime(&state).await {
+            tracing::warn!(%error, "failed to clean FN Connect WAF runtime on shutdown");
         }
     });
 }

@@ -55,9 +55,8 @@ const TRIGGERS_DATA_PREFIX: &str = "fn_knock:notifications:triggers:data:";
 const DELIVERIES_INDEX_KEY: &str = "fn_knock:notifications:deliveries:index";
 const DELIVERIES_DATA_PREFIX: &str = "fn_knock:notifications:deliveries:data:";
 const HISTORY_RETENTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
-const DISPATCH_INTERVAL: Duration = Duration::from_millis(3000);
+const DISPATCH_ERROR_RETRY_DELAY: Duration = Duration::from_secs(3);
 const IP_LOCATION_NOTIFICATION_WAIT_MS: i64 = 30_000;
-const DELIVERY_INTERVAL: Duration = Duration::from_millis(1500);
 const STREAM_BATCH_SIZE: usize = 50;
 const DELIVERY_BATCH_SIZE: usize = 10;
 const DISPATCH_LEASE_TTL_SECONDS: usize = 15;
@@ -201,18 +200,30 @@ pub fn start_notification_tasks(state: AppState) {
 }
 
 async fn notification_dispatch_loop(state: AppState) {
-    let mut interval = time::interval(DISPATCH_INTERVAL);
-    interval.tick().await;
+    let mut retry_after = None;
+    let mut first_pass = true;
     loop {
-        tokio::select! {
-            _ = state.shutdown.cancelled() => break,
-            _ = interval.tick() => {}
+        if !first_pass {
+            if let Some(delay) = retry_after.take() {
+                tokio::select! {
+                    _ = state.shutdown.cancelled() => break,
+                    _ = state.notification_dispatch_notify.notified() => {}
+                    _ = time::sleep(delay) => {}
+                }
+            } else {
+                tokio::select! {
+                    _ = state.shutdown.cancelled() => break,
+                    _ = state.notification_dispatch_notify.notified() => {}
+                }
+            }
         }
+        first_pass = false;
         tokio::select! {
             _ = state.shutdown.cancelled() => break,
             result = notification_dispatch_tick(&state) => {
                 if let Err(error) = result {
                     tracing::warn!(%error, "notification dispatch tick failed");
+                    retry_after = Some(DISPATCH_ERROR_RETRY_DELAY);
                 }
             }
         }
@@ -228,19 +239,46 @@ async fn notification_delivery_loop(state: AppState) {
     {
         tracing::warn!(%error, "failed to recover notification delivery queue");
     }
-    let mut interval = time::interval(DELIVERY_INTERVAL);
-    interval.tick().await;
+    let mut next_wakeup_ms = Some(time_utils::now_ms());
     loop {
-        tokio::select! {
-            _ = state.shutdown.cancelled() => break,
-            _ = interval.tick() => {}
+        if let Some(deadline_ms) = next_wakeup_ms.take() {
+            let delay_ms = deadline_ms.saturating_sub(time_utils::now_ms()).max(0) as u64;
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = state.notification_delivery_notify.notified() => {}
+                _ = time::sleep(Duration::from_millis(delay_ms)) => {}
+            }
+        } else {
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = state.notification_delivery_notify.notified() => {}
+            }
         }
-        tokio::select! {
+        let result = tokio::select! {
             _ = state.shutdown.cancelled() => break,
-            result = process_ready_deliveries(&state, DELIVERY_BATCH_SIZE) => {
-                if let Err(error) = result {
-                    tracing::warn!(%error, "notification delivery tick failed");
+            result = process_ready_deliveries(&state, DELIVERY_BATCH_SIZE) => result,
+        };
+        match result {
+            Ok(count) if count == DELIVERY_BATCH_SIZE => {
+                next_wakeup_ms = Some(time_utils::now_ms());
+            }
+            Ok(_) => match state
+                .storage
+                .store
+                .next_notification_delivery_ready_at_ms()
+                .await
+            {
+                Ok(deadline) => next_wakeup_ms = deadline,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to read notification delivery deadline");
+                    next_wakeup_ms =
+                        Some(time_utils::now_ms().saturating_add(DELIVERY_RECOVERY_RETRY_DELAY_MS));
                 }
+            },
+            Err(error) => {
+                tracing::warn!(%error, "notification delivery tick failed");
+                next_wakeup_ms =
+                    Some(time_utils::now_ms().saturating_add(DELIVERY_RECOVERY_RETRY_DELAY_MS));
             }
         }
     }

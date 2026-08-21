@@ -179,6 +179,7 @@ pub(super) async fn sync_runtime_after_import(
     }
 
     state.fnos_connect_waf_notify.notify_one();
+    state.request_waf_event_drain_reload();
 
     let cleanup_label = maintenance_backup_text(translator, "syncSteps.legacyAuthLogCleanup");
     match crate::cleanup_legacy_auth_log_storage(state).await {
@@ -189,6 +190,11 @@ pub(super) async fn sync_runtime_after_import(
     let monitor_label = maintenance_backup_text(translator, "syncSteps.systemResourceMonitorReset");
     system_monitor::reset_states(state).await;
     synced_steps.push(monitor_label);
+
+    // Import can enable maintenance that was previously sleeping forever.
+    // Wake it after the restored configuration is fully visible.
+    state.request_auth_mobility_maintenance();
+    state.request_ssh_security_maintenance();
 
     (warnings, synced_steps)
 }

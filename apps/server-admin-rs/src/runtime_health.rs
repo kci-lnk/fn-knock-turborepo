@@ -4,11 +4,13 @@ use std::{
     backtrace::Backtrace,
     collections::{BTreeMap, HashMap, VecDeque},
     fs::{self, File, OpenOptions},
+    future::Future,
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    pin::Pin,
     sync::{
         Arc, Mutex as StdMutex, Once, OnceLock,
-        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicI64, AtomicU8, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -27,8 +29,8 @@ use crate::{
 
 const PROBE_INTERVAL: Duration = Duration::from_secs(5);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
-const SESSION_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
-const STORAGE_TTL_GC_INTERVAL: Duration = Duration::from_secs(5 * 60);
+const RESUME_GAP: Duration = Duration::from_secs(30);
+const RESUME_RECOVERY_GRACE: Duration = Duration::from_secs(120);
 const RUNTIME_STATE_TTL_SECONDS: i64 = 7 * 24 * 60 * 60;
 const SESSION_KEY: &str = "fn_knock:runtime:session:management";
 const GATEWAY_INSTANCE_KEY: &str = "fn_knock:runtime:last_gateway_instance";
@@ -214,6 +216,13 @@ struct RuntimeHealthInner {
     management_abnormal_reported: AtomicBool,
     session_phase: AtomicU8,
     session_write: Mutex<()>,
+    recovery_until_ms: AtomicI64,
+    storage_probe: Mutex<Option<InFlightStorageProbe>>,
+}
+
+struct InFlightStorageProbe {
+    started: Instant,
+    future: Pin<Box<dyn Future<Output = bool> + Send>>,
 }
 
 struct Tracker {
@@ -342,6 +351,8 @@ impl RuntimeHealth {
                 management_abnormal_reported: AtomicBool::new(false),
                 session_phase: AtomicU8::new(SESSION_PHASE_STARTING),
                 session_write: Mutex::new(()),
+                recovery_until_ms: AtomicI64::new(0),
+                storage_probe: Mutex::new(None),
             }),
         })
     }
@@ -457,12 +468,67 @@ impl RuntimeHealth {
             "heartbeat_at": time_utils::now_iso(),
             "state": session_state,
         }))?;
+        let ttl = (session_state == "stopped").then_some(RUNTIME_STATE_TTL_SECONDS);
         state
             .storage
             .store
-            .set_string_value_with_optional_ttl(SESSION_KEY, &raw, Some(RUNTIME_STATE_TTL_SECONDS))
+            .set_string_value_with_optional_ttl(SESSION_KEY, &raw, ttl)
             .await?;
         Ok(())
+    }
+
+    pub(crate) fn recovery_active(&self) -> bool {
+        time_utils::now_ms() < self.inner.recovery_until_ms.load(Ordering::Acquire)
+    }
+
+    pub(crate) async fn component_ready(&self, id: &str) -> bool {
+        self.inner
+            .snapshot
+            .read()
+            .await
+            .components
+            .get(id)
+            .is_some_and(|component| component.status == HealthStatus::Healthy)
+    }
+
+    fn begin_resume_recovery(&self, state: &AppState, gap: Duration) {
+        self.inner.recovery_until_ms.store(
+            time_utils::now_ms() + RESUME_RECOVERY_GRACE.as_millis() as i64,
+            Ordering::Release,
+        );
+        state.set_gateway_config_synced(false);
+        state.request_gateway_config_reconcile();
+        self.inner.logger.log(
+            "WARN",
+            "management",
+            "resume_detected",
+            "platform_resume",
+            Map::from_iter([
+                ("duration_ms".to_string(), json!(gap.as_millis())),
+                ("recovery_kind".to_string(), json!("scheduler_gap")),
+            ]),
+        );
+    }
+
+    async fn run_storage_probe(&self, state: &AppState) -> (bool, u64) {
+        let mut current = self.inner.storage_probe.lock().await;
+        if current.is_none() {
+            let store = state.storage.store.clone();
+            *current = Some(InFlightStorageProbe {
+                started: Instant::now(),
+                future: Box::pin(async move { store.ping().await.is_ok() }),
+            });
+        }
+        let probe = current.as_mut().expect("storage probe initialized");
+        let result = tokio::time::timeout(PROBE_TIMEOUT, &mut probe.future).await;
+        let latency_ms = probe.started.elapsed().as_millis() as u64;
+        match result {
+            Ok(ok) => {
+                current.take();
+                (ok, latency_ms)
+            }
+            Err(_) => (false, latency_ms),
+        }
     }
 
     pub(crate) async fn mark_session_ready(&self, state: &AppState) -> anyhow::Result<()> {
@@ -577,13 +643,9 @@ impl RuntimeHealth {
                     .client
                     .health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
             ),
-            async {
-                let started = Instant::now();
-                let result = tokio::time::timeout(PROBE_TIMEOUT, state.storage.store.ping()).await;
-                (result, started.elapsed().as_millis() as u64)
-            },
+            self.run_storage_probe(state),
         );
-        let (storage, storage_latency_ms) = storage;
+        let (storage_ok, storage_latency_ms) = storage;
 
         let management = ProbeResult {
             ok: true,
@@ -644,8 +706,8 @@ impl RuntimeHealth {
         let gateway_dataplane = bool_probe(dataplane_health, "serving", "not_serving");
         let auth_bridge = bool_probe(auth_health, "connected", "not_connected");
         let storage = ProbeResult {
-            ok: matches!(storage, Ok(Ok(()))),
-            reason_code: if matches!(storage, Ok(Ok(()))) {
+            ok: storage_ok,
+            reason_code: if storage_ok {
                 "sqlite_ping_ok"
             } else {
                 "sqlite_ping_failed"
@@ -669,10 +731,17 @@ impl RuntimeHealth {
             },
         };
 
+        let recovering = self.recovery_active();
         self.apply_probe(state, "management", management, &checked_at)
             .await;
-        self.apply_probe(state, "gateway_process", gateway_process, &checked_at)
-            .await;
+        self.apply_probe_maybe_recovering(
+            state,
+            "gateway_process",
+            gateway_process,
+            &checked_at,
+            recovering,
+        )
+        .await;
         let parent_unhealthy = self
             .inner
             .trackers
@@ -684,16 +753,63 @@ impl RuntimeHealth {
             self.apply_blocked("gateway_dataplane", &checked_at).await;
             self.apply_blocked("auth_bridge", &checked_at).await;
         } else {
-            self.apply_probe(state, "gateway_dataplane", gateway_dataplane, &checked_at)
-                .await;
-            self.apply_probe(state, "auth_bridge", auth_bridge, &checked_at)
-                .await;
+            self.apply_probe_maybe_recovering(
+                state,
+                "gateway_dataplane",
+                gateway_dataplane,
+                &checked_at,
+                recovering,
+            )
+            .await;
+            self.apply_probe_maybe_recovering(
+                state,
+                "auth_bridge",
+                auth_bridge,
+                &checked_at,
+                recovering,
+            )
+            .await;
         }
-        self.apply_probe(state, "storage", storage, &checked_at)
+        self.apply_probe_maybe_recovering(state, "storage", storage, &checked_at, recovering)
             .await;
-        self.apply_probe(state, "config_sync", config_sync, &checked_at)
-            .await;
+        self.apply_probe_maybe_recovering(
+            state,
+            "config_sync",
+            config_sync,
+            &checked_at,
+            recovering,
+        )
+        .await;
         self.publish_snapshot(&checked_at).await;
+        let recovery_complete = if recovering {
+            let snapshot = self.inner.snapshot.read().await;
+            [
+                "gateway_process",
+                "gateway_dataplane",
+                "auth_bridge",
+                "storage",
+                "config_sync",
+            ]
+            .into_iter()
+            .all(|id| {
+                snapshot
+                    .components
+                    .get(id)
+                    .is_some_and(|component| component.status == HealthStatus::Healthy)
+            })
+        } else {
+            false
+        };
+        if recovery_complete {
+            self.inner.recovery_until_ms.store(0, Ordering::Release);
+            self.inner.logger.log(
+                "INFO",
+                "management",
+                "resume_recovered",
+                "platform_resume_recovered",
+                Map::from_iter([("recovery_kind".to_string(), json!("scheduler_gap"))]),
+            );
+        }
         self.observe_gateway_instance(state).await;
         self.flush_pending(state).await;
     }
@@ -893,6 +1009,36 @@ impl RuntimeHealth {
         }
     }
 
+    async fn apply_probe_maybe_recovering(
+        &self,
+        state: &AppState,
+        id: &str,
+        probe: ProbeResult,
+        checked_at: &str,
+        recovering: bool,
+    ) {
+        if !recovering || probe.ok {
+            self.apply_probe(state, id, probe, checked_at).await;
+            return;
+        }
+        let mut trackers = self.inner.trackers.lock().await;
+        let Some(tracker) = trackers.get_mut(id) else {
+            return;
+        };
+        apply_metadata(&mut tracker.health, probe.metadata);
+        tracker.health.last_checked_at = Some(checked_at.to_string());
+        tracker.health.reason_code = Some("resume_recovery".to_string());
+        // A suspend gap suppresses *new* incident escalation. It must not
+        // erase or downgrade an incident that was already unhealthy before
+        // the machine slept; successful probes will recover that incident via
+        // the normal two-success path.
+        if tracker.health.status != HealthStatus::Unhealthy {
+            tracker.health.status = HealthStatus::Degraded;
+        }
+        tracker.health.consecutive_failures = 0;
+        tracker.recovery_successes = 0;
+    }
+
     async fn apply_blocked(&self, id: &str, checked_at: &str) {
         let mut trackers = self.inner.trackers.lock().await;
         let Some(tracker) = trackers.get_mut(id) else {
@@ -954,7 +1100,16 @@ impl RuntimeHealth {
         } else {
             "FN_EVENT_RUNTIME_STARTED"
         };
-        let level = if seen.is_some() { "WARN" } else { "INFO" };
+        let restarted = seen.is_some();
+        let level = if restarted { "WARN" } else { "INFO" };
+        if restarted {
+            // A gateway process has no durable in-memory HostRules state. Do
+            // not keep reporting the old generation as ready after a child
+            // process restart; the singleton reconciler will reread the
+            // latest persisted generation and retry publication.
+            state.set_gateway_config_synced(false);
+            state.request_gateway_config_reconcile();
+        }
         self.publish_lifecycle(
             state,
             event_type,
@@ -1058,6 +1213,9 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
         runtime.inner.logger.flush().await;
         return Err(error);
     }
+    if let Err(error) = state.storage.store.purge_expired_keys().await {
+        tracing::warn!(%error, "failed to purge expired storage keys during startup");
+    }
     runtime
         .publish_lifecycle(
             &state,
@@ -1073,10 +1231,8 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
         let state = task_state;
         let mut probe = tokio::time::interval(PROBE_INTERVAL);
         probe.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut heartbeat = tokio::time::interval(SESSION_HEARTBEAT_INTERVAL);
-        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut storage_gc = tokio::time::interval(STORAGE_TTL_GC_INTERVAL);
-        storage_gc.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut last_probe_tick = Instant::now();
+        let mut last_probe_wall_ms = time_utils::now_ms();
         loop {
             tokio::select! {
                 _ = state.shutdown.cancelled() => {
@@ -1096,29 +1252,19 @@ pub(crate) async fn start_runtime_monitor(state: AppState) -> anyhow::Result<()>
                     runtime.inner.monitor_done.notify_waiters();
                     break;
                 }
-                _ = probe.tick() => runtime.run_probe(&state).await,
-                _ = heartbeat.tick() => {
-                    if runtime.persist_current_session(&state).await.is_err() {
-                        runtime.inner.logger.log(
-                            "ERROR",
-                            "storage",
-                            "session_write_failed",
-                            "runtime_session_heartbeat_failed",
-                            Map::from_iter([("result".to_string(), json!("failed"))]),
-                        );
+                _ = probe.tick() => {
+                    let monotonic_gap = last_probe_tick.elapsed();
+                    let wall_now_ms = time_utils::now_ms();
+                    let wall_gap = Duration::from_millis(
+                        wall_now_ms.saturating_sub(last_probe_wall_ms).max(0) as u64,
+                    );
+                    let observed_gap = monotonic_gap.max(wall_gap);
+                    if observed_gap > RESUME_GAP {
+                        runtime.begin_resume_recovery(&state, observed_gap);
                     }
-                }
-                _ = storage_gc.tick() => {
-                    if let Err(error) = state.storage.store.purge_expired_keys().await {
-                        tracing::warn!(%error, "failed to purge expired storage keys");
-                        runtime.inner.logger.log(
-                            "WARN",
-                            "storage",
-                            "ttl_gc_failed",
-                            "sqlite_ttl_gc_failed",
-                            Map::from_iter([("result".to_string(), json!("failed"))]),
-                        );
-                    }
+                    last_probe_tick = Instant::now();
+                    last_probe_wall_ms = wall_now_ms;
+                    runtime.run_probe(&state).await;
                 }
             }
         }
@@ -1465,6 +1611,11 @@ impl DiagnosticLogger {
                     | "count"
                     | "result"
                     | "protocol_version"
+                    | "failure_class"
+                    | "operation"
+                    | "attempt"
+                    | "retry_delay_ms"
+                    | "recovery_kind"
             )
         });
         let record = json!({
@@ -2240,7 +2391,7 @@ mod tests {
             Some("starting")
         );
         let session_ttl = state.storage.store.ttl_seconds(SESSION_KEY).await.unwrap();
-        assert!(session_ttl > 0 && session_ttl <= RUNTIME_STATE_TTL_SECONDS);
+        assert_eq!(session_ttl, -1);
         let events = state
             .storage
             .store
@@ -2277,6 +2428,8 @@ mod tests {
             .persist_session(&state, "stopped")
             .await
             .unwrap();
+        let stopped_session_ttl = state.storage.store.ttl_seconds(SESSION_KEY).await.unwrap();
+        assert!(stopped_session_ttl > 0 && stopped_session_ttl <= RUNTIME_STATE_TTL_SECONDS);
         state
             .runtime_health
             .initialize_session(&state)
@@ -2289,6 +2442,63 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(events.get("total").and_then(Value::as_i64), Some(0));
+    }
+
+    #[tokio::test]
+    async fn scheduler_gap_enters_recovery_and_forces_a_fresh_gateway_generation() {
+        let (_directory, state) = runtime_test_state().await;
+        state.set_gateway_config_synced(true);
+
+        state
+            .runtime_health
+            .begin_resume_recovery(&state, RESUME_GAP + Duration::from_secs(1));
+
+        assert!(state.runtime_health.recovery_active());
+        assert!(!state.gateway_config_synced());
+        assert!(
+            state
+                .runtime_health
+                .inner
+                .recovery_until_ms
+                .load(Ordering::Acquire)
+                >= time_utils::now_ms() + RESUME_RECOVERY_GRACE.as_millis() as i64 - 1_000
+        );
+    }
+
+    #[tokio::test]
+    async fn resume_recovery_does_not_erase_an_existing_incident() {
+        let (_directory, state) = runtime_test_state().await;
+        {
+            let mut trackers = state.runtime_health.inner.trackers.lock().await;
+            let tracker = trackers.get_mut("storage").unwrap();
+            tracker.health.status = HealthStatus::Unhealthy;
+            tracker.health.consecutive_failures = 9;
+            tracker.incident = Some(Incident {
+                id: "existing-incident".to_string(),
+                started_at_ms: 42,
+            });
+        }
+
+        state
+            .runtime_health
+            .apply_probe_maybe_recovering(
+                &state,
+                "storage",
+                ProbeResult {
+                    ok: false,
+                    reason_code: "sqlite_ping_failed",
+                    metadata: ProbeMetadata::default(),
+                },
+                "2026-08-21T00:00:00.000Z",
+                true,
+            )
+            .await;
+
+        let trackers = state.runtime_health.inner.trackers.lock().await;
+        let tracker = trackers.get("storage").unwrap();
+        assert_eq!(tracker.health.status, HealthStatus::Unhealthy);
+        assert_eq!(tracker.health.consecutive_failures, 0);
+        assert_eq!(tracker.incident.as_ref().unwrap().id, "existing-incident");
     }
 
     #[tokio::test]

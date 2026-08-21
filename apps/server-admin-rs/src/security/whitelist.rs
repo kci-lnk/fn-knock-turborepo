@@ -12,10 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::{
-    net::lookup_host,
-    time::{self, MissedTickBehavior},
-};
+use tokio::{net::lookup_host, time};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
@@ -162,37 +159,31 @@ pub(crate) fn whitelist_openapi_routes() -> OpenApiRouter<AppState> {
 pub fn start_whitelist_tasks(state: AppState) {
     let maintenance_state = state.clone();
     state.spawn_background("whitelist-maintenance", async move {
-        let mut ticker = time::interval(std::time::Duration::from_secs(60));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
+        let mut next_wakeup = Some(now_seconds());
         loop {
-            tokio::select! {
-                _ = maintenance_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
-            }
-            tokio::select! {
-                _ = maintenance_state.shutdown.cancelled() => break,
-                result = run_whitelist_maintenance_once(&maintenance_state) => {
-                    if let Err(error) = result {
-                        tracing::warn!(%error, "whitelist maintenance task failed");
-                    }
+            if let Some(deadline) = next_wakeup.take() {
+                let delay = deadline.saturating_sub(now_seconds()).max(0) as u64;
+                tokio::select! {
+                    _ = maintenance_state.shutdown.cancelled() => break,
+                    _ = maintenance_state.whitelist_maintenance_notify.notified() => {}
+                    _ = time::sleep(std::time::Duration::from_secs(delay)) => {}
+                }
+            } else {
+                tokio::select! {
+                    _ = maintenance_state.shutdown.cancelled() => break,
+                    _ = maintenance_state.whitelist_maintenance_notify.notified() => {}
                 }
             }
-        }
-    });
-    let trusted_ips_state = state.clone();
-    state.spawn_background("whitelist-trusted-ip-sync", async move {
-        let mut ticker = time::interval(std::time::Duration::from_secs(2 * 60));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
-        loop {
-            tokio::select! {
-                _ = trusted_ips_state.shutdown.cancelled() => break,
-                _ = ticker.tick() => {}
-            }
-            tokio::select! {
-                _ = trusted_ips_state.shutdown.cancelled() => break,
-                _ = sync_reverse_proxy_trusted_ips(&trusted_ips_state) => {}
+            let result = tokio::select! {
+                _ = maintenance_state.shutdown.cancelled() => break,
+                result = run_whitelist_maintenance_once(&maintenance_state) => result,
+            };
+            match result {
+                Ok(deadline) => next_wakeup = deadline,
+                Err(error) => {
+                    tracing::warn!(%error, "whitelist maintenance task failed");
+                    next_wakeup = Some(now_seconds().saturating_add(60));
+                }
             }
         }
     });
@@ -623,9 +614,10 @@ fn whitelist_record_ids_by_source(records: &[WhitelistRecord], source: &str) -> 
         .collect()
 }
 
-async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> {
+async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<Option<i64>> {
     let now = now_seconds();
     let mut changed = false;
+    let mut next_due = None;
 
     for record in state.storage.store.list_whitelist_records().await? {
         if record.expire_at.is_some_and(|expire_at| expire_at <= now) {
@@ -643,6 +635,10 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
             continue;
         }
 
+        if let Some(expire_at) = record.expire_at {
+            next_due = Some(next_due.map_or(expire_at, |current: i64| current.min(expire_at)));
+        }
+
         if cname_refresh_due(&record, now) {
             match refresh_cname_record_without_runtime_sync(state, &record.id).await {
                 Ok(Some(result)) => {
@@ -655,8 +651,19 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
                 Ok(None) => {}
                 Err(error) => {
                     tracing::warn!(%error, record_id = %record.id, "failed to refresh due whitelist CNAME record");
+                    let retry_at = now.saturating_add(60);
+                    next_due = Some(next_due.map_or(retry_at, |current| current.min(retry_at)));
                 }
             }
+            let due_at = now
+                .saturating_add(normalize_cname_check_interval(record.check_interval_minutes) * 60);
+            next_due = Some(next_due.map_or(due_at, |current| current.min(due_at)));
+        } else if record.target_type() == "cname" && record.is_active() {
+            let due_at = record
+                .last_checked_at
+                .unwrap_or(now)
+                .saturating_add(normalize_cname_check_interval(record.check_interval_minutes) * 60);
+            next_due = Some(next_due.map_or(due_at, |current| current.min(due_at)));
         }
     }
 
@@ -673,13 +680,15 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
                 cleanup_removed_targets(state, &targets).await;
                 changed = true;
             }
+        } else if let Some(expire_at) = group.expire_at {
+            next_due = Some(next_due.map_or(expire_at, |current| current.min(expire_at)));
         }
     }
 
     if changed {
         sync_reverse_proxy_trusted_ips_required(state).await?;
     }
-    Ok(())
+    Ok(next_due)
 }
 
 fn cname_refresh_due(record: &WhitelistRecord, now: i64) -> bool {
@@ -1351,7 +1360,9 @@ pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
 }
 
 pub async fn sync_reverse_proxy_trusted_ips_required(state: &AppState) -> anyhow::Result<()> {
-    sync_reverse_proxy_trusted_ips_inner(state).await
+    sync_reverse_proxy_trusted_ips_inner(state).await?;
+    state.request_whitelist_maintenance();
+    Ok(())
 }
 
 async fn sync_reverse_proxy_trusted_ips_for_new_grant(state: &AppState) -> anyhow::Result<()> {
@@ -1359,9 +1370,12 @@ async fn sync_reverse_proxy_trusted_ips_for_new_grant(state: &AppState) -> anyho
     // reverse-proxy logins available while the gateway reconnects. Managed
     // host-firewall deployments still require confirmation before granting.
     if direct_firewall_sync_required(state).await? {
-        return sync_reverse_proxy_trusted_ips_inner(state).await;
+        sync_reverse_proxy_trusted_ips_inner(state).await?;
+        state.request_whitelist_maintenance();
+        return Ok(());
     }
     sync_reverse_proxy_trusted_ips(state).await;
+    state.request_whitelist_maintenance();
     Ok(())
 }
 

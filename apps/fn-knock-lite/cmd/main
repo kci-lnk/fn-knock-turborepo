@@ -6,6 +6,7 @@ PKG_VAR_DIR="${TRIM_PKGVAR:-}"
 LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
+READINESS_MARKER="${PKG_VAR_DIR}/runtime.ready"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
 HMAC_SECRET_FILE="${PKG_VAR_DIR}/hmac_secret"
 INTERNAL_RPC_TOKEN_FILE="${PKG_VAR_DIR}/internal_rpc_token"
@@ -23,6 +24,9 @@ AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
 ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
 NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
+START_TIMEOUT_SECONDS="${FN_KNOCK_START_TIMEOUT_SECONDS:-300}"
+STOP_TIMEOUT_SECONDS="${FN_KNOCK_STOP_TIMEOUT_SECONDS:-75}"
+FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_FORCE_KILL_TIMEOUT_SECONDS:-10}"
 
 BACKEND_PORT=""
 ADMIN_VIEW_PORT=""
@@ -67,6 +71,28 @@ supervisor_log() {
   find "${SUPERVISOR_EVENTS_DIR}" -type f -name '*.json' -mtime +7 -exec rm -f {} \; 2>/dev/null || true
     local hints=("${SUPERVISOR_EVENTS_DIR}"/*.json)
     while [ "${#hints[@]}" -gt 32 ]; do rm -f "${hints[0]}"; hints=("${SUPERVISOR_EVENTS_DIR}"/*.json); done
+}
+
+wait_runtime_ready() {
+    local attempts=0
+    local max_attempts=$((START_TIMEOUT_SECONDS * 4))
+    local backend_pid=""
+    local gateway_pid=""
+    while [ "${attempts}" -lt "${max_attempts}" ]; do
+        if [ -f "${READINESS_MARKER}" ]; then
+            log_msg "Runtime readiness confirmed."
+            return 0
+        fi
+        backend_pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
+        gateway_pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+        if ! check_process "${backend_pid}" || ! check_process "${gateway_pid}"; then
+            break
+        fi
+        sleep 0.25
+        attempts=$((attempts + 1))
+    done
+    log_msg "Runtime readiness failed or timed out after ${START_TIMEOUT_SECONDS} seconds."
+    return 1
 }
 
 generate_random_hex() {
@@ -464,6 +490,23 @@ check_process() {
     return 1
 }
 
+validate_lifecycle_timeouts() {
+    local value=""
+    for value in "${START_TIMEOUT_SECONDS}" "${STOP_TIMEOUT_SECONDS}" "${FORCE_KILL_TIMEOUT_SECONDS}"; do
+        case "${value}" in
+            ''|*[!0-9]*|0) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+runtime_pid_file_is_running() {
+    local pid_file="$1"
+    local pid=""
+    pid="$(cat "${pid_file}" 2>/dev/null || true)"
+    check_process "${pid}"
+}
+
 stop_pid() {
     local pid="$1"
     local name="$2"
@@ -479,16 +522,30 @@ stop_pid() {
     fi
 
     log_msg "Stopping ${name} (PID: ${pid})..."
-    kill -TERM "${pid}" 2>>"${LOG_FILE}" || true
-    for _ in $(seq 1 20); do
+    if ! kill -TERM "${pid}" 2>>"${LOG_FILE}"; then
+        log_msg "Failed to send SIGTERM to ${name} (PID: ${pid})."
+        return 1
+    fi
+    for _ in $(seq 1 $((STOP_TIMEOUT_SECONDS * 4))); do
         if ! check_process "${pid}"; then
-            break
+            return 0
         fi
-        sleep 0.5
+        sleep 0.25
     done
     if check_process "${pid}"; then
-        kill -KILL "${pid}" 2>>"${LOG_FILE}" || true
+        log_msg "${name} did not stop gracefully; sending SIGKILL (PID: ${pid})."
+        if ! kill -KILL "${pid}" 2>>"${LOG_FILE}"; then
+            return 1
+        fi
+        for _ in $(seq 1 $((FORCE_KILL_TIMEOUT_SECONDS * 4))); do
+            if ! check_process "${pid}"; then
+                return 0
+            fi
+            sleep 0.25
+        done
     fi
+    log_msg "${name} is still running after the stop deadline (PID: ${pid})."
+    return 1
 }
 
 list_pids_by_keyword() {
@@ -520,7 +577,9 @@ stop_matching_processes() {
         if [ "${pid}" = "$$" ]; then
             continue
         fi
-        stop_pid "${pid}" "${name}"
+        if ! stop_pid "${pid}" "${name}"; then
+            return 1
+        fi
         matched=1
     done
 
@@ -544,7 +603,9 @@ stop_service() {
         return 0
     fi
 
-    stop_pid "${pid}" "${name}"
+    if ! stop_pid "${pid}" "${name}"; then
+        return 1
+    fi
 
     rm -f "${pid_file}"
     log_msg "${name} stopped."
@@ -674,6 +735,7 @@ start_backend() {
         return 1
     fi
     resolve_root_share_dir
+    rm -f "${READINESS_MARKER}"
 
     log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
@@ -697,6 +759,8 @@ start_backend() {
         ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
         HMAC_SECRET="${HMAC_SECRET}" \
         ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET}" \
+        FN_KNOCK_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
+        FN_KNOCK_READY_FILE="${READINESS_MARKER}" \
         "${BACKEND_ENTRY}"
     ) >> "${LOG_FILE}" 2>&1 &
 
@@ -718,6 +782,10 @@ start_backend() {
 }
 
 start() {
+    if ! validate_lifecycle_timeouts; then
+        write_temp_log "invalid fn-knock Lite lifecycle timeout configuration"
+        return 1
+    fi
     if ! ensure_runtime_layout; then
         return 1
     fi
@@ -736,6 +804,20 @@ start() {
     fi
     log_msg "=== fn-knock start ==="
     log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
+    local backend_running=1
+    local gateway_running=1
+    runtime_pid_file_is_running "${BACKEND_PID_FILE}" && backend_running=0
+    runtime_pid_file_is_running "${GATEWAY_PID_FILE}" && gateway_running=0
+    if [ "${backend_running}" -eq 0 ] && [ "${gateway_running}" -eq 0 ] && \
+        [ -f "${READINESS_MARKER}" ]; then
+        log_msg "Runtime is already fully ready."
+        return 0
+    fi
+    if [ "${backend_running}" -eq 0 ] || [ "${gateway_running}" -eq 0 ]; then
+        log_msg "Incomplete runtime detected; stopping it before a clean start."
+        stop || return 1
+    fi
+    rm -f "${READINESS_MARKER}"
     raise_nofile_limit "${NOFILE_LIMIT}" || true
 
     if ! start_gateway; then
@@ -749,15 +831,43 @@ start() {
         fi
         return 1
     fi
+    if ! wait_runtime_ready; then
+        local cleanup_failed=0
+        stop_service "${BACKEND_PID_FILE}" "Backend" || cleanup_failed=1
+        stop_matching_processes "${BACKEND_ENTRY}" "Backend" || cleanup_failed=1
+        stop_service "${GATEWAY_PID_FILE}" "Gateway" || cleanup_failed=1
+        stop_matching_processes "${GATEWAY_BIN}" "Gateway" || cleanup_failed=1
+        if [ "${cleanup_failed}" -eq 0 ]; then
+            rm -f "${READINESS_MARKER}"
+        fi
+        write_temp_log "fn-knock Lite runtime readiness failed; inspect ${LOG_FILE}"
+        return 1
+    fi
     return 0
 }
 
 stop() {
+    if ! validate_lifecycle_timeouts; then
+        return 1
+    fi
     log_msg "=== fn-knock stop ==="
     supervisor_log INFO supervisor stop_requested fnos_lite_stop null
     resolve_gateway_bin >/dev/null 2>&1 || true
-    stop_service "${BACKEND_PID_FILE}" "Backend"
-    stop_service "${GATEWAY_PID_FILE}" "Gateway"
+    if ! stop_service "${BACKEND_PID_FILE}" "Backend"; then
+        return 1
+    fi
+    if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
+        log_msg "Orphaned backend stop failed; refusing to continue shutdown."
+        return 1
+    fi
+    if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then
+        return 1
+    fi
+    if ! stop_matching_processes "${GATEWAY_BIN}" "Gateway"; then
+        log_msg "Orphaned gateway stop failed; refusing to finalize shutdown."
+        return 1
+    fi
+    rm -f "${READINESS_MARKER}"
     stop_external_resources
     return 0
 }

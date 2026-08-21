@@ -60,6 +60,18 @@ pub struct AppStateInner {
     /// this registry is intentionally empty after a restart so stale leases
     /// can be identified and reconciled safely.
     pub(crate) acme_runtime: AcmeRuntimeState,
+    /// Event-driven wakeups for durable queues. Workers perform one recovery
+    /// pass at startup, then sleep until producers enqueue work or the
+    /// persisted earliest retry deadline arrives.
+    pub(crate) notification_dispatch_notify: Notify,
+    pub(crate) notification_delivery_notify: Notify,
+    pub(crate) ip_location_notify: Notify,
+    pub(crate) auth_mobility_notify: Notify,
+    pub(crate) whitelist_maintenance_notify: Notify,
+    pub(crate) system_monitor_reload_notify: Notify,
+    pub(crate) waf_event_drain_reload_notify: Notify,
+    pub(crate) terminal_cleanup_notify: Notify,
+    pub(crate) ssh_security_maintenance_notify: Notify,
     pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
     /// Serializes the Go loopback listener, dual-stack firewall rules and
@@ -107,6 +119,10 @@ pub struct GatewayState {
     /// Tracks whether the latest complete HostRules snapshot was accepted by
     /// the matching Go gateway. Readiness must not hide a failed config sync.
     config_synced: AtomicBool,
+    /// Wakes the single HostRules reconciler after a transient apply failure
+    /// or a platform resume. Notify retains a permit when the worker is not
+    /// currently waiting, so recovery requests are not lost during startup.
+    config_reconcile_notify: Notify,
 }
 
 pub struct StorageState {
@@ -162,6 +178,7 @@ impl GatewayState {
             protocol_mapping_update_lock: Mutex::new(()),
             memory_update_lock: Mutex::new(()),
             config_synced: AtomicBool::new(false),
+            config_reconcile_notify: Notify::new(),
         }
     }
 }
@@ -442,6 +459,15 @@ impl AppState {
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
                 acme_runtime: AcmeRuntimeState::default(),
+                notification_dispatch_notify: Notify::new(),
+                notification_delivery_notify: Notify::new(),
+                ip_location_notify: Notify::new(),
+                auth_mobility_notify: Notify::new(),
+                whitelist_maintenance_notify: Notify::new(),
+                system_monitor_reload_notify: Notify::new(),
+                waf_event_drain_reload_notify: Notify::new(),
+                terminal_cleanup_notify: Notify::new(),
+                ssh_security_maintenance_notify: Notify::new(),
                 ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
                 fnos_connect_waf_update_lock: Mutex::new(()),
@@ -541,6 +567,50 @@ impl AppState {
 
     pub(crate) fn gateway_config_synced(&self) -> bool {
         self.gateway.config_synced.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn request_gateway_config_reconcile(&self) {
+        self.gateway.config_reconcile_notify.notify_one();
+    }
+
+    pub(crate) async fn gateway_config_reconcile_requested(&self) {
+        self.gateway.config_reconcile_notify.notified().await;
+    }
+
+    pub(crate) fn request_notification_dispatch(&self) {
+        self.notification_dispatch_notify.notify_one();
+    }
+
+    pub(crate) fn request_notification_delivery(&self) {
+        self.notification_delivery_notify.notify_one();
+    }
+
+    pub(crate) fn request_ip_location_processing(&self) {
+        self.ip_location_notify.notify_one();
+    }
+
+    pub(crate) fn request_auth_mobility_maintenance(&self) {
+        self.auth_mobility_notify.notify_one();
+    }
+
+    pub(crate) fn request_whitelist_maintenance(&self) {
+        self.whitelist_maintenance_notify.notify_one();
+    }
+
+    pub(crate) fn request_system_monitor_reload(&self) {
+        self.system_monitor_reload_notify.notify_one();
+    }
+
+    pub(crate) fn request_waf_event_drain_reload(&self) {
+        self.waf_event_drain_reload_notify.notify_one();
+    }
+
+    pub(crate) fn request_terminal_cleanup(&self) {
+        self.terminal_cleanup_notify.notify_one();
+    }
+
+    pub(crate) fn request_ssh_security_maintenance(&self) {
+        self.ssh_security_maintenance_notify.notify_one();
     }
 
     pub(crate) async fn set_browser_locale(&self, value: &Value) {

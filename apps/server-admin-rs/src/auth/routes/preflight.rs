@@ -442,7 +442,7 @@ pub(super) async fn resolve_preflight_normal_access(
     if has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["auto"])).await? {
         let mobility =
             resolve_auto_ip_subdomain_access(state, headers, uri, config, client_ip).await?;
-        if mobility.protected_host && (!mobility.has_owner_session || !mobility.allowed) {
+        if mobility.protected_host && mobility.has_owner_session && !mobility.allowed {
             return Ok(PreflightNormalAccess {
                 authorized: false,
                 deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
@@ -451,13 +451,19 @@ pub(super) async fn resolve_preflight_normal_access(
                 ..Default::default()
             });
         }
-        return Ok(PreflightNormalAccess {
-            authorized: true,
-            grant_type: Some("login_ip_grant".to_string()),
-            invalid_session_cookie,
-            response_headers: mobility.response_headers,
-            ..Default::default()
-        });
+        if !mobility.protected_host || mobility.has_owner_session {
+            return Ok(PreflightNormalAccess {
+                authorized: true,
+                grant_type: Some("login_ip_grant".to_string()),
+                invalid_session_cookie,
+                response_headers: mobility.response_headers,
+                ..Default::default()
+            });
+        }
+        // A compiled auto-whitelist snapshot can briefly outlive its owner
+        // session while expiry cleanup waits for the mobility lease. Keep the
+        // orphan grant fail-closed, but do not misclassify the missing identity
+        // as a live credential whose subdomain scope denied the request.
     }
 
     if access_mode != RequestedAccessMode::StrictWhitelist && identity.has_app_mobility_signal() {

@@ -1033,6 +1033,130 @@ async fn expired_session_response_is_not_blocked_by_held_mobility_lease() {
 }
 
 #[tokio::test]
+async fn expired_follow_session_auto_grant_is_unauthorized_instead_of_scope_denied() {
+    let (_directory, state) = auth_route_test_state("expired-follow-session-auto-grant").await;
+    let session_id = "expired-follow-session-auto-grant";
+    let client_ip = "203.0.113.13";
+    let expiry_seconds = time_utils::now_ms().div_euclid(1_000) + 1;
+    let mut session = auth_route_test_session(
+        client_ip,
+        &time_utils::iso_from_ms(expiry_seconds.saturating_mul(1_000)),
+    );
+    session.grant_type = Some("login_ip_grant".to_string());
+    session.post_login_ip_grant_mode = Some("follow_session".to_string());
+    state
+        .storage
+        .store
+        .add_session(session_id, &session, 3_600)
+        .await
+        .expect("store expiring follow-session fixture");
+
+    let owner_key = format!("auth-mobility:active-ip:{session_id}:{client_ip}");
+    let owner_record_key = crate::whitelist::whitelist_auto_owner_record_key(&owner_key);
+    let record_id = "whitelist:expired-follow-session-auto-grant";
+    assert!(
+        state
+            .storage
+            .store
+            .add_auth_mobility_pending_whitelist(session_id, record_id, &owner_record_key, 3_600,)
+            .await
+            .expect("store auto-whitelist reverse index")
+    );
+    let deferred = crate::whitelist::ensure_pending_session_auto_whitelist(
+        &state,
+        &owner_key,
+        client_ip,
+        Some(expiry_seconds),
+        Some("follow session".to_string()),
+        None,
+        record_id,
+    )
+    .await
+    .expect("store pending follow-session whitelist");
+    crate::whitelist::publish_deferred_session_auto_whitelist(&state, deferred)
+        .await
+        .expect("publish follow-session whitelist");
+    crate::whitelist::rebuild_whitelist_ipset_snapshots(&state)
+        .await
+        .expect("publish automatic whitelist snapshot");
+
+    let lock_key = crate::auth_mobility_keys::session_mutation_lock_key(session_id);
+    assert!(
+        state
+            .storage
+            .store
+            .set_json_value_nx_ex(
+                &lock_key,
+                &json!({ "lockId": "held-by-another-request" }),
+                60,
+            )
+            .await
+            .expect("hold session mutation lock")
+    );
+    let wait_ms = expiry_seconds
+        .saturating_mul(1_000)
+        .saturating_sub(time_utils::now_ms())
+        .saturating_add(50) as u64;
+    tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
+
+    let mut headers = forwarded_headers("app.example.com");
+    headers.insert("x-forwarded-path", HeaderValue::from_static("/__select__"));
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_static("x-go-reauth-proxy-session-id=expired-follow-session-auto-grant"),
+    );
+    headers.insert("x-forwarded-for", HeaderValue::from_static("203.0.113.13"));
+
+    let response = verify(
+        State(state.clone()),
+        headers,
+        Uri::from_static("/__select__"),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let cookies = response_set_cookies(&response);
+    assert_eq!(cookies.len(), 3);
+    assert!(cookies.iter().all(|cookie| cookie.contains("Max-Age=0")));
+    assert!(cookies.iter().any(|cookie| !cookie.contains("Domain=")));
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=example.com"))
+    );
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=app.example.com"))
+    );
+    assert!(
+        response
+            .headers()
+            .get(REAUTH_ACCESS_DENIED_HEADER)
+            .is_none()
+    );
+    assert!(
+        state
+            .storage
+            .store
+            .get_session(session_id)
+            .await
+            .expect("read expired session after verify")
+            .is_none()
+    );
+    assert!(
+        state
+            .storage
+            .store
+            .get_whitelist_record(record_id)
+            .await
+            .expect("read stale auto-whitelist record")
+            .is_some(),
+        "the regression must exercise a stale compiled auto-whitelist while cleanup is blocked"
+    );
+}
+
+#[tokio::test]
 async fn bootstrap_migrates_valid_auth_host_session_to_shared_cookie_domain() {
     let (_directory, state) = auth_route_test_state("shared-cookie-migration").await;
     let session_id = "valid-auth-host-session";

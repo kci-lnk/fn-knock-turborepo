@@ -56,6 +56,7 @@ const DELIVERIES_INDEX_KEY: &str = "fn_knock:notifications:deliveries:index";
 const DELIVERIES_DATA_PREFIX: &str = "fn_knock:notifications:deliveries:data:";
 const HISTORY_RETENTION_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(3000);
+const IP_LOCATION_NOTIFICATION_WAIT_MS: i64 = 30_000;
 const DELIVERY_INTERVAL: Duration = Duration::from_millis(1500);
 const STREAM_BATCH_SIZE: usize = 50;
 const DELIVERY_BATCH_SIZE: usize = 10;

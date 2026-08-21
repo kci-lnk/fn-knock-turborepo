@@ -154,6 +154,21 @@ impl TypedEventRepository {
         Ok(())
     }
 
+    pub(crate) fn update_event_json_tx(
+        tx: &Transaction<'_>,
+        id: &str,
+        event_json: &str,
+    ) -> StorageResult<bool> {
+        let _: Value = serde_json::from_str(event_json)?;
+        let updated = tx.execute(
+            "UPDATE system_event_documents
+             SET event_json = ?2, updated_at_ms = ?3
+             WHERE id = ?1",
+            params![id, event_json, crate::time_utils::now_ms()],
+        )?;
+        Ok(updated > 0)
+    }
+
     pub(crate) fn delete_tx(tx: &Transaction<'_>, ids: &[String]) -> StorageResult<()> {
         for id in ids {
             tx.execute("DELETE FROM system_event_documents WHERE id = ?1", [id])?;

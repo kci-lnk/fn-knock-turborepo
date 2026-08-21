@@ -976,7 +976,7 @@ async fn sync_system_event(
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
     let key = format!("fn_knock:events:data:{event_id}");
-    let (Some(mut event), ttl) = state.storage.store.get_json_value_with_ttl(&key).await? else {
+    let (Some(mut event), _) = state.storage.store.get_json_value_with_ttl(&key).await? else {
         return Ok(false);
     };
     let event_type = event
@@ -989,7 +989,7 @@ async fn sync_system_event(
     };
     let mut matched = false;
     let mut updated = false;
-    for &(ip_key, location_key) in system_event_ip_fields(&event_type) {
+    for &(ip_key, location_key) in crate::events::system_event_ip_fields(Some(&event_type)) {
         let ip = payload.get(ip_key).and_then(Value::as_str).unwrap_or("");
         if http_utils::normalize_ip(ip) != result.normalized_ip {
             continue;
@@ -1015,27 +1015,9 @@ async fn sync_system_event(
     state
         .storage
         .store
-        .set_json_value_preserve_ttl(&key, &event, ttl)
-        .await?;
-    Ok(true)
-}
-
-fn system_event_ip_fields(event_type: &str) -> &'static [(&'static str, &'static str)] {
-    match event_type {
-        "FN_EVENT_AUTH_SESSION_IP_DRIFT" => {
-            &[("from_ip", "from_ip_location"), ("to_ip", "to_ip_location")]
-        }
-        "FN_EVENT_AUTH_LOGIN_SUCCESS"
-        | "FN_EVENT_AUTH_LOGOUT"
-        | "FN_EVENT_AUTH_LOGIN_FAILURE"
-        | "FN_EVENT_SECURITY_SCANNER_BLOCKED"
-        | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
-        | "FN_EVENT_WAF_BLOCKED"
-        | "FN_EVENT_SSH_LOGIN_SUCCESS"
-        | "FN_EVENT_SSH_LOGIN_FAILURE"
-        | "FN_EVENT_SSH_IP_BLOCKED" => &[("ip", "ip_location")],
-        _ => &[],
-    }
+        .update_system_event_document(&event)
+        .await
+        .map_err(Into::into)
 }
 
 fn record_matches_ip(record: &Value, normalized_ip: &str, field: &str) -> bool {
@@ -1161,14 +1143,18 @@ mod tests {
     #[test]
     fn exposes_system_event_ip_field_mapping() {
         assert_eq!(
-            system_event_ip_fields("FN_EVENT_AUTH_SESSION_IP_DRIFT"),
+            crate::events::system_event_ip_fields(Some("FN_EVENT_AUTH_SESSION_IP_DRIFT")),
             &[("from_ip", "from_ip_location"), ("to_ip", "to_ip_location")]
         );
         assert_eq!(
-            system_event_ip_fields("FN_EVENT_AUTH_LOGIN_FAILURE"),
+            crate::events::system_event_ip_fields(Some("FN_EVENT_AUTH_LOGIN_FAILURE")),
             &[("ip", "ip_location")]
         );
-        assert!(system_event_ip_fields("OTHER").is_empty());
+        assert_eq!(
+            crate::events::system_event_ip_fields(Some("FN_EVENT_GATEWAY_VISIBILITY_BLOCKED")),
+            &[("ip", "ip_location")]
+        );
+        assert!(crate::events::system_event_ip_fields(Some("OTHER")).is_empty());
     }
 
     #[test]

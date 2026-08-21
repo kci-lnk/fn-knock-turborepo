@@ -21,9 +21,12 @@ pub(super) fn build_notification_aggregation_text(
 pub(super) fn build_notification_body_text(
     overview: &str,
     aggregation: &str,
-    advice: &str,
+    _advice: &str,
 ) -> String {
-    [overview, aggregation, advice]
+    // The title and summary already identify the event. Keep provider payloads
+    // focused on event-specific context and aggregation, without repeating the
+    // generic remediation paragraph on every push.
+    [overview, aggregation]
         .into_iter()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -34,32 +37,16 @@ pub(super) fn build_notification_body_text(
 pub(super) fn build_notification_body_markdown(
     overview: &str,
     aggregation: &str,
-    advice: &str,
-    translator: &Translator,
+    _advice: &str,
+    _translator: &Translator,
 ) -> String {
-    let mut sections = Vec::new();
-    if !overview.trim().is_empty() {
-        sections.push(format!(
-            "**{}**\n{}",
-            notification_template_text(translator, "sections.overview", &[]),
-            escape_notification_markdown_text(overview.trim())
-        ));
-    }
-    if !aggregation.trim().is_empty() {
-        sections.push(format!(
-            "**{}**\n{}",
-            notification_template_text(translator, "sections.aggregation", &[]),
-            escape_notification_markdown_text(aggregation.trim())
-        ));
-    }
-    if !advice.trim().is_empty() {
-        sections.push(format!(
-            "**{}**\n{}",
-            notification_template_text(translator, "sections.advice", &[]),
-            escape_notification_markdown_text(advice.trim())
-        ));
-    }
-    sections.join("\n\n")
+    [overview, aggregation]
+        .into_iter()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(escape_notification_markdown_text)
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 pub(super) fn escape_notification_markdown_text(value: &str) -> String {
@@ -191,6 +178,24 @@ pub(super) fn format_ip_transition(previous_ip: &str, next_ip: &str) -> String {
     } else {
         next_ip.to_string()
     }
+}
+
+pub(super) fn format_notification_ip_with_location(
+    ip: &str,
+    location: &str,
+    translator: &Translator,
+) -> String {
+    let ip = ip.trim();
+    let location = location.trim();
+    if ip.is_empty() || location.is_empty() {
+        return ip.to_string();
+    }
+    let suffix = notification_detail_text(
+        translator,
+        "parenthesized",
+        &[("value", location.to_string())],
+    );
+    format!("{ip}{suffix}")
 }
 
 pub(super) fn read_session_comment(event: &Value, translator: &Translator) -> String {

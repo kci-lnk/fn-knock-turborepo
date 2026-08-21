@@ -44,8 +44,8 @@ export const resolveSystemEventOrigins = (
     });
   };
   if (event.type === "FN_EVENT_AUTH_SESSION_IP_DRIFT") {
+    pushOrigin("from_ip", "from_ip_location");
     pushOrigin("to_ip", "to_ip_location");
-    if (origins.length === 0) pushOrigin("from_ip", "from_ip_location");
   } else {
     pushOrigin("ip", "ip_location");
   }

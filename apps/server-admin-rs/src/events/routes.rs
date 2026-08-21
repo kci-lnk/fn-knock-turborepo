@@ -9,8 +9,8 @@ use serde_json::{Map, Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
-    http_utils::normalize_ip, i18n::Translator, ip_location, oidc_admin::oidc_get_provider,
-    response, state::AppState, time_utils,
+    events::system_event_ip_fields, http_utils::normalize_ip, i18n::Translator, ip_location,
+    oidc_admin::oidc_get_provider, response, state::AppState, time_utils,
 };
 
 pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
@@ -858,8 +858,9 @@ async fn publish_system_event_body(
     }
 
     let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
-    let event = build_event_envelope(body, subject, dedupe_key);
-    state
+    let mut event = build_event_envelope(body, subject, dedupe_key);
+    hydrate_system_event_ip_locations_for_write(state, std::slice::from_mut(&mut event)).await;
+    let written = state
         .storage
         .store
         .append_system_event_if_dedupe_available(
@@ -870,7 +871,11 @@ async fn publish_system_event_body(
             dedupe_ttl_seconds,
         )
         .await
-        .map_err(Into::into)
+        .map_err(anyhow::Error::from)?;
+    if written {
+        hydrate_system_event_ip_locations(state, std::slice::from_mut(&mut event)).await;
+    }
+    Ok(written)
 }
 
 #[utoipa::path(
@@ -941,7 +946,8 @@ async fn publish_internal_event(
     }
 
     let (dedupe_key, dedupe_ttl_seconds) = resolve_system_event_dedupe(&body);
-    let event = build_event_envelope(body, subject, dedupe_key);
+    let mut event = build_event_envelope(body, subject, dedupe_key);
+    hydrate_system_event_ip_locations_for_write(&state, std::slice::from_mut(&mut event)).await;
     match state
         .storage
         .store
@@ -955,7 +961,6 @@ async fn publish_internal_event(
         .await
     {
         Ok(true) => {
-            let mut event = event;
             hydrate_system_event_ip_locations(&state, std::slice::from_mut(&mut event)).await;
             Json(json!({ "success": true, "skipped": false, "data": event })).into_response()
         }
@@ -1430,9 +1435,32 @@ fn parse_positive_int(value: Option<&str>, fallback: i64) -> i64 {
         .unwrap_or(fallback)
 }
 
-async fn hydrate_system_event_ip_locations(state: &AppState, events: &mut [Value]) {
+#[derive(Default)]
+pub(crate) struct SystemEventIpHydration {
+    pub(crate) pending: bool,
+}
+
+pub(crate) async fn hydrate_system_event_ip_locations(
+    state: &AppState,
+    events: &mut [Value],
+) -> SystemEventIpHydration {
+    hydrate_system_event_ip_locations_inner(state, events, true).await
+}
+
+async fn hydrate_system_event_ip_locations_for_write(
+    state: &AppState,
+    events: &mut [Value],
+) -> SystemEventIpHydration {
+    hydrate_system_event_ip_locations_inner(state, events, false).await
+}
+
+async fn hydrate_system_event_ip_locations_inner(
+    state: &AppState,
+    events: &mut [Value],
+    track_references: bool,
+) -> SystemEventIpHydration {
     if events.is_empty() {
-        return;
+        return SystemEventIpHydration::default();
     }
 
     let mut refs_by_ip = std::collections::BTreeMap::<String, Vec<String>>::new();
@@ -1441,11 +1469,23 @@ async fn hydrate_system_event_ip_locations(state: &AppState, events: &mut [Value
         if id.is_empty() {
             continue;
         }
-        for &(ip_key, _) in system_event_ip_fields(event.get("type").and_then(Value::as_str)) {
-            let raw_ip = event
-                .get("payload")
-                .and_then(Value::as_object)
-                .and_then(|payload| payload.get(ip_key))
+        for &(ip_key, location_key) in
+            system_event_ip_fields(event.get("type").and_then(Value::as_str))
+        {
+            let Some(payload) = event.get("payload").and_then(Value::as_object) else {
+                continue;
+            };
+            if !payload
+                .get(location_key)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .is_empty()
+            {
+                continue;
+            }
+            let raw_ip = payload
+                .get(ip_key)
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .trim();
@@ -1457,25 +1497,35 @@ async fn hydrate_system_event_ip_locations(state: &AppState, events: &mut [Value
                 continue;
             }
             let refs = refs_by_ip.entry(normalized_ip).or_default();
-            let reference = format!("system-event|{id}");
-            if !refs.iter().any(|item| item == &reference) {
-                refs.push(reference);
+            if track_references {
+                let reference = format!("system-event|{id}");
+                if !refs.iter().any(|item| item == &reference) {
+                    refs.push(reference);
+                }
             }
         }
     }
 
+    let mut hydration = SystemEventIpHydration::default();
     let mut locations = std::collections::BTreeMap::<String, String>::new();
     for (ip, refs) in refs_by_ip {
         match ip_location::register_usage(state, &ip, refs).await {
             Ok(location) if !location.trim().is_empty() => {
                 locations.insert(ip, location);
             }
-            Ok(_) => {}
+            Ok(_) => {
+                if let Ok(snapshot) = ip_location::get_ip_location_snapshot(state, &ip).await {
+                    hydration.pending |= snapshot
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .is_some_and(|status| matches!(status, "idle" | "queued" | "processing"));
+                }
+            }
             Err(error) => tracing::debug!(%error, ip, "failed to hydrate system event IP location"),
         }
     }
     if locations.is_empty() {
-        return;
+        return hydration;
     }
 
     for event in events {
@@ -1503,25 +1553,7 @@ async fn hydrate_system_event_ip_locations(state: &AppState, events: &mut [Value
             }
         }
     }
-}
-
-fn system_event_ip_fields(event_type: Option<&str>) -> &'static [(&'static str, &'static str)] {
-    match event_type.unwrap_or("") {
-        "FN_EVENT_AUTH_SESSION_IP_DRIFT" => {
-            &[("from_ip", "from_ip_location"), ("to_ip", "to_ip_location")]
-        }
-        "FN_EVENT_AUTH_LOGIN_SUCCESS"
-        | "FN_EVENT_AUTH_LOGOUT"
-        | "FN_EVENT_AUTH_LOGIN_FAILURE"
-        | "FN_EVENT_SECURITY_SCANNER_BLOCKED"
-        | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED"
-        | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED"
-        | "FN_EVENT_WAF_BLOCKED"
-        | "FN_EVENT_SSH_LOGIN_SUCCESS"
-        | "FN_EVENT_SSH_LOGIN_FAILURE"
-        | "FN_EVENT_SSH_IP_BLOCKED" => &[("ip", "ip_location")],
-        _ => &[],
-    }
+    hydration
 }
 
 fn is_allowed(allowed: &[&str], value: &str) -> bool {

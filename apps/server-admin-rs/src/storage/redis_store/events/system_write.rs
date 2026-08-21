@@ -218,6 +218,49 @@ impl Store {
             .await
     }
 
+    /// Updates an existing event in both the compatibility keyspace and typed
+    /// repository without changing its retention or stream identity.
+    pub async fn update_system_event_document(
+        &self,
+        event: &Value,
+    ) -> crate::storage::StorageResult<bool> {
+        let event_id = event.get("id").and_then(Value::as_str).unwrap_or("").trim();
+        if event_id.is_empty() {
+            return Ok(false);
+        }
+        let event_id = event_id.to_string();
+        let serialized = serde_json::to_string(event)?;
+        self.conn()
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                let data_key = system_event_data_key(&event_id);
+                let ttl = match system_event_command_tx(&tx, "TTL", vec![data_key.clone()])? {
+                    redis::CmdOutput::Int(ttl) => ttl,
+                    _ => {
+                        return Err(crate::storage::storage_error(
+                            "unexpected system event data TTL",
+                        ));
+                    }
+                };
+                if ttl == -2 || ttl == 0 {
+                    return Ok(false);
+                }
+                if !TypedEventRepository::update_event_json_tx(&tx, &event_id, &serialized)? {
+                    return Err(crate::storage::storage_error(
+                        "typed system event document is missing",
+                    ));
+                }
+                if ttl > 0 {
+                    command_ok_tx(&tx, "SETEX", vec![data_key, ttl.to_string(), serialized])?;
+                } else {
+                    command_ok_tx(&tx, "SET", vec![data_key, serialized])?;
+                }
+                tx.commit()?;
+                Ok(true)
+            })
+            .await
+    }
+
     pub(crate) async fn rebuild_typed_system_events_from_legacy(
         &self,
     ) -> crate::storage::StorageResult<()> {

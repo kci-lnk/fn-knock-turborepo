@@ -52,9 +52,21 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
         .store
         .read_system_event_stream_after(&last_stream_id, STREAM_BATCH_SIZE)
         .await?;
-    for (stream_id, event) in items {
-        if let Err(error) = handle_notification_event(state, &event).await {
-            tracing::warn!(%error, stream_id, "failed to fan out notification event");
+    if items.is_empty() {
+        return Ok(());
+    }
+    let rules = load_rules(state).await?;
+    for (stream_id, mut event) in items {
+        match handle_notification_event(state, &mut event, &rules, &stream_id).await {
+            Ok(NotificationEventDisposition::Completed) => {}
+            Ok(NotificationEventDisposition::WaitingForIpLocation) => break,
+            Err(error) => {
+                // Stable trigger and delivery IDs make retrying safe. Keep the
+                // cursor on this event so a transient storage/provider setup
+                // failure cannot silently drop its notification.
+                tracing::warn!(%error, stream_id, "failed to fan out notification event");
+                break;
+            }
         }
         state
             .storage
@@ -65,23 +77,46 @@ pub(super) async fn notification_dispatch_tick_locked(state: &AppState) -> anyho
     Ok(())
 }
 
-pub(super) async fn handle_notification_event(
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NotificationEventDisposition {
+    Completed,
+    WaitingForIpLocation,
+}
+
+pub(super) fn should_wait_for_ip_location(stream_id: &str, now_ms: i64) -> bool {
+    stream_id
+        .split_once('-')
+        .and_then(|(milliseconds, _)| milliseconds.parse::<i64>().ok())
+        .is_some_and(|received_at| {
+            now_ms.saturating_sub(received_at) < IP_LOCATION_NOTIFICATION_WAIT_MS
+        })
+}
+
+async fn handle_notification_event(
     state: &AppState,
-    event: &Value,
-) -> anyhow::Result<()> {
-    let rules = load_rules(state).await?;
+    event: &mut Value,
+    rules: &[Value],
+    stream_id: &str,
+) -> anyhow::Result<NotificationEventDisposition> {
     let matching_rules = rules
-        .into_iter()
+        .iter()
         .filter(|rule| event_matches_notification_rule(event, rule))
+        .cloned()
         .collect::<Vec<_>>();
     if matching_rules.is_empty() {
-        return Ok(());
+        return Ok(NotificationEventDisposition::Completed);
+    }
+
+    let hydration =
+        crate::events::hydrate_system_event_ip_locations(state, std::slice::from_mut(event)).await;
+    if hydration.pending && should_wait_for_ip_location(stream_id, time_utils::now_ms()) {
+        return Ok(NotificationEventDisposition::WaitingForIpLocation);
     }
 
     for rule in matching_rules {
         fanout_notification_rule(state, event, rule).await?;
     }
-    Ok(())
+    Ok(NotificationEventDisposition::Completed)
 }
 
 pub(super) async fn fanout_notification_rule(

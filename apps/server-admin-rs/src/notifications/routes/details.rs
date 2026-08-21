@@ -41,6 +41,7 @@ pub(super) fn build_notification_details(
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
             let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let auth_method_raw = read_payload_value(event, "auth_method");
             let auth_provider_name = read_payload_value(event, "auth_provider_name");
             let auth_method = format_auth_method_label(&auth_method_raw, translator);
@@ -105,7 +106,7 @@ pub(super) fn build_notification_details(
                     &[
                         ("credential", credential_name.clone()),
                         ("method", login_method_text),
-                        ("ip", ip.clone()),
+                        ("ip", ip_display.clone()),
                         ("totpPart", totp_part),
                     ],
                 )
@@ -123,14 +124,14 @@ pub(super) fn build_notification_details(
                         ),
                         ("credential", credential_name.clone()),
                         ("totp", linked_totp_name.clone()),
-                        ("ip", ip.clone()),
+                        ("ip", ip_display.clone()),
                     ],
                 )
             } else {
                 notification_detail_text(
                     translator,
                     "authLoginSuccess.summaryCredential",
-                    &[("credential", credential_name.clone()), ("ip", ip.clone())],
+                    &[("credential", credential_name.clone()), ("ip", ip_display)],
                 )
             };
             summary = append_session_comment(base_summary, &session_comment, translator);
@@ -335,6 +336,8 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let attempts = default_string(read_payload_value(event, "attempts"), "0");
             let retry_after = read_payload_value(event, "retry_after_seconds");
             let blocked_until =
@@ -346,7 +349,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "authLoginFailure.summary",
-                &[("ip", ip.clone()), ("attempts", attempts.clone())],
+                &[("ip", ip_display.clone()), ("attempts", attempts.clone())],
             );
             let retry_part = if retry_after.is_empty() {
                 String::new()
@@ -370,7 +373,7 @@ pub(super) fn build_notification_details(
                 translator,
                 "authLoginFailure.overview",
                 &[
-                    ("ip", ip.clone()),
+                    ("ip", ip_display),
                     ("retryPart", retry_part),
                     ("blockedPart", blocked_part),
                 ],
@@ -381,6 +384,11 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "sourceIp"),
                 ip,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "ipLocation"),
+                ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -427,6 +435,12 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "to_ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let from_ip_location = read_payload_value(event, "from_ip_location");
+            let to_ip_location = read_payload_value(event, "to_ip_location");
+            let from_ip_display =
+                format_notification_ip_with_location(&from_ip, &from_ip_location, translator);
+            let to_ip_display =
+                format_notification_ip_with_location(&to_ip, &to_ip_location, translator);
             let source =
                 format_drift_source_label(&read_payload_value(event, "drift_source"), translator);
             let session_label = format_credential_context(
@@ -441,8 +455,8 @@ pub(super) fn build_notification_details(
                     "authSessionIpDrift.summary",
                     &[
                         ("session", session_label.clone()),
-                        ("fromIp", from_ip.clone()),
-                        ("toIp", to_ip.clone()),
+                        ("fromIp", from_ip_display),
+                        ("toIp", to_ip_display),
                     ],
                 ),
                 &session_comment,
@@ -496,7 +510,7 @@ pub(super) fn build_notification_details(
             push_notification_fact(
                 &mut facts,
                 notification_fact_label(translator, "originalLocation"),
-                read_payload_value(event, "from_ip_location"),
+                from_ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -506,7 +520,7 @@ pub(super) fn build_notification_details(
             push_notification_fact(
                 &mut facts,
                 notification_fact_label(translator, "currentLocation"),
-                read_payload_value(event, "to_ip_location"),
+                to_ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -529,6 +543,8 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let window_minutes = default_string(read_payload_value(event, "window_minutes"), "0");
             let hit_count = default_string(read_payload_value(event, "hit_count"), "0");
             let threshold = default_string(read_payload_value(event, "threshold"), "0");
@@ -540,7 +556,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "securityScannerBlocked.summary",
-                &[("ip", ip.clone())],
+                &[("ip", ip_display)],
             );
             let paths_part = if scanner_paths.is_empty() {
                 String::new()
@@ -571,7 +587,7 @@ pub(super) fn build_notification_details(
             push_notification_fact(
                 &mut facts,
                 notification_fact_label(translator, "ipLocation"),
-                read_payload_value(event, "ip_location"),
+                ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -747,6 +763,8 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let block_seconds = default_string(read_payload_value(event, "block_seconds"), "0");
             let requests_per_second =
                 default_string(read_payload_value(event, "requests_per_second"), "0");
@@ -757,7 +775,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "gatewayThrottleBlocked.summary",
-                &[("ip", ip.clone()), ("seconds", block_seconds.clone())],
+                &[("ip", ip_display), ("seconds", block_seconds.clone())],
             );
             let target_part = if host.is_empty() && path.is_empty() {
                 String::new()
@@ -783,6 +801,11 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "sourceIp"),
                 ip,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "ipLocation"),
+                ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -830,6 +853,8 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let host = read_payload_value(event, "host");
             let path = read_payload_value(event, "path");
             let method = read_payload_value(event, "method");
@@ -857,7 +882,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "gatewayVisibilityBlocked.summary",
-                &[("ip", ip.clone()), ("host", host.clone())],
+                &[("ip", ip_display.clone()), ("host", host.clone())],
             );
             let path_part = if path.is_empty() {
                 String::new()
@@ -881,7 +906,7 @@ pub(super) fn build_notification_details(
                 translator,
                 "gatewayVisibilityBlocked.overview",
                 &[
-                    ("ip", ip.clone()),
+                    ("ip", ip_display),
                     ("host", host.clone()),
                     ("pathPart", path_part),
                     ("methodPart", method_part),
@@ -895,6 +920,11 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "sourceIp"),
                 ip,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "ipLocation"),
+                ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -948,6 +978,8 @@ pub(super) fn build_notification_details(
                 read_payload_value(event, "ip"),
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
+            let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let host = read_payload_value(event, "host");
             let path = read_payload_value(event, "request_uri")
                 .if_empty(read_payload_value(event, "path"));
@@ -963,7 +995,10 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "wafBlocked.summary",
-                &[("ip", ip.clone()), ("outcome", outcome_label.clone())],
+                &[
+                    ("ip", ip_display.clone()),
+                    ("outcome", outcome_label.clone()),
+                ],
             );
             let host_part = if host.is_empty() {
                 String::new()
@@ -1015,7 +1050,7 @@ pub(super) fn build_notification_details(
                 "wafBlocked.overview",
                 &[
                     ("outcome", outcome_label.clone()),
-                    ("ip", ip.clone()),
+                    ("ip", ip_display),
                     ("hostPart", host_part),
                     ("pathPart", path_part),
                     ("actionPart", action_part),
@@ -1037,6 +1072,11 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "sourceIp"),
                 ip,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "ipLocation"),
+                ip_location,
             );
             push_notification_fact(
                 &mut facts,
@@ -1091,6 +1131,7 @@ pub(super) fn build_notification_details(
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
             let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let username = default_string(
                 read_payload_value(event, "username"),
                 &notification_detail_text(translator, "unknownUser", &[]),
@@ -1100,7 +1141,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "sshLoginSuccess.summary",
-                &[("username", username.clone()), ("ip", ip.clone())],
+                &[("username", username.clone()), ("ip", ip_display)],
             );
             let location_part = if ip_location.is_empty() {
                 String::new()
@@ -1168,6 +1209,7 @@ pub(super) fn build_notification_details(
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
             let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let username = default_string(
                 read_payload_value(event, "username"),
                 &notification_detail_text(translator, "unknownUser", &[]),
@@ -1179,7 +1221,7 @@ pub(super) fn build_notification_details(
             summary = notification_detail_text(
                 translator,
                 "sshLoginFailure.summary",
-                &[("username", username.clone()), ("ip", ip.clone())],
+                &[("username", username.clone()), ("ip", ip_display)],
             );
             let location_part = if ip_location.is_empty() {
                 String::new()
@@ -1254,6 +1296,7 @@ pub(super) fn build_notification_details(
                 &notification_detail_text(translator, "unknownIp", &[]),
             );
             let ip_location = read_payload_value(event, "ip_location");
+            let ip_display = format_notification_ip_with_location(&ip, &ip_location, translator);
             let reason = read_payload_value(event, "reason");
             let reason_label = if reason == "cidr_not_allowed" {
                 notification_detail_text(translator, "sshIpBlocked.reasonCidrNotAllowed", &[])
@@ -1262,7 +1305,7 @@ pub(super) fn build_notification_details(
             };
 
             summary =
-                notification_detail_text(translator, "sshIpBlocked.summary", &[("ip", ip.clone())]);
+                notification_detail_text(translator, "sshIpBlocked.summary", &[("ip", ip_display)]);
             let location_part = if ip_location.is_empty() {
                 String::new()
             } else {

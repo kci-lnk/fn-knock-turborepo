@@ -573,6 +573,50 @@ async fn typed_system_event_mismatch_falls_back_to_legacy_and_repairs_primary() 
 }
 
 #[tokio::test]
+async fn system_event_document_update_preserves_typed_and_legacy_consistency() {
+    let (_dir, store) = open_test_store().await;
+    let mut event = json!({
+        "id": "location-event",
+        "type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+        "source": "SERVER_ADMIN",
+        "level": "WARN",
+        "happened_at": crate::time_utils::now_iso(),
+        "payload": {
+            "ip": "203.0.113.8"
+        }
+    });
+    store
+        .append_system_event(&event, 30, 1_000)
+        .await
+        .expect("seed event");
+    event["payload"]["ip_location"] = json!("上海|上海|联通");
+
+    assert!(
+        store
+            .update_system_event_document(&event)
+            .await
+            .expect("update event document")
+    );
+    let listed = store
+        .list_system_events(1, 10, "", None, None, None)
+        .await
+        .expect("list consistent event views");
+    assert_eq!(
+        listed.pointer("/events/0/payload/ip_location"),
+        Some(&json!("上海|上海|联通"))
+    );
+    assert_eq!(store.typed_event_shadow_mismatch_count(), 0);
+    assert_eq!(
+        store
+            .get_json_value("fn_knock:events:data:location-event")
+            .await
+            .unwrap()
+            .and_then(|value| value.pointer("/payload/ip_location").cloned()),
+        Some(json!("上海|上海|联通"))
+    );
+}
+
+#[tokio::test]
 async fn concurrent_system_event_writes_preserve_typed_and_legacy_history() {
     let (_dir, store) = open_test_store().await;
     const WRITERS: usize = 16;

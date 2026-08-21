@@ -14,6 +14,7 @@ import {
   DEFAULT_GROUP_BY_BY_EVENT_TYPE,
   SYSTEM_EVENT_TYPE_OPTIONS,
 } from "../src/views/event-center/constants";
+import { resolveSystemEventOrigins } from "../src/views/event-center/systemEventDescription";
 import { useSystemEventDisplay } from "../src/views/event-center/useSystemEventDisplay";
 
 const visibilityEvent: SystemEventRecord = {
@@ -26,6 +27,7 @@ const visibilityEvent: SystemEventRecord = {
   tags: ["gateway", "visibility", "security"],
   payload: {
     ip: "203.0.113.8",
+    ip_location: "Shanghai|Shanghai|Unicom",
     blocked_at: "2026-07-27T10:11:12Z",
     method: "GET",
     scheme: "https",
@@ -80,6 +82,40 @@ describe("gateway visibility system event", () => {
     assert.equal(
       details.get("visibility_mode"),
       "admin.eventCenter.events.visibilityMode.custom",
+    );
+    assert.deepEqual(resolveSystemEventOrigins(visibilityEvent), [
+      {
+        key: "ip:203.0.113.8",
+        ip: "203.0.113.8",
+        location: "Shanghai|Shanghai|Unicom",
+      },
+    ]);
+  });
+
+  it("shows both endpoints and locations for an IP drift", () => {
+    assert.deepEqual(
+      resolveSystemEventOrigins({
+        ...visibilityEvent,
+        type: "FN_EVENT_AUTH_SESSION_IP_DRIFT",
+        payload: {
+          from_ip: "203.0.113.8",
+          from_ip_location: "Shanghai|Shanghai|Unicom",
+          to_ip: "198.51.100.9",
+          to_ip_location: "Tokyo|Tokyo|Example ISP",
+        },
+      }),
+      [
+        {
+          key: "from_ip:203.0.113.8",
+          ip: "203.0.113.8",
+          location: "Shanghai|Shanghai|Unicom",
+        },
+        {
+          key: "to_ip:198.51.100.9",
+          ip: "198.51.100.9",
+          location: "Tokyo|Tokyo|Example ISP",
+        },
+      ],
     );
   });
 

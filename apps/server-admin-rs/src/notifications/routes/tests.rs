@@ -1080,6 +1080,77 @@ fn localizes_rule_names_and_fallback_messages() {
 }
 
 #[test]
+fn notification_copy_includes_ip_location_without_generic_advice() {
+    let translator = Translator::new("zh-CN");
+    let details = build_notification_details(
+        &json!({
+            "type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+            "source": "SERVER_ADMIN",
+            "level": "WARN",
+            "payload": {
+                "ip": "203.0.113.8",
+                "ip_location": "上海|上海|联通",
+                "attempts": 3
+            }
+        }),
+        &json!({ "window_seconds": 60 }),
+        1,
+        &translator,
+    );
+
+    assert!(details.summary.contains("203.0.113.8（上海|上海|联通）"));
+    assert!(details.body_text.contains("203.0.113.8（上海|上海|联通）"));
+    assert!(!details.body_text.contains("如非本人操作"));
+    assert!(!details.body_markdown.contains("**事件概述**"));
+
+    let drift_summary = format!(
+        "{} -> {}",
+        format_notification_ip_with_location("203.0.113.8", "上海|上海|联通", &translator,),
+        format_notification_ip_with_location("203.0.113.9", "上海|上海|联通", &translator,),
+    );
+    assert_eq!(
+        drift_summary,
+        "203.0.113.8（上海|上海|联通） -> 203.0.113.9（上海|上海|联通）"
+    );
+
+    let waf_details = build_notification_details(
+        &json!({
+            "type": "FN_EVENT_WAF_BLOCKED",
+            "source": "GO_REAUTH_PROXY",
+            "level": "WARN",
+            "payload": {
+                "ip": "203.0.113.8",
+                "ip_location": "上海|上海|联通",
+                "path": "/api/203.0.113.8",
+                "action": "deny",
+                "mode": "blocking"
+            }
+        }),
+        &json!({ "window_seconds": 60 }),
+        1,
+        &translator,
+    );
+    assert!(
+        waf_details
+            .summary
+            .contains("203.0.113.8（上海|上海|联通）")
+    );
+    assert!(waf_details.body_text.contains("/api/203.0.113.8"));
+    assert!(!waf_details.body_text.contains("/api/203.0.113.8（"));
+}
+
+#[test]
+fn notification_ip_location_wait_uses_stream_receive_time() {
+    let now = 1_000_000_i64;
+    assert!(should_wait_for_ip_location("999999-0", now));
+    assert!(!should_wait_for_ip_location(
+        &format!("{}-0", now - IP_LOCATION_NOTIFICATION_WAIT_MS),
+        now,
+    ));
+    assert!(!should_wait_for_ip_location("invalid", now));
+}
+
+#[test]
 fn localizes_email_address_validation_errors() {
     let zh = Translator::new("zh-CN");
     assert_eq!(

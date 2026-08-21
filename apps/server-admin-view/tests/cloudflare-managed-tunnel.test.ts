@@ -27,6 +27,31 @@ const readManagedUi = () =>
     .map(readSource)
     .join("\n");
 
+const readOptimizationBackend = () =>
+  [
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/cleanup_snapshot.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/coordination.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/fallback_origin.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/model.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/preview.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/probes.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/public_state.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/recovery.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/resolvers.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/resource_cleanup.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/resource_reconcile.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/runtime.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/scan.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/settings.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/state_helpers.rs",
+    "../../server-admin-rs/src/tunnels/cloudflared/optimization/warnings.rs",
+  ]
+    .map(readSource)
+    .join("\n");
+
 type ContractSchema = {
   enum?: string[];
   properties?: Record<string, ContractSchema>;
@@ -219,26 +244,7 @@ describe("managed Cloudflare Tunnel", () => {
   });
 
   it("keeps third-party candidate hostnames DNS-only and provenance visible", () => {
-    const backend = [
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/resolvers.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/settings.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/probes.rs",
-      ),
-    ].join("\n");
+    const backend = readOptimizationBackend();
     assert.match(backend, /cloudflare-dns\.com\/dns-query/u);
     assert.match(backend, /dns\.google\/dns-query/u);
     assert.match(backend, /doh\.pub\/dns-query/u);
@@ -323,14 +329,7 @@ describe("managed Cloudflare Tunnel", () => {
       "../src/views/tunnel/cloudflare/useCloudflareOptimization.ts",
     );
     const card = readOptimizationUi();
-    const backend = [
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
-      ),
-    ].join("\n");
+    const backend = readOptimizationBackend();
 
     assert.match(controller, /preferredCandidateIp/u);
     assert.match(controller, /startOptimizationScan\(/u);
@@ -388,17 +387,7 @@ describe("managed Cloudflare Tunnel", () => {
       ),
     );
 
-    const backend = [
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
-      ),
-      readSource(
-        "../../server-admin-rs/src/tunnels/cloudflared/optimization/scheduler.rs",
-      ),
-    ].join("\n");
+    const backend = readOptimizationBackend();
     assert.match(backend, /CLOUDFLARE_SAAS_REQUIRED_ERROR_CODE/u);
     assert.match(backend, /CLOUDFLARE_SAAS_VALIDATION_PENDING_ERROR_CODE/u);
     assert.match(backend, /CLOUDFLARE_RESOURCE_CONFLICT_ERROR_CODE/u);

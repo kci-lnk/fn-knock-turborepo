@@ -1,4 +1,86 @@
 use super::*;
+
+pub(super) const WAF_LOG_DATE_PREFIX: &str = "fn_knock:waf:logs:";
+pub(super) const WAF_LOG_EVENT_PREFIX: &str = "fn_knock:waf:log:";
+pub(super) const WAF_LOG_STATS_PREFIX: &str = "fn_knock:waf:stats:";
+pub(super) const WAF_LOG_DATES_INDEX_KEY: &str = "fn_knock:waf:logs:dates";
+pub(super) const WAF_LOG_DATES_INDEX_MIGRATED_KEY: &str = "fn_knock:waf:logs:dates:migrated";
+
+pub(super) fn waf_log_date_key(date: &str) -> String {
+    format!("{WAF_LOG_DATE_PREFIX}{date}")
+}
+
+pub(super) fn waf_log_event_key(trace_id: &str) -> String {
+    format!("{WAF_LOG_EVENT_PREFIX}{trace_id}")
+}
+
+pub(super) fn waf_log_stats_key(date: &str) -> String {
+    format!("{WAF_LOG_STATS_PREFIX}{date}")
+}
+
+pub(super) fn waf_log_event_score(event: &Value) -> i64 {
+    event
+        .get("time")
+        .and_then(Value::as_str)
+        .and_then(crate::time_utils::parse_iso_ms)
+        .unwrap_or_else(crate::time_utils::now_ms)
+}
+
+pub(super) fn is_waf_log_date(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
+}
+
+pub(super) fn descending_strings(values: BTreeSet<String>) -> Vec<String> {
+    values.into_iter().rev().collect()
+}
+
+pub(super) fn waf_log_date_score(date: &str) -> i64 {
+    let mut parts = date.split('-');
+    let year = parts.next().and_then(|value| value.parse::<i32>().ok());
+    let month = parts.next().and_then(|value| value.parse::<u8>().ok());
+    let day = parts.next().and_then(|value| value.parse::<u8>().ok());
+    let (Some(year), Some(month), Some(day)) = (year, month, day) else {
+        return 0;
+    };
+    let Ok(month) = time::Month::try_from(month) else {
+        return 0;
+    };
+    let Ok(date) = time::Date::from_calendar_date(year, month, day) else {
+        return 0;
+    };
+    date.with_time(time::Time::MIDNIGHT)
+        .assume_utc()
+        .unix_timestamp()
+        * 1000
+}
+
+pub(super) fn waf_log_dates_for_range(from_ms: i64, to_ms: i64) -> Vec<String> {
+    const DAY_MS: i64 = 86_400_000;
+    let start_day = (from_ms.max(0).div_euclid(DAY_MS) - 1).max(0);
+    let end_day = to_ms.max(from_ms).div_euclid(DAY_MS) + 1;
+    let mut dates = BTreeSet::new();
+    for day in start_day..=end_day {
+        let timestamp = day.saturating_mul(DAY_MS).div_euclid(1000);
+        if let Ok(date_time) = time::OffsetDateTime::from_unix_timestamp(timestamp) {
+            let date = date_time.date();
+            dates.insert(format!(
+                "{:04}-{:02}-{:02}",
+                date.year(),
+                u8::from(date.month()),
+                date.day()
+            ));
+        }
+    }
+    dates.into_iter().collect()
+}
+
 use tokio_rusqlite::rusqlite::{TransactionBehavior, params};
 
 struct PersistableWafEvent {

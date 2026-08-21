@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
+const maxDirectSpawnCallSites = 93;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -29,8 +30,18 @@ const auditedBudgets = new Map(
     "panel_sync/tests.rs": 2,
     "runtime_health.rs": 1,
     "security/whitelist/tests.rs": 1,
-    "storage/redis_compat.rs": 2,
-    "storage/redis_store/tests.rs": 23,
+    "storage/redis_compat/tests/migrations.rs": 2,
+    // Test-only concurrency and local fixture tasks; every handle is joined,
+    // awaited, or explicitly aborted by the owning test.
+    "storage/redis_store/tests/aggregates.rs": 2,
+    "storage/redis_store/tests/analytics.rs": 1,
+    "storage/redis_store/tests/core.rs": 2,
+    "storage/redis_store/tests/events_notifications.rs": 4,
+    "storage/redis_store/tests/identity.rs": 5,
+    "storage/redis_store/tests/mobility.rs": 1,
+    "storage/redis_store/tests/mobility_reconcile.rs": 2,
+    "storage/redis_store/tests/notification_runtime.rs": 3,
+    "storage/redis_store/tests/security.rs": 3,
     "system/maintenance/tests.rs": 3,
     "system/update.rs": 1,
     "tunnels/cloudflared/cloudflare_api.rs": 7,
@@ -58,14 +69,25 @@ for (const absolute of rustFiles(sourceRoot)) {
   const source = fs.readFileSync(absolute, "utf8");
   const count = source.match(/\btokio::spawn\s*\(/g)?.length ?? 0;
   if (count === 0) continue;
-  const relative = path.relative(sourceRoot, absolute).split(path.sep).join("/");
+  const relative = path
+    .relative(sourceRoot, absolute)
+    .split(path.sep)
+    .join("/");
   const budget = auditedBudgets.get(relative);
   total += count;
   if (budget === undefined) {
     violations.push(`${relative}: ${count} unaudited direct spawn call(s)`);
   } else if (count > budget) {
-    violations.push(`${relative}: ${count} direct spawns exceed audited budget ${budget}`);
+    violations.push(
+      `${relative}: ${count} direct spawns exceed audited budget ${budget}`,
+    );
   }
+}
+
+if (total > maxDirectSpawnCallSites) {
+  violations.push(
+    `repository total: ${total} direct spawns exceed fixed audited total ${maxDirectSpawnCallSites}`,
+  );
 }
 
 if (violations.length > 0) {

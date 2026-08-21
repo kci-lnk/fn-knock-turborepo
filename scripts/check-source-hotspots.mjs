@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +8,15 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const budgets = [
   {
     path: "apps/server-admin-rs/src/tunnels/cloudflared/optimization.rs",
-    maxLines: 4_350,
+    maxLines: 200,
+  },
+  {
+    path: "apps/server-admin-rs/src/storage/redis_store.rs",
+    maxLines: 120,
+  },
+  {
+    path: "apps/server-admin-rs/src/storage/redis_compat.rs",
+    maxLines: 120,
   },
   {
     path: "apps/server-admin-rs/src/tunnels/cloudflared/optimization/api.rs",
@@ -976,10 +984,95 @@ const budgets = [
   },
 ];
 
+const directoryBudgets = [
+  {
+    path: "apps/server-admin-rs/src/tunnels/cloudflared/optimization",
+    entryPath: "apps/server-admin-rs/src/tunnels/cloudflared/optimization.rs",
+    maxLines: 900,
+    testMaxLines: 500,
+  },
+  {
+    path: "apps/server-admin-rs/src/storage/redis_store",
+    entryPath: "apps/server-admin-rs/src/storage/redis_store.rs",
+    maxLines: 1_000,
+    testMaxLines: 1_200,
+  },
+  {
+    path: "apps/server-admin-rs/src/storage/redis_compat",
+    entryPath: "apps/server-admin-rs/src/storage/redis_compat.rs",
+    maxLines: 1_000,
+    testMaxLines: 500,
+  },
+];
+
 const countLines = (content) => {
   if (!content) return 0;
   const newlines = content.match(/\n/g)?.length ?? 0;
   return content.endsWith("\n") ? newlines : newlines + 1;
+};
+
+const forbiddenRustPathAttribute = /#\s*\[\s*path\s*=/u;
+const forbiddenRustCfgPathAttribute = /#\s*\[\s*cfg_attr\s*\([^\]]*\bpath\s*=/u;
+const forbiddenRustInclude = /\binclude\s*!\s*\(/u;
+
+const verifyRustReferenceGuards = () => {
+  const guardedPathSamples = [
+    '#[path = "../outside.rs"] mod outside;',
+    '#[cfg_attr(unix,\n  path = "../outside.rs"\n)] mod outside;',
+  ];
+  if (
+    !forbiddenRustPathAttribute.test(guardedPathSamples[0]) ||
+    !forbiddenRustCfgPathAttribute.test(guardedPathSamples[1]) ||
+    !forbiddenRustInclude.test('include ! ("../outside.rs");') ||
+    forbiddenRustCfgPathAttribute.test(
+      '#[utoipa::path(get, path = "/api/status")] fn status() {}',
+    )
+  ) {
+    throw new Error("[source-hotspot] Rust reference guard self-test failed");
+  }
+};
+
+verifyRustReferenceGuards();
+
+const rustFiles = (directory) =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(
+        `symbolic links are not allowed in guarded source trees: ${absolute}`,
+      );
+    }
+    if (entry.isDirectory()) return rustFiles(absolute);
+    return entry.isFile() && entry.name.endsWith(".rs") ? [absolute] : [];
+  });
+
+const checkControlledReferences = (budget, files) => {
+  const absoluteEntryPath = path.join(root, budget.entryPath);
+  if (lstatSync(absoluteEntryPath).isSymbolicLink()) {
+    throw new Error(
+      `symbolic links are not allowed for guarded entry points: ${absoluteEntryPath}`,
+    );
+  }
+  for (const absolutePath of [absoluteEntryPath, ...files]) {
+    const source = readFileSync(absolutePath, "utf8");
+    const relativePath = path
+      .relative(root, absolutePath)
+      .split(path.sep)
+      .join("/");
+    if (
+      forbiddenRustPathAttribute.test(source) ||
+      forbiddenRustCfgPathAttribute.test(source)
+    ) {
+      failures.push(
+        `${relativePath} uses #[path], which can escape recursive source budgets`,
+      );
+    }
+    if (forbiddenRustInclude.test(source)) {
+      failures.push(
+        `${relativePath} uses include!; guarded Rust trees require real modules`,
+      );
+    }
+  }
 };
 
 const failures = [];
@@ -1001,6 +1094,43 @@ for (const budget of budgets) {
     failures.push(
       `${budget.path} has ${lines} lines (limit ${budget.maxLines})`,
     );
+  }
+}
+
+for (const budget of directoryBudgets) {
+  const absoluteDirectory = path.join(root, budget.path);
+  let files;
+  try {
+    if (lstatSync(absoluteDirectory).isSymbolicLink()) {
+      throw new Error(
+        `symbolic links are not allowed for guarded directories: ${absoluteDirectory}`,
+      );
+    }
+    files = rustFiles(absoluteDirectory);
+    checkControlledReferences(budget, files);
+  } catch (error) {
+    failures.push(
+      `${budget.path} cannot be scanned (${error.code ?? error.message})`,
+    );
+    continue;
+  }
+  for (const absolutePath of files) {
+    const relativePath = path
+      .relative(root, absolutePath)
+      .split(path.sep)
+      .join("/");
+    const isTest =
+      relativePath.includes("/tests/") || relativePath.endsWith("/tests.rs");
+    const maxLines = isTest ? budget.testMaxLines : budget.maxLines;
+    const lines = countLines(readFileSync(absolutePath, "utf8"));
+    console.log(
+      `[source-hotspot] ${relativePath}: ${lines}/${maxLines} lines (recursive)`,
+    );
+    if (lines > maxLines) {
+      failures.push(
+        `${relativePath} has ${lines} lines (recursive limit ${maxLines})`,
+      );
+    }
   }
 }
 

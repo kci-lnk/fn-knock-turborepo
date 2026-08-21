@@ -1,5 +1,135 @@
 use super::*;
 
+pub(super) const TRAFFIC_KEY_INDEX: &str = "fn_knock:traffic:keys";
+pub(super) const ERROR5XX_KEY_INDEX: &str = "fn_knock:errors:5xx:keys";
+pub(super) fn traffic_scope_segment(
+    user_id: &str,
+    host: Option<&str>,
+    stream: Option<&str>,
+) -> String {
+    let host = host.map(str::trim).filter(|value| !value.is_empty());
+    let stream = stream.map(str::trim).filter(|value| !value.is_empty());
+    match (host, stream) {
+        (Some(host), _) => {
+            let encoded = crate::http_utils::url_encode_component(host);
+            format!("{user_id}:host:{encoded}")
+        }
+        (None, Some(stream)) => {
+            let encoded = crate::http_utils::url_encode_component(stream);
+            format!("{user_id}:stream:{encoded}")
+        }
+        (None, None) => user_id.to_string(),
+    }
+}
+
+pub(super) fn traffic_key(
+    user_id: &str,
+    direction: &str,
+    host: Option<&str>,
+    stream: Option<&str>,
+) -> String {
+    format!(
+        "fn_knock:traffic:{}:{}",
+        traffic_scope_segment(user_id, host, stream),
+        direction
+    )
+}
+
+pub(super) fn traffic_last_total_key(
+    user_id: &str,
+    direction: &str,
+    host: Option<&str>,
+    stream: Option<&str>,
+) -> String {
+    format!(
+        "fn_knock:traffic:last:{}:{}",
+        traffic_scope_segment(user_id, host, stream),
+        direction
+    )
+}
+
+pub(super) fn error5xx_key(user_id: &str, host: Option<&str>, stream: Option<&str>) -> String {
+    format!(
+        "fn_knock:errors:{}:5xx",
+        traffic_scope_segment(user_id, host, stream)
+    )
+}
+
+pub(super) fn error5xx_last_total_key(
+    user_id: &str,
+    host: Option<&str>,
+    stream: Option<&str>,
+) -> String {
+    format!(
+        "fn_knock:errors:last:{}:5xx",
+        traffic_scope_segment(user_id, host, stream)
+    )
+}
+
+pub(super) fn chrono_like_now_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or_default()
+}
+
+pub(super) fn parse_finite(value: &Option<String>) -> Option<f64> {
+    let parsed = value.as_ref()?.parse::<f64>().ok()?;
+    parsed.is_finite().then_some(parsed)
+}
+
+pub(super) fn compute_counter_delta(current_total: f64, last_total: Option<f64>) -> f64 {
+    if !current_total.is_finite() || current_total < 0.0 {
+        return 0.0;
+    }
+    let Some(last_total) = last_total else {
+        return current_total;
+    };
+    if !last_total.is_finite() || last_total < 0.0 {
+        return current_total;
+    }
+    if current_total >= last_total {
+        current_total - last_total
+    } else {
+        current_total
+    }
+}
+
+pub(super) fn finite_number_string(value: f64) -> String {
+    if !value.is_finite() || value <= 0.0 {
+        return "0".to_string();
+    }
+    if value.fract() == 0.0 {
+        format!("{value:.0}")
+    } else {
+        value.to_string()
+    }
+}
+
+pub(super) fn traffic_member(ts: i64, delta: f64) -> String {
+    format!("{ts}:{}", finite_number_string(delta))
+}
+
+pub(super) fn parse_traffic_points(members: &[String]) -> Vec<TrafficDeltaPoint> {
+    let mut points = Vec::new();
+    for member in members {
+        let Some((ts, delta)) = member.split_once(':') else {
+            continue;
+        };
+        let Ok(ts) = ts.parse::<i64>() else {
+            continue;
+        };
+        let Ok(delta) = delta.parse::<f64>() else {
+            continue;
+        };
+        if !delta.is_finite() {
+            continue;
+        }
+        points.push(TrafficDeltaPoint { ts, delta });
+    }
+    points
+}
+
 impl Store {
     pub async fn list_traffic_points(
         &self,

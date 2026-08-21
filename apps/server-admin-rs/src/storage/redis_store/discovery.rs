@@ -1,5 +1,64 @@
 use super::*;
 
+pub(super) const SCANNER_SUSPICIOUS_PREFIX: &str = "fn_knock:scanner:suspicious:";
+pub(super) const SCANNER_BLACKLIST_INDEX_KEY: &str = "fn_knock:scanner:blacklist:index";
+pub(super) const SCANNER_BLACKLIST_DATA_PREFIX: &str = "fn_knock:scanner:blacklist:data:";
+pub(super) const SCANNER_SETTINGS_KEY: &str = "fn_knock:scanner:settings";
+pub(super) const IP_LOCATION_PREFIX: &str = "fn_knock:ip_location";
+pub(super) const IP_LOCATION_QUEUE_KEY: &str = "fn_knock:ip_location:queue";
+pub(super) const RECENT_AUTH_IPS_ZSET_KEY: &str = "fn_knock:recent_auth_ips:zset";
+pub(super) const RECENT_AUTH_IPS_DETAILS_KEY: &str = "fn_knock:recent_auth_ips:details";
+pub(super) const RECENT_AUTH_IPS_TTL_SECONDS: i64 = 30 * 24 * 3600;
+pub(super) fn scanner_suspicious_key(ip: &str) -> String {
+    format!("{SCANNER_SUSPICIOUS_PREFIX}{ip}")
+}
+
+pub(super) fn scanner_blacklist_data_key(ip: &str) -> String {
+    format!("{SCANNER_BLACKLIST_DATA_PREFIX}{ip}")
+}
+
+pub(super) fn sanitize_scanner_ips(ips: &[String]) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut clean_ips = Vec::new();
+    for ip in ips {
+        let clean = ip.trim();
+        if clean.is_empty() || !seen.insert(clean.to_string()) {
+            continue;
+        }
+        clean_ips.push(clean.to_string());
+    }
+    clean_ips
+}
+
+pub(super) fn scanner_blacklist_record_from_raw(ip: &str, raw: &str) -> Option<Value> {
+    let mut record = serde_json::from_str::<Value>(raw).ok()?;
+    let object = record.as_object_mut()?;
+    let missing_ip = object
+        .get("ip")
+        .and_then(Value::as_str)
+        .is_none_or(|value| value.trim().is_empty());
+    if missing_ip {
+        object.insert("ip".to_string(), Value::String(ip.to_string()));
+    }
+    Some(record)
+}
+
+pub(super) fn ip_location_cache_key(ip: &str) -> String {
+    format!("{IP_LOCATION_PREFIX}:cache:{ip}")
+}
+
+pub(super) fn ip_location_state_key(ip: &str) -> String {
+    format!("{IP_LOCATION_PREFIX}:state:{ip}")
+}
+
+pub(super) fn ip_location_refs_key(ip: &str) -> String {
+    format!("{IP_LOCATION_PREFIX}:refs:{ip}")
+}
+
+pub(super) fn ip_location_lock_key(ip: &str) -> String {
+    format!("{IP_LOCATION_PREFIX}:lock:{ip}")
+}
+
 impl Store {
     pub async fn scanner_settings_raw(&self) -> crate::storage::StorageResult<Option<Value>> {
         self.get_json_value(SCANNER_SETTINGS_KEY).await

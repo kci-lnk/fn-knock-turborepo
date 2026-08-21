@@ -1,4 +1,38 @@
 use super::*;
+
+pub(super) const NOTIFICATION_RUNTIME_LAST_STREAM_KEY: &str =
+    "fn_knock:notifications:runtime:last-stream-id";
+pub(super) const NOTIFICATION_RUNTIME_LOCK_PREFIX: &str = "fn_knock:notifications:runtime:lock:";
+pub(super) const NOTIFICATION_RUNTIME_COOLDOWN_PREFIX: &str =
+    "fn_knock:notifications:runtime:cooldown:";
+pub(super) const NOTIFICATION_RUNTIME_WINDOW_PREFIX: &str =
+    "fn_knock:notifications:runtime:window:";
+pub(super) const NOTIFICATION_DELIVERIES_READY_KEY: &str =
+    "fn_knock:notifications:deliveries:ready";
+pub(super) const NOTIFICATION_DELIVERY_QUEUE_TTL_SECONDS: i64 = 30 * 24 * 60 * 60;
+
+pub(super) fn notification_runtime_lock_key(name: &str) -> String {
+    format!("{NOTIFICATION_RUNTIME_LOCK_PREFIX}{name}")
+}
+
+pub(super) fn notification_cooldown_key(rule_id: &str, group_key: &str) -> String {
+    format!(
+        "{NOTIFICATION_RUNTIME_COOLDOWN_PREFIX}{rule_id}:{}",
+        encode_notification_key_part(group_key)
+    )
+}
+
+pub(super) fn notification_window_key(rule_id: &str, group_key: &str) -> String {
+    format!(
+        "{NOTIFICATION_RUNTIME_WINDOW_PREFIX}{rule_id}:{}",
+        encode_notification_key_part(group_key)
+    )
+}
+
+pub(super) fn encode_notification_key_part(value: &str) -> String {
+    URL_SAFE_NO_PAD.encode(if value.is_empty() { "empty" } else { value })
+}
+
 use tokio_rusqlite::rusqlite::{Transaction, TransactionBehavior};
 
 const PROVIDER_KIND: &str = "provider";
@@ -111,7 +145,8 @@ impl Store {
     pub(crate) async fn rebuild_typed_notification_documents_from_legacy(
         &self,
     ) -> crate::storage::StorageResult<()> {
-        self.typed_notifications
+        self.typed
+            .typed_notifications
             .rebuild_from_legacy(vec![
                 (
                     PROVIDER_KIND.to_string(),
@@ -130,7 +165,8 @@ impl Store {
     pub(crate) async fn rebuild_typed_notification_history_from_legacy(
         &self,
     ) -> crate::storage::StorageResult<()> {
-        self.typed_notifications
+        self.typed
+            .typed_notifications
             .rebuild_history_from_legacy(vec![
                 (
                     TRIGGER_KIND.to_string(),
@@ -227,7 +263,7 @@ impl Store {
                 ));
             }
         };
-        let typed = self.typed_notifications.load_history(kind).await;
+        let typed = self.typed.typed_notifications.load_history(kind).await;
         let legacy = self
             .load_notification_records_legacy(index_key, data_prefix)
             .await;
@@ -614,7 +650,7 @@ impl Store {
         index_key: &str,
         data_prefix: &str,
     ) -> crate::storage::StorageResult<Vec<Value>> {
-        let typed = self.typed_notifications.load_kind(kind).await;
+        let typed = self.typed.typed_notifications.load_kind(kind).await;
         let legacy = self
             .load_notification_records_legacy(index_key, data_prefix)
             .await;
@@ -638,7 +674,7 @@ impl Store {
         data_key: &str,
         id: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
-        let typed = self.typed_notifications.load_one(kind, id).await;
+        let typed = self.typed.typed_notifications.load_one(kind, id).await;
         let legacy = self.get_json_value(data_key).await;
         match (typed, legacy) {
             (Ok(typed), Ok(legacy)) if typed == legacy => Ok(typed),
@@ -660,7 +696,11 @@ impl Store {
         data_key: &str,
         id: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
-        let typed = self.typed_notifications.load_history_one(kind, id).await;
+        let typed = self
+            .typed
+            .typed_notifications
+            .load_history_one(kind, id)
+            .await;
         let legacy = self.get_json_value(data_key).await;
         match (typed, legacy) {
             (Ok(typed), Ok(legacy)) if typed == legacy => Ok(typed),

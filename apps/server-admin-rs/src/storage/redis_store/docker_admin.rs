@@ -1,5 +1,43 @@
 use super::*;
 
+pub(super) const DOCKER_ADMIN_PASSWORD_KEY: &str = "fn_knock:docker_admin:password:v1";
+pub(super) const DOCKER_ADMIN_SESSION_PREFIX: &str = "fn_knock:docker_admin:session:v1:";
+pub(super) const DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX: &str =
+    "fn_knock:docker_admin:login_backoff:v1:";
+pub(super) const DOCKER_ADMIN_LOGIN_BACKOFF_TTL_SECONDS: i64 = 3_600;
+pub(super) const DOCKER_ADMIN_LOGIN_BACKOFF_BASE_DELAY_MS: i64 = 2_000;
+pub(super) const DOCKER_ADMIN_LOGIN_BACKOFF_MAX_DELAY_MS: i64 = 15 * 60 * 1_000;
+pub(super) const DOCKER_ADMIN_REGISTER_LOGIN_FAILURE_SCRIPT: &str = r#"
+-- fn-knock:eval:docker-admin-login-backoff:v1
+local key = KEYS[1]
+local ip = ARGV[1]
+local now = tonumber(ARGV[2])
+local nowIso = ARGV[3]
+local ttlSeconds = tonumber(ARGV[4])
+local baseDelay = tonumber(ARGV[5])
+local maxDelay = tonumber(ARGV[6])
+
+local attempts = 0
+local raw = redis.call('GET', key)
+if raw then
+  local ok, decoded = pcall(cjson.decode, raw)
+  if ok and type(decoded) == 'table' and tonumber(decoded.attempts) then
+    attempts = tonumber(decoded.attempts)
+  end
+end
+attempts = attempts + 1
+local exponent = math.min(math.max(attempts - 1, 0), 30)
+local backoffMs = math.min(baseDelay * math.pow(2, exponent), maxDelay)
+local blockedUntil = now + backoffMs
+redis.call('SET', key, cjson.encode({
+  ip = ip,
+  attempts = attempts,
+  last_attempt_at = nowIso,
+  blocked_until = blockedUntil,
+}), 'EX', ttlSeconds)
+return { attempts, math.floor((backoffMs + 999) / 1000), blockedUntil }
+"#;
+
 impl Store {
     pub async fn docker_admin_password(
         &self,
@@ -45,6 +83,7 @@ impl Store {
             .get(format!("{DOCKER_ADMIN_SESSION_PREFIX}{session_id}"))
             .await?;
         let matched = self
+            .typed
             .typed_docker_admin
             .verify_and_repair_session(session_id)
             .await?;
@@ -105,6 +144,7 @@ impl Store {
             .get(format!("{DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX}{ip}"))
             .await?;
         let matched = self
+            .typed
             .typed_docker_admin
             .verify_and_repair_login_backoff(ip)
             .await?;
@@ -169,18 +209,12 @@ impl Store {
 
     fn observe_docker_admin_shadow_comparison(&self, matched: bool, kind: &'static str) {
         if matched {
-            if !self
-                .typed_docker_admin_shadow_healthy
-                .swap(true, AtomicOrdering::AcqRel)
-            {
+            if self.typed_docker_admin_shadow.mark_healthy() {
                 tracing::info!("typed Docker-admin security shadow comparison recovered");
             }
             return;
         }
-        self.typed_docker_admin_shadow_mismatches
-            .fetch_add(1, AtomicOrdering::Relaxed);
-        self.typed_docker_admin_shadow_healthy
-            .store(false, AtomicOrdering::Release);
+        self.typed_docker_admin_shadow.mark_mismatch();
         tracing::warn!(
             kind,
             "typed Docker-admin security shadow differed from the compatibility record and was repaired"

@@ -11074,7 +11074,11 @@ export interface components {
             /** Format: int64 */
             active_client_connections?: number | null;
             /** Format: int64 */
+            active_operation_ms?: number | null;
+            /** Format: int64 */
             active_proxy_requests?: number | null;
+            /** Format: int64 */
+            canceled_operations?: number | null;
             commit: string | null;
             /** Format: int32 */
             consecutive_failures: number;
@@ -11110,6 +11114,14 @@ export interface components {
             pid: number | null;
             /** @enum {string} */
             process_state: "running" | "stopped" | "unknown" | "not_applicable";
+            /** Format: int64 */
+            queue_depth?: number | null;
+            /** Format: int64 */
+            queue_depth_peak?: number | null;
+            /** Format: int64 */
+            queue_wait_ms?: number | null;
+            /** Format: int64 */
+            queue_wait_peak_ms?: number | null;
             reason_code: string | null;
             /** Format: int64 */
             rss_bytes?: number | null;

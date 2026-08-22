@@ -154,6 +154,10 @@ impl Store {
         self.manager.clone()
     }
 
+    pub(crate) fn primary_queue_status(&self) -> redis::PrimaryQueueStatus {
+        self.manager.primary_queue_status()
+    }
+
     #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.path

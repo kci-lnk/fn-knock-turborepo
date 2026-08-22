@@ -100,8 +100,7 @@ impl Store {
     }
 
     pub async fn ping(&self) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        redis::cmd("PING").query_async(&mut conn).await
+        self.manager.ping().await
     }
 
     pub async fn get_json_value(&self, key: &str) -> crate::storage::StorageResult<Option<Value>> {
@@ -119,6 +118,20 @@ impl Store {
         self.verify_whitelist_runtime_shadow_key(key).await?;
         let mut conn = self.conn();
         conn.get(key).await
+    }
+
+    /// Authorization-only live read. Shadow validation and the authoritative
+    /// compatibility value both use the isolated auth reader, so a normal
+    /// credential lookup cannot queue behind unrelated primary writes.
+    pub(crate) async fn get_string_value_auth(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<String>> {
+        self.verify_subdomain_grant_shadow_key(key).await?;
+        self.verify_whitelist_runtime_shadow_key(key).await?;
+        self.manager
+            .get_live_string_auth(key.to_string(), crate::time_utils::now_ms())
+            .await
     }
 
     pub async fn set_string_value_with_optional_ttl(

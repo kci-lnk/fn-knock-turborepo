@@ -17,14 +17,31 @@ impl ConnectionManager {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .await?;
+        let auth_read_db = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .await?;
+        let health_db = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .await?;
         let manager = Self {
             db,
             analytics_db,
-            analytics_checkpoint_gate: Arc::new(RwLock::new(())),
+            auth_read_db,
+            health_db,
+            checkpoint_gate: Arc::new(RwLock::new(())),
+            primary_admission: Arc::new(Semaphore::new(1)),
+            analytics_admission: Arc::new(Semaphore::new(1)),
+            auth_read_admission: Arc::new(Semaphore::new(1)),
+            health_admission: Arc::new(Semaphore::new(1)),
+            primary_metrics: Arc::new(PrimaryExecutorMetrics::default()),
             #[cfg(test)]
             path: path.to_path_buf(),
         };
-        manager.initialize_analytics().await?;
+        manager.initialize_readers().await?;
         secure_sqlite_file_permissions(path).await?;
         Ok(manager)
     }
@@ -48,23 +65,26 @@ impl ConnectionManager {
         .map_err(StorageError::from)
     }
 
-    async fn initialize_analytics(&self) -> RedisResult<()> {
-        self.analytics_db
-            .call(|conn| {
-                conn.pragma_update(None, "query_only", true)?;
-                conn.busy_timeout(std::time::Duration::from_millis(250))?;
-                Ok::<(), StorageError>(())
-            })
-            .await
-            .map_err(StorageError::from)
+    async fn initialize_readers(&self) -> RedisResult<()> {
+        for reader in [&self.analytics_db, &self.auth_read_db, &self.health_db] {
+            reader
+                .call(|conn| {
+                    conn.pragma_update(None, "query_only", true)?;
+                    conn.busy_timeout(std::time::Duration::from_millis(250))?;
+                    Ok::<(), StorageError>(())
+                })
+                .await
+                .map_err(StorageError::from)?;
+        }
+        Ok(())
     }
 
     pub(crate) async fn prepare_for_system_update(&self, backup_path: &Path) -> RedisResult<()> {
-        // WAL truncation and VACUUM INTO must not race an analytics reader.
-        // Primary operations remain serialized by tokio-rusqlite itself.
-        let _checkpoint_guard = self.analytics_checkpoint_gate.write().await;
+        // WAL truncation and VACUUM INTO must not race any isolated reader.
+        // The exclusive guard is retained by the SQLite closure even if the
+        // calling task is canceled after submission.
         let backup_path = backup_path.to_path_buf();
-        self.call(move |conn| {
+        self.call_exclusive(move |conn| {
             // Keep every write made between this preflight and process shutdown
             // durable even if the package manager has to terminate the service.
             conn.pragma_update(None, "synchronous", "FULL")?;
@@ -96,8 +116,7 @@ impl ConnectionManager {
     }
 
     pub(crate) async fn checkpoint_for_shutdown(&self) -> RedisResult<()> {
-        let _checkpoint_guard = self.analytics_checkpoint_gate.write().await;
-        self.call(|conn| {
+        self.call_exclusive(|conn| {
             checkpoint_wal(conn, "TRUNCATE")?;
             Ok(())
         })
@@ -258,7 +277,76 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
-        self.db.call(f).await.map_err(StorageError::from)
+        // Keep cancellation outside tokio-rusqlite's internal queue. Once a
+        // closure is submitted it cannot be recalled by dropping the caller's
+        // future; moving both guards into the closure ensures a timed-out auth
+        // request cannot release admission until that submitted work is truly
+        // finished. Waiters canceled before admission are never submitted.
+        let admission = self.primary_admission.clone();
+        let (permit, wait_ms) = match admission.clone().try_acquire_owned() {
+            Ok(permit) => (permit, 0),
+            Err(TryAcquireError::NoPermits) => {
+                let waiter = self.primary_metrics.begin_wait();
+                let permit = admission
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| storage_error("primary sqlite executor admission is closed"))?;
+                (permit, waiter.admit())
+            }
+            Err(TryAcquireError::Closed) => {
+                return Err(storage_error("primary sqlite executor admission is closed"));
+            }
+        };
+        let execution = self.primary_metrics.begin_execution(wait_ms);
+        self.db
+            .call(move |conn| {
+                let _permit = permit;
+                let _execution = execution;
+                f(conn)
+            })
+            .await
+            .map_err(StorageError::from)
+    }
+
+    pub(super) async fn call_exclusive<T, F>(&self, f: F) -> RedisResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
+    {
+        let checkpoint_guard = self.checkpoint_gate.clone().write_owned().await;
+        self.call(move |conn| {
+            let _checkpoint_guard = checkpoint_guard;
+            f(conn)
+        })
+        .await
+    }
+
+    async fn call_reader<T, F>(
+        &self,
+        reader: &Connection,
+        admission: Arc<Semaphore>,
+        f: F,
+    ) -> RedisResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
+    {
+        // tokio-rusqlite cannot retract a closure once submitted. Admission
+        // stays outside its internal queue, while both guards move into the
+        // closure so caller cancellation cannot release them prematurely.
+        let permit = admission
+            .acquire_owned()
+            .await
+            .map_err(|_| storage_error("sqlite reader admission is closed"))?;
+        let checkpoint_guard = self.checkpoint_gate.clone().read_owned().await;
+        reader
+            .call(move |conn| {
+                let _permit = permit;
+                let _checkpoint_guard = checkpoint_guard;
+                f(conn)
+            })
+            .await
+            .map_err(StorageError::from)
     }
 
     pub(super) async fn call_analytics<T, F>(&self, f: F) -> RedisResult<T>
@@ -266,7 +354,49 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
-        let _reader_guard = self.analytics_checkpoint_gate.read().await;
-        self.analytics_db.call(f).await.map_err(StorageError::from)
+        self.call_reader(&self.analytics_db, self.analytics_admission.clone(), f)
+            .await
+    }
+
+    pub(crate) async fn call_auth_read<T, F>(&self, f: F) -> RedisResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
+    {
+        self.call_reader(&self.auth_read_db, self.auth_read_admission.clone(), f)
+            .await
+    }
+
+    pub(crate) async fn ping(&self) -> RedisResult<()> {
+        self.call_reader(&self.health_db, self.health_admission.clone(), |conn| {
+            conn.query_row("SELECT 1", [], |row| row.get::<_, i64>(0))?;
+            Ok::<(), StorageError>(())
+        })
+        .await
+    }
+
+    pub(crate) async fn get_live_string_auth(
+        &self,
+        key: String,
+        now_ms: i64,
+    ) -> RedisResult<Option<String>> {
+        self.call_auth_read(move |conn| {
+            conn.query_row(
+                "SELECT strings.value
+                 FROM kv_strings AS strings
+                 JOIN kv_keys AS keys ON keys.key = strings.key
+                 WHERE strings.key = ?1
+                   AND (keys.expires_at_ms IS NULL OR keys.expires_at_ms > ?2)",
+                params![key, now_ms],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(Into::into)
+        })
+        .await
+    }
+
+    pub(crate) fn primary_queue_status(&self) -> PrimaryQueueStatus {
+        self.primary_metrics.status()
     }
 }

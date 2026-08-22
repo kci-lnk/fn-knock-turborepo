@@ -176,54 +176,54 @@ impl TypedSubdomainGrantRepository {
 
     pub(crate) async fn verify_and_repair_key(&self, key: &str) -> StorageResult<bool> {
         let key = key.to_string();
-        self.manager
-            .call(move |conn| {
-                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                let matched = if let Some(grant_digest) = parse_grant_key(&key) {
-                    let raw = live_legacy_string_tx(&tx, &key)?;
-                    let legacy = live_legacy_grant_tx(&tx, &key)?;
+        let compare_key = key.clone();
+        let (matched, repair_keys) = self
+            .manager
+            .call_auth_read(move |conn| {
+                let tx = conn.transaction()?;
+                let mut repair_keys = vec![compare_key.clone()];
+                let matched = if let Some(grant_digest) = parse_grant_key(&compare_key) {
+                    let raw = live_legacy_string_tx(&tx, &compare_key)?;
+                    let legacy = live_legacy_grant_tx(&tx, &compare_key)?;
                     let invalid = raw.is_some() && legacy.is_none();
                     let typed = typed_grant_tx(&tx, grant_digest)?;
                     let mut matched = !invalid && typed == legacy;
-                    if !matched {
-                        match &legacy {
-                            Some(grant) => upsert_grant_tx(&tx, grant)?,
-                            None => {
-                                delete_grant_tx(&tx, grant_digest)?;
-                                tx.execute(
-                                    "DELETE FROM subdomain_rule_grant_active_entries WHERE grant_digest = ?1",
-                                    [grant_digest],
-                                )?;
-                            }
-                        }
-                    }
                     if let Some(grant) = legacy {
                         let active_key = active_key(&grant.host);
+                        repair_keys.push(active_key.clone());
                         let host_digest = parse_active_key(&active_key)
                             .ok_or_else(|| storage_error("invalid subdomain grant active key"))?;
-                        let (active, active_invalid) = legacy_active_entries_checked_tx(&tx, &active_key)?;
+                        let (active, active_invalid) =
+                            legacy_active_entries_checked_tx(&tx, &active_key)?;
                         let typed_active = typed_active_entries_tx(&tx, host_digest)?;
                         if active_invalid || typed_active != active {
                             matched = false;
-                            replace_active_index_tx(&tx, host_digest, &active)?;
                         }
                     }
                     matched
-                } else if let Some(host_digest) = parse_active_key(&key) {
-                    let (legacy, invalid) = legacy_active_entries_checked_tx(&tx, &key)?;
+                } else if let Some(host_digest) = parse_active_key(&compare_key) {
+                    let (legacy, invalid) = legacy_active_entries_checked_tx(&tx, &compare_key)?;
                     let typed = typed_active_entries_tx(&tx, host_digest)?;
-                    let matched = !invalid && typed == legacy;
-                    if !matched {
-                        replace_active_index_tx(&tx, host_digest, &legacy)?;
-                    }
-                    matched
+                    !invalid && typed == legacy
                 } else {
                     return Err(storage_error("invalid subdomain grant runtime key"));
                 };
                 tx.commit()?;
-                Ok(matched)
+                Ok((matched, repair_keys))
             })
-            .await
+            .await?;
+        if matched {
+            return Ok(true);
+        }
+        self.manager
+            .call(move |conn| {
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                Self::reconcile_legacy_keys_tx(&tx, &repair_keys)?;
+                tx.commit()?;
+                Ok(())
+            })
+            .await?;
+        Ok(false)
     }
 
     #[cfg(test)]

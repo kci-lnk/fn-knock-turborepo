@@ -1,6 +1,116 @@
 use super::*;
 
 #[tokio::test]
+async fn matched_session_authority_read_bypasses_the_primary_executor() {
+    let (_dir, store) = open_test_store().await;
+    let session_id = "typed-mobility-auth-reader";
+    let session = new_login_session(session_id, "Auth reader", "192.0.2.90", "test", 3_600);
+    store
+        .add_session(session_id, &session, 3_600)
+        .await
+        .expect("seed matched session");
+
+    let manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = manager.call(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| {
+                crate::storage::storage_error(format!("release auth blocker: {error}"))
+            })?;
+        Ok(())
+    });
+    let read = async {
+        started_rx.await.expect("primary executor started");
+        let loaded = tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            store.get_session(session_id),
+        )
+        .await
+        .expect("matched auth read must bypass primary storage")
+        .expect("load session")
+        .expect("session exists");
+        assert_eq!(loaded.ip, session.ip);
+        release_tx.send(()).expect("release primary executor");
+    };
+    let (blocker_result, ()) = tokio::join!(blocker, read);
+    blocker_result.expect("primary blocker result");
+}
+
+#[tokio::test]
+async fn queued_session_repair_returns_the_latest_authoritative_value() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().join("fn-knock.sqlite3");
+    let store = Store::connect(&path).await.expect("open store");
+    let session_id = "typed-mobility-queued-repair";
+    let initial = new_login_session(session_id, "Initial", "192.0.2.91", "test", 3_600);
+    store
+        .add_session(session_id, &initial, 3_600)
+        .await
+        .expect("seed matched session");
+
+    let queued_snapshot = new_login_session(session_id, "Queued", "192.0.2.92", "test", 3_600);
+    let connection = open_fixture_connection(&path);
+    connection
+        .execute(
+            "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+            tokio_rusqlite::rusqlite::params![
+                crate::auth_session_keys::session_key(session_id),
+                serde_json::to_string(&queued_snapshot).unwrap()
+            ],
+        )
+        .expect("create session shadow mismatch");
+    drop(connection);
+
+    let blocker_manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = blocker_manager.call(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| {
+                crate::storage::storage_error(format!("release session repair blocker: {error}"))
+            })?;
+        Ok(())
+    });
+    let load = store.get_session(session_id);
+    let latest = new_login_session(session_id, "Latest", "192.0.2.93", "test", 3_600);
+    let replace_while_queued = async {
+        started_rx.await.expect("primary blocker started");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while store.primary_queue_status().queue_depth == 0 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "session repair did not queue behind primary blocker"
+            );
+            tokio::task::yield_now().await;
+        }
+        let connection = open_fixture_connection(&path);
+        connection
+            .execute(
+                "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+                tokio_rusqlite::rusqlite::params![
+                    crate::auth_session_keys::session_key(session_id),
+                    serde_json::to_string(&latest).unwrap()
+                ],
+            )
+            .expect("replace authority while repair is queued");
+        drop(connection);
+        release_tx.send(()).expect("release primary blocker");
+    };
+    let (blocker_result, loaded, ()) = tokio::join!(blocker, load, replace_while_queued);
+    blocker_result.expect("primary blocker result");
+    let loaded = loaded
+        .expect("load repaired session")
+        .expect("repaired session exists");
+    assert_eq!(loaded.ip, "192.0.2.93");
+    assert_eq!(loaded.credential_name, "Latest");
+}
+
+#[tokio::test]
 async fn typed_mobility_rebuilds_after_backup_restore_and_clear() {
     let source_dir = tempfile::tempdir().expect("create source temp dir");
     let source = Store::connect(source_dir.path().join("fn-knock.sqlite3"))

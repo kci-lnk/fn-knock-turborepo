@@ -307,6 +307,53 @@ async fn subdomain_grant_dual_writes_record_and_active_index_atomically() {
 }
 
 #[tokio::test]
+async fn matched_subdomain_grant_read_bypasses_the_primary_executor() {
+    let (_dir, store) = open_test_store().await;
+    let host = "reader.example.com";
+    let document = subdomain_grant_document(host, 1_700_000_015);
+    let (grant_key, active_key) = subdomain_grant_keys("reader-token", host);
+    store
+        .set_expiring_string_with_zset_limit(
+            &grant_key,
+            &document,
+            60,
+            &active_key,
+            1_700_000_015,
+            1_700_000_075,
+            10,
+        )
+        .await
+        .expect("seed grant");
+
+    let manager = store.manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = manager.call(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| {
+                crate::storage::storage_error(format!("release grant blocker: {error}"))
+            })?;
+        Ok(())
+    });
+    let read = async {
+        started_rx.await.expect("primary executor started");
+        let loaded = tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            store.get_string_value_auth(&grant_key),
+        )
+        .await
+        .expect("matched grant read must bypass primary storage")
+        .expect("read grant");
+        assert_eq!(loaded.as_deref(), Some(document.as_str()));
+        release_tx.send(()).expect("release primary executor");
+    };
+    let (blocker_result, ()) = tokio::join!(blocker, read);
+    blocker_result.expect("primary blocker result");
+}
+
+#[tokio::test]
 async fn subdomain_grant_repairs_whole_aggregate_and_typed_failure_rolls_back() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("fn-knock.sqlite3");

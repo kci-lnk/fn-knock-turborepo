@@ -46,6 +46,12 @@ pub(super) struct RuntimeComponentHealthData {
     udp_queued_bytes_peak: Option<u64>,
     udp_queue_drops: Option<u64>,
     latency_ms: Option<u64>,
+    queue_depth: Option<u64>,
+    queue_depth_peak: Option<u64>,
+    queue_wait_ms: Option<u64>,
+    queue_wait_peak_ms: Option<u64>,
+    active_operation_ms: Option<u64>,
+    canceled_operations: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema)]

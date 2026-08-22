@@ -11,9 +11,119 @@ pub(crate) trait AsyncCommands {}
 pub(crate) struct ConnectionManager {
     pub(super) db: Connection,
     pub(super) analytics_db: Connection,
-    pub(super) analytics_checkpoint_gate: Arc<RwLock<()>>,
+    pub(super) auth_read_db: Connection,
+    pub(super) health_db: Connection,
+    pub(super) checkpoint_gate: Arc<RwLock<()>>,
+    pub(super) primary_admission: Arc<Semaphore>,
+    pub(super) analytics_admission: Arc<Semaphore>,
+    pub(super) auth_read_admission: Arc<Semaphore>,
+    pub(super) health_admission: Arc<Semaphore>,
+    pub(super) primary_metrics: Arc<PrimaryExecutorMetrics>,
     #[cfg(test)]
     pub(super) path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PrimaryQueueStatus {
+    pub(crate) queue_depth: u64,
+    pub(crate) queue_depth_peak: u64,
+    pub(crate) queue_wait_ms: u64,
+    pub(crate) queue_wait_peak_ms: u64,
+    pub(crate) active_operation_ms: u64,
+    pub(crate) canceled_operations: u64,
+}
+
+#[derive(Default)]
+pub(super) struct PrimaryExecutorMetrics {
+    waiting: AtomicU64,
+    waiting_peak: AtomicU64,
+    last_wait_ms: AtomicU64,
+    wait_peak_ms: AtomicU64,
+    active_since_ms: AtomicU64,
+    canceled: AtomicU64,
+}
+
+impl PrimaryExecutorMetrics {
+    pub(super) fn begin_wait(self: &Arc<Self>) -> PrimaryQueueWaiter {
+        let depth = self.waiting.fetch_add(1, AtomicOrdering::AcqRel) + 1;
+        self.waiting_peak.fetch_max(depth, AtomicOrdering::Relaxed);
+        PrimaryQueueWaiter {
+            metrics: self.clone(),
+            started: Instant::now(),
+            admitted: false,
+        }
+    }
+
+    pub(super) fn begin_execution(self: &Arc<Self>, wait_ms: u64) -> PrimaryExecution {
+        self.last_wait_ms.store(wait_ms, AtomicOrdering::Release);
+        self.wait_peak_ms
+            .fetch_max(wait_ms, AtomicOrdering::Relaxed);
+        self.active_since_ms
+            .store(unix_time_ms(), AtomicOrdering::Release);
+        PrimaryExecution {
+            metrics: self.clone(),
+        }
+    }
+
+    pub(super) fn status(&self) -> PrimaryQueueStatus {
+        let active_since_ms = self.active_since_ms.load(AtomicOrdering::Acquire);
+        let active_operation_ms = if active_since_ms == 0 {
+            0
+        } else {
+            unix_time_ms().saturating_sub(active_since_ms)
+        };
+        PrimaryQueueStatus {
+            queue_depth: self.waiting.load(AtomicOrdering::Acquire),
+            queue_depth_peak: self.waiting_peak.load(AtomicOrdering::Relaxed),
+            queue_wait_ms: self.last_wait_ms.load(AtomicOrdering::Relaxed),
+            queue_wait_peak_ms: self.wait_peak_ms.load(AtomicOrdering::Relaxed),
+            active_operation_ms,
+            canceled_operations: self.canceled.load(AtomicOrdering::Relaxed),
+        }
+    }
+}
+
+pub(super) struct PrimaryQueueWaiter {
+    metrics: Arc<PrimaryExecutorMetrics>,
+    started: Instant,
+    admitted: bool,
+}
+
+impl PrimaryQueueWaiter {
+    pub(super) fn admit(mut self) -> u64 {
+        self.admitted = true;
+        self.metrics.waiting.fetch_sub(1, AtomicOrdering::AcqRel);
+        self.started.elapsed().as_millis() as u64
+    }
+}
+
+impl Drop for PrimaryQueueWaiter {
+    fn drop(&mut self) {
+        if self.admitted {
+            return;
+        }
+        self.metrics.waiting.fetch_sub(1, AtomicOrdering::AcqRel);
+        self.metrics.canceled.fetch_add(1, AtomicOrdering::Relaxed);
+    }
+}
+
+pub(super) struct PrimaryExecution {
+    metrics: Arc<PrimaryExecutorMetrics>,
+}
+
+impl Drop for PrimaryExecution {
+    fn drop(&mut self) {
+        self.metrics
+            .active_since_ms
+            .store(0, AtomicOrdering::Release);
+    }
+}
+
+fn unix_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 impl AsyncCommands for ConnectionManager {}

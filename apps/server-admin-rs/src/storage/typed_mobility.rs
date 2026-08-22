@@ -828,15 +828,15 @@ impl TypedMobilityRepository {
             .await
     }
 
-    pub(crate) async fn verify_and_repair_session_authority(
+    pub(crate) async fn load_and_repair_session_authority(
         &self,
         session_id: &str,
-    ) -> StorageResult<bool> {
+    ) -> StorageResult<(bool, Option<String>)> {
         let session_id = session_id.to_string();
         let compare_session_id = session_id.clone();
-        let matched = self
+        let (matched, authoritative_raw, expired_authoritative_key) = self
             .manager
-            .call(move |conn| {
+            .call_auth_read(move |conn| {
                 // A matched authorization read stays read-only and does not
                 // reserve SQLite's single writer on every authenticated
                 // request. A mismatch is repaired below in a short write.
@@ -855,33 +855,66 @@ impl TypedMobilityRepository {
                     .and_then(|aggregate| aggregate.normalized_at(now))
                     .and_then(|aggregate| aggregate.session);
                 let session_key = format!("{SESSION_PREFIX}{compare_session_id}");
-                let legacy =
-                    live_string(&tx, &session_key, now)?.and_then(|(raw, expires_at_ms)| {
-                        serde_json::from_str::<Value>(&raw).ok().map(|value| {
-                            TypedMobilityExpiringValue {
-                                value,
-                                expires_at_ms,
-                            }
-                        })
-                    });
+                let authoritative = live_string(&tx, &session_key, now)?;
+                let expired_authoritative_key = authoritative.is_none()
+                    && tx.query_row(
+                        "SELECT EXISTS(
+                           SELECT 1 FROM kv_keys
+                           WHERE key = ?1
+                             AND expires_at_ms IS NOT NULL
+                             AND expires_at_ms <= ?2
+                         )",
+                        params![session_key, now],
+                        |row| row.get::<_, bool>(0),
+                    )?;
+                let legacy = authoritative.as_ref().and_then(|(raw, expires_at_ms)| {
+                    serde_json::from_str::<Value>(raw).ok().map(|value| {
+                        TypedMobilityExpiringValue {
+                            value,
+                            expires_at_ms: *expires_at_ms,
+                        }
+                    })
+                });
                 let matched = typed == legacy;
                 tx.commit()?;
-                Ok(matched)
+                Ok((
+                    matched,
+                    authoritative.map(|(raw, _)| raw),
+                    expired_authoritative_key,
+                ))
             })
             .await?;
-        if matched {
-            return Ok(true);
+        if matched && !expired_authoritative_key {
+            return Ok((true, authoritative_raw));
         }
-        self.manager
+        let refreshed_authoritative_raw = self
+            .manager
             .call(move |conn| {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
                 let session_key = format!("{SESSION_PREFIX}{session_id}");
-                Self::reconcile_legacy_keys_tx(&tx, &[session_key])?;
+                if expired_authoritative_key {
+                    tx.execute(
+                        "DELETE FROM kv_keys
+                         WHERE key = ?1
+                           AND expires_at_ms IS NOT NULL
+                           AND expires_at_ms <= ?2",
+                        params![session_key, crate::time_utils::now_ms()],
+                    )?;
+                }
+                if !matched {
+                    Self::reconcile_legacy_keys_tx(&tx, std::slice::from_ref(&session_key))?;
+                }
+                // A mismatch may have waited behind another primary operation.
+                // Reload under the repair transaction so a concurrent revoke or
+                // renewal cannot make this request use the older read snapshot.
+                let authoritative_raw =
+                    live_string(&tx, &session_key, crate::time_utils::now_ms())?
+                        .map(|(raw, _)| raw);
                 tx.commit()?;
-                Ok(())
+                Ok(authoritative_raw)
             })
             .await?;
-        Ok(false)
+        Ok((matched, refreshed_authoritative_raw))
     }
 
     #[cfg(test)]

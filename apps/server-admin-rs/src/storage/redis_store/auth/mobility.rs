@@ -21,13 +21,11 @@ impl Store {
         &self,
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<LoginSession>> {
-        // The compatibility key remains the sole authorization authority. The
-        // typed aggregate is compared and repaired before that key is read, so
-        // a typed-only or corrupt row can never create an authenticated session.
-        self.verify_auth_session_shadow(session_id).await?;
-        let mut conn = self.conn();
-        let key = crate::auth_session_keys::session_key(session_id);
-        let raw: Option<String> = conn.get(key).await?;
+        // The compatibility key remains the sole authorization authority. Its
+        // value and the typed comparison are read from one isolated read
+        // transaction, avoiding two primary-executor jobs per authenticated
+        // request while preserving fail-closed shadow repair semantics.
+        let raw = self.load_auth_session_authority(session_id).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 
@@ -102,10 +100,7 @@ impl Store {
         &self,
         session_id: &str,
     ) -> crate::storage::StorageResult<Option<Value>> {
-        self.verify_auth_session_shadow(session_id).await?;
-        let mut conn = self.conn();
-        let key = crate::auth_session_keys::session_key(session_id);
-        let raw: Option<String> = conn.get(key).await?;
+        let raw = self.load_auth_session_authority(session_id).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 

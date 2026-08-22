@@ -1,17 +1,17 @@
 use super::*;
 
 impl Store {
-    pub(super) async fn verify_auth_session_shadow(
+    pub(super) async fn load_auth_session_authority(
         &self,
         session_id: &str,
-    ) -> crate::storage::StorageResult<()> {
-        let matched = self
+    ) -> crate::storage::StorageResult<Option<String>> {
+        let (matched, authoritative_raw) = self
             .typed
             .typed_mobility
-            .verify_and_repair_session_authority(session_id)
+            .load_and_repair_session_authority(session_id)
             .await?;
         self.observe_typed_mobility_shadow_comparison(matched);
-        Ok(())
+        Ok(authoritative_raw)
     }
 
     pub(super) fn observe_typed_mobility_shadow_comparison(&self, matched: bool) {

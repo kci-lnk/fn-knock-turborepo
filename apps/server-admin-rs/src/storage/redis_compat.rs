@@ -5,12 +5,16 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering as AtomicOrdering},
+    },
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore, TryAcquireError};
 use tokio_rusqlite::{
     Connection, OptionalExtension,
     rusqlite::{self, ToSql, params, params_from_iter},
@@ -47,7 +51,8 @@ use transactions::*;
 pub(crate) use command::{Cmd, Pipeline, cmd, pipe};
 #[allow(unused_imports)]
 pub(crate) use interface::{
-    AsyncCommands, CmdOutput, ConnectionManager, RedisError, RedisResult, streams,
+    AsyncCommands, CmdOutput, ConnectionManager, PrimaryQueueStatus, RedisError, RedisResult,
+    streams,
 };
 pub(crate) use primitives::string_get_tx;
 pub(crate) use transactions::{

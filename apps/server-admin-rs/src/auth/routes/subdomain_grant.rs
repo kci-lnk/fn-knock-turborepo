@@ -461,7 +461,12 @@ async fn authorize_existing(
         return Ok(None);
     };
     let grant_key = key(&token);
-    let Some(raw) = state.storage.store.get_string_value(&grant_key).await? else {
+    let Some(raw) = state
+        .storage
+        .store
+        .get_string_value_auth(&grant_key)
+        .await?
+    else {
         return Ok(None);
     };
     let Ok(mut record) = serde_json::from_str::<GrantRecord>(&raw) else {

@@ -133,6 +133,18 @@ pub(crate) struct ComponentHealth {
     pub udp_queue_drops: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_depth: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_depth_peak: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_wait_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub queue_wait_peak_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_operation_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canceled_operations: Option<u64>,
 }
 
 impl ComponentHealth {
@@ -173,6 +185,12 @@ impl ComponentHealth {
             udp_queued_bytes_peak: None,
             udp_queue_drops: None,
             latency_ms: None,
+            queue_depth: None,
+            queue_depth_peak: None,
+            queue_wait_ms: None,
+            queue_wait_peak_ms: None,
+            active_operation_ms: None,
+            canceled_operations: None,
         }
     }
 }
@@ -278,6 +296,12 @@ struct ProbeMetadata {
     udp_queued_bytes_peak: Option<u64>,
     udp_queue_drops: Option<u64>,
     latency_ms: Option<u64>,
+    queue_depth: Option<u64>,
+    queue_depth_peak: Option<u64>,
+    queue_wait_ms: Option<u64>,
+    queue_wait_peak_ms: Option<u64>,
+    active_operation_ms: Option<u64>,
+    canceled_operations: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -646,6 +670,13 @@ impl RuntimeHealth {
             self.run_storage_probe(state),
         );
         let (storage_ok, storage_latency_ms) = storage;
+        let primary_queue = state.storage.store.primary_queue_status();
+        let queue_saturation_threshold_ms = PROBE_TIMEOUT.as_millis() as u64;
+        let primary_queue_saturated = primary_queue.queue_depth > 0
+            && primary_queue
+                .active_operation_ms
+                .max(primary_queue.queue_wait_ms)
+                >= queue_saturation_threshold_ms;
 
         let management = ProbeResult {
             ok: true,
@@ -706,15 +737,23 @@ impl RuntimeHealth {
         let gateway_dataplane = bool_probe(dataplane_health, "serving", "not_serving");
         let auth_bridge = bool_probe(auth_health, "connected", "not_connected");
         let storage = ProbeResult {
-            ok: storage_ok,
-            reason_code: if storage_ok {
-                "sqlite_ping_ok"
-            } else {
+            ok: storage_ok && !primary_queue_saturated,
+            reason_code: if !storage_ok {
                 "sqlite_ping_failed"
+            } else if primary_queue_saturated {
+                "sqlite_primary_queue_saturated"
+            } else {
+                "sqlite_ping_ok"
             },
             metadata: ProbeMetadata {
                 process_state: Some(ProcessState::NotApplicable),
                 latency_ms: Some(storage_latency_ms),
+                queue_depth: Some(primary_queue.queue_depth),
+                queue_depth_peak: Some(primary_queue.queue_depth_peak),
+                queue_wait_ms: Some(primary_queue.queue_wait_ms),
+                queue_wait_peak_ms: Some(primary_queue.queue_wait_peak_ms),
+                active_operation_ms: Some(primary_queue.active_operation_ms),
+                canceled_operations: Some(primary_queue.canceled_operations),
                 ..ProbeMetadata::default()
             },
         };
@@ -1409,6 +1448,24 @@ fn apply_metadata(health: &mut ComponentHealth, metadata: ProbeMetadata) {
     if metadata.latency_ms.is_some() {
         health.latency_ms = metadata.latency_ms;
     }
+    if metadata.queue_depth.is_some() {
+        health.queue_depth = metadata.queue_depth;
+    }
+    if metadata.queue_depth_peak.is_some() {
+        health.queue_depth_peak = metadata.queue_depth_peak;
+    }
+    if metadata.queue_wait_ms.is_some() {
+        health.queue_wait_ms = metadata.queue_wait_ms;
+    }
+    if metadata.queue_wait_peak_ms.is_some() {
+        health.queue_wait_peak_ms = metadata.queue_wait_peak_ms;
+    }
+    if metadata.active_operation_ms.is_some() {
+        health.active_operation_ms = metadata.active_operation_ms;
+    }
+    if metadata.canceled_operations.is_some() {
+        health.canceled_operations = metadata.canceled_operations;
+    }
 }
 
 fn overall_status<'a>(statuses: impl Iterator<Item = &'a HealthStatus>) -> HealthStatus {
@@ -1616,6 +1673,10 @@ impl DiagnosticLogger {
                     | "attempt"
                     | "retry_delay_ms"
                     | "recovery_kind"
+                    | "queue_depth"
+                    | "queue_wait_ms"
+                    | "active_operation_ms"
+                    | "max_in_flight"
             )
         });
         let record = json!({

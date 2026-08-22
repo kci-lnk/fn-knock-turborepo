@@ -114,6 +114,153 @@ async fn wal_checkpoint_waits_for_an_active_analytics_reader() {
 }
 
 #[tokio::test]
+async fn health_probe_does_not_wait_for_the_primary_executor() {
+    let manager = temp_manager().await;
+    let blocker_manager = manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = blocker_manager.call(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| storage_error(format!("release primary blocker: {error}")))?;
+        Ok(())
+    });
+    let probe = async {
+        started_rx.await.expect("primary executor started");
+        tokio::time::timeout(std::time::Duration::from_millis(250), manager.ping())
+            .await
+            .expect("health reader must not queue behind primary work")
+            .expect("health query succeeds");
+        release_tx.send(()).expect("release primary executor");
+    };
+    let (blocker_result, ()) = tokio::join!(blocker, probe);
+    blocker_result.expect("primary blocker result");
+}
+
+#[tokio::test]
+async fn canceled_primary_waiter_is_never_submitted_to_sqlite() {
+    let manager = temp_manager().await;
+    let blocker_manager = manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = blocker_manager.call(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| storage_error(format!("release primary blocker: {error}")))?;
+        Ok(())
+    });
+    let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let executed_in_call = executed.clone();
+    let cancellation = async {
+        started_rx.await.expect("primary executor started");
+        let canceled = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            manager.call(move |_conn| {
+                executed_in_call.store(true, std::sync::atomic::Ordering::Release);
+                Ok(())
+            }),
+        )
+        .await;
+        assert!(canceled.is_err(), "queued call unexpectedly completed");
+        assert_eq!(manager.primary_queue_status().queue_depth, 0);
+        assert_eq!(manager.primary_queue_status().canceled_operations, 1);
+        release_tx.send(()).expect("release primary executor");
+    };
+    let (blocker_result, ()) = tokio::join!(blocker, cancellation);
+    blocker_result.expect("primary blocker result");
+    assert!(
+        !executed.load(std::sync::atomic::Ordering::Acquire),
+        "canceled waiter was submitted after its caller disappeared"
+    );
+}
+
+#[tokio::test]
+async fn canceled_auth_reader_waiter_is_never_submitted_to_sqlite() {
+    let manager = temp_manager().await;
+    let blocker_manager = manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let blocker = blocker_manager.call_auth_read(move |_conn| {
+        let _ = started_tx.send(());
+        release_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| storage_error(format!("release auth reader: {error}")))?;
+        Ok(())
+    });
+    let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let executed_in_call = executed.clone();
+    let cancellation = async {
+        started_rx.await.expect("auth reader started");
+        let canceled = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            manager.call_auth_read(move |_conn| {
+                executed_in_call.store(true, std::sync::atomic::Ordering::Release);
+                Ok(())
+            }),
+        )
+        .await;
+        assert!(canceled.is_err(), "queued auth read unexpectedly completed");
+        release_tx.send(()).expect("release auth reader");
+    };
+    let (blocker_result, ()) = tokio::join!(blocker, cancellation);
+    blocker_result.expect("auth reader blocker result");
+    assert!(
+        !executed.load(std::sync::atomic::Ordering::Acquire),
+        "canceled auth read was submitted after its caller disappeared"
+    );
+}
+
+#[tokio::test]
+async fn canceled_exclusive_call_retains_checkpoint_gate_until_sqlite_finishes() {
+    let manager = temp_manager().await;
+    let exclusive_manager = manager.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let exclusive = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        exclusive_manager.call_exclusive(move |_conn| {
+            let _ = started_tx.send(());
+            release_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .map_err(|error| storage_error(format!("release exclusive call: {error}")))?;
+            Ok(())
+        }),
+    );
+    let wait_until_submitted = async {
+        started_rx.await.expect("exclusive call started");
+    };
+    let (canceled, ()) = tokio::join!(exclusive, wait_until_submitted);
+    assert!(canceled.is_err(), "exclusive caller unexpectedly completed");
+
+    let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let executed_in_call = executed.clone();
+    let blocked_reader = tokio::time::timeout(
+        std::time::Duration::from_millis(50),
+        manager.call_analytics(move |_conn| {
+            executed_in_call.store(true, std::sync::atomic::Ordering::Release);
+            Ok(())
+        }),
+    )
+    .await;
+    assert!(
+        blocked_reader.is_err(),
+        "reader bypassed canceled exclusive call"
+    );
+    assert!(!executed.load(std::sync::atomic::Ordering::Acquire));
+
+    release_tx.send(()).expect("release exclusive SQLite call");
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        manager.call_analytics(|_conn| Ok(())),
+    )
+    .await
+    .expect("checkpoint gate released after SQLite completion")
+    .expect("analytics reader succeeds after exclusive completion");
+}
+
+#[tokio::test]
 async fn destructive_migration_backup_is_a_verified_sqlite_snapshot() {
     let directory = tempfile::tempdir().expect("create temp dir");
     let path = directory.path().join("fn-knock.sqlite3");

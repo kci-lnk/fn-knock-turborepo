@@ -25,6 +25,110 @@ use crate::grpc_proto::{
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 const AUTHORIZE_HTTP_V1_CAPABILITY: &str = "authorize_http_v1";
+const AUTH_BRIDGE_RESPONSE_HEADROOM: Duration = Duration::from_millis(250);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BridgeRequestKind {
+    VerifyAuth,
+    PreflightAuth,
+    VerifyStreamAuth,
+    AuthorizeHttp {
+        run_preflight: bool,
+        run_verify: bool,
+    },
+}
+
+impl BridgeRequestKind {
+    fn from_message(message: &AuthBridgeEnvelope) -> Option<Self> {
+        match message.payload.as_ref()? {
+            auth_bridge_envelope::Payload::VerifyAuthRequest(_) => Some(Self::VerifyAuth),
+            auth_bridge_envelope::Payload::PreflightAuthRequest(_) => Some(Self::PreflightAuth),
+            auth_bridge_envelope::Payload::VerifyStreamAuthRequest(_) => {
+                Some(Self::VerifyStreamAuth)
+            }
+            auth_bridge_envelope::Payload::AuthorizeHttpRequest(request) => {
+                let (run_preflight, run_verify) = http_auth_stages(request.mode);
+                Some(Self::AuthorizeHttp {
+                    run_preflight,
+                    run_verify,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    fn operation(self) -> &'static str {
+        match self {
+            Self::VerifyAuth => "verify_auth",
+            Self::PreflightAuth => "preflight_auth",
+            Self::VerifyStreamAuth => "verify_stream_auth",
+            Self::AuthorizeHttp { .. } => "authorize_http",
+        }
+    }
+
+    fn unavailable_envelope(self, request_id: String) -> AuthBridgeEnvelope {
+        let payload = match self {
+            Self::VerifyAuth => {
+                auth_bridge_envelope::Payload::VerifyAuthResponse(verify_auth_unavailable_response())
+            }
+            Self::PreflightAuth => auth_bridge_envelope::Payload::PreflightAuthResponse(
+                preflight_auth_unavailable_response(),
+            ),
+            Self::VerifyStreamAuth => auth_bridge_envelope::Payload::VerifyStreamAuthResponse(
+                verify_stream_auth_unavailable_response(),
+            ),
+            Self::AuthorizeHttp {
+                run_preflight,
+                run_verify,
+            } => {
+                let mut response = empty_authorize_http_response();
+                if run_preflight {
+                    response.preflight = Some(preflight_auth_unavailable_response());
+                }
+                if run_verify {
+                    response.verify = Some(verify_auth_unavailable_response());
+                }
+                auth_bridge_envelope::Payload::AuthorizeHttpResponse(response)
+            }
+        };
+        AuthBridgeEnvelope {
+            request_id,
+            payload: Some(payload),
+        }
+    }
+}
+
+fn auth_bridge_handler_timeout(request_timeout: Duration) -> Duration {
+    if request_timeout.is_zero() {
+        return Duration::ZERO;
+    }
+    let minimum_handler_time = request_timeout.min(Duration::from_millis(1));
+    let maximum_headroom = request_timeout.saturating_sub(minimum_handler_time);
+    let desired_headroom =
+        AUTH_BRIDGE_RESPONSE_HEADROOM.min((request_timeout / 5).max(Duration::from_millis(1)));
+    request_timeout.saturating_sub(desired_headroom.min(maximum_headroom))
+}
+
+fn record_bridge_pressure(
+    state: &AppState,
+    event: &str,
+    reason_code: &str,
+    kind: BridgeRequestKind,
+    duration: Duration,
+    max_in_flight: usize,
+) {
+    state.runtime_health.operational_log(
+        "WARN",
+        "auth_bridge",
+        event,
+        reason_code,
+        serde_json::Map::from_iter([
+            ("operation".to_string(), json!(kind.operation())),
+            ("duration_ms".to_string(), json!(duration.as_millis())),
+            ("max_in_flight".to_string(), json!(max_in_flight)),
+        ]),
+    );
+}
 
 pub(crate) fn start_auth_bridge(state: AppState) -> JoinHandle<()> {
     let shutdown = state.shutdown.clone();
@@ -65,6 +169,7 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
     let max_in_flight = state.settings.auth_bridge_max_in_flight;
+    let handler_timeout = auth_bridge_handler_timeout(state.settings.request_timeout);
     let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(max_in_flight);
     let limiter = Arc::new(Semaphore::new(max_in_flight));
 
@@ -111,10 +216,32 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         let Some(message) = message else {
             break;
         };
-        let permit = tokio::select! {
-            _ = shutdown.cancelled() => break,
-            result = limiter.clone().acquire_owned() => {
-                result.context("auth bridge concurrency limiter closed")?
+        let Some(kind) = BridgeRequestKind::from_message(&message) else {
+            continue;
+        };
+        let request_id = message.request_id.clone();
+        let permit = match limiter.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(_) => {
+                record_bridge_pressure(
+                    &state,
+                    "request_rejected",
+                    "capacity_exhausted",
+                    kind,
+                    Duration::ZERO,
+                    max_in_flight,
+                );
+                let response = kind.unavailable_envelope(request_id);
+                tokio::select! {
+                    _ = shutdown.cancelled() => break,
+                    result = tx.send(response) => {
+                        if let Err(error) = result {
+                            tracing::debug!(%error, "failed to send auth bridge overload response");
+                            break;
+                        }
+                    }
+                }
+                continue;
             }
         };
         let tx = tx.clone();
@@ -124,7 +251,23 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
             let _permit = permit;
             let response = tokio::select! {
                 _ = worker_shutdown.cancelled() => None,
-                response = handle_bridge_message(state, message) => response,
+                response = tokio::time::timeout(
+                    handler_timeout,
+                    handle_bridge_message(state.clone(), message),
+                ) => match response {
+                    Ok(response) => response,
+                    Err(_) => {
+                        record_bridge_pressure(
+                            &state,
+                            "request_timeout",
+                            "handler_deadline_exceeded",
+                            kind,
+                            handler_timeout,
+                            max_in_flight,
+                        );
+                        Some(kind.unavailable_envelope(request_id))
+                    }
+                },
             };
             if let Some(response) = response
                 && let Err(error) = tx.send(response).await
@@ -136,6 +279,50 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
     workers.abort_all();
     while workers.join_next().await.is_some() {}
     Ok(())
+}
+
+fn preflight_auth_unavailable_response() -> PreflightAuthResponse {
+    PreflightAuthResponse {
+        deny: true,
+        redirect_location: String::new(),
+        access_denied_reason: "auth_service_unavailable".to_string(),
+        response_headers: vec![Header {
+            name: header::CACHE_CONTROL.as_str().to_string(),
+            values: vec!["no-store".to_string()],
+        }],
+    }
+}
+
+fn verify_auth_unavailable_response() -> VerifyAuthResponse {
+    VerifyAuthResponse {
+        success: false,
+        message: "Authentication Service Unavailable".to_string(),
+        status: StatusCode::SERVICE_UNAVAILABLE.as_u16() as i32,
+        set_cookies: Vec::new(),
+        suppress_toolbar: false,
+        redirect_location: String::new(),
+        access_denied_reason: "auth_service_unavailable".to_string(),
+        response_headers: vec![Header {
+            name: header::CACHE_CONTROL.as_str().to_string(),
+            values: vec!["no-store".to_string()],
+        }],
+        grant_kind: crate::grpc_proto::AuthGrantKind::Unspecified as i32,
+        decision: "auth_unavailable".to_string(),
+        login_authenticated: false,
+        host_authorized: false,
+        cache_max_age_seconds: 0,
+        auth_rule_group_id: String::new(),
+        auth_grant_state: String::new(),
+    }
+}
+
+fn verify_stream_auth_unavailable_response() -> VerifyStreamAuthResponse {
+    VerifyStreamAuthResponse {
+        allowed: false,
+        status: StatusCode::SERVICE_UNAVAILABLE.as_u16() as i32,
+        decision: "auth_unavailable".to_string(),
+        message: "Authentication Service Unavailable".to_string(),
+    }
 }
 
 async fn handle_bridge_message(
@@ -847,6 +1034,61 @@ mod tests {
             (true, true)
         );
         assert_eq!(http_auth_stages(i32::MAX), (true, true));
+    }
+
+    #[test]
+    fn bridge_deadline_keeps_response_headroom() {
+        assert_eq!(
+            auth_bridge_handler_timeout(Duration::from_secs(5)),
+            Duration::from_millis(4_750)
+        );
+        assert_eq!(
+            auth_bridge_handler_timeout(Duration::from_millis(50)),
+            Duration::from_millis(40)
+        );
+        assert_eq!(
+            auth_bridge_handler_timeout(Duration::from_millis(2)),
+            Duration::from_millis(1)
+        );
+        assert_eq!(auth_bridge_handler_timeout(Duration::ZERO), Duration::ZERO);
+    }
+
+    #[test]
+    fn bridge_unavailable_responses_are_fail_closed_and_uncacheable() {
+        let envelope = BridgeRequestKind::AuthorizeHttp {
+            run_preflight: true,
+            run_verify: true,
+        }
+        .unavailable_envelope("request-1".to_string());
+        let Some(auth_bridge_envelope::Payload::AuthorizeHttpResponse(response)) = envelope.payload
+        else {
+            panic!("expected authorize response");
+        };
+        let preflight = response.preflight.expect("preflight response");
+        let verify = response.verify.expect("verify response");
+        assert!(preflight.deny);
+        assert_eq!(preflight.access_denied_reason, "auth_service_unavailable");
+        assert!(!verify.success);
+        assert_eq!(
+            verify.status,
+            StatusCode::SERVICE_UNAVAILABLE.as_u16() as i32
+        );
+        assert_eq!(verify.decision, "auth_unavailable");
+        assert_eq!(verify.cache_max_age_seconds, 0);
+        assert_eq!(response.preflight_cache_scope, AuthCacheScope::None as i32);
+        assert_eq!(response.verify_cache_scope, AuthCacheScope::None as i32);
+
+        let stream =
+            BridgeRequestKind::VerifyStreamAuth.unavailable_envelope("request-2".to_string());
+        let Some(auth_bridge_envelope::Payload::VerifyStreamAuthResponse(stream)) = stream.payload
+        else {
+            panic!("expected stream response");
+        };
+        assert!(!stream.allowed);
+        assert_eq!(
+            stream.status,
+            StatusCode::SERVICE_UNAVAILABLE.as_u16() as i32
+        );
     }
 
     #[test]

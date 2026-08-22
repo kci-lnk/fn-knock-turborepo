@@ -16546,7 +16546,23 @@
               "null"
             ]
           },
+          "active_operation_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "active_proxy_requests": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "canceled_operations": {
             "format": "int64",
             "minimum": 0,
             "type": [
@@ -16696,6 +16712,38 @@
               "not_applicable"
             ],
             "type": "string"
+          },
+          "queue_depth": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queue_depth_peak": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queue_wait_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queue_wait_peak_ms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "reason_code": {
             "type": [

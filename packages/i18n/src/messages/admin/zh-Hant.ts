@@ -3359,6 +3359,15 @@ export const zhHantAdmin = {
     disabledTitle: "協議映射目前已停用",
     disabledDescription:
       "保留的規則不會監聽端口。你可以在此修正或刪除配置，完成後回到「系統設定 → 功能」重新開啟。",
+    runtimeDisabledTitle: "協議映射啟動失敗，已自動停用",
+    runtimeIssueLocalLoop:
+      "{protocol} 對外端口 {port} 轉發到本機同一端口（{target}），會形成自環。",
+    runtimeIssuePortInUse:
+      "{protocol} 對外端口 {port} 已被其他程式佔用，閘道無法監聽該端口。",
+    runtimeIssueFallback: "閘道未能套用現有的協議映射設定。",
+    runtimeIssueRecovery:
+      "管理後台及其他功能已繼續啟動，原映射規則也已保留。請在本頁修正或刪除問題規則，再到「系統設定 → 功能」重新開啟協議映射。",
+    runtimeIssueDetails: "啟動錯誤詳情",
     searchPlaceholder: "搜尋協議、對外端口、備註、目標地址...",
     protocol: "協議",
     listenPort: "對外端口",

@@ -71,7 +71,10 @@
       </CardHeader>
 
       <CardContent class="space-y-4">
-        <StreamMappingDisabledAlert v-if="!protocolMappingEnabled" />
+        <StreamMappingDisabledAlert
+          v-if="!protocolMappingEnabled"
+          :runtime-issue="protocolMappingRuntimeIssue"
+        />
         <Alert
           v-else-if="scheduleState === 'closed'"
           class="items-start rounded-xl border-amber-300 bg-amber-50/80 text-amber-950 shadow-none"
@@ -240,6 +243,9 @@ const allMappings = computed(() =>
 );
 const protocolMappingEnabled = computed(
   () => configStore.config?.protocol_mapping_feature?.enabled === true,
+);
+const protocolMappingRuntimeIssue = computed(
+  () => configStore.config?.protocol_mapping_feature?.runtime_issue ?? null,
 );
 
 const {

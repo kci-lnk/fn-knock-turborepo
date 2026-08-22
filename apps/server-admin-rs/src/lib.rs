@@ -54,7 +54,7 @@ pub(crate) use security::{
 pub(crate) use shared::{
     auth_mobility_keys, auth_session_keys, cloudflared_utils, crypto_utils, daily_availability,
     frp_utils, fs_utils, http_body, http_utils, json_utils, net_utils, node_compat, proxy_utils,
-    text_utils, time_utils, unix, version_utils,
+    text_utils, time_utils, transient_error, unix, version_utils,
 };
 pub(crate) use storage::store;
 pub(crate) use system::{

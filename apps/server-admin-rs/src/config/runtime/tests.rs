@@ -151,6 +151,194 @@ async fn boot_migration_reenables_unvalidated_stream_mappings() {
 }
 
 #[tokio::test]
+async fn protocol_mapping_startup_failure_disables_only_the_feature_and_keeps_booting() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mappings = json!([{
+        "protocol": "tcp",
+        "listen_port": 5555,
+        "target": "127.0.0.1:5555",
+        "use_auth": true,
+        "comment": "legacy loop"
+    }]);
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["stream_mappings"] = mappings.clone();
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save legacy mapping config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
+        .await
+        .expect("enable protocol mappings");
+
+    let mut results = std::collections::VecDeque::from([
+        Err(proxy_config::mark_stream_mapping_runtime_error(
+            "Stream mapping TCP listen_port 5555 cannot target the same local port 127.0.0.1:5555",
+        )),
+        Ok(()),
+    ]);
+    apply_run_type_config_on_boot_with(&state, &config, 3, || {
+        std::future::ready(results.pop_front().expect("expected apply attempt"))
+    })
+    .await
+    .expect("continue boot with protocol mappings disabled");
+
+    assert!(results.is_empty());
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("load degraded feature"),
+        json!({
+            "enabled": false,
+            "availability": null,
+            "runtime_issue": {
+                "code": "local_port_loop",
+                "message": "Stream mapping TCP listen_port 5555 cannot target the same local port 127.0.0.1:5555",
+                "protocol": "tcp",
+                "listen_port": 5555,
+                "target": "127.0.0.1:5555"
+            }
+        })
+    );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_config()
+            .await
+            .expect("reload mapping config")["stream_mappings"],
+        mappings
+    );
+}
+
+#[test]
+fn protocol_mapping_startup_failure_identifies_an_occupied_listener_even_in_a_500_response() {
+    let config = json!({
+        "stream_mappings": [
+            {
+                "protocol": "udp",
+                "listen_port": 5353,
+                "target": "192.0.2.10:53"
+            },
+            {
+                "protocol": "tcp",
+                "listen_port": 9000,
+                "target": "127.0.0.1:9001"
+            }
+        ]
+    });
+    let issue = protocol_mapping_runtime_issue(
+        &config,
+        &proxy_config::mark_stream_mapping_runtime_error(
+            "set_stream_rules returned 500 Internal Server Error: listen tcp :9000: bind: address already in use",
+        ),
+    )
+    .expect("classify stream mapping runtime error");
+
+    assert_eq!(
+        issue,
+        json!({
+            "code": "listen_port_in_use",
+            "message": "set_stream_rules returned 500 Internal Server Error: listen tcp :9000: bind: address already in use",
+            "protocol": "tcp",
+            "listen_port": 9000,
+            "target": "127.0.0.1:9001"
+        })
+    );
+}
+
+#[tokio::test]
+async fn transient_stream_mapping_failure_uses_startup_retry_without_disabling_the_feature() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let config = state.storage.store.get_config().await.expect("load config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
+        .await
+        .expect("enable protocol mappings");
+    let transient_error = proxy_config::mark_stream_mapping_runtime_error(
+        "set_stream_rules returned 503 Service Unavailable",
+    );
+
+    let result = apply_run_type_config_on_boot_with(&state, &config, 3, || {
+        std::future::ready(Err(transient_error.clone()))
+    })
+    .await;
+
+    assert_eq!(result, Err(transient_error));
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("load unchanged feature"),
+        json!({ "enabled": true, "availability": null })
+    );
+}
+
+#[tokio::test]
+async fn unrelated_startup_failure_does_not_disable_protocol_mappings() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let config = state.storage.store.get_config().await.expect("load config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
+        .await
+        .expect("enable protocol mappings");
+
+    let result = apply_run_type_config_on_boot_with(&state, &config, 3, || {
+        std::future::ready(Err("host mappings transaction is busy".to_string()))
+    })
+    .await;
+
+    assert_eq!(result, Err("host mappings transaction is busy".to_string()));
+    assert_eq!(
+        load_protocol_mapping_feature(&state, None)
+            .await
+            .expect("load unchanged feature"),
+        json!({ "enabled": true, "availability": null })
+    );
+}
+
+#[tokio::test]
+async fn protocol_mapping_cleanup_failure_still_allows_the_admin_backend_to_start() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["run_type"] = json!(3);
+    config["stream_mappings"] = json!([{
+        "protocol": "tcp",
+        "listen_port": 9000,
+        "target": "127.0.0.1:9001"
+    }]);
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save mapping config");
+    save_protocol_mapping_feature(&state, &json!({ "enabled": true }))
+        .await
+        .expect("enable protocol mappings");
+    let mut results = std::collections::VecDeque::from([
+        Err(proxy_config::mark_stream_mapping_runtime_error(
+            "listen tcp :9000: bind: address already in use",
+        )),
+        Err("gateway cleanup temporarily unavailable".to_string()),
+    ]);
+
+    apply_run_type_config_on_boot_with(&state, &config, 3, || {
+        std::future::ready(results.pop_front().expect("expected apply attempt"))
+    })
+    .await
+    .expect("keep the admin backend available for repair");
+
+    let feature = load_protocol_mapping_feature(&state, None)
+        .await
+        .expect("load degraded feature");
+    assert_eq!(feature["enabled"], json!(false));
+    assert_eq!(
+        feature.pointer("/runtime_issue/code"),
+        Some(&json!("listen_port_in_use"))
+    );
+}
+
+#[tokio::test]
 async fn boot_migration_backfills_panel_sync_ids_through_host_mapping_cas() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
     let initial = vec![
@@ -502,7 +690,17 @@ async fn protocol_mapping_enable_rejects_local_port_loops_without_losing_config(
         load_protocol_mapping_feature(&state, None)
             .await
             .expect("reload feature"),
-        json!({ "enabled": false, "availability": null })
+        json!({
+            "enabled": false,
+            "availability": null,
+            "runtime_issue": {
+                "code": "local_port_loop",
+                "message": "Stream mapping TCP listen_port 5555 cannot target the same local port 127.0.0.1:5555",
+                "protocol": "tcp",
+                "listen_port": 5555,
+                "target": "127.0.0.1:5555"
+            }
+        })
     );
 }
 
@@ -571,6 +769,12 @@ async fn protocol_mapping_feature_rejects_invalid_patch_shapes_before_mutation()
         json!({ "enabled": "true" }),
         json!({ "availability": [] }),
         json!({ "availability": { "enabled": false } }),
+        json!({
+            "runtime_issue": {
+                "code": "runtime_sync_failed",
+                "message": "client-controlled"
+            }
+        }),
     ] {
         let response = update_protocol_mapping_feature(State(state.clone()), Json(patch)).await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -1201,6 +1405,29 @@ fn normalizes_runtime_mode_feature_configs_like_node() {
             }
         }))),
         json!({ "enabled": true, "availability": null })
+    );
+    assert_eq!(
+        normalize_protocol_mapping_feature(Some(&json!({
+            "enabled": false,
+            "runtime_issue": {
+                "code": "listen_port_in_use",
+                "message": "  listen tcp :9000: bind: address already in use  ",
+                "protocol": "TCP",
+                "listen_port": 9000,
+                "target": " 127.0.0.1:9001 "
+            }
+        }))),
+        json!({
+            "enabled": false,
+            "availability": null,
+            "runtime_issue": {
+                "code": "listen_port_in_use",
+                "message": "listen tcp :9000: bind: address already in use",
+                "protocol": "tcp",
+                "listen_port": 9000,
+                "target": "127.0.0.1:9001"
+            }
+        })
     );
     assert_eq!(
         normalize_smart_connect_config(Some(&json!({

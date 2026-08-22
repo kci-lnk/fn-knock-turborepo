@@ -78,7 +78,8 @@ async fn apply_run_type_config_inner(
             .and_then(Value::as_bool)
             == Some(true);
     if protocol_mapping_enabled {
-        proxy_config::validate_stream_mapping_runtime_safety(config)?;
+        proxy_config::validate_stream_mapping_runtime_safety(config)
+            .map_err(proxy_config::mark_stream_mapping_runtime_error)?;
     }
 
     log_go_value_result(
@@ -208,7 +209,9 @@ async fn apply_run_type_config_inner(
         }
         sync_host_rules(state, config, host_rules_lock_held).await?;
         if protocol_mapping_enabled {
-            sync_stream_rules(state, config, &protocol_mapping_feature).await?;
+            sync_stream_rules(state, config, &protocol_mapping_feature)
+                .await
+                .map_err(proxy_config::mark_stream_mapping_runtime_error)?;
         }
         sync_default_route(state, config).await;
         maybe_apply_host_firewall(state, config, run_type, protocol_mapping_enabled).await?;

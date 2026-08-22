@@ -315,10 +315,23 @@ pub(super) struct ProtocolMappingAvailabilityData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(super) struct ProtocolMappingRuntimeIssueData {
+    code: String,
+    message: String,
+    #[schema(required = true)]
+    protocol: Option<String>,
+    #[schema(required = true)]
+    listen_port: Option<u16>,
+    #[schema(required = true)]
+    target: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct ProtocolMappingFeatureData {
     enabled: bool,
     #[schema(required = true)]
     availability: Option<ProtocolMappingAvailabilityData>,
+    runtime_issue: Option<ProtocolMappingRuntimeIssueData>,
 }
 
 #[derive(Serialize, ToSchema)]

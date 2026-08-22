@@ -235,7 +235,10 @@ export function useFeaturesSettings() {
         },
       },
     );
-    if (!result) protocolMappingEnabled.value = previousValue;
+    if (!result) {
+      protocolMappingEnabled.value = previousValue;
+      await configStore.loadConfig({ force: true });
+    }
   };
 
   const saveWOLEnabled = async (nextValue: boolean) => {

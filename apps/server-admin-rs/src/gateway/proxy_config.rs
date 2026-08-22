@@ -69,6 +69,20 @@ pub(crate) fn validate_stream_mapping_runtime_safety(config: &Value) -> Result<(
     normalize::validate_stream_mapping_runtime_safety_inner(config)
 }
 
+pub(crate) fn mark_stream_mapping_runtime_error(message: impl AsRef<str>) -> String {
+    format!(
+        "{STREAM_MAPPING_RUNTIME_ERROR_PREFIX}{}",
+        message.as_ref().trim()
+    )
+}
+
+pub(crate) fn stream_mapping_runtime_error_message(message: &str) -> Option<&str> {
+    message
+        .trim()
+        .strip_prefix(STREAM_MAPPING_RUNTIME_ERROR_PREFIX)
+        .map(str::trim)
+}
+
 pub(crate) fn enable_unvalidated_stream_mappings(config: &mut Value) -> usize {
     stream_security::enable_unvalidated_stream_mappings(config)
 }
@@ -142,6 +156,7 @@ const FAVICON_CANDIDATE_ATTRIBUTE_NAMES: [&str; 9] = [
     "data-favicon",
 ];
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
+const STREAM_MAPPING_RUNTIME_ERROR_PREFIX: &str = "[protocol_mapping_runtime] ";
 const STREAM_MAPPING_LEGACY_REPAIR_REQUIRED_CODE: u16 = 40_901;
 const HOST_MAPPINGS_TRANSACTION_LOCK_KEY: &str =
     "__fn_knock_internal:host-mappings-config-runtime-transaction";
@@ -545,7 +560,7 @@ pub(crate) fn localize_stream_mapping_runtime_error(
 }
 
 pub(crate) fn localize_proxy_config_error(translator: &Translator, message: &str) -> String {
-    let message = message.trim();
+    let message = stream_mapping_runtime_error_message(message).unwrap_or_else(|| message.trim());
     if let Some(localized) = localize_stream_mapping_runtime_error(translator, message) {
         return localized;
     }

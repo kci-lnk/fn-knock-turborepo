@@ -182,6 +182,7 @@ fn runtime_config_route_text(translator: &Translator, key: &str) -> String {
 }
 
 fn localize_runtime_config_error(translator: &Translator, message: &str) -> String {
+    let message = proxy_config::stream_mapping_runtime_error_message(message).unwrap_or(message);
     if message.trim() == GO_BACKEND_UNSUCCESSFUL_RESPONSE {
         return runtime_config_route_text(translator, "upstreamUnavailable");
     }
@@ -191,6 +192,175 @@ fn localize_runtime_config_error(translator: &Translator, message: &str) -> Stri
         return localized;
     }
     message.to_string()
+}
+
+fn message_mentions_stream_port(message: &str, port: u64) -> bool {
+    for marker in [
+        format!("listen_port {port}"),
+        format!("port {port}"),
+        format!(":{port}"),
+    ] {
+        let mut remainder = message;
+        while let Some((_, after)) = remainder.split_once(&marker) {
+            if after
+                .chars()
+                .next()
+                .is_none_or(|character| !character.is_ascii_digit())
+            {
+                return true;
+            }
+            remainder = after;
+        }
+    }
+    false
+}
+
+fn stream_mapping_issue_identity(config: &Value, message: &str) -> (Value, Value, Value) {
+    let mappings = config
+        .get("stream_mappings")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let active = mappings
+        .iter()
+        .filter(|mapping| mapping.get("disabled").and_then(Value::as_bool) != Some(true))
+        .collect::<Vec<_>>();
+    let lowercase_message = message.to_ascii_lowercase();
+    let candidates = active
+        .iter()
+        .copied()
+        .filter(|mapping| {
+            mapping
+                .get("listen_port")
+                .and_then(Value::as_u64)
+                .is_some_and(|port| message_mentions_stream_port(&lowercase_message, port))
+        })
+        .collect::<Vec<_>>();
+    let selected = candidates
+        .iter()
+        .copied()
+        .find(|mapping| {
+            mapping
+                .get("protocol")
+                .and_then(Value::as_str)
+                .is_some_and(|protocol| lowercase_message.contains(&protocol.to_ascii_lowercase()))
+        })
+        .or_else(|| (candidates.len() == 1).then(|| candidates[0]))
+        .or_else(|| (active.len() == 1).then(|| active[0]));
+    let Some(mapping) = selected else {
+        return (Value::Null, Value::Null, Value::Null);
+    };
+    (
+        mapping
+            .get("protocol")
+            .and_then(Value::as_str)
+            .map(str::to_ascii_lowercase)
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+        mapping
+            .get("listen_port")
+            .and_then(Value::as_u64)
+            .map(Value::from)
+            .unwrap_or(Value::Null),
+        mapping
+            .get("target")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|target| !target.is_empty())
+            .map(|target| Value::String(target.to_string()))
+            .unwrap_or(Value::Null),
+    )
+}
+
+fn protocol_mapping_runtime_issue(config: &Value, error: &str) -> Option<Value> {
+    let message = proxy_config::stream_mapping_runtime_error_message(error)?;
+    let lowercase_message = message.to_ascii_lowercase();
+    let local_port_loop = lowercase_message.contains("cannot target the same local");
+    let listen_port_in_use = lowercase_message.contains("address already in use")
+        || lowercase_message.contains("eaddrinuse")
+        || lowercase_message.contains("only one usage of each socket address");
+    if !local_port_loop
+        && !listen_port_in_use
+        && crate::transient_error::is_transient_runtime_error(message)
+    {
+        return None;
+    }
+    let code = if local_port_loop {
+        "local_port_loop"
+    } else if listen_port_in_use {
+        "listen_port_in_use"
+    } else {
+        "runtime_sync_failed"
+    };
+    let (protocol, listen_port, target) = stream_mapping_issue_identity(config, message);
+    Some(json!({
+        "code": code,
+        "message": message,
+        "protocol": protocol,
+        "listen_port": listen_port,
+        "target": target,
+    }))
+}
+
+async fn apply_run_type_config_on_boot_with<Apply, ApplyFuture>(
+    state: &AppState,
+    config: &Value,
+    run_type: i64,
+    mut apply: Apply,
+) -> Result<(), String>
+where
+    Apply: FnMut() -> ApplyFuture,
+    ApplyFuture: std::future::Future<Output = Result<(), String>>,
+{
+    let protocol_mapping_feature = load_protocol_mapping_feature(state, Some(config))
+        .await
+        .map_err(|error| error.to_string())?;
+    let protocol_mapping_enabled = run_type == 3
+        && protocol_mapping_feature
+            .get("enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+
+    match apply().await {
+        Ok(()) => {
+            if protocol_mapping_enabled && protocol_mapping_feature.get("runtime_issue").is_some() {
+                let mut cleared = protocol_mapping_feature;
+                ensure_object(&mut cleared).remove("runtime_issue");
+                if let Err(error) = save_protocol_mapping_feature(state, &cleared).await {
+                    tracing::warn!(%error, "failed to clear recovered protocol mapping boot issue");
+                }
+            }
+            Ok(())
+        }
+        Err(error) if protocol_mapping_enabled => {
+            let Some(issue) = protocol_mapping_runtime_issue(config, &error) else {
+                return Err(error);
+            };
+            let mut disabled = protocol_mapping_feature;
+            let disabled_object = ensure_object(&mut disabled);
+            disabled_object.insert("enabled".to_string(), Value::Bool(false));
+            disabled_object.insert("runtime_issue".to_string(), issue.clone());
+            save_protocol_mapping_feature(state, &disabled)
+                .await
+                .map_err(|save_error| {
+                    format!(
+                        "failed to persist disabled protocol mapping state after startup error: {save_error}"
+                    )
+                })?;
+            tracing::error!(
+                issue = %issue,
+                "protocol mappings failed during startup and were disabled for repair"
+            );
+            if let Err(retry_error) = apply().await {
+                tracing::warn!(
+                    %retry_error,
+                    "runtime remained partially unavailable after disabling protocol mappings; continuing boot for administrator repair"
+                );
+            }
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 fn smart_connect_text(translator: &Translator, key: &str) -> String {
@@ -233,9 +403,11 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) -> Result<(), S
         Err(error) => tracing::warn!(%error, "failed to apply runtime config constraints"),
     }
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
-    apply_run_type_config(&state, &config, run_type)
-        .await
-        .inspect_err(|error| tracing::warn!(%error, "failed to sync run type config on boot"))?;
+    apply_run_type_config_on_boot_with(&state, &config, run_type, || {
+        apply_run_type_config(&state, &config, run_type)
+    })
+    .await
+    .inspect_err(|error| tracing::warn!(%error, "failed to sync run type config on boot"))?;
 
     let gateway_logging = normalize_gateway_logging(config.get("gateway_logging"));
     if let Err(error) = state

@@ -3647,6 +3647,17 @@ export const koKRAdmin = {
     disabledTitle: "프로토콜 매핑이 현재 비활성화되어 있습니다.",
     disabledDescription:
       "보관된 규칙은 어떤 포트에서도 수신하지 않습니다. 여기에서 설정을 수정하거나 삭제한 뒤 '시스템 설정 → 기능'으로 돌아가 다시 활성화하세요.",
+    runtimeDisabledTitle:
+      "프로토콜 매핑 시작에 실패하여 자동으로 비활성화했습니다.",
+    runtimeIssueLocalLoop:
+      "{protocol} 외부 포트 {port}가 동일한 로컬 포트({target})로 전달되어 루프가 발생합니다.",
+    runtimeIssuePortInUse:
+      "{protocol} 외부 포트 {port}를 다른 프로그램이 사용 중이어서 게이트웨이가 수신할 수 없습니다.",
+    runtimeIssueFallback:
+      "게이트웨이가 기존 프로토콜 매핑 설정을 적용하지 못했습니다.",
+    runtimeIssueRecovery:
+      "관리 패널과 다른 기능은 계속 시작되었으며 기존 규칙도 보존되었습니다. 이 페이지에서 문제가 있는 규칙을 수정하거나 삭제한 뒤 '시스템 설정 → 기능'에서 프로토콜 매핑을 다시 활성화하세요.",
+    runtimeIssueDetails: "시작 오류 세부 정보",
     searchPlaceholder: "프로토콜, 외부 포트, 메모 또는 대상 주소 검색...",
     protocol: "프로토콜",
     listenPort: "외부 포트",

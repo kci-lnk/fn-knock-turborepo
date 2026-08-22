@@ -438,10 +438,12 @@ pub(super) fn normalize_run_type(value: Option<&Value>) -> Option<i64> {
 
 pub(crate) fn normalize_protocol_mapping_feature(value: Option<&Value>) -> Value {
     normalize_protocol_mapping_feature_strict(value).unwrap_or_else(|_| {
-        json!({
+        let mut normalized = json!({
             "enabled": bool_field(value, "enabled", false),
             "availability": Value::Null,
-        })
+        });
+        preserve_protocol_mapping_runtime_issue(&mut normalized, value);
+        normalized
     })
 }
 
@@ -451,9 +453,61 @@ pub(super) fn normalize_protocol_mapping_feature_strict(
     let availability = crate::daily_availability::normalize_daily_availability(
         value.and_then(|value| value.get("availability")),
     )?;
-    Ok(json!({
+    let mut normalized = json!({
         "enabled": bool_field(value, "enabled", false),
         "availability": availability,
+    });
+    preserve_protocol_mapping_runtime_issue(&mut normalized, value);
+    Ok(normalized)
+}
+
+fn preserve_protocol_mapping_runtime_issue(normalized: &mut Value, source: Option<&Value>) {
+    let Some(issue) = normalize_protocol_mapping_runtime_issue(
+        source.and_then(|value| value.get("runtime_issue")),
+    ) else {
+        return;
+    };
+    ensure_object(normalized).insert("runtime_issue".to_string(), issue);
+}
+
+fn normalize_protocol_mapping_runtime_issue(value: Option<&Value>) -> Option<Value> {
+    let value = value?.as_object()?;
+    let message = value.get("message")?.as_str()?.trim();
+    if message.is_empty() {
+        return None;
+    }
+    let code = match value.get("code").and_then(Value::as_str) {
+        Some("local_port_loop") => "local_port_loop",
+        Some("listen_port_in_use") => "listen_port_in_use",
+        _ => "runtime_sync_failed",
+    };
+    let protocol = value
+        .get("protocol")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .filter(|protocol| matches!(protocol.as_str(), "tcp" | "udp"))
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    let listen_port = value
+        .get("listen_port")
+        .and_then(Value::as_u64)
+        .filter(|port| (1..=65_535).contains(port))
+        .map(Value::from)
+        .unwrap_or(Value::Null);
+    let target = value
+        .get("target")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|target| !target.is_empty())
+        .map(|target| Value::String(target.chars().take(512).collect()))
+        .unwrap_or(Value::Null);
+    Some(json!({
+        "code": code,
+        "message": message.chars().take(2_000).collect::<String>(),
+        "protocol": protocol,
+        "listen_port": listen_port,
+        "target": target,
     }))
 }
 

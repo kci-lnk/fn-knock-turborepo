@@ -3414,6 +3414,15 @@ export const zhCNAdmin = {
     disabledTitle: "协议映射当前已停用",
     disabledDescription:
       "保留的规则不会监听端口。你可以在这里修正或删除配置，完成后回到“系统设置 → 功能”重新开启。",
+    runtimeDisabledTitle: "协议映射启动失败，已自动停用",
+    runtimeIssueLocalLoop:
+      "{protocol} 对外端口 {port} 转发到本机同一端口（{target}），会形成自环。",
+    runtimeIssuePortInUse:
+      "{protocol} 对外端口 {port} 已被其他程序占用，网关无法监听该端口。",
+    runtimeIssueFallback: "网关未能应用现有的协议映射配置。",
+    runtimeIssueRecovery:
+      "管理后台及其他功能已继续启动，原映射规则也已保留。请在本页修正或删除问题规则，再到“系统设置 → 功能”重新开启协议映射。",
+    runtimeIssueDetails: "启动错误详情",
     searchPlaceholder: "搜索协议、对外端口、备注、目标地址...",
     protocol: "协议",
     listenPort: "对外端口",

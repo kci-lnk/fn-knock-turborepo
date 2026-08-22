@@ -3,7 +3,7 @@ use std::{future::Future, time::Duration};
 use serde_json::{Map, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::state::AppState;
+use crate::{state::AppState, transient_error::is_transient_runtime_error};
 
 const SYNC_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(30);
 const SYNC_RETRY_DELAY: Duration = Duration::from_secs(1);
@@ -290,7 +290,7 @@ where
         };
         let error = match result {
             Ok(()) => return Ok(()),
-            Err(error) if !is_transient_error(&error) => return Err(error),
+            Err(error) if !is_transient_runtime_error(&error) => return Err(error),
             Err(error) => error,
         };
         let current_retry_delay = retry_delay_for_attempt(retry_delay, attempts);
@@ -316,7 +316,7 @@ where
 }
 
 fn startup_failure_class(error: &str) -> &'static str {
-    if is_transient_error(error) {
+    if is_transient_runtime_error(error) {
         "transient_gateway"
     } else if error.eq_ignore_ascii_case("startup cancelled") {
         "cancelled"
@@ -329,30 +329,6 @@ fn retry_delay_for_attempt(base: Duration, attempts: u32) -> Duration {
     let exponent = attempts.saturating_sub(1).min(5);
     base.saturating_mul(1_u32 << exponent)
         .min(SYNC_MAX_RETRY_DELAY)
-}
-
-fn is_transient_error(error: &str) -> bool {
-    let error = error.to_ascii_lowercase();
-    [
-        "timeout expired",
-        "timed out",
-        "deadline exceeded",
-        "deadlineexceeded",
-        "returned 500 internal server error",
-        "returned 502 bad gateway",
-        "returned 503 service unavailable",
-        "returned 504 gateway timeout",
-        "status: unavailable",
-        "transport error",
-        "connection refused",
-        "connection reset",
-        "database is locked",
-        "database is busy",
-        "disk i/o error",
-        "temporarily unavailable",
-    ]
-    .iter()
-    .any(|marker| error.contains(marker))
 }
 
 #[cfg(test)]
@@ -447,36 +423,6 @@ mod tests {
 
         assert_eq!(error, "set_host_rules returned 400 Bad Request");
         assert_eq!(attempts.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
-    fn transient_error_classification_is_conservative() {
-        for error in [
-            "Timeout expired",
-            "request timed out",
-            "deadline exceeded",
-            "returned 500 Internal Server Error",
-            "returned 502 Bad Gateway",
-            "returned 503 Service Unavailable",
-            "returned 504 Gateway Timeout",
-            "status: Unavailable",
-            "transport error",
-            "connection refused",
-            "connection reset by peer",
-            "database is locked",
-            "database is busy",
-            "disk I/O error",
-            "temporarily unavailable",
-        ] {
-            assert!(is_transient_error(error), "expected transient: {error}");
-        }
-        for error in [
-            "returned 400 Bad Request",
-            "returned 401 Unauthorized",
-            "invalid host rule",
-        ] {
-            assert!(!is_transient_error(error), "expected permanent: {error}");
-        }
     }
 
     #[test]

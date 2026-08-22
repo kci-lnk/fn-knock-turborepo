@@ -25,6 +25,7 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "@/lib/reverse-proxy-submode";
+import { isProtocolMappingVisible } from "@/lib/protocol-mapping-visibility";
 import { useConfigStore } from "@/store/config";
 import { useUpdateStore } from "@/store/update";
 import { orderSidebarNavItems, type SidebarNavItem } from "./sidebarNavigation";
@@ -116,9 +117,7 @@ export const useLayoutNavigation = () => {
         icon: UsersRound,
       });
     } else if (isAnySubdomainRoutingMode(configStore.config)) {
-      const showProtocolMapping =
-        configStore.config?.protocol_mapping_feature?.enabled === true ||
-        (configStore.config?.stream_mappings?.length ?? 0) > 0;
+      const showProtocolMapping = isProtocolMappingVisible(configStore.config);
       items.splice(1, 0, {
         id: "route_mapping",
         name: t("admin.nav.subdomainMapping"),

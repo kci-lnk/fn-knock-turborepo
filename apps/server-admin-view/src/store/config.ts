@@ -380,6 +380,7 @@ export const useConfigStore = defineStore("config", () => {
           config.value = {
             ...config.value,
             protocol_mapping_feature: {
+              ...config.value.protocol_mapping_feature,
               enabled: false,
               availability:
                 config.value.protocol_mapping_feature?.availability ?? null,
@@ -399,6 +400,7 @@ export const useConfigStore = defineStore("config", () => {
           ...(protocolMappingDisabled
             ? {
                 protocol_mapping_feature: {
+                  ...config.value.protocol_mapping_feature,
                   enabled: false,
                   availability:
                     config.value.protocol_mapping_feature?.availability ?? null,

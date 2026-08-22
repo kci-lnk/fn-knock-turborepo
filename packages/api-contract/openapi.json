@@ -16274,6 +16274,16 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "runtime_issue": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProtocolMappingRuntimeIssueData"
+              }
+            ]
           }
         },
         "required": [
@@ -16301,6 +16311,54 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ProtocolMappingRuntimeIssueData": {
+        "properties": {
+          "code": {
+            "enum": [
+              "local_port_loop",
+              "listen_port_in_use",
+              "runtime_sync_failed"
+            ],
+            "type": "string"
+          },
+          "listen_port": {
+            "format": "int32",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "protocol": {
+            "enum": [
+              "tcp",
+              "udp"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "protocol",
+          "listen_port",
+          "target"
+        ],
         "type": "object"
       },
       "ProviderDescriptor": {

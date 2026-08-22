@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   getProtocolMappingFeatureConfig: vi.fn(),
   getWOLFeature: vi.fn(),
   updateDashboardDisplayConfig: vi.fn(),
+  updateProtocolMappingFeatureConfig: vi.fn(),
 }));
 
 vi.mock("@/lib/api/config", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/api/config", () => ({
 vi.mock("@/lib/api/system", () => ({
   SystemAPI: {
     getProtocolMappingFeatureConfig: api.getProtocolMappingFeatureConfig,
+    updateProtocolMappingFeatureConfig: api.updateProtocolMappingFeatureConfig,
   },
 }));
 
@@ -66,7 +68,7 @@ const mountSettings = (config: AppConfig) => {
   });
   const i18n = createI18n({ legacy: false, locale: "en" });
   const wrapper = mount(harness, { global: { plugins: [pinia, i18n] } });
-  return { settings, wrapper };
+  return { settings, store, wrapper };
 };
 
 const FeatureSwitchRowStub = defineComponent({
@@ -125,6 +127,26 @@ describe("FPK console application list setting", () => {
     rejectSave?.(new Error("save failed"));
     await pending;
     expect(settings.showConsoleAppList.value).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("refreshes repair navigation state after protocol mapping startup is rejected", async () => {
+    const { settings, store, wrapper } = mountSettings({
+      ...fpkConfig(),
+      run_type: 3,
+    });
+    await flushPromises();
+    const loadConfig = vi
+      .spyOn(store, "loadConfig")
+      .mockResolvedValue(store.config);
+    api.updateProtocolMappingFeatureConfig.mockRejectedValueOnce(
+      new Error("listen tcp :9000: bind: address already in use"),
+    );
+
+    await settings.saveProtocolMappingEnabled(true);
+
+    expect(settings.protocolMappingEnabled.value).toBe(false);
+    expect(loadConfig).toHaveBeenCalledWith({ force: true });
     wrapper.unmount();
   });
 

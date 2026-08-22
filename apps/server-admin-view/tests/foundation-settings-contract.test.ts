@@ -130,6 +130,22 @@ describe("foundation settings API contract", () => {
     );
   });
 
+  it("keeps protocol mapping startup issues server-owned and repairable", () => {
+    const feature = contract.components.schemas.ProtocolMappingFeatureData;
+    const update = contract.components.schemas.ProtocolMappingFeatureUpdateData;
+    const issue = contract.components.schemas.ProtocolMappingRuntimeIssueData;
+
+    assert.ok(feature.properties?.runtime_issue);
+    assert.equal(update.properties?.runtime_issue, undefined);
+    assert.deepEqual(issue.properties?.code?.enum, [
+      "local_port_loop",
+      "listen_port_in_use",
+      "runtime_sync_failed",
+    ]);
+    assert.equal(issue.properties?.listen_port?.minimum, 1);
+    assert.equal(issue.properties?.listen_port?.maximum, 65_535);
+  });
+
   it("keeps authentication mode operations bound to their typed router", () => {
     for (const [method, path] of [
       ["get", "/api/admin/auth/mode"],

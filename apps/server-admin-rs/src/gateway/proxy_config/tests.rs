@@ -3236,6 +3236,15 @@ fn localizes_proxy_config_route_errors() {
     assert_eq!(
         localize_proxy_config_error(
             &translator,
+            &mark_stream_mapping_runtime_error(
+                "Stream mapping TCP listen_port 5555 cannot target the same local port 127.0.0.1:5555"
+            )
+        ),
+        "TCP 监听端口 5555 不能转发到本机同一端口（127.0.0.1:5555），否则会形成循环；请修改对外端口或目标端口"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
             r#"go backend gRPC request failed: {"message":"failed to set stream rules: cannot target the same local listen_port 5555"}"#
         ),
         "监听端口 5555 不能转发到本机同一端口，否则会形成循环；请进入协议映射修改对外端口或目标端口"

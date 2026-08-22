@@ -3672,6 +3672,17 @@ export const jaJPAdmin = {
     disabledTitle: "プロトコルマッピングは現在無効です",
     disabledDescription:
       "保持されているルールはポートを待ち受けません。ここで設定を修正または削除し、完了後に「システム設定 → 機能」から再度有効にしてください。",
+    runtimeDisabledTitle:
+      "プロトコルマッピングの起動に失敗したため、自動的に無効化しました",
+    runtimeIssueLocalLoop:
+      "{protocol} 外部ポート {port} は同じローカルポート（{target}）へ転送され、ループが発生します。",
+    runtimeIssuePortInUse:
+      "{protocol} 外部ポート {port} は別のプログラムが使用中のため、ゲートウェイが待ち受けできません。",
+    runtimeIssueFallback:
+      "ゲートウェイは既存のプロトコルマッピング設定を適用できませんでした。",
+    runtimeIssueRecovery:
+      "管理画面とその他の機能は起動を継続し、元のルールも保持されています。この画面で問題のルールを修正または削除し、「システム設定 → 機能」からプロトコルマッピングを再度有効にしてください。",
+    runtimeIssueDetails: "起動エラーの詳細",
     searchPlaceholder: "プロトコル、外部ポート、コメント、転送先を検索...",
     protocol: "プロトコル",
     listenPort: "外部ポート",

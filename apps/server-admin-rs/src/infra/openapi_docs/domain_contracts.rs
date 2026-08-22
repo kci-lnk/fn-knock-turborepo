@@ -791,6 +791,7 @@ struct BackupImportResultData {
     DnsmasqInstallStateData,
     DnsmasqStatusData,
     ProtocolMappingAvailabilityData,
+    ProtocolMappingRuntimeIssueData,
     ProtocolMappingFeatureData,
     ProtocolMappingFeatureUpdateData,
     ProxyProtocolForceData,
@@ -3687,6 +3688,36 @@ pub(super) fn components() -> Map<String, Value> {
             json!(r"^(?:[01]\d|2[0-3]):[0-5]\d$"),
         );
     }
+    set_property_enum(
+        &mut schemas,
+        "ProtocolMappingRuntimeIssueData",
+        "code",
+        &[
+            "local_port_loop",
+            "listen_port_in_use",
+            "runtime_sync_failed",
+        ],
+    );
+    set_property_enum(
+        &mut schemas,
+        "ProtocolMappingRuntimeIssueData",
+        "protocol",
+        &["tcp", "udp"],
+    );
+    set_property_metadata(
+        &mut schemas,
+        "ProtocolMappingRuntimeIssueData",
+        "listen_port",
+        "minimum",
+        json!(1),
+    );
+    set_property_metadata(
+        &mut schemas,
+        "ProtocolMappingRuntimeIssueData",
+        "listen_port",
+        "maximum",
+        json!(65_535),
+    );
     set_property_enum(
         &mut schemas,
         "SmartConnectInstallStateData",

@@ -11,6 +11,7 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
+import { isProtocolMappingVisible } from "../lib/protocol-mapping-visibility";
 import { resolveRuntimeCapabilityRedirect } from "./runtime-access";
 
 NProgress.configure({
@@ -362,12 +363,7 @@ router.beforeEach(async (to, from) => {
     return runtimeCapabilityRedirect;
   }
 
-  const isProtocolMappingVisible =
-    configStore.config?.run_type === 3 &&
-    (configStore.config?.protocol_mapping_feature?.enabled === true ||
-      (configStore.config?.stream_mappings?.length ?? 0) > 0);
-
-  if (to.path === "/streams" && !isProtocolMappingVisible) {
+  if (to.path === "/streams" && !isProtocolMappingVisible(configStore.config)) {
     if (configStore.config?.run_type === 1) {
       return isReverseProxySubdomainMode(configStore.config)
         ? "/subdomains"

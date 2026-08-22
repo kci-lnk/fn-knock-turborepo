@@ -517,13 +517,14 @@ pub(super) async fn update_protocol_mapping_feature(
     let translator = Translator::from_state(&state).await;
     let valid_patch_shape = body.as_object().is_some_and(|object| {
         let enabled_is_valid = object.get("enabled").is_none_or(Value::is_boolean);
+        let runtime_issue_is_server_owned = !object.contains_key("runtime_issue");
         let availability_is_valid = object.get("availability").is_none_or(|availability| {
             availability.is_null()
                 || availability.as_object().is_some_and(|availability| {
                     availability.get("enabled").and_then(Value::as_bool) == Some(true)
                 })
         });
-        enabled_is_valid && availability_is_valid
+        enabled_is_valid && runtime_issue_is_server_owned && availability_is_valid
     });
     if !valid_patch_shape {
         return response::error(
@@ -566,6 +567,9 @@ pub(super) async fn update_protocol_mapping_feature(
 
     let mut current = previous_settings.clone();
     merge_object(&mut current, &body);
+    if body.get("enabled").and_then(Value::as_bool) == Some(true) {
+        ensure_object(&mut current).remove("runtime_issue");
+    }
     let next = match normalize_protocol_mapping_feature_strict(Some(&current)) {
         Ok(next) => next,
         Err(error) => {
@@ -588,10 +592,16 @@ pub(super) async fn update_protocol_mapping_feature(
     match apply_run_type_config(&state, &previous_config, run_type).await {
         Ok(()) => response::ok(next).into_response(),
         Err(error) => {
+            let mut rollback_settings = previous_settings;
+            if body.get("enabled").and_then(Value::as_bool) == Some(true)
+                && let Some(issue) = protocol_mapping_runtime_issue(&previous_config, &error)
+            {
+                ensure_object(&mut rollback_settings).insert("runtime_issue".to_string(), issue);
+            }
             rollback_protocol_mapping_feature_and_runtime(
                 &state,
                 &previous_config,
-                &previous_settings,
+                &rollback_settings,
                 run_type,
             )
             .await;

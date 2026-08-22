@@ -3679,6 +3679,17 @@ export const enAdmin = {
     disabledTitle: "Protocol mappings are disabled",
     disabledDescription:
       "Retained rules are not listening on any ports. You can fix or delete them here, then return to System settings → Features to enable the feature.",
+    runtimeDisabledTitle:
+      "Protocol mappings failed to start and were disabled automatically",
+    runtimeIssueLocalLoop:
+      "{protocol} external port {port} forwards to the same local port ({target}), creating a loop.",
+    runtimeIssuePortInUse:
+      "{protocol} external port {port} is already in use by another program, so the gateway cannot listen on it.",
+    runtimeIssueFallback:
+      "The gateway could not apply the existing protocol mapping configuration.",
+    runtimeIssueRecovery:
+      "The admin panel and other features continued to start, and the original rules were retained. Fix or delete the affected rule here, then re-enable protocol mappings under System settings → Features.",
+    runtimeIssueDetails: "Startup error details",
     searchPlaceholder:
       "Search protocol, external port, comment, target address...",
     protocol: "Protocol",

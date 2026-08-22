@@ -11010,10 +11010,21 @@ export interface components {
         ProtocolMappingFeatureData: {
             availability: null | components["schemas"]["ProtocolMappingAvailabilityData"];
             enabled: boolean;
+            runtime_issue?: null | components["schemas"]["ProtocolMappingRuntimeIssueData"];
         };
         ProtocolMappingFeatureUpdateData: {
             availability?: null | components["schemas"]["ProtocolMappingAvailabilityData"];
             enabled?: boolean | null;
+        };
+        ProtocolMappingRuntimeIssueData: {
+            /** @enum {string} */
+            code: "local_port_loop" | "listen_port_in_use" | "runtime_sync_failed";
+            /** Format: int32 */
+            listen_port: number | null;
+            message: string;
+            /** @enum {string|null} */
+            protocol: "tcp" | "udp" | null;
+            target: string | null;
         };
         ProviderDescriptor: {
             default_api_path: string;

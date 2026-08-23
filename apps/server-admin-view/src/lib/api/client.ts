@@ -1,5 +1,6 @@
 import { createApiClient } from "@frontend-core/api/createApiClient";
 import { isDockerAdminAuthRequiredResponse } from "../docker-admin-auth-response";
+import { createGatewayAuthRecovery } from "../gateway-auth-recovery";
 import { isSynologyCgiApiPath } from "./synology-cgi";
 
 export const resolveAppRelativePath = (relativePath: string) => {
@@ -19,6 +20,14 @@ export const apiClient = createApiClient({
 
 const isSynologyCgiApi = isSynologyCgiApiPath(adminApiBasePath);
 const cgiMethodOverrides = new Set(["put", "patch", "delete"]);
+const gatewayAuthRecovery =
+  typeof window === "undefined"
+    ? null
+    : createGatewayAuthRecovery({
+        fetchImpl: window.fetch.bind(window),
+        location: window.location,
+        navigationTarget: window,
+      });
 
 apiClient.interceptors.request.use((config) => {
   const method = config.method?.toLowerCase();
@@ -31,7 +40,7 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (
       typeof window !== "undefined" &&
       isDockerAdminAuthRequiredResponse(error)
@@ -39,7 +48,15 @@ apiClient.interceptors.response.use(
       window.dispatchEvent(
         new CustomEvent("fn-knock:docker-admin-auth-required"),
       );
+      return Promise.reject(error);
     }
+
+    if (gatewayAuthRecovery && (await gatewayAuthRecovery.recover(error))) {
+      // Keep callers pending while the document navigates so feature-level
+      // error handlers do not render a transient Network Error notification.
+      return new Promise<never>(() => undefined);
+    }
+
     return Promise.reject(error);
   },
 );

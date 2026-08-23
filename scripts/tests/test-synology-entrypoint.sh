@@ -16,6 +16,15 @@ process_is_alive() {
   kill -0 "${pid}" 2>/dev/null
 }
 
+process_cmdline_contains() {
+  local pid="$1" expected="$2"
+  if [ -r "/proc/${pid}/cmdline" ]; then
+    tr '\000' ' ' < "/proc/${pid}/cmdline" | grep -Fq "${expected}"
+  else
+    ps -o command= -p "${pid}" 2>/dev/null | grep -Fq "${expected}"
+  fi
+}
+
 terminate_if_running() {
   local pid="${1:-}"
   if [ -n "${pid}" ] && process_is_alive "${pid}"; then
@@ -123,6 +132,10 @@ if grep -Fq '[fn-knock] services are ready' "${LOG_FILE}"; then
 fi
 GATEWAY_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/gateway.pid" 'gateway')"
 MANAGEMENT_PID="$(read_running_pid "${DATA_DIR}/runtime/pids/management.pid" 'management')"
+process_cmdline_contains "${MANAGEMENT_PID}" 'server-admin-rs' || \
+  fail 'management PID does not identify the native backend process'
+[ "$(cat "${DATA_DIR}/fn-knock.pid")" = "${SUPERVISOR_PID}" ] || \
+  fail 'entrypoint did not register its actual supervisor PID'
 : > "${DATA_DIR}/runtime.ready"
 wait_for_application_ready
 
@@ -138,6 +151,7 @@ wait_for_exit "${GATEWAY_PID}" 'gateway'
 wait_for_exit "${MANAGEMENT_PID}" 'management'
 [ ! -e "${DATA_DIR}/runtime/pids/gateway.pid" ] || fail 'gateway PID file remained after shutdown'
 [ ! -e "${DATA_DIR}/runtime/pids/management.pid" ] || fail 'management PID file remained after shutdown'
+[ ! -e "${DATA_DIR}/fn-knock.pid" ] || fail 'supervisor PID file remained after shutdown'
 [ ! -e "${DATA_DIR}/runtime.ready" ] || fail 'readiness marker remained after shutdown'
 grep -Fq '"event":"stop_requested"' "${DATA_DIR}/runtime/logs/supervisor.jsonl" || \
   fail 'supervisor stop event was not recorded'

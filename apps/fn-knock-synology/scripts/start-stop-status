@@ -16,6 +16,7 @@ MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
 START_TIMEOUT_SECONDS="${FN_KNOCK_START_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS:-300}}"
 STOP_TIMEOUT_SECONDS="${FN_KNOCK_STOP_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS:-75}}"
 FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_FORCE_KILL_TIMEOUT_SECONDS:-${FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS:-10}}"
+LAUNCH_TRANSITION_TIMEOUT_SECONDS="${FN_KNOCK_LAUNCH_TRANSITION_TIMEOUT_SECONDS:-5}"
 
 is_positive_integer() {
     case "${1:-}" in
@@ -30,7 +31,14 @@ pid_exists() {
     case "${PID}" in
         ''|*[!0-9]*) return 1 ;;
     esac
-    kill -0 "${PID}" 2>/dev/null
+    kill -0 "${PID}" 2>/dev/null || return 1
+    if [ -r "/proc/${PID}/stat" ]; then
+        process_stat="$(cat "/proc/${PID}/stat" 2>/dev/null)" || return 1
+        process_stat="${process_stat##*) }"
+        set -- ${process_stat}
+        [ "${1:-}" != "Z" ] || return 1
+    fi
+    return 0
 }
 
 pid_is_running() {
@@ -137,6 +145,7 @@ launch_service() {
         FN_KNOCK_APP_HOME="${PKGDEST}" \
         FN_KNOCK_DATA_DIR="${PKGVAR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        FN_KNOCK_SUPERVISOR_PID_FILE="${PID_FILE}" \
         FN_KNOCK_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         BACKEND_PORT="${BACKEND_PORT}" \
@@ -151,6 +160,7 @@ launch_service() {
         FN_KNOCK_APP_HOME="${PKGDEST}" \
         FN_KNOCK_DATA_DIR="${PKGVAR}" \
         FN_KNOCK_GATEWAY_CONFIG_DIR="${PKGVAR}/gateway" \
+        FN_KNOCK_SUPERVISOR_PID_FILE="${PID_FILE}" \
         FN_KNOCK_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS="${START_TIMEOUT_SECONDS}" \
         BACKEND_PORT="${BACKEND_PORT}" \
@@ -159,8 +169,9 @@ launch_service() {
         GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}" \
         nohup "${ENTRYPOINT}" >> "${LOG_FILE}" 2>&1 &
     fi
-    PID=$!
-    printf '%s\n' "${PID}" > "${PID_FILE}"
+    # Keep the transient launcher PID in memory only. Writing it to PID_FILE
+    # can race with fn-knock-entrypoint registering its actual supervisor PID.
+    LAUNCHER_PID=$!
 }
 
 stop_service() {
@@ -202,30 +213,44 @@ start_service() {
 
     started_at="$(date '+%s')"
     deadline=$((started_at + START_TIMEOUT_SECONDS))
+    launch_transition_deadline=$((started_at + LAUNCH_TRANSITION_TIMEOUT_SECONDS))
     while [ "$(date '+%s')" -lt "${deadline}" ]; do
-        # Immediately after the background fork, Linux may briefly expose the
-        # parent shell command line before nohup/setsid execs the entrypoint.
-        # Treat the recorded PID as starting while it still exists, then
-        # require the expected entrypoint once readiness succeeds.
-        if ! pid_exists; then
+        # A forking setsid launcher may exit just before fn-knock-entrypoint
+        # atomically registers the long-lived supervisor PID. Allow only this
+        # short handoff window, then require the self-registered process.
+        if ! pid_exists && [ "$(date '+%s')" -ge "${launch_transition_deadline}" ]; then
+            if [ -n "${LAUNCHER_PID:-}" ] && kill -0 "${LAUNCHER_PID}" 2>/dev/null; then
+                kill -TERM "${LAUNCHER_PID}" 2>/dev/null || true
+            fi
             rm -f "${PID_FILE}"
             printf 'fn-knock exited during startup; see %s\n' "${LOG_FILE}" \
                 > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             return 1
         fi
         if [ -f "${READINESS_MARKER}" ]; then
-            if pid_is_running && recorded_child_is_running "${MANAGEMENT_PID_FILE}" 'server-admin-rs' && \
-                recorded_child_is_running "${GATEWAY_PID_FILE}" 'go-reauth-proxy'; then
+            readiness_failure=""
+            if ! pid_is_running; then
+                readiness_failure="supervisor PID does not identify fn-knock-entrypoint"
+            elif ! recorded_child_is_running "${MANAGEMENT_PID_FILE}" 'server-admin-rs'; then
+                readiness_failure="management PID does not identify server-admin-rs"
+            elif ! recorded_child_is_running "${GATEWAY_PID_FILE}" 'go-reauth-proxy'; then
+                readiness_failure="gateway PID does not identify go-reauth-proxy"
+            fi
+            if [ -z "${readiness_failure}" ]; then
                 return 0
             fi
+            printf '[fn-knock] readiness rejected: %s\n' "${readiness_failure}" >> "${LOG_FILE}"
             stop_service || true
-            printf 'fn-knock readiness responded but the supervisor process was invalid; see %s\n' \
-                "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
+            printf 'fn-knock readiness responded but process validation failed: %s; see %s\n' \
+                "${readiness_failure}" "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
             return 1
         fi
         sleep 1
     done
 
+    if ! pid_exists && [ -n "${LAUNCHER_PID:-}" ] && kill -0 "${LAUNCHER_PID}" 2>/dev/null; then
+        kill -TERM "${LAUNCHER_PID}" 2>/dev/null || true
+    fi
     stop_service || true
     printf 'fn-knock readiness timed out after %s seconds; see %s\n' \
         "${START_TIMEOUT_SECONDS}" "${LOG_FILE}" > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"
@@ -236,6 +261,7 @@ validate_configuration() {
     is_positive_integer "${START_TIMEOUT_SECONDS}" || return 1
     is_positive_integer "${STOP_TIMEOUT_SECONDS}" || return 1
     is_positive_integer "${FORCE_KILL_TIMEOUT_SECONDS}" || return 1
+    is_positive_integer "${LAUNCH_TRANSITION_TIMEOUT_SECONDS}" || return 1
     return 0
 }
 

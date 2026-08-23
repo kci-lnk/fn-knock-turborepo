@@ -20,6 +20,7 @@ RUNTIME_LOG_DIR="${DATA_DIR}/runtime/logs"
 SUPERVISOR_LOG="${RUNTIME_LOG_DIR}/supervisor.jsonl"
 SUPERVISOR_EVENTS_DIR="${DATA_DIR}/runtime/supervisor-events"
 RUNTIME_PID_DIR="${DATA_DIR}/runtime/pids"
+SUPERVISOR_PID_FILE="${FN_KNOCK_SUPERVISOR_PID_FILE:-${DATA_DIR}/fn-knock.pid}"
 GATEWAY_PID_FILE="${RUNTIME_PID_DIR}/gateway.pid"
 MANAGEMENT_PID_FILE="${RUNTIME_PID_DIR}/management.pid"
 READINESS_MARKER="${DATA_DIR}/runtime.ready"
@@ -179,6 +180,7 @@ cleanup() {
     remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
     remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
     rm -f "${READINESS_MARKER}"
+    remove_pid_file "${SUPERVISOR_PID_FILE}" "$$"
   else
     code=1
   fi
@@ -196,6 +198,7 @@ stop_gracefully() {
   remove_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID:-}"
   remove_pid_file "${GATEWAY_PID_FILE}" "${GATEWAY_PID:-}"
   rm -f "${READINESS_MARKER}"
+  remove_pid_file "${SUPERVISOR_PID_FILE}" "$$"
   exit 0
 }
 
@@ -208,6 +211,9 @@ mkdir -p \
   "${DATA_DIR}/updates" \
   "${GATEWAY_CONFIG_DIR}"
 rm -f "${READINESS_MARKER}"
+# The DSM launcher may fork before execing this script. Register the actual
+# long-lived supervisor PID here instead of relying on the launcher's `$!`.
+write_pid_file "${SUPERVISOR_PID_FILE}" "$$"
 
 load_or_create_secret ALTCHA_HMAC_KEY "${DATA_DIR}/altcha_hmac_key"
 load_or_create_secret HMAC_SECRET "${DATA_DIR}/hmac_secret"
@@ -247,11 +253,13 @@ echo "[fn-knock] starting Synology CGI backend: ${BACKEND_HOST}:${BACKEND_PORT}"
     BACKEND_HOST AUTH_HOST ALTCHA_HMAC_KEY HMAC_SECRET \
     FN_KNOCK_INTERNAL_RPC_TOKEN ADMIN_PROXY_SECRET
   export FN_KNOCK_READY_FILE="${READINESS_MARKER}"
-  FN_KNOCK_DATA_DIR="${DATA_DIR}" \
-  FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
-  FN_KNOCK_RUNTIME_TARGET="synology" \
-  FN_KNOCK_BACKEND_IMPL="rust" \
-  "${RUST_BACKEND_BIN}"
+  export FN_KNOCK_DATA_DIR="${DATA_DIR}"
+  export FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}"
+  export FN_KNOCK_RUNTIME_TARGET="synology"
+  export FN_KNOCK_BACKEND_IMPL="rust"
+  # Keep MANAGEMENT_PID tied to the native backend on every Bash/DSM build;
+  # relying on an implicit last-command exec can leave a wrapper shell here.
+  exec "${RUST_BACKEND_BIN}"
 ) &
 BACKEND_PID=$!
 write_pid_file "${MANAGEMENT_PID_FILE}" "${BACKEND_PID}"

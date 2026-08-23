@@ -13,6 +13,7 @@ READY_FILE="${PKGVAR}/runtime.ready"
 ENTRYPOINT_PID_FILE="${WORK_DIR}/entrypoint.pid"
 WORKER_PID_FILE="${WORK_DIR}/worker.pid"
 START_TIMEOUT_FILE="${WORK_DIR}/start-timeout"
+SETSID_PID_FILE="${WORK_DIR}/setsid.pid"
 
 cleanup() {
   if [ -r "${PKGVAR}/fn-knock.pid" ]; then
@@ -43,6 +44,7 @@ run_lifecycle() {
   TEST_ENTRYPOINT_PID_FILE="${ENTRYPOINT_PID_FILE}" \
   TEST_WORKER_PID_FILE="${WORKER_PID_FILE}" \
   TEST_START_TIMEOUT_FILE="${START_TIMEOUT_FILE}" \
+  TEST_SETSID_PID_FILE="${SETSID_PID_FILE}" \
   TEST_FAKE_BIN="${FAKE_BIN}" \
     sh "${LIFECYCLE}" "$@"
 }
@@ -71,22 +73,29 @@ wait_until_dead() {
 
 mkdir -p "${FAKE_BIN}" "${PKGDEST}/bin" "${PKGVAR}" "${PKGTMP}" "${PKGHOME}"
 
-SYSTEM_SETSID="$(PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" command -v setsid 2>/dev/null || true)"
-if [ -z "${SYSTEM_SETSID}" ]; then
-  cat > "${FAKE_BIN}/setsid" <<'PY'
+cat > "${FAKE_BIN}/setsid" <<'PY'
 #!/usr/bin/env python3
 import os
 import sys
+import time
 
+with open(os.environ["TEST_SETSID_PID_FILE"], "w", encoding="utf-8") as pid_file:
+    pid_file.write(f"{os.getpid()}\n")
+if os.environ.get("TEST_SETSID_FORK") == "1":
+    if os.fork() != 0:
+        raise SystemExit(0)
+    time.sleep(0.25)
 os.setsid()
 os.execvp(sys.argv[1], sys.argv[1:])
 PY
-  chmod 755 "${FAKE_BIN}/setsid"
-fi
+chmod 755 "${FAKE_BIN}/setsid"
 
 cat > "${PKGDEST}/bin/fn-knock-entrypoint" <<'SH'
 #!/bin/sh
 printf '%s\n' "$$" > "${TEST_ENTRYPOINT_PID_FILE:?}"
+supervisor_pid_tmp="${FN_KNOCK_SUPERVISOR_PID_FILE:?}.tmp-$$"
+printf '%s\n' "$$" > "${supervisor_pid_tmp}"
+mv -f "${supervisor_pid_tmp}" "${FN_KNOCK_SUPERVISOR_PID_FILE}"
 printf '%s\n' "${FN_KNOCK_START_TIMEOUT_SECONDS:-missing}" \
   > "${TEST_START_TIMEOUT_FILE:?}"
 mkdir -p "${SYNOPKG_PKGVAR:?}/runtime/pids"
@@ -145,6 +154,24 @@ FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
   run_lifecycle stop || fail 'normal stop failed'
 [ ! -e "${PKGVAR}/fn-knock.pid" ] || fail 'normal stop retained the supervisor PID file'
 wait_until_dead "${supervisor_pid}" || fail 'normal stop left the supervisor running'
+
+rm -f "${READY_FILE}" "${ENTRYPOINT_PID_FILE}" "${SETSID_PID_FILE}"
+TEST_SETSID_FORK=1 \
+TEST_READY_DELAY_SECONDS=1 \
+FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=3 \
+FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
+  run_lifecycle start || fail 'forking setsid launcher failed to start'
+forked_supervisor_pid="$(cat "${ENTRYPOINT_PID_FILE}")"
+[ "$(cat "${SETSID_PID_FILE}")" != "${forked_supervisor_pid}" ] || \
+  fail 'forking setsid fixture did not exercise a launcher/supervisor PID transition'
+[ "$(cat "${PKGVAR}/fn-knock.pid")" = "${forked_supervisor_pid}" ] || \
+  fail 'forking launcher PID was not replaced by the actual supervisor PID'
+run_lifecycle status || fail 'forking launcher service did not report running status'
+TEST_SETSID_FORK=1 \
+FN_KNOCK_SYNOLOGY_STOP_TIMEOUT_SECONDS=3 \
+FN_KNOCK_SYNOLOGY_FORCE_KILL_TIMEOUT_SECONDS=2 \
+  run_lifecycle stop || fail 'forking launcher service failed to stop'
+wait_until_dead "${forked_supervisor_pid}" || fail 'forking launcher left the supervisor running'
 
 rm -f "${READY_FILE}" "${ENTRYPOINT_PID_FILE}"
 if TEST_READY_DELAY_SECONDS=30 \

@@ -300,7 +300,7 @@ pub(super) async fn fetch_favicon_as_data_url(
 ) -> Option<String> {
     let trimmed_url = favicon_url.trim();
     if trimmed_url.to_ascii_lowercase().starts_with("data:image/") {
-        return (trimmed_url.len() <= MAX_FAVICON_BYTES * 2).then(|| trimmed_url.to_string());
+        return normalize_inline_favicon_data_url(trimmed_url);
     }
 
     let normalized_url = normalize_http_probe_url(trimmed_url)?;
@@ -321,6 +321,44 @@ pub(super) async fn fetch_favicon_as_data_url(
         "data:{media_type};base64,{}",
         BASE64_STANDARD.encode(bytes)
     ))
+}
+
+pub(super) fn normalize_inline_favicon_data_url(value: &str) -> Option<String> {
+    let value = value.trim();
+    let (header, encoded) = value.split_once(',')?;
+    let data_prefix = header.get(.."data:".len())?;
+    if !data_prefix.eq_ignore_ascii_case("data:") {
+        return None;
+    }
+    let metadata = header.get("data:".len()..)?;
+    let (media_type, encoding) = metadata.split_once(';')?;
+    if encoding.contains(';') || !encoding.trim().eq_ignore_ascii_case("base64") {
+        return None;
+    }
+    let media_type = canonical_favicon_image_media_type(media_type)?;
+    let max_encoded_len = MAX_FAVICON_BYTES.div_ceil(3) * 4;
+    if encoded.is_empty() || encoded.len() > max_encoded_len {
+        return None;
+    }
+    let bytes = BASE64_STANDARD.decode(encoded).ok()?;
+    if bytes.is_empty() || bytes.len() > MAX_FAVICON_BYTES {
+        return None;
+    }
+    Some(format!("data:{media_type};base64,{encoded}"))
+}
+
+fn canonical_favicon_image_media_type(value: &str) -> Option<&'static str> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "image/avif" => Some("image/avif"),
+        "image/gif" => Some("image/gif"),
+        "image/jpeg" | "image/jpg" => Some("image/jpeg"),
+        "image/png" => Some("image/png"),
+        "image/svg+xml" => Some("image/svg+xml"),
+        "image/vnd.microsoft.icon" => Some("image/vnd.microsoft.icon"),
+        "image/webp" => Some("image/webp"),
+        "image/x-icon" | "image/ico" => Some("image/x-icon"),
+        _ => None,
+    }
 }
 
 pub(super) fn response_content_length_exceeds(
@@ -350,13 +388,17 @@ pub(super) fn resolve_image_content_type(
             | "application/x-icon"
             | "application/vnd.microsoft.icon",
         ) => return Some("image/x-icon".to_string()),
-        Some(value) if value.starts_with("image/") => return Some(value.to_string()),
+        Some(value) if value.starts_with("image/") => {
+            return canonical_favicon_image_media_type(value).map(str::to_string);
+        }
         Some("application/octet-stream" | "binary/octet-stream") | None => {}
         Some(_) => return None,
     }
 
     let path = Url::parse(value).ok()?.path().to_ascii_lowercase();
-    if path.ends_with(".svg") {
+    if path.ends_with(".avif") {
+        Some("image/avif".to_string())
+    } else if path.ends_with(".svg") {
         Some("image/svg+xml".to_string())
     } else if path.ends_with(".png") {
         Some("image/png".to_string())

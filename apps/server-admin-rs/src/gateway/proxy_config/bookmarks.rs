@@ -229,8 +229,8 @@ fn append_bookmark_mapping(
         omit_access_entry_port,
     );
     let title = resolve_bookmark_title(object, &host);
-    let icon_attribute = resolve_bookmark_icon(object)
-        .map(|icon| format!(" ICON=\"{}\"", escape_html(icon)))
+    let icon_attribute = resolve_host_mapping_icon(object)
+        .map(|icon| format!(" ICON=\"{}\"", escape_html(&icon)))
         .unwrap_or_default();
     lines.push(format!(
         "{indent}<DT><A HREF=\"{}\" ADD_DATE=\"{add_date}\"{icon_attribute}>{}</A>",
@@ -305,33 +305,31 @@ pub(super) fn resolve_bookmark_title(object: &Map<String, Value>, host: &str) ->
         .to_string()
 }
 
-pub(super) fn resolve_bookmark_icon(object: &Map<String, Value>) -> Option<&str> {
+pub(super) fn resolve_host_mapping_icon(object: &Map<String, Value>) -> Option<String> {
     ["favicon_override", "favicon"]
         .into_iter()
         .filter_map(|key| object.get(key).and_then(Value::as_str).map(str::trim))
-        .find(|value| {
-            !value.is_empty()
-                && value
-                    .get(..11)
-                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:image/"))
-        })
+        .find_map(normalize_inline_favicon_data_url)
 }
 
 pub(super) fn website_icon_path(object: &Map<String, Value>, sync_id: &str) -> String {
-    let extension = resolve_bookmark_icon(object)
-        .and_then(|value| value.split_once(',').map(|(metadata, _)| metadata))
-        .and_then(|metadata| metadata.strip_prefix("data:"))
-        .and_then(|metadata| metadata.split(';').next())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-        .map(|content_type| match content_type {
-            "image/avif" => "avif",
-            "image/gif" => "gif",
-            "image/jpeg" => "jpg",
-            "image/svg+xml" => "svg",
-            "image/vnd.microsoft.icon" | "image/x-icon" => "ico",
-            "image/webp" => "webp",
-            _ => "png",
+    let extension = resolve_host_mapping_icon(object)
+        .map(|value| {
+            let content_type = value
+                .split_once(',')
+                .map(|(metadata, _)| metadata)
+                .and_then(|metadata| metadata.strip_prefix("data:"))
+                .and_then(|metadata| metadata.split(';').next())
+                .unwrap_or("");
+            match content_type {
+                "image/avif" => "avif",
+                "image/gif" => "gif",
+                "image/jpeg" => "jpg",
+                "image/svg+xml" => "svg",
+                "image/vnd.microsoft.icon" | "image/x-icon" => "ico",
+                "image/webp" => "webp",
+                _ => "png",
+            }
         })
         .unwrap_or("png");
     format!("/__assets__/website_icon.{sync_id}.{extension}")

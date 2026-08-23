@@ -61,19 +61,8 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                 } else {
                     normalize_target_path_mode(object.get("target_path_mode"))
                 };
-                let favicon = object
-                    .get("favicon_override")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .or_else(|| {
-                        object
-                            .get("favicon")
-                            .and_then(Value::as_str)
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty())
-                    })
-                    .map(|value| Value::String(value.to_string()))
+                let favicon = resolve_host_mapping_icon(object)
+                    .map(Value::String)
                     .unwrap_or(Value::Null);
                 // Disabled advanced-auth rules remain a control-plane draft.
                 // Do not make unrelated Host edits depend on stale region

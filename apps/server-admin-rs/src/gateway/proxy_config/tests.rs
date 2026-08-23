@@ -237,6 +237,33 @@ fn host_rules_expose_only_the_stable_uuid_icon_asset_path() {
 }
 
 #[test]
+fn host_rule_and_bookmark_icon_consumers_reject_non_base64_metadata() {
+    let valid = "data:image/png;base64,AAAA";
+    let mapping = json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "sync_id": "550e8400-e29b-41d4-a716-446655440000",
+        "favicon_override": "data:image/png;charset=utf-8;base64,AAAA",
+        "favicon": valid
+    });
+    let payload = build_host_rules_payload(std::slice::from_ref(&mapping));
+    assert_eq!(payload[0]["favicon"], valid);
+    assert_eq!(
+        resolve_host_mapping_icon(mapping.as_object().unwrap()).as_deref(),
+        Some(valid)
+    );
+
+    let invalid_only = json!({
+        "host": "invalid.example.com",
+        "target": "http://127.0.0.1:8081",
+        "favicon": "https://example.com/favicon.ico"
+    });
+    let payload = build_host_rules_payload(std::slice::from_ref(&invalid_only));
+    assert!(payload[0]["favicon"].is_null());
+    assert!(resolve_host_mapping_icon(invalid_only.as_object().unwrap()).is_none());
+}
+
+#[test]
 fn ordinary_host_mapping_updates_cannot_inject_uncompiled_advanced_auth() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({
@@ -1493,6 +1520,71 @@ fn accepts_inline_and_same_origin_metadata_assets() {
         "https://cdn.example.com/assets/favicon.ico",
         &context.origin
     ));
+}
+
+#[test]
+fn inline_favicon_data_urls_use_decoded_size_and_canonical_base64_contract() {
+    let ani_rss_sized_icon = vec![0_u8; 114_223];
+    let encoded = BASE64_STANDARD.encode(&ani_rss_sized_icon);
+    let value = format!("DATA:IMAGE/X-ICON;BASE64,{encoded}");
+    assert!(value.len() > MAX_FAVICON_BYTES);
+    assert_eq!(
+        normalize_inline_favicon_data_url(&value).as_deref(),
+        Some(format!("data:image/x-icon;base64,{encoded}").as_str())
+    );
+
+    let at_limit = BASE64_STANDARD.encode(vec![0_u8; MAX_FAVICON_BYTES]);
+    assert!(
+        normalize_inline_favicon_data_url(&format!("data:image/png;base64,{at_limit}")).is_some()
+    );
+
+    let over_limit = BASE64_STANDARD.encode(vec![0_u8; MAX_FAVICON_BYTES + 1]);
+    assert!(
+        normalize_inline_favicon_data_url(&format!("data:image/png;base64,{over_limit}")).is_none()
+    );
+
+    for invalid in [
+        "data:image/png,AAAA",
+        "data:image/png;charset=utf-8;base64,AAAA",
+        "data:image/png;base64,AA*A",
+        "data:image/png;base64,AB==",
+        "data:image/bmp;base64,AAAA",
+        "data:text/plain;base64,AAAA",
+        "data:image/svg+xml,%3Csvg%3E",
+    ] {
+        assert!(
+            normalize_inline_favicon_data_url(invalid).is_none(),
+            "accepted invalid inline favicon: {invalid}"
+        );
+    }
+}
+
+#[test]
+fn favicon_response_content_types_are_limited_to_toolbar_supported_images() {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::CONTENT_TYPE,
+        reqwest::header::HeaderValue::from_static("image/jpg"),
+    );
+    assert_eq!(
+        resolve_image_content_type("https://example.com/icon", &headers).as_deref(),
+        Some("image/jpeg")
+    );
+
+    headers.insert(
+        reqwest::header::CONTENT_TYPE,
+        reqwest::header::HeaderValue::from_static("image/bmp"),
+    );
+    assert_eq!(
+        resolve_image_content_type("https://example.com/icon.bmp", &headers),
+        None
+    );
+
+    headers.clear();
+    assert_eq!(
+        resolve_image_content_type("https://example.com/icon.avif", &headers).as_deref(),
+        Some("image/avif")
+    );
 }
 
 #[tokio::test]

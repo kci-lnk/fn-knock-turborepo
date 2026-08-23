@@ -495,8 +495,8 @@ export const koKRAdmin = {
     navigationFailed: "페이지 이동 실패",
     loadFailedRetry:
       "페이지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
-    devCacheExpired:
-      "개발 종속성 캐시가 오래된 것 같습니다. 페이지를 새로 고치는 중...",
+    cacheExpired:
+      "새 페이지 리소스 버전이 감지되었습니다. 페이지를 새로 고치는 중...",
   },
   update: {
     loadStatusFailed: "업데이트 상태를 불러오지 못했습니다.",
@@ -508,6 +508,8 @@ export const koKRAdmin = {
     downloadStarted: "업데이트 패키지 다운로드가 시작되었습니다.",
     startDownloadFailed: "다운로드를 시작하지 못했습니다.",
     startInstallFailed: "설치를 시작하지 못했습니다.",
+    automaticReloadFailed:
+      "업데이트가 시작되었지만 새 버전에 자동으로 연결하지 못했습니다.",
     completed: "{version}(으)로 업데이트되었습니다.",
   },
   aboutUpdate: {

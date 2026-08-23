@@ -13,6 +13,11 @@ import {
 } from "../lib/reverse-proxy-submode";
 import { isProtocolMappingVisible } from "../lib/protocol-mapping-visibility";
 import { resolveRuntimeCapabilityRedirect } from "./runtime-access";
+import {
+  claimChunkReload,
+  isDynamicImportFailure,
+  replaceWithUpdatedApplication,
+} from "../lib/update-reload";
 
 NProgress.configure({
   barSelector: ".bar",
@@ -394,17 +399,21 @@ router.onError((error) => {
   pendingNavPath.value = null;
   NProgress.done();
 
-  const message = error instanceof Error ? error.message : "";
-  const isDynamicImportFailure =
-    message.includes("Failed to fetch dynamically imported module") ||
-    message.includes("Importing a module script failed");
-
-  if (import.meta.env.DEV && isDynamicImportFailure) {
-    toast.info(browserT("admin.route.devCacheExpired"));
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 120);
+  let reloadStorage: Storage | null = null;
+  try {
+    reloadStorage = window.sessionStorage;
+  } catch {
+    // The cache-busting query parameter still guards against reload loops.
   }
+  if (!isDynamicImportFailure(error)) return;
+  if (!claimChunkReload(window.location.href, reloadStorage)) {
+    toast.error(browserT("admin.route.loadFailedRetry"));
+    return;
+  }
+  toast.info(browserT("admin.route.cacheExpired"));
+  window.setTimeout(() => {
+    replaceWithUpdatedApplication("chunk");
+  }, 120);
 });
 
 export default router;

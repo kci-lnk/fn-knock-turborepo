@@ -390,7 +390,7 @@ export const zhHantAdmin = {
   route: {
     navigationFailed: "頁面跳轉失敗",
     loadFailedRetry: "頁面載入失敗，請稍後重試",
-    devCacheExpired: "檢測到開發環境依賴快取已過期，正在刷新頁面...",
+    cacheExpired: "檢測到頁面資源版本已更新，正在刷新頁面...",
   },
   update: {
     loadStatusFailed: "載入更新狀態失敗",
@@ -402,6 +402,7 @@ export const zhHantAdmin = {
     downloadStarted: "已開始下載更新包",
     startDownloadFailed: "啟動下載失敗",
     startInstallFailed: "啟動安裝失敗",
+    automaticReloadFailed: "更新已啟動，但未能自動連線到新版本",
     completed: "更新完成到 {version}",
   },
   aboutUpdate: {

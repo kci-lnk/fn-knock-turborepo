@@ -61,12 +61,33 @@ emit_upstream_header() {
     fi
 }
 
+is_html_response() {
+    case "${REL_PATH:-/}" in
+        /|/index.html) return 0 ;;
+    esac
+    case "${CONTENT_TYPE_LINE:-}" in
+        *[Tt][Ee][Xx][Tt]/[Hh][Tt][Mm][Ll]*) return 0 ;;
+    esac
+    return 1
+}
+
 emit_upstream_cache_headers() {
-    emit_upstream_header "Cache-Control"
-    emit_upstream_header "CDN-Cache-Control"
-    emit_upstream_header "Surrogate-Control"
-    emit_upstream_header "Expires"
-    emit_upstream_header "Pragma"
+    if is_html_response; then
+        # The FPK replaces fingerprinted assets during an upgrade. Never let
+        # an HTML document outlive the asset generation it references,
+        # including SPA fallbacks and authentication views.
+        printf "Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate\r\n"
+        printf "CDN-Cache-Control: no-store\r\n"
+        printf "Surrogate-Control: no-store\r\n"
+        printf "Pragma: no-cache\r\n"
+        printf "Expires: 0\r\n"
+    else
+        emit_upstream_header "Cache-Control"
+        emit_upstream_header "CDN-Cache-Control"
+        emit_upstream_header "Surrogate-Control"
+        emit_upstream_header "Expires"
+        emit_upstream_header "Pragma"
+    fi
     emit_upstream_header "ETag"
     emit_upstream_header "Last-Modified"
     emit_upstream_header "Vary"
@@ -85,7 +106,10 @@ case "$URI_NO_QUERY" in
         fi
         printf "Status: 302 Found\r\n"
         printf "Location: %s\r\n" "$LOCATION"
-        printf "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        printf "Content-Type: text/plain; charset=utf-8\r\n"
+        printf "Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate\r\n"
+        printf "Pragma: no-cache\r\n"
+        printf "Expires: 0\r\n\r\n"
         printf "Redirecting\n"
         exit 0
         ;;
@@ -149,7 +173,8 @@ CURL_EXIT=$?
 
 if [ $CURL_EXIT -ne 0 ]; then
     printf "Status: 502 Bad Gateway\r\n"
-    printf "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+    printf "Content-Type: text/plain; charset=utf-8\r\n"
+    printf "Cache-Control: no-store\r\n\r\n"
     printf "连接后端失败。可能是 fn-knock 程序未启动，请尝试重启该应用。\n"
     exit 0
 fi
@@ -174,6 +199,7 @@ emit_upstream_cache_headers
 emit_upstream_header "Content-Encoding"
 emit_upstream_header "Content-Length"
 emit_upstream_header "Content-Disposition"
+emit_upstream_header "X-Content-Type-Options"
 printf "\r\n"
 # Frontend assets use relative URLs, so preserve negotiated br/gzip bytes
 # exactly as received. Rewriting an encoded body would corrupt it.

@@ -129,8 +129,11 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   if (!indexResponse.ok) {
     throw new Error(`admin index returned HTTP ${indexResponse.status}`);
   }
-  if (indexResponse.headers.get("cache-control") !== "no-cache") {
-    throw new Error("admin index is missing no-cache");
+  if (
+    indexResponse.headers.get("cache-control") !==
+    "private, no-store, no-cache, max-age=0, must-revalidate"
+  ) {
+    throw new Error("admin index is missing the non-storable cache policy");
   }
   if (
     !indexResponse.headers
@@ -185,7 +188,8 @@ const verifyStaticServing = async (adminUrl, authUrl) => {
   );
   if (
     !spaFallback.ok ||
-    spaFallback.headers.get("cache-control") !== "no-cache" ||
+    spaFallback.headers.get("cache-control") !==
+      "private, no-store, no-cache, max-age=0, must-revalidate" ||
     !spaFallback.headers.get("content-type")?.startsWith("text/html")
   ) {
     throw new Error("admin SPA fallback failed the index cache contract");

@@ -505,8 +505,8 @@ export const jaJPAdmin = {
     navigationFailed: "ページの移動に失敗しました",
     loadFailedRetry:
       "ページを読み込めませんでした。しばらくしてから、もう一度お試しください。",
-    devCacheExpired:
-      "開発用の依存関係キャッシュが古いため、ページを再読み込みしています...",
+    cacheExpired:
+      "新しいページリソースのバージョンを検出したため、再読み込みしています...",
   },
   update: {
     loadStatusFailed: "アップデート状況の読み込みに失敗しました",
@@ -518,6 +518,8 @@ export const jaJPAdmin = {
     downloadStarted: "アップデートパッケージのダウンロードを開始しました",
     startDownloadFailed: "ダウンロードの開始に失敗しました",
     startInstallFailed: "インストールの開始に失敗しました",
+    automaticReloadFailed:
+      "アップデートは開始されましたが、新しいバージョンに自動接続できませんでした",
     completed: "{version} にアップデートしました",
   },
   aboutUpdate: {

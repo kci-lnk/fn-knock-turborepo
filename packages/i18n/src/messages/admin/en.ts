@@ -502,8 +502,7 @@ export const enAdmin = {
   route: {
     navigationFailed: "Navigation failed",
     loadFailedRetry: "Failed to load the page. Please try again later.",
-    devCacheExpired:
-      "Development dependency cache looks stale. Refreshing the page...",
+    cacheExpired: "A newer page resource version is available. Refreshing...",
   },
   update: {
     loadStatusFailed: "Failed to load update status",
@@ -515,6 +514,8 @@ export const enAdmin = {
     downloadStarted: "Update package download started",
     startDownloadFailed: "Failed to start download",
     startInstallFailed: "Failed to start installation",
+    automaticReloadFailed:
+      "The update started, but the new version could not be reached automatically",
     completed: "Updated to {version}",
   },
   aboutUpdate: {

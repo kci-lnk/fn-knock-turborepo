@@ -52,6 +52,7 @@ cat > "${WORK_DIR}/bin/curl" <<'FAKE_CURL'
 header_file=""
 body_file=""
 accept_encoding=""
+target_url=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -D)
@@ -72,14 +73,19 @@ while [ "$#" -gt 0 ]; do
       shift 2
       ;;
     *)
+      target_url="$1"
       shift
       ;;
   esac
 done
 [ "${accept_encoding}" = "${EXPECTED_ACCEPT_ENCODING}" ] || exit 65
 body='compressed-src="/fixture.js"'
-printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Encoding: br\r\nContent-Length: %s\r\nVary: Accept-Encoding\r\n\r\n' \
-  "${#body}" > "${header_file}"
+case "${target_url}" in
+  */assets/*) content_type='text/javascript; charset=utf-8' ;;
+  *) content_type='text/html; charset=utf-8' ;;
+esac
+printf 'HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: public, max-age=31536000, immutable\r\nContent-Encoding: br\r\nContent-Length: %s\r\nVary: Accept-Encoding\r\nX-Content-Type-Options: nosniff\r\n\r\n' \
+  "${content_type}" "${#body}" > "${header_file}"
 printf '%s' "${body}" > "${body_file}"
 FAKE_CURL
 chmod 755 "${WORK_DIR}/bin/curl"
@@ -101,8 +107,44 @@ do
     fail "compressed response lost Content-Encoding: ${cgi}"
   printf '%s' "${normalized_output}" | grep -Fq 'Vary: Accept-Encoding' || \
     fail "compressed response lost Vary: ${cgi}"
+  printf '%s' "${normalized_output}" | grep -Fq \
+    'Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate' || \
+    fail "index response is storable: ${cgi}"
+  printf '%s' "${normalized_output}" | grep -Fq 'CDN-Cache-Control: no-store' || \
+    fail "index response allows CDN storage: ${cgi}"
+  if printf '%s' "${normalized_output}" | grep -Fq \
+    'Cache-Control: public, max-age=31536000, immutable'; then
+    fail "index response retained the asset cache policy: ${cgi}"
+  fi
   printf '%s' "${normalized_output}" | grep -Fq 'compressed-src="/fixture.js"' || \
     fail "compressed response body was changed: ${cgi}"
+
+  fallback_output="$(
+    PATH="${WORK_DIR}/bin:${PATH}" \
+    EXPECTED_ACCEPT_ENCODING='gzip, deflate, br' \
+    HTTP_ACCEPT_ENCODING='gzip, deflate, br' \
+    REQUEST_METHOD=GET \
+    REQUEST_URI='/cgi/ThirdParty/fn-knock/index.cgi/settings' \
+      sh "${cgi}"
+  )"
+  printf '%s' "${fallback_output}" | tr -d '\r' | grep -Fq \
+    'Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate' || \
+    fail "HTML SPA fallback is storable: ${cgi}"
+
+  asset_output="$(
+    PATH="${WORK_DIR}/bin:${PATH}" \
+    EXPECTED_ACCEPT_ENCODING='gzip, deflate, br' \
+    HTTP_ACCEPT_ENCODING='gzip, deflate, br' \
+    REQUEST_METHOD=GET \
+    REQUEST_URI='/cgi/ThirdParty/fn-knock/index.cgi/assets/app-ABCDEFG.js' \
+      sh "${cgi}"
+  )"
+  printf '%s' "${asset_output}" | tr -d '\r' | grep -Fq \
+    'Cache-Control: public, max-age=31536000, immutable' || \
+    fail "fingerprinted asset cache policy was not preserved: ${cgi}"
+  printf '%s' "${asset_output}" | tr -d '\r' | grep -Fq \
+    'X-Content-Type-Options: nosniff' || \
+    fail "static asset lost nosniff protection: ${cgi}"
 done
 
 printf '[test-cgi-proxy-contract] CGI forwarding and compression contract passed\n'

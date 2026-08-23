@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 const AUTH_PUBLIC_PREFIX: &str = "/auth";
 const AUTH_LOCAL_PREFIX: &str = "/__auth__";
-const INDEX_CACHE_CONTROL: &str = "no-cache";
+const INDEX_CACHE_CONTROL: &str = "private, no-store, no-cache, max-age=0, must-revalidate";
 const FINGERPRINTED_ASSET_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 const STATIC_ASSET_CACHE_CONTROL: &str = "public, max-age=300";
 const HTTP_DATE_MAX_OFFSET: Duration = Duration::from_secs(253_402_300_800);
@@ -215,6 +215,8 @@ pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) ->
             StaticFileKind::Asset,
         )
         .await
+    } else if is_asset_request_path(&normalized_path) {
+        static_asset_not_found()
     } else if is_known_auth_view_path(&path) {
         serve_index(
             &state,
@@ -261,6 +263,8 @@ pub async fn admin_fallback(
             StaticFileKind::Asset,
         )
         .await
+    } else if is_asset_request_path(path) {
+        static_asset_not_found()
     } else {
         serve_index(
             &state,
@@ -409,6 +413,20 @@ fn apply_static_headers(
         header::CACHE_CONTROL,
         HeaderValue::from_static(cache_control_for_file(path, kind)),
     );
+    if kind == StaticFileKind::Index {
+        response
+            .headers_mut()
+            .insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+        response
+            .headers_mut()
+            .insert(header::EXPIRES, HeaderValue::from_static("0"));
+        response
+            .headers_mut()
+            .insert("surrogate-control", HeaderValue::from_static("no-store"));
+        response
+            .headers_mut()
+            .insert("cdn-cache-control", HeaderValue::from_static("no-store"));
+    }
     response
         .headers_mut()
         .insert(header::ETAG, variant.etag.clone());
@@ -539,6 +557,19 @@ fn is_api_path(path: &str) -> bool {
     path == "/api" || path.starts_with("/api/")
 }
 
+fn is_asset_request_path(path: &str) -> bool {
+    path == "/assets" || path.starts_with("/assets/")
+}
+
+fn static_asset_not_found() -> Response {
+    Response::builder()
+        .status(StatusCode::NOT_FOUND)
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .body(Body::empty())
+        .unwrap_or_else(|_| StatusCode::NOT_FOUND.into_response())
+}
+
 fn cache_control_for_file(path: &Path, kind: StaticFileKind) -> &'static str {
     match kind {
         StaticFileKind::Index => INDEX_CACHE_CONTROL,
@@ -654,9 +685,10 @@ fn method_not_allowed() -> Response {
 mod tests {
     use super::{
         StaticFileKind, accepts_encoding, auth_not_found_html, cache_control_for_file,
-        has_fingerprinted_file_name, if_none_match_matches, is_api_path, is_known_auth_view_path,
-        last_modified_header, normalize_auth_path, serve_catalog_file, serve_file,
-        serve_index_file, static_file_entry, static_file_variant,
+        has_fingerprinted_file_name, if_none_match_matches, is_api_path, is_asset_request_path,
+        is_known_auth_view_path, last_modified_header, normalize_auth_path, serve_catalog_file,
+        serve_file, serve_index_file, static_asset_not_found, static_file_entry,
+        static_file_variant,
     };
     use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
     use std::{
@@ -698,7 +730,7 @@ mod tests {
         );
         assert_eq!(
             cache_control_for_file(Path::new("/tmp/dist/index.html"), StaticFileKind::Index),
-            "no-cache"
+            "private, no-store, no-cache, max-age=0, must-revalidate"
         );
         assert_eq!(
             cache_control_for_file(
@@ -718,6 +750,31 @@ mod tests {
         ));
         assert!(!has_fingerprinted_file_name("favicon.ico"));
         assert!(!has_fingerprinted_file_name("app-short.js"));
+    }
+
+    #[test]
+    fn asset_request_path_matching_respects_segment_boundaries() {
+        assert!(is_asset_request_path("/assets"));
+        assert!(is_asset_request_path("/assets/app-ABCDEFG.js"));
+        assert!(!is_asset_request_path("/assets-old/app.js"));
+        assert!(!is_asset_request_path("/settings/assets"));
+    }
+
+    #[test]
+    fn missing_static_assets_are_not_replaced_with_the_spa_document() {
+        let response = static_asset_not_found();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::X_CONTENT_TYPE_OPTIONS)
+                .unwrap(),
+            "nosniff"
+        );
     }
 
     #[test]
@@ -873,7 +930,21 @@ mod tests {
                 .headers()
                 .get(header::CACHE_CONTROL)
                 .and_then(|value| value.to_str().ok()),
+            Some("private, no-store, no-cache, max-age=0, must-revalidate")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::PRAGMA)
+                .and_then(|value| value.to_str().ok()),
             Some("no-cache")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("surrogate-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
         );
         assert!(
             response

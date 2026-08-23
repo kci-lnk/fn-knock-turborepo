@@ -5,6 +5,10 @@ import { toast } from "@admin-shared/utils/toast";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { browserT } from "@fn-knock/i18n/vue/admin";
 import { createPollingLifecycle } from "@/lib/pollingLifecycle";
+import {
+  replaceWithUpdatedApplication,
+  waitForUpdatedApplication,
+} from "@/lib/update-reload";
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;
@@ -184,6 +188,9 @@ export const useUpdateStore = defineStore("update", () => {
     shouldAutoInstallAfterDownload.value = false;
     isTriggeringInstall.value = true;
     isPreparingInstall.value = true;
+    const targetVersion =
+      status.value?.download.targetVersion ?? status.value?.latest?.version;
+    const previousVersion = status.value?.localVersion;
     try {
       if (status.value) {
         status.value.download.status = "installing";
@@ -203,8 +210,24 @@ export const useUpdateStore = defineStore("update", () => {
         schedulePoll();
         return false;
       }
-      await loadStatus(true);
-      schedulePoll();
+
+      stopPolling();
+      const updatedStatus = await waitForUpdatedApplication({
+        loadStatus: () => UpdateAPI.getStatus(true),
+        targetVersion,
+        previousVersion,
+      });
+      if (!updatedStatus) {
+        toast.error(browserT("admin.update.automaticReloadFailed"), {
+          description: browserT("common.tryLater"),
+        });
+        await loadStatus(true);
+        startPolling();
+        return false;
+      }
+
+      status.value = updatedStatus;
+      replaceWithUpdatedApplication();
       return true;
     } catch (error) {
       toast.error(browserT("admin.update.startInstallFailed"), {

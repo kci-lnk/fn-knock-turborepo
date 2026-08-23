@@ -257,8 +257,10 @@ export const IpLocationSettingsAPI = {
 };
 
 export const UpdateAPI = {
-  async getStatus(): Promise<UpdateStatusPayload> {
-    const res = await apiClient.get("/update/status");
+  async getStatus(cacheBust = false): Promise<UpdateStatusPayload> {
+    const res = await apiClient.get("/update/status", {
+      params: cacheBust ? { _fn_knock_update_probe: Date.now() } : undefined,
+    });
     const payload = res.data as UpdateStatusResponse;
     return payload.data;
   },

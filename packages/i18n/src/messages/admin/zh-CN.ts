@@ -456,7 +456,7 @@ export const zhCNAdmin = {
   route: {
     navigationFailed: "页面跳转失败",
     loadFailedRetry: "页面加载失败，请稍后重试",
-    devCacheExpired: "检测到开发环境依赖缓存已过期，正在刷新页面...",
+    cacheExpired: "检测到页面资源版本已更新，正在刷新页面...",
   },
   update: {
     loadStatusFailed: "加载更新状态失败",
@@ -468,6 +468,7 @@ export const zhCNAdmin = {
     downloadStarted: "已开始下载更新包",
     startDownloadFailed: "启动下载失败",
     startInstallFailed: "启动安装失败",
+    automaticReloadFailed: "更新已启动，但未能自动连接到新版本",
     completed: "更新完成到 {version}",
   },
   aboutUpdate: {

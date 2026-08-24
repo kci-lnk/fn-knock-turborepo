@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 93;
+const maxDirectSpawnCallSites = 101;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -12,10 +12,13 @@ const maxDirectSpawnCallSites = 93;
 const auditedBudgets = new Map(
   Object.entries({
     "app.rs": 2,
-    "auth/fnos_share_bypass.rs": 1,
+    // Local HTTP fixtures; every server task is joined or awaited by its test.
+    "auth/fnos_share_bypass.rs": 5,
     "auth/mobility.rs": 1,
-    "auth/mobility/tests.rs": 3,
-    "auth/routes/bridge.rs": 1,
+    // Cancellation and concurrency probes; every handle is aborted or awaited.
+    "auth/mobility/tests.rs": 5,
+    // One returned bridge owner plus one test-only waiter that is awaited.
+    "auth/routes/bridge.rs": 2,
     "certificates/acme/jobs.rs": 5,
     "certificates/auto_https.rs": 1,
     "config/runtime/tests.rs": 5,
@@ -29,7 +32,8 @@ const auditedBudgets = new Map(
     // Test-only local HTTP fixtures; every returned handle is awaited by its test.
     "panel_sync/tests.rs": 2,
     "runtime_health.rs": 1,
-    "security/whitelist/tests.rs": 1,
+    // Serialization and concurrency probes; every handle is awaited.
+    "security/whitelist/tests.rs": 2,
     "storage/redis_compat/tests/migrations.rs": 2,
     // Test-only concurrency and local fixture tasks; every handle is joined,
     // awaited, or explicitly aborted by the owning test.

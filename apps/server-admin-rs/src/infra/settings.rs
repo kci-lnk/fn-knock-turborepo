@@ -136,7 +136,7 @@ impl Settings {
             )),
             auth_bridge_max_in_flight: env_u64_like_node(
                 "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT",
-                default_auth_bridge_max_in_flight() as u64,
+                default_auth_bridge_max_in_flight(&detected_runtime_target) as u64,
             )
             .clamp(
                 MIN_AUTH_BRIDGE_MAX_IN_FLIGHT as u64,
@@ -347,30 +347,59 @@ fn secure_altcha_hmac_key_permissions(_path: &Path) -> anyhow::Result<()> {
 const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
 const SQLITE_STORAGE_DIR: &str = "storage";
 const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 5_000;
-const MIN_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 4;
-const MAX_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 128;
-const DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_PER_CPU: usize = 4;
-const DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_CAP: usize = 32;
+const MIN_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 32;
+const MAX_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 512;
 const FALLBACK_AUTH_BRIDGE_PARALLELISM: usize = 4;
 const DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS: u64 = 120_000;
 const DEFAULT_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS: u64 = 30 * 60 * 1_000;
 
-fn default_auth_bridge_max_in_flight() -> usize {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AuthBridgeConcurrencyProfile {
+    per_cpu: usize,
+    cap: usize,
+}
+
+fn auth_bridge_concurrency_profile(runtime_target: &str) -> AuthBridgeConcurrencyProfile {
+    match runtime_target {
+        // Keep embedded targets bounded while still allowing a full browser
+        // cold-start burst without immediately rejecting bridge requests.
+        "openwrt" | "fpk-lite" => AuthBridgeConcurrencyProfile {
+            per_cpu: 4,
+            cap: 64,
+        },
+        // NAS packages generally have more memory than routers but still share
+        // resources with storage and media workloads.
+        "fpk" | "synology" => AuthBridgeConcurrencyProfile {
+            per_cpu: 8,
+            cap: 128,
+        },
+        // Container, generic server, and desktop runtimes can absorb wider
+        // I/O-bound authorization bursts. available_parallelism is quota-aware.
+        "docker" | "linux" | "macos" | "windows" => AuthBridgeConcurrencyProfile {
+            per_cpu: 16,
+            cap: 256,
+        },
+        _ => AuthBridgeConcurrencyProfile {
+            per_cpu: 8,
+            cap: 128,
+        },
+    }
+}
+
+fn default_auth_bridge_max_in_flight(runtime_target: &str) -> usize {
     let parallelism = std::thread::available_parallelism()
         .map(usize::from)
         .unwrap_or(FALLBACK_AUTH_BRIDGE_PARALLELISM);
-    auth_bridge_max_in_flight_for_parallelism(parallelism)
+    auth_bridge_max_in_flight_for_platform(runtime_target, parallelism)
 }
 
-fn auth_bridge_max_in_flight_for_parallelism(parallelism: usize) -> usize {
+fn auth_bridge_max_in_flight_for_platform(runtime_target: &str, parallelism: usize) -> usize {
+    let profile = auth_bridge_concurrency_profile(runtime_target);
     parallelism
         .max(1)
-        .saturating_mul(DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_PER_CPU)
-        .clamp(
-            MIN_AUTH_BRIDGE_MAX_IN_FLIGHT,
-            DEFAULT_AUTH_BRIDGE_MAX_IN_FLIGHT_CAP,
-        )
+        .saturating_mul(profile.per_cpu)
+        .clamp(MIN_AUTH_BRIDGE_MAX_IN_FLIGHT, profile.cap)
 }
 
 fn env_string(name: &str, fallback: &str) -> String {
@@ -874,31 +903,46 @@ mod tests {
     }
 
     #[test]
-    fn auth_bridge_concurrency_defaults_low_and_clamps_overrides() {
-        with_env_vars(&["FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT"], |env| {
-            env.remove("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT");
-            assert_eq!(
-                Settings::from_env().auth_bridge_max_in_flight,
-                default_auth_bridge_max_in_flight()
-            );
+    fn auth_bridge_concurrency_scales_by_platform_and_clamps_overrides() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT",
+                "FN_KNOCK_RUNTIME_TARGET",
+            ],
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "docker");
+                env.remove("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT");
+                assert_eq!(
+                    Settings::from_env().auth_bridge_max_in_flight,
+                    default_auth_bridge_max_in_flight("docker")
+                );
 
-            env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "1");
-            assert_eq!(
-                Settings::from_env().auth_bridge_max_in_flight,
-                MIN_AUTH_BRIDGE_MAX_IN_FLIGHT
-            );
+                env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "1");
+                assert_eq!(
+                    Settings::from_env().auth_bridge_max_in_flight,
+                    MIN_AUTH_BRIDGE_MAX_IN_FLIGHT
+                );
 
-            env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "500");
-            assert_eq!(
-                Settings::from_env().auth_bridge_max_in_flight,
-                MAX_AUTH_BRIDGE_MAX_IN_FLIGHT
-            );
-        });
+                env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "256");
+                assert_eq!(Settings::from_env().auth_bridge_max_in_flight, 256);
 
-        assert_eq!(auth_bridge_max_in_flight_for_parallelism(1), 4);
-        assert_eq!(auth_bridge_max_in_flight_for_parallelism(4), 16);
-        assert_eq!(auth_bridge_max_in_flight_for_parallelism(8), 32);
-        assert_eq!(auth_bridge_max_in_flight_for_parallelism(64), 32);
+                env.set("FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT", "5000");
+                assert_eq!(
+                    Settings::from_env().auth_bridge_max_in_flight,
+                    MAX_AUTH_BRIDGE_MAX_IN_FLIGHT
+                );
+            },
+        );
+
+        assert_eq!(auth_bridge_max_in_flight_for_platform("openwrt", 1), 32);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("openwrt", 16), 64);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("synology", 4), 32);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("synology", 16), 128);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("docker", 1), 32);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("docker", 2), 32);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("docker", 4), 64);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("docker", 64), 256);
+        assert_eq!(auth_bridge_max_in_flight_for_platform("unknown", 64), 128);
     }
 
     #[test]

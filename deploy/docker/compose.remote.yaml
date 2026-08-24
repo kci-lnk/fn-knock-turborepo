@@ -5,6 +5,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT: ${FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT:-}
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}

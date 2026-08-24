@@ -182,6 +182,11 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
     let handler_timeout = auth_bridge_handler_timeout(state.settings.request_timeout);
     let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(max_in_flight);
     let limiter = Arc::new(Semaphore::new(max_in_flight));
+    tracing::info!(
+        runtime_target = %crate::runtime_profile::deployment_target(&state),
+        max_in_flight,
+        "auth bridge concurrency configured"
+    );
 
     // Queue the handshake before opening the stream. The Go server sends its
     // initial headers eagerly, but having Ready available immediately also

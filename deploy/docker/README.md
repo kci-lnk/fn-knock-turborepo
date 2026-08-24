@@ -75,6 +75,7 @@ fi
 
 cat > .env <<'FN_KNOCK_ENV'
 FN_KNOCK_IMAGE=hub.fnknock.cn/kcilnk/fn-knock:latest
+FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT=
 TZ=Asia/Shanghai
 ADMIN_VIEW_PORT=7991
 BACKEND_PORT=7998
@@ -94,6 +95,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT: ${FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT:-}
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
@@ -146,6 +148,7 @@ docker pull hub.fnknock.cn/kcilnk/fn-knock:latest
 
 ```dotenv
 FN_KNOCK_IMAGE=hub.fnknock.cn/kcilnk/fn-knock:latest
+FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT=
 TZ=Asia/Shanghai
 ADMIN_VIEW_PORT=7991
 BACKEND_PORT=7998
@@ -161,6 +164,7 @@ DOCKER_DISCOVER_LAN_IP=
 | 配置项                             | 默认值                                  | 说明                                                      |
 | ---------------------------------- | --------------------------------------- | --------------------------------------------------------- |
 | `FN_KNOCK_IMAGE`                   | `hub.fnknock.cn/kcilnk/fn-knock:latest` | 可改为 Docker Hub 地址或固定版本标签                      |
+| `FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT` | 留空（自动）                           | 按平台和可用 CPU 在 32–256 间调整；可显式覆盖至 32–512    |
 | `ADMIN_VIEW_PORT`                  | `7991`                                  | 管理面板的宿主机端口                                      |
 | `GO_REPROXY_PORT`                  | `7999`                                  | 网关入口的宿主机端口                                      |
 | `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS` | 留空                                    | 仅当 `7991` 位于可信反向代理后时，填写代理出口 IP 或 CIDR |
@@ -181,6 +185,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT: ${FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT:-}
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
@@ -243,6 +248,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
+      FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT: ${FN_KNOCK_AUTH_BRIDGE_MAX_IN_FLIGHT:-}
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}

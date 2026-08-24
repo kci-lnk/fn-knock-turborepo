@@ -109,6 +109,16 @@ fn auth_bridge_handler_timeout(request_timeout: Duration) -> Duration {
     request_timeout.saturating_sub(desired_headroom.min(maximum_headroom))
 }
 
+async fn acquire_auth_bridge_capacity(
+    limiter: Arc<Semaphore>,
+    budget: Duration,
+) -> Option<tokio::sync::OwnedSemaphorePermit> {
+    tokio::time::timeout(budget, limiter.acquire_owned())
+        .await
+        .ok()?
+        .ok()
+}
+
 fn record_bridge_pressure(
     state: &AppState,
     event: &str,
@@ -220,30 +230,44 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
             continue;
         };
         let request_id = message.request_id.clone();
-        let permit = match limiter.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(_) => {
-                record_bridge_pressure(
-                    &state,
-                    "request_rejected",
-                    "capacity_exhausted",
-                    kind,
-                    Duration::ZERO,
-                    max_in_flight,
-                );
-                let response = kind.unavailable_envelope(request_id);
-                tokio::select! {
-                    _ = shutdown.cancelled() => break,
-                    result = tx.send(response) => {
-                        if let Err(error) = result {
-                            tracing::debug!(%error, "failed to send auth bridge overload response");
-                            break;
-                        }
+        let request_started = tokio::time::Instant::now();
+        let permit = tokio::select! {
+            _ = shutdown.cancelled() => break,
+            permit = acquire_auth_bridge_capacity(limiter.clone(), handler_timeout) => permit,
+        };
+        let Some(permit) = permit else {
+            record_bridge_pressure(
+                &state,
+                "request_rejected",
+                "capacity_wait_timeout",
+                kind,
+                request_started.elapsed(),
+                max_in_flight,
+            );
+            let response = kind.unavailable_envelope(request_id);
+            tokio::select! {
+                _ = shutdown.cancelled() => break,
+                result = tx.send(response) => {
+                    if let Err(error) = result {
+                        tracing::debug!(%error, "failed to send auth bridge overload response");
+                        break;
                     }
                 }
-                continue;
             }
+            continue;
         };
+        let capacity_wait = request_started.elapsed();
+        if capacity_wait >= Duration::from_millis(1) {
+            record_bridge_pressure(
+                &state,
+                "request_queued",
+                "capacity_waited",
+                kind,
+                capacity_wait,
+                max_in_flight,
+            );
+        }
+        let remaining_handler_timeout = handler_timeout.saturating_sub(capacity_wait);
         let tx = tx.clone();
         let state = state.clone();
         let worker_shutdown = shutdown.clone();
@@ -252,7 +276,7 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
             let response = tokio::select! {
                 _ = worker_shutdown.cancelled() => None,
                 response = tokio::time::timeout(
-                    handler_timeout,
+                    remaining_handler_timeout,
                     handle_bridge_message(state.clone(), message),
                 ) => match response {
                     Ok(response) => response,
@@ -262,7 +286,7 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                             "request_timeout",
                             "handler_deadline_exceeded",
                             kind,
-                            handler_timeout,
+                            request_started.elapsed(),
                             max_in_flight,
                         );
                         Some(kind.unavailable_envelope(request_id))
@@ -1051,6 +1075,47 @@ mod tests {
             Duration::from_millis(1)
         );
         assert_eq!(auth_bridge_handler_timeout(Duration::ZERO), Duration::ZERO);
+    }
+
+    #[tokio::test]
+    async fn bridge_capacity_waits_for_an_in_flight_request() {
+        let limiter = Arc::new(Semaphore::new(1));
+        let first = limiter
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("first bridge permit");
+        let waiting_limiter = limiter.clone();
+        let waiter = tokio::spawn(async move {
+            acquire_auth_bridge_capacity(waiting_limiter, Duration::from_secs(1)).await
+        });
+
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished());
+        drop(first);
+
+        let second = tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("capacity waiter deadline")
+            .expect("capacity waiter task")
+            .expect("second bridge permit");
+        drop(second);
+    }
+
+    #[tokio::test]
+    async fn bridge_capacity_wait_respects_its_budget() {
+        let limiter = Arc::new(Semaphore::new(1));
+        let _first = limiter
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("first bridge permit");
+
+        assert!(
+            acquire_auth_bridge_capacity(limiter, Duration::from_millis(20))
+                .await
+                .is_none()
+        );
     }
 
     #[test]

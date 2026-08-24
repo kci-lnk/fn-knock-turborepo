@@ -42,6 +42,8 @@ PREPARED_RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}
 PREPARED_MUSL_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
 USE_PREPARED_ARTIFACTS="${FN_KNOCK_USE_PREPARED_ARTIFACTS:-1}"
 DOCKER_ARTIFACTS_PREPARED=0
+GO_REPOSITORY="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}"
+DOCKER_GATEWAY_COMMIT=""
 
 cleanup_temp_files() {
   if [ "${#TEMP_FILES[@]}" -gt 0 ]; then
@@ -72,6 +74,31 @@ prepare_gateway_binaries() {
 
   bash "${ROOT_DIR}/scripts/prepare-go-reauth-proxy.sh" "${GATEWAY_BINARY_DIR}" amd64 arm64 arm
   GATEWAY_BINARIES_PREPARED=1
+}
+
+lock_docker_gateway_commit() {
+  local actual_commit
+  local configured_commit
+  local worktree_state
+
+  if [ -n "${DOCKER_GATEWAY_COMMIT}" ]; then
+    return 0
+  fi
+  [ -d "${GO_REPOSITORY}" ] || fail "missing Go-Reauth-Proxy checkout: ${GO_REPOSITORY}"
+  actual_commit="$(git -C "${GO_REPOSITORY}" rev-parse HEAD 2>/dev/null)" || \
+    fail "unable to resolve Go gateway commit from ${GO_REPOSITORY}"
+  configured_commit="${FN_KNOCK_GATEWAY_COMMIT:-${actual_commit}}"
+  [[ "${configured_commit}" =~ ^[0-9a-f]{40}$ ]] || \
+    fail "Go gateway commit must be a 40-character lowercase Git commit"
+  [ "${configured_commit}" = "${actual_commit}" ] || \
+    fail "Go gateway HEAD does not match locked commit: expected ${configured_commit}, got ${actual_commit}"
+  worktree_state="$(git -C "${GO_REPOSITORY}" status --porcelain --untracked-files=normal)"
+  [ -z "${worktree_state}" ] || \
+    fail "Go gateway working tree is not clean; commit or discard changes before building Docker images"
+
+  DOCKER_GATEWAY_COMMIT="${configured_commit}"
+  export FN_KNOCK_GATEWAY_COMMIT="${DOCKER_GATEWAY_COMMIT}"
+  log "Locked Go gateway commit ${DOCKER_GATEWAY_COMMIT}"
 }
 
 gateway_arch_for_docker_arch() {
@@ -176,8 +203,14 @@ validate_elf_arch() {
 
 rust_backend_is_fresh() {
   local bin="$1"
+  local commit_file="${bin}.gateway-commit"
+  local version_file="${bin}.version"
 
   [ -f "${bin}" ] || return 1
+  [ -f "${commit_file}" ] || return 1
+  [ -f "${version_file}" ] || return 1
+  [ "$(tr -d '\r\n' < "${commit_file}")" = "${DOCKER_GATEWAY_COMMIT}" ] || return 1
+  [ "$(tr -d '\r\n' < "${version_file}")" = "$(parse_app_version)" ] || return 1
   if find "${ROOT_DIR}/apps/server-admin-rs" \
     \( -path "${ROOT_DIR}/apps/server-admin-rs/target" -o -path "${ROOT_DIR}/apps/server-admin-rs/target/*" \) -prune \
     -o \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'Cargo.lock' \) -newer "${bin}" -print -quit | grep -q .; then
@@ -193,6 +226,8 @@ copy_docker_rust_backend() {
 
   mkdir -p "${DOCKER_RUST_BACKEND_DIR}"
   install -m 755 "${src}" "${dst}"
+  install -m 644 "${src}.gateway-commit" "${dst}.gateway-commit"
+  install -m 644 "${src}.version" "${dst}.version"
   validate_elf_arch "${dst}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
   log "Prepared Docker Rust backend ${gateway_arch} from ${src}"
 }
@@ -232,6 +267,7 @@ build_docker_rust_backend() {
     -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/docker-${gateway_arch}" \
     -e FN_KNOCK_RUST_TARGET="${target}" \
     -e FN_KNOCK_RUST_OUT="/workspace/${out_bin#${ROOT_DIR}/}" \
+    -e FN_KNOCK_GATEWAY_COMMIT="${DOCKER_GATEWAY_COMMIT}" \
     -v "${ROOT_DIR}/dist/cargo-registry-docker:/root/.cargo/registry" \
     -v "${ROOT_DIR}/dist/cargo-git-docker:/root/.cargo/git" \
     -v "${ROOT_DIR}:/workspace" \
@@ -240,6 +276,8 @@ build_docker_rust_backend() {
     sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
+  printf '%s\n' "${DOCKER_GATEWAY_COMMIT}" > "${out_bin}.gateway-commit"
+  parse_app_version > "${out_bin}.version"
   validate_elf_arch "${out_bin}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
   bytes="$(file_size_bytes "${out_bin}")"
   log "Docker Rust backend ${gateway_arch} size: $(format_bytes "${bytes}")"
@@ -267,7 +305,7 @@ prepare_docker_rust_backend() {
       build_docker_rust_backend "${gateway_arch}"
       ;;
     0|false|False|FALSE|no|No|NO|off|Off|OFF)
-      if [ -f "${dst}" ]; then
+      if rust_backend_is_fresh "${dst}"; then
         validate_elf_arch "${dst}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
         log "Using existing Docker Rust backend ${gateway_arch}: ${dst}"
         return
@@ -276,7 +314,7 @@ prepare_docker_rust_backend() {
         copy_docker_rust_backend "${prebuilt}" "${gateway_arch}"
         return
       fi
-      fail "Docker Rust backend ${gateway_arch} is missing; set FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR or FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=auto"
+      fail "Docker Rust backend ${gateway_arch} is missing or stale for gateway commit ${DOCKER_GATEWAY_COMMIT}; set FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR or FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=auto"
       ;;
     *)
       fail "unsupported FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=${DOCKER_RUST_BUILD_MODE}; expected auto, 0, or 1"
@@ -724,6 +762,7 @@ run_buildx_image() {
 
   platform="$(docker_platform_for_arch "${arch}")"
   gateway_arch="$(gateway_arch_for_docker_arch "${arch}")"
+  lock_docker_gateway_commit
   fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-docker]"
   ensure_docker_artifacts
   prepare_gateway_binaries

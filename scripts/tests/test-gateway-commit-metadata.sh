@@ -117,5 +117,15 @@ if grep -En 'rev-parse[[:space:]]+--short' \
 fi
 grep -Fq 'rev-parse HEAD' "${ROOT_DIR}/apps/fn-knock-synology/scripts/build-package.sh" || \
   fail "Synology builder does not resolve the full gateway commit"
+grep -Fq 'lock_docker_gateway_commit' "${ROOT_DIR}/scripts/fn-knock-docker.sh" || \
+  fail "Docker builder does not lock the gateway commit for the whole image build"
+grep -Fq 'FN_KNOCK_GATEWAY_COMMIT="${DOCKER_GATEWAY_COMMIT}"' \
+  "${ROOT_DIR}/scripts/fn-knock-docker.sh" || \
+  fail "Docker Rust build does not inject the locked gateway commit"
+grep -Fq '"${out_bin}.gateway-commit"' "${ROOT_DIR}/scripts/fn-knock-docker.sh" || \
+  fail "Docker Rust build does not persist gateway commit cache metadata"
+if grep -Fq 'if [ -f "${dst}" ]; then' "${ROOT_DIR}/scripts/fn-knock-docker.sh"; then
+  fail "Docker no-build mode accepts Rust binaries without commit metadata validation"
+fi
 
 printf '[test-gateway-commit-metadata] gateway commit metadata validation passed\n'

@@ -173,6 +173,7 @@ pub async fn get_ip_location_snapshot(
         .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
+        let result = normalize_location_result(result);
         return Ok(serde_json::to_value(build_snapshot(
             ip,
             &normalized_ip,
@@ -226,6 +227,7 @@ pub async fn register_usage(
         .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
+        let result = normalize_location_result(result);
         if !references.is_empty() {
             sync_tracked_references(state, &normalized_ip, &result, &references).await?;
         }
@@ -337,6 +339,7 @@ async fn ensure_enqueued(
         .await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
+        let result = normalize_location_result(result);
         let current = get_state(state, &normalized_ip).await?;
         let state_value = if current.status == "success" {
             current
@@ -683,8 +686,9 @@ fn to_location_result(ip: &str, payload: &Value) -> Option<IpLocationResult> {
     let city = string_field(result, "city");
     let district = string_field(result, "district");
     let isp = string_field(result, "isp");
-    let country_code = string_field(result, "country_code");
     let source_raw = string_field(result, "raw");
+    let country_code = resolve_country_code(&string_field(result, "country_code"), &source_raw)
+        .unwrap_or_default();
     let raw = format_raw(&country, &province, &city, &isp, &source_raw);
     if raw.is_empty() {
         return None;
@@ -746,6 +750,33 @@ fn string_field(value: &Value, key: &str) -> String {
         .unwrap_or_default()
 }
 
+fn resolve_country_code(country_code: &str, source_raw: &str) -> Option<String> {
+    normalized_alpha2(country_code).or_else(|| {
+        source_raw
+            .rsplit('|')
+            .map(str::trim)
+            .find(|part| !part.is_empty())
+            .and_then(normalized_alpha2)
+    })
+}
+
+fn normalized_alpha2(value: &str) -> Option<String> {
+    let value = value.trim();
+    (value.len() == 2 && value.bytes().all(|byte| byte.is_ascii_alphabetic()))
+        .then(|| value.to_ascii_uppercase())
+}
+
+fn normalize_location_result(mut result: IpLocationResult) -> IpLocationResult {
+    result.country_code =
+        resolve_country_code(&result.country_code, &result.source_raw).unwrap_or_default();
+    result
+}
+
+fn normalize_location_state(mut state: IpLocationState) -> IpLocationState {
+    state.result = state.result.map(normalize_location_result);
+    state
+}
+
 fn js_string_or_empty_trim(value: &Value) -> String {
     let text = match value {
         Value::Null => String::new(),
@@ -784,6 +815,7 @@ async fn get_state(state: &AppState, ip: &str) -> crate::storage::StorageResult<
     let raw = state.storage.store.get_ip_location_state(ip).await?;
     Ok(raw
         .and_then(|value| serde_json::from_value::<IpLocationState>(value).ok())
+        .map(normalize_location_state)
         .unwrap_or_else(|| IpLocationState {
             status: "idle".to_string(),
             attempts: 0,
@@ -1116,6 +1148,83 @@ mod tests {
         assert_eq!(result.normalized_ip, "8.8.8.8");
         assert_eq!(result.country_code, "US");
         assert_eq!(result.raw, "美国|加州|Google");
+    }
+
+    #[test]
+    fn recovers_country_code_from_current_upstream_raw_payloads() {
+        let china = to_location_result(
+            "106.55.200.233",
+            &json!({
+                "code": 0,
+                "result": {
+                    "version": "ipv4",
+                    "continent": "亚洲",
+                    "country": "中国",
+                    "province": "广东",
+                    "city": "广州",
+                    "district": "荔湾",
+                    "isp": "腾讯",
+                    "country_code": "18",
+                    "raw": "亚洲|中国|广东|广州|荔湾|腾讯|113.2442|23.12592|440103|020|510000|Asia/Shanghai|CNY|18|CHXX0037|CN"
+                }
+            }),
+        )
+        .unwrap();
+        let overseas = to_location_result(
+            "8.8.8.8",
+            &json!({
+                "code": 0,
+                "result": {
+                    "version": "ipv4",
+                    "continent": "北美洲",
+                    "country": "美国",
+                    "province": "California",
+                    "city": "Mountain View",
+                    "district": "",
+                    "isp": "谷歌",
+                    "country_code": "",
+                    "raw": "北美洲|美国|California|Mountain View||谷歌|-122.077500|37.405600|||94043|America/Los_Angeles|USD|||US"
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(china.country_code, "CN");
+        assert_eq!(overseas.country_code, "US");
+    }
+
+    #[test]
+    fn country_code_resolution_prefers_valid_explicit_data_and_is_conservative() {
+        assert_eq!(
+            resolve_country_code(" gb ", "anything|US").as_deref(),
+            Some("GB")
+        );
+        assert_eq!(
+            resolve_country_code("18", "anything|CN||").as_deref(),
+            Some("CN")
+        );
+        assert_eq!(resolve_country_code("", "EU|country|USD"), None);
+        assert_eq!(resolve_country_code("1074", ""), None);
+    }
+
+    #[test]
+    fn normalizes_country_codes_when_reading_legacy_cached_results() {
+        let cached = IpLocationResult {
+            ip: "106.55.200.233".to_string(),
+            normalized_ip: "106.55.200.233".to_string(),
+            version: "ipv4".to_string(),
+            continent: "亚洲".to_string(),
+            country: "中国".to_string(),
+            province: "广东".to_string(),
+            city: "广州".to_string(),
+            district: String::new(),
+            isp: "腾讯".to_string(),
+            country_code: "18".to_string(),
+            raw: "广东|广州|腾讯".to_string(),
+            source_raw: "亚洲|中国|广东|广州||腾讯|113|23|440100|020|510000|Asia/Shanghai|CNY|18|CHXX0037|CN".to_string(),
+        };
+
+        assert_eq!(normalize_location_result(cached).country_code, "CN");
     }
 
     #[test]

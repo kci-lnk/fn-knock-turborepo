@@ -52,46 +52,16 @@ pub(super) async fn hydrate_analytics_response(state: &AppState, mut data: Value
                 if status != "success" {
                     continue;
                 }
-                let country_code = snapshot
-                    .get("result")
-                    .and_then(|value| value.get("countryCode"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .trim()
-                    .to_ascii_uppercase();
-                if country_code.len() != 2
-                    || !country_code
-                        .bytes()
-                        .all(|value| value.is_ascii_alphabetic())
-                {
-                    continue;
+                let country_code = analytics_country_code(&snapshot);
+                if let Some(country_code) = &country_code {
+                    resolved_clients += 1;
+                    *countries.entry(country_code.clone()).or_default() += 1;
                 }
-                resolved_clients += 1;
-                *countries.entry(country_code.clone()).or_default() += 1;
 
-                let province = snapshot
-                    .get("result")
-                    .and_then(|value| value.get("province"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
-                let city = snapshot
-                    .get("result")
-                    .and_then(|value| value.get("city"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
-                if !province.is_empty() || !city.is_empty() {
+                if let Some(region) = analytics_region(&snapshot, country_code.unwrap_or_default())
+                {
                     resolved_region_clients += 1;
-                    *regions
-                        .entry(GeoRegionKey {
-                            country_code,
-                            province,
-                            city,
-                        })
-                        .or_default() += 1;
+                    *regions.entry(region).or_default() += 1;
                 }
             }
             Err(error) => {
@@ -112,6 +82,41 @@ pub(super) async fn hydrate_analytics_response(state: &AppState, mut data: Value
     ensure_object(&mut geo).insert("refreshing".to_string(), json!(refreshing));
     ensure_object(&mut data).insert("geo".to_string(), geo);
     data
+}
+
+fn analytics_country_code(snapshot: &Value) -> Option<String> {
+    let country_code = snapshot
+        .get("result")
+        .and_then(|value| value.get("countryCode"))
+        .and_then(Value::as_str)?
+        .trim()
+        .to_ascii_uppercase();
+    (country_code.len() == 2
+        && country_code
+            .bytes()
+            .all(|value| value.is_ascii_alphabetic()))
+    .then_some(country_code)
+}
+
+fn analytics_region(snapshot: &Value, country_code: String) -> Option<GeoRegionKey> {
+    let result = snapshot.get("result")?;
+    let province = result
+        .get("province")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let city = result
+        .get("city")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    (!province.is_empty() || !city.is_empty()).then_some(GeoRegionKey {
+        country_code,
+        province,
+        city,
+    })
 }
 
 pub(super) async fn try_acquire_geo_refresh(
@@ -434,6 +439,27 @@ mod tests {
         assert_eq!(clients.len(), 1);
         assert!(data.get("clients").is_none());
         assert!(!data.to_string().contains("203.0.113.7"));
+    }
+
+    #[test]
+    fn invalid_country_code_does_not_hide_available_region_data() {
+        let snapshot = json!({
+            "status": "success",
+            "result": {
+                "countryCode": "18",
+                "province": "广东",
+                "city": "广州"
+            }
+        });
+
+        let country_code = analytics_country_code(&snapshot);
+        let region = analytics_region(&snapshot, country_code.clone().unwrap_or_default())
+            .expect("province and city should remain usable");
+
+        assert_eq!(country_code, None);
+        assert_eq!(region.country_code, "");
+        assert_eq!(region.province, "广东");
+        assert_eq!(region.city, "广州");
     }
 
     #[test]

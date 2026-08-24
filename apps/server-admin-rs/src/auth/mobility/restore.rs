@@ -292,9 +292,9 @@ pub(super) async fn restore_proxy_session(
     let Some(binding) = binding else {
         return Ok(false);
     };
-    let Some(whitelist_record_id) = binding_whitelist_record_id(&binding) else {
+    if binding_whitelist_record_id(&binding).is_none() {
         return Ok(false);
-    };
+    }
     if session_ip_matches(&session, &normalized_ip)
         && mobility_binding_touch_is_fresh(&binding, &normalized_ip, session_id, now_seconds())
     {
@@ -302,36 +302,84 @@ pub(super) async fn restore_proxy_session(
         // no-op whitelist/binding/session rewrite for an already-current IP.
         return Ok(true);
     }
-    let Some(moved_record) =
-        whitelist::move_record_to_ip(state, &whitelist_record_id, &normalized_ip).await?
-    else {
-        return Ok(false);
+    restore_single_ip_proxy_session(state, session_id, &normalized_ip).await
+}
+
+async fn restore_single_ip_proxy_session(
+    state: &AppState,
+    session_id: &str,
+    normalized_ip: &str,
+) -> anyhow::Result<bool> {
+    let Some(lease) = acquire_auth_mobility_session_mutation_lease(state, session_id).await? else {
+        anyhow::bail!("Timed out waiting for auth mobility session mutation lock");
     };
-    let next_binding = build_or_update_mobility_binding(
-        Some(binding),
-        "proxy-session",
-        session_id,
-        &normalized_ip,
-        moved_record
-            .expire_at
-            .or_else(|| parse_iso_unix(session.expires_at.as_deref())),
-        Some(session_id),
-        Some(whitelist_record_id),
-    );
-    if !state
-        .storage
-        .store
-        .save_auth_mobility_binding_keep_ttl("proxy-session", session_id, &next_binding, session_id)
-        .await?
-    {
-        let _ = whitelist::remove_whitelist_record_by_id(state, &moved_record.id).await;
-        return Ok(false);
-    }
-    Ok(
-        sync_browser_session_ip(state, session_id, &normalized_ip, "proxy-session")
+    let result = async {
+        if !lease.ensure_valid().await? {
+            return Ok(false);
+        }
+        let Some(session) = state.storage.store.get_session(session_id).await? else {
+            return Ok(false);
+        };
+        let Some(binding) = state
+            .storage
+            .store
+            .get_auth_mobility_binding("proxy-session", session_id)
             .await?
-            .is_some(),
-    )
+        else {
+            return Ok(false);
+        };
+        let Some(whitelist_record_id) = binding_whitelist_record_id(&binding) else {
+            return Ok(false);
+        };
+        if session_ip_matches(&session, normalized_ip)
+            && mobility_binding_touch_is_fresh(&binding, normalized_ip, session_id, now_seconds())
+        {
+            return Ok(true);
+        }
+        let Some(moved_record) =
+            whitelist::move_record_to_ip(state, &whitelist_record_id, normalized_ip).await?
+        else {
+            return Ok(false);
+        };
+        if !lease.ensure_valid().await? {
+            return Ok(false);
+        }
+        let next_binding = build_or_update_mobility_binding(
+            Some(binding),
+            "proxy-session",
+            session_id,
+            normalized_ip,
+            moved_record
+                .expire_at
+                .or_else(|| parse_iso_unix(session.expires_at.as_deref())),
+            Some(session_id),
+            Some(whitelist_record_id),
+        );
+        if !state
+            .storage
+            .store
+            .save_auth_mobility_binding_keep_ttl(
+                "proxy-session",
+                session_id,
+                &next_binding,
+                session_id,
+            )
+            .await?
+        {
+            let _ = whitelist::remove_whitelist_record_by_id(state, &moved_record.id).await;
+            return Ok(false);
+        }
+        Ok(
+            sync_browser_session_ip(state, session_id, normalized_ip, "proxy-session")
+                .await?
+                .is_some(),
+        )
+    }
+    .await;
+    if let Err(error) = lease.release().await {
+        tracing::warn!(%error, %session_id, "failed to release single-IP session restore lock");
+    }
+    result
 }
 
 pub(super) async fn resolve_bootstrap_owner(

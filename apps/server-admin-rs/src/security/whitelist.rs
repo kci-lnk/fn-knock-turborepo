@@ -29,6 +29,7 @@ use crate::{
 
 const AUTO_WHITELIST_OWNER_LOCK_TTL_SECONDS: usize = 60;
 const AUTO_WHITELIST_OWNER_LOCK_WAIT_SECONDS: u64 = 10;
+const WHITELIST_RECORD_MOVE_MAX_RETRIES: usize = 8;
 const WHITELIST_ALL_IPSET_KEY: &str = "whitelist_all";
 const WHITELIST_MANUAL_IPSET_KEY: &str = "whitelist_manual";
 const WHITELIST_AUTO_IPSET_KEY: &str = "whitelist_auto";
@@ -44,6 +45,13 @@ use normalization::{
 pub(crate) struct DeferredSessionAutoWhitelist {
     pub(crate) record: WhitelistRecord,
     previous_targets: Vec<WhitelistConcreteTarget>,
+}
+
+struct MoveRecordToIpOutcome {
+    record: WhitelistRecord,
+    previous_targets: Vec<WhitelistConcreteTarget>,
+    changed: bool,
+    observed_concurrent_change: bool,
 }
 
 fn whitelist_text(translator: &Translator, key: &str) -> String {
@@ -555,25 +563,29 @@ pub async fn move_record_to_ip(
     id: &str,
     new_ip: &str,
 ) -> anyhow::Result<Option<WhitelistRecord>> {
-    let Some(record) = state.storage.store.get_whitelist_record(id).await? else {
+    let Some(outcome) = move_record_to_ip_without_runtime_sync(state, id, new_ip).await? else {
         return Ok(None);
     };
-    if !record.is_active() || record.target_type() != "ip" {
-        return Ok(None);
+    if outcome.changed {
+        let _ = ip_location::register_usage(
+            state,
+            &outcome.record.ip,
+            vec![format!("whitelist|{}", outcome.record.id)],
+        )
+        .await;
+        cleanup_removed_targets(state, &outcome.previous_targets).await;
     }
-    if record
-        .expire_at
-        .is_some_and(|expire_at| expire_at <= now_seconds())
-    {
-        return Ok(None);
+    if outcome.changed || outcome.observed_concurrent_change {
+        sync_reverse_proxy_trusted_ips_required(state).await?;
     }
+    Ok(Some(outcome.record))
+}
 
-    let old_ip = normalize_ip(&record.ip);
-    let old_ip = if old_ip.is_empty() {
-        record.ip.trim().to_string()
-    } else {
-        old_ip
-    };
+async fn move_record_to_ip_without_runtime_sync(
+    state: &AppState,
+    id: &str,
+    new_ip: &str,
+) -> anyhow::Result<Option<MoveRecordToIpOutcome>> {
     let target = normalize_ip(new_ip);
     let target = if target.is_empty() {
         new_ip.trim().to_string()
@@ -583,27 +595,66 @@ pub async fn move_record_to_ip(
     if target.is_empty() {
         return Ok(None);
     }
-    if old_ip == target {
-        return Ok(Some(record));
-    }
+    let next_ip_location = cached_ip_location(state, &target).await;
+    let mut observed_concurrent_change = false;
+    let mut moved = None;
+    for _ in 0..WHITELIST_RECORD_MOVE_MAX_RETRIES {
+        let Some(record) = state.storage.store.get_whitelist_record(id).await? else {
+            return Ok(None);
+        };
+        if !record.is_active() || record.target_type() != "ip" {
+            return Ok(None);
+        }
+        if record
+            .expire_at
+            .is_some_and(|expire_at| expire_at <= now_seconds())
+        {
+            return Ok(None);
+        }
 
-    let previous_targets = record.concrete_targets();
-    let mut next = record.clone();
-    next.ip = target.clone();
-    next.target_type = "ip".to_string();
-    if let Some(ip_location) = cached_ip_location(state, &target).await {
-        next.ip_location = Some(ip_location);
+        let old_ip = normalize_ip(&record.ip);
+        let old_ip = if old_ip.is_empty() {
+            record.ip.trim().to_string()
+        } else {
+            old_ip
+        };
+        if old_ip == target {
+            return Ok(Some(MoveRecordToIpOutcome {
+                record,
+                previous_targets: Vec::new(),
+                changed: false,
+                observed_concurrent_change,
+            }));
+        }
+
+        let previous_targets = record.concrete_targets();
+        let mut next = record.clone();
+        next.ip = target.clone();
+        next.target_type = "ip".to_string();
+        if let Some(ip_location) = next_ip_location.clone() {
+            next.ip_location = Some(ip_location);
+        }
+        if state
+            .storage
+            .store
+            .try_replace_whitelist_record(&record, &next)
+            .await?
+        {
+            moved = Some(MoveRecordToIpOutcome {
+                record: next,
+                previous_targets,
+                changed: true,
+                observed_concurrent_change,
+            });
+            break;
+        }
+        observed_concurrent_change = true;
+        tokio::task::yield_now().await;
     }
-    state
-        .storage
-        .store
-        .replace_whitelist_record(&record, &next)
-        .await?;
-    let _ =
-        ip_location::register_usage(state, &target, vec![format!("whitelist|{}", next.id)]).await;
-    cleanup_removed_targets(state, &previous_targets).await;
-    sync_reverse_proxy_trusted_ips_required(state).await?;
-    Ok(Some(next))
+    let Some(outcome) = moved else {
+        anyhow::bail!("whitelist record {id} kept changing while moving to {target}");
+    };
+    Ok(Some(outcome))
 }
 
 fn whitelist_record_ids_by_source(records: &[WhitelistRecord], source: &str) -> Vec<String> {

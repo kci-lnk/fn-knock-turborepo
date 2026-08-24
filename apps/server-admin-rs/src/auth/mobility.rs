@@ -43,6 +43,7 @@ struct AuthMobilitySessionMutationLease {
     lock_id: String,
     valid: Arc<AtomicBool>,
     heartbeat: Option<tokio::task::JoinHandle<()>>,
+    released: bool,
 }
 
 async fn acquire_auth_mobility_session_mutation_lease(
@@ -118,6 +119,7 @@ async fn acquire_auth_mobility_session_mutation_lease(
                 lock_id,
                 valid,
                 heartbeat: Some(heartbeat),
+                released: false,
             }));
         }
         if time::Instant::now() >= deadline {
@@ -159,12 +161,15 @@ impl AuthMobilitySessionMutationLease {
         if let Some(heartbeat) = self.heartbeat.take() {
             heartbeat.abort();
         }
-        self.state
+        let result = self
+            .state
             .storage
             .store
             .delete_lock_if_owned(&self.key, &self.lock_id)
             .await
-            .map_err(Into::into)
+            .map_err(Into::into);
+        self.released = result.is_ok();
+        result
     }
 }
 
@@ -172,6 +177,27 @@ impl Drop for AuthMobilitySessionMutationLease {
     fn drop(&mut self) {
         if let Some(heartbeat) = self.heartbeat.take() {
             heartbeat.abort();
+        }
+        if self.released {
+            return;
+        }
+        let state = self.state.clone();
+        let key = self.key.clone();
+        let lock_id = self.lock_id.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            // Auth bridge deadlines cancel in-flight handlers. Do not leave a
+            // canceled owner blocking every request for the full lease TTL;
+            // ownership-checked deletion cannot remove a successor's lock.
+            drop(runtime.spawn(async move {
+                if let Err(error) = state
+                    .storage
+                    .store
+                    .delete_lock_if_owned(&key, &lock_id)
+                    .await
+                {
+                    tracing::debug!(%error, "failed to release dropped auth mobility session lock");
+                }
+            }));
         }
     }
 }

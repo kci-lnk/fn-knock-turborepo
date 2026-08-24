@@ -248,7 +248,7 @@ impl Store {
         )))
     }
 
-    pub(super) async fn try_replace_whitelist_record(
+    pub(crate) async fn try_replace_whitelist_record(
         &self,
         previous: &WhitelistRecord,
         next: &WhitelistRecord,

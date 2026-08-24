@@ -202,6 +202,39 @@ fn active_ip_parser_exposes_persisted_last_seen_for_debounce() {
     assert_eq!(parsed.whitelist_record_id.as_deref(), Some("whitelist-1"));
 }
 
+#[tokio::test]
+async fn canceled_session_mutation_owner_releases_its_lease_promptly() {
+    let (_directory, state) = mobility_test_state("canceled-mutation-owner").await;
+    let task_state = state.clone();
+    let (acquired_tx, acquired_rx) = tokio::sync::oneshot::channel();
+    let owner = tokio::spawn(async move {
+        let lease =
+            acquire_auth_mobility_session_mutation_lease(&task_state, "canceled-mutation-session")
+                .await
+                .expect("mutation lease lookup")
+                .expect("mutation lease");
+        acquired_tx.send(()).expect("signal acquired lease");
+        std::future::pending::<()>().await;
+        drop(lease);
+    });
+    acquired_rx.await.expect("owner acquired lease");
+    owner.abort();
+    let _ = owner.await;
+
+    let replacement = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        acquire_auth_mobility_session_mutation_lease(&state, "canceled-mutation-session"),
+    )
+    .await
+    .expect("dropped lease should not wait for its 120 second TTL")
+    .expect("replacement lease lookup")
+    .expect("replacement lease");
+    replacement
+        .release()
+        .await
+        .expect("release replacement lease");
+}
+
 #[test]
 fn session_ip_match_uses_normalized_addresses_and_rejects_empty_values() {
     let mut session = test_browser_session("[2001:db8::10]");
@@ -923,6 +956,130 @@ async fn disabled_mobility_same_ip_keeps_session_migration_grant_without_writes(
     assert!(restored.success);
     assert_eq!(restored.grant_type, Some("session_migration"));
     assert_eq!(sqlite_data_version(&observer).await, before);
+}
+
+#[tokio::test]
+async fn concurrent_disabled_mobility_restores_share_one_session_mutation() {
+    let directory = tempfile::tempdir().expect("temporary auth database");
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.internal_rpc_token = "auth-concurrent-restore-test".to_string();
+    let state = AppState::new(settings).await.expect("auth test state");
+    state
+        .storage
+        .store
+        .save_config(&json!({
+            "reverse_proxy_throttle": { "enabled": false },
+            "auth_credential_settings": {
+                "session_ip_mobility_enabled": false
+            }
+        }))
+        .await
+        .expect("mobility config");
+
+    let session_id = "concurrent-restore-session";
+    let previous_ip = "203.0.113.10";
+    let restored_ip = "198.51.100.77";
+    let session = test_browser_session(previous_ip);
+    state
+        .storage
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .expect("session");
+    let whitelist_record = crate::store::WhitelistRecord {
+        id: "concurrent-restore-whitelist".to_string(),
+        ip: restored_ip.to_string(),
+        target_type: "ip".to_string(),
+        expire_at: Some(now_seconds() + 3600),
+        source: "auto".to_string(),
+        created_at: now_seconds(),
+        status: "active".to_string(),
+        comment: None,
+        ip_location: None,
+        resolved_targets: None,
+        check_interval_minutes: None,
+        last_checked_at: None,
+        last_resolved_at: None,
+        resolve_status: None,
+        resolve_message: None,
+    };
+    state
+        .storage
+        .store
+        .insert_whitelist_record(&whitelist_record)
+        .await
+        .expect("whitelist");
+    let binding = build_or_update_mobility_binding(
+        None,
+        "proxy-session",
+        session_id,
+        previous_ip,
+        parse_iso_unix(session.expires_at.as_deref()),
+        Some(session_id),
+        Some(whitelist_record.id.clone()),
+    );
+    state
+        .storage
+        .store
+        .save_auth_mobility_binding_with_ttl("proxy-session", session_id, &binding, 3600)
+        .await
+        .expect("binding");
+
+    const REQUESTS: usize = 12;
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(REQUESTS + 1));
+    let mut tasks = Vec::new();
+    for _ in 0..REQUESTS {
+        let task_state = state.clone();
+        let task_barrier = std::sync::Arc::clone(&barrier);
+        tasks.push(tokio::spawn(async move {
+            task_barrier.wait().await;
+            try_restore_access(
+                &task_state,
+                restored_ip,
+                AuthMobilityRestoreIdentity {
+                    session_id: Some(session_id),
+                    ..Default::default()
+                },
+            )
+            .await
+        }));
+    }
+    barrier.wait().await;
+    for task in tasks {
+        let restored = task
+            .await
+            .expect("restore task")
+            .expect("concurrent restore");
+        assert!(restored.success);
+        assert_eq!(restored.grant_type, Some("session_migration"));
+    }
+
+    let stored_session = state
+        .storage
+        .store
+        .get_session(session_id)
+        .await
+        .expect("session lookup")
+        .expect("live session");
+    assert_eq!(stored_session.ip, restored_ip);
+    let stored_binding = state
+        .storage
+        .store
+        .get_auth_mobility_binding("proxy-session", session_id)
+        .await
+        .expect("binding lookup")
+        .expect("live binding");
+    assert_eq!(
+        stored_binding.get("currentIp").and_then(Value::as_str),
+        Some(restored_ip)
+    );
 }
 
 fn test_browser_session(ip: &str) -> LoginSession {

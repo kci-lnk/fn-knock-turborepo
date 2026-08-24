@@ -569,6 +569,59 @@ async fn gateway_trusted_runtime_test_state(
     (directory, state)
 }
 
+#[tokio::test]
+async fn concurrent_whitelist_moves_to_the_same_ip_are_idempotent() {
+    let (_directory, state) =
+        gateway_trusted_runtime_test_state("concurrent-record-move", false).await;
+    let mut record = test_whitelist_record("whitelist:concurrent-move", "auto");
+    record.expire_at = Some(now_seconds() + 3600);
+    state
+        .storage
+        .store
+        .insert_whitelist_record(&record)
+        .await
+        .expect("initial whitelist record");
+
+    const REQUESTS: usize = 16;
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(REQUESTS + 1));
+    let mut tasks = Vec::new();
+    for _ in 0..REQUESTS {
+        let task_state = state.clone();
+        let task_barrier = std::sync::Arc::clone(&barrier);
+        tasks.push(tokio::spawn(async move {
+            task_barrier.wait().await;
+            move_record_to_ip_without_runtime_sync(
+                &task_state,
+                "whitelist:concurrent-move",
+                "198.51.100.77",
+            )
+            .await
+        }));
+    }
+    barrier.wait().await;
+
+    let mut changed = 0;
+    for task in tasks {
+        let outcome = task
+            .await
+            .expect("move task")
+            .expect("concurrent move")
+            .expect("live whitelist record");
+        assert_eq!(outcome.record.ip, "198.51.100.77");
+        changed += usize::from(outcome.changed);
+    }
+    assert_eq!(changed, 1, "exactly one request should perform the move");
+
+    let stored = state
+        .storage
+        .store
+        .get_whitelist_record("whitelist:concurrent-move")
+        .await
+        .expect("final whitelist lookup")
+        .expect("final whitelist record");
+    assert_eq!(stored.ip, "198.51.100.77");
+}
+
 #[test]
 fn gateway_trusted_runtime_confirmation_rejects_stale_or_partial_echoes() {
     let policy = json!({

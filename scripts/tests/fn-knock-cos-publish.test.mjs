@@ -270,6 +270,7 @@ test("builds a complete 23-package COS plan", async (context) => {
   assert.equal(plan.manifest.artifacts.length, 23);
   assert.equal(plan.versionObjects.length, 26);
   assert.equal("header" in plan.latestCore, false);
+  assert.equal(plan.latestCore.force_update, false);
   assert.ok(
     plan.latestCore.release_notes.startsWith(
       `${EXPECTED_RELEASE_NOTES_HEADER}\n\n# fn-knock ${VERSION}`,
@@ -330,6 +331,24 @@ test("builds a complete 23-package COS plan", async (context) => {
       "",
     ].join("\n"),
   );
+});
+
+test("marks IMPORTANT release notes as a forced important update", async (context) => {
+  const fixture = await createFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  await writeFile(
+    fixture.releaseNotesPath,
+    `# fn-knock ${VERSION}\n\n> [!IMPORTANT]\n> Important stability update.\n`,
+  );
+
+  const plan = await buildFixturePlan(fixture);
+  assert.equal(plan.latestCore.force_update, true);
+
+  const windowsPointer = plan.mutableObjects.find(
+    (object) => object.key === "windows/stable/latest.json",
+  );
+  const windowsLatest = JSON.parse(windowsPointer.body.toString("utf8"));
+  assert.equal(windowsLatest.fn_knock.package.force_update, true);
 });
 
 test("builds a two-architecture macOS-only COS plan", async (context) => {

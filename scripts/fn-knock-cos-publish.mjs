@@ -31,6 +31,7 @@ const LATEST_KEY = "latest.json";
 const WINDOWS_STABLE_KEY = "windows/stable/latest.json";
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const IMPORTANT_RELEASE_PATTERN = /^>\s*\[!IMPORTANT\]\s*$/im;
 const HOSTNAME_PATTERN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
@@ -274,6 +275,7 @@ const readWindowsMetadata = async ({
   setupEntry,
   publicBaseUrl,
   releaseNotes,
+  forceUpdate,
 }) => {
   const entries = await readdir(directory, { withFileTypes: true });
   const names = entries
@@ -328,7 +330,7 @@ const readWindowsMetadata = async ({
     updater_url: publicUrl(publicBaseUrl, updaterKey),
     release_notes: releaseNotes,
     update_available: true,
-    force_update: false,
+    force_update: forceUpdate,
   };
   const publishedReleaseDocument = {
     ...releaseDocument,
@@ -429,6 +431,7 @@ export const buildReleasePlan = async ({
   }
 
   const currentNotes = await readFile(releaseNotesPath, "utf8");
+  const forceUpdate = IMPORTANT_RELEASE_PATTERN.test(currentNotes);
   const releaseNotes = composeReleaseNotes(
     currentNotes,
     version,
@@ -534,6 +537,7 @@ export const buildReleasePlan = async ({
     setupEntry: windowsEntry,
     publicBaseUrl: normalizedBaseUrl,
     releaseNotes,
+    forceUpdate,
   });
   versionObjects.push(...windows.versionObjects);
 
@@ -618,7 +622,7 @@ export const buildReleasePlan = async ({
   const latestCore = {
     version,
     update_available: true,
-    force_update: false,
+    force_update: forceUpdate,
     download_url: packages.fpk.amd64.download_url,
     sha256: packages.fpk.amd64.sha256,
     download_url_arm64: packages.fpk.arm64.download_url,

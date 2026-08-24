@@ -38,6 +38,14 @@ enum BridgeRequestKind {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BridgeResponseSendOutcome {
+    Sent,
+    Closed,
+    TimedOut,
+    Cancelled,
+}
+
 impl BridgeRequestKind {
     fn from_message(message: &AuthBridgeEnvelope) -> Option<Self> {
         match message.payload.as_ref()? {
@@ -119,6 +127,22 @@ async fn acquire_auth_bridge_capacity(
         .ok()
 }
 
+async fn send_auth_bridge_response(
+    tx: &mpsc::Sender<AuthBridgeEnvelope>,
+    response: AuthBridgeEnvelope,
+    shutdown: &CancellationToken,
+    budget: Duration,
+) -> BridgeResponseSendOutcome {
+    tokio::select! {
+        _ = shutdown.cancelled() => BridgeResponseSendOutcome::Cancelled,
+        result = tokio::time::timeout(budget, tx.send(response)) => match result {
+            Ok(Ok(())) => BridgeResponseSendOutcome::Sent,
+            Ok(Err(_)) => BridgeResponseSendOutcome::Closed,
+            Err(_) => BridgeResponseSendOutcome::TimedOut,
+        },
+    }
+}
+
 fn record_bridge_pressure(
     state: &AppState,
     event: &str,
@@ -180,6 +204,10 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
     let max_in_flight = state.settings.auth_bridge_max_in_flight;
     let handler_timeout = auth_bridge_handler_timeout(state.settings.request_timeout);
+    let response_timeout = state
+        .settings
+        .request_timeout
+        .saturating_sub(handler_timeout);
     let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(max_in_flight);
     let limiter = Arc::new(Semaphore::new(max_in_flight));
     tracing::info!(
@@ -250,14 +278,19 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                 max_in_flight,
             );
             let response = kind.unavailable_envelope(request_id);
-            tokio::select! {
-                _ = shutdown.cancelled() => break,
-                result = tx.send(response) => {
-                    if let Err(error) = result {
-                        tracing::debug!(%error, "failed to send auth bridge overload response");
-                        break;
-                    }
+            match send_auth_bridge_response(&tx, response, shutdown, response_timeout).await {
+                BridgeResponseSendOutcome::Sent => {}
+                BridgeResponseSendOutcome::TimedOut => {
+                    record_bridge_pressure(
+                        &state,
+                        "response_dropped",
+                        "response_queue_timeout",
+                        kind,
+                        request_started.elapsed(),
+                        max_in_flight,
+                    );
                 }
+                BridgeResponseSendOutcome::Closed | BridgeResponseSendOutcome::Cancelled => break,
             }
             continue;
         };
@@ -298,10 +331,23 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
                     }
                 },
             };
-            if let Some(response) = response
-                && let Err(error) = tx.send(response).await
-            {
-                tracing::debug!(%error, "failed to send auth bridge response");
+            if let Some(response) = response {
+                match send_auth_bridge_response(&tx, response, &worker_shutdown, response_timeout)
+                    .await
+                {
+                    BridgeResponseSendOutcome::Sent | BridgeResponseSendOutcome::Cancelled => {}
+                    BridgeResponseSendOutcome::Closed => {
+                        tracing::debug!("failed to send auth bridge response: stream closed");
+                    }
+                    BridgeResponseSendOutcome::TimedOut => record_bridge_pressure(
+                        &state,
+                        "response_dropped",
+                        "response_queue_timeout",
+                        kind,
+                        request_started.elapsed(),
+                        max_in_flight,
+                    ),
+                }
             }
         });
     }
@@ -1120,6 +1166,38 @@ mod tests {
             acquire_auth_bridge_capacity(limiter, Duration::from_millis(20))
                 .await
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_response_send_respects_its_headroom_budget() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let shutdown = CancellationToken::new();
+        tx.send(AuthBridgeEnvelope::default())
+            .await
+            .expect("fill bridge response queue");
+
+        assert_eq!(
+            send_auth_bridge_response(
+                &tx,
+                AuthBridgeEnvelope::default(),
+                &shutdown,
+                Duration::from_millis(20),
+            )
+            .await,
+            BridgeResponseSendOutcome::TimedOut
+        );
+
+        rx.recv().await.expect("drain bridge response queue");
+        assert_eq!(
+            send_auth_bridge_response(
+                &tx,
+                AuthBridgeEnvelope::default(),
+                &shutdown,
+                Duration::from_secs(1),
+            )
+            .await,
+            BridgeResponseSendOutcome::Sent
         );
     }
 

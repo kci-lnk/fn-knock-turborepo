@@ -348,7 +348,10 @@ const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
 const SQLITE_STORAGE_DIR: &str = "storage";
 const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 5_000;
 const MIN_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 32;
-const MAX_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 512;
+// Keep the Rust handler ceiling aligned with Go's bounded
+// rpcbridge.authBridgeSendQueueSize so an accepted override cannot overflow
+// before Rust has a chance to apply its own backpressure.
+const MAX_AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 256;
 const FALLBACK_AUTH_BRIDGE_PARALLELISM: usize = 4;
 const DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS: u64 = 120_000;

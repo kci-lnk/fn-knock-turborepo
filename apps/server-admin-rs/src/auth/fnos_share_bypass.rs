@@ -13,6 +13,7 @@ use url::Url;
 use crate::{cookies, runtime_config, state::AppState, time_utils};
 
 const SHARE_ENTRY_ID_LENGTH: usize = 18;
+const FNOS_SHARE_NOT_FOUND_CODE: i64 = 3_000_006;
 const FNOS_SHARE_NEED_PASSWORD_CODE: i64 = 3_000_008;
 const CACHE_KEY_PREFIX: &str = "fn_knock:fnos-share:validation:";
 const SESSION_KEY_PREFIX: &str = "fn_knock:fnos-share:session:";
@@ -64,6 +65,8 @@ struct SharePolicy {
 struct ResolvedFnosShareConfig {
     policy: SharePolicy,
     backend: Option<FnosBackend>,
+    probe_outcome: Option<FnosProbeOutcome>,
+    backend_binding_failure: Option<FnosBackendBindingFailure>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,8 +130,81 @@ struct ShareValidationFetchResult {
 }
 
 #[derive(Debug, Clone)]
+struct ParsedShareDocument {
+    data: ShareValidationCacheRecord,
+    has_strong_fnos_fingerprint: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FnosProbeOutcome {
+    Verified,
+    Rejected(FnosProbeFailure),
+}
+
+impl FnosProbeOutcome {
+    fn is_verified(self) -> bool {
+        self == Self::Verified
+    }
+
+    fn failure_reason(self) -> Option<&'static str> {
+        match self {
+            Self::Verified => None,
+            Self::Rejected(reason) => Some(reason.as_str()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FnosProbeFailure {
+    InvalidProbeUrl,
+    ClientUnavailable,
+    RequestFailed,
+    UnexpectedStatus,
+    UnexpectedContentType,
+    InvalidJson,
+    SignatureMismatch,
+}
+
+impl FnosProbeFailure {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidProbeUrl => "invalid_probe_url",
+            Self::ClientUnavailable => "client_unavailable",
+            Self::RequestFailed => "request_failed",
+            Self::UnexpectedStatus => "unexpected_status",
+            Self::UnexpectedContentType => "unexpected_content_type",
+            Self::InvalidJson => "invalid_json",
+            Self::SignatureMismatch => "signature_mismatch",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FnosBackendBindingFailure {
+    MissingTarget,
+    MissingHost,
+    InvalidHost,
+    MissingRouteId,
+    RouteIdTooLong,
+    InvalidTarget,
+}
+
+impl FnosBackendBindingFailure {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::MissingTarget => "missing_target",
+            Self::MissingHost => "missing_host",
+            Self::InvalidHost => "invalid_host",
+            Self::MissingRouteId => "missing_route_id",
+            Self::RouteIdTooLong => "route_id_too_long",
+            Self::InvalidTarget => "invalid_target",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct ProbeCacheRecord {
-    is_fnos: bool,
+    outcome: FnosProbeOutcome,
     expires_at: i64,
 }
 
@@ -157,12 +233,26 @@ pub(crate) async fn resolve_preflight(
     )
     .await;
     let Some(backend) = config.backend.as_ref() else {
+        tracing::debug!(
+            reason = config
+                .backend_binding_failure
+                .map(FnosBackendBindingFailure::as_str)
+                .unwrap_or("unknown"),
+            "FNOS share bypass could not bind the routed backend"
+        );
         return Ok(not_handled());
     };
 
     if let Some(share_entry) = extract_share_entry(&request_url) {
         let validation = validate_share_link(state, &share_entry.share_id, &config).await;
         if !validation.valid {
+            if validation.validation_state == "unknown"
+                && !config
+                    .probe_outcome
+                    .is_some_and(FnosProbeOutcome::is_verified)
+            {
+                return Ok(not_handled());
+            }
             return Ok(handled_redirect("/"));
         }
         if share_entry.is_clean {
@@ -208,6 +298,13 @@ pub(crate) async fn authorize(
     )
     .await;
     let Some(backend) = config.backend.as_ref() else {
+        tracing::debug!(
+            reason = config
+                .backend_binding_failure
+                .map(FnosBackendBindingFailure::as_str)
+                .unwrap_or("unknown"),
+            "FNOS share authorization could not bind the routed backend"
+        );
         return Ok(share_unauthorized_with_cookie_clear(
             share_session_id.is_some(),
         ));
@@ -220,6 +317,15 @@ pub(crate) async fn authorize(
     if let Some(share_entry) = extract_share_entry(&request_url) {
         let validation = validate_share_link(state, &share_entry.share_id, &config).await;
         if !validation.valid {
+            if validation.validation_state == "unknown"
+                && !config
+                    .probe_outcome
+                    .is_some_and(FnosProbeOutcome::is_verified)
+            {
+                return Ok(share_unauthorized_with_cookie_clear(
+                    share_session_id.is_some(),
+                ));
+            }
             return Ok(share_redirect_unauthorized("/", share_session_id.is_some()));
         }
 
@@ -268,6 +374,14 @@ pub(crate) async fn authorize(
     }
 
     let Some(session) = current_session else {
+        if !config
+            .probe_outcome
+            .is_some_and(FnosProbeOutcome::is_verified)
+        {
+            return Ok(share_unauthorized_with_cookie_clear(
+                share_session_id.is_some(),
+            ));
+        }
         return Ok(share_redirect_unauthorized("/", share_session_id.is_some()));
     };
     let Some(session_id) = share_session_id.as_deref() else {
@@ -372,16 +486,30 @@ async fn get_resolved_config(
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
 ) -> ResolvedFnosShareConfig {
-    let backend = resolve_fnos_target(
+    let resolved = resolve_routed_backend(
         routed_upstream,
         routed_upstream_host,
         routed_upstream_route_id,
-    )
-    .await;
-    if backend.is_none() {
-        tracing::debug!("FNOS share bypass did not find a matching FNOS routed upstream");
+    );
+    let (backend, probe_outcome, backend_binding_failure) = match resolved {
+        Ok(backend) => {
+            let probe_outcome = resolve_fnos_target_probe(&backend).await;
+            (Some(backend), Some(probe_outcome), None)
+        }
+        Err(reason) => {
+            tracing::debug!(
+                reason = reason.as_str(),
+                "FNOS share bypass rejected routed backend metadata"
+            );
+            (None, None, Some(reason))
+        }
+    };
+    ResolvedFnosShareConfig {
+        policy,
+        backend,
+        probe_outcome,
+        backend_binding_failure,
     }
-    ResolvedFnosShareConfig { policy, backend }
 }
 
 fn share_policy_from_config(config: &Value) -> SharePolicy {
@@ -427,37 +555,20 @@ fn resolve_enabled_share_request(
     policy.enabled.then_some((request_url, policy))
 }
 
-async fn resolve_fnos_target(
-    routed_upstream: Option<&str>,
-    routed_upstream_host: Option<&str>,
-    routed_upstream_route_id: Option<&str>,
-) -> Option<FnosBackend> {
-    let candidate = resolve_routed_backend(
-        routed_upstream,
-        routed_upstream_host,
-        routed_upstream_route_id,
-    )?;
-    match get_cached_fnos_target_probe(&candidate.identity) {
-        Some(true) => return Some(candidate),
-        Some(false) => return None,
-        None => {}
+async fn resolve_fnos_target_probe(backend: &FnosBackend) -> FnosProbeOutcome {
+    if let Some(outcome) = get_cached_fnos_target_probe(&backend.identity) {
+        return outcome;
     }
 
-    let probe_lock = fnos_target_probe_lock(&candidate.identity);
+    let probe_lock = fnos_target_probe_lock(&backend.identity);
     let _probe_guard = probe_lock.lock().await;
-    match get_cached_fnos_target_probe(&candidate.identity) {
-        Some(true) => return Some(candidate),
-        Some(false) => return None,
-        None => {}
+    if let Some(outcome) = get_cached_fnos_target_probe(&backend.identity) {
+        return outcome;
     }
 
-    let probe_result = probe_fnos_target(&candidate).await;
-    release_fnos_target_probe_lock(&candidate.identity, &probe_lock);
-    if probe_result == Some(true) {
-        Some(candidate)
-    } else {
-        None
-    }
+    let outcome = probe_fnos_target(backend).await;
+    release_fnos_target_probe_lock(&backend.identity, &probe_lock);
+    outcome
 }
 
 fn release_fnos_target_probe_lock(identity: &str, probe_lock: &Arc<AsyncMutex<()>>) {
@@ -490,33 +601,45 @@ fn resolve_routed_backend(
     routed_upstream: Option<&str>,
     routed_upstream_host: Option<&str>,
     routed_upstream_route_id: Option<&str>,
-) -> Option<FnosBackend> {
-    let target = routed_upstream?.trim();
+) -> Result<FnosBackend, FnosBackendBindingFailure> {
+    let target = routed_upstream
+        .ok_or(FnosBackendBindingFailure::MissingTarget)?
+        .trim();
     if target.is_empty() {
-        return None;
+        return Err(FnosBackendBindingFailure::MissingTarget);
     }
-    let host_header = routed_upstream_host?.trim();
-    if host_header.is_empty() || HeaderValue::try_from(host_header).is_err() {
-        return None;
+    let host_header = routed_upstream_host
+        .ok_or(FnosBackendBindingFailure::MissingHost)?
+        .trim();
+    if host_header.is_empty() {
+        return Err(FnosBackendBindingFailure::MissingHost);
     }
-    let route_id = routed_upstream_route_id?.trim();
-    if route_id.is_empty() || route_id.len() > 128 {
-        return None;
+    if HeaderValue::try_from(host_header).is_err() {
+        return Err(FnosBackendBindingFailure::InvalidHost);
     }
-    let base_url = to_upstream_base_url(target)?;
+    let route_id = routed_upstream_route_id
+        .ok_or(FnosBackendBindingFailure::MissingRouteId)?
+        .trim();
+    if route_id.is_empty() {
+        return Err(FnosBackendBindingFailure::MissingRouteId);
+    }
+    if route_id.len() > 128 {
+        return Err(FnosBackendBindingFailure::RouteIdTooLong);
+    }
+    let base_url = to_upstream_base_url(target).ok_or(FnosBackendBindingFailure::InvalidTarget)?;
     let normalized_host = host_header.to_ascii_lowercase();
     let identity = crate::crypto_utils::sha256_hex_str(&format!(
         "{}\n{normalized_host}\n{route_id}",
         base_url.as_str()
     ));
-    Some(FnosBackend {
+    Ok(FnosBackend {
         base_url,
         host_header: host_header.to_string(),
         identity,
     })
 }
 
-fn get_cached_fnos_target_probe(origin: &str) -> Option<bool> {
+fn get_cached_fnos_target_probe(origin: &str) -> Option<FnosProbeOutcome> {
     let cache = PROBE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let mut guard = cache.lock().ok()?;
     let record = guard.get(origin)?;
@@ -524,11 +647,11 @@ fn get_cached_fnos_target_probe(origin: &str) -> Option<bool> {
         guard.remove(origin);
         return None;
     }
-    Some(record.is_fnos)
+    Some(record.outcome)
 }
 
-fn set_cached_fnos_target_probe(origin: &str, is_fnos: bool) {
-    let ttl_ms = if is_fnos {
+fn set_cached_fnos_target_probe(origin: &str, outcome: FnosProbeOutcome) {
+    let ttl_ms = if outcome.is_verified() {
         FNOS_DETECTION_SUCCESS_CACHE_TTL_MS
     } else {
         FNOS_DETECTION_FAILURE_CACHE_TTL_MS
@@ -548,24 +671,30 @@ fn set_cached_fnos_target_probe(origin: &str, is_fnos: bool) {
         guard.insert(
             origin.to_string(),
             ProbeCacheRecord {
-                is_fnos,
+                outcome,
                 expires_at: now + ttl_ms,
             },
         );
     }
 }
 
-async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
-    let target = join_upstream_path(&backend.base_url, FNOS_DETECTION_PATH)?;
-    let client = PROBE_CLIENT
+async fn probe_fnos_target(backend: &FnosBackend) -> FnosProbeOutcome {
+    let Some(target) = join_upstream_path(&backend.base_url, FNOS_DETECTION_PATH) else {
+        return FnosProbeOutcome::Rejected(FnosProbeFailure::InvalidProbeUrl);
+    };
+    let Some(client) = PROBE_CLIENT
         .get_or_init(|| {
             reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
+                .redirect(reqwest::redirect::Policy::none())
                 .timeout(Duration::from_millis(FNOS_DETECTION_TIMEOUT_MS))
                 .build()
                 .ok()
         })
-        .as_ref()?;
+        .as_ref()
+    else {
+        return FnosProbeOutcome::Rejected(FnosProbeFailure::ClientUnavailable);
+    };
     let response = match client
         .get(target)
         .header(reqwest::header::HOST, &backend.host_header)
@@ -575,14 +704,28 @@ async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
     {
         Ok(response) => response,
         Err(error) => {
-            tracing::debug!(%error, backend_id = %backend.identity, "FNOS target probe failed");
-            set_cached_fnos_target_probe(&backend.identity, false);
-            return Some(false);
+            let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::RequestFailed);
+            tracing::debug!(
+                %error,
+                backend_id = %backend.identity,
+                reason = outcome.failure_reason().unwrap_or("unknown"),
+                "FNOS target probe failed"
+            );
+            set_cached_fnos_target_probe(&backend.identity, outcome);
+            return outcome;
         }
     };
     if response.status() != reqwest::StatusCode::OK {
-        set_cached_fnos_target_probe(&backend.identity, false);
-        return Some(false);
+        let status = response.status().as_u16();
+        let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::UnexpectedStatus);
+        tracing::debug!(
+            status,
+            backend_id = %backend.identity,
+            reason = outcome.failure_reason().unwrap_or("unknown"),
+            "FNOS target probe returned an unexpected status"
+        );
+        set_cached_fnos_target_probe(&backend.identity, outcome);
+        return outcome;
     }
     let content_type = response
         .headers()
@@ -590,9 +733,16 @@ async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
         .and_then(|value| value.to_str().ok())
         .unwrap_or("")
         .to_ascii_lowercase();
-    if !content_type.contains("application/json") {
-        set_cached_fnos_target_probe(&backend.identity, false);
-        return Some(false);
+    if !is_json_content_type(&content_type) {
+        let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::UnexpectedContentType);
+        tracing::debug!(
+            content_type,
+            backend_id = %backend.identity,
+            reason = outcome.failure_reason().unwrap_or("unknown"),
+            "FNOS target probe returned an unexpected content type"
+        );
+        set_cached_fnos_target_probe(&backend.identity, outcome);
+        return outcome;
     }
     let payload = match crate::http_body::read_response_json_limited::<Value>(
         response,
@@ -601,14 +751,32 @@ async fn probe_fnos_target(backend: &FnosBackend) -> Option<bool> {
     .await
     {
         Ok(payload) => payload,
-        Err(_) => {
-            set_cached_fnos_target_probe(&backend.identity, false);
-            return Some(false);
+        Err(error) => {
+            let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::InvalidJson);
+            tracing::debug!(
+                %error,
+                backend_id = %backend.identity,
+                reason = outcome.failure_reason().unwrap_or("unknown"),
+                "FNOS target probe returned invalid JSON"
+            );
+            set_cached_fnos_target_probe(&backend.identity, outcome);
+            return outcome;
         }
     };
-    let is_fnos = is_fnos_locale_payload(&payload);
-    set_cached_fnos_target_probe(&backend.identity, is_fnos);
-    Some(is_fnos)
+    let outcome = if is_fnos_locale_payload(&payload) {
+        FnosProbeOutcome::Verified
+    } else {
+        FnosProbeOutcome::Rejected(FnosProbeFailure::SignatureMismatch)
+    };
+    if !outcome.is_verified() {
+        tracing::debug!(
+            backend_id = %backend.identity,
+            reason = outcome.failure_reason().unwrap_or("unknown"),
+            "FNOS target probe JSON did not match the expected signature"
+        );
+    }
+    set_cached_fnos_target_probe(&backend.identity, outcome);
+    outcome
 }
 
 async fn validate_share_link(
@@ -681,6 +849,7 @@ async fn fetch_validation(
     };
     let client = match reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_millis(config.policy.upstream_timeout_ms))
         .build()
     {
@@ -708,15 +877,82 @@ async fn fetch_validation(
             };
         }
     };
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if status != reqwest::StatusCode::OK {
+        tracing::debug!(
+            status = status.as_u16(),
+            %share_id,
+            backend_id = %backend.identity,
+            "FNOS share validation returned an unexpected status"
+        );
+        return ShareValidationFetchResult {
+            cacheable: false,
+            data: fallback,
+        };
+    }
     let html =
         crate::http_body::read_response_text_limited(response, MAX_FNOS_SHARE_RESPONSE_BYTES)
             .await
             .unwrap_or_default();
-    match parse_share_data(&html, share_id, &backend.identity) {
-        Some(data) => ShareValidationFetchResult {
-            cacheable: true,
-            data,
-        },
+    match parse_share_document(&html, share_id, &backend.identity) {
+        Some(document)
+            if config
+                .probe_outcome
+                .is_some_and(FnosProbeOutcome::is_verified) =>
+        {
+            ShareValidationFetchResult {
+                cacheable: true,
+                data: document.data,
+            }
+        }
+        Some(document)
+            if is_html_content_type(&content_type) && document.has_strong_fnos_fingerprint =>
+        {
+            if document.data.valid {
+                set_cached_fnos_target_probe(&backend.identity, FnosProbeOutcome::Verified);
+                tracing::warn!(
+                    %share_id,
+                    backend_id = %backend.identity,
+                    probe_failure = config
+                        .probe_outcome
+                        .and_then(FnosProbeOutcome::failure_reason)
+                        .unwrap_or("probe_unavailable"),
+                    "FNOS share page fingerprint recovered from a failed locale probe"
+                );
+            } else {
+                tracing::debug!(
+                    %share_id,
+                    backend_id = %backend.identity,
+                    "FNOS share fallback recognized a definitive invalid-share page without promoting backend trust"
+                );
+            }
+            ShareValidationFetchResult {
+                cacheable: true,
+                data: document.data,
+            }
+        }
+        Some(_) => {
+            tracing::debug!(
+                %share_id,
+                backend_id = %backend.identity,
+                content_type,
+                probe_failure = config
+                    .probe_outcome
+                    .and_then(FnosProbeOutcome::failure_reason)
+                    .unwrap_or("probe_unavailable"),
+                "FNOS share fallback rejected a weak page fingerprint"
+            );
+            ShareValidationFetchResult {
+                cacheable: false,
+                data: fallback,
+            }
+        }
         None => ShareValidationFetchResult {
             cacheable: false,
             data: fallback,
@@ -855,32 +1091,78 @@ fn read_share_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     None
 }
 
-fn parse_share_data(
+fn parse_share_document(
     html: &str,
     share_id: &str,
     backend_id: &str,
-) -> Option<ShareValidationCacheRecord> {
+) -> Option<ParsedShareDocument> {
     let lower = html.to_ascii_lowercase();
     let mut offset = 0_usize;
+    let mut share_payload = None;
+    let mut share_data_is_json = false;
+    let mut link_type = None;
+    let mut link_type_is_json = false;
+    let mut saw_link_type = false;
     while let Some(relative_start) = lower[offset..].find("<script") {
         let start = offset + relative_start;
         let tag_end = start + lower[start..].find('>')?;
         let tag = &lower[start..=tag_end];
+        if tag_name(tag) != Some("script") {
+            offset = tag_end + 1;
+            continue;
+        }
         let content_start = tag_end + 1;
         let close = content_start + lower[content_start..].find("</script>")?;
         offset = close + "</script>".len();
-        if !(tag.contains("id=\"share-data\"") || tag.contains("id='share-data'")) {
-            continue;
+        if tag_attribute_value(tag, "id") == Some("share-data") {
+            if share_payload.is_some() {
+                return None;
+            }
+            share_data_is_json = script_tag_is_json(tag);
+            share_payload = Some(serde_json::from_str::<Value>(&html[content_start..close]).ok()?);
+        } else if tag_attribute_value(tag, "id") == Some("link-type") {
+            if saw_link_type {
+                return None;
+            }
+            saw_link_type = true;
+            link_type_is_json = script_tag_is_json(tag);
+            link_type = serde_json::from_str::<Value>(&html[content_start..close])
+                .ok()
+                .and_then(|value| value.as_i64());
         }
-        let payload = serde_json::from_str::<Value>(&html[content_start..close]).ok()?;
-        let code = payload.get("code").and_then(Value::as_i64);
-        let data = payload.get("data").unwrap_or(&Value::Null);
-        let token = string_field(data, "token");
-        let name = string_field(data, "name");
-        let kind = data.get("type").and_then(Value::as_i64);
-        let has_usable_token = code == Some(0) && token.is_some();
-        let requires_password = code == Some(FNOS_SHARE_NEED_PASSWORD_CODE);
-        return Some(normalize_share_validation(ShareValidationCacheRecord {
+    }
+    let payload = share_payload?;
+    let code = payload.get("code").and_then(Value::as_i64);
+    let data = payload.get("data").unwrap_or(&Value::Null);
+    let token = string_field(data, "token");
+    let name = string_field(data, "name");
+    let kind = data.get("type").and_then(Value::as_i64);
+    let has_usable_token = code == Some(0) && token.is_some();
+    let requires_password = code == Some(FNOS_SHARE_NEED_PASSWORD_CODE);
+    let strong_state_matches = match code {
+        Some(0) => {
+            token.as_deref().is_some_and(is_fnos_share_identifier)
+                && kind.is_some_and(is_known_fnos_link_type)
+                && link_type == kind
+        }
+        Some(FNOS_SHARE_NEED_PASSWORD_CODE) => {
+            data.is_null()
+                && token.is_none()
+                && kind.is_none()
+                && link_type.is_some_and(is_known_fnos_link_type)
+        }
+        Some(FNOS_SHARE_NOT_FOUND_CODE) => {
+            data.is_null() && token.is_none() && kind.is_none() && link_type == Some(0)
+        }
+        _ => false,
+    };
+    let has_strong_fnos_fingerprint = share_data_is_json
+        && link_type_is_json
+        && strong_state_matches
+        && has_fnos_share_static_asset(&lower)
+        && has_fnos_brand_metadata(&lower);
+    Some(ParsedShareDocument {
+        data: normalize_share_validation(ShareValidationCacheRecord {
             version: 2,
             valid: has_usable_token || requires_password,
             validation_state: if has_usable_token {
@@ -898,9 +1180,189 @@ fn parse_share_data(
             name,
             kind,
             checked_at: time_utils::now_iso(),
-        }));
+        }),
+        has_strong_fnos_fingerprint,
+    })
+}
+
+fn tag_attribute_value<'a>(tag: &'a str, wanted_name: &str) -> Option<&'a str> {
+    let bytes = tag.as_bytes();
+    let mut offset = 1_usize;
+    while offset < bytes.len()
+        && !bytes[offset].is_ascii_whitespace()
+        && !matches!(bytes[offset], b'>' | b'/')
+    {
+        offset += 1;
+    }
+
+    while offset < bytes.len() {
+        while offset < bytes.len() && (bytes[offset].is_ascii_whitespace() || bytes[offset] == b'/')
+        {
+            offset += 1;
+        }
+        if offset >= bytes.len() || bytes[offset] == b'>' {
+            break;
+        }
+
+        let name_start = offset;
+        while offset < bytes.len()
+            && !bytes[offset].is_ascii_whitespace()
+            && !matches!(bytes[offset], b'=' | b'>' | b'/')
+        {
+            offset += 1;
+        }
+        let name = &tag[name_start..offset];
+        while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+            offset += 1;
+        }
+        if offset >= bytes.len() || bytes[offset] != b'=' {
+            if name.eq_ignore_ascii_case(wanted_name) {
+                return None;
+            }
+            continue;
+        }
+        offset += 1;
+        while offset < bytes.len() && bytes[offset].is_ascii_whitespace() {
+            offset += 1;
+        }
+        if offset >= bytes.len() {
+            return None;
+        }
+
+        let quote = bytes[offset];
+        let (value_start, value_end) = if matches!(quote, b'\'' | b'"') {
+            offset += 1;
+            let value_start = offset;
+            while offset < bytes.len() && bytes[offset] != quote {
+                offset += 1;
+            }
+            if offset >= bytes.len() {
+                return None;
+            }
+            (value_start, offset)
+        } else {
+            let value_start = offset;
+            while offset < bytes.len()
+                && !bytes[offset].is_ascii_whitespace()
+                && !matches!(bytes[offset], b'>' | b'/')
+            {
+                offset += 1;
+            }
+            (value_start, offset)
+        };
+        if name.eq_ignore_ascii_case(wanted_name) {
+            return Some(&tag[value_start..value_end]);
+        }
+        if matches!(quote, b'\'' | b'"') {
+            offset += 1;
+        }
     }
     None
+}
+
+fn tag_name(tag: &str) -> Option<&str> {
+    let bytes = tag.as_bytes();
+    if bytes.first() != Some(&b'<') {
+        return None;
+    }
+    let mut offset = 1_usize;
+    if bytes.get(offset) == Some(&b'/') {
+        offset += 1;
+    }
+    let start = offset;
+    while offset < bytes.len()
+        && (bytes[offset].is_ascii_alphanumeric() || matches!(bytes[offset], b'-' | b':'))
+    {
+        offset += 1;
+    }
+    (offset > start).then_some(&tag[start..offset])
+}
+
+fn script_tag_is_json(tag: &str) -> bool {
+    tag_attribute_value(tag, "type") == Some("application/json")
+}
+
+fn has_fnos_share_static_asset(lower_html: &str) -> bool {
+    let mut offset = 0_usize;
+    while let Some(relative_start) = lower_html[offset..].find('<') {
+        let start = offset + relative_start;
+        let Some(relative_end) = lower_html[start..].find('>') else {
+            break;
+        };
+        let tag_end = start + relative_end;
+        let tag = &lower_html[start..=tag_end];
+        offset = tag_end + 1;
+        let asset = match tag_name(tag) {
+            Some("script" | "img") => tag_attribute_value(tag, "src"),
+            Some("link") => tag_attribute_value(tag, "href"),
+            _ => None,
+        };
+        if asset.is_some_and(|value| value.starts_with("/s/static/")) {
+            return true;
+        }
+    }
+    false
+}
+
+fn has_fnos_brand_metadata(lower_html: &str) -> bool {
+    let mut offset = 0_usize;
+    let mut has_description = false;
+    let mut has_keywords = false;
+    while let Some(relative_start) = lower_html[offset..].find("<meta") {
+        let start = offset + relative_start;
+        let Some(relative_end) = lower_html[start..].find('>') else {
+            break;
+        };
+        let tag_end = start + relative_end;
+        let tag = &lower_html[start..=tag_end];
+        offset = tag_end + 1;
+        if tag_name(tag) != Some("meta") {
+            continue;
+        }
+        let Some(name) = tag_attribute_value(tag, "name") else {
+            continue;
+        };
+        let Some(content) = tag_attribute_value(tag, "content") else {
+            continue;
+        };
+        match name {
+            "description" => {
+                has_description =
+                    content.contains("智能影视刮削") && content.contains("本地ai相册");
+            }
+            "keywords" => {
+                has_keywords =
+                    content.contains("飞牛") && content.contains("fnos") && content.contains("nas");
+            }
+            _ => {}
+        }
+    }
+    has_description && has_keywords
+}
+
+fn is_known_fnos_link_type(value: i64) -> bool {
+    matches!(value, 1 | 4)
+}
+
+fn is_fnos_share_identifier(value: &str) -> bool {
+    value.len() == SHARE_ENTRY_ID_LENGTH
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn is_html_content_type(content_type: &str) -> bool {
+    content_type
+        .split(';')
+        .next()
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/html"))
+}
+
+fn is_json_content_type(content_type: &str) -> bool {
+    content_type
+        .split(';')
+        .next()
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
 }
 
 fn normalize_share_validation(value: ShareValidationCacheRecord) -> ShareValidationCacheRecord {
@@ -1057,6 +1519,14 @@ mod tests {
 
     use super::*;
 
+    const FNOS_BRAND_META: &str = r#"<meta name="description" content="正版免费 兼容x86硬件 智能影视刮削 本地AI相册"><meta name="keywords" content="飞牛，私有云，fnos，NAS，影视，相册，备份，存储，数据，安全，隐私，云盘，网盘，文件">"#;
+
+    fn current_fnos_document(payload: &str, link_type: i64) -> String {
+        format!(
+            r#"<html><head>{FNOS_BRAND_META}<script type="module" src="/s/static/1.0.12/index.js"></script></head><body><script id="share-data" type="application/json">{payload}</script><script id="link-type" type="application/json">{link_type}</script></body></html>"#
+        )
+    }
+
     #[test]
     fn extracts_clean_share_entries_like_node() {
         let url = parse_request_url("/s/abc123abc123abc123").unwrap();
@@ -1070,15 +1540,134 @@ mod tests {
 
     #[test]
     fn parses_share_data_script_payload() {
-        let parsed = parse_share_data(
+        let parsed = parse_share_document(
             r#"<html><script id="share-data">{"code":0,"data":{"token":" t ","name":"n","type":1}}</script></html>"#,
             "abc123abc123abc123",
             "backend-a",
         )
         .unwrap();
-        assert!(parsed.valid);
-        assert_eq!(parsed.validation_state, "valid");
-        assert_eq!(parsed.token.as_deref(), Some("t"));
+        assert!(parsed.data.valid);
+        assert_eq!(parsed.data.validation_state, "valid");
+        assert_eq!(parsed.data.token.as_deref(), Some("t"));
+        assert!(!parsed.has_strong_fnos_fingerprint);
+    }
+
+    #[test]
+    fn recognizes_current_fnos_share_document_variants() {
+        let cases = [
+            (
+                r#"{"msg":"","code":0,"data":{"token":"0123456789abcdefab","name":"file","type":1}}"#,
+                1,
+                "valid",
+                Some(1),
+            ),
+            (
+                r#"{"msg":"Need Password","code":3000008,"data":null}"#,
+                1,
+                "password_required",
+                None,
+            ),
+            (
+                r#"{"msg":"","code":0,"data":{"token":"0123456789abcdefab","name":"collect","type":4}}"#,
+                4,
+                "valid",
+                Some(4),
+            ),
+            (
+                r#"{"msg":"Need Password","code":3000008,"data":null}"#,
+                4,
+                "password_required",
+                None,
+            ),
+        ];
+
+        for (payload, link_type, state, kind) in cases {
+            let html = current_fnos_document(payload, link_type);
+            let parsed = parse_share_document(&html, "abc123abc123abc123", "backend-a")
+                .expect("current FNOS share document");
+            assert!(parsed.data.valid);
+            assert_eq!(parsed.data.validation_state, state);
+            assert_eq!(parsed.data.kind, kind);
+            assert!(parsed.has_strong_fnos_fingerprint);
+        }
+    }
+
+    #[test]
+    fn rejects_inconsistent_fnos_share_document_fingerprints() {
+        let html = current_fnos_document(
+            r#"{"code":0,"data":{"token":"0123456789abcdefab","type":4}}"#,
+            1,
+        );
+        let parsed = parse_share_document(&html, "abc123abc123abc123", "backend-a").unwrap();
+        assert!(parsed.data.valid);
+        assert!(!parsed.has_strong_fnos_fingerprint);
+    }
+
+    #[test]
+    fn recognizes_current_fnos_not_found_document_as_definitive() {
+        let html =
+            current_fnos_document(r#"{"msg":"Not Found Error","code":3000006,"data":null}"#, 0);
+        let parsed = parse_share_document(&html, "abc123abc123abc123", "backend-a").unwrap();
+        assert!(!parsed.data.valid);
+        assert_eq!(parsed.data.validation_state, "invalid");
+        assert!(parsed.has_strong_fnos_fingerprint);
+    }
+
+    #[test]
+    fn strong_fingerprint_rejects_spoofed_attributes_duplicates_and_unknown_states() {
+        let spoofed_id = format!(
+            r#"<html><head>{FNOS_BRAND_META}<script src="/s/static/1.0.12/index.js"></script></head><body><script data-id="share-data" type="application/json">{{"code":0,"data":{{"token":"0123456789abcdefab","type":1}}}}</script><script data-id="link-type" type="application/json">1</script></body></html>"#
+        );
+        assert!(parse_share_document(&spoofed_id, "abc123abc123abc123", "backend-a").is_none());
+
+        let duplicate = format!(
+            r#"{}<script id="share-data" type="application/json">{{"code":0,"data":{{"token":"0123456789abcdefab","type":1}}}}</script>"#,
+            current_fnos_document(
+                r#"{"code":0,"data":{"token":"0123456789abcdefab","type":1}}"#,
+                1,
+            )
+        );
+        assert!(parse_share_document(&duplicate, "abc123abc123abc123", "backend-a").is_none());
+
+        let duplicate_link_type = format!(
+            r#"<html><head>{FNOS_BRAND_META}<script src="/s/static/1.0.12/index.js"></script></head><body><script id="share-data" type="application/json">{{"code":0,"data":{{"token":"0123456789abcdefab","type":1}}}}</script><script id="link-type" type="application/json">null</script><script id="link-type" type="application/json">1</script></body></html>"#
+        );
+        assert!(
+            parse_share_document(&duplicate_link_type, "abc123abc123abc123", "backend-a").is_none()
+        );
+
+        let spoofed_asset = format!(
+            r#"<html><head>{FNOS_BRAND_META}<script data-src="/s/static/1.0.12/index.js"></script></head><body><script id="share-data" type="application/json">{{"code":0,"data":{{"token":"0123456789abcdefab","type":1}}}}</script><script id="link-type" type="application/json">1</script></body></html>"#
+        );
+        let parsed =
+            parse_share_document(&spoofed_asset, "abc123abc123abc123", "backend-a").unwrap();
+        assert!(!parsed.has_strong_fnos_fingerprint);
+
+        let unknown_state = current_fnos_document(r#"{"code":3999999,"data":null}"#, 0);
+        let parsed =
+            parse_share_document(&unknown_state, "abc123abc123abc123", "backend-a").unwrap();
+        assert!(!parsed.has_strong_fnos_fingerprint);
+
+        let invalid_token =
+            current_fnos_document(r#"{"code":0,"data":{"token":"too-short","type":1}}"#, 1);
+        let parsed =
+            parse_share_document(&invalid_token, "abc123abc123abc123", "backend-a").unwrap();
+        assert!(parsed.data.valid);
+        assert!(!parsed.has_strong_fnos_fingerprint);
+    }
+
+    #[test]
+    fn fallback_content_type_matching_is_exact() {
+        assert!(is_html_content_type("text/html"));
+        assert!(is_html_content_type("Text/HTML; charset=utf-8"));
+        assert!(!is_html_content_type("application/xhtml+xml"));
+        assert!(!is_html_content_type("application/not-text/html"));
+        assert!(!is_html_content_type("text/html-example"));
+
+        assert!(is_json_content_type("application/json"));
+        assert!(is_json_content_type("Application/JSON; charset=utf-8"));
+        assert!(!is_json_content_type("text/application/json"));
+        assert!(!is_json_content_type("application/json-example"));
     }
 
     #[test]
@@ -1199,16 +1788,16 @@ mod tests {
                 None,
                 Some("route-generation-a")
             )
-            .is_none(),
+            .is_err(),
             "missing routed Host metadata must fail closed"
         );
         assert!(
-            resolve_routed_backend(None, None, None).is_none(),
+            resolve_routed_backend(None, None, None).is_err(),
             "missing routed target must not fall back to configuration guessing"
         );
         assert!(
             resolve_routed_backend(Some("http://10.0.0.9:8000"), Some("NAS.EXAMPLE.COM"), None)
-                .is_none(),
+                .is_err(),
             "missing route lifecycle identity must fail closed"
         );
         assert!(
@@ -1217,7 +1806,7 @@ mod tests {
                 Some("NAS.EXAMPLE.COM"),
                 Some("route-generation-auth-port"),
             )
-            .is_some(),
+            .is_ok(),
             "a remote FNOS target may legitimately use the auth service port number"
         );
     }
@@ -1247,7 +1836,266 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(probe_fnos_target(&backend).await, Some(true));
+        assert_eq!(
+            probe_fnos_target(&backend).await,
+            FnosProbeOutcome::Verified
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn target_probe_does_not_follow_upstream_redirects() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let read = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /locales/zh-CN/os.json "));
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{address}/redirected-locale\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            drop(socket);
+
+            let Ok(Ok((mut redirected, _))) =
+                tokio::time::timeout(Duration::from_millis(250), listener.accept()).await
+            else {
+                return false;
+            };
+            let read = redirected.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /redirected-locale "));
+            let body = r#"{"app":{"account":"a","docker":"d","fileManager":"f","photos":"p"},"appApiErrors":{"AuthFailed":"failed"}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            redirected.write_all(response.as_bytes()).await.unwrap();
+            true
+        });
+        let backend = resolve_routed_backend(
+            Some(&format!("http://{address}")),
+            Some("nas.example.com"),
+            Some("route-generation-no-probe-redirect"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            probe_fnos_target(&backend).await,
+            FnosProbeOutcome::Rejected(FnosProbeFailure::UnexpectedStatus)
+        );
+        assert!(
+            !server.await.unwrap(),
+            "probe followed an upstream redirect"
+        );
+    }
+
+    #[tokio::test]
+    async fn share_validation_does_not_follow_upstream_redirects() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let read = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /s/abc123abc123abc123 "));
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{address}/redirected-share\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            drop(socket);
+
+            let Ok(Ok((mut redirected, _))) =
+                tokio::time::timeout(Duration::from_millis(250), listener.accept()).await
+            else {
+                return false;
+            };
+            let read = redirected.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /redirected-share "));
+            let body = current_fnos_document(
+                r#"{"code":0,"data":{"token":"0123456789abcdefab","type":1}}"#,
+                1,
+            );
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            redirected.write_all(response.as_bytes()).await.unwrap();
+            true
+        });
+        let backend = resolve_routed_backend(
+            Some(&format!("http://{address}")),
+            Some("nas.example.com"),
+            Some("route-generation-no-share-redirect"),
+        )
+        .unwrap();
+        let config = ResolvedFnosShareConfig {
+            policy: share_policy_from_config(&json!({ "fnos_share_bypass": { "enabled": true } })),
+            backend: Some(backend),
+            probe_outcome: Some(FnosProbeOutcome::Rejected(
+                FnosProbeFailure::SignatureMismatch,
+            )),
+            backend_binding_failure: None,
+        };
+
+        let result = fetch_validation("abc123abc123abc123", &config).await;
+        assert!(!result.cacheable);
+        assert_eq!(result.data.validation_state, "unknown");
+        assert!(
+            !server.await.unwrap(),
+            "share validation followed an upstream redirect"
+        );
+    }
+
+    #[tokio::test]
+    async fn strong_share_page_recovers_from_locale_signature_mismatch() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let share_id = "abc123abc123abc123";
+        let server = tokio::spawn(async move {
+            for expected_path in ["/locales/zh-CN/os.json", "/s/abc123abc123abc123"] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let read = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..read]);
+                assert!(
+                    request.starts_with(&format!("GET {expected_path} ")),
+                    "unexpected request: {request}"
+                );
+                let (content_type, body) = if expected_path == FNOS_DETECTION_PATH {
+                    (
+                        "application/json",
+                        r#"{"app":{},"appApiErrors":{}}"#.to_string(),
+                    )
+                } else {
+                    (
+                        "text/html; charset=utf-8",
+                        current_fnos_document(
+                            r#"{"code":0,"data":{"token":"0123456789abcdefab","name":"file","type":1}}"#,
+                            1,
+                        ),
+                    )
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "fnos-share-fallback-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        let config = json!({ "fnos_share_bypass": { "enabled": true } });
+        let target = format!("http://{address}");
+        let uri = Uri::from_static("/s/abc123abc123abc123");
+
+        let decision = resolve_preflight(
+            &state,
+            &HeaderMap::new(),
+            &uri,
+            &config,
+            Some(&target),
+            Some("nas.example.com"),
+            Some("route-generation-share-fallback"),
+        )
+        .await
+        .expect("fallback preflight");
+        assert!(decision.handled);
+        assert_eq!(decision.redirect_location, None);
+
+        let access = authorize(
+            &state,
+            &HeaderMap::new(),
+            &uri,
+            &config,
+            Some(&target),
+            Some("nas.example.com"),
+            Some("route-generation-share-fallback"),
+        )
+        .await
+        .expect("fallback authorization");
+        assert!(access.authorized);
+        assert_eq!(
+            access.response_headers,
+            vec![("X-Reauth-Access-Mode".to_string(), "fnos-share".to_string())]
+        );
+
+        server.await.unwrap();
+        let backend = resolve_routed_backend(
+            Some(&target),
+            Some("nas.example.com"),
+            Some("route-generation-share-fallback"),
+        )
+        .unwrap();
+        assert_eq!(
+            get_cached_fnos_target_probe(&backend.identity),
+            Some(FnosProbeOutcome::Verified)
+        );
+        assert_eq!(
+            get_cached_validation(&state, &validation_cache_key(&backend.identity, share_id))
+                .await
+                .unwrap()
+                .unwrap()
+                .validation_state,
+            "valid"
+        );
+    }
+
+    #[tokio::test]
+    async fn definitive_invalid_share_does_not_promote_backend_trust() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let read = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /s/abc123abc123abc123 "));
+            let body =
+                current_fnos_document(r#"{"msg":"Not Found Error","code":3000006,"data":null}"#, 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let backend = resolve_routed_backend(
+            Some(&format!("http://{address}")),
+            Some("nas.example.com"),
+            Some("route-generation-invalid-share"),
+        )
+        .unwrap();
+        let config = ResolvedFnosShareConfig {
+            policy: share_policy_from_config(&json!({ "fnos_share_bypass": { "enabled": true } })),
+            backend: Some(backend.clone()),
+            probe_outcome: Some(FnosProbeOutcome::Rejected(
+                FnosProbeFailure::SignatureMismatch,
+            )),
+            backend_binding_failure: None,
+        };
+
+        let result = fetch_validation("abc123abc123abc123", &config).await;
+        assert!(result.cacheable);
+        assert!(!result.data.valid);
+        assert_eq!(result.data.validation_state, "invalid");
+        assert_ne!(
+            get_cached_fnos_target_probe(&backend.identity),
+            Some(FnosProbeOutcome::Verified)
+        );
         server.await.unwrap();
     }
 
@@ -1308,8 +2156,14 @@ mod tests {
             guard.remove(&backend.identity);
         }
 
-        assert_eq!(probe_fnos_target(&backend).await, Some(false));
-        assert_eq!(get_cached_fnos_target_probe(&backend.identity), Some(false));
+        assert_eq!(
+            probe_fnos_target(&backend).await,
+            FnosProbeOutcome::Rejected(FnosProbeFailure::RequestFailed)
+        );
+        assert_eq!(
+            get_cached_fnos_target_probe(&backend.identity),
+            Some(FnosProbeOutcome::Rejected(FnosProbeFailure::RequestFailed))
+        );
     }
 
     #[test]

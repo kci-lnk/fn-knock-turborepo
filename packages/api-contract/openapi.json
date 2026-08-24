@@ -24788,7 +24788,7 @@
   "info": {
     "description": "server-admin 7998 端口提供的完整管理端接口契约。路径、请求与响应均由 utoipa schema 和领域 operation 清单生成。",
     "title": "fn-knock server-admin API",
-    "version": "2.3.5"
+    "version": "2.3.6"
   },
   "openapi": "3.1.0",
   "paths": {

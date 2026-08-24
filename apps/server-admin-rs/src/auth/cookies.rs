@@ -5,6 +5,7 @@ use axum::http::HeaderMap;
 pub const SESSION_COOKIE_NAME: &str = "x-go-reauth-proxy-session-id";
 pub const ADMIN_PANEL_SESSION_COOKIE_NAME: &str = "fn-knock-admin-panel-session";
 pub const FNOS_SHARE_SESSION_COOKIE_NAME: &str = "fn-knock-fnos-share-session";
+pub const FNOS_ACCESS_CODE_VERIFY_PATH: &str = "/access_code_verify";
 pub const OIDC_LOGIN_ERROR_COOKIE_NAME: &str = "fn-knock-oidc-login-error";
 pub const OIDC_FLOW_COOKIE_NAME: &str = "fn-knock-oidc-flow";
 pub const SUBDOMAIN_RULE_GRANT_COOKIE_NAME: &str = "fn-knock-subdomain-rule-grant";
@@ -158,6 +159,34 @@ pub fn fnos_share_session_cookie(session_id: &str, max_age: i64, domain: Option<
         session_id,
         max_age,
         "/s",
+        domain,
+        true,
+        session_cookie_secure(true),
+        session_cookie_same_site(),
+    )
+}
+
+pub fn fnos_share_access_code_clear_cookie(domain: Option<&str>) -> String {
+    build_clear_cookie(
+        FNOS_SHARE_SESSION_COOKIE_NAME,
+        FNOS_ACCESS_CODE_VERIFY_PATH,
+        domain,
+        true,
+        session_cookie_secure(true),
+        session_cookie_same_site(),
+    )
+}
+
+pub fn fnos_share_access_code_session_cookie(
+    session_id: &str,
+    max_age: i64,
+    domain: Option<&str>,
+) -> String {
+    build_cookie(
+        FNOS_SHARE_SESSION_COOKIE_NAME,
+        session_id,
+        max_age,
+        FNOS_ACCESS_CODE_VERIFY_PATH,
         domain,
         true,
         session_cookie_secure(true),

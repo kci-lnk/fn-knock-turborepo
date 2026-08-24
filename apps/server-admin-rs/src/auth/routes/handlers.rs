@@ -1031,6 +1031,11 @@ pub(super) async fn logout(
             cookies::fnos_share_clear_cookie(domain.as_deref()),
             "share clear cookie",
         );
+        append_set_cookie_header(
+            response.headers_mut(),
+            cookies::fnos_share_access_code_clear_cookie(domain.as_deref()),
+            "share access-code clear cookie",
+        );
     }
     if cookies::read_cookie(&headers, super::subdomain_grant::COOKIE_NAME).is_some() {
         append_set_cookie_header(

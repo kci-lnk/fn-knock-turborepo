@@ -138,17 +138,18 @@ struct ParsedShareDocument {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FnosProbeOutcome {
     Verified,
+    AccessCodeRequired,
     Rejected(FnosProbeFailure),
 }
 
 impl FnosProbeOutcome {
     fn is_verified(self) -> bool {
-        self == Self::Verified
+        matches!(self, Self::Verified | Self::AccessCodeRequired)
     }
 
     fn failure_reason(self) -> Option<&'static str> {
         match self {
-            Self::Verified => None,
+            Self::Verified | Self::AccessCodeRequired => None,
             Self::Rejected(reason) => Some(reason.as_str()),
         }
     }
@@ -161,6 +162,7 @@ enum FnosProbeFailure {
     RequestFailed,
     UnexpectedStatus,
     UnexpectedContentType,
+    InvalidHtml,
     InvalidJson,
     SignatureMismatch,
 }
@@ -173,6 +175,7 @@ impl FnosProbeFailure {
             Self::RequestFailed => "request_failed",
             Self::UnexpectedStatus => "unexpected_status",
             Self::UnexpectedContentType => "unexpected_content_type",
+            Self::InvalidHtml => "invalid_html",
             Self::InvalidJson => "invalid_json",
             Self::SignatureMismatch => "signature_mismatch",
         }
@@ -429,10 +432,11 @@ fn share_unauthorized() -> FnosShareAuthorizationResult {
 fn share_unauthorized_with_cookie_clear(clear_cookie: bool) -> FnosShareAuthorizationResult {
     FnosShareAuthorizationResult {
         authorized: false,
-        set_cookies: clear_cookie
-            .then(|| cookies::fnos_share_clear_cookie(None))
-            .into_iter()
-            .collect(),
+        set_cookies: if clear_cookie {
+            share_clear_cookies()
+        } else {
+            Vec::new()
+        },
         response_headers: Vec::new(),
     }
 }
@@ -447,21 +451,25 @@ fn share_redirect_unauthorized(location: &str, clear_cookie: bool) -> FnosShareA
         )],
     };
     if clear_cookie {
-        result
-            .set_cookies
-            .push(cookies::fnos_share_clear_cookie(None));
+        result.set_cookies = share_clear_cookies();
     }
     result
+}
+
+fn share_clear_cookies() -> Vec<String> {
+    vec![
+        cookies::fnos_share_clear_cookie(None),
+        cookies::fnos_share_access_code_clear_cookie(None),
+    ]
 }
 
 fn share_authorized(session_id: &str, ttl_seconds: i64) -> FnosShareAuthorizationResult {
     FnosShareAuthorizationResult {
         authorized: true,
-        set_cookies: vec![cookies::fnos_share_session_cookie(
-            session_id,
-            ttl_seconds,
-            None,
-        )],
+        set_cookies: vec![
+            cookies::fnos_share_session_cookie(session_id, ttl_seconds, None),
+            cookies::fnos_share_access_code_session_cookie(session_id, ttl_seconds, None),
+        ],
         response_headers: vec![("X-Reauth-Access-Mode".to_string(), "fnos-share".to_string())],
     }
 }
@@ -548,7 +556,10 @@ fn resolve_enabled_share_request(
     app_config: &Value,
 ) -> Option<(Url, SharePolicy)> {
     let request_url = parse_request_url(&request_target(headers, uri))?;
-    if !is_share_path(&request_url) {
+    let is_access_code_verification = request_url.path() == cookies::FNOS_ACCESS_CODE_VERIFY_PATH
+        && request_url.query().is_none()
+        && read_share_cookie(headers, cookies::FNOS_SHARE_SESSION_COOKIE_NAME).is_some();
+    if !is_share_path(&request_url) && !is_access_code_verification {
         return None;
     }
     let policy = share_policy_from_config(app_config);
@@ -733,6 +744,41 @@ async fn probe_fnos_target(backend: &FnosBackend) -> FnosProbeOutcome {
         .and_then(|value| value.to_str().ok())
         .unwrap_or("")
         .to_ascii_lowercase();
+    if is_html_content_type(&content_type) {
+        let html = match crate::http_body::read_response_text_limited(
+            response,
+            MAX_FNOS_SHARE_RESPONSE_BYTES,
+        )
+        .await
+        {
+            Ok(html) => html,
+            Err(error) => {
+                let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::InvalidHtml);
+                tracing::debug!(
+                    %error,
+                    backend_id = %backend.identity,
+                    reason = outcome.failure_reason().unwrap_or("unknown"),
+                    "FNOS target probe returned unreadable HTML"
+                );
+                set_cached_fnos_target_probe(&backend.identity, outcome);
+                return outcome;
+            }
+        };
+        let outcome = if is_fnos_access_code_document(&html) {
+            FnosProbeOutcome::AccessCodeRequired
+        } else {
+            FnosProbeOutcome::Rejected(FnosProbeFailure::SignatureMismatch)
+        };
+        if !outcome.is_verified() {
+            tracing::debug!(
+                backend_id = %backend.identity,
+                reason = outcome.failure_reason().unwrap_or("unknown"),
+                "FNOS target probe HTML did not match the access-code challenge"
+            );
+        }
+        set_cached_fnos_target_probe(&backend.identity, outcome);
+        return outcome;
+    }
     if !is_json_content_type(&content_type) {
         let outcome = FnosProbeOutcome::Rejected(FnosProbeFailure::UnexpectedContentType);
         tracing::debug!(
@@ -900,6 +946,11 @@ async fn fetch_validation(
         crate::http_body::read_response_text_limited(response, MAX_FNOS_SHARE_RESPONSE_BYTES)
             .await
             .unwrap_or_default();
+    let is_access_code_challenge = is_html_content_type(&content_type)
+        && is_fnos_access_code_document(&html)
+        && config
+            .probe_outcome
+            .is_some_and(FnosProbeOutcome::is_verified);
     match parse_share_document(&html, share_id, &backend.identity) {
         Some(document)
             if config
@@ -953,6 +1004,18 @@ async fn fetch_validation(
                 data: fallback,
             }
         }
+        None if is_access_code_challenge => {
+            set_cached_fnos_target_probe(&backend.identity, FnosProbeOutcome::AccessCodeRequired);
+            tracing::debug!(
+                %share_id,
+                backend_id = %backend.identity,
+                "FNOS share validation delegated to the upstream access-code challenge"
+            );
+            ShareValidationFetchResult {
+                cacheable: true,
+                data: access_code_required_validation(share_id, &backend.identity),
+            }
+        }
         None => ShareValidationFetchResult {
             cacheable: false,
             data: fallback,
@@ -965,6 +1028,21 @@ fn unknown_validation(share_id: &str, backend_id: &str) -> ShareValidationCacheR
         version: 2,
         valid: false,
         validation_state: "unknown".to_string(),
+        share_id: share_id.to_string(),
+        backend_id: backend_id.to_string(),
+        clean_path: format!("/s/{share_id}"),
+        token: None,
+        name: None,
+        kind: None,
+        checked_at: time_utils::now_iso(),
+    }
+}
+
+fn access_code_required_validation(share_id: &str, backend_id: &str) -> ShareValidationCacheRecord {
+    ShareValidationCacheRecord {
+        version: 2,
+        valid: true,
+        validation_state: "access_code_required".to_string(),
         share_id: share_id.to_string(),
         backend_id: backend_id.to_string(),
         clean_path: format!("/s/{share_id}"),
@@ -1340,6 +1418,106 @@ fn has_fnos_brand_metadata(lower_html: &str) -> bool {
     has_description && has_keywords
 }
 
+fn is_fnos_access_code_document(html: &str) -> bool {
+    let lower = html.to_ascii_lowercase();
+    has_exact_element_text(&lower, "title", "飞牛 fnos")
+        && has_exact_element_text(&lower, "h1", "请输入访问码")
+        && has_tag_with_attributes(
+            &lower,
+            "input",
+            &[
+                ("id", "access-code-input"),
+                ("name", "access-code"),
+                ("type", "password"),
+            ],
+        )
+        && has_fnos_access_code_script(&lower)
+}
+
+fn has_exact_element_text(html: &str, element: &str, expected: &str) -> bool {
+    let needle = format!("<{element}");
+    let closing = format!("</{element}>");
+    let mut offset = 0_usize;
+    while let Some(relative_start) = html[offset..].find(&needle) {
+        let start = offset + relative_start;
+        let Some(relative_tag_end) = html[start..].find('>') else {
+            return false;
+        };
+        let tag_end = start + relative_tag_end;
+        if tag_name(&html[start..=tag_end]) != Some(element) {
+            offset = tag_end + 1;
+            continue;
+        }
+        let content_start = tag_end + 1;
+        let Some(relative_close) = html[content_start..].find(&closing) else {
+            return false;
+        };
+        let close = content_start + relative_close;
+        if html[content_start..close].trim() == expected {
+            return true;
+        }
+        offset = close + closing.len();
+    }
+    false
+}
+
+fn has_tag_with_attributes(html: &str, element: &str, attributes: &[(&str, &str)]) -> bool {
+    let needle = format!("<{element}");
+    let mut offset = 0_usize;
+    while let Some(relative_start) = html[offset..].find(&needle) {
+        let start = offset + relative_start;
+        let Some(relative_tag_end) = html[start..].find('>') else {
+            return false;
+        };
+        let tag_end = start + relative_tag_end;
+        let tag = &html[start..=tag_end];
+        offset = tag_end + 1;
+        if tag_name(tag) == Some(element)
+            && attributes
+                .iter()
+                .all(|(name, value)| tag_attribute_value(tag, name) == Some(*value))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn has_fnos_access_code_script(html: &str) -> bool {
+    let mut offset = 0_usize;
+    while let Some(relative_start) = html[offset..].find("<script") {
+        let start = offset + relative_start;
+        let Some(relative_tag_end) = html[start..].find('>') else {
+            return false;
+        };
+        let tag_end = start + relative_tag_end;
+        if tag_name(&html[start..=tag_end]) != Some("script") {
+            offset = tag_end + 1;
+            continue;
+        }
+        let content_start = tag_end + 1;
+        let Some(relative_close) = html[content_start..].find("</script>") else {
+            return false;
+        };
+        let close = content_start + relative_close;
+        offset = close + "</script>".len();
+        let compact = html[content_start..close]
+            .chars()
+            .filter(|value| !value.is_whitespace())
+            .collect::<String>()
+            .replace('\'', "\"");
+        if compact.contains("fetch(\"/access_code_verify\",{")
+            && compact.contains("method:\"get\"")
+            && compact.contains("credentials:\"same-origin\"")
+            && compact.contains("\"x-access-code\":encodebase64(code)")
+            && compact.contains("\"x-access-source\":\"web\"")
+        {
+            return true;
+        }
+    }
+    false
+}
+
 fn is_known_fnos_link_type(value: i64) -> bool {
     matches!(value, 1 | 4)
 }
@@ -1367,7 +1545,9 @@ fn is_json_content_type(content_type: &str) -> bool {
 
 fn normalize_share_validation(value: ShareValidationCacheRecord) -> ShareValidationCacheRecord {
     let validation_state = match value.validation_state.as_str() {
-        "valid" | "password_required" | "invalid" | "unknown" => value.validation_state,
+        "valid" | "password_required" | "access_code_required" | "invalid" | "unknown" => {
+            value.validation_state
+        }
         _ if value.valid => "valid".to_string(),
         _ => "invalid".to_string(),
     };
@@ -1447,6 +1627,7 @@ fn is_session_resource_path(request_url: &Url, clean_path: &str, share_id: &str)
         || pathname.starts_with(&format!("{preview_path}/"))
         || pathname == thumb_path
         || pathname.starts_with(&format!("{thumb_path}/"))
+        || pathname == cookies::FNOS_ACCESS_CODE_VERIFY_PATH
 }
 
 fn to_upstream_base_url(target: &str) -> Option<Url> {
@@ -1525,6 +1706,29 @@ mod tests {
         format!(
             r#"<html><head>{FNOS_BRAND_META}<script type="module" src="/s/static/1.0.12/index.js"></script></head><body><script id="share-data" type="application/json">{payload}</script><script id="link-type" type="application/json">{link_type}</script></body></html>"#
         )
+    }
+
+    fn current_fnos_access_code_document() -> String {
+        r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head><title>飞牛 fnOS</title></head>
+<body>
+  <h1 id="page-title">请输入访问码</h1>
+  <input id="access-code-input" name="access-code" type="password" />
+  <script>
+    function encodeBase64(value) { return btoa(value); }
+    fetch("/access_code_verify", {
+      method: "GET",
+      credentials: "same-origin",
+      headers: {
+        "x-access-code": encodeBase64(code),
+        "x-access-source": "web",
+      },
+    });
+  </script>
+</body>
+</html>"#
+            .to_string()
     }
 
     #[test]
@@ -1614,6 +1818,24 @@ mod tests {
     }
 
     #[test]
+    fn recognizes_current_fnos_access_code_document_without_weak_marker_matches() {
+        let document = current_fnos_access_code_document();
+        assert!(is_fnos_access_code_document(&document));
+
+        let spoofed_input = document.replace(
+            r#"id="access-code-input""#,
+            r#"data-id="access-code-input""#,
+        );
+        assert!(!is_fnos_access_code_document(&spoofed_input));
+
+        let unrelated_script = document.replace(
+            r#"fetch("/access_code_verify", {"#,
+            r#"fetch("/unrelated", {"#,
+        );
+        assert!(!is_fnos_access_code_document(&unrelated_script));
+    }
+
+    #[test]
     fn strong_fingerprint_rejects_spoofed_attributes_duplicates_and_unknown_states() {
         let spoofed_id = format!(
             r#"<html><head>{FNOS_BRAND_META}<script src="/s/static/1.0.12/index.js"></script></head><body><script data-id="share-data" type="application/json">{{"code":0,"data":{{"token":"0123456789abcdefab","type":1}}}}</script><script data-id="link-type" type="application/json">1</script></body></html>"#
@@ -1696,6 +1918,15 @@ mod tests {
         });
         assert!(
             resolve_enabled_share_request(&headers, &Uri::from_static("/"), &enabled).is_none()
+        );
+        assert!(
+            resolve_enabled_share_request(
+                &headers,
+                &Uri::from_static(cookies::FNOS_ACCESS_CODE_VERIFY_PATH),
+                &enabled,
+            )
+            .is_none(),
+            "the verification endpoint must not enter FNOS detection without a share session"
         );
 
         let disabled = json!({
@@ -1841,6 +2072,39 @@ mod tests {
             FnosProbeOutcome::Verified
         );
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn target_probe_recognizes_the_fnos_access_code_challenge() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let read = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.starts_with("GET /locales/zh-CN/os.json "));
+            let body = current_fnos_access_code_document();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        };
+        let backend = resolve_routed_backend(
+            Some(&format!("http://{address}")),
+            Some("nas.example.com"),
+            Some("route-generation-access-code-probe"),
+        )
+        .unwrap();
+
+        let probe = async {
+            assert_eq!(
+                probe_fnos_target(&backend).await,
+                FnosProbeOutcome::AccessCodeRequired
+            );
+        };
+        tokio::join!(probe, server);
     }
 
     #[tokio::test]
@@ -2056,6 +2320,131 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn access_code_challenge_keeps_share_and_verification_flow_open() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let share_id = "abc123abc123abc123";
+        let server = async move {
+            for expected_path in [FNOS_DETECTION_PATH, "/s/abc123abc123abc123"] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let read = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..read]);
+                assert!(
+                    request.starts_with(&format!("GET {expected_path} ")),
+                    "unexpected request: {request}"
+                );
+                let body = current_fnos_access_code_document();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        };
+
+        let directory = tempfile::tempdir().expect("temporary auth database");
+        let mut settings = {
+            let _environment = crate::test_support::EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = "fnos-share-access-code-test".to_string();
+        let state = AppState::new(settings).await.expect("auth test state");
+        let config = json!({ "fnos_share_bypass": { "enabled": true } });
+        let target = format!("http://{address}");
+        let route_id = "route-generation-access-code-flow";
+        let share_uri = Uri::from_static("/s/abc123abc123abc123");
+
+        let flow = async {
+            let decision = resolve_preflight(
+                &state,
+                &HeaderMap::new(),
+                &share_uri,
+                &config,
+                Some(&target),
+                Some("nas.example.com"),
+                Some(route_id),
+            )
+            .await
+            .expect("access-code preflight");
+            assert!(decision.handled);
+            assert_eq!(decision.redirect_location, None);
+
+            let access = authorize(
+                &state,
+                &HeaderMap::new(),
+                &share_uri,
+                &config,
+                Some(&target),
+                Some("nas.example.com"),
+                Some(route_id),
+            )
+            .await
+            .expect("access-code share authorization");
+            assert!(access.authorized);
+            let access_code_cookie = access
+                .set_cookies
+                .iter()
+                .find(|cookie| cookie.contains("Path=/access_code_verify"))
+                .expect("path-scoped access-code session cookie");
+            let cookie_pair = access_code_cookie
+                .split(';')
+                .next()
+                .expect("access-code cookie pair");
+            let mut verification_headers = HeaderMap::new();
+            verification_headers
+                .insert(header::COOKIE, HeaderValue::from_str(cookie_pair).unwrap());
+            let verification_uri = Uri::from_static(cookies::FNOS_ACCESS_CODE_VERIFY_PATH);
+
+            let verification_decision = resolve_preflight(
+                &state,
+                &verification_headers,
+                &verification_uri,
+                &config,
+                Some(&target),
+                Some("nas.example.com"),
+                Some(route_id),
+            )
+            .await
+            .expect("access-code verification preflight");
+            assert!(verification_decision.handled);
+            assert_eq!(verification_decision.redirect_location, None);
+
+            let verification_access = authorize(
+                &state,
+                &verification_headers,
+                &verification_uri,
+                &config,
+                Some(&target),
+                Some("nas.example.com"),
+                Some(route_id),
+            )
+            .await
+            .expect("access-code verification authorization");
+            assert!(verification_access.authorized);
+
+            resolve_routed_backend(Some(&target), Some("nas.example.com"), Some(route_id)).unwrap()
+        };
+        let (backend, ()) = tokio::join!(flow, server);
+        assert_eq!(
+            get_cached_fnos_target_probe(&backend.identity),
+            Some(FnosProbeOutcome::AccessCodeRequired)
+        );
+        assert_eq!(
+            get_cached_validation(&state, &validation_cache_key(&backend.identity, share_id))
+                .await
+                .unwrap()
+                .unwrap()
+                .validation_state,
+            "access_code_required"
+        );
+    }
+
+    #[tokio::test]
     async fn definitive_invalid_share_does_not_promote_backend_trust() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -2178,6 +2567,10 @@ mod tests {
         assert!(cookie.contains("fn-knock-fnos-share-session=share-session"));
         assert!(cookie.contains("Path=/s"));
         assert!(cookie.contains("Max-Age=300"));
+        let access_code_cookie = authorized.set_cookies.get(1).unwrap();
+        assert!(access_code_cookie.contains("fn-knock-fnos-share-session=share-session"));
+        assert!(access_code_cookie.contains("Path=/access_code_verify"));
+        assert!(access_code_cookie.contains("Max-Age=300"));
 
         let denied = share_redirect_unauthorized("/", true);
         assert!(!denied.authorized);
@@ -2186,6 +2579,14 @@ mod tests {
             vec![("X-Reauth-Redirect-Location".to_string(), "/".to_string())]
         );
         assert!(denied.set_cookies.first().unwrap().contains("Max-Age=0"));
+        assert!(denied.set_cookies.get(1).unwrap().contains("Max-Age=0"));
+        assert!(
+            denied
+                .set_cookies
+                .get(1)
+                .unwrap()
+                .contains("Path=/access_code_verify")
+        );
     }
 
     #[test]

@@ -918,7 +918,7 @@ async fn logout_reports_unconfirmed_revocation_and_clears_all_cookie_scopes() {
 
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let cookies = response_set_cookies(&response);
-    assert_eq!(cookies.len(), 6);
+    assert_eq!(cookies.len(), 9);
     let session_cookies = cookies
         .iter()
         .filter(|cookie| cookie.starts_with(cookies::SESSION_COOKIE_NAME))
@@ -926,11 +926,23 @@ async fn logout_reports_unconfirmed_revocation_and_clears_all_cookie_scopes() {
         .collect::<Vec<_>>();
     let share_cookies = cookies
         .iter()
-        .filter(|cookie| cookie.starts_with(cookies::FNOS_SHARE_SESSION_COOKIE_NAME))
+        .filter(|cookie| {
+            cookie.starts_with(cookies::FNOS_SHARE_SESSION_COOKIE_NAME)
+                && cookie.contains("Path=/s")
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let share_access_code_cookies = cookies
+        .iter()
+        .filter(|cookie| {
+            cookie.starts_with(cookies::FNOS_SHARE_SESSION_COOKIE_NAME)
+                && cookie.contains("Path=/access_code_verify")
+        })
         .cloned()
         .collect::<Vec<_>>();
     assert_clear_cookie_scopes(&session_cookies);
     assert_clear_cookie_scopes(&share_cookies);
+    assert_clear_cookie_scopes(&share_access_code_cookies);
 }
 
 #[tokio::test]

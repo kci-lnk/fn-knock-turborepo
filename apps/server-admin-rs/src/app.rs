@@ -164,11 +164,7 @@ pub(crate) async fn run_with_settings(
     startup_gateway::migrate_visibility_policies(
         &state,
         &runtime_shutdown,
-        startup_phase_timeout(
-            startup_deadline,
-            GATEWAY_STARTUP_PHASE_TIMEOUT,
-            "gateway visibility policy migration",
-        )?,
+        persistent_startup_phase_timeout(startup_deadline, "gateway visibility policy migration")?,
     )
     .await?;
     // The migration validates CIDR-bearing candidates, but even an empty
@@ -177,11 +173,7 @@ pub(crate) async fn run_with_settings(
     startup_gateway::sync_current_host_rules(
         &state,
         &runtime_shutdown,
-        startup_phase_timeout(
-            startup_deadline,
-            DEFAULT_APPLICATION_STARTUP_TIMEOUT,
-            "gateway host rules",
-        )?,
+        persistent_startup_phase_timeout(startup_deadline, "gateway host rules")?,
     )
     .await?;
     migrate_scanner_cidr_ipset_on_boot(&state).await?;
@@ -191,21 +183,13 @@ pub(crate) async fn run_with_settings(
     startup_gateway::migrate_common_auth_locations(
         &state,
         &runtime_shutdown,
-        startup_phase_timeout(
-            startup_deadline,
-            GATEWAY_STARTUP_PHASE_TIMEOUT,
-            "common authentication locations",
-        )?,
+        persistent_startup_phase_timeout(startup_deadline, "common authentication locations")?,
     )
     .await?;
     startup_gateway::migrate_whitelist_runtime(
         &state,
         &runtime_shutdown,
-        startup_phase_timeout(
-            startup_deadline,
-            GATEWAY_STARTUP_PHASE_TIMEOUT,
-            "whitelist gateway runtime",
-        )?,
+        persistent_startup_phase_timeout(startup_deadline, "whitelist gateway runtime")?,
     )
     .await?;
     migrate_ssh_ipset_on_boot(&state).await?;
@@ -213,11 +197,7 @@ pub(crate) async fn run_with_settings(
     startup_gateway::sync_boot_runtime(
         &state,
         &runtime_shutdown,
-        startup_phase_timeout(
-            startup_deadline,
-            DEFAULT_APPLICATION_STARTUP_TIMEOUT,
-            "application boot runtime",
-        )?,
+        persistent_startup_phase_timeout(startup_deadline, "application boot runtime")?,
     )
     .await?;
     crate::runtime_config::start_fnos_connect_waf_reconciler(state.clone());
@@ -559,6 +539,16 @@ fn startup_phase_timeout(
     Ok(remaining.min(phase_cap))
 }
 
+// Migrations can perform durable writes on the package volume. A DSM disk
+// waking from hibernation may legitimately exceed the normal gateway phase
+// cap, so these phases share the application's remaining supervisor budget.
+fn persistent_startup_phase_timeout(
+    deadline: tokio::time::Instant,
+    phase: &str,
+) -> anyhow::Result<Duration> {
+    startup_phase_timeout(deadline, Duration::MAX, phase)
+}
+
 fn application_startup_timeout() -> Duration {
     let supervisor_timeout = env::var("FN_KNOCK_START_TIMEOUT_SECONDS")
         .or_else(|_| env::var("FN_KNOCK_SYNOLOGY_START_TIMEOUT_SECONDS"))
@@ -661,6 +651,19 @@ mod tests {
 
         assert!(timeout <= Duration::from_secs(60));
         assert!(timeout > Duration::from_secs(59));
+    }
+
+    #[test]
+    fn persistent_startup_phase_can_use_the_remaining_application_budget() {
+        let timeout = persistent_startup_phase_timeout(
+            tokio::time::Instant::now() + Duration::from_secs(120),
+            "persistent test phase",
+        )
+        .unwrap();
+
+        assert!(timeout <= Duration::from_secs(120));
+        assert!(timeout > Duration::from_secs(119));
+        assert!(timeout > GATEWAY_STARTUP_PHASE_TIMEOUT);
     }
 
     #[test]

@@ -951,14 +951,20 @@ start() {
     fi
     if ! wait_runtime_ready; then
         local cleanup_failed=0
-        stop_service "${BACKEND_PID_FILE}" "Backend" || cleanup_failed=1
-        stop_matching_processes "${BACKEND_ENTRY}" "Backend" || cleanup_failed=1
+        local gateway_stop_failed=0
         if cleanup_fn_connect_waf_rules; then
-            stop_service "${GATEWAY_PID_FILE}" "Gateway" || cleanup_failed=1
-            stop_matching_processes "${GATEWAY_BIN}" "Gateway" || cleanup_failed=1
+            stop_service "${GATEWAY_PID_FILE}" "Gateway" || gateway_stop_failed=1
+            stop_matching_processes "${GATEWAY_BIN}" "Gateway" || gateway_stop_failed=1
+            if [ "${gateway_stop_failed}" -eq 0 ]; then
+                stop_service "${BACKEND_PID_FILE}" "Backend" || cleanup_failed=1
+                stop_matching_processes "${BACKEND_ENTRY}" "Backend" || cleanup_failed=1
+            else
+                cleanup_failed=1
+                log_msg "Backend kept running because the gateway could not be fully stopped"
+            fi
         else
             cleanup_failed=1
-            log_msg "Gateway kept running because FN Connect WAF rules could not be safely removed"
+            log_msg "Runtime kept running because FN Connect WAF rules could not be safely removed"
         fi
         if [ "${cleanup_failed}" -eq 0 ]; then
             rm -f "${READINESS_MARKER}"
@@ -976,23 +982,24 @@ stop() {
     log_msg "=== fn-knock stop ==="
     supervisor_log INFO supervisor stop_requested fnos_stop null
     resolve_gateway_bin >/dev/null 2>&1 || true
-    if ! stop_service "${BACKEND_PID_FILE}" "Backend"; then
-        log_msg "Backend stop failed; refusing to continue shutdown."
-        return 1
-    fi
-    if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
-        log_msg "Orphaned backend stop failed; refusing to continue shutdown."
-        return 1
-    fi
     if ! cleanup_fn_connect_waf_rules; then
-        log_msg "Gateway kept running because FN Connect WAF rules could not be safely removed"
+        log_msg "Runtime kept running because FN Connect WAF rules could not be safely removed"
         return 1
     fi
     if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then
+        log_msg "Gateway stop failed; backend kept running to preserve the auth upstream."
         return 1
     fi
     if ! stop_matching_processes "${GATEWAY_BIN}" "Gateway"; then
-        log_msg "Orphaned gateway stop failed; refusing to finalize shutdown."
+        log_msg "Orphaned gateway stop failed; backend kept running to preserve the auth upstream."
+        return 1
+    fi
+    if ! stop_service "${BACKEND_PID_FILE}" "Backend"; then
+        log_msg "Backend stop failed; refusing to finalize shutdown."
+        return 1
+    fi
+    if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
+        log_msg "Orphaned backend stop failed; refusing to finalize shutdown."
         return 1
     fi
     rm -f "${READINESS_MARKER}"

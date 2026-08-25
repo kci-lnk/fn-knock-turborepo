@@ -490,8 +490,9 @@ async fn supervise(
         return Ok(SupervisionOutcome::Stopped);
     }
 
+    let app_shutdown = CancellationToken::new();
     let (ready_tx, mut ready_rx) = oneshot::channel();
-    let app_future = app::run_with_settings(settings, shutdown.clone(), Some(ready_tx));
+    let app_future = app::run_with_settings(settings, app_shutdown.clone(), Some(ready_tx));
     tokio::pin!(app_future);
 
     let startup_result = tokio::select! {
@@ -506,7 +507,7 @@ async fn supervise(
                 1,
                 Duration::from_secs(20),
             )?;
-            graceful_shutdown(&go_client, &mut gateway, &mut app_future, &paths, &runtime_config, gateway_pid).await;
+            graceful_shutdown(&go_client, &mut gateway, &app_shutdown, &mut app_future, &paths, &runtime_config, gateway_pid).await;
             drop(job);
             return Ok(SupervisionOutcome::Stopped);
         }
@@ -529,7 +530,7 @@ async fn supervise(
                 "Go gateway exited during startup: {}",
                 display_exit_status(status)
             );
-            shutdown.cancel();
+            app_shutdown.cancel();
             let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
             let _ = write_status(
                 &paths,
@@ -543,9 +544,9 @@ async fn supervise(
         }
         _ = tokio::time::sleep(STARTUP_TIMEOUT) => {
             let error = anyhow!("Rust/Go runtime group did not become ready within 60 seconds");
-            shutdown.cancel();
-            let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
             shutdown_gateway_only(&go_client, &mut gateway).await;
+            app_shutdown.cancel();
+            let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
             let _ = write_status(
                 &paths,
                 &ServiceStateFile::faulted(
@@ -558,9 +559,8 @@ async fn supervise(
         }
     };
     if let Err(error) = startup_result {
-        shutdown.cancel();
-        let _ = gateway.start_kill();
-        let _ = gateway.wait().await;
+        shutdown_gateway_only(&go_client, &mut gateway).await;
+        app_shutdown.cancel();
         write_status(
             &paths,
             &ServiceStateFile::faulted(Some(&runtime_config), gateway_pid, &error.to_string()),
@@ -594,6 +594,7 @@ async fn supervise(
             graceful_shutdown(
                 &go_client,
                 &mut gateway,
+                &app_shutdown,
                 &mut app_future,
                 &paths,
                 &runtime_config,
@@ -604,10 +605,9 @@ async fn supervise(
             return Ok(SupervisionOutcome::Stopped);
         }
         Err(GatewayStartupFailure::Deterministic(error)) => {
-            shutdown.cancel();
+            shutdown_gateway_only(&go_client, &mut gateway).await;
+            app_shutdown.cancel();
             let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
-            let _ = gateway.start_kill();
-            let _ = gateway.wait().await;
             write_status(
                 &paths,
                 &ServiceStateFile::faulted(
@@ -619,10 +619,8 @@ async fn supervise(
             return Ok(SupervisionOutcome::DeterministicFailure(error));
         }
         Err(GatewayStartupFailure::Unexpected(error)) => {
-            shutdown.cancel();
-            let _ = tokio::time::timeout(Duration::from_secs(5), &mut app_future).await;
-            let _ = gateway.start_kill();
-            let _ = gateway.wait().await;
+            shutdown_gateway_only(&go_client, &mut gateway).await;
+            app_shutdown.cancel();
             write_status(
                 &paths,
                 &ServiceStateFile::faulted(
@@ -672,15 +670,13 @@ async fn supervise(
                 1,
                 Duration::from_secs(20),
             )?;
-            graceful_shutdown(&go_client, &mut gateway, &mut app_future, &paths, &runtime_config, gateway_pid).await;
+            graceful_shutdown(&go_client, &mut gateway, &app_shutdown, &mut app_future, &paths, &runtime_config, gateway_pid).await;
             SupervisionOutcome::Stopped
         }
         result = &mut app_future => {
             let error = result.err().unwrap_or_else(|| anyhow!("Rust admin runtime exited unexpectedly"));
             append_supervisor_diagnostic(&paths, "ERROR", "management", "exited", "unexpected_exit", None);
-            shutdown.cancel();
-            let _ = go_client.request_shutdown().await;
-            let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, gateway.wait()).await;
+            shutdown_gateway_only(&go_client, &mut gateway).await;
             SupervisionOutcome::UnexpectedFailure(error)
         }
         status = gateway.wait() => {
@@ -692,7 +688,7 @@ async fn supervise(
                 "unexpected_exit",
                 status.as_ref().ok().and_then(|value| value.code()),
             );
-            shutdown.cancel();
+            app_shutdown.cancel();
             let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, &mut app_future).await;
             SupervisionOutcome::UnexpectedFailure(anyhow!(
                 "Go gateway exited unexpectedly: {}",
@@ -716,10 +712,11 @@ async fn supervise(
 
 async fn shutdown_gateway_only(go_client: &GoBackendClient, gateway: &mut tokio::process::Child) {
     let _ = tokio::time::timeout(Duration::from_secs(2), go_client.request_shutdown()).await;
-    if tokio::time::timeout(SHUTDOWN_TIMEOUT, gateway.wait())
-        .await
-        .is_err()
-    {
+    let stopped = matches!(
+        tokio::time::timeout(SHUTDOWN_TIMEOUT, gateway.wait()).await,
+        Ok(Ok(_))
+    );
+    if !stopped {
         let _ = gateway.start_kill();
         let _ = gateway.wait().await;
     }
@@ -728,6 +725,7 @@ async fn shutdown_gateway_only(go_client: &GoBackendClient, gateway: &mut tokio:
 async fn graceful_shutdown<F>(
     go_client: &GoBackendClient,
     gateway: &mut tokio::process::Child,
+    app_shutdown: &CancellationToken,
     app_future: &mut std::pin::Pin<&mut F>,
     paths: &WindowsPaths,
     runtime_config: &WindowsRuntimeConfig,
@@ -739,18 +737,9 @@ async fn graceful_shutdown<F>(
         paths,
         &ServiceStateFile::stopping(runtime_config, gateway_pid),
     );
-    let _ = tokio::time::timeout(Duration::from_secs(2), go_client.request_shutdown()).await;
-    let graceful = async {
-        let _ = app_future.await;
-        let _ = gateway.wait().await;
-    };
-    if tokio::time::timeout(SHUTDOWN_TIMEOUT, graceful)
-        .await
-        .is_err()
-    {
-        let _ = gateway.start_kill();
-        let _ = gateway.wait().await;
-    }
+    shutdown_gateway_only(go_client, gateway).await;
+    app_shutdown.cancel();
+    let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, app_future).await;
     let _ = write_status(
         paths,
         &ServiceStateFile::stopped(runtime_config, gateway_pid),

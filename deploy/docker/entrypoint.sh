@@ -139,19 +139,21 @@ wait_for_process_or_fail() {
   fi
 }
 
+terminate_child() {
+  local pid="${1:-}"
+  if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+    kill "${pid}" 2>/dev/null || true
+  fi
+  [ -z "${pid}" ] || wait "${pid}" 2>/dev/null || true
+}
+
 cleanup() {
   local exit_code=$?
   trap - EXIT INT TERM
 
-  if [ -n "${BACKEND_PID:-}" ] && kill -0 "${BACKEND_PID}" 2>/dev/null; then
-    kill "${BACKEND_PID}" 2>/dev/null || true
-  fi
-  if [ -n "${GATEWAY_PID:-}" ] && kill -0 "${GATEWAY_PID}" 2>/dev/null; then
-    kill "${GATEWAY_PID}" 2>/dev/null || true
-  fi
-
-  wait "${BACKEND_PID:-}" 2>/dev/null || true
-  wait "${GATEWAY_PID:-}" 2>/dev/null || true
+  # Drain the public listener before removing its authentication upstream.
+  terminate_child "${GATEWAY_PID:-}"
+  terminate_child "${BACKEND_PID:-}"
   exit "${exit_code}"
 }
 

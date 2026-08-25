@@ -11290,6 +11290,9 @@
           "upstream": {
             "type": "string"
           },
+          "upstream_error_class": {
+            "type": "string"
+          },
           "user_agent": {
             "type": "string"
           },
@@ -11365,6 +11368,7 @@
           "route_type",
           "route_key",
           "upstream",
+          "upstream_error_class",
           "matched",
           "bytes_in",
           "bytes_out",

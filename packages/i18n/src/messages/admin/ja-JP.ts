@@ -5222,6 +5222,7 @@ export const jaJPAdmin = {
       routeType: "ルート種別",
       routeKey: "ルートキー",
       upstream: "アップストリーム",
+      upstreamErrorClass: "アップストリームエラー分類",
       matched: "一致したルール",
       bytesIn: "リクエストサイズ",
       bytesOut: "レスポンスサイズ",

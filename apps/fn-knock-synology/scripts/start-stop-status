@@ -90,10 +90,26 @@ signal_recorded_child() {
     fi
 }
 
-signal_recorded_children() {
+stop_recorded_child() {
     signal="$1"
-    signal_recorded_child "${signal}" "${MANAGEMENT_PID_FILE}" 'server-admin-rs'
-    signal_recorded_child "${signal}" "${GATEWAY_PID_FILE}" 'go-reauth-proxy'
+    child_pid_file="$2"
+    child_command="$3"
+    timeout="$4"
+    signal_recorded_child "${signal}" "${child_pid_file}" "${child_command}"
+    elapsed=0
+    while recorded_child_is_running "${child_pid_file}" "${child_command}" && \
+        [ "${elapsed}" -lt "${timeout}" ]; do
+        elapsed=$((elapsed + 1))
+        sleep 1
+    done
+    ! recorded_child_is_running "${child_pid_file}" "${child_command}"
+}
+
+stop_recorded_children() {
+    signal="$1"
+    timeout="$2"
+    stop_recorded_child "${signal}" "${GATEWAY_PID_FILE}" 'go-reauth-proxy' "${timeout}" || return 1
+    stop_recorded_child "${signal}" "${MANAGEMENT_PID_FILE}" 'server-admin-rs' "${timeout}"
 }
 
 remove_runtime_pid_files() {
@@ -109,6 +125,12 @@ signal_service() {
     else
         kill "-${signal}" "${PID}" 2>/dev/null || true
     fi
+}
+
+signal_supervisor() {
+    signal="$1"
+    pid_is_running || return 0
+    kill "-${signal}" "${PID}" 2>/dev/null || true
 }
 
 wait_for_service_exit() {
@@ -180,11 +202,17 @@ stop_service() {
         return 0
     fi
 
-    signal_service TERM
-    signal_recorded_children TERM
+    if pid_is_running; then
+        # Let the supervisor drain the public gateway before it stops the
+        # authentication backend. Signalling the process group here would
+        # terminate both children at once and recreate the broken-upstream gap.
+        signal_supervisor TERM
+    else
+        stop_recorded_children TERM "${STOP_TIMEOUT_SECONDS}" || true
+    fi
     if ! wait_for_service_exit "${STOP_TIMEOUT_SECONDS}"; then
         signal_service KILL
-        signal_recorded_children KILL
+        stop_recorded_children KILL "${FORCE_KILL_TIMEOUT_SECONDS}" || true
         wait_for_service_exit "${FORCE_KILL_TIMEOUT_SECONDS}" || {
             printf 'fn-knock process group did not stop; PID %s is still running\n' "${PID}" \
                 > "${SYNOPKG_TEMP_LOGFILE:-/dev/null}"

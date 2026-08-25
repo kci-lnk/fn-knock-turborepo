@@ -4858,6 +4858,7 @@ export const zhCNAdmin = {
       routeType: "路由类型",
       routeKey: "路由键",
       upstream: "上游目标",
+      upstreamErrorClass: "上游错误类别",
       matched: "命中规则",
       bytesIn: "请求字节",
       bytesOut: "响应字节",

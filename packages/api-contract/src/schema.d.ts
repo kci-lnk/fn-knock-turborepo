@@ -9884,6 +9884,7 @@ export interface components {
             time: string;
             tls: boolean;
             upstream: string;
+            upstream_error_class: string;
             user_agent: string;
             validation_decision: string;
             validation_evidence: string[];

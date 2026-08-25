@@ -4791,6 +4791,7 @@ export const zhHantAdmin = {
       routeType: "路由類型",
       routeKey: "路由鍵",
       upstream: "上游目標",
+      upstreamErrorClass: "上游錯誤類別",
       matched: "命中規則",
       bytesIn: "請求字節",
       bytesOut: "響應字節",

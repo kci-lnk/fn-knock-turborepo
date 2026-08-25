@@ -122,55 +122,48 @@ wait_for_process_or_fail() {
   fi
 }
 
-terminate_children() {
-  local pid attempts=0 stop_failed=0
+terminate_child() {
+  local pid="${1:-}" name="${2:-process}" attempts=0
   local graceful_attempts=$((STOP_TIMEOUT_SECONDS * 4))
   local force_attempts=$((FORCE_KILL_TIMEOUT_SECONDS * 4))
-  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-      kill "${pid}" 2>/dev/null || true
-    fi
-  done
+  if [ -z "${pid}" ]; then
+    return 0
+  fi
+  if ! kill -0 "${pid}" 2>/dev/null; then
+    wait "${pid}" 2>/dev/null || true
+    return 0
+  fi
+
+  kill "${pid}" 2>/dev/null || true
   while [ "${attempts}" -lt "${graceful_attempts}" ]; do
-    local running=0
-    for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-      if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-        running=1
-        break
-      fi
-    done
-    [ "${running}" -eq 0 ] && break
+    kill -0 "${pid}" 2>/dev/null || break
     sleep 0.25
     attempts=$((attempts + 1))
   done
-  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-      echo "[fn-knock] process ${pid} exceeded graceful shutdown deadline; forcing stop" >&2
-      kill -KILL "${pid}" 2>/dev/null || true
-    fi
-  done
+  if kill -0 "${pid}" 2>/dev/null; then
+    echo "[fn-knock] ${name} ${pid} exceeded graceful shutdown deadline; forcing stop" >&2
+    kill -KILL "${pid}" 2>/dev/null || true
+  fi
+
   attempts=0
   while [ "${attempts}" -lt "${force_attempts}" ]; do
-    local running=0
-    for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-      if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-        running=1
-        break
-      fi
-    done
-    [ "${running}" -eq 0 ] && break
+    kill -0 "${pid}" 2>/dev/null || break
     sleep 0.25
     attempts=$((attempts + 1))
   done
-  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-      echo "[fn-knock] process ${pid} is still running after forced stop" >&2
-      stop_failed=1
-    else
-      wait "${pid}" 2>/dev/null || true
-    fi
-  done
-  [ "${stop_failed}" -eq 0 ]
+  if kill -0 "${pid}" 2>/dev/null; then
+    echo "[fn-knock] ${name} ${pid} is still running after forced stop" >&2
+    return 1
+  fi
+  wait "${pid}" 2>/dev/null || true
+}
+
+terminate_children() {
+  # The public gateway must be fully gone before its authentication upstream.
+  # If it cannot be stopped, preserve the backend instead of serving a broken
+  # gateway that turns local connection-refused errors into public failures.
+  terminate_child "${GATEWAY_PID:-}" "gateway" || return 1
+  terminate_child "${BACKEND_PID:-}" "administration service"
 }
 
 cleanup() {

@@ -96,14 +96,18 @@ wait_for_process_or_fail() {
   fi
 }
 
+terminate_child() {
+  local pid="${1:-}"
+  if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+    kill "${pid}" 2>/dev/null || true
+  fi
+  [ -z "${pid}" ] || wait "${pid}" 2>/dev/null || true
+}
+
 terminate_children() {
-  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
-    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
-      kill "${pid}" 2>/dev/null || true
-    fi
-  done
-  wait "${BACKEND_PID:-}" 2>/dev/null || true
-  wait "${GATEWAY_PID:-}" 2>/dev/null || true
+  # Drain the public listener before removing its authentication upstream.
+  terminate_child "${GATEWAY_PID:-}"
+  terminate_child "${BACKEND_PID:-}"
 }
 
 cleanup() {

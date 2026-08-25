@@ -115,6 +115,10 @@ const detailFields = [
     key: "upstream",
     labelKey: "admin.gatewayRequestLogs.detailFields.upstream",
   },
+  {
+    key: "upstream_error_class",
+    labelKey: "admin.gatewayRequestLogs.detailFields.upstreamErrorClass",
+  },
   { key: "matched", labelKey: "admin.gatewayRequestLogs.detailFields.matched" },
   {
     key: "bytes_in",

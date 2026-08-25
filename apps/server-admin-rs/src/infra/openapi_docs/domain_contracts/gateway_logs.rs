@@ -63,6 +63,7 @@ pub(super) struct GatewayLogEntryData {
     route_type: String,
     route_key: String,
     upstream: String,
+    upstream_error_class: String,
     matched: bool,
     bytes_in: u64,
     bytes_out: u64,

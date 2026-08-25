@@ -6525,7 +6525,11 @@ mod tests {
                 "missing gateway log {parameter_name} query parameter"
             );
         }
-        for property in ["auth_rule_group_id", "auth_grant_state"] {
+        for property in [
+            "auth_rule_group_id",
+            "auth_grant_state",
+            "upstream_error_class",
+        ] {
             assert!(
                 document
                     .pointer(&format!(

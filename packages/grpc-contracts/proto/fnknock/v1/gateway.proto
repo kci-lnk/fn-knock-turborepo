@@ -551,6 +551,7 @@ message GatewayLogEntry {
   repeated string validation_evidence = 52;
   string bypass_policy_version = 53;
   string bypass_group_id = 54;
+  string upstream_error_class = 55;
 }
 
 message GatewayLogDates {

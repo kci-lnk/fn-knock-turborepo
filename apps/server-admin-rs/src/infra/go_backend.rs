@@ -2082,6 +2082,10 @@ fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
     object.insert("route_type".to_string(), Value::String(entry.route_type));
     object.insert("route_key".to_string(), Value::String(entry.route_key));
     object.insert("upstream".to_string(), Value::String(entry.upstream));
+    object.insert(
+        "upstream_error_class".to_string(),
+        Value::String(entry.upstream_error_class),
+    );
     object.insert("matched".to_string(), Value::Bool(entry.matched));
     object.insert("bytes_in".to_string(), json!(entry.bytes_in));
     object.insert("bytes_out".to_string(), json!(entry.bytes_out));
@@ -2376,11 +2380,13 @@ mod tests {
         let value = log_entry_to_json(crate::grpc_proto::GatewayLogEntry {
             auth_rule_group_id: "admins".to_string(),
             auth_grant_state: "session".to_string(),
+            upstream_error_class: "connect_unavailable".to_string(),
             ..Default::default()
         });
 
         assert_eq!(value["auth_rule_group_id"], "admins");
         assert_eq!(value["auth_grant_state"], "session");
+        assert_eq!(value["upstream_error_class"], "connect_unavailable");
     }
 
     #[test]

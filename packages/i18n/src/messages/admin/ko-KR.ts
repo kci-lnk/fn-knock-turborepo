@@ -5186,6 +5186,7 @@ export const koKRAdmin = {
       routeType: "경로 유형",
       routeKey: "경로 키",
       upstream: "업스트림 대상",
+      upstreamErrorClass: "업스트림 오류 분류",
       matched: "일치하는 규칙",
       bytesIn: "요청 바이트",
       bytesOut: "응답 바이트",

@@ -5230,6 +5230,7 @@ export const enAdmin = {
       routeType: "Route type",
       routeKey: "Route key",
       upstream: "Upstream target",
+      upstreamErrorClass: "Upstream error class",
       matched: "Matched rule",
       bytesIn: "Request bytes",
       bytesOut: "Response bytes",

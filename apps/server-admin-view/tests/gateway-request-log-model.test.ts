@@ -121,6 +121,7 @@ describe("gateway request log model", () => {
       duration_ms: 12,
       logged_in: true,
       waf_action: "deny",
+      upstream_error_class: "connect_unavailable",
       auth_credential_method: "OIDC",
       auth_credential_name: "example-user",
       auth_linked_totp_name: "backup-token",
@@ -137,6 +138,10 @@ describe("gateway request log model", () => {
     assert.equal(
       details.find((item) => item.label.includes("loggedIn"))?.value,
       "admin.gatewayRequestLogs.boolean.yes",
+    );
+    assert.equal(
+      details.find((item) => item.label.includes("upstreamErrorClass"))?.value,
+      "connect_unavailable",
     );
   });
 

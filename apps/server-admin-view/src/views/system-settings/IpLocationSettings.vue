@@ -83,7 +83,6 @@ const {
             <div class="min-w-0 space-y-1">
               <h3 class="text-base font-semibold tracking-normal">
                 {{ t("admin.ipLocationSettings.ipLookupTitle") }}
-                {{ t("admin.ipLocationSettings.ipLookupTitle") }}
               </h3>
               <p class="text-sm leading-6 text-muted-foreground">
                 {{ t("admin.ipLocationSettings.ipLookupDescription") }}

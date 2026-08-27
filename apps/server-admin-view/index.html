@@ -10,10 +10,134 @@
       name="description"
       content="fn-knock admin panel for secure access, reverse proxy, tunnels, DDNS, certificates, sessions, and system security."
     />
+    <script>
+      // Vite places the production module and preload tags in the document
+      // head. Record failures here before those generated tags can start, then
+      // let the recovery UI render as soon as the body exists.
+      window.__fnKnockEarlyResourceFailure = false;
+      window.addEventListener(
+        "error",
+        (event) => {
+          const target = event.target;
+          if (
+            target instanceof HTMLScriptElement ||
+            (target instanceof HTMLLinkElement && target.rel === "modulepreload")
+          ) {
+            window.__fnKnockEarlyResourceFailure = true;
+          }
+        },
+        true,
+      );
+      window.addEventListener("unhandledrejection", () => {
+        window.__fnKnockEarlyResourceFailure = true;
+      });
+    </script>
+    <style>
+      html,
+      body,
+      #app {
+        min-height: 100%;
+        margin: 0;
+      }
+      .fn-knock-bootstrap-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #0a0a0a;
+        color: #fafafa;
+        font-family: system-ui, sans-serif;
+      }
+      .fn-knock-bootstrap-card {
+        width: min(100%, 440px);
+        box-sizing: border-box;
+        padding: 24px;
+        border: 1px solid #404040;
+        border-radius: 14px;
+        background: #171717;
+        text-align: center;
+      }
+      .fn-knock-bootstrap-spinner {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto 14px;
+        border: 2px solid #525252;
+        border-bottom-color: #fafafa;
+        border-radius: 999px;
+        animation: fn-knock-bootstrap-spin 0.8s linear infinite;
+      }
+      @keyframes fn-knock-bootstrap-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
     <title>fn-knock</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main
+        class="fn-knock-bootstrap-shell"
+        data-fn-knock-bootstrap-shell
+        role="status"
+      >
+        <section class="fn-knock-bootstrap-card">
+          <div class="fn-knock-bootstrap-spinner" aria-hidden="true"></div>
+          <p style="margin: 0; font-size: 14px">fn-knock</p>
+        </section>
+      </main>
+    </div>
+    <script>
+      (() => {
+        const showBootstrapFailure = () => {
+          if (
+            document.documentElement.getAttribute("data-fn-knock-mounted") ===
+            "true"
+          ) {
+            return;
+          }
+          const root = document.getElementById("app");
+          if (!root || root.getAttribute("data-bootstrap-failed") === "true") {
+            return;
+          }
+          root.setAttribute("data-bootstrap-failed", "true");
+          root.innerHTML =
+            '<main class="fn-knock-bootstrap-shell" role="alert"><section class="fn-knock-bootstrap-card"><h1 style="margin:0 0 10px;font-size:20px">页面资源加载失败</h1><p style="margin:0 0 18px;color:#d4d4d4;line-height:1.6;font-size:14px">请重新加载页面。新版资源会绕过旧版 WebView 缓存。</p><button type="button" data-fn-knock-bootstrap-retry style="min-height:44px;padding:0 18px;border:0;border-radius:9px;background:#fafafa;color:#171717;font-weight:600">重新加载</button></section></main>';
+          const retry = root.querySelector("[data-fn-knock-bootstrap-retry]");
+          if (retry) {
+            retry.addEventListener("click", () => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("_fn_knock_reload", String(Date.now()));
+              url.searchParams.set("_fn_knock_reload_reason", "bootstrap");
+              window.location.replace(url.toString());
+            });
+          }
+        };
+
+        window.addEventListener(
+          "error",
+          (event) => {
+            const target = event.target;
+            if (
+              target instanceof HTMLScriptElement ||
+              (target instanceof HTMLLinkElement &&
+                target.rel === "modulepreload")
+            ) {
+              window.setTimeout(showBootstrapFailure, 0);
+            }
+          },
+          true,
+        );
+        window.addEventListener("unhandledrejection", () => {
+          window.setTimeout(showBootstrapFailure, 0);
+        });
+        if (window.__fnKnockEarlyResourceFailure) {
+          window.setTimeout(showBootstrapFailure, 0);
+        }
+        window.setTimeout(showBootstrapFailure, 20000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

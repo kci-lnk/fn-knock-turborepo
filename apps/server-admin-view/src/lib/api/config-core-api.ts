@@ -40,9 +40,16 @@ type PanelLoginRequest = ApiContractComponents["schemas"]["PanelLoginBodyData"];
 type SyncRoutesResponse =
   ApiContractOperations["post_api_admin_sync_routes"]["responses"][200]["content"]["application/json"];
 
+export const PANEL_BOOTSTRAP_TIMEOUT_MS = 15_000;
+
 export const configCoreApi = {
   async getDockerAdminBootstrap(): Promise<DockerAdminBootstrapState> {
-    const res = await apiClient.get("/panel/bootstrap");
+    // The application cannot decide whether to render the panel or its login
+    // gate until this request completes. Bound it so a stalled CGI/backend
+    // renders the existing retry state instead of an indefinite blank page.
+    const res = await apiClient.get("/panel/bootstrap", {
+      timeout: PANEL_BOOTSTRAP_TIMEOUT_MS,
+    });
     return res.data.data;
   },
   async setDockerAdminPassword(

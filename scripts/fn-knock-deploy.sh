@@ -3,10 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+source "${ROOT_DIR}/scripts/version.sh"
 
 REMOTE_HOST="${FN_KNOCK_REMOTE_HOST:-root@192.168.31.98}"
 REMOTE_DIR="${FN_KNOCK_REMOTE_DIR:-/tmp/fn-knock-fpk}"
 APP_NAME="${FN_KNOCK_APP_NAME:-fn-knock}"
+APP_VERSION="$(fn_knock_app_version "${ROOT_DIR}")"
 LOCAL_APP_DIR="${FN_KNOCK_LOCAL_APP_DIR:-apps/fn-knock}"
 LOCAL_FPK_PATH="${FN_KNOCK_LOCAL_FPK_PATH:-apps/fn-knock/dist/fn-knock.fpk}"
 REMOTE_SOURCE_DIR="${REMOTE_DIR}/src"
@@ -259,6 +261,11 @@ rm -rf "${build_dir}"
 mkdir -p "${build_dir}"
 rsync -a --delete "${source_dir}/" "${build_dir}/"
 
+# Never ship Finder/AppleDouble metadata that may exist in a developer's
+# working copy. Besides being noise, fnpack would otherwise place it inside
+# app.tgz where it cannot be removed after installation.
+find "${build_dir}" -type f \( -name '.DS_Store' -o -name '._*' \) -delete
+
 # fnpack wraps app/ in a gzip archive, so gzip sidecars barely compress again.
 # Retain Brotli sidecars plus the original files for transparent fallback.
 find \
@@ -328,6 +335,15 @@ verify_fpk_payload() {
   fi
 
   normalized_listing="$(printf '%s\n' "${app_listing}" | sed 's#^\./##')"
+  if printf '%s\n' "${normalized_listing}" | grep -Eq '(^|/)\.DS_Store$|(^|/)\._'; then
+    echo "ERROR: FPK ${fpk_path} contains macOS metadata files" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "${normalized_listing}" | \
+    grep -Eq "^ui/www/assets/v${APP_VERSION//./\\.}/[^/]+$"; then
+    echo "ERROR: FPK ${fpk_path} is missing the versioned admin asset namespace for ${APP_VERSION}" >&2
+    exit 1
+  fi
   if ! printf '%s\n' "${normalized_listing}" | grep -Fxq "server/${keep_bin}"; then
     echo "ERROR: FPK ${fpk_path} is missing expected gateway binary: ${keep_bin}" >&2
     exit 1
@@ -384,7 +400,10 @@ verify_fpk_payload() {
 run_remote_pack() {
   log "Step 2/4: Upload app sources to remote fnpack directory"
   ssh "${REMOTE_HOST}" "mkdir -p '${REMOTE_DIR}' '${REMOTE_SOURCE_DIR}'"
-  rsync -az --delete "${LOCAL_APP_DIR}/" "${REMOTE_HOST}:${REMOTE_SOURCE_DIR}/"
+  rsync -az --delete --delete-excluded \
+    --exclude '.DS_Store' \
+    --exclude '._*' \
+    "${LOCAL_APP_DIR}/" "${REMOTE_HOST}:${REMOTE_SOURCE_DIR}/"
 
   if fpk_arch_enabled "amd64"; then
     run_remote_pack_for_arch "amd64" "${REMOTE_BUILD_AMD64_DIR}" "${REMOTE_FPK_AMD64_PATH}"

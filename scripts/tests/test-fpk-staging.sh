@@ -52,7 +52,7 @@ expect_failure() {
 mkdir -p \
   "${SOURCE_DIR}/cmd" \
   "${SOURCE_DIR}/app/ui" \
-  "${RUNTIME_DIR}/ui/www" \
+  "${RUNTIME_DIR}/ui/www/assets/v${VERSION}" \
   "${RUNTIME_DIR}/server-auth-view/dist" \
   "${RUNTIME_DIR}/server/server-admin/resources" \
   "${RUNTIME_DIR}/server" \
@@ -61,6 +61,7 @@ printf 'appname=fn-knock\nversion=%s\nplatform=x86\n' "${VERSION}" > "${SOURCE_D
 printf '#!/bin/sh\nexit 0\n' > "${SOURCE_DIR}/cmd/main"
 printf '#!/bin/sh\nexit 0\n' > "${SOURCE_DIR}/app/ui/index.cgi"
 printf '<html>admin</html>\n' > "${RUNTIME_DIR}/ui/www/index.html"
+printf 'entry\n' > "${RUNTIME_DIR}/ui/www/assets/v${VERSION}/entry.js"
 printf 'admin-gzip\n' > "${RUNTIME_DIR}/ui/www/index.html.gz"
 printf 'admin-brotli\n' > "${RUNTIME_DIR}/ui/www/index.html.br"
 printf '<html>auth</html>\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html"
@@ -68,6 +69,7 @@ printf 'auth-gzip\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html.gz"
 printf 'auth-brotli\n' > "${RUNTIME_DIR}/server-auth-view/dist/index.html.br"
 printf 'fixture\n' > "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip"
 chmod 755 "${SOURCE_DIR}/cmd/main" "${SOURCE_DIR}/app/ui/index.cgi"
+printf 'finder metadata\n' > "${SOURCE_DIR}/app/.DS_Store"
 
 make_elf "${RUNTIME_DIR}/server/go-reauth-proxy-linux-amd64" amd64
 make_elf "${RUNTIME_DIR}/server/go-reauth-proxy-linux-arm64" arm64
@@ -119,6 +121,9 @@ printf '%s\n' "${payload_listing}" | grep -Eq '(^|/)server-auth-view/dist/index\
   fail "amd64 FPK is missing the auth Brotli sidecar"
 if printf '%s\n' "${payload_listing}" | grep -Eq '\.gz$'; then
   fail "FPK must omit redundant gzip web sidecars"
+fi
+if printf '%s\n' "${payload_listing}" | grep -Eq '(^|/)\.DS_Store$|(^|/)\._'; then
+  fail "FPK must omit macOS metadata files"
 fi
 
 expect_failure "unexpected FPK platform" run_fpk_wrong_platform

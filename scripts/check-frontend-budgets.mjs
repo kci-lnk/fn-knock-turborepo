@@ -5,6 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const { version: appVersion } = JSON.parse(
+  readFileSync(path.join(root, "version.json"), "utf8"),
+);
 const compressibleExtensions = new Set([
   ".css",
   ".html",
@@ -26,6 +29,7 @@ const apps = [
       {
         name: "Dashboard+zh-CN",
         limit: 260 * 1024,
+        fileLimit: 32,
         sources: [
           "/src/views/Dashboard.vue",
           "/messages/scopes/admin/zh-CN.ts",
@@ -97,6 +101,13 @@ for (const app of apps) {
   const entryKey = entries.find(([, record]) => record.isEntry)?.[0];
   if (!entryKey) fail(`${app.name} manifest has no entry chunk`);
   if (app.name === "admin") {
+    const entryFile = String(manifest[entryKey].file ?? "");
+    if (!entryFile.startsWith(`assets/v${appVersion}/`)) {
+      console.error(
+        `[frontend-budget] admin entry is outside the versioned asset namespace: ${entryFile}`,
+      );
+      failed = true;
+    }
     const entryImports = manifest[entryKey].imports?.length ?? 0;
     if (entryImports > MAX_ADMIN_ENTRY_IMPORTS) {
       console.error(
@@ -210,6 +221,12 @@ for (const app of apps) {
       `[frontend-budget] ${app.name}/${scenario.name}: ${(rawBytes / 1024).toFixed(1)} KiB raw, ${(gzipBytes / 1024).toFixed(1)} KiB gzip, ${(brotliBytes / 1024).toFixed(1)} KiB br / ${(scenario.limit / 1024).toFixed(0)} KiB (${files.size} files)`,
     );
     if (brotliBytes > scenario.limit) failed = true;
+    if (scenario.fileLimit && files.size > scenario.fileLimit) {
+      console.error(
+        `[frontend-budget] ${app.name}/${scenario.name}: ${files.size} files (limit ${scenario.fileLimit})`,
+      );
+      failed = true;
+    }
   }
 }
 

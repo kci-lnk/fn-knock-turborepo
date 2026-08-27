@@ -104,11 +104,16 @@ export const useDragScroll = (
     if (!el || event.button !== 0 || event.pointerType !== "mouse") return;
 
     // Some Android/Huawei WebViews have reported touch-originated pointer
-    // events as `mouse`. Only enable mouse drag scrolling when the environment
-    // also exposes a fine, hover-capable primary pointer, and reject events
-    // that still carry touch source/contact information. Otherwise a small
-    // finger movement can suppress the first click and make every item appear
-    // to require a second tap.
+    // events as `mouse`, and a few builds also incorrectly match the fine
+    // pointer media query. A non-zero maxTouchPoints is the most stable signal
+    // available there, so prefer native touch panning whenever it is present.
+    // Losing optional mouse drag on a hybrid device is safer than swallowing
+    // the first activation tap.
+    if (window.navigator.maxTouchPoints > 0) return;
+
+    // Only enable mouse drag scrolling when the environment also exposes a
+    // fine, hover-capable primary pointer, and reject events that still carry
+    // touch source/contact information.
     const pointerQuery = window.matchMedia?.(
       "(hover: hover) and (pointer: fine)",
     );

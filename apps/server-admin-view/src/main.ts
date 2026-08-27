@@ -24,6 +24,7 @@ const bootstrap = async () => {
   app.use(i18n);
 
   app.mount("#app");
+  document.documentElement.setAttribute("data-fn-knock-mounted", "true");
 };
 
 const renderBootstrapFailure = (error: unknown) => {

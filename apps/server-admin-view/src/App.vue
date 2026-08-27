@@ -138,6 +138,20 @@ watch(
     @submit="handleDockerAdminSubmit"
     @retry="handleDockerAdminRetry"
   />
+  <main
+    v-else
+    class="grid min-h-dvh place-items-center bg-background px-6 text-foreground"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="flex flex-col items-center gap-3 text-center">
+      <span
+        class="h-8 w-8 animate-spin rounded-full border-2 border-muted border-b-primary"
+        aria-hidden="true"
+      ></span>
+      <p class="text-sm text-muted-foreground">fn-knock</p>
+    </div>
+  </main>
   <Toaster
     position="top-center"
     :duration="2000"

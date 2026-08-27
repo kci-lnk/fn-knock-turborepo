@@ -91,6 +91,13 @@ validate_fpk() {
   if [ "$(printf '%s\n' "${listing}" | grep -Ec '^server/go-reauth-proxy-linux-' || true)" -ne 1 ]; then
     fail "FPK contains gateways for more than one architecture"
   fi
+  if printf '%s\n' "${listing}" | grep -Eq '(^|/)\.DS_Store$|(^|/)\._'; then
+    fail "FPK contains macOS metadata files"
+  fi
+  if ! printf '%s\n' "${listing}" | \
+    grep -Eq "^ui/www/assets/v${VERSION//./\\.}/[^/]+$"; then
+    fail "FPK is missing the versioned admin asset namespace for ${VERSION}"
+  fi
 
   gateway="${inspect_dir}/server/go-reauth-proxy-linux-${arch}"
   validate_elf_arch "${inspect_dir}/server/server-admin-rs" "${arch}"
@@ -109,6 +116,8 @@ build_arch() {
   rsync -a \
     --exclude dist \
     --exclude '*.fpk' \
+    --exclude '.DS_Store' \
+    --exclude '._*' \
     --exclude 'app/ui/www' \
     --exclude 'app/server-auth-view/dist' \
     --exclude 'app/server/server-admin' \

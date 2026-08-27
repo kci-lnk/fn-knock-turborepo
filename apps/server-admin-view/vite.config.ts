@@ -2,8 +2,13 @@ import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { readFileSync } from "node:fs";
 
 const isFpkLiteBuild = process.env.FN_KNOCK_FRONTEND_TARGET === "fpk-lite";
+const { version: appVersion } = JSON.parse(
+  readFileSync(path.resolve(__dirname, "../../version.json"), "utf8"),
+) as { version: string };
+const versionedAssetsDir = `assets/v${appVersion}`;
 
 const createChunkMatcher = (patterns: string[]) => (id: string) =>
   patterns.some((pattern) => id.includes(pattern));
@@ -14,6 +19,31 @@ const isFrameworkChunk = createChunkMatcher([
   "node_modules/vue-router/",
   "node_modules/pinia/",
   "node_modules/@vueuse/",
+]);
+
+const isInteractionChunk = createChunkMatcher([
+  "node_modules/reka-ui/dist/Collection/",
+  "node_modules/reka-ui/dist/Primitive/",
+  "node_modules/reka-ui/dist/RovingFocus/",
+  "node_modules/reka-ui/dist/Tabs/",
+  "node_modules/reka-ui/dist/shared/",
+]);
+
+const isDashboardCoreChunk = createChunkMatcher([
+  "packages/ui-vue/src/components/ui/alert/",
+  "packages/ui-vue/src/components/ui/card/",
+  "packages/ui-vue/src/components/ui/skeleton/",
+  "packages/ui-vue/src/components/ui/tabs/",
+  "packages/admin-shared/src/composables/createVisibilityPoller.ts",
+  "packages/admin-shared/src/composables/useAsyncAction.ts",
+  "packages/admin-shared/src/composables/useDateTimeDisplayState.ts",
+  "packages/admin-shared/src/composables/useDelayedLoading.ts",
+  "packages/admin-shared/src/utils/formatDateTimeSafe.ts",
+  "apps/server-admin-view/src/components/LiveStatusBadge.vue",
+  "apps/server-admin-view/src/composables/useTargetPolling.ts",
+  "apps/server-admin-view/src/lib/api/dashboard.ts",
+  "apps/server-admin-view/src/lib/api/polling.ts",
+  "apps/server-admin-view/src/lib/pollingLifecycle.ts",
 ]);
 
 const createGhosttyExternalWasmPlugin = (): Plugin => ({
@@ -55,6 +85,8 @@ const isCriticalHtmlPreload = (dependency: string) => {
     name.startsWith("rolldown-runtime-") ||
     name.startsWith("preload-helper-") ||
     name.startsWith("framework-") ||
+    name.startsWith("dashboard-core-") ||
+    name.startsWith("interaction-vendor-") ||
     name.startsWith("config-") ||
     name.startsWith("dockerAdminAuth-")
   );
@@ -77,6 +109,11 @@ export default defineConfig({
     manifest: true,
     target: "chrome109",
     cssMinify: "esbuild",
+    // fnOS WebViews can retain an immutable module response across an FPK
+    // replacement. Namespacing every generated asset by the package version
+    // guarantees that an upgrade cannot reuse a representation from an older
+    // installation, even when an individual dependency chunk is unchanged.
+    assetsDir: versionedAssetsDir,
     modulePreload: {
       resolveDependencies(_filename, dependencies, context) {
         if (context.hostType !== "html") return dependencies;
@@ -87,6 +124,11 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (isFrameworkChunk(id)) return "framework";
+          // A module request crosses the fnOS CGI boundary and starts a local
+          // curl process. Keep interaction primitives together instead of
+          // emitting many sub-kilobyte chunks for the first dashboard render.
+          if (isInteractionChunk(id)) return "interaction-vendor";
+          if (isDashboardCoreChunk(id)) return "dashboard-core";
         },
       },
     },

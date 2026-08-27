@@ -252,6 +252,17 @@ describe("useDragScroll", () => {
     expect(windowListeners["pointermove"]).toBeUndefined();
   });
 
+  it("ignores misclassified mouse events when the WebView reports touch support", () => {
+    vi.spyOn(window.navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+
+    onPointerDown(downEvent(100));
+
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
   it("ignores WebView mouse events that originated from touch", () => {
     const el = createElement();
     const elRef = ref<HTMLElement | null>(el);

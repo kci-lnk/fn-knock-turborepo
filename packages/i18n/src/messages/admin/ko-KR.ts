@@ -1,6 +1,61 @@
 import { zhCNAdmin } from "./zh-CN";
 
 export const koKRAdmin = {
+  trace: {
+    label: "Trace ID",
+    title: "전체 경로 추적",
+    description:
+      "하나의 Trace ID로 요청, WAF, 시스템 이벤트 및 알림 전송 경로를 확인합니다.",
+    lookup: "Trace ID 조회",
+    lookupTitle: "Trace ID 조회",
+    lookupDescription:
+      "응답 헤더, 로그 또는 알림에 표시된 전체 Trace ID를 붙여 넣으세요.",
+    inputPlaceholder: "trc_00000000-0000-4000-8000-000000000000",
+    search: "조회",
+    invalid: "유효한 fn-knock Trace ID를 입력하세요.",
+    copy: "Trace ID 복사",
+    copied: "Trace ID를 복사했습니다",
+    open: "전체 경로 추적 열기",
+    back: "뒤로",
+    loadFailed: "추적 조회 실패",
+    loadFailedDescription:
+      "추적 데이터를 불러올 수 없습니다. 잠시 후 다시 조회하세요.",
+    partialTitle: "일부 데이터 소스를 사용할 수 없음",
+    partialDescription:
+      "{sources}을(를) 사용할 수 없습니다. 이미 가져온 내용은 계속 볼 수 있습니다.",
+    notFound: "Trace ID를 찾을 수 없음",
+    missing:
+      "기록되지 않았거나 만료되었거나 해당 기능이 비활성화되어 있습니다.",
+    legacyRecord: "Trace ID가 없는 이전 기록",
+    status: {
+      found: "찾음",
+      not_found: "찾을 수 없음",
+      unavailable: "사용 불가",
+    },
+    sources: {
+      gateway_logs: "요청 로그",
+      waf_logs: "WAF 로그",
+      system_events: "시스템 이벤트",
+      notifications: "알림 기록",
+    },
+    timeline: {
+      title: "추적 타임라인",
+      empty: "표시할 추적 노드가 없습니다.",
+      request: "게이트웨이에 요청 유입",
+      waf: "WAF 판정",
+      event: "시스템 이벤트",
+      trigger: "알림 트리거",
+      delivery: "채널 전송",
+    },
+    sections: {
+      request: "요청 상세",
+      waf: "WAF 상세",
+      events: "이벤트 상세",
+      notifications: "알림 상세",
+      triggers: "알림 트리거",
+      deliveries: "알림 전송",
+    },
+  },
   tunnelSupervisor: {
     states: {
       stopped: "중지됨",
@@ -3789,8 +3844,7 @@ export const koKRAdmin = {
     targetOptimizationLoading: "사용 가능한 호스트 주소를 검색하는 중...",
     targetOptimizationNoCandidates:
       "최적화에 사용할 수 있는 대상 주소 후보가 없습니다.",
-    targetOptimizationNoMappings:
-      "이 목적지로 변환할 수 있는 매핑이 없습니다.",
+    targetOptimizationNoMappings: "이 목적지로 변환할 수 있는 매핑이 없습니다.",
     targetOptimizationPreview: "변경 미리보기",
     targetOptimizationSelected: "매핑 {selected}/{total}개 선택됨",
     targetOptimizationApply: "최적화 적용",

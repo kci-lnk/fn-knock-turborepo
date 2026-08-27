@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { Ban, Eye, ShieldAlert, ShieldCheck, ShieldX, Unlock } from "lucide-vue-next";
+import {
+  Ban,
+  Eye,
+  Route,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
+  Unlock,
+} from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { Button } from "@/components/ui/button";
@@ -71,7 +79,9 @@ const authCredentialLabel = (entry: GatewayRequestLogRowProps["entry"]) =>
               >
                 {{ entry.method || "-" }}
               </span>
-              <span class="min-w-0 flex-1 truncate">{{ entry.host || "-" }}</span>
+              <span class="min-w-0 flex-1 truncate">{{
+                entry.host || "-"
+              }}</span>
             </div>
           </div>
         </div>
@@ -184,10 +194,18 @@ const authCredentialLabel = (entry: GatewayRequestLogRowProps["entry"]) =>
     >
       {{ formatDuration(entry.duration_ms) }}
     </TableCell>
-    <TableCell
-      class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
-    >
+    <TableCell class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right">
       <div class="flex justify-end gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 text-muted-foreground hover:text-foreground"
+          :aria-label="t('admin.trace.open')"
+          :disabled="!entry.trace_id && !entry.waf_trace_id"
+          @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
+        >
+          <Route class="h-4 w-4" />
+        </Button>
         <div
           class="opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         >

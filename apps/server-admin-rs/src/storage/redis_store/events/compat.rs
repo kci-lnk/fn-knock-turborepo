@@ -7,7 +7,7 @@ pub(in crate::storage::redis_store) fn system_event_data_key(id: &str) -> String
 pub(in crate::storage::redis_store) fn system_event_stream_id_key(id: &str) -> String {
     format!("{EVENTS_STREAM_ID_PREFIX}{id}")
 }
-pub(in crate::storage::redis_store) fn system_event_matches_filters(
+pub(crate) fn system_event_matches_filters(
     event: &Value,
     search: &str,
     event_type: Option<&str>,
@@ -30,7 +30,15 @@ pub(in crate::storage::redis_store) fn system_event_matches_filters(
     }
 
     let mut haystack = String::new();
-    for key in ["id", "type", "source", "level", "happened_at", "dedupe_key"] {
+    for key in [
+        "id",
+        "trace_id",
+        "type",
+        "source",
+        "level",
+        "happened_at",
+        "dedupe_key",
+    ] {
         if let Some(value) = event.get(key).and_then(Value::as_str) {
             haystack.push_str(value);
             haystack.push(' ');

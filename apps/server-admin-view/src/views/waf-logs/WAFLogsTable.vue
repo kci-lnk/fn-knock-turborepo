@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { Ban, Eye, Unlock } from "lucide-vue-next";
+import { Ban, Eye, Route, Unlock } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -205,6 +205,13 @@ const { locale, t } = useI18n();
             class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
           >
             <div class="flex justify-end gap-1">
+              <RouterLink
+                :to="`/traces/${encodeURIComponent(entry.trace_id)}`"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                :aria-label="t('admin.trace.open')"
+              >
+                <Route class="h-4 w-4" />
+              </RouterLink>
               <div
                 class="opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               >

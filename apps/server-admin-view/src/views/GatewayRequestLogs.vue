@@ -18,6 +18,7 @@ import {
 } from "./gateway-request-logs/model";
 import { useGatewayLogIpSelection } from "./gateway-request-logs/useGatewayLogIpSelection";
 import { useGatewayRequestLogsResource } from "./gateway-request-logs/useGatewayRequestLogsResource";
+import TraceIdLink from "@/components/TraceIdLink.vue";
 
 const router = useRouter();
 const { t, locale } = useI18n();
@@ -69,7 +70,7 @@ const viewDetails = (entry: GatewayLogEntry) => {
 };
 const goToWAFTrace = (traceId?: string) => {
   if (!traceId) return;
-  router.push({ path: "/waf-logs", query: { trace_id: traceId } });
+  router.push(`/traces/${encodeURIComponent(traceId)}`);
 };
 const getEntrySelectionKey = (entry: GatewayLogEntry, index: number) =>
   buildGatewayLogSelectionKey(entry, index, currentCursor.value);
@@ -231,7 +232,10 @@ const detailCopyText = computed(() =>
       close-variant="default"
       :copy-text="detailCopyText"
     >
-      <div v-if="activeEntry">
+      <div v-if="activeEntry" class="space-y-4">
+        <TraceIdLink
+          :trace-id="activeEntry.trace_id || activeEntry.waf_trace_id"
+        />
         <DetailFieldsGrid :items="detailItems" />
       </div>
     </DetailDialog>

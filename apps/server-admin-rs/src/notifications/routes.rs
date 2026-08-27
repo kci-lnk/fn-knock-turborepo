@@ -163,6 +163,7 @@ struct PageQuery {
     provider_id: Option<String>,
     trigger_id: Option<String>,
     status: Option<String>,
+    trace_id: Option<String>,
 }
 
 pub fn notification_routes() -> Router<AppState> {
@@ -468,6 +469,14 @@ async fn delete_rule(State(state): State<AppState>, Path(id): Path<String>) -> R
 
 #[utoipa::path(get, path = "/api/admin/notifications/triggers", tag = "notifications", operation_id = "get_api_admin_notifications_triggers", responses((status = 200, description = "Notification trigger history")))]
 async fn list_triggers(State(state): State<AppState>, Query(query): Query<PageQuery>) -> Response {
+    let trace_id = query
+        .trace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if trace_id.is_some_and(|value| !crate::trace_id::is_valid_trace_id(value)) {
+        return response::error(StatusCode::BAD_REQUEST, "invalid trace_id");
+    }
     let safe_status = query
         .status
         .as_deref()
@@ -482,6 +491,7 @@ async fn list_triggers(State(state): State<AppState>, Query(query): Query<PageQu
         |item| {
             matches_optional_string(item, "rule_id", query.rule_id.as_deref())
                 && matches_optional_string(item, "status", safe_status)
+                && matches_optional_trace_id(item, trace_id)
         },
     )
     .await
@@ -498,6 +508,14 @@ async fn list_deliveries(
     State(state): State<AppState>,
     Query(query): Query<PageQuery>,
 ) -> Response {
+    let trace_id = query
+        .trace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if trace_id.is_some_and(|value| !crate::trace_id::is_valid_trace_id(value)) {
+        return response::error(StatusCode::BAD_REQUEST, "invalid trace_id");
+    }
     let safe_status = query
         .status
         .as_deref()
@@ -514,6 +532,7 @@ async fn list_deliveries(
                 && matches_optional_string(item, "provider_id", query.provider_id.as_deref())
                 && matches_optional_string(item, "trigger_id", query.trigger_id.as_deref())
                 && matches_optional_string(item, "status", safe_status)
+                && matches_optional_trace_id(item, trace_id)
         },
     )
     .await

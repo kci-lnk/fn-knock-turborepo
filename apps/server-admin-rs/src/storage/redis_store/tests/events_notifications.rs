@@ -147,6 +147,7 @@ async fn typed_system_events_backfill_and_mutations_stay_in_sync_with_legacy_key
     let store = Store::connect(&path).await.expect("open store");
     let event = json!({
         "id": "typed-event",
+        "trace_id": "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
         "type": "FN_EVENT_RUNTIME_STARTED",
         "source": "RUNTIME_MONITOR",
         "level": "INFO",
@@ -157,6 +158,13 @@ async fn typed_system_events_backfill_and_mutations_stay_in_sync_with_legacy_key
         .await
         .expect("append event to both stores");
     assert_eq!(store.typed.typed_events.count().await.unwrap(), 1);
+    assert_eq!(
+        store
+            .find_system_events_by_trace("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
+            .await
+            .unwrap(),
+        vec![event.clone()]
+    );
 
     drop(store);
     let reopened = Store::connect(&path).await.expect("reopen store");
@@ -857,11 +865,13 @@ async fn typed_notification_history_writes_are_atomic_and_rebuild_on_startup() {
     let store = Store::connect(&path).await.expect("open store");
     let trigger = json!({
         "id": "trigger-1",
+        "trace_id": "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
         "created_at": now_iso(),
         "status": "pending"
     });
     let delivery = json!({
         "id": "delivery-1",
+        "trace_id": "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
         "triggered_at": now_iso(),
         "status": "pending"
     });
@@ -906,6 +916,60 @@ async fn typed_notification_history_writes_are_atomic_and_rebuild_on_startup() {
     assert_eq!(
         store.load_notification_trigger("trigger-1").await.unwrap(),
         Some(trigger.clone())
+    );
+    assert_eq!(
+        store
+            .load_notification_history_by_trace(
+                "trigger",
+                "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
+            )
+            .await
+            .unwrap(),
+        vec![trigger.clone()]
+    );
+    assert_eq!(
+        store
+            .load_notification_history_by_trace(
+                "delivery",
+                "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
+            )
+            .await
+            .unwrap(),
+        vec![delivery.clone()]
+    );
+
+    let mut corrupted_trigger = trigger.clone();
+    corrupted_trigger["status"] = json!("corrupted-typed-shadow");
+    let connection = open_fixture_connection(&path);
+    connection
+        .execute(
+            "UPDATE notification_history_documents SET document_json = ?3 WHERE kind = ?1 AND id = ?2",
+            tokio_rusqlite::rusqlite::params![
+                "trigger",
+                "trigger-1",
+                corrupted_trigger.to_string()
+            ],
+        )
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        store
+            .load_notification_history_by_trace(
+                "trigger",
+                "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
+            )
+            .await
+            .unwrap(),
+        vec![trigger.clone()]
+    );
+    assert_eq!(
+        store
+            .typed
+            .typed_notifications
+            .load_history_by_trace("trigger", "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",)
+            .await
+            .unwrap(),
+        vec![trigger.clone()]
     );
 
     drop(store);

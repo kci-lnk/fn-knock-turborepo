@@ -552,6 +552,7 @@ message GatewayLogEntry {
   string bypass_policy_version = 53;
   string bypass_group_id = 54;
   string upstream_error_class = 55;
+  string trace_id = 56;
 }
 
 message GatewayLogDates {
@@ -584,6 +585,16 @@ message GatewayLogQueryResult {
   string next_cursor = 9;
   bool has_more = 10;
   repeated GatewayLogEntry items = 11;
+}
+
+message GatewayLogTraceRequest {
+  string trace_id = 1;
+}
+
+message GatewayLogTraceResult {
+  string trace_id = 1;
+  bool found = 2;
+  GatewayLogEntry entry = 3;
 }
 
 message GatewayLogDeleteResult {
@@ -1277,6 +1288,7 @@ service GatewayLogsService {
   rpc GetLoggingDirectory(google.protobuf.Empty) returns (StringValue);
   rpc GetLogDates(google.protobuf.Empty) returns (GatewayLogDates);
   rpc QueryLogEntries(GatewayLogQuery) returns (GatewayLogQueryResult);
+  rpc FindLogEntryByTraceId(GatewayLogTraceRequest) returns (GatewayLogTraceResult);
   rpc AnalyzeLogEntries(GatewayLogAnalyticsQuery) returns (GatewayLogAnalyticsResult);
   rpc DeleteLogDate(StringValue) returns (GatewayLogDeleteResult);
 }

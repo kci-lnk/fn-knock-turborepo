@@ -5,10 +5,12 @@ use serde_json::{Value, json};
 
 use super::{
     GoBackendClient, grpc_error, log_analytics_to_json, log_dates_to_json, log_delete_to_json,
-    log_query_to_json, logging_to_json, ok, parse_logging, status_value,
+    log_query_to_json, log_trace_to_json, logging_to_json, ok, parse_logging, status_value,
 };
 
-use crate::grpc_proto::{GatewayLogAnalyticsQuery, GatewayLogQuery, StringValue};
+use crate::grpc_proto::{
+    GatewayLogAnalyticsQuery, GatewayLogQuery, GatewayLogTraceRequest, StringValue,
+};
 
 #[allow(dead_code)]
 impl GoBackendClient {
@@ -67,6 +69,20 @@ impl GoBackendClient {
             Err(error) => grpc_error(error),
         };
         status_value("query_log_entries", result)
+    }
+
+    pub async fn find_log_entry_by_trace_id(&self, trace_id: &str) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client
+            .find_log_entry_by_trace_id(self.request(GatewayLogTraceRequest {
+                trace_id: trace_id.to_string(),
+            }))
+            .await
+        {
+            Ok(response) => ok(log_trace_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("find_log_entry_by_trace_id", result)
     }
 
     pub async fn analyze_log_entries(

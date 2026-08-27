@@ -1,6 +1,52 @@
 import { zhCNAdmin } from "./zh-CN";
 
 export const zhHantAdmin = {
+  trace: {
+    label: "Trace ID",
+    title: "全鏈路追蹤",
+    description: "使用統一 Trace ID 查看請求、WAF、系統事件與通知投遞鏈路。",
+    lookup: "Trace ID 查詢",
+    lookupTitle: "查詢 Trace ID",
+    lookupDescription: "貼上回應標頭、日誌或通知中顯示的完整 Trace ID。",
+    inputPlaceholder: "trc_00000000-0000-4000-8000-000000000000",
+    search: "查詢",
+    invalid: "請輸入有效的 fn-knock Trace ID。",
+    copy: "複製 Trace ID",
+    copied: "Trace ID 已複製",
+    open: "開啟全鏈路追蹤",
+    back: "返回",
+    loadFailed: "追蹤查詢失敗",
+    loadFailedDescription: "暫時無法載入追蹤資料，請稍後重新查詢。",
+    partialTitle: "部分資料來源無法使用",
+    partialDescription: "{sources} 暫時無法使用；其他已取得內容仍可查看。",
+    notFound: "找不到此 Trace ID",
+    missing: "未記錄、已過期或對應功能未啟用。",
+    legacyRecord: "舊記錄，無 Trace ID",
+    status: { found: "已找到", not_found: "找不到", unavailable: "無法使用" },
+    sources: {
+      gateway_logs: "請求日誌",
+      waf_logs: "WAF 日誌",
+      system_events: "系統事件",
+      notifications: "通知歷史",
+    },
+    timeline: {
+      title: "鏈路時間軸",
+      empty: "暫無可顯示的鏈路節點。",
+      request: "請求進入閘道",
+      waf: "WAF 判斷",
+      event: "系統事件",
+      trigger: "通知觸發",
+      delivery: "頻道投遞",
+    },
+    sections: {
+      request: "請求詳情",
+      waf: "WAF 詳情",
+      events: "事件詳情",
+      notifications: "通知詳情",
+      triggers: "通知觸發",
+      deliveries: "通知投遞",
+    },
+  },
   tunnelSupervisor: {
     states: {
       stopped: "已停止",
@@ -3482,8 +3528,7 @@ export const zhHantAdmin = {
     targetOptimizationDestinationPlaceholder: "選擇目的位址",
     targetOptimizationLoopbackOption: "{address}（本機回環）",
     targetOptimizationLanOption: "{address}（區域網路位址）",
-    targetOptimizationLoopbackToLanHint:
-      "僅顯示目前指向 127.0.0.1 的映射。",
+    targetOptimizationLoopbackToLanHint: "僅顯示目前指向 127.0.0.1 的映射。",
     targetOptimizationLanToLoopbackHint:
       "僅顯示目前指向偵測到的本機區域網路位址的映射。",
     targetOptimizationLoadFailed: "無法載入宿主機位址候選，請重試。",

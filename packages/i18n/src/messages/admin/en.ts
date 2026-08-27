@@ -1,4 +1,58 @@
 export const enAdmin = {
+  trace: {
+    label: "Trace ID",
+    title: "End-to-end trace",
+    description:
+      "Use one Trace ID to inspect the request, WAF, system-event, and notification path.",
+    lookup: "Trace ID lookup",
+    lookupTitle: "Look up a Trace ID",
+    lookupDescription:
+      "Paste the complete Trace ID shown in a response header, log, or notification.",
+    inputPlaceholder: "trc_00000000-0000-4000-8000-000000000000",
+    search: "Search",
+    invalid: "Enter a valid fn-knock Trace ID.",
+    copy: "Copy Trace ID",
+    copied: "Trace ID copied",
+    open: "Open end-to-end trace",
+    back: "Back",
+    loadFailed: "Trace lookup failed",
+    loadFailedDescription:
+      "Trace data could not be loaded. Try the lookup again shortly.",
+    partialTitle: "Some data sources are unavailable",
+    partialDescription:
+      "{sources} is unavailable; the data already retrieved remains visible.",
+    notFound: "Trace ID not found",
+    missing: "Not recorded, expired, or the corresponding feature is disabled.",
+    legacyRecord: "Legacy record without a Trace ID",
+    status: {
+      found: "Found",
+      not_found: "Not found",
+      unavailable: "Unavailable",
+    },
+    sources: {
+      gateway_logs: "Request logs",
+      waf_logs: "WAF logs",
+      system_events: "System events",
+      notifications: "Notification history",
+    },
+    timeline: {
+      title: "Trace timeline",
+      empty: "No trace nodes are available.",
+      request: "Request entered gateway",
+      waf: "WAF evaluation",
+      event: "System event",
+      trigger: "Notification triggered",
+      delivery: "Channel delivery",
+    },
+    sections: {
+      request: "Request details",
+      waf: "WAF details",
+      events: "Event details",
+      notifications: "Notification details",
+      triggers: "Notification triggers",
+      deliveries: "Notification deliveries",
+    },
+  },
   tunnelSupervisor: {
     states: {
       stopped: "Stopped",
@@ -3827,7 +3881,8 @@ export const enAdmin = {
     targetOptimizationPreview: "Rewrite preview",
     targetOptimizationSelected: "{selected}/{total} mappings selected",
     targetOptimizationApply: "Apply optimization",
-    targetOptimizationSaved: "Optimized target addresses for {count} subdomains",
+    targetOptimizationSaved:
+      "Optimized target addresses for {count} subdomains",
     addMapping: "Add mapping",
     syncing: "Syncing...",
     syncRoutes: "Sync routes",

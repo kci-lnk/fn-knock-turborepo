@@ -73,6 +73,8 @@ fn system_event_route_text(translator: &Translator, key: &str) -> String {
 
 #[derive(Deserialize)]
 struct InternalSystemEventBody {
+    #[serde(default)]
+    trace_id: Option<String>,
     #[serde(rename = "type")]
     event_type: String,
     source: String,
@@ -100,6 +102,7 @@ pub(crate) async fn publish_runtime_event(
     publish_system_event_body(
         state,
         InternalSystemEventBody {
+            trace_id: None,
             event_type: input.event_type.to_string(),
             source: "RUNTIME_MONITOR".to_string(),
             level: Some(input.level.to_string()),
@@ -119,6 +122,7 @@ struct EventListQuery {
     page: Option<String>,
     limit: Option<String>,
     search: Option<String>,
+    trace_id: Option<String>,
     #[serde(rename = "type")]
     event_type: Option<String>,
     level: Option<String>,
@@ -230,6 +234,7 @@ fn waf_blocked_body(event: &Value) -> Option<InternalSystemEventBody> {
     payload.insert("rule_ids".to_string(), Value::Array(rule_ids));
 
     Some(InternalSystemEventBody {
+        trace_id: Some(trace_id.to_string()),
         event_type: "FN_EVENT_WAF_BLOCKED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -257,6 +262,7 @@ pub async fn publish_ddns_update_completed_event(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_DDNS_UPDATE_COMPLETED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some(if success { "INFO" } else { "ERROR" }.to_string()),
@@ -280,6 +286,7 @@ pub async fn publish_panel_sync_event(
     publish_system_event_body(
         state,
         InternalSystemEventBody {
+            trace_id: None,
             event_type: if recovered {
                 "FN_EVENT_PANEL_SYNC_RECOVERED"
             } else {
@@ -316,6 +323,7 @@ pub async fn publish_wol_wake_completed_event(
     publish_system_event_body(
         state,
         InternalSystemEventBody {
+            trace_id: None,
             event_type: "FN_EVENT_WOL_WAKE_COMPLETED".to_string(),
             source: "SERVER_ADMIN".to_string(),
             level: Some(if success { "INFO" } else { "ERROR" }.to_string()),
@@ -342,6 +350,7 @@ pub async fn publish_wol_shutdown_completed_event(
     publish_system_event_body(
         state,
         InternalSystemEventBody {
+            trace_id: None,
             event_type: "FN_EVENT_WOL_SHUTDOWN_COMPLETED".to_string(),
             source: "SERVER_ADMIN".to_string(),
             level: Some(if success { "INFO" } else { "ERROR" }.to_string()),
@@ -432,6 +441,7 @@ fn app_update_available_body(
     }
 
     InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("INFO".to_string()),
@@ -459,6 +469,7 @@ fn auth_login_success_body(payload: Value) -> InternalSystemEventBody {
         .trim()
         .to_string();
     InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("INFO".to_string()),
@@ -491,6 +502,7 @@ fn auth_logout_body(payload: Value) -> InternalSystemEventBody {
         .trim()
         .to_string();
     InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_AUTH_LOGOUT".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("INFO".to_string()),
@@ -526,6 +538,7 @@ fn auth_login_failure_body(payload: Value) -> InternalSystemEventBody {
         .trim()
         .to_string();
     InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_AUTH_LOGIN_FAILURE".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -564,6 +577,7 @@ fn auth_session_ip_drift_body(payload: Value) -> InternalSystemEventBody {
         .trim()
         .to_string();
     InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_AUTH_SESSION_IP_DRIFT".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -668,6 +682,7 @@ fn tunnel_connectivity_body(event: TunnelConnectivityEvent<'_>) -> InternalSyste
     };
 
     InternalSystemEventBody {
+        trace_id: None,
         event_type: event_type.to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some(if connected { "INFO" } else { "ERROR" }.to_string()),
@@ -691,6 +706,7 @@ pub async fn publish_scanner_blocked_event(
         .trim()
         .to_string();
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_SECURITY_SCANNER_BLOCKED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -715,6 +731,7 @@ pub async fn publish_ssh_login_success_event(
         .trim()
         .to_string();
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_SSH_LOGIN_SUCCESS".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("INFO".to_string()),
@@ -742,6 +759,7 @@ pub async fn publish_ssh_login_failure_event(
         .trim()
         .to_string();
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_SSH_LOGIN_FAILURE".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -769,6 +787,7 @@ pub async fn publish_ssh_ip_blocked_event(
         .trim()
         .to_string();
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_SSH_IP_BLOCKED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some("WARN".to_string()),
@@ -801,6 +820,7 @@ pub async fn publish_resource_alert_event(
         _ => "FN_EVENT_SYSTEM_MEMORY_ALERT",
     };
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: event_type.to_string(),
         source: "SYSTEM_MONITOR".to_string(),
         level: Some(if recovered { "INFO" } else { "WARN" }.to_string()),
@@ -990,6 +1010,14 @@ async fn list_events(
     Query(query): Query<EventListQuery>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    let trace_id = query
+        .trace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if trace_id.is_some_and(|value| !crate::trace_id::is_valid_trace_id(value)) {
+        return response::error(StatusCode::BAD_REQUEST, "invalid trace_id");
+    }
     let event_type = match normalize_optional_filter(
         query.event_type,
         SYSTEM_EVENT_TYPES,
@@ -1030,19 +1058,55 @@ async fn list_events(
         }
     };
 
-    match state
-        .storage
-        .store
-        .list_system_events(
-            parse_positive_int(query.page.as_deref(), 1),
-            parse_positive_int(query.limit.as_deref(), 20).min(100),
-            query.search.as_deref().unwrap_or(""),
-            event_type.as_deref(),
-            level.as_deref(),
-            source.as_deref(),
-        )
-        .await
-    {
+    let page = parse_positive_int(query.page.as_deref(), 1);
+    let limit = parse_positive_int(query.limit.as_deref(), 20).min(100);
+    let result = if let Some(trace_id) = trace_id {
+        state
+            .storage
+            .store
+            .find_system_events_by_trace(trace_id)
+            .await
+            .map(|mut events| {
+                events.retain(|event| {
+                    crate::storage::store::system_event_matches_filters(
+                        event,
+                        query.search.as_deref().unwrap_or(""),
+                        event_type.as_deref(),
+                        level.as_deref(),
+                        source.as_deref(),
+                    )
+                });
+                events.sort_by(|left, right| {
+                    right
+                        .get("happened_at")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("happened_at").and_then(Value::as_str))
+                });
+                let total = events.len();
+                let start = ((page - 1) * limit) as usize;
+                let page_events = events
+                    .into_iter()
+                    .skip(start)
+                    .take(limit as usize)
+                    .collect::<Vec<_>>();
+                json!({ "events": page_events, "total": total })
+            })
+    } else {
+        state
+            .storage
+            .store
+            .list_system_events(
+                page,
+                limit,
+                query.search.as_deref().unwrap_or(""),
+                event_type.as_deref(),
+                level.as_deref(),
+                source.as_deref(),
+            )
+            .await
+    };
+
+    match result {
         Ok(mut result) => {
             if let Some(events) = result.get_mut("events").and_then(Value::as_array_mut) {
                 hydrate_system_event_ip_locations(&state, events).await;
@@ -1184,6 +1248,12 @@ fn build_event_envelope(
     event.insert(
         "id".to_string(),
         Value::String(format!("evt_{}", hex::encode(rand::random::<[u8; 12]>()))),
+    );
+    event.insert(
+        "trace_id".to_string(),
+        Value::String(crate::trace_id::normalize_or_generate(
+            body.trace_id.as_deref(),
+        )),
     );
     event.insert("type".to_string(), Value::String(body.event_type.clone()));
     event.insert("source".to_string(), Value::String(body.source));

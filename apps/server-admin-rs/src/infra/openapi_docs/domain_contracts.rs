@@ -748,6 +748,9 @@ struct BackupImportResultData {
     SystemEventClearData,
     SystemEventPublishBodyData,
     SystemEventPublishResultData,
+    TraceSourceStatusData,
+    TraceSourceStatusesData,
+    TraceLookupData,
     LoginBackoffData,
     LoginBackoffResetBodyData,
     LoginBackoffResetData,
@@ -5358,7 +5361,10 @@ fn query_parameters(contract: &DomainOperation) -> Vec<Value> {
         )],
         ("get", "/api/admin/waf/logs") => vec![
             query_parameter("date", json!({ "type": "string", "format": "date" })),
-            query_parameter("trace_id", json!({ "type": "string", "minLength": 1 })),
+            query_parameter(
+                "trace_id",
+                json!({ "type": "string", "pattern": crate::trace_id::TRACE_ID_PATTERN }),
+            ),
             query_parameter("search", json!({ "type": "string" })),
             query_parameter("host", json!({ "type": "string" })),
             query_parameter("client_ip", json!({ "type": "string" })),

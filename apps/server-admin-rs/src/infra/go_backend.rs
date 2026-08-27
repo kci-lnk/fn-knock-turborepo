@@ -2025,6 +2025,7 @@ fn log_dates_to_json(dates: crate::grpc_proto::GatewayLogDates) -> Value {
 
 fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
     let mut object = serde_json::Map::new();
+    object.insert("trace_id".to_string(), Value::String(entry.trace_id));
     object.insert("time".to_string(), Value::String(entry.time));
     object.insert("level".to_string(), Value::String(entry.level));
     object.insert("method".to_string(), Value::String(entry.method));
@@ -2226,6 +2227,14 @@ fn log_query_to_json(result: crate::grpc_proto::GatewayLogQueryResult) -> Value 
         "next_cursor": result.next_cursor,
         "has_more": result.has_more,
         "items": result.items.into_iter().map(log_entry_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn log_trace_to_json(result: crate::grpc_proto::GatewayLogTraceResult) -> Value {
+    json!({
+        "trace_id": result.trace_id,
+        "found": result.found,
+        "entry": result.entry.map(log_entry_to_json),
     })
 }
 

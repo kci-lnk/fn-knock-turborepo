@@ -276,12 +276,14 @@ pub(super) struct NotificationMessageData {
     dedupe_key: Option<String>,
     occurred_at: String,
     event_id: Option<String>,
+    trace_id: Option<String>,
     metadata: Option<Value>,
 }
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct NotificationTriggerData {
     id: String,
+    trace_id: Option<String>,
     rule_id: String,
     event_id: String,
     group_key: String,
@@ -301,6 +303,7 @@ pub(super) struct NotificationTriggerListData {
 #[derive(Serialize, ToSchema)]
 pub(super) struct NotificationDeliveryData {
     id: String,
+    trace_id: Option<String>,
     trigger_id: String,
     rule_id: String,
     target_id: String,

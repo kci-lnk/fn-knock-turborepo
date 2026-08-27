@@ -5,6 +5,13 @@ use super::{StorageResult, redis_compat::ConnectionManager, storage_error};
 
 const TYPED_EVENT_SCHEMA_VERSION: i64 = 1;
 const TYPED_EVENT_SCHEMA_NAME: &str = "typed_system_events";
+const TYPED_EVENT_TRACE_SCHEMA_VERSION: i64 = 2;
+const TYPED_EVENT_TRACE_SCHEMA_NAME: &str = "typed_system_event_trace_index";
+const TYPED_EVENT_TRACE_SCHEMA_SQL: &str = r#"
+ALTER TABLE system_event_documents ADD COLUMN trace_id TEXT;
+CREATE INDEX idx_system_event_documents_trace
+  ON system_event_documents(trace_id, happened_at_ms DESC, id DESC);
+"#;
 const TYPED_EVENT_SCHEMA_SQL: &str = r#"
 CREATE TABLE system_event_documents (
   id TEXT PRIMARY KEY,
@@ -92,6 +99,37 @@ impl TypedEventRepository {
                         )?;
                     }
                 }
+                let trace_checksum =
+                    crate::crypto_utils::sha256_hex_bytes(TYPED_EVENT_TRACE_SCHEMA_SQL);
+                let trace_applied = tx
+                    .query_row(
+                        "SELECT name, checksum FROM typed_event_schema_migrations WHERE version = ?1",
+                        [TYPED_EVENT_TRACE_SCHEMA_VERSION],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                    )
+                    .optional()?;
+                match trace_applied {
+                    Some((name, checksum))
+                        if name == TYPED_EVENT_TRACE_SCHEMA_NAME && checksum == trace_checksum => {}
+                    Some((name, _)) if name != TYPED_EVENT_TRACE_SCHEMA_NAME => {
+                        return Err(storage_error("typed system-event trace migration name mismatch"));
+                    }
+                    Some(_) => {
+                        return Err(storage_error("typed system-event trace migration checksum mismatch"));
+                    }
+                    None => {
+                        tx.execute_batch(TYPED_EVENT_TRACE_SCHEMA_SQL)?;
+                        tx.execute(
+                            "INSERT INTO typed_event_schema_migrations(version, name, checksum, applied_at_ms) VALUES (?1, ?2, ?3, ?4)",
+                            params![
+                                TYPED_EVENT_TRACE_SCHEMA_VERSION,
+                                TYPED_EVENT_TRACE_SCHEMA_NAME,
+                                trace_checksum,
+                                crate::time_utils::now_ms(),
+                            ],
+                        )?;
+                    }
+                }
                 tx.commit()?;
                 Ok(())
             })
@@ -106,21 +144,23 @@ impl TypedEventRepository {
         expires_at_ms: i64,
         stream_id: &str,
     ) -> StorageResult<()> {
-        let _: Value = serde_json::from_str(event_json)?;
+        let event: Value = serde_json::from_str(event_json)?;
+        let trace_id = crate::trace_id::event_trace_id(&event);
         if id.trim().is_empty() || stream_id.trim().is_empty() {
             return Err(storage_error(
                 "typed system event requires an id and stream id",
             ));
         }
         tx.execute(
-            "INSERT INTO system_event_documents(id, event_json, happened_at_ms, expires_at_ms, stream_id, updated_at_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "INSERT INTO system_event_documents(id, event_json, happened_at_ms, expires_at_ms, stream_id, updated_at_ms, trace_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(id) DO UPDATE SET
                event_json = excluded.event_json,
                happened_at_ms = excluded.happened_at_ms,
                expires_at_ms = excluded.expires_at_ms,
                stream_id = excluded.stream_id,
-               updated_at_ms = excluded.updated_at_ms",
+               updated_at_ms = excluded.updated_at_ms,
+               trace_id = excluded.trace_id",
             params![
                 id,
                 event_json,
@@ -128,6 +168,7 @@ impl TypedEventRepository {
                 expires_at_ms.max(0),
                 stream_id,
                 crate::time_utils::now_ms(),
+                trace_id,
             ],
         )?;
         Ok(())
@@ -159,12 +200,13 @@ impl TypedEventRepository {
         id: &str,
         event_json: &str,
     ) -> StorageResult<bool> {
-        let _: Value = serde_json::from_str(event_json)?;
+        let event: Value = serde_json::from_str(event_json)?;
+        let trace_id = crate::trace_id::event_trace_id(&event);
         let updated = tx.execute(
             "UPDATE system_event_documents
-             SET event_json = ?2, updated_at_ms = ?3
+             SET event_json = ?2, updated_at_ms = ?3, trace_id = ?4
              WHERE id = ?1",
-            params![id, event_json, crate::time_utils::now_ms()],
+            params![id, event_json, crate::time_utils::now_ms(), trace_id],
         )?;
         Ok(updated > 0)
     }
@@ -262,6 +304,28 @@ impl TypedEventRepository {
                         event,
                         happened_at_ms,
                     });
+                }
+                Ok(events)
+            })
+            .await
+    }
+
+    pub(crate) async fn load_by_trace(&self, trace_id: &str) -> StorageResult<Vec<Value>> {
+        let trace_id = trace_id.to_string();
+        self.manager
+            .call(move |conn| {
+                let mut statement = conn.prepare(
+                    "SELECT event_json FROM system_event_documents
+                     WHERE trace_id = ?1 AND expires_at_ms > ?2
+                     ORDER BY happened_at_ms ASC, id ASC",
+                )?;
+                let rows = statement
+                    .query_map(params![trace_id, crate::time_utils::now_ms()], |row| {
+                        row.get::<_, String>(0)
+                    })?;
+                let mut events = Vec::new();
+                for row in rows {
+                    events.push(serde_json::from_str(&row?)?);
                 }
                 Ok(events)
             })

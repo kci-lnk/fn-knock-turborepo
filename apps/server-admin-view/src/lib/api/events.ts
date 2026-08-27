@@ -75,6 +75,7 @@ export const EventCenterAPI = {
       type?: SystemEventType | "all";
       level?: SystemEventLevel | "all";
       source?: SystemEventSource | "all";
+      traceId?: string;
     },
     signal?: AbortSignal,
   ): Promise<GetEventsResponse> {
@@ -86,6 +87,7 @@ export const EventCenterAPI = {
       level: params.level && params.level !== "all" ? params.level : undefined,
       source:
         params.source && params.source !== "all" ? params.source : undefined,
+      trace_id: params.traceId?.trim() || undefined,
     } satisfies GetEventsQuery;
     const res = await apiClient.get("/events", {
       params: query,

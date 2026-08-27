@@ -1,6 +1,56 @@
 import { zhCNAdmin } from "./zh-CN";
 
 export const jaJPAdmin = {
+  trace: {
+    label: "Trace ID",
+    title: "エンドツーエンド追跡",
+    description:
+      "共通の Trace ID でリクエスト、WAF、システムイベント、通知配信を確認します。",
+    lookup: "Trace ID 検索",
+    lookupTitle: "Trace ID を検索",
+    lookupDescription:
+      "レスポンスヘッダー、ログ、通知に表示された完全な Trace ID を貼り付けます。",
+    inputPlaceholder: "trc_00000000-0000-4000-8000-000000000000",
+    search: "検索",
+    invalid: "有効な fn-knock Trace ID を入力してください。",
+    copy: "Trace ID をコピー",
+    copied: "Trace ID をコピーしました",
+    open: "全追跡を開く",
+    back: "戻る",
+    loadFailed: "追跡の検索に失敗しました",
+    loadFailedDescription:
+      "追跡データを読み込めません。しばらくしてから再検索してください。",
+    partialTitle: "一部のデータソースを利用できません",
+    partialDescription:
+      "{sources} は利用できません。取得済みの内容は引き続き表示されます。",
+    notFound: "Trace ID が見つかりません",
+    missing: "未記録、期限切れ、または対応する機能が無効です。",
+    legacyRecord: "Trace ID のない旧レコード",
+    status: { found: "検出済み", not_found: "未検出", unavailable: "利用不可" },
+    sources: {
+      gateway_logs: "リクエストログ",
+      waf_logs: "WAF ログ",
+      system_events: "システムイベント",
+      notifications: "通知履歴",
+    },
+    timeline: {
+      title: "追跡タイムライン",
+      empty: "表示できる追跡ノードがありません。",
+      request: "リクエストがゲートウェイに到着",
+      waf: "WAF 判定",
+      event: "システムイベント",
+      trigger: "通知トリガー",
+      delivery: "チャネル配信",
+    },
+    sections: {
+      request: "リクエスト詳細",
+      waf: "WAF 詳細",
+      events: "イベント詳細",
+      notifications: "通知詳細",
+      triggers: "通知トリガー",
+      deliveries: "通知配信",
+    },
+  },
   tunnelSupervisor: {
     states: {
       stopped: "停止",

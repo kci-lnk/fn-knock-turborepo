@@ -281,6 +281,49 @@ impl Store {
         }
     }
 
+    pub(crate) async fn load_notification_history_by_trace(
+        &self,
+        kind: &str,
+        trace_id: &str,
+    ) -> crate::storage::StorageResult<Vec<Value>> {
+        let (index_key, data_prefix) = match kind {
+            TRIGGER_KIND => (TRIGGERS_INDEX_KEY, TRIGGERS_DATA_PREFIX),
+            DELIVERY_KIND => (DELIVERIES_INDEX_KEY, DELIVERIES_DATA_PREFIX),
+            _ => {
+                return Err(crate::storage::storage_error(
+                    "invalid notification history kind",
+                ));
+            }
+        };
+        let trace_id = trace_id.trim();
+        let typed = self
+            .typed
+            .typed_notifications
+            .load_history_by_trace(kind, trace_id)
+            .await;
+        let legacy = self
+            .load_notification_records_legacy(index_key, data_prefix)
+            .await
+            .map(|records| {
+                records
+                    .into_iter()
+                    .filter(|record| crate::trace_id::record_trace_id(record) == Some(trace_id))
+                    .collect::<Vec<_>>()
+            });
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if same_notification_records(&typed, &legacy) => Ok(typed),
+            (Ok(_), Ok(legacy)) | (Err(_), Ok(legacy)) => {
+                self.rebuild_typed_notification_history_from_legacy()
+                    .await?;
+                Ok(legacy)
+            }
+            (Ok(typed), Err(_)) => Ok(typed),
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy notification trace reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
     pub(crate) async fn delete_notification_deliveries(
         &self,
         ids: &[String],
@@ -771,4 +814,23 @@ fn notification_history_score(kind: &str, value: &Value) -> i64 {
         .and_then(Value::as_str)
         .and_then(crate::time_utils::parse_iso_ms)
         .unwrap_or_else(crate::time_utils::now_ms)
+}
+
+fn same_notification_records(left: &[Value], right: &[Value]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut left = left.iter().collect::<Vec<_>>();
+    let mut right = right.iter().collect::<Vec<_>>();
+    left.sort_by(|left, right| {
+        left.get("id")
+            .and_then(Value::as_str)
+            .cmp(&right.get("id").and_then(Value::as_str))
+    });
+    right.sort_by(|left, right| {
+        left.get("id")
+            .and_then(Value::as_str)
+            .cmp(&right.get("id").and_then(Value::as_str))
+    });
+    left == right
 }

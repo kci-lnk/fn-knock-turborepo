@@ -73,6 +73,11 @@ const TAGS: &[TagDocumentation] = &[
         description: "查询、清理和维护管理端系统事件记录。",
     },
     TagDocumentation {
+        name: "traces",
+        title: "全链路追踪",
+        description: "按统一 Trace ID 聚合网关请求、WAF、系统事件和通知投递记录。",
+    },
+    TagDocumentation {
         name: "firewall",
         title: "防火墙",
         description: "执行防火墙规则清理、重置和相关运行时操作。",

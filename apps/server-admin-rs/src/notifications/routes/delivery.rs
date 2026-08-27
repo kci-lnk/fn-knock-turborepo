@@ -2,6 +2,7 @@ use super::*;
 
 pub(super) struct DeliveryBuildArgs {
     pub(super) id: String,
+    pub(super) trace_id: String,
     pub(super) trigger_id: String,
     pub(super) rule_id: String,
     pub(super) target_id: String,
@@ -21,6 +22,7 @@ pub(super) struct DeliveryBuildArgs {
 pub(super) fn build_delivery_value(args: DeliveryBuildArgs) -> Value {
     json!({
         "id": args.id,
+        "trace_id": args.trace_id,
         "trigger_id": args.trigger_id,
         "rule_id": args.rule_id,
         "target_id": args.target_id,

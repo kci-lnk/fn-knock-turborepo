@@ -137,6 +137,11 @@ const router = createRouter({
           component: () => import("../views/RequestAnalysis.vue"),
         },
         {
+          path: "traces/:trace_id",
+          name: "TraceDetails",
+          component: () => import("../views/TraceDetails.vue"),
+        },
+        {
           path: "request-logs",
           redirect: (to) => ({
             path: "/request-analysis",

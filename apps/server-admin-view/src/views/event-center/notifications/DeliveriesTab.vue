@@ -18,6 +18,7 @@ import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import { useNotificationDeliveries } from "./useNotificationDeliveries";
+import TraceIdLink from "@/components/TraceIdLink.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -203,6 +204,11 @@ const {
     :copy-text="detailCopyText"
   >
     <div v-if="activeDelivery" class="space-y-5">
+      <TraceIdLink
+        :trace-id="
+          activeDelivery.trace_id || activeDelivery.message_snapshot.trace_id
+        "
+      />
       <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-md border p-4">
           <div class="mb-2 text-sm font-medium">
@@ -281,8 +287,7 @@ const {
             </div>
             <pre
               class="max-h-[220px] overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap"
-              >{{ activeDelivery.message_snapshot.body_text }}</pre
-            >
+              >{{ activeDelivery.message_snapshot.body_text }}</pre>
           </div>
         </div>
       </div>
@@ -296,8 +301,7 @@ const {
             class="max-h-[220px] overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap"
             >{{
               JSON.stringify(activeDelivery.request_summary || {}, null, 2)
-            }}</pre
-          >
+            }}</pre>
         </div>
 
         <div class="rounded-md border p-4">
@@ -308,8 +312,7 @@ const {
             class="max-h-[220px] overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap"
             >{{
               JSON.stringify(activeDelivery.response_summary || {}, null, 2)
-            }}</pre
-          >
+            }}</pre>
         </div>
       </div>
     </div>

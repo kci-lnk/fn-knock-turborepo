@@ -94,6 +94,7 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_backoff = crate::backoff::backoff_routes().into_openapi();
     let typed_internal_events = crate::events::internal_system_event_routes().into_openapi();
     let typed_admin_events = crate::events::admin_event_routes().into_openapi();
+    let typed_traces = crate::traces::trace_routes().into_openapi();
     let typed_runtime_health =
         crate::runtime_health::routes::runtime_health_routes().into_openapi();
     let typed_general_blacklist =
@@ -564,7 +565,8 @@ pub(crate) fn build_openapi_document() -> Value {
         {"name":"status","in":"query","required":false,"schema":{"type":"string"}},
         {"name":"logged_in","in":"query","required":false,"schema":{"type":"string","enum":["true","false"]}},
         {"name":"credential","in":"query","required":false,"schema":{"type":"string"}},
-        {"name":"waf_status","in":"query","required":false,"schema":{"type":"string","enum":["has_waf","none"]}}
+        {"name":"waf_status","in":"query","required":false,"schema":{"type":"string","enum":["has_waf","none"]}},
+        {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","pattern":crate::trace_id::TRACE_ID_PATTERN}}
     ]);
     insert_typed_enveloped_operation(
         &mut paths,
@@ -1270,7 +1272,8 @@ pub(crate) fn build_openapi_document() -> Value {
         {"name":"rule_id","in":"query","required":false,"schema":{"type":"string"}},
         {"name":"provider_id","in":"query","required":false,"schema":{"type":"string"}},
         {"name":"trigger_id","in":"query","required":false,"schema":{"type":"string"}},
-        {"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["queued","sending","success","failed","gave_up","skipped"]}}
+        {"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["queued","sending","success","failed","gave_up","skipped"]}},
+        {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","pattern":crate::trace_id::TRACE_ID_PATTERN}}
     ]);
     insert_typed_enveloped_operation(
         &mut paths,
@@ -1294,7 +1297,8 @@ pub(crate) fn build_openapi_document() -> Value {
         {"name":"page","in":"query","required":false,"schema":{"oneOf":[{"type":"integer","minimum":1},{"type":"string","pattern":"^\\s*[+]?[1-9]\\d*"}],"default":1}},
         {"name":"limit","in":"query","required":false,"schema":{"oneOf":[{"type":"integer","minimum":1},{"type":"string","pattern":"^\\s*[+]?[1-9]\\d*"}],"default":20,"description":"Page size; positive values are capped at 100."}},
         {"name":"rule_id","in":"query","required":false,"schema":{"type":"string","minLength":1}},
-        {"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["created","fanout_done","partially_failed","completed"]}}
+        {"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["created","fanout_done","partially_failed","completed"]}},
+        {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","pattern":crate::trace_id::TRACE_ID_PATTERN}}
     ]);
     insert_typed_enveloped_operation(
         &mut paths,
@@ -1536,7 +1540,7 @@ pub(crate) fn build_openapi_document() -> Value {
     );
     let waf_log_parameters = json!([
         {"name":"date","in":"query","required":false,"schema":{"type":"string","format":"date"}},
-        {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","minLength":1}},
+        {"name":"trace_id","in":"query","required":false,"schema":{"type":"string","pattern":crate::trace_id::TRACE_ID_PATTERN}},
         {"name":"search","in":"query","required":false,"schema":{"type":"string"}},
         {"name":"host","in":"query","required":false,"schema":{"type":"string"}},
         {"name":"client_ip","in":"query","required":false,"schema":{"type":"string"}},
@@ -2518,11 +2522,36 @@ pub(crate) fn build_openapi_document() -> Value {
             { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1 } },
             { "name": "limit", "in": "query", "required": false, "schema": { "type": "string", "pattern": "^[1-9][0-9]*$" } },
             { "name": "search", "in": "query", "required": false, "schema": { "type": "string" } },
+            { "name": "trace_id", "in": "query", "required": false, "schema": { "type": "string", "pattern": crate::trace_id::TRACE_ID_PATTERN } },
             { "name": "type", "in": "query", "required": false, "schema": { "type": "string", "enum": crate::events::SYSTEM_EVENT_TYPES } },
             { "name": "level", "in": "query", "required": false, "schema": { "type": "string", "enum": crate::events::SYSTEM_EVENT_LEVELS } },
             { "name": "source", "in": "query", "required": false, "schema": { "type": "string", "enum": crate::events::SYSTEM_EVENT_SOURCES } }
         ])),
         None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_traces,
+        "/api/admin/traces/{trace_id}",
+        "get",
+        "TraceLookupData",
+        Some(json!([{
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+                "type": "string",
+                "pattern": crate::trace_id::TRACE_ID_PATTERN
+            }
+        }])),
+        None,
+    );
+    add_standard_error_response(
+        &mut paths,
+        "/api/admin/traces/{trace_id}",
+        "get",
+        "400",
+        "Invalid Trace ID",
     );
     insert_typed_empty_enveloped_operation(
         &mut paths,
@@ -4029,6 +4058,35 @@ fn add_panel_login_rate_limit_response(paths: &mut Map<String, Value>) {
     );
 }
 
+fn add_standard_error_response(
+    paths: &mut Map<String, Value>,
+    path: &str,
+    method: &str,
+    status: &str,
+    description: &str,
+) {
+    let Some(responses) = paths
+        .get_mut(path)
+        .and_then(Value::as_object_mut)
+        .and_then(|item| item.get_mut(method))
+        .and_then(|operation| operation.get_mut("responses"))
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    responses.insert(
+        status.to_string(),
+        json!({
+            "description": description,
+            "content": {
+                "application/json": {
+                    "schema": { "$ref": "#/components/schemas/ApiErrorEnvelope" }
+                }
+            }
+        }),
+    );
+}
+
 fn insert_typed_message_operation(
     paths: &mut Map<String, Value>,
     document: &utoipa::openapi::OpenApi,
@@ -4719,7 +4777,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 441);
+        assert_eq!(operations, 442);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5402,7 +5460,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 441);
+        assert_eq!(operations.len(), 442);
         assert!(
             operations
                 .iter()

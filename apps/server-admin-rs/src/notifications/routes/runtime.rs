@@ -126,6 +126,7 @@ pub(super) async fn fanout_notification_rule(
 ) -> anyhow::Result<()> {
     let rule_id = rule.get("id").and_then(Value::as_str).unwrap_or_default();
     let event_id = event.get("id").and_then(Value::as_str).unwrap_or_default();
+    let trace_id = crate::trace_id::event_trace_id(event).unwrap_or_default();
     if rule_id.is_empty() || event_id.is_empty() {
         return Ok(());
     }
@@ -182,6 +183,7 @@ pub(super) async fn fanout_notification_rule(
         let now = time_utils::now_iso();
         let draft = json!({
             "id": trigger_id,
+            "trace_id": trace_id,
             "rule_id": rule_id,
             "event_id": event_id,
             "group_key": group_key,
@@ -275,6 +277,10 @@ pub(super) async fn fanout_trigger_targets(
         .get("event_id")
         .and_then(Value::as_str)
         .unwrap_or("");
+    let trace_id = trigger
+        .get("trace_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let rule_id = trigger.get("rule_id").and_then(Value::as_str).unwrap_or("");
 
     for target in targets {
@@ -312,6 +318,7 @@ pub(super) async fn fanout_trigger_targets(
             };
             let skipped = build_delivery_value(DeliveryBuildArgs {
                 id: delivery_id,
+                trace_id: trace_id.to_string(),
                 trigger_id: trigger_id.to_string(),
                 rule_id: rule_id.to_string(),
                 target_id: target_id.to_string(),
@@ -344,6 +351,7 @@ pub(super) async fn fanout_trigger_targets(
         let provider = provider.unwrap_or_else(|| json!({}));
         let delivery = build_delivery_value(DeliveryBuildArgs {
             id: delivery_id.clone(),
+            trace_id: trace_id.to_string(),
             trigger_id: trigger_id.to_string(),
             rule_id: rule_id.to_string(),
             target_id: target_id.to_string(),

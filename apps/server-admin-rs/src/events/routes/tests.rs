@@ -84,6 +84,7 @@ fn system_event_ip_field_mapping_matches_node_hydration() {
 #[test]
 fn builds_event_envelope_with_node_manager_nullish_semantics() {
     let body = InternalSystemEventBody {
+        trace_id: Some("client-forged".to_string()),
         event_type: "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some(String::new()),
@@ -101,11 +102,15 @@ fn builds_event_envelope_with_node_manager_nullish_semantics() {
     assert_eq!(event.get("happened_at"), Some(&json!("   ")));
     assert_eq!(event.get("dedupe_key"), Some(&json!("  dedupe  ")));
     assert_eq!(event.get("tags"), Some(&json!(["", " tag "])));
+    let trace_id = event.get("trace_id").and_then(Value::as_str).unwrap();
+    assert!(trace_id.starts_with("trc_"));
+    assert_ne!(trace_id, "client-forged");
 }
 
 #[test]
 fn applies_internal_route_truthiness_before_manager_publish() {
     let mut body = InternalSystemEventBody {
+        trace_id: Some("trc_3f93d40a-89ea-4dbe-a04f-67692778d973".to_string()),
         event_type: "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED".to_string(),
         source: "SERVER_ADMIN".to_string(),
         level: Some(String::new()),
@@ -119,6 +124,10 @@ fn applies_internal_route_truthiness_before_manager_publish() {
 
     apply_internal_event_route_truthiness(&mut body);
     let event = build_event_envelope(body, None, None);
+    assert_eq!(
+        event.get("trace_id"),
+        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
+    );
 
     assert_eq!(event.get("level"), Some(&json!("WARN")));
     assert_ne!(event.get("happened_at"), Some(&json!("")));
@@ -220,6 +229,7 @@ fn dedupe_ttl_seconds_matches_node_number_ceiling() {
 #[test]
 fn gateway_visibility_event_enforces_global_minute_dedupe() {
     let body = InternalSystemEventBody {
+        trace_id: None,
         event_type: "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED".to_string(),
         source: "GO_REAUTH_PROXY".to_string(),
         level: Some("WARN".to_string()),

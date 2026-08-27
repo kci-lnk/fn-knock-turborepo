@@ -73,6 +73,7 @@ use core::node_compat::{js_finite_number, js_string};
 pub(crate) use core::node_locale_compare_ordering;
 use core::runtime_keys::{GATEWAY_TRUSTED_CLIENT_IPS_RUNTIME, REVERSE_PROXY_TRUSTED_IPS_RUNTIME};
 pub(crate) use core::{LdapBindingClaim, OidcBindingClaim, OwnedBindingDelete, OwnedBindingUpdate};
+pub(crate) use events::compat::system_event_matches_filters;
 pub use facade::Store;
 pub(crate) use facade::{
     CONFIG_GENERATION_MARKER, referenced_host_ipset_policy_ids, strip_internal_config_metadata,

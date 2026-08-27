@@ -33,6 +33,7 @@ pub(super) struct GatewayLogDatesData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct GatewayLogEntryData {
+    trace_id: String,
     time: String,
     level: String,
     method: String,

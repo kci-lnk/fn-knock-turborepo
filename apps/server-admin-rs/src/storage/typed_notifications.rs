@@ -27,6 +27,13 @@ CREATE TABLE IF NOT EXISTS typed_notification_schema_migrations (
 "#;
 const HISTORY_SCHEMA_VERSION: i64 = 2;
 const HISTORY_SCHEMA_NAME: &str = "typed_notification_history";
+const HISTORY_TRACE_SCHEMA_VERSION: i64 = 3;
+const HISTORY_TRACE_SCHEMA_NAME: &str = "typed_notification_history_trace_index";
+const HISTORY_TRACE_SCHEMA_SQL: &str = r#"
+ALTER TABLE notification_history_documents ADD COLUMN trace_id TEXT;
+CREATE INDEX idx_notification_history_trace
+  ON notification_history_documents(kind, trace_id, sort_score DESC, id DESC);
+"#;
 const HISTORY_SCHEMA_SQL: &str = r#"
 CREATE TABLE notification_history_documents (
   kind TEXT NOT NULL CHECK (kind IN ('trigger', 'delivery')),
@@ -131,6 +138,37 @@ impl TypedNotificationRepository {
                         tx.execute(
                             "INSERT INTO typed_notification_schema_migrations(version, name, checksum, applied_at_ms) VALUES (?1, ?2, ?3, ?4)",
                             params![HISTORY_SCHEMA_VERSION, HISTORY_SCHEMA_NAME, history_checksum, crate::time_utils::now_ms()],
+                        )?;
+                    }
+                }
+                let trace_checksum =
+                    crate::crypto_utils::sha256_hex_bytes(HISTORY_TRACE_SCHEMA_SQL);
+                let trace_applied = tx
+                    .query_row(
+                        "SELECT name, checksum FROM typed_notification_schema_migrations WHERE version = ?1",
+                        [HISTORY_TRACE_SCHEMA_VERSION],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                    )
+                    .optional()?;
+                match trace_applied {
+                    Some((name, checksum))
+                        if name == HISTORY_TRACE_SCHEMA_NAME && checksum == trace_checksum => {}
+                    Some((name, _)) if name != HISTORY_TRACE_SCHEMA_NAME => {
+                        return Err(storage_error("typed notification trace migration name mismatch"));
+                    }
+                    Some(_) => {
+                        return Err(storage_error("typed notification trace migration checksum mismatch"));
+                    }
+                    None => {
+                        tx.execute_batch(HISTORY_TRACE_SCHEMA_SQL)?;
+                        tx.execute(
+                            "INSERT INTO typed_notification_schema_migrations(version, name, checksum, applied_at_ms) VALUES (?1, ?2, ?3, ?4)",
+                            params![
+                                HISTORY_TRACE_SCHEMA_VERSION,
+                                HISTORY_TRACE_SCHEMA_NAME,
+                                trace_checksum,
+                                crate::time_utils::now_ms(),
+                            ],
                         )?;
                     }
                 }
@@ -276,23 +314,25 @@ impl TypedNotificationRepository {
         sort_score: i64,
         expires_at_ms: i64,
     ) -> StorageResult<()> {
-        let _: Value = serde_json::from_str(document_json)?;
+        let document: Value = serde_json::from_str(document_json)?;
+        let trace_id = crate::trace_id::record_trace_id(&document);
         if id.trim().is_empty() || !matches!(kind, "trigger" | "delivery") {
             return Err(storage_error("invalid typed notification history identity"));
         }
         tx.execute(
-            "INSERT INTO notification_history_documents(kind, id, document_json, sort_score, expires_at_ms, updated_at_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "INSERT INTO notification_history_documents(kind, id, document_json, sort_score, expires_at_ms, updated_at_ms, trace_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(kind, id) DO UPDATE SET document_json = excluded.document_json,
                sort_score = excluded.sort_score, expires_at_ms = excluded.expires_at_ms,
-               updated_at_ms = excluded.updated_at_ms",
+               updated_at_ms = excluded.updated_at_ms, trace_id = excluded.trace_id",
             params![
                 kind,
                 id,
                 document_json,
                 sort_score,
                 expires_at_ms.max(0),
-                crate::time_utils::now_ms()
+                crate::time_utils::now_ms(),
+                trace_id,
             ],
         )?;
         Ok(())
@@ -354,6 +394,33 @@ impl TypedNotificationRepository {
                     documents.push(serde_json::from_str(&row?).map_err(|error| {
                         storage_error(format!("typed notification history is invalid: {error}"))
                     })?);
+                }
+                Ok(documents)
+            })
+            .await
+    }
+
+    pub(crate) async fn load_history_by_trace(
+        &self,
+        kind: &str,
+        trace_id: &str,
+    ) -> StorageResult<Vec<Value>> {
+        let kind = kind.to_string();
+        let trace_id = trace_id.to_string();
+        self.manager
+            .call(move |conn| {
+                let mut statement = conn.prepare(
+                    "SELECT document_json FROM notification_history_documents
+                     WHERE kind = ?1 AND trace_id = ?2 AND expires_at_ms > ?3
+                     ORDER BY sort_score ASC, id ASC",
+                )?;
+                let rows = statement.query_map(
+                    params![kind, trace_id, crate::time_utils::now_ms()],
+                    |row| row.get::<_, String>(0),
+                )?;
+                let mut documents = Vec::new();
+                for row in rows {
+                    documents.push(serde_json::from_str(&row?)?);
                 }
                 Ok(documents)
             })

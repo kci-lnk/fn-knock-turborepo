@@ -1,6 +1,60 @@
 use super::*;
 
 impl Store {
+    pub async fn find_system_events_by_trace(
+        &self,
+        trace_id: &str,
+    ) -> crate::storage::StorageResult<Vec<Value>> {
+        let trace_id = trace_id.trim();
+        let typed = self.typed.typed_events.load_by_trace(trace_id).await;
+        let legacy = self.find_system_events_by_trace_legacy(trace_id).await;
+        match (typed, legacy) {
+            (Ok(typed), Ok(legacy)) if same_event_records(&typed, &legacy) => Ok(typed),
+            (Ok(_), Ok(legacy)) | (Err(_), Ok(legacy)) => {
+                self.rebuild_typed_system_events_from_legacy().await?;
+                Ok(legacy)
+            }
+            (Ok(typed), Err(_)) => Ok(typed),
+            (Err(typed_error), Err(legacy_error)) => Err(crate::storage::storage_error(format!(
+                "typed and legacy trace reads both failed: typed={typed_error}; legacy={legacy_error}"
+            ))),
+        }
+    }
+
+    async fn find_system_events_by_trace_legacy(
+        &self,
+        trace_id: &str,
+    ) -> crate::storage::StorageResult<Vec<Value>> {
+        let mut offset = 0_isize;
+        let mut events = Vec::new();
+        let mut stale_ids = Vec::new();
+        loop {
+            let mut conn = self.conn();
+            let ids: Vec<String> = conn
+                .zrevrange(
+                    EVENTS_INDEX_KEY,
+                    offset,
+                    offset + EVENT_LIST_SCAN_CHUNK_SIZE - 1,
+                )
+                .await?;
+            if ids.is_empty() {
+                break;
+            }
+            offset += ids.len() as isize;
+            let (batch, batch_stale_ids) = self.system_events_by_ids(&ids).await?;
+            stale_ids.extend(batch_stale_ids);
+            events.extend(
+                batch
+                    .into_iter()
+                    .filter(|event| crate::trace_id::event_trace_id(event) == Some(trace_id)),
+            );
+        }
+        if !stale_ids.is_empty() {
+            self.remove_stale_system_event_ids(&stale_ids).await?;
+        }
+        Ok(events)
+    }
+
     pub async fn list_system_events(
         &self,
         page: i64,
@@ -431,4 +485,23 @@ impl Store {
             .await?;
         Ok(())
     }
+}
+
+fn same_event_records(left: &[Value], right: &[Value]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut left = left.iter().collect::<Vec<_>>();
+    let mut right = right.iter().collect::<Vec<_>>();
+    left.sort_by(|left, right| {
+        left.get("id")
+            .and_then(Value::as_str)
+            .cmp(&right.get("id").and_then(Value::as_str))
+    });
+    right.sort_by(|left, right| {
+        left.get("id")
+            .and_then(Value::as_str)
+            .cmp(&right.get("id").and_then(Value::as_str))
+    });
+    left == right
 }

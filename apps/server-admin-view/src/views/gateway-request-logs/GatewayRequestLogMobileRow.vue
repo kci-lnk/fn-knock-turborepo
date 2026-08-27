@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { Ban, Eye, ShieldAlert, ShieldCheck, ShieldX, Unlock } from "lucide-vue-next";
+import {
+  Ban,
+  Eye,
+  Route,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
+  Unlock,
+} from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { Button } from "@/components/ui/button";
@@ -75,7 +83,9 @@ const authDecisionLabel = (value?: string) =>
         <p class="truncate text-sm font-medium" :title="entry.host">
           {{ entry.host || "-" }}
         </p>
-        <p class="break-all font-mono text-[11px] leading-4 text-muted-foreground">
+        <p
+          class="break-all font-mono text-[11px] leading-4 text-muted-foreground"
+        >
           {{ entry.request_uri || entry.path || "-" }}
         </p>
         <button
@@ -156,6 +166,16 @@ const authDecisionLabel = (value?: string) =>
     </dl>
 
     <div class="flex items-center justify-end gap-1 border-t pt-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+        :disabled="!entry.trace_id && !entry.waf_trace_id"
+        @click="goToWafTrace(entry.trace_id || entry.waf_trace_id)"
+      >
+        <Route class="mr-1.5 h-3.5 w-3.5" />
+        {{ t("admin.trace.label") }}
+      </Button>
       <ConfirmDangerPopover
         :title="
           isGeneralBlacklisted(entry.actionIp)

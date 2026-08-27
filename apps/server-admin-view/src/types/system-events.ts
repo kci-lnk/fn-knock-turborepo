@@ -96,6 +96,7 @@ export interface NotificationMessageAction {
 }
 
 export interface NotificationMessage {
+  trace_id?: string | null;
   title: string;
   summary: string;
   body_text: string;
@@ -172,6 +173,7 @@ export interface NotificationRule {
 
 export interface NotificationTrigger {
   id: string;
+  trace_id?: string | null;
   rule_id: string;
   event_id: string;
   group_key: string;
@@ -184,6 +186,7 @@ export interface NotificationTrigger {
 
 export interface NotificationDelivery {
   id: string;
+  trace_id?: string | null;
   trigger_id: string;
   rule_id: string;
   target_id: string;

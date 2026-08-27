@@ -205,6 +205,13 @@ pub(super) fn matches_optional_string(value: &Value, key: &str, expected: Option
     value.get(key).and_then(Value::as_str) == Some(expected)
 }
 
+pub(super) fn matches_optional_trace_id(value: &Value, expected: Option<&str>) -> bool {
+    let Some(expected) = expected.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    crate::trace_id::record_trace_id(value) == Some(expected)
+}
+
 pub(super) fn parse_json_body(body: &Bytes, translator: &Translator) -> Result<Value, String> {
     if body.is_empty() {
         return Ok(json!({}));

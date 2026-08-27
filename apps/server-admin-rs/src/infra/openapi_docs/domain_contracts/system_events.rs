@@ -13,6 +13,7 @@ pub(super) struct SystemEventSubjectData {
 #[derive(Serialize, ToSchema)]
 pub(super) struct SystemEventData {
     id: String,
+    trace_id: Option<String>,
     #[serde(rename = "type")]
     event_type: String,
     source: String,
@@ -42,6 +43,7 @@ pub(super) struct SystemEventClearData {
 
 #[derive(Serialize, ToSchema)]
 pub(super) struct SystemEventPublishBodyData {
+    trace_id: Option<String>,
     #[serde(rename = "type")]
     event_type: String,
     source: String,
@@ -60,6 +62,36 @@ pub(super) struct SystemEventPublishResultData {
     skipped: bool,
     #[schema(required = true)]
     data: Option<SystemEventData>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum TraceSourceStatusData {
+    Found,
+    NotFound,
+    Unavailable,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct TraceSourceStatusesData {
+    gateway_logs: TraceSourceStatusData,
+    waf_logs: TraceSourceStatusData,
+    system_events: TraceSourceStatusData,
+    notifications: TraceSourceStatusData,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct TraceLookupData {
+    trace_id: String,
+    found: bool,
+    #[schema(required = true)]
+    request: Option<Value>,
+    #[schema(required = true)]
+    waf_event: Option<Value>,
+    system_events: Vec<SystemEventData>,
+    notification_triggers: Vec<Value>,
+    notification_deliveries: Vec<Value>,
+    sources: TraceSourceStatusesData,
 }
 
 #[derive(Serialize, ToSchema)]

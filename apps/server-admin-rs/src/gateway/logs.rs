@@ -45,6 +45,7 @@ struct GatewayLogQuery {
     logged_in: Option<String>,
     credential: Option<String>,
     waf_status: Option<String>,
+    trace_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -201,8 +202,18 @@ async fn dates(State(state): State<AppState>) -> Response {
 #[utoipa::path(get, path = "/api/admin/gateway-logs/entries", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_entries", responses((status = 200, description = "Gateway log entries")))]
 async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
+    let trace_id = query
+        .trace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if trace_id.is_some_and(|value| !crate::trace_id::is_valid_trace_id(value)) {
+        return response::error(StatusCode::BAD_REQUEST, "invalid trace_id");
+    }
     let waf_status = normalize_waf_status_filter(query.waf_status.as_deref());
-    let result = if let Some(waf_status) = waf_status {
+    let result = if let Some(trace_id) = trace_id {
+        find_gateway_log_entry(&state, trace_id).await
+    } else if let Some(waf_status) = waf_status {
         get_entries_with_waf_filter(&state, query, waf_status).await
     } else {
         go_log_entries(&state, &query, true).await
@@ -218,6 +229,36 @@ async fn entries(State(state): State<AppState>, Query(query): Query<GatewayLogQu
             )
         }
     }
+}
+
+async fn find_gateway_log_entry(state: &AppState, trace_id: &str) -> anyhow::Result<Value> {
+    let value = state
+        .gateway
+        .client
+        .find_log_entry_by_trace_id(trace_id)
+        .await?;
+    let data = go_backend_data(value)?;
+    let item = data
+        .get("found")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        .then(|| data.get("entry").cloned())
+        .flatten()
+        .filter(|entry| !entry.is_null());
+    let items = item.into_iter().collect::<Vec<_>>();
+    Ok(json!({
+        "date": "",
+        "logs_dir": "",
+        "available_dates": [],
+        "pagination": "cursor",
+        "page": 1,
+        "limit": 1,
+        "total": items.len(),
+        "cursor": "",
+        "next_cursor": "",
+        "has_more": false,
+        "items": items,
+    }))
 }
 
 #[utoipa::path(get, path = "/api/admin/gateway-logs/analytics", tag = "gateway-logs", operation_id = "get_api_admin_gateway_logs_analytics", responses((status = 200, description = "Gateway log analytics")))]
@@ -613,6 +654,7 @@ fn gateway_log_query_string(query: &GatewayLogQuery, include_waf_status: bool) -
         if include_waf_status {
             append_if_some(&mut serializer, "waf_status", query.waf_status.as_deref());
         }
+        append_if_some(&mut serializer, "trace_id", query.trace_id.as_deref());
         serializer.finish()
     };
     (!output.is_empty()).then_some(output)
@@ -1050,6 +1092,7 @@ mod tests {
             logged_in: Some("true".to_string()),
             credential: None,
             waf_status: Some("has_waf".to_string()),
+            trace_id: Some("trc_3f93d40a-89ea-4dbe-a04f-67692778d973".to_string()),
         };
         let output = gateway_log_query_string(&query, true).unwrap();
         assert!(output.contains("date=2026-07-05"));
@@ -1075,6 +1118,7 @@ mod tests {
             logged_in: None,
             credential: None,
             waf_status: None,
+            trace_id: None,
         };
         let output = gateway_log_query_string(&query, true).unwrap();
         assert!(output.contains("page="));

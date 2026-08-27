@@ -24,6 +24,7 @@ pub(crate) mod security;
 pub(crate) mod shared;
 pub(crate) mod storage;
 pub(crate) mod system;
+pub(crate) mod traces;
 pub(crate) mod tunnels;
 pub(crate) mod waf;
 pub(crate) mod wol;
@@ -51,6 +52,7 @@ pub(crate) use panel_sync::panel_sync_routes;
 pub(crate) use security::{
     general_blacklist, overview as security_overview, ssh as ssh_security, whitelist,
 };
+pub(crate) use shared::trace_id;
 pub(crate) use shared::{
     auth_mobility_keys, auth_session_keys, cloudflared_utils, crypto_utils, daily_availability,
     frp_utils, fs_utils, http_body, http_utils, json_utils, net_utils, node_compat, proxy_utils,

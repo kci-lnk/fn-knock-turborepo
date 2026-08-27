@@ -285,6 +285,7 @@ pub(in crate::notifications::routes) fn build_pushplus_json_content(message: &Va
         "actions": message.get("actions").cloned().unwrap_or_else(|| json!([])),
         "occurred_at": message.get("occurred_at").cloned().unwrap_or(Value::Null),
         "event_id": message.get("event_id").cloned().unwrap_or(Value::Null),
+        "trace_id": message.get("trace_id").cloned().unwrap_or(Value::Null),
         "metadata": message.get("metadata").cloned().unwrap_or_else(|| json!({})),
     }))
     .unwrap_or_else(|_| "{}".to_string())
@@ -538,9 +539,15 @@ pub(in crate::notifications::routes) fn build_bark_payload(
     let summary = message_summary(message);
     let body_text = message_text(message, "body_text");
     let has_standalone_body = !body_text.is_empty() && body_text != summary;
+    let base_body = if has_standalone_body {
+        body_text.clone()
+    } else {
+        default_string(summary.clone(), &message_title(message))
+    };
+    let body = append_visible_trace_id(base_body, message);
     let mut payload = json!({
         "title": message_title(message),
-        "body": if has_standalone_body { body_text.clone() } else { default_string(summary.clone(), &message_title(message)) },
+        "body": body,
         "level": default_string(config_text(&target_config, "level"), "active")
     });
     if has_standalone_body && !summary.is_empty() {
@@ -568,6 +575,40 @@ pub(in crate::notifications::routes) fn build_bark_payload(
         insert_string(&mut payload, "call", "1".to_string());
     }
     payload
+}
+
+fn visible_trace_line(message: &Value) -> Option<(String, String)> {
+    let trace_id = message_text(message, "trace_id");
+    if trace_id.is_empty() {
+        return None;
+    }
+    let label = message
+        .get("facts")
+        .and_then(Value::as_array)
+        .and_then(|facts| {
+            facts.iter().find_map(|fact| {
+                (fact.get("value").and_then(Value::as_str) == Some(trace_id.as_str()))
+                    .then(|| fact.get("label").map(value_to_trimmed_string))
+                    .flatten()
+                    .filter(|value| !value.is_empty())
+            })
+        })
+        .unwrap_or_else(|| "Trace ID".to_string());
+    Some((trace_id.clone(), format!("{label}: {trace_id}")))
+}
+
+fn append_visible_trace_id(mut body: String, message: &Value) -> String {
+    let Some((trace_id, line)) = visible_trace_line(message) else {
+        return body;
+    };
+    if body.contains(&trace_id) {
+        return body;
+    }
+    if !body.is_empty() {
+        body.push_str("\n\n");
+    }
+    body.push_str(&line);
+    body
 }
 
 pub(in crate::notifications::routes) fn build_telegram_text(message: &Value) -> String {
@@ -624,14 +665,15 @@ pub(in crate::notifications::routes) fn build_telegram_text(message: &Value) -> 
     if rich_text.encode_utf16().count() <= 4096 {
         rich_text
     } else {
-        escape_html(&truncate_text(
+        escape_html_with_utf16_limit_and_trace(
             &plain_sections
                 .into_iter()
                 .filter(|value| !value.is_empty())
                 .collect::<Vec<_>>()
                 .join("\n\n"),
+            message,
             4096,
-        ))
+        )
     }
 }
 
@@ -817,6 +859,54 @@ pub(in crate::notifications::routes) fn truncate_utf8_bytes(value: &str, limit: 
         bytes += len;
         output.push(ch);
     }
+    output
+}
+
+pub(in crate::notifications::routes) fn truncate_utf8_bytes_preserving_trace(
+    value: &str,
+    message: &Value,
+    limit: usize,
+) -> String {
+    if value.len() <= limit {
+        return value.to_string();
+    }
+    let Some((_trace_id, line)) = visible_trace_line(message) else {
+        return truncate_utf8_bytes(value, limit);
+    };
+    let separator = "\n\n";
+    let suffix = format!("{separator}{line}");
+    if suffix.len() >= limit {
+        return truncate_utf8_bytes(&line, limit);
+    }
+    let mut output = truncate_utf8_bytes(value, limit - suffix.len());
+    output.push_str(&suffix);
+    output
+}
+
+fn escape_html_with_utf16_limit_and_trace(value: &str, message: &Value, limit: usize) -> String {
+    let Some((_trace_id, line)) = visible_trace_line(message) else {
+        return escape_html(&truncate_text(value, limit));
+    };
+    let escaped_line = escape_html(&line);
+    let separator = "\n\n";
+    let reserved = separator.encode_utf16().count() + escaped_line.encode_utf16().count();
+    if reserved >= limit {
+        return escaped_line;
+    }
+    let head_limit = limit - reserved;
+    let mut output = String::new();
+    let mut units = 0;
+    for ch in value.chars() {
+        let escaped = escape_html(&ch.to_string());
+        let escaped_units = escaped.encode_utf16().count();
+        if units + escaped_units > head_limit {
+            break;
+        }
+        units += escaped_units;
+        output.push_str(&escaped);
+    }
+    output.push_str(separator);
+    output.push_str(&escaped_line);
     output
 }
 

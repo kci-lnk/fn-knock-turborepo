@@ -17,6 +17,7 @@ import WAFLogsDisabledNotice from "./waf-logs/WAFLogsDisabledNotice.vue";
 import WAFLogsFilters from "./waf-logs/WAFLogsFilters.vue";
 import WAFLogsHeader from "./waf-logs/WAFLogsHeader.vue";
 import WAFLogsPagination from "./waf-logs/WAFLogsPagination.vue";
+import TraceIdLink from "@/components/TraceIdLink.vue";
 
 const router = useRouter();
 const { t, locale } = useI18n();
@@ -172,10 +173,7 @@ const {
       @release-selected="releaseIpsFromWafLogs(selectedBlockedWafIps)"
     />
 
-    <WAFLogsDisabledNotice
-      v-if="!isWAFEnabled"
-      @open-settings="goToSettings"
-    />
+    <WAFLogsDisabledNotice v-if="!isWAFEnabled" @open-settings="goToSettings" />
 
     <div
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"
@@ -237,6 +235,7 @@ const {
       :copy-text="detailCopyText"
     >
       <div v-if="activeEvent" class="space-y-4">
+        <TraceIdLink :trace-id="activeEvent.trace_id" />
         <DetailFieldsGrid :items="detailItems" />
       </div>
     </DetailDialog>

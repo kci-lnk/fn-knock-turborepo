@@ -15,4 +15,5 @@ mod notification_history;
 mod notification_runtime;
 mod passkey_identity;
 mod security;
+mod trace_id;
 mod whitelist;

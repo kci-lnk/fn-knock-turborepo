@@ -29,7 +29,7 @@ const hasRuleDescription = (rule: WAFRuleMatch) =>
 
 const detailFields = [
   { key: "time", labelKey: "admin.wafLogs.detailFields.time" },
-  { key: "trace_id", label: "Trace ID" },
+  { key: "trace_id", labelKey: "admin.trace.label" },
   {
     key: "transaction_id",
     labelKey: "admin.wafLogs.detailFields.transactionId",

@@ -34,6 +34,7 @@ import {
 } from "./constants";
 import { useSystemEventDisplay } from "./useSystemEventDisplay";
 import { useSystemEvents } from "./useSystemEvents";
+import TraceIdLink from "@/components/TraceIdLink.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -398,6 +399,7 @@ const {
       :copy-text="detailCopyText"
     >
       <div v-if="activeEvent" class="space-y-6">
+        <TraceIdLink :trace-id="activeEvent.trace_id" />
         <DetailFieldsGrid :items="detailItems" />
 
         <div v-if="activeEvent.tags?.length" class="space-y-2">

@@ -6302,6 +6302,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/traces/{trace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看全链路追踪
+         * @description 按统一 Trace ID 聚合网关请求、WAF、系统事件和通知投递记录。。`GET /api/admin/traces/{trace_id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get_api_admin_traces_trace_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/update/check": {
         parameters: {
             query?: never;
@@ -9843,6 +9863,7 @@ export interface components {
             status: number;
             time: string;
             tls: boolean;
+            trace_id: string;
             upstream: string;
             upstream_error_class: string;
             user_agent: string;
@@ -10476,6 +10497,7 @@ export interface components {
             status: "queued" | "sending" | "success" | "failed" | "gave_up" | "skipped";
             target_id: string;
             target_snapshot: components["schemas"]["NotificationTargetData"];
+            trace_id?: string | null;
             trigger_id: string;
             /** Format: date-time */
             triggered_at: string;
@@ -10516,6 +10538,7 @@ export interface components {
             severity: "info" | "warn" | "error" | "critical";
             summary: string;
             title: string;
+            trace_id?: string | null;
         };
         NotificationMessageFactData: {
             label: string;
@@ -10760,6 +10783,7 @@ export interface components {
             rule_snapshot: components["schemas"]["NotificationRuleData"];
             /** @enum {string} */
             status: "created" | "fanout_done" | "partially_failed" | "completed";
+            trace_id?: string | null;
         };
         NotificationTriggerListData: {
             /** Format: int64 */
@@ -12208,6 +12232,7 @@ export interface components {
             source: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
+            trace_id?: string | null;
             /** @enum {string} */
             type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
         };
@@ -12233,6 +12258,7 @@ export interface components {
             source: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
             subject?: null | components["schemas"]["SystemEventSubjectData"];
             tags?: string[] | null;
+            trace_id?: string | null;
             /** @enum {string} */
             type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
         };
@@ -12405,6 +12431,24 @@ export interface components {
             /** @enum {string} */
             mode: "all" | "custom";
             streams: components["schemas"]["TotpStreamAccessData"][];
+        };
+        TraceLookupData: {
+            found: boolean;
+            notification_deliveries: unknown[];
+            notification_triggers: unknown[];
+            request: unknown;
+            sources: components["schemas"]["TraceSourceStatusesData"];
+            system_events: components["schemas"]["SystemEventData"][];
+            trace_id: string;
+            waf_event: unknown;
+        };
+        /** @enum {string} */
+        TraceSourceStatusData: "found" | "not_found" | "unavailable";
+        TraceSourceStatusesData: {
+            gateway_logs: components["schemas"]["TraceSourceStatusData"];
+            notifications: components["schemas"]["TraceSourceStatusData"];
+            system_events: components["schemas"]["TraceSourceStatusData"];
+            waf_logs: components["schemas"]["TraceSourceStatusData"];
         };
         TypedConfigShadowStatusData: {
             healthy: boolean;
@@ -20736,6 +20780,7 @@ export interface operations {
                 page?: number;
                 limit?: string;
                 search?: string;
+                trace_id?: string;
                 type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
                 level?: "INFO" | "WARN" | "ERROR" | "CRITICAL";
                 source?: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
@@ -21949,6 +21994,7 @@ export interface operations {
                 logged_in?: "true" | "false";
                 credential?: string;
                 waf_status?: "has_waf" | "none";
+                trace_id?: string;
             };
             header?: never;
             path?: never;
@@ -22681,6 +22727,7 @@ export interface operations {
                 provider_id?: string;
                 trigger_id?: string;
                 status?: "queued" | "sending" | "success" | "failed" | "gave_up" | "skipped";
+                trace_id?: string;
             };
             header?: never;
             path?: never;
@@ -23199,6 +23246,7 @@ export interface operations {
                 limit?: number | string;
                 rule_id?: string;
                 status?: "created" | "fanout_done" | "partially_failed" | "completed";
+                trace_id?: string;
             };
             header?: never;
             path?: never;
@@ -28309,6 +28357,53 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_api_admin_traces_trace_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看全链路追踪」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TraceLookupData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 请求参数或当前资源状态不符合接口要求；请检查必填字段和前置条件。 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

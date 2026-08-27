@@ -1,5 +1,22 @@
 use super::*;
 
+#[test]
+fn notification_trace_filter_normalizes_input_and_supports_snapshot_fallback() {
+    let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
+    let legacy_record = json!({
+        "id": "delivery-legacy",
+        "message_snapshot": { "trace_id": trace_id }
+    });
+    assert!(matches_optional_trace_id(
+        &legacy_record,
+        Some(&format!("  {trace_id}  "))
+    ));
+    assert!(!matches_optional_trace_id(
+        &legacy_record,
+        Some("trc_00000000-0000-4000-8000-000000000000")
+    ));
+}
+
 fn schema_field<'a>(view: &'a Value, schema: &str, key: &str) -> &'a Value {
     view.get(schema)
         .and_then(Value::as_array)
@@ -1043,6 +1060,7 @@ fn localizes_rule_names_and_fallback_messages() {
     let message = build_notification_message(
         &json!({
             "id": "evt_1",
+            "trace_id": "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
             "type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
             "level": "WARN",
             "source": "GO_REAUTH_PROXY",
@@ -1059,6 +1077,14 @@ fn localizes_rule_names_and_fallback_messages() {
     );
 
     assert_eq!(message.get("title"), Some(&json!("敲门 Knock 登录成功 x2")));
+    assert_eq!(
+        message.get("trace_id"),
+        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
+    );
+    assert_eq!(
+        message.pointer("/metadata/trace_id"),
+        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
+    );
     assert!(
         message
             .get("body_text")
@@ -1076,6 +1102,57 @@ fn localizes_rule_names_and_fallback_messages() {
             .iter()
             .any(|fact| fact.get("label") == Some(&json!("风险级别")))
     );
+    assert!(facts.iter().any(|fact| {
+        fact.get("value") == Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
+    }));
+    assert!(build_text_body(&message).contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"));
+    assert!(
+        build_markdown_body(&message, "")
+            .replace('\\', "")
+            .contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
+    );
+    assert!(
+        build_bark_payload(&message, &json!({ "target_config": {} }))["body"]
+            .as_str()
+            .unwrap()
+            .contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
+    );
+    let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
+    let rendered_channels = [
+        build_pushplus_text_content(&message),
+        build_pushplus_markdown_content(&message),
+        build_pushplus_html_content(&message),
+        build_pushplus_json_content(&message),
+        build_wxpusher_html_content(&message),
+        build_wecom_markdown_content(&message, &[]),
+        build_wecom_text_content(&message),
+        serde_json::to_string(&build_feishu_post_content(&message, &[])).unwrap(),
+        build_magicpush_content(&message),
+        build_telegram_text(&message),
+        build_harmonyosmeow_body(&message),
+        build_email_plain_text_body(&message, &zh),
+    ];
+    for rendered in rendered_channels {
+        let visible = rendered.replace('\\', "");
+        assert!(
+            visible.contains(trace_id),
+            "notification representation omitted the Trace ID: {rendered}"
+        );
+    }
+
+    let mut oversized_message = message.clone();
+    oversized_message["body_text"] = json!("x".repeat(40_000));
+    oversized_message["body_markdown"] = json!("x".repeat(40_000));
+    let oversized_markdown = build_markdown_body(&oversized_message, "");
+    for limit in [2048, 4096, 32 * 1024] {
+        let rendered =
+            truncate_utf8_bytes_preserving_trace(&oversized_markdown, &oversized_message, limit);
+        assert!(rendered.len() <= limit);
+        assert!(rendered.contains(trace_id));
+    }
+    let telegram = build_telegram_text(&oversized_message);
+    assert!(telegram.encode_utf16().count() <= 4096);
+    assert!(telegram.contains(trace_id));
     assert!(!serde_json::to_string(&message).unwrap().contains("Matched"));
 }
 

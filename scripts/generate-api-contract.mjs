@@ -46,6 +46,7 @@ function validateContract(openapiPath) {
     ["get /api/admin/panel-sync/runs/{run_id}", null],
     ["post /api/internal/system-events", "SystemEventPublishBodyData"],
     ["get /api/admin/events", null],
+    ["get /api/admin/traces/{trace_id}", null],
     ["delete /api/admin/events", "SystemEventDeleteBodyData"],
     ["delete /api/admin/events/clear", null],
     ["get /api/admin/backoff/list", null],

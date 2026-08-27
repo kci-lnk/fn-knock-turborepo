@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfigStore } from "@/store/config";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
+import TraceLookupButton from "@/components/TraceLookupButton.vue";
 
 const GatewayRequestLogs = defineAsyncComponent(
   () => import("./GatewayRequestLogs.vue"),
@@ -39,13 +40,18 @@ const goToSettings = () => {
   <div
     class="request-analysis-page dynamic-white-page-card dynamic-white-settings-surface flex h-full flex-col gap-3 sm:gap-4"
   >
-    <div class="space-y-1">
-      <h2 class="text-lg font-semibold tracking-tight">
-        {{ t("admin.requestAnalysis.title") }}
-      </h2>
-      <p class="text-sm text-muted-foreground">
-        {{ t("admin.requestAnalysis.description") }}
-      </p>
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div class="space-y-1">
+        <h2 class="text-lg font-semibold tracking-tight">
+          {{ t("admin.requestAnalysis.title") }}
+        </h2>
+        <p class="text-sm text-muted-foreground">
+          {{ t("admin.requestAnalysis.description") }}
+        </p>
+      </div>
+      <TraceLookupButton />
     </div>
 
     <Alert

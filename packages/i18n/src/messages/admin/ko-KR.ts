@@ -3772,6 +3772,30 @@ export const koKRAdmin = {
     discover: "서비스 검색",
     clearAllConfig: "모든 설정 지우기",
     cleanupStaleServices: "만료된 서비스 정리",
+    targetOptimizationMenu: "대상 주소 최적화",
+    targetOptimizationTitle: "대상 주소 최적화",
+    targetOptimizationDescription:
+      "목적지를 선택하고 변경할 서브도메인 매핑을 확인하세요. 프로토콜, 포트 및 경로는 유지됩니다.",
+    targetOptimizationDestination: "목적지 주소",
+    targetOptimizationDestinationPlaceholder: "목적지 주소 선택",
+    targetOptimizationLoopbackOption: "{address} (로컬 루프백)",
+    targetOptimizationLanOption: "{address} (LAN 주소)",
+    targetOptimizationLoopbackToLanHint:
+      "현재 127.0.0.1을 대상으로 하는 매핑만 표시됩니다.",
+    targetOptimizationLanToLoopbackHint:
+      "검색된 로컬 LAN 주소를 대상으로 하는 매핑만 표시됩니다.",
+    targetOptimizationLoadFailed:
+      "호스트 주소 후보를 불러오지 못했습니다. 다시 시도하세요.",
+    targetOptimizationLoading: "사용 가능한 호스트 주소를 검색하는 중...",
+    targetOptimizationNoCandidates:
+      "최적화에 사용할 수 있는 대상 주소 후보가 없습니다.",
+    targetOptimizationNoMappings:
+      "이 목적지로 변환할 수 있는 매핑이 없습니다.",
+    targetOptimizationPreview: "변경 미리보기",
+    targetOptimizationSelected: "매핑 {selected}/{total}개 선택됨",
+    targetOptimizationApply: "최적화 적용",
+    targetOptimizationSaved:
+      "서브도메인 {count}개의 대상 주소를 최적화했습니다",
     addMapping: "매핑 추가",
     syncing: "동기화 중...",
     syncRoutes: "경로 동기화",

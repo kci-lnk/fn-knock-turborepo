@@ -3799,6 +3799,30 @@ export const jaJPAdmin = {
     discover: "サービスを検出",
     clearAllConfig: "すべての設定をクリア",
     cleanupStaleServices: "到達不能なサービスを整理",
+    targetOptimizationMenu: "ターゲットアドレスを最適化",
+    targetOptimizationTitle: "ターゲットアドレスを最適化",
+    targetOptimizationDescription:
+      "変更先を選択し、更新するサブドメインマッピングを確認します。プロトコル、ポート、パスは維持されます。",
+    targetOptimizationDestination: "変更先アドレス",
+    targetOptimizationDestinationPlaceholder: "変更先アドレスを選択",
+    targetOptimizationLoopbackOption: "{address}（ローカルループバック）",
+    targetOptimizationLanOption: "{address}（LAN アドレス）",
+    targetOptimizationLoopbackToLanHint:
+      "現在 127.0.0.1 を参照しているマッピングのみ表示します。",
+    targetOptimizationLanToLoopbackHint:
+      "検出されたローカル LAN アドレスを参照するマッピングのみ表示します。",
+    targetOptimizationLoadFailed:
+      "ホストアドレス候補を読み込めませんでした。再試行してください。",
+    targetOptimizationLoading: "利用可能なホストアドレスを検出中...",
+    targetOptimizationNoCandidates:
+      "最適化に使用できるターゲットアドレス候補がありません。",
+    targetOptimizationNoMappings:
+      "この変更先へ変換できるマッピングはありません。",
+    targetOptimizationPreview: "変更プレビュー",
+    targetOptimizationSelected: "{selected}/{total} 件のマッピングを選択",
+    targetOptimizationApply: "最適化を適用",
+    targetOptimizationSaved:
+      "{count} 件のサブドメインのターゲットアドレスを最適化しました",
     addMapping: "マッピングを追加",
     syncing: "同期中...",
     syncRoutes: "ルートを同期",

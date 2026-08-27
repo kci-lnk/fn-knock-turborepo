@@ -209,10 +209,10 @@ export const useSubdomainBatchActions = ({
   };
 
   return {
-    availabilityFormEnabled,
-    availabilityFormEndTime,
-    availabilityFormStartTime,
-    availabilityValidationMessage,
+    batchAvailabilityFormEnabled: availabilityFormEnabled,
+    batchAvailabilityFormEndTime: availabilityFormEndTime,
+    batchAvailabilityFormStartTime: availabilityFormStartTime,
+    batchAvailabilityValidationMessage: availabilityValidationMessage,
     batchAvailabilityOpen,
     batchMutationConfirmLabel,
     batchMutationConfirmVariant,
@@ -225,6 +225,6 @@ export const useSubdomainBatchActions = ({
     openBatchAvailability,
     openBatchMutation,
     saveBatchAvailability,
-    selectedCount,
+    batchSelectedCount: selectedCount,
   };
 };

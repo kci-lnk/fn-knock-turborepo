@@ -3805,6 +3805,29 @@ export const enAdmin = {
     discover: "Discover",
     clearAllConfig: "Clear all configuration",
     cleanupStaleServices: "Clean stale services",
+    targetOptimizationMenu: "Optimize target addresses",
+    targetOptimizationTitle: "Optimize target addresses",
+    targetOptimizationDescription:
+      "Choose a destination and review the subdomain mappings to update. Protocols, ports, and paths remain unchanged.",
+    targetOptimizationDestination: "Destination address",
+    targetOptimizationDestinationPlaceholder: "Choose a destination address",
+    targetOptimizationLoopbackOption: "{address} (local loopback)",
+    targetOptimizationLanOption: "{address} (LAN address)",
+    targetOptimizationLoopbackToLanHint:
+      "Only mappings currently targeting 127.0.0.1 are shown.",
+    targetOptimizationLanToLoopbackHint:
+      "Only mappings targeting a detected local LAN address are shown.",
+    targetOptimizationLoadFailed:
+      "Could not load host address candidates. Try again.",
+    targetOptimizationLoading: "Detecting available host addresses...",
+    targetOptimizationNoCandidates:
+      "No target address candidates are available for optimization.",
+    targetOptimizationNoMappings:
+      "No mappings can be converted to this destination.",
+    targetOptimizationPreview: "Rewrite preview",
+    targetOptimizationSelected: "{selected}/{total} mappings selected",
+    targetOptimizationApply: "Apply optimization",
+    targetOptimizationSaved: "Optimized target addresses for {count} subdomains",
     addMapping: "Add mapping",
     syncing: "Syncing...",
     syncRoutes: "Sync routes",

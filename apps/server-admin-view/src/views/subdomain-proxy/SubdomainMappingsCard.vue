@@ -103,6 +103,7 @@ const tableActions: SubdomainMappingsTableActions = {
         @open-discover="emit('open-discover')"
         @open-discover-settings="emit('open-discover-settings')"
         @open-stale-cleanup="emit('open-stale-cleanup')"
+        @open-target-optimization="emit('open-target-optimization')"
         @refresh-all-titles="emit('refresh-all-titles')"
         @sync-routes="emit('sync-routes')"
         @update-grouped-view="updateGroupedView"

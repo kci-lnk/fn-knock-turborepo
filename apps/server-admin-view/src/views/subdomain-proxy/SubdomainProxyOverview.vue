@@ -74,6 +74,7 @@ const {
   openGatewayLocations,
   openProtocolHeadersWarning,
   openStaleCleanupDialog,
+  openTargetOptimization,
   openToggleMappingDialog,
   refreshAllTitles,
   removeAuthService,
@@ -212,6 +213,7 @@ const {
         @open-advanced-auth="openAdvancedAuth"
         @open-deep-monitor="openDeepMonitor"
         @open-stale-cleanup="openStaleCleanupDialog"
+        @open-target-optimization="openTargetOptimization"
         @refresh-all-titles="refreshAllTitles"
         @save-order="saveMappingOrder"
         @save-grouped-order="saveGroupedMappingOrder"

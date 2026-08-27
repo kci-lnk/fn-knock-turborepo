@@ -91,6 +91,7 @@ export type SubdomainMappingsCardEmits = {
   "open-advanced-auth": [host: string];
   "open-deep-monitor": [host: string];
   "open-stale-cleanup": [];
+  "open-target-optimization": [];
   "refresh-all-titles": [];
   "save-order": [];
   "save-grouped-order": [sections: HostMappingGroupSection[]];

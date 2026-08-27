@@ -3,7 +3,6 @@ import { useI18n } from "vue-i18n";
 import {
   ChevronDown,
   Download,
-  Eraser,
   Folders,
   Image,
   ListTree,
@@ -28,6 +27,7 @@ import {
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import type { HostMapping } from "@/types";
 import PanelSyncMenuItem from "./PanelSyncMenuItem.vue";
+import SubdomainMappingsMaintenanceMenuItems from "./SubdomainMappingsMaintenanceMenuItems.vue";
 
 defineProps<{
   allMappingsCount: number;
@@ -58,6 +58,7 @@ const emit = defineEmits<{
   "open-discover": [];
   "open-discover-settings": [];
   "open-stale-cleanup": [];
+  "open-target-optimization": [];
   "refresh-all-titles": [];
   "sync-routes": [];
   "update-selection-mode": [value: boolean];
@@ -190,17 +191,13 @@ const { t } = useI18n();
               <Trash2 class="mr-2 h-4 w-4" />
               {{ t("admin.subdomainProxy.clearAllConfig") }}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              :disabled="
-                !hasRegularHostMappings ||
-                isSavingMappings ||
-                isClearingAllSubdomainConfig
-              "
-              @select="emit('open-stale-cleanup')"
-            >
-              <Eraser class="mr-2 h-4 w-4" />
-              {{ t("admin.subdomainProxy.cleanupStaleServices") }}
-            </DropdownMenuItem>
+            <SubdomainMappingsMaintenanceMenuItems
+              :clearing="isClearingAllSubdomainConfig"
+              :has-mappings="hasRegularHostMappings"
+              :saving="isSavingMappings"
+              @cleanup="emit('open-stale-cleanup')"
+              @optimize="emit('open-target-optimization')"
+            />
             <DropdownMenuItem
               :disabled="isConfigLoading"
               @click="emit('open-create')"

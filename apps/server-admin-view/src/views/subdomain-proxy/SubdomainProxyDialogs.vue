@@ -5,6 +5,7 @@ import SubdomainAvailabilityDialog from "./SubdomainAvailabilityDialog.vue";
 import SubdomainDeleteDialog from "./SubdomainDeleteDialog.vue";
 import SubdomainDiscoverDialog from "./SubdomainDiscoverDialog.vue";
 import SubdomainMappingDialog from "./SubdomainMappingDialog.vue";
+import SubdomainTargetOptimizationDialog from "./SubdomainTargetOptimizationDialog.vue";
 import type { SubdomainProxyDialogsController } from "./useSubdomainProxyPage";
 
 const props = defineProps<{ controller: SubdomainProxyDialogsController }>();
@@ -105,6 +106,7 @@ const {
   toggleDialogDescription,
   toggleDialogTitle,
   toggleDiscoverSettings,
+  targetOptimization,
   triggerScan,
   updateMappingBasicAuth,
   updateMappingForm,
@@ -244,4 +246,6 @@ const {
     :save-mappings="configStore.saveHostMappings"
     :is-auth-service-target="isAuthServiceTarget"
   />
+
+  <SubdomainTargetOptimizationDialog :model="targetOptimization" />
 </template>

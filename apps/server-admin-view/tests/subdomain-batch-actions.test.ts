@@ -53,8 +53,8 @@ test("batch availability applies one daily window and can clear it", async () =>
   const { actions, saved } = createActions([first, second]);
 
   actions.openBatchAvailability([first.host, second.host], () => undefined);
-  actions.availabilityFormStartTime.value = "22:00";
-  actions.availabilityFormEndTime.value = "06:00";
+  actions.batchAvailabilityFormStartTime.value = "22:00";
+  actions.batchAvailabilityFormEndTime.value = "06:00";
   await actions.saveBatchAvailability();
   assert.deepEqual(saved.value?.map((item) => item.availability), [
     { enabled: true, start_time: "22:00", end_time: "06:00" },
@@ -62,7 +62,7 @@ test("batch availability applies one daily window and can clear it", async () =>
   ]);
 
   actions.openBatchAvailability([first.host, second.host], () => undefined);
-  actions.availabilityFormEnabled.value = false;
+  actions.batchAvailabilityFormEnabled.value = false;
   await actions.saveBatchAvailability();
   assert.deepEqual(saved.value?.map((item) => item.availability), [null, null]);
 });
@@ -72,10 +72,10 @@ test("batch availability rejects equal start and end times without saving", asyn
   const { actions, saved } = createActions([first]);
 
   actions.openBatchAvailability([first.host], () => undefined);
-  actions.availabilityFormStartTime.value = "09:00";
-  actions.availabilityFormEndTime.value = "09:00";
+  actions.batchAvailabilityFormStartTime.value = "09:00";
+  actions.batchAvailabilityFormEndTime.value = "09:00";
   await actions.saveBatchAvailability();
 
   assert.equal(saved.value, null);
-  assert.notEqual(actions.availabilityValidationMessage.value, "");
+  assert.notEqual(actions.batchAvailabilityValidationMessage.value, "");
 });

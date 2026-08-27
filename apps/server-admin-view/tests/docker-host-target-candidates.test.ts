@@ -113,14 +113,24 @@ describe("Host target candidates", () => {
   });
 
   it("keeps native loopback first when an older response omits it", () => {
-    assert.deepEqual(buildHostTargetSuggestions([candidates[0]], false), [
+    const interfaceCandidate: ScanDiscoveryHostCandidate = {
+      ...candidates[0],
+      source: "interface",
+    };
+    assert.deepEqual(buildHostTargetSuggestions([interfaceCandidate], false), [
       "127.0.0.1:",
       "192.168.50.8:",
     ]);
     assert.equal(
-      buildHostTargetPlaceholder([candidates[0]], false, "unused"),
+      buildHostTargetPlaceholder([interfaceCandidate], false, "unused"),
       "127.0.0.1:5173",
     );
+  });
+
+  it("filters stale Docker candidates while native candidates reload", () => {
+    assert.deepEqual(buildHostTargetSuggestions(candidates, false), [
+      "127.0.0.1:",
+    ]);
   });
 
   it("deduplicates repeated addresses without changing priority", () => {

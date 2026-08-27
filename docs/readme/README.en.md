@@ -48,7 +48,9 @@ fn-knock brings reverse proxying, access authentication, TLS certificates, DDNS,
 | Proactive protection    | IP allowlists, geo-based access policies, WAF, bot blocking, login backoff, and rate limiting                                   |
 | Outbound tunnels        | Configuration, lifecycle control, logs, and health monitoring for Cloudflare Tunnel (`cloudflared`) and the frp client (`frpc`) |
 | Day-to-day operations   | System monitoring, audit events, web terminal, notifications, backups, and update checks                                        |
-| Multi-platform packages | fnOS, OpenWrt, Docker, Windows, Synology DSM, and general-purpose Linux                                                         |
+| Multi-platform packages | fnOS, OpenWrt, Docker, Windows, macOS, Synology DSM, and general-purpose Linux                                                  |
+
+The Web Terminal is available in every fn-knock package, but it only connects to SSH targets whose host fingerprints an administrator explicitly trusts. It never opens a local shell on the fn-knock host. Targets may run Linux, macOS, or Windows as long as an SSH server provides an interactive PTY.
 
 ## Architecture
 

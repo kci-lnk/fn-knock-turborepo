@@ -64,6 +64,7 @@ pub(super) async fn export_backup_payload(state: &AppState) -> anyhow::Result<Va
             right.get("key").and_then(Value::as_str).unwrap_or(""),
         )
     });
+    let protected_credentials = export_protected_credentials(state).await?;
     Ok(json!({
         "version": APP_BACKUP_SCHEMA_VERSION,
         "app_version": APP_LOCAL_VERSION,
@@ -71,6 +72,7 @@ pub(super) async fn export_backup_payload(state: &AppState) -> anyhow::Result<Va
         "exported_at": exported_at,
         "entry_count": entries.len(),
         "entries": entries,
+        "protected_credentials": protected_credentials,
     }))
 }
 

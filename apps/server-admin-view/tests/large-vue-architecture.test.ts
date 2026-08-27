@@ -771,7 +771,11 @@ describe("large Vue architecture", () => {
     assert.match(terminalSource, /WebTerminalWorkspace/u);
     assert.match(terminalSource, /WebTerminalDialogs/u);
     assert.doesNotMatch(terminalSource, /TerminalAPI|onMounted/u);
-    assert.match(terminalControllerSource, /useTerminalSessionController/u);
+    assert.match(terminalControllerSource, /useTerminalTargets/u);
+    assert.match(terminalControllerSource, /useTerminalTargetEditor/u);
+    assert.match(terminalControllerSource, /useTerminalSessions/u);
+    assert.match(terminalControllerSource, /useTerminalAttachment/u);
+    assert.match(terminalControllerSource, /useTerminalViewport/u);
     assert.match(terminalControllerSource, /useTerminalInputQueue/u);
     assert.match(terminalControllerSource, /useTerminalResizeQueue/u);
     assert.match(terminalControllerSource, /useTerminalEmulator/u);

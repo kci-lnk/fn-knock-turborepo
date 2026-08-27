@@ -23,7 +23,6 @@ mod ssh_security;
 mod ssl;
 mod system_events;
 mod system_operations;
-mod terminal;
 mod waf;
 mod whitelist;
 mod wol;
@@ -47,7 +46,6 @@ use ssh_security::*;
 use ssl::*;
 use system_events::*;
 use system_operations::*;
-use terminal::*;
 use waf::*;
 use whitelist::*;
 use wol::*;
@@ -765,8 +763,6 @@ struct BackupImportResultData {
     RunTypeUpdateData,
     AutoManageFirewallUpdateData,
     AutoManageFirewallData,
-    TerminalFeatureData,
-    TerminalFeatureUpdateData,
     AutoHttpsConfigData,
     AutoHttpsUpdateData,
     AutoHttpsRuntimeData,
@@ -887,16 +883,6 @@ struct BackupImportResultData {
     DeepMonitorTimingData,
     DeepMonitorWebSocketFrameData,
     DeepMonitorEventData,
-    TerminalTmuxInstallStateData,
-    TerminalRuntimeStatusData,
-    TerminalSessionData,
-    TerminalAttachmentData,
-    TerminalOutputChunkData,
-    TerminalPollResultData,
-    TerminalCreateSessionBodyData,
-    TerminalRenameSessionBodyData,
-    TerminalInputBodyData,
-    TerminalResizeBodyData,
     CloudflaredProcessResourceData,
     CloudflaredSupervisorFailureData,
     CloudflaredSupervisorData,
@@ -2006,30 +1992,6 @@ pub(super) fn components() -> Map<String, Value> {
     );
     set_property_enum(
         &mut schemas,
-        "TerminalFeatureData",
-        "resume_backend",
-        &["tmux"],
-    );
-    for schema in ["TerminalFeatureData", "TerminalFeatureUpdateData"] {
-        set_property_metadata(&mut schemas, schema, "max_sessions", "minimum", json!(1));
-        set_property_metadata(&mut schemas, schema, "max_sessions", "maximum", json!(12));
-        set_property_metadata(
-            &mut schemas,
-            schema,
-            "idle_timeout_seconds",
-            "minimum",
-            json!(60),
-        );
-        set_property_metadata(
-            &mut schemas,
-            schema,
-            "idle_timeout_seconds",
-            "maximum",
-            json!(7 * 24 * 60 * 60),
-        );
-    }
-    set_property_enum(
-        &mut schemas,
         "AutoHttpsRuntimeData",
         "status",
         &["disabled", "active", "error"],
@@ -2216,116 +2178,6 @@ pub(super) fn components() -> Map<String, Value> {
         "DnsmasqInstallStateData",
         "status",
         &["uninstalled", "installing", "installed", "error"],
-    );
-    set_property_enum(
-        &mut schemas,
-        "TerminalTmuxInstallStateData",
-        "status",
-        &["uninstalled", "installing", "installed", "error"],
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalTmuxInstallStateData",
-        "progress",
-        "minimum",
-        json!(0),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalTmuxInstallStateData",
-        "progress",
-        "maximum",
-        json!(100),
-    );
-    for (schema, property) in [
-        ("TerminalTmuxInstallStateData", "detectionSource"),
-        ("TerminalRuntimeStatusData", "tmuxDetectionSource"),
-    ] {
-        set_property_metadata(
-            &mut schemas,
-            schema,
-            property,
-            "enum",
-            json!(["env-path", "absolute-path", null]),
-        );
-    }
-    set_property_metadata(
-        &mut schemas,
-        "TerminalRuntimeStatusData",
-        "httpPollingAvailable",
-        "const",
-        json!(true),
-    );
-    set_property_enum(
-        &mut schemas,
-        "TerminalSessionData",
-        "status",
-        &["created", "attached", "detached", "stopped", "error"],
-    );
-    for (property, minimum, maximum) in [("cols", 20, 400), ("rows", 8, 200)] {
-        set_property_metadata(
-            &mut schemas,
-            "TerminalSessionData",
-            property,
-            "minimum",
-            json!(minimum),
-        );
-        set_property_metadata(
-            &mut schemas,
-            "TerminalSessionData",
-            property,
-            "maximum",
-            json!(maximum),
-        );
-    }
-    set_property_metadata(
-        &mut schemas,
-        "TerminalSessionData",
-        "resume_backend",
-        "const",
-        json!("tmux"),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalAttachmentData",
-        "transport",
-        "const",
-        json!("http-polling"),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalOutputChunkData",
-        "cursor",
-        "minimum",
-        json!(0),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalCreateSessionBodyData",
-        "cols",
-        "default",
-        json!(120),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalCreateSessionBodyData",
-        "rows",
-        "default",
-        json!(32),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalRenameSessionBodyData",
-        "title",
-        "minLength",
-        json!(1),
-    );
-    set_property_metadata(
-        &mut schemas,
-        "TerminalInputBodyData",
-        "dataBase64",
-        "format",
-        json!("byte"),
     );
     for schema in ["SslCertificateSaveBodyData", "SslCertificateSummaryData"] {
         set_property_enum(
@@ -5242,27 +5094,6 @@ fn query_parameters(contract: &DomainOperation) -> Vec<Value> {
             "cursor",
             json!({ "type": "integer", "minimum": 0 }),
         )],
-        ("get", "/api/admin/terminal/attachments/{id}/poll") => vec![
-            query_parameter(
-                "cursor",
-                json!({
-                    "oneOf": [
-                        { "type": "integer", "minimum": 0 },
-                        { "type": "string", "pattern": r"^\s*[+-]?\d+" }
-                    ],
-                    "default": 0,
-                    "description": "Byte cursor. Legacy integer-prefix strings remain accepted."
-                }),
-            ),
-            query_parameter(
-                "timeout_ms",
-                json!({
-                    "type": "number",
-                    "default": 15_000,
-                    "description": "Long-poll timeout; non-zero values are clamped to 1000–20000 ms and zero selects the default."
-                }),
-            ),
-        ],
         ("get", "/api/admin/cloudflared/logs") => vec![query_parameter(
             "limit",
             json!({

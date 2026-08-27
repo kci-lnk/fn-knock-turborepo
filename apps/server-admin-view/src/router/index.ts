@@ -362,7 +362,6 @@ router.beforeEach(async (to, from) => {
   }
 
   const runtimeCapabilityRedirect = resolveRuntimeCapabilityRedirect(to.path, {
-    canUseTerminal: configStore.canUseTerminal,
     canUseSshSecurity: configStore.canUseSshSecurity,
     sshSecurityEnabled: configStore.config?.ssh_security?.enabled === true,
     canUseSmartConnect: configStore.canUseSmartConnect,

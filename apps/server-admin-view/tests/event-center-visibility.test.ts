@@ -41,6 +41,22 @@ const visibilityEvent: SystemEventRecord = {
   },
 };
 
+const terminalAuditEvent: SystemEventRecord = {
+  id: "evt_terminal_1",
+  type: "FN_EVENT_TERMINAL_AUDIT",
+  source: "SERVER_ADMIN",
+  level: "WARN",
+  happened_at: "2026-08-28T10:11:12Z",
+  subject: { kind: "COMPONENT", id: "session-123456789" },
+  tags: ["terminal", "audit"],
+  payload: {
+    action: "session_lost",
+    target_id: "target-123456789",
+    session_id: "session-123456789",
+    error_code: "connect_timeout",
+  },
+};
+
 describe("gateway visibility system event", () => {
   it("is available to filters and defaults notification grouping globally", () => {
     assert.ok(
@@ -133,6 +149,56 @@ describe("gateway visibility system event", () => {
       assert.ok(catalog.eventCenter.events.gatewayVisibilityBlocked);
       assert.ok(catalog.eventCenter.events.detailFields.visibility_scope);
       assert.ok(catalog.eventCenter.events.detailFields.visibility_mode);
+    }
+  });
+});
+
+describe("terminal audit system event", () => {
+  it("is available to notification rules and groups by subject", () => {
+    assert.ok(
+      SYSTEM_EVENT_TYPE_OPTIONS.some(
+        (option) => option.value === "FN_EVENT_TERMINAL_AUDIT",
+      ),
+    );
+    assert.equal(
+      DEFAULT_GROUP_BY_BY_EVENT_TYPE.FN_EVENT_TERMINAL_AUDIT,
+      "SUBJECT",
+    );
+  });
+
+  it("renders metadata-only terminal audit details", () => {
+    const activeEvent = ref<SystemEventRecord | null>(terminalAuditEvent);
+    const display = useSystemEventDisplay({
+      activeEvent,
+      translate: (key, params) =>
+        params ? `${key}:${JSON.stringify(params)}` : key,
+    });
+
+    const summary = display.describeEvent(terminalAuditEvent);
+    assert.match(summary, /terminalAuditDescription/u);
+    assert.match(summary, /session_lost/u);
+    assert.match(summary, /connect_timeout/u);
+
+    const details = new Map(
+      display.detailItems.value.map((item) => [item.key, item.value]),
+    );
+    assert.equal(details.get("target_id"), "target-123456789");
+    assert.equal(details.get("session_id"), "session-123456789");
+    assert.equal(details.get("error_code"), "connect_timeout");
+  });
+
+  it("provides terminal audit copy in every supported locale", () => {
+    for (const catalog of [
+      zhCNAdmin,
+      zhHantAdmin,
+      enAdmin,
+      jaJPAdmin,
+      koKRAdmin,
+    ]) {
+      assert.ok(catalog.eventCenter.eventTypes.FN_EVENT_TERMINAL_AUDIT);
+      assert.ok(catalog.eventCenter.events.terminalAuditDescription);
+      assert.ok(catalog.eventCenter.events.terminalAuditActions.session_lost);
+      assert.ok(catalog.eventCenter.events.detailFields.error_code);
     }
   });
 });

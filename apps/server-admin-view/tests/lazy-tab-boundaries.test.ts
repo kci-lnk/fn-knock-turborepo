@@ -11,15 +11,12 @@ const assertLazyViews = (source: string, minimum: number) => {
     (source.match(/defineAsyncComponent\(/gu) ?? []).length >= minimum,
     true,
   );
-  assert.doesNotMatch(
-    source,
-    /^import\s+\w+\s+from\s+"\.\/[^\n]+\.vue";/gmu,
-  );
+  assert.doesNotMatch(source, /^import\s+\w+\s+from\s+"\.\/[^\n]+\.vue";/gmu);
 };
 
 describe("tab route chunk boundaries", () => {
   it("loads the large system settings sections on demand", () => {
-    assertLazyViews(readView("SystemSettings"), 16);
+    assertLazyViews(readView("SystemSettings"), 15);
   });
 
   it("keeps secondary tab pages out of their parent route chunks", () => {

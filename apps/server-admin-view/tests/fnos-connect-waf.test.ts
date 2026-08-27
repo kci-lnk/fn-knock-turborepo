@@ -23,7 +23,6 @@ const capabilities = (available: boolean) =>
     smart_connect_available: false,
     system_clock_sync_available: false,
     self_update_available: false,
-    terminal_available: false,
     shared_root_available: false,
     fnos_connect_waf_available: available,
   }) satisfies RuntimeCapabilities;

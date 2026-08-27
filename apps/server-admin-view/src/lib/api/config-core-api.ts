@@ -25,9 +25,6 @@ type AutoManageFirewallUpdate =
   ApiContractComponents["schemas"]["AutoManageFirewallUpdateData"];
 type AutoManageFirewallData =
   ApiContractComponents["schemas"]["AutoManageFirewallData"];
-type TerminalFeature = ApiContractComponents["schemas"]["TerminalFeatureData"];
-type TerminalFeatureUpdate =
-  ApiContractComponents["schemas"]["TerminalFeatureUpdateData"];
 type AppearanceContract =
   ApiContractComponents["schemas"]["PanelAppearanceData"];
 type DefaultTunnelUpdate =
@@ -117,10 +114,6 @@ export const configCoreApi = {
     const res = await apiClient.post("/config/auto_manage_firewall", payload);
     return res.data.data;
   },
-  async getTerminalFeature(): Promise<TerminalFeature> {
-    const res = await apiClient.get("/config/terminal_feature");
-    return res.data.data;
-  },
   async getWOLFeature(): Promise<WOLFeatureConfig> {
     const res = await apiClient.get("/config/wol_feature");
     return res.data.data;
@@ -146,12 +139,6 @@ export const configCoreApi = {
       "/config/auth_credential_settings",
       payload,
     );
-    return res.data.data;
-  },
-  async updateTerminalFeature(
-    payload: TerminalFeatureUpdate,
-  ): Promise<TerminalFeature> {
-    const res = await apiClient.post("/config/terminal_feature", payload);
     return res.data.data;
   },
   async updateWOLFeature(

@@ -43,9 +43,6 @@ const GatewaySettings = defineAsyncComponent(
 const WAFSettings = defineAsyncComponent(
   () => import("./system-settings/WAFSettings.vue"),
 );
-const TerminalSettings = defineAsyncComponent(
-  () => import("./system-settings/TerminalSettings.vue"),
-);
 const SessionSettings = defineAsyncComponent(
   () => import("./system-settings/SessionSettings.vue"),
 );
@@ -76,9 +73,6 @@ const showTunnelTabs = computed(
 );
 const showAcmeTab = computed(
   () => configStore.canUseAcme && !configStore.isWindowsDeployment,
-);
-const showTerminalTab = computed(
-  () => configStore.canUseTerminal && !configStore.isSynologyDeployment,
 );
 const showPanelTab = computed(
   () => configStore.isProtectedAdminPanelDeployment,
@@ -112,9 +106,6 @@ const allowedTabs = computed(() => {
   if (!showAcmeTab.value) {
     const acmeIndex = tabs.indexOf("acme-ssl");
     if (acmeIndex >= 0) tabs.splice(acmeIndex, 1);
-  }
-  if (showTerminalTab.value) {
-    tabs.splice(7, 0, "terminal");
   }
   if (!showPanelTab.value) {
     const panelIndex = tabs.indexOf("panel");
@@ -200,12 +191,6 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
             class="flex-none shrink-0 px-3"
             >{{ t("admin.systemSettingsTabs.logs") }}</TabsTrigger
           >
-          <TabsTrigger
-            v-if="showTerminalTab"
-            value="terminal"
-            class="flex-none shrink-0 px-3"
-            >{{ t("admin.systemSettingsTabs.terminal") }}</TabsTrigger
-          >
           <TabsTrigger value="session" class="flex-none shrink-0 px-3">{{
             t("admin.systemSettingsTabs.session")
           }}</TabsTrigger>
@@ -259,9 +244,6 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="gateway-logging" class="pt-2">
         <GatewayLoggingSettings />
-      </TabsContent>
-      <TabsContent v-if="showTerminalTab" value="terminal" class="pt-2">
-        <TerminalSettings />
       </TabsContent>
       <TabsContent value="session" class="pt-2">
         <SessionSettings />

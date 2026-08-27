@@ -237,22 +237,6 @@ fn normalize_pow_max_number(value: Option<&Value>, fallback: i64) -> i64 {
         .unwrap_or(fallback)
 }
 
-pub(crate) fn normalize_terminal_feature(value: Option<&Value>) -> Value {
-    json!({
-        "enabled": bool_field(value, "enabled", false),
-        "default_cwd": normalize_terminal_default_cwd(
-            value
-                .and_then(|value| value.get("default_cwd"))
-                .and_then(Value::as_str)
-        ),
-        "max_sessions": int_field(value, "max_sessions", 3, 1, 12),
-        "idle_timeout_seconds": int_field(value, "idle_timeout_seconds", 24 * 60 * 60, 60, 7 * 24 * 60 * 60),
-        "resume_backend": "tmux",
-        "allow_mobile_toolbar": bool_field(value, "allow_mobile_toolbar", true),
-        "dangerously_run_as_current_user": bool_field(value, "dangerously_run_as_current_user", true),
-    })
-}
-
 pub(crate) fn normalize_wol_feature(value: Option<&Value>) -> Value {
     json!({
         "enabled": bool_field(value, "enabled", false),

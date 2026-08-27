@@ -646,8 +646,6 @@ fn segment_label(segment: &str) -> String {
         "subdomain_mode" => "子域模式".to_string(),
         "system" => "系统规则".to_string(),
         "targets" => "目标".to_string(),
-        "terminal_feature" => "终端功能".to_string(),
-        "tmux" => "Tmux 组件".to_string(),
         "test-cidr" => "CIDR 测试".to_string(),
         "test-ip-lookup" => "IP 查询测试".to_string(),
         "totp" => "TOTP 凭据".to_string(),

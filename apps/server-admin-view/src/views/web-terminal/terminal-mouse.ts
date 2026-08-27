@@ -197,7 +197,10 @@ export const createTerminalMouseReporter = ({
     reportKey: string,
     options?: { dedupe?: boolean },
   ) => {
-    if (!sequence || (options?.dedupe !== false && reportKey === lastReportKey)) {
+    if (
+      !sequence ||
+      (options?.dedupe !== false && reportKey === lastReportKey)
+    ) {
       return;
     }
     lastReportKey = reportKey;

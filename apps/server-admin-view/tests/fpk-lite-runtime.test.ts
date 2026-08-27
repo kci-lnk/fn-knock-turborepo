@@ -16,17 +16,16 @@ import { privilegedNavigationVisibility } from "../src/views/layout/runtime-navi
 
 describe("FPK Lite runtime behavior", () => {
   const liteRouteAccess = {
-    canUseTerminal: false,
     canUseSshSecurity: false,
     sshSecurityEnabled: false,
     canUseSmartConnect: false,
     canUseFnosCertificateSync: false,
   };
 
-  it("redirects every privileged route before its page can load", () => {
-    assert.deepEqual(
+  it("keeps the SSH terminal route while redirecting host-privileged routes", () => {
+    assert.equal(
       resolveRuntimeCapabilityRedirect("/terminal", liteRouteAccess),
-      { path: "/system" },
+      null,
     );
     assert.deepEqual(
       resolveRuntimeCapabilityRedirect("/ssh-security", liteRouteAccess),
@@ -48,15 +47,13 @@ describe("FPK Lite runtime behavior", () => {
     );
   });
 
-  it("removes privileged entries from navigation even if restored config enables them", () => {
+  it("removes unavailable SSH security from navigation", () => {
     assert.deepEqual(
       privilegedNavigationVisibility({
         canUseSshSecurity: false,
         sshSecurityEnabled: true,
-        canUseTerminal: false,
-        terminalEnabled: true,
       }),
-      { sshSecurity: false, terminal: false },
+      { sshSecurity: false },
     );
   });
 

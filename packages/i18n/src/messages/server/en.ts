@@ -66,12 +66,6 @@ export const enServer = {
         deployment:
           "The current deployment type does not support in-app updates",
       },
-      terminal_available: {
-        lite: "Knock Lite does not provide a Web terminal",
-        docker: "Docker deployments do not support Web terminal",
-        openwrt: "OpenWrt deployments do not support Web terminal yet",
-        platform: "The current runtime does not support Web terminal",
-      },
       auto_https_available: {
         lite: "Knock Lite cannot bind port 80 because it requires root privileges",
         platform: "The current runtime does not support automatic HTTPS",
@@ -354,8 +348,6 @@ export const enServer = {
     runtimeConfigRoutes: {
       loadCaptchaFailed: "Failed to load captcha config",
       saveCaptchaFailed: "Failed to save captcha config",
-      loadTerminalFeatureFailed: "Failed to load terminal feature config",
-      saveTerminalFeatureFailed: "Failed to save terminal feature config",
       loadWolFeatureFailed: "Failed to load Wake-on-LAN feature config",
       saveWolFeatureFailed: "Failed to save Wake-on-LAN feature config",
       syncWolFeatureFailed: "Failed to sync Wake-on-LAN feature to the gateway",
@@ -994,45 +986,11 @@ export const enServer = {
   terminal: {
     defaultTitle: "Web terminal",
     defaultSessionTitlePrefix: "Session-",
-    tmuxNotDetectedInstallFirst:
-      "tmux was not detected. Install the tmux environment first.",
-    tmuxReadyWithVersion: "tmux is ready: {version}",
-    refreshingApt: "Refreshing Debian package sources...",
-    aptUpdateFailed: "apt-get update failed",
-    installingTmux: "Installing tmux...",
-    aptInstallTmuxFailed: "apt-get install tmux failed",
-    verifyingTmuxInstall: "Verifying tmux installation...",
-    tmuxMissingAfterInstall:
-      "tmux was still not detected after installation completed",
-    tmuxInstallCompleteWithVersion: "tmux installation completed: {version}",
-    tmuxInstallFailed: "tmux installation failed",
     operationFailed: "Terminal operation failed",
     operationFailedWithMessage: "Terminal operation failed: {message}",
-    cwdUnavailable:
-      "Working directory does not exist or is inaccessible: {path}",
-    webTerminalDisabled: "Web terminal is not enabled",
-    tmuxInstallingWait:
-      "tmux is being installed. Wait for installation to finish.",
-    tmuxStatusError: "tmux status error: {message}",
-    tmuxMissingCannotCreate:
-      "tmux was not detected, so a resumable terminal session cannot be created",
-    rootRunRequiresDangerToggle:
-      "The current process is running as root. Enable the explicit high-risk run switch in settings before creating a terminal.",
-    requestedShellUnavailable: "Requested shell is unavailable: {shell}",
-    noShellDetected:
-      "No available shell was detected. Confirm that zsh, bash, or sh is installed.",
-    paneMetadataReadFailed: "Unable to read terminal pane metadata",
-    paneTtyParseFailed: "Unable to parse terminal pane tty",
-    inputPipeCreateFailed: "Unable to create terminal input pipe",
-    ioRelayCreateFailed: "Unable to create terminal IO relay",
     sessionLimitReached: "Terminal session limit reached ({count})",
-    tmuxSessionCreateFailed: "Failed to create tmux session",
     sessionTitleRequired: "Session name is required",
     sessionMissingOrExpired: "Terminal session does not exist or has expired",
-    tmuxMissingCannotAttach:
-      "tmux was not detected, so the terminal session cannot be attached",
-    inputPipeNotReady: "Terminal input pipe is not ready yet",
-    inputWriteInterrupted: "Terminal input write was interrupted",
     attachmentExpired: "Terminal attachment has expired",
     inputSendFailed: "Failed to send terminal input",
     resizeFailed: "Failed to resize terminal",

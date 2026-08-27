@@ -3,6 +3,7 @@ import type {
   SystemEventTranslate,
   SystemEventValueFormatters,
 } from "./systemEventValueFormatters";
+import { describeTerminalAuditEvent } from "./terminalAuditDescription";
 
 export type EventOriginDisplay = {
   key: string;
@@ -70,7 +71,7 @@ export const describeSystemEvent = (
     shortId,
   } = formatters;
 
-  switch (event.type) {
+  switch (String(event.type)) {
     case "FN_EVENT_AUTH_LOGIN_SUCCESS": {
       const authMethod = String(payload.auth_method || "");
       const authProviderName = String(payload.auth_provider_name || "").trim();
@@ -211,6 +212,8 @@ export const describeSystemEvent = (
         event: translate(`admin.eventCenter.eventTypes.${event.type}`),
         message: String(payload.message || "-"),
       });
+    case "FN_EVENT_TERMINAL_AUDIT":
+      return describeTerminalAuditEvent(event, translate, shortId);
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED":
       return translate("admin.eventCenter.events.gatewayThrottleBlocked", {
         ip: formatIpDisplay(payload.ip),

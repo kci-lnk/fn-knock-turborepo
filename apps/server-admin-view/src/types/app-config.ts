@@ -23,7 +23,6 @@ import type {
   SSLDeploymentMode,
   StreamMapping,
   SubdomainModeConfig,
-  TerminalFeatureConfig,
   WOLFeatureConfig,
 } from "./core";
 import type {
@@ -72,7 +71,6 @@ export interface AppConfig {
   smart_connect?: SmartConnectConfig;
   scan_discovery?: ScanDiscoveryConfig;
   auth_credential_settings?: AuthCredentialSettings;
-  terminal_feature?: TerminalFeatureConfig;
   wol_feature?: WOLFeatureConfig;
   ssh_security?: SSHSecurityConfig;
   locale?: LocaleConfig;

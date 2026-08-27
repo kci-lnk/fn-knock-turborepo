@@ -70,7 +70,6 @@ pub struct AppStateInner {
     pub(crate) whitelist_maintenance_notify: Notify,
     pub(crate) system_monitor_reload_notify: Notify,
     pub(crate) waf_event_drain_reload_notify: Notify,
-    pub(crate) terminal_cleanup_notify: Notify,
     pub(crate) ssh_security_maintenance_notify: Notify,
     pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
@@ -89,6 +88,9 @@ pub struct AppStateInner {
     /// Panel connection configuration locks, single-flight guards and the
     /// bounded global outbound synchronization pool.
     pub panel_sync: crate::panel_sync::PanelSyncRuntime,
+    /// Process-local SSH shells, browser attachments and bounded terminal
+    /// output. No live session state is persisted across process restarts.
+    pub terminal: crate::terminal::TerminalRuntime,
     /// Wake-on-LAN locks, reload signals and non-secret runtime status.
     pub wol: WolState,
     /// Tunnel process ownership, runtime locks and Cloudflare scheduling state.
@@ -466,7 +468,6 @@ impl AppState {
                 whitelist_maintenance_notify: Notify::new(),
                 system_monitor_reload_notify: Notify::new(),
                 waf_event_drain_reload_notify: Notify::new(),
-                terminal_cleanup_notify: Notify::new(),
                 ssh_security_maintenance_notify: Notify::new(),
                 ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
@@ -502,6 +503,7 @@ impl AppState {
                 })),
                 maintenance: MaintenanceState::default(),
                 panel_sync: crate::panel_sync::PanelSyncRuntime::new(),
+                terminal: crate::terminal::TerminalRuntime::new(),
                 wol: WolState::default(),
                 tunnel: TunnelState::default(),
             }),
@@ -603,10 +605,6 @@ impl AppState {
 
     pub(crate) fn request_waf_event_drain_reload(&self) {
         self.waf_event_drain_reload_notify.notify_one();
-    }
-
-    pub(crate) fn request_terminal_cleanup(&self) {
-        self.terminal_cleanup_notify.notify_one();
     }
 
     pub(crate) fn request_ssh_security_maintenance(&self) {

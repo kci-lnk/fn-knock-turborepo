@@ -203,7 +203,6 @@ export const getEffectiveRuntimeCapabilities = (
     fnos_certificate_sync_available: false,
     system_clock_sync_available: false,
     self_update_available: false,
-    terminal_available: false,
     auto_https_available: false,
     fnos_network_tuning_available: false,
     fnos_connect_waf_available: false,

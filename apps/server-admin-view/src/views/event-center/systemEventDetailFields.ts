@@ -52,6 +52,18 @@ export const detailFieldDefinitions = [
     key: "session_id",
     labelKey: "admin.eventCenter.events.detailFields.session_id",
   },
+  {
+    key: "target_id",
+    labelKey: "admin.eventCenter.events.detailFields.target_id",
+  },
+  {
+    key: "revision",
+    labelKey: "admin.eventCenter.events.detailFields.revision",
+  },
+  {
+    key: "error_code",
+    labelKey: "admin.eventCenter.events.detailFields.error_code",
+  },
   { key: "ip", labelKey: "admin.eventCenter.events.detailFields.ip" },
   {
     key: "ip_location",

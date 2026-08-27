@@ -526,17 +526,39 @@ async fn boot_migration_backfills_panel_sync_ids_through_host_mapping_cas() {
 }
 
 #[tokio::test]
+async fn runtime_constraints_remove_legacy_terminal_feature_config() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    ensure_config_object(&mut config).insert(
+        "terminal_feature".to_string(),
+        json!({ "enabled": true, "resume_backend": "tmux" }),
+    );
+
+    let corrected = apply_runtime_constraints_on_boot(&state, &mut config)
+        .await
+        .expect("apply runtime constraints");
+
+    assert!(
+        corrected
+            .iter()
+            .any(|entry| entry == "remove legacy terminal_feature")
+    );
+    assert!(config.get("terminal_feature").is_none());
+    let persisted = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload config");
+    assert!(persisted.get("terminal_feature").is_none());
+}
+
+#[tokio::test]
 async fn fpk_lite_privileged_runtime_handlers_return_forbidden() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
 
     assert_eq!(
         update_run_type(State(state.clone()), Json(json!({ "run_type": 0 })))
-            .await
-            .status(),
-        StatusCode::FORBIDDEN
-    );
-    assert_eq!(
-        update_terminal_feature(State(state.clone()), Json(json!({ "enabled": true })))
             .await
             .status(),
         StatusCode::FORBIDDEN
@@ -1161,35 +1183,6 @@ fn builds_proxy_protocol_force_payload_from_go_envelopes() {
     assert_eq!(
         proxy_protocol_force_payload(&json!({ "success": true }), true),
         json!({ "proxy_protocol_force": true })
-    );
-}
-
-#[test]
-fn normalizes_terminal_feature_like_node() {
-    assert_eq!(
-        normalize_terminal_feature(Some(&json!({
-            "enabled": true,
-            "default_cwd": "",
-            "max_sessions": 20,
-            "idle_timeout_seconds": 30,
-            "allow_mobile_toolbar": false
-        }))),
-        json!({
-            "enabled": true,
-            "default_cwd": "~",
-            "max_sessions": 12,
-            "idle_timeout_seconds": 60,
-            "resume_backend": "tmux",
-            "allow_mobile_toolbar": false,
-            "dangerously_run_as_current_user": true,
-        })
-    );
-    assert_eq!(
-        normalize_terminal_feature(Some(&json!({
-            "default_cwd": "/usr/local/etc/fn-knock/"
-        })))
-        .get("default_cwd"),
-        Some(&json!("~"))
     );
 }
 

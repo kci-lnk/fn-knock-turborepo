@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 101;
+const maxDirectSpawnCallSites = 105;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -47,6 +47,12 @@ const auditedBudgets = new Map(
     "storage/redis_store/tests/notification_runtime.rs": 3,
     "storage/redis_store/tests/security.rs": 3,
     "system/maintenance/tests.rs": 3,
+    // One session owner retained by TerminalRuntime and joined on terminate/shutdown,
+    // one initialization progress bridge returned to and awaited by that owner, and
+    // one test-only actor retained by the same runtime task registry.
+    "system/terminal/runtime.rs": 3,
+    // Test-only russh server fixture; every returned handle is explicitly aborted.
+    "system/terminal/ssh.rs": 1,
     "system/update.rs": 1,
     "tunnels/cloudflared/cloudflare_api.rs": 7,
     "tunnels/cloudflared/managed.rs": 5,

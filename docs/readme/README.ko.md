@@ -48,7 +48,9 @@ fn-knock은 리버스 프록시, 접근 인증, TLS 인증서, DDNS, 접근 제�
 | 선제적 보호       | IP 허용 목록, 지역 기반 접근 정책, WAF, 봇 차단, 로그인 백오프, 속도 제한                    |
 | 외부 접속 터널    | Cloudflare Tunnel(`cloudflared`)과 frp 클라이언트(`frpc`)의 설정, 시작·중지, 로그, 상태 관리 |
 | 일상 운영         | 시스템 모니터링, 감사 이벤트, 웹 터미널, 알림, 백업, 업데이트 확인                           |
-| 멀티플랫폼 패키지 | fnOS, OpenWrt, Docker, Windows, Synology DSM, 범용 Linux                                     |
+| 멀티플랫폼 패키지 | fnOS, OpenWrt, Docker, Windows, macOS, Synology DSM, 범용 Linux                              |
+
+웹 터미널은 모든 fn-knock 배포 패키지에서 사용할 수 있지만, 관리자가 호스트 지문을 명시적으로 신뢰한 SSH 대상에만 연결합니다. fn-knock 호스트의 로컬 Shell을 직접 열지 않습니다. 대화형 PTY를 제공하는 SSH Server가 있으면 Linux, macOS 또는 Windows를 대상으로 사용할 수 있습니다.
 
 ## 아키텍처
 

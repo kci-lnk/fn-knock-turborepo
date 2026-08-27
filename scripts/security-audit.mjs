@@ -44,19 +44,22 @@ const rustAllowlist = new Map([
   [
     "apps/server-admin-rs/Cargo.lock",
     {
-      vulnerabilities: new Set(["RUSTSEC-2023-0071:rsa:0.9.10"]),
+      vulnerabilities: new Set([
+        "RUSTSEC-2023-0071:rsa:0.9.10",
+        "RUSTSEC-2023-0071:rsa:0.10.0-rc.18",
+      ]),
       warnings: new Set(["unmaintained:paste:1.0.15"]),
       manifest: "apps/server-admin-rs/Cargo.toml",
       reviewedPackages: new Map([
         ["crypto-glue", "0.1.15"],
         ["paste", "1.0.15"],
-        ["rsa", "0.9.10"],
+        ["rsa", ["0.9.10", "0.10.0-rc.18"]],
         ["webauthn-attestation-ca", "0.6.1-dev"],
         ["webauthn-rs", "0.6.1-dev"],
         ["webauthn-rs-core", "0.6.1-dev"],
       ]),
       rationale:
-        "rsa is transitive through webauthn-rs and is used only for public-key signature verification; the advisory requires observable private-key operations. paste is a compile-time transitive dependency of utoipa-axum and has an unmaintained warning, not a vulnerability. No patched compatible releases exist for either dependency path.",
+        "rsa 0.9.10 is transitive through webauthn-rs and is used only for public-key signature verification. rsa 0.10.0-rc.18 is required by russh for explicit user-supplied RSA SSH keys; it performs a private-key signature only during a user-initiated SSH authentication attempt, and no patched russh-compatible RSA release exists. The SSH target can observe signature timing, so Ed25519 remains the preferred credential. paste is a compile-time transitive dependency of utoipa-axum and has an unmaintained warning, not a vulnerability.",
     },
   ],
 ]);
@@ -103,11 +106,17 @@ function assertReviewedRustPackages(policy) {
     versionsByName.set(dependency.name, versions);
   }
 
-  for (const [name, expectedVersion] of policy.reviewedPackages) {
+  for (const [name, expected] of policy.reviewedPackages) {
+    const expectedVersions = new Set(
+      Array.isArray(expected) ? expected : [expected],
+    );
     const actualVersions = versionsByName.get(name) ?? new Set();
-    if (actualVersions.size !== 1 || !actualVersions.has(expectedVersion)) {
+    const versionsMatch =
+      actualVersions.size === expectedVersions.size &&
+      [...expectedVersions].every((version) => actualVersions.has(version));
+    if (!versionsMatch) {
       throw new Error(
-        `${name} requires a new dependency applicability review; expected=${expectedVersion}, actual=${[...actualVersions].join(",") || "missing"}`,
+        `${name} requires a new dependency applicability review; expected=${[...expectedVersions].join(",")}, actual=${[...actualVersions].join(",") || "missing"}`,
       );
     }
   }

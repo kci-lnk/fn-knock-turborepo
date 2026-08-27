@@ -1,113 +1,261 @@
-import type {
-  TerminalAttachmentRecord,
-  TerminalRuntimeStatus,
-  TerminalSessionRecord,
-  TerminalTmuxInstallState,
-} from "../../types";
-import type {
-  components as ApiContractComponents,
-  operations as ApiContractOperations,
-} from "@fn-knock/api-contract";
+import type { components as ApiContractComponents } from "@fn-knock/api-contract";
 import { apiClient } from "./client";
 
 type TerminalSchemas = ApiContractComponents["schemas"];
-type TerminalCreateSessionBody =
-  TerminalSchemas["TerminalCreateSessionBodyData"];
-type TerminalRenameSessionBody =
-  TerminalSchemas["TerminalRenameSessionBodyData"];
-type TerminalInputBody = TerminalSchemas["TerminalInputBodyData"];
-type TerminalResizeBody = TerminalSchemas["TerminalResizeBodyData"];
-type TerminalPollResult = TerminalSchemas["TerminalPollResultData"];
-type TerminalPollQuery = NonNullable<
-  ApiContractOperations["get_api_admin_terminal_attachments__id__poll"]["parameters"]["query"]
->;
+type TerminalWireEvent = TerminalSchemas["TerminalEvent"];
 
-export type {
-  TerminalAttachmentRecord,
-  TerminalFeatureConfig,
-  TerminalOutputChunk,
-  TerminalRuntimeStatus,
-  TerminalSessionRecord,
-  TerminalTmuxInstallState,
-} from "../../types";
+export type TerminalAuthMethod = TerminalSchemas["AuthMethod"];
+export type TerminalSessionPhase = TerminalSchemas["SessionPhase"];
+export type TerminalAttachmentRole = TerminalSchemas["AttachmentRole"];
+export type TerminalErrorCode = TerminalSchemas["TerminalErrorCode"];
+export type TerminalErrorEnvelope = TerminalSchemas["TerminalErrorEnvelope"];
+export type TerminalTrustedHostKey = TerminalSchemas["TrustedHostKey"];
+export type TerminalTargetRecord = TerminalSchemas["TerminalTarget"];
+export type TerminalSecretAction = TerminalSchemas["SecretAction"];
+export type TerminalCredentialMutation = TerminalSchemas["CredentialMutation"];
+export type TerminalPassphraseMutation = TerminalSchemas["PassphraseMutation"];
+export type TerminalTargetCreateInput = TerminalSchemas["TargetCreateInput"];
+export type TerminalTargetUpdateInput = TerminalSchemas["TargetUpdateInput"];
+export type TerminalTargetDraftInput = TerminalSchemas["TargetDraft"];
+export type TerminalHostKeyProbeInput = TerminalSchemas["ProbeHostKeyInput"];
+export type TerminalHostKeyProbeResult = TerminalSchemas["HostKeyProbeResult"];
+export type TerminalConnectionTestInput =
+  TerminalSchemas["TerminalTestConnectionInput"];
+export type TerminalConnectionTestResult =
+  TerminalSchemas["ConnectionTestResult"];
+export type TerminalSessionRecord = TerminalSchemas["TerminalSession"];
+export type TerminalSessionListResult = TerminalSchemas["SessionListResult"];
+export type TerminalAttachmentRecord = TerminalSchemas["TerminalAttachment"];
+
+export type TerminalOutputEvent = Pick<
+  TerminalWireEvent,
+  "cursor" | "dataBase64" | "reset"
+> & {
+  type: "output";
+};
+
+export type TerminalSessionStateEvent = Pick<
+  TerminalWireEvent,
+  "cursor" | "errorCode" | "errorMessage" | "exitCode"
+> & {
+  type: "status";
+  phase: TerminalSessionPhase;
+};
+
+export type TerminalControlEvent = Pick<TerminalWireEvent, "cursor"> & {
+  type: "control";
+  role: TerminalAttachmentRole;
+  generation: number;
+};
+
+export type TerminalEvent =
+  TerminalOutputEvent | TerminalSessionStateEvent | TerminalControlEvent;
+
+export type TerminalEventsResult = Omit<
+  TerminalSchemas["EventsResult"],
+  "events"
+> & { events: TerminalEvent[] };
+
+export type TerminalCreateSessionInput = TerminalSchemas["CreateSessionInput"];
+export type TerminalAttachmentInput = TerminalSchemas["CreateAttachmentInput"];
+
+export interface TerminalAttachmentEventsQuery {
+  after?: number;
+  timeoutMs?: number;
+}
+
+export type TerminalInputBody = TerminalSchemas["InputRequest"];
+export type TerminalResizeBody = TerminalSchemas["ResizeRequest"];
+export type TerminalClaimControlBody = TerminalSchemas["ClaimControlRequest"];
+export type TerminalRenameSessionInput = TerminalSchemas["RenameSessionInput"];
+
+const targetPath = (id: string) =>
+  `/terminal/targets/${encodeURIComponent(id)}`;
+const sessionPath = (id: string) =>
+  `/terminal/sessions/${encodeURIComponent(id)}`;
+const attachmentPath = (id: string) =>
+  `/terminal/attachments/${encodeURIComponent(id)}`;
 
 export const TerminalAPI = {
-  async getStatus(signal?: AbortSignal): Promise<TerminalRuntimeStatus> {
-    const res = await apiClient.get("/terminal/status", { signal });
-    return res.data.data;
+  async listTargets(signal?: AbortSignal): Promise<TerminalTargetRecord[]> {
+    const response = await apiClient.get("/terminal/targets", { signal });
+    return response.data.data;
   },
-  async installTmux(): Promise<TerminalTmuxInstallState> {
-    const res = await apiClient.post("/terminal/tmux/install");
-    return res.data.data;
+
+  async getTarget(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<TerminalTargetRecord> {
+    const response = await apiClient.get(targetPath(id), { signal });
+    return response.data.data;
   },
-  async listSessions(): Promise<TerminalSessionRecord[]> {
-    const res = await apiClient.get("/terminal/sessions");
-    return res.data.data;
+
+  async createTarget(
+    payload: TerminalTargetCreateInput,
+    signal?: AbortSignal,
+  ): Promise<TerminalTargetRecord> {
+    const response = await apiClient.post("/terminal/targets", payload, {
+      signal,
+    });
+    return response.data.data;
   },
-  async getSession(id: string): Promise<TerminalSessionRecord> {
-    const res = await apiClient.get(
-      `/terminal/sessions/${encodeURIComponent(id)}`,
+
+  async updateTarget(
+    id: string,
+    payload: TerminalTargetUpdateInput,
+    force = false,
+    confirmationToken?: string,
+    signal?: AbortSignal,
+  ): Promise<TerminalTargetRecord> {
+    const response = await apiClient.patch(targetPath(id), payload, {
+      params: {
+        force,
+        ...(confirmationToken ? { confirmationToken } : {}),
+      },
+      signal,
+    });
+    return response.data.data;
+  },
+
+  async deleteTarget(
+    id: string,
+    revision: number,
+    terminateActiveSessions = false,
+    confirmationToken?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await apiClient.delete(targetPath(id), {
+      params: {
+        force: terminateActiveSessions,
+        revision,
+        ...(confirmationToken ? { confirmationToken } : {}),
+      },
+      signal,
+    });
+  },
+
+  async probeHostKey(
+    payload: TerminalHostKeyProbeInput,
+    signal?: AbortSignal,
+  ): Promise<TerminalHostKeyProbeResult> {
+    const response = await apiClient.post(
+      "/terminal/targets/probe-host-key",
+      payload,
+      { signal },
     );
-    return res.data.data;
+    return response.data.data;
   },
+
+  async testConnection(
+    payload: TerminalConnectionTestInput,
+    signal?: AbortSignal,
+  ): Promise<TerminalConnectionTestResult> {
+    const response = await apiClient.post(
+      "/terminal/targets/test-connection",
+      payload,
+      { signal },
+    );
+    return response.data.data;
+  },
+
+  async listSessions(signal?: AbortSignal): Promise<TerminalSessionListResult> {
+    const response = await apiClient.get("/terminal/sessions", { signal });
+    return response.data.data;
+  },
+
   async createSession(
-    payload: TerminalCreateSessionBody,
+    targetId: string,
+    payload: TerminalCreateSessionInput,
+    signal?: AbortSignal,
   ): Promise<TerminalSessionRecord> {
-    const res = await apiClient.post("/terminal/sessions", payload);
-    return res.data.data;
+    const response = await apiClient.post(
+      `${targetPath(targetId)}/sessions`,
+      payload,
+      { signal },
+    );
+    return response.data.data;
   },
+
   async updateSessionTitle(
     id: string,
     title: string,
+    signal?: AbortSignal,
   ): Promise<TerminalSessionRecord> {
-    const body = { title } satisfies TerminalRenameSessionBody;
-    const res = await apiClient.patch(
-      `/terminal/sessions/${encodeURIComponent(id)}`,
-      body,
+    const payload: TerminalRenameSessionInput = { title };
+    const response = await apiClient.patch(sessionPath(id), payload, {
+      signal,
+    });
+    return response.data.data;
+  },
+
+  async deleteSession(id: string, signal?: AbortSignal): Promise<void> {
+    await apiClient.delete(sessionPath(id), { signal });
+  },
+
+  async createAttachment(
+    sessionId: string,
+    payload: TerminalAttachmentInput,
+    signal?: AbortSignal,
+  ): Promise<TerminalAttachmentRecord> {
+    const response = await apiClient.post(
+      `${sessionPath(sessionId)}/attachments`,
+      payload,
+      { signal },
     );
-    return res.data.data;
+    return response.data.data;
   },
-  async deleteSession(id: string): Promise<void> {
-    await apiClient.delete(`/terminal/sessions/${encodeURIComponent(id)}`);
-  },
-  async createAttachment(sessionId: string): Promise<TerminalAttachmentRecord> {
-    const res = await apiClient.post(
-      `/terminal/sessions/${encodeURIComponent(sessionId)}/attachments`,
-    );
-    return res.data.data;
-  },
-  async pollAttachment(
+
+  async pollAttachmentEvents(
     attachmentId: string,
-    params: TerminalPollQuery = {},
-  ): Promise<TerminalPollResult> {
-    const res = await apiClient.get(
-      `/terminal/attachments/${encodeURIComponent(attachmentId)}/poll`,
-      { params },
+    params: TerminalAttachmentEventsQuery = {},
+    signal?: AbortSignal,
+  ): Promise<TerminalEventsResult> {
+    const response = await apiClient.get(
+      `${attachmentPath(attachmentId)}/events`,
+      { params, signal },
     );
-    return res.data.data;
+    return response.data.data;
   },
-  async sendInput(attachmentId: string, dataBase64: string): Promise<void> {
-    const body = { dataBase64 } satisfies TerminalInputBody;
-    await apiClient.post(
-      `/terminal/attachments/${encodeURIComponent(attachmentId)}/input`,
-      body,
-    );
+
+  async sendInput(
+    attachmentId: string,
+    payload: TerminalInputBody,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await apiClient.post(`${attachmentPath(attachmentId)}/input`, payload, {
+      signal,
+    });
   },
+
   async resizeAttachment(
     attachmentId: string,
-    cols: number,
-    rows: number,
-  ): Promise<TerminalSessionRecord> {
-    const body = { cols, rows } satisfies TerminalResizeBody;
-    const res = await apiClient.post(
-      `/terminal/attachments/${encodeURIComponent(attachmentId)}/resize`,
-      body,
-    );
-    return res.data.data;
+    payload: TerminalResizeBody,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await apiClient.post(`${attachmentPath(attachmentId)}/resize`, payload, {
+      signal,
+    });
   },
-  async detachAttachment(attachmentId: string): Promise<void> {
-    await apiClient.delete(
-      `/terminal/attachments/${encodeURIComponent(attachmentId)}`,
+
+  async claimControl(
+    attachmentId: string,
+    generation?: number,
+    signal?: AbortSignal,
+  ): Promise<TerminalAttachmentRecord> {
+    const payload: TerminalClaimControlBody =
+      generation === undefined ? {} : { generation };
+    const response = await apiClient.post(
+      `${attachmentPath(attachmentId)}/control`,
+      payload,
+      { signal },
     );
+    return response.data.data;
+  },
+
+  async detachAttachment(
+    attachmentId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await apiClient.delete(attachmentPath(attachmentId), { signal });
   },
 };

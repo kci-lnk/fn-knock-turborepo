@@ -143,66 +143,6 @@ fn validate_optional_pow_number(value: Option<&Value>, fallback: i64) -> Result<
 
 #[utoipa::path(
     get,
-    path = "/api/admin/config/terminal_feature",
-    tag = "config",
-    operation_id = "get_api_admin_config_terminal_feature",
-    responses((status = 200, description = "Terminal feature configuration"))
-)]
-pub(super) async fn get_terminal_feature(State(state): State<AppState>) -> Response {
-    match load_config_section(&state, "terminal_feature", normalize_terminal_feature).await {
-        Ok(data) => response::ok(data).into_response(),
-        Err(error) => {
-            let translator = Translator::from_state(&state).await;
-            tracing::warn!(%error, "failed to load terminal feature config");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                runtime_config_route_text(&translator, "loadTerminalFeatureFailed"),
-            )
-        }
-    }
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/admin/config/terminal_feature",
-    tag = "config",
-    operation_id = "post_api_admin_config_terminal_feature",
-    responses((status = 200, description = "Updated terminal feature configuration"))
-)]
-pub(super) async fn update_terminal_feature(
-    State(state): State<AppState>,
-    Json(body): Json<Value>,
-) -> Response {
-    let translator = Translator::from_state(&state).await;
-    if body.get("enabled").and_then(Value::as_bool) == Some(true)
-        && !runtime_profile::terminal_available(&state)
-    {
-        return response::error(
-            StatusCode::FORBIDDEN,
-            capability_blocked_text(&state, "terminal_available", &translator),
-        );
-    }
-    match update_config_section(
-        &state,
-        "terminal_feature",
-        &body,
-        normalize_terminal_feature,
-    )
-    .await
-    {
-        Ok(data) => response::ok(data).into_response(),
-        Err(error) => {
-            tracing::warn!(%error, "failed to save terminal feature config");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                runtime_config_route_text(&translator, "saveTerminalFeatureFailed"),
-            )
-        }
-    }
-}
-
-#[utoipa::path(
-    get,
     path = "/api/admin/config/wol_feature",
     tag = "config",
     operation_id = "get_api_admin_config_wol_feature",

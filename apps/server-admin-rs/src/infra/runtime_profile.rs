@@ -22,7 +22,6 @@ pub struct RuntimeCapabilities {
     pub fnos_certificate_sync_available: bool,
     pub system_clock_sync_available: bool,
     pub self_update_available: bool,
-    pub terminal_available: bool,
     pub deep_monitor_available: bool,
     pub auto_https_available: bool,
     pub fnos_network_tuning_available: bool,
@@ -60,7 +59,6 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             fnos_certificate_sync_available: false,
             system_clock_sync_available: false,
             self_update_available: false,
-            terminal_available: false,
             deep_monitor_available: true,
             auto_https_available: true,
             fnos_network_tuning_available: false,
@@ -83,7 +81,6 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             fnos_certificate_sync_available: false,
             system_clock_sync_available: false,
             self_update_available: false,
-            terminal_available: false,
             deep_monitor_available: true,
             auto_https_available: true,
             fnos_network_tuning_available: false,
@@ -117,10 +114,6 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             && profile.is_root_process,
         system_clock_sync_available: host_runtime_available,
         self_update_available: profile.deployment_target == "fpk",
-        terminal_available: !is_fpk_lite
-            && profile.deployment_target != "docker"
-            && profile.deployment_target != "openwrt"
-            && profile.deployment_target != "synology",
         deep_monitor_available: true,
         auto_https_available: !is_fpk_lite
             && profile.deployment_target != "docker"
@@ -166,12 +159,6 @@ pub fn host_firewall_available(state: &AppState) -> bool {
     let profile = get_runtime_profile(state);
     let capabilities = get_runtime_capabilities(&profile);
     capabilities.host_firewall_available
-}
-
-pub fn terminal_available(state: &AppState) -> bool {
-    let profile = get_runtime_profile(state);
-    let capabilities = get_runtime_capabilities(&profile);
-    capabilities.terminal_available
 }
 
 pub fn auto_https_available(state: &AppState) -> bool {
@@ -222,17 +209,6 @@ pub fn capability_unavailable_message(
                 "openwrt"
             } else {
                 "deployment"
-            }
-        }
-        "terminal_available" => {
-            if profile.deployment_target == "fpk-lite" {
-                "lite"
-            } else if profile.is_docker {
-                "docker"
-            } else if profile.deployment_target == "openwrt" {
-                "openwrt"
-            } else {
-                "platform"
             }
         }
         "auto_https_available" | "fnos_network_tuning_available" | "fnos_connect_waf_available" => {
@@ -413,14 +389,13 @@ mod tests {
         assert!(capabilities.fnos_certificate_sync_available);
         assert!(capabilities.system_clock_sync_available);
         assert!(capabilities.self_update_available);
-        assert!(capabilities.terminal_available);
         assert!(capabilities.auto_https_available);
         assert!(capabilities.fnos_network_tuning_available);
         assert!(capabilities.fnos_connect_waf_available);
     }
 
     #[test]
-    fn fpk_lite_disables_every_privileged_or_review_sensitive_capability() {
+    fn fpk_lite_disables_host_privileged_capabilities() {
         let capabilities = get_runtime_capabilities(&profile("fpk-lite", true, true));
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
@@ -428,7 +403,6 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
         assert!(!capabilities.auto_https_available);
         assert!(!capabilities.fnos_network_tuning_available);
         assert!(!capabilities.fnos_connect_waf_available);
@@ -448,7 +422,6 @@ mod tests {
         assert!(!capabilities.smart_connect_available);
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
-        assert!(capabilities.terminal_available);
         assert!(!capabilities.self_update_available);
         assert_eq!(normalize_deployment_target("linux"), Some("linux"));
     }
@@ -462,7 +435,6 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
         assert!(capabilities.deep_monitor_available);
         assert!(capabilities.auto_https_available);
         assert!(capabilities.acme_available);
@@ -482,7 +454,6 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
         assert!(!capabilities.ssh_security_available);
         assert!(capabilities.cloudflared_available);
         assert!(capabilities.frpc_available);
@@ -499,7 +470,6 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
         assert!(!capabilities.shared_root_available);
         assert!(capabilities.acme_available);
         assert!(!capabilities.acme_resource_required);
@@ -581,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn docker_blocks_host_and_terminal_capabilities() {
+    fn docker_blocks_host_capabilities() {
         let capabilities = get_runtime_capabilities(&profile("docker", true, true));
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
@@ -589,11 +559,10 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
     }
 
     #[test]
-    fn openwrt_disables_firewall_smart_connect_ssh_and_terminal_capabilities() {
+    fn openwrt_disables_host_ssh_security() {
         let capabilities = get_runtime_capabilities(&profile("openwrt", true, true));
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
@@ -601,7 +570,6 @@ mod tests {
         assert!(!capabilities.fnos_certificate_sync_available);
         assert!(capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
-        assert!(!capabilities.terminal_available);
         assert!(!capabilities.ssh_security_available);
     }
 }

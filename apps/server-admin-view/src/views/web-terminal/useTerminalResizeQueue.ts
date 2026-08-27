@@ -1,10 +1,8 @@
 import type { Ref } from "vue";
-import type {
-  TerminalAttachmentRecord,
-  TerminalSessionRecord,
-} from "@/types";
+import type { TerminalAttachmentRecord } from "@/lib/api/terminal";
 import { RESIZE_BATCH_WINDOW_MS } from "./terminal-runtime";
 import { buildTerminalSizeKey } from "./terminal-input";
+import { normalizeTerminalDimensions } from "./terminal-dimensions";
 
 type TerminalSizeSource = {
   cols: number;
@@ -14,9 +12,8 @@ type TerminalSizeSource = {
 export const useTerminalResizeQueue = ({
   activeAttachment,
   getTerminal,
+  onResizeSynced,
   resizeAttachment,
-  restartPollingFromSnapshot,
-  sessions,
 }: {
   activeAttachment: Ref<TerminalAttachmentRecord | null>;
   getTerminal: () => TerminalSizeSource | null;
@@ -24,9 +21,8 @@ export const useTerminalResizeQueue = ({
     attachmentId: string,
     cols: number,
     rows: number,
-  ) => Promise<TerminalSessionRecord>;
-  restartPollingFromSnapshot: (attachment: TerminalAttachmentRecord) => void;
-  sessions: Ref<TerminalSessionRecord[]>;
+  ) => Promise<void>;
+  onResizeSynced: (sessionId: string, cols: number, rows: number) => void;
 }) => {
   let resizeTimer: number | null = null;
   let pendingResizeTarget: TerminalSizeSource | null = null;
@@ -34,20 +30,10 @@ export const useTerminalResizeQueue = ({
   let lastRequestedResizeKey = "";
   let resizeSendQueue: Promise<void> = Promise.resolve();
 
-  const syncSessionDimensions = (
-    sessionId: string,
-    cols: number,
-    rows: number,
-  ) => {
-    sessions.value = sessions.value.map((session) =>
-      session.id === sessionId ? { ...session, cols, rows } : session,
-    );
-  };
-
   const markSyncedResize = (sessionId: string, cols: number, rows: number) => {
     lastSyncedResizeKey = buildTerminalSizeKey(cols, rows);
     lastRequestedResizeKey = lastSyncedResizeKey;
-    syncSessionDimensions(sessionId, cols, rows);
+    onResizeSynced(sessionId, cols, rows);
   };
 
   const resetResizeState = () => {
@@ -87,18 +73,16 @@ export const useTerminalResizeQueue = ({
       .catch(() => undefined)
       .then(async () => {
         if (activeAttachment.value?.id !== attachment.id) return;
-        const session = await resizeAttachment(
-          attachment.id,
+        await resizeAttachment(attachment.id, nextTarget.cols, nextTarget.rows);
+        if (activeAttachment.value?.id !== attachment.id) return;
+        markSyncedResize(
+          attachment.sessionId,
           nextTarget.cols,
           nextTarget.rows,
         );
-        if (activeAttachment.value?.id !== attachment.id) return;
-        markSyncedResize(session.id, session.cols, session.rows);
-        restartPollingFromSnapshot(attachment);
       })
-      .catch((error) => {
+      .catch(() => {
         if (activeAttachment.value?.id !== attachment.id) return;
-        console.error(error);
         lastRequestedResizeKey = lastSyncedResizeKey;
       });
 
@@ -109,7 +93,7 @@ export const useTerminalResizeQueue = ({
     const terminal = getTerminal();
     if (!terminal || !activeAttachment.value) return;
 
-    const nextTarget = { cols: terminal.cols, rows: terminal.rows };
+    const nextTarget = normalizeTerminalDimensions(terminal);
     const resizeKey = buildTerminalSizeKey(nextTarget.cols, nextTarget.rows);
     if (
       resizeKey === lastSyncedResizeKey ||

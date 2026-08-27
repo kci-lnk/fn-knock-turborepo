@@ -6,16 +6,23 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import {
   LoaderCircle,
+  MonitorUp,
   Pencil,
   Plus,
   RefreshCcw,
   Send,
+  Server,
   Trash2,
 } from "lucide-vue-next";
-import type { TerminalSessionRecord } from "../../types";
+import type {
+  TerminalSessionRecord,
+  TerminalTargetRecord,
+} from "@/lib/api/terminal";
 
 defineProps<{
   connectionState: "idle" | "connecting" | "connected" | "error";
+  canClaimControl: boolean;
+  claimControl: () => Promise<void> | void;
   createSession: () => Promise<TerminalSessionRecord | null> | void;
   destroySelectedSession: () => Promise<void> | void;
   destroySessionDescription: string;
@@ -27,9 +34,11 @@ defineProps<{
   keepTerminalFocused: (event: Event) => void;
   openRenameDialog: () => void;
   openSendDialog: () => void;
+  openTargetDrawer: () => void;
   reconnectSession: () => Promise<void> | void;
   selectedSession: TerminalSessionRecord | null;
   selectedSessionId: string;
+  selectedTarget: TerminalTargetRecord | null;
   sessions: TerminalSessionRecord[];
   statusTone: string;
   toolbarDisabled: boolean;
@@ -41,6 +50,22 @@ const { t } = useI18n();
 <template>
   <div class="shrink-0 flex flex-col gap-2.5 lg:flex-row lg:items-center">
     <div class="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        class="max-w-[210px] md:hidden"
+        :disabled="isBooting"
+        @click="openTargetDrawer"
+      >
+        <Server class="mr-1.5 h-4 w-4 shrink-0" />
+        <span class="truncate">
+          {{
+            selectedTarget?.name ||
+            t("admin.webTerminal.targets", "SSH targets")
+          }}
+        </span>
+      </Button>
+
       <div class="flex items-center gap-2 pl-2">
         <LiveStatusBadge
           v-if="connectionState === 'connected'"
@@ -110,6 +135,17 @@ const { t } = useI18n();
           <span class="sr-only">{{ t("admin.webTerminal.send") }}</span>
         </Button>
       </div>
+
+      <Button
+        v-if="canClaimControl && selectedSession"
+        variant="outline"
+        size="sm"
+        :disabled="connectionState !== 'connected'"
+        @click="claimControl"
+      >
+        <MonitorUp class="mr-1.5 h-3.5 w-3.5" />
+        {{ t("admin.webTerminal.takeControl", "Take control") }}
+      </Button>
 
       <div class="h-8 w-px shrink-0 bg-border/70" />
 

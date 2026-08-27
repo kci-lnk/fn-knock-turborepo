@@ -116,6 +116,11 @@ pub(super) async fn import_backup_archive_buffer(
         let _archive_work_guard = state.maintenance.backup_archive_work_lock.lock().await;
         extract_backup_payload_from_archive(buffer).await?
     };
+    let restored_credentials = import_protected_credentials(
+        payload
+            .as_object_mut()
+            .and_then(|object| object.remove("protected_credentials")),
+    )?;
     let elapsed_ms = payload
         .get("exported_at")
         .and_then(Value::as_str)
@@ -178,6 +183,7 @@ pub(super) async fn import_backup_archive_buffer(
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
     let previous_config =
         backup_config_from_entries(&previous_entries).unwrap_or_else(|| json!({}));
+    let previous_credentials = snapshot_current_credentials(state).await?;
 
     let cleared_keys = state
         .storage
@@ -212,6 +218,12 @@ pub(super) async fn import_backup_archive_buffer(
         )));
     }
 
+    // Terminal sessions are process-local runtime state and must never span a
+    // target metadata restore. Closing them before secret cleanup also ensures
+    // no live actor keeps using credentials that no longer belong to the
+    // restored installation state.
+    state.terminal.shutdown_all().await;
+
     // Credentials belong to this installation. Clear them only after every
     // fatal storage step has succeeded, and restore storage if credential
     // cleanup itself cannot be completed atomically.
@@ -227,21 +239,31 @@ pub(super) async fn import_backup_archive_buffer(
         )));
     }
 
-    if let Err(error) = wol::clear_secrets_after_backup_restore(state).await {
-        let rollback_detail =
-            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
+    if let Err(error) = restore_credential_snapshot(state, &restored_credentials).await {
+        let rollback_detail = rollback_backup_import_with_credentials(
+            state,
+            &previous_entries,
+            previous_snapshot_at_ms,
+            &previous_credentials,
+        )
+        .await;
         let ownership_result = host_mappings_lease.ensure_owned().await;
         let release_result = host_mappings_lease.release().await;
         ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
         release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
         return Err(BackupImportError::internal(format!(
-            "WoL relay credentials could not be cleared after backup restore: {error}{rollback_detail}"
+            "Terminal and WoL credentials could not be restored from backup: {error}{rollback_detail}"
         )));
     }
 
     if let Err(error) = panel_sync::clear_credentials_after_backup_restore(state).await {
-        let rollback_detail =
-            rollback_backup_import_storage(state, &previous_entries, previous_snapshot_at_ms).await;
+        let rollback_detail = rollback_backup_import_with_credentials(
+            state,
+            &previous_entries,
+            previous_snapshot_at_ms,
+            &previous_credentials,
+        )
+        .await;
         let ownership_result = host_mappings_lease.ensure_owned().await;
         let release_result = host_mappings_lease.release().await;
         ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
@@ -304,6 +326,21 @@ async fn rollback_backup_import_storage(
         .map(|error| format!("; runtime rollback failed: {error}"))
         .unwrap_or_default();
     format!("{rollback_detail}{runtime_detail}")
+}
+
+async fn rollback_backup_import_with_credentials(
+    state: &AppState,
+    previous_entries: &[Value],
+    snapshot_at_ms: i64,
+    previous_credentials: &CredentialBackupPayload,
+) -> String {
+    let mut detail = rollback_backup_import_storage(state, previous_entries, snapshot_at_ms).await;
+    if !detail.contains("storage rollback failed")
+        && let Err(error) = restore_credential_snapshot(state, previous_credentials).await
+    {
+        detail.push_str(&format!("; credential rollback failed: {error}"));
+    }
+    detail
 }
 
 pub(super) fn age_backup_entries(entries: Vec<Value>, elapsed_ms: i64) -> Vec<Value> {
@@ -475,6 +512,10 @@ pub(super) fn normalize_backup_payload(mut payload: Value) -> Result<Value, Back
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .ok_or_else(|| BackupImportError::bad_request("Backup exported_at is missing"))?;
+    let protected_credentials = payload
+        .as_object()
+        .and_then(|object| object.get("protected_credentials"))
+        .cloned();
     let mut entries = payload
         .as_object_mut()
         .and_then(|object| object.remove("entries"))
@@ -499,14 +540,18 @@ pub(super) fn normalize_backup_payload(mut payload: Value) -> Result<Value, Back
         }
         *entry = normalized;
     }
-    Ok(json!({
+    let mut normalized = json!({
         "version": APP_BACKUP_SCHEMA_VERSION,
         "app_version": app_version,
         "prefix": KNOCK_BACKUP_PREFIX,
         "exported_at": exported_at,
         "entry_count": entries.len(),
         "entries": entries
-    }))
+    });
+    if let Some(protected_credentials) = protected_credentials {
+        normalized["protected_credentials"] = protected_credentials;
+    }
+    Ok(normalized)
 }
 
 pub(super) fn parse_backup_entry(entry: &Value, index: usize) -> Result<Value, BackupImportError> {

@@ -4,7 +4,6 @@ pub(crate) mod info;
 pub(crate) mod maintenance;
 pub(crate) mod monitor;
 pub(crate) mod terminal;
-pub(crate) mod terminal_paths;
 pub(crate) mod update;
 
 pub(crate) use assets as system_assets;

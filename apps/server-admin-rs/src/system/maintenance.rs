@@ -26,7 +26,7 @@ use crate::{
     panel_sync, proxy_config, response, runtime_config, scanner, ssh_security, ssl,
     state::AppState,
     store::node_locale_compare_ordering,
-    system_monitor, time_utils, waf, whitelist, wol,
+    system_monitor, terminal, time_utils, waf, whitelist, wol,
 };
 
 const KNOCK_BACKUP_PREFIX: &str = "fn_knock:";
@@ -111,7 +111,11 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:session:",
     "fn_knock:smart-connect:runtime",
     "fn_knock:ssh_security:",
-    "fn_knock:terminal:",
+    // Removed local-terminal runtime state (tmux/FIFO/log attachments) must
+    // never be exported or resurrected from an older backup. SSH target
+    // metadata lives at `fn_knock:terminal:targets` and remains included.
+    "fn_knock:terminal:session:",
+    "fn_knock:terminal:attachment:",
     "fn_knock:traffic:",
     crate::tunnels::TUNNEL_RUNTIME_KEY,
     "fn_knock:ui:",
@@ -200,6 +204,7 @@ impl BackupImportError {
 }
 
 mod automatic;
+mod credentials;
 mod directory;
 mod export;
 mod i18n;
@@ -213,6 +218,7 @@ mod zip;
 use routes::clear_all_data_with_gateway_reset;
 
 use automatic::*;
+use credentials::*;
 use directory::*;
 use export::*;
 use i18n::*;

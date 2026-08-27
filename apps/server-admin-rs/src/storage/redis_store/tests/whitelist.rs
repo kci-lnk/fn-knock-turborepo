@@ -45,7 +45,6 @@ fn default_config_top_level_keys_match_node_default_config() {
         "scan_discovery",
         "auth_credential_settings",
         "event_system",
-        "terminal_feature",
         "wol_feature",
         "ssh_security",
         "locale",
@@ -75,10 +74,7 @@ fn default_config_includes_node_runtime_feature_defaults() {
         config.pointer("/event_system/rules/gateway_visibility_block/enabled"),
         Some(&json!(true))
     );
-    assert_eq!(
-        config.pointer("/terminal_feature/idle_timeout_seconds"),
-        Some(&json!(86400))
-    );
+    assert!(config.get("terminal_feature").is_none());
     assert_eq!(
         config.pointer("/gateway_portal/display_style"),
         Some(&json!("title"))

@@ -47,6 +47,54 @@ export const encodeTerminalInputToBytes = (value: string): Uint8Array => {
 export const getInputByteLength = (value: string): number =>
   encodeTerminalInputToBytes(value).byteLength;
 
+/**
+ * Splits terminal input without cutting a Unicode code point or the six-byte
+ * legacy X10 mouse sequence understood by `encodeTerminalInputToBytes`.
+ */
+export const splitTerminalInputByByteLength = (
+  value: string,
+  maxBytes: number,
+): string[] => {
+  if (!value) return [];
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new RangeError("Terminal input chunk size must be positive");
+  }
+
+  const chunks: string[] = [];
+  let chunk = "";
+  let chunkBytes = 0;
+  let cursor = 0;
+  while (cursor < value.length) {
+    const legacyMouseSequence = value.startsWith(
+      LEGACY_MOUSE_SEQUENCE_PREFIX,
+      cursor,
+    );
+    const tokenLength = legacyMouseSequence
+      ? Math.min(6, value.length - cursor)
+      : (value.codePointAt(cursor) ?? 0) > 0xffff
+        ? 2
+        : 1;
+    const token = value.slice(cursor, cursor + tokenLength);
+    const tokenBytes = getInputByteLength(token);
+    if (chunk && chunkBytes + tokenBytes > maxBytes) {
+      chunks.push(chunk);
+      chunk = "";
+      chunkBytes = 0;
+    }
+    // `maxBytes` is much larger than every atomic token in production. Keep
+    // this branch total for callers using a smaller value in tests or tools.
+    if (!chunk && tokenBytes > maxBytes) {
+      chunks.push(token);
+    } else {
+      chunk += token;
+      chunkBytes += tokenBytes;
+    }
+    cursor += tokenLength;
+  }
+  if (chunk) chunks.push(chunk);
+  return chunks;
+};
+
 const hasAsciiControlByte = (value: string): boolean => {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
@@ -76,74 +124,6 @@ export const decodeBase64ToBytes = (value: string): Uint8Array => {
   }
   return bytes;
 };
-
-export interface LegacyTitleSequenceStripper {
-  reset: () => void;
-  strip: (value: string) => string;
-}
-
-export const createLegacyTitleSequenceStripper =
-  (): LegacyTitleSequenceStripper => {
-    let pendingSequence = "";
-
-    return {
-      reset: () => {
-        pendingSequence = "";
-      },
-      strip: (value: string): string => {
-        if (!value && !pendingSequence) {
-          return "";
-        }
-
-        const source = `${pendingSequence}${value}`;
-        pendingSequence = "";
-
-        let sanitized = "";
-        let cursor = 0;
-
-        while (cursor < source.length) {
-          const sequenceStart = source.indexOf("\u001bk", cursor);
-          if (sequenceStart === -1) {
-            sanitized += source.slice(cursor);
-            break;
-          }
-
-          sanitized += source.slice(cursor, sequenceStart);
-
-          const belTerminatorIndex = source.indexOf(
-            "\u0007",
-            sequenceStart + 2,
-          );
-          const stTerminatorIndex = source.indexOf(
-            "\u001b\\",
-            sequenceStart + 2,
-          );
-
-          let sequenceEnd = -1;
-          let terminatorLength = 0;
-          if (
-            belTerminatorIndex !== -1 &&
-            (stTerminatorIndex === -1 || belTerminatorIndex < stTerminatorIndex)
-          ) {
-            sequenceEnd = belTerminatorIndex;
-            terminatorLength = 1;
-          } else if (stTerminatorIndex !== -1) {
-            sequenceEnd = stTerminatorIndex;
-            terminatorLength = 2;
-          }
-
-          if (sequenceEnd === -1) {
-            pendingSequence = source.slice(sequenceStart);
-            break;
-          }
-
-          cursor = sequenceEnd + terminatorLength;
-        }
-
-        return sanitized;
-      },
-    };
-  };
 
 export const buildTerminalSizeKey = (cols: number, rows: number): string =>
   `${cols}x${rows}`;

@@ -17,9 +17,7 @@ use crate::{
     proxy_config::{self, build_gateway_auth_config},
     response, runtime_profile,
     state::AppState,
-    store as app_store, system_assets,
-    terminal_paths::normalize_terminal_default_cwd,
-    time_utils, waf, whitelist,
+    store as app_store, system_assets, time_utils, waf, whitelist,
 };
 
 mod fnos_connect_waf;
@@ -138,12 +136,6 @@ pub(crate) fn fnos_share_bypass_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_fnos_share_bypass))
         .routes(routes!(update_fnos_share_bypass))
-}
-
-pub fn terminal_feature_routes() -> OpenApiRouter<AppState> {
-    OpenApiRouter::new()
-        .routes(routes!(get_terminal_feature))
-        .routes(routes!(update_terminal_feature))
 }
 
 pub fn smart_connect_config_routes() -> OpenApiRouter<AppState> {

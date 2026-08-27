@@ -6,7 +6,7 @@ fn-knock 支持 macOS 13 及以上版本，分别提供 Intel (`amd64`) 和 Appl
 curl -fsSL https://cdn.fnknock.cn/macos/install.sh | sudo bash
 ```
 
-安装后使用 `sudo knock` 管理启动、停止、配置、升级、回滚和卸载。管理面板默认仅监听 `127.0.0.1:7991`，macOS 运行时不支持 iptables、主机防火墙管理或网页终端。
+安装后使用 `sudo knock` 管理启动、停止、配置、升级、回滚和卸载。管理面板默认仅监听 `127.0.0.1:7991`，macOS 运行时不支持 iptables 或主机防火墙管理；网页终端通过用户配置的 SSH 目标提供。
 
 ## 文件位置
 

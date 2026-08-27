@@ -6,7 +6,7 @@ import {
   type Ref,
 } from "vue";
 import { toast } from "@admin-shared/utils/toast";
-import type { TerminalAttachmentRecord } from "@/types";
+import type { TerminalAttachmentRecord } from "@/lib/api/terminal";
 import {
   TERMINAL_CONTEXT_MENU_HEIGHT,
   TERMINAL_CONTEXT_MENU_VIEWPORT_GAP,

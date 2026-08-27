@@ -1,32 +1,22 @@
 import { nextTick, ref, type Ref } from "vue";
-import type { TerminalOutputChunk } from "../../types";
+import type { TerminalOutputEvent } from "@/lib/api/terminal";
 import {
   ensureGhostty,
   type ArmedModifier,
   type GhosttyModule,
 } from "./terminal-runtime";
 import { focusElementWithoutScroll } from "./terminal-dom";
-import {
-  createLegacyTitleSequenceStripper,
-  decodeBase64ToBytes,
-  encodeCtrlInput,
-} from "./terminal-input";
+import { decodeBase64ToBytes, encodeCtrlInput } from "./terminal-input";
 import { createTerminalMouseReporter } from "./terminal-mouse";
 import { createTerminalFitController } from "./terminal-fit";
 import { createTerminalTouchGestures } from "./terminal-touch";
 
 interface UseTerminalEmulatorOptions {
-  applyFontSize: (
-    value: number,
-    options?: { persist?: boolean },
-  ) => void;
+  applyFontSize: (value: number, options?: { persist?: boolean }) => void;
   canAcceptInput: () => boolean;
   compactViewport: Ref<boolean>;
   persistFontSize: () => void;
-  queueInput: (
-    payload: string,
-    options?: { immediate?: boolean },
-  ) => void;
+  queueInput: (payload: string, options?: { immediate?: boolean }) => void;
   queueRemoteResponse: (payload: string) => void;
   scheduleResize: () => void;
   terminalFontSize: Ref<number>;
@@ -53,7 +43,6 @@ export function useTerminalEmulator({
   let fitAddon: InstanceType<GhosttyModule["FitAddon"]> | null = null;
   let lastOutputCursor = 0;
   let outputTextDecoder = new TextDecoder();
-  const legacyTitleSequenceStripper = createLegacyTitleSequenceStripper();
   let remoteOutputWriteDepth = 0;
   let terminalInternalResponseDropDepth = 0;
   let disposed = false;
@@ -144,7 +133,6 @@ export function useTerminalEmulator({
   const resetOutputState = () => {
     lastOutputCursor = 0;
     outputTextDecoder = new TextDecoder();
-    legacyTitleSequenceStripper.reset();
   };
   const writeRemoteTerminalOutput = (payload: string) => {
     if (!term) return;
@@ -179,23 +167,21 @@ export function useTerminalEmulator({
     focusTerminal();
   };
 
-  const applyOutputChunk = (chunk: TerminalOutputChunk) => {
+  const applyOutputEvent = (event: TerminalOutputEvent) => {
     if (!term) return;
-    if (chunk.reset) {
+    if (event.reset) {
       term.reset();
       outputTextDecoder = new TextDecoder();
       lastOutputCursor = 0;
-      legacyTitleSequenceStripper.reset();
     }
-    if (chunk.data_base64) {
-      const payload = legacyTitleSequenceStripper.strip(
-        outputTextDecoder.decode(decodeBase64ToBytes(chunk.data_base64), {
-          stream: true,
-        }),
+    if (event.dataBase64) {
+      const payload = outputTextDecoder.decode(
+        decodeBase64ToBytes(event.dataBase64),
+        { stream: true },
       );
       if (payload) writeRemoteTerminalOutput(payload);
     }
-    lastOutputCursor = chunk.cursor;
+    lastOutputCursor = event.cursor;
     void nextTick(() => focusTerminal());
   };
 
@@ -285,7 +271,7 @@ export function useTerminalEmulator({
   };
 
   return {
-    applyOutputChunk,
+    applyOutputEvent,
     armedModifier,
     clearArmedModifier,
     clearTerminal,

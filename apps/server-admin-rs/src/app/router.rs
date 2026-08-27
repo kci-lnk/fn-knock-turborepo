@@ -41,8 +41,7 @@ use crate::{
         firewall_runtime_routes, fnos_connect_waf_routes, fnos_network_tuning_routes,
         fnos_port_icon_hijack_routes, fnos_share_bypass_routes, protocol_mapping_feature_routes,
         proxy_protocol_force_routes, run_mode_prompt_preferences_routes, run_type_config_routes,
-        smart_connect_config_routes, sync_routes_config_routes, terminal_feature_routes,
-        wol_feature_config_routes,
+        smart_connect_config_routes, sync_routes_config_routes, wol_feature_config_routes,
     },
     runtime_health::routes::runtime_health_routes,
     runtime_profile,
@@ -176,10 +175,7 @@ fn backend_router_with_capabilities(
             .merge(smart_connect_config_routes)
             .merge(smart_connect_asset_routes());
     }
-    if capabilities.terminal_available {
-        let terminal_feature_routes: Router<AppState> = terminal_feature_routes().into();
-        api = api.merge(terminal_feature_routes).merge(terminal_routes());
-    }
+    api = api.merge(terminal_routes());
     if capabilities.ssh_security_available {
         api = api.merge(ssh_security_routes());
     }
@@ -620,7 +616,6 @@ mod tests {
         capabilities.host_firewall_available = true;
         capabilities.fnos_connect_waf_available = true;
         capabilities.smart_connect_available = true;
-        capabilities.terminal_available = true;
         capabilities.ssh_security_available = true;
         capabilities.cloudflared_available = true;
         capabilities.frpc_available = true;
@@ -670,17 +665,19 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 442, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 445, "all OpenAPI operations should be probed");
     }
 
     #[tokio::test]
-    async fn removed_welcome_guide_routes_return_not_found() {
+    async fn removed_config_routes_return_not_found() {
         let (_directory, state) = openwrt_test_state().await;
         let app = backend_router(state, false);
 
         for (method, path) in [
             (Method::GET, "/api/admin/config/welcome_guide"),
             (Method::POST, "/api/admin/config/welcome_guide/complete"),
+            (Method::GET, "/api/admin/config/terminal_feature"),
+            (Method::POST, "/api/admin/config/terminal_feature"),
         ] {
             let response = app
                 .clone()
@@ -698,7 +695,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openwrt_does_not_register_firewall_smart_connect_ssh_or_terminal_routes() {
+    async fn openwrt_does_not_register_unsupported_host_management_routes() {
         let (_directory, state) = openwrt_test_state().await;
         let app = backend_router(state, false);
         let unsupported_routes = [
@@ -709,8 +706,6 @@ mod tests {
             (Method::GET, "/api/admin/config/smart_connect/details"),
             (Method::GET, "/api/admin/system/dnsmasq/status"),
             (Method::GET, "/api/admin/ssh-security/config"),
-            (Method::GET, "/api/admin/config/terminal_feature"),
-            (Method::GET, "/api/admin/terminal/status"),
         ];
 
         for (method, path) in unsupported_routes {

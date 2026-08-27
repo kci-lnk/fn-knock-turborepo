@@ -150,6 +150,10 @@ fn filters_backup_keys_like_node() {
     assert!(!should_export_backup_key(
         "fn_knock:auth:subdomain_rule_grant_active:app.example.com"
     ));
+    assert!(should_export_backup_key("fn_knock:terminal:targets"));
+    assert!(!should_export_backup_key(
+        "fn_knock:terminal:session:data:legacy-session"
+    ));
     for prefix in BACKUP_EXCLUDED_KEY_PREFIXES {
         assert!(
             !should_export_backup_key(&format!("{prefix}sample")),
@@ -1069,6 +1073,202 @@ async fn backup_restore_preserves_automatic_backup_settings_atomically() {
             .exists()
     );
     assert!(!cloudflared_directory.join("tunnel-token.enc").exists());
+}
+
+#[tokio::test]
+async fn backup_restore_round_trips_terminal_and_wol_credentials_without_plaintext() {
+    let (_directory, state) = maintenance_test_state().await;
+    let terminal_password_id = Uuid::new_v4().to_string();
+    let terminal_key_id = Uuid::new_v4().to_string();
+    state
+        .storage
+        .store
+        .set_json_value(
+            "fn_knock:terminal:targets",
+            &json!([
+                {
+                    "id": terminal_password_id,
+                    "name": "Password target",
+                    "host": "192.0.2.10",
+                    "port": 22,
+                    "username": "root",
+                    "authMethod": "password",
+                    "trustedHostKey": null,
+                    "revision": 1,
+                    "lastVerifiedAt": null,
+                    "createdAt": "2026-08-28T00:00:00Z",
+                    "updatedAt": "2026-08-28T00:00:00Z"
+                },
+                {
+                    "id": terminal_key_id,
+                    "name": "Private key target",
+                    "host": "192.0.2.11",
+                    "port": 22,
+                    "username": "root",
+                    "authMethod": "privateKey",
+                    "trustedHostKey": null,
+                    "revision": 7,
+                    "lastVerifiedAt": null,
+                    "createdAt": "2026-08-28T00:00:00Z",
+                    "updatedAt": "2026-08-28T00:00:00Z"
+                }
+            ]),
+        )
+        .await
+        .unwrap();
+    terminal::write_backup_test_credential(
+        &state,
+        &terminal_password_id,
+        terminal::domain::AuthMethod::Password,
+        1,
+        Some(b"terminal-password-secret"),
+        None,
+        None,
+    );
+    terminal::write_backup_test_credential(
+        &state,
+        &terminal_key_id,
+        terminal::domain::AuthMethod::PrivateKey,
+        7,
+        None,
+        Some(b"-----BEGIN OPENSSH PRIVATE KEY-----terminal-key-secret"),
+        Some(b"terminal-passphrase-secret"),
+    );
+
+    let wol_relay_id = "relay-backup-test";
+    let wol_target_id = "target-backup-test";
+    state
+        .storage
+        .store
+        .set_string_and_zadd(
+            &format!("fn_knock:wol:relay:{wol_relay_id}"),
+            &json!({
+                "id": wol_relay_id,
+                "name": "Relay",
+                "address": "192.0.2.20",
+                "port": 40009,
+                "enabled": true,
+                "key_version": 3,
+                "created_at": "2026-08-28T00:00:00Z",
+                "updated_at": "2026-08-28T00:00:00Z"
+            })
+            .to_string(),
+            "fn_knock:wol:relays:index",
+            wol_relay_id,
+            1,
+        )
+        .await
+        .unwrap();
+    state
+        .storage
+        .store
+        .set_string_and_zadd(
+            &format!("fn_knock:wol:target:{wol_target_id}"),
+            &json!({
+                "id": wol_target_id,
+                "name": "NAS",
+                "mac": "02:11:22:33:44:55",
+                "relay_id": wol_relay_id,
+                "broadcast_address": null,
+                "ip_address": "192.0.2.30",
+                "integrations": {
+                    "blinker": { "enabled": true, "bindComponent": false, "skipTlsVerify": true },
+                    "bemfa": { "enabled": true, "topic": "nas", "skipTlsVerify": true }
+                },
+                "ssh": {
+                    "enabled": true,
+                    "host": "192.0.2.30",
+                    "port": 22,
+                    "username": "root",
+                    "platform": "linux",
+                    "authMethod": "privateKey",
+                    "hostKeyAlgorithm": "ssh-ed25519",
+                    "hostKeyFingerprint": "SHA256:test"
+                },
+                "enabled": true,
+                "created_at": "2026-08-28T00:00:00Z",
+                "updated_at": "2026-08-28T00:00:00Z"
+            })
+            .to_string(),
+            "fn_knock:wol:targets:index",
+            wol_target_id,
+            1,
+        )
+        .await
+        .unwrap();
+    wol::write_backup_test_relay_secret(&state, wol_relay_id, 3, b"relay-psk-secret");
+    let wol_secrets: [&[u8]; 5] = [
+        b"blinker-device-secret",
+        b"bemfa-private-secret",
+        b"wol-ssh-password-secret",
+        b"-----BEGIN OPENSSH PRIVATE KEY-----wol-key-secret",
+        b"wol-key-passphrase-secret",
+    ];
+    wol::write_backup_test_target_secrets(&state, wol_target_id, wol_secrets);
+
+    let archive = export_backup_archive(&state).await.unwrap();
+    let backup_json = read_backup_json_from_archive_native(&archive.buffer).unwrap();
+    for secret in [
+        "terminal-password-secret",
+        "terminal-key-secret",
+        "terminal-passphrase-secret",
+        "relay-psk-secret",
+        "blinker-device-secret",
+        "bemfa-private-secret",
+        "wol-ssh-password-secret",
+        "wol-key-secret",
+        "wol-key-passphrase-secret",
+    ] {
+        assert!(!backup_json.contains(secret), "backup leaked {secret}");
+    }
+    assert!(backup_json.contains("protected_credentials"));
+
+    terminal::write_backup_test_credential(
+        &state,
+        &terminal_password_id,
+        terminal::domain::AuthMethod::Password,
+        1,
+        Some(b"changed"),
+        None,
+        None,
+    );
+    terminal::write_backup_test_credential(
+        &state,
+        &terminal_key_id,
+        terminal::domain::AuthMethod::PrivateKey,
+        7,
+        None,
+        Some(b"changed"),
+        None,
+    );
+    wol::write_backup_test_relay_secret(&state, wol_relay_id, 3, b"changed");
+    wol::write_backup_test_target_secrets(&state, wol_target_id, [b"changed"; 5]);
+
+    let translator = Translator::from_state(&state).await;
+    import_backup_archive_buffer(&state, archive.buffer, &translator)
+        .await
+        .expect("restore credential-bearing backup");
+
+    assert_eq!(
+        terminal::read_backup_test_credential(&state, &terminal_password_id),
+        [Some(b"terminal-password-secret".to_vec()), None, None]
+    );
+    assert_eq!(
+        terminal::read_backup_test_credential(&state, &terminal_key_id),
+        [
+            None,
+            Some(b"-----BEGIN OPENSSH PRIVATE KEY-----terminal-key-secret".to_vec()),
+            Some(b"terminal-passphrase-secret".to_vec())
+        ]
+    );
+    assert_eq!(
+        wol::read_backup_test_relay_secret(&state, wol_relay_id, 3),
+        Some(b"relay-psk-secret".to_vec())
+    );
+    assert_eq!(
+        wol::read_backup_test_target_secrets(&state, wol_target_id),
+        wol_secrets.map(|value| Some(value.to_vec()))
+    );
 }
 
 #[tokio::test]

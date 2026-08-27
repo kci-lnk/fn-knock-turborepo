@@ -317,6 +317,7 @@ where
 
     match state.storage.store.clear_all_keys().await {
         Ok(cleared_keys) => {
+            state.terminal.shutdown_all().await;
             let default_memory_settings = gateway_settings::GatewayMemorySettings {
                 gc_percent: gateway_settings::DEFAULT_GATEWAY_GC_PERCENT,
                 memory_limit_mib: None,
@@ -330,6 +331,13 @@ where
             }
             if let Err(error) = wol::clear_secrets_after_backup_restore(&state).await {
                 tracing::error!(%error, "failed to clear WoL relay credentials after clearing data");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    maintenance_clear_text(&translator, "clearFailed"),
+                );
+            }
+            if let Err(error) = terminal::clear_all_credentials(&state) {
+                tracing::error!(%error, "failed to clear terminal credentials after clearing data");
                 return response::error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     maintenance_clear_text(&translator, "clearFailed"),

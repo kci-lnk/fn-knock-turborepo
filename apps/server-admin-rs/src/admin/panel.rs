@@ -354,6 +354,7 @@ pub(crate) fn build_safe_app_config(
         config = crate::store::default_config();
     }
     if let Some(object) = config.as_object_mut() {
+        object.remove("terminal_feature");
         if !object
             .get("host_mapping_groups")
             .is_some_and(Value::is_array)
@@ -374,8 +375,6 @@ pub(crate) fn build_safe_app_config(
     }
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
     let ssl = safe_ssl_config(config.get("ssl"));
-    let terminal_feature =
-        runtime_config::normalize_terminal_feature(config.get("terminal_feature"));
     let fnos_share_bypass =
         runtime_config::normalize_fnos_share_bypass(config.get("fnos_share_bypass"));
     let fnos_port_icon_hijack =
@@ -404,7 +403,6 @@ pub(crate) fn build_safe_app_config(
             protocol_mapping_feature,
         );
         object.insert("ssl".to_string(), ssl);
-        object.insert("terminal_feature".to_string(), terminal_feature);
         object.insert("fnos_share_bypass".to_string(), fnos_share_bypass);
         object.insert("fnos_port_icon_hijack".to_string(), fnos_port_icon_hijack);
         object.insert("fnos_connect_waf".to_string(), fnos_connect_waf);
@@ -1820,7 +1818,6 @@ mod tests {
                     "deployment_mode": "single_active",
                     "certificates": [{ "id": "cert-1" }]
                 },
-                "terminal_feature": { "enabled": true },
                 "protocol_mapping_feature": { "enabled": false },
                 "locale": { "default_locale": "en" },
                 "appearance": { "theme_color_preset": "prussian_blue" },
@@ -1848,18 +1845,11 @@ mod tests {
             config.pointer("/capabilities/host_firewall_available"),
             Some(&json!(true))
         );
-        assert_eq!(
-            config.pointer("/capabilities/terminal_available"),
-            Some(&json!(true))
-        );
         assert_eq!(config.pointer("/ssl/cert"), None);
         assert_eq!(config.pointer("/ssl/key"), None);
         assert_eq!(config.pointer("/ssl/enabled"), Some(&json!(true)));
         assert_eq!(config.pointer("/ssl/certificate_count"), Some(&json!(1)));
-        assert_eq!(
-            config.pointer("/terminal_feature/resume_backend"),
-            Some(&json!("tmux"))
-        );
+        assert!(config.get("terminal_feature").is_none());
         assert_eq!(
             config.pointer("/protocol_mapping_feature/enabled"),
             Some(&json!(true))

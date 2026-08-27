@@ -44,6 +44,38 @@ function validateContract(openapiPath) {
     ["post /api/admin/panel-sync/connections/{id}/sync", "SyncRequest"],
     ["get /api/admin/panel-sync/connections/{id}/runs", null],
     ["get /api/admin/panel-sync/runs/{run_id}", null],
+    ["get /api/admin/terminal/targets", null],
+    ["post /api/admin/terminal/targets", "TargetCreateInput"],
+    ["get /api/admin/terminal/targets/{id}", null],
+    ["patch /api/admin/terminal/targets/{id}", "TargetUpdateInput"],
+    ["delete /api/admin/terminal/targets/{id}", null],
+    [
+      "post /api/admin/terminal/targets/probe-host-key",
+      "ProbeHostKeyInput",
+    ],
+    [
+      "post /api/admin/terminal/targets/test-connection",
+      "TerminalTestConnectionInput",
+    ],
+    ["get /api/admin/terminal/sessions", null],
+    [
+      "post /api/admin/terminal/targets/{id}/sessions",
+      "CreateSessionInput",
+    ],
+    ["patch /api/admin/terminal/sessions/{id}", "RenameSessionInput"],
+    ["delete /api/admin/terminal/sessions/{id}", null],
+    [
+      "post /api/admin/terminal/sessions/{id}/attachments",
+      "CreateAttachmentInput",
+    ],
+    ["get /api/admin/terminal/attachments/{id}/events", null],
+    ["post /api/admin/terminal/attachments/{id}/input", "InputRequest"],
+    ["post /api/admin/terminal/attachments/{id}/resize", "ResizeRequest"],
+    [
+      "post /api/admin/terminal/attachments/{id}/control",
+      "ClaimControlRequest",
+    ],
+    ["delete /api/admin/terminal/attachments/{id}", null],
     ["post /api/internal/system-events", "SystemEventPublishBodyData"],
     ["get /api/admin/events", null],
     ["get /api/admin/traces/{trace_id}", null],
@@ -59,8 +91,6 @@ function validateContract(openapiPath) {
       "post /api/admin/config/auto_manage_firewall",
       "AutoManageFirewallUpdateData",
     ],
-    ["get /api/admin/config/terminal_feature", null],
-    ["post /api/admin/config/terminal_feature", "TerminalFeatureUpdateData"],
     ["get /api/admin/config/appearance", null],
     ["post /api/admin/config/appearance", "PanelAppearanceData"],
     ["get /api/admin/config/auto_https", null],
@@ -91,27 +121,6 @@ function validateContract(openapiPath) {
     ["delete /api/admin/system/frp", null],
     ["get /api/admin/system/dnsmasq/status", null],
     ["post /api/admin/system/dnsmasq/install", null],
-    ["get /api/admin/terminal/status", null],
-    ["post /api/admin/terminal/tmux/install", null],
-    ["get /api/admin/terminal/sessions", null],
-    ["post /api/admin/terminal/sessions", "TerminalCreateSessionBodyData"],
-    ["get /api/admin/terminal/sessions/{id}", null],
-    [
-      "patch /api/admin/terminal/sessions/{id}",
-      "TerminalRenameSessionBodyData",
-    ],
-    ["delete /api/admin/terminal/sessions/{id}", null],
-    ["post /api/admin/terminal/sessions/{id}/attachments", null],
-    ["get /api/admin/terminal/attachments/{id}/poll", null],
-    [
-      "post /api/admin/terminal/attachments/{id}/input",
-      "TerminalInputBodyData",
-    ],
-    [
-      "post /api/admin/terminal/attachments/{id}/resize",
-      "TerminalResizeBodyData",
-    ],
-    ["delete /api/admin/terminal/attachments/{id}", null],
     ["get /api/admin/cloudflared/status", null],
     ["get /api/admin/cloudflared/config", null],
     ["post /api/admin/cloudflared/config", "CloudflaredConfigUpdateData"],
@@ -730,6 +739,151 @@ function validateContract(openapiPath) {
       `typed domain route coverage is incomplete: ${missing.join(", ")}`,
     );
   }
+  const terminalSchemas = document.components?.schemas ?? {};
+  const terminalLegacyPaths = [
+    "/api/admin/config/terminal_feature",
+    "/api/admin/terminal/status",
+    "/api/admin/terminal/tmux/install",
+    "/api/admin/terminal/attachments/{id}/poll",
+  ];
+  for (const route of terminalLegacyPaths) {
+    if (document.paths?.[route]) {
+      throw new Error(`retired Web Terminal route is still published: ${route}`);
+    }
+  }
+  if (document.paths?.["/api/admin/terminal/sessions"]?.post) {
+    throw new Error("legacy target-less terminal session creation is published");
+  }
+  const expectedSessionPhases = [
+    "creating",
+    "resolving",
+    "connecting",
+    "verifyingHostKey",
+    "authenticating",
+    "openingChannel",
+    "requestingPty",
+    "running",
+    "closing",
+    "closed",
+    "exited",
+    "lost",
+    "failed",
+  ];
+  if (
+    JSON.stringify(terminalSchemas.SessionPhase?.enum) !==
+    JSON.stringify(expectedSessionPhases)
+  ) {
+    throw new Error("terminal session phase state machine is out of sync");
+  }
+  const requiredTerminalErrorCodes = [
+    "host_key_required",
+    "host_key_mismatch",
+    "authentication_failed",
+    "pty_rejected",
+    "session_limit_reached",
+    "session_lost",
+    "attachment_expired",
+    "controller_conflict",
+    "target_revision_conflict",
+    "connect_timeout",
+  ];
+  const terminalErrorCodes = terminalSchemas.TerminalErrorCode?.enum ?? [];
+  if (
+    !requiredTerminalErrorCodes.every((code) =>
+      terminalErrorCodes.includes(code),
+    )
+  ) {
+    throw new Error("terminal stable error codes are out of sync");
+  }
+  if (
+    JSON.stringify(terminalSchemas.SecretAction?.enum) !==
+      JSON.stringify(["keep", "replace", "clear"]) ||
+    terminalSchemas.CredentialMutation?.properties?.secret?.writeOnly !==
+      true ||
+    terminalSchemas.PassphraseMutation?.properties?.secret?.writeOnly !== true
+  ) {
+    throw new Error("terminal secret mutation contract is out of sync");
+  }
+  const terminalTargetProperties =
+    terminalSchemas.TerminalTarget?.properties ?? {};
+  for (const forbidden of [
+    "credential",
+    "password",
+    "privateKey",
+    "passphrase",
+    "secret",
+  ]) {
+    if (forbidden in terminalTargetProperties) {
+      throw new Error(`TerminalTarget exposes secret field ${forbidden}`);
+    }
+  }
+  if (
+    !(terminalSchemas.SessionListResult?.required ?? []).includes(
+      "runtimeId",
+    ) ||
+    terminalSchemas.TerminalAttachment?.properties?.transport?.$ref !==
+      "#/components/schemas/TerminalTransport" ||
+    JSON.stringify(terminalSchemas.TerminalTransport?.enum) !==
+      JSON.stringify(["http-polling"])
+  ) {
+    throw new Error("terminal runtime and attachment identity are out of sync");
+  }
+  const terminalEventsOperation =
+    document.paths?.["/api/admin/terminal/attachments/{id}/events"]?.get;
+  const terminalEventsParameters = terminalEventsOperation?.parameters ?? [];
+  const terminalTimeout = terminalEventsParameters.find(
+    (parameter) => parameter.name === "timeoutMs",
+  )?.schema;
+  const terminalAfter = terminalEventsParameters.find(
+    (parameter) => parameter.name === "after",
+  )?.schema;
+  if (
+    terminalTimeout?.maximum !== 5_000 ||
+    terminalTimeout?.default !== 4_500 ||
+    terminalAfter?.minimum !== 0 ||
+    terminalAfter?.default !== 0
+  ) {
+    throw new Error("terminal long-poll query bounds are out of sync");
+  }
+  const terminalTargetPath =
+    document.paths?.["/api/admin/terminal/targets/{id}"] ?? {};
+  for (const method of ["patch", "delete"]) {
+    const parameters = terminalTargetPath[method]?.parameters ?? [];
+    for (const parameterName of ["force", "confirmationToken"]) {
+      if (!parameters.some((parameter) => parameter.name === parameterName)) {
+        throw new Error(
+          `terminal target ${method} lacks ${parameterName} confirmation query`,
+        );
+      }
+    }
+  }
+  const terminalDeleteRevision = (
+    terminalTargetPath.delete?.parameters ?? []
+  ).find((parameter) => parameter.name === "revision");
+  if (terminalDeleteRevision?.required !== true) {
+    throw new Error("terminal target deletion must require an expected revision");
+  }
+  const terminalErrorProperties =
+    terminalSchemas.TerminalErrorEnvelope?.properties ?? {};
+  if (
+    !("activeSessionCount" in terminalErrorProperties) ||
+    !("confirmationToken" in terminalErrorProperties)
+  ) {
+    throw new Error("terminal force-confirmation error contract is incomplete");
+  }
+  for (const operationKey of typedDomainOperations.keys()) {
+    const [method, route] = operationKey.split(" ");
+    if (!route.startsWith("/api/admin/terminal/")) continue;
+    const errorRef =
+      document.paths?.[route]?.[method]?.responses?.default?.content?.[
+        "application/json"
+      ]?.schema?.$ref;
+    if (errorRef !== "#/components/schemas/TerminalErrorEnvelope") {
+      throw new Error(
+        `${method.toUpperCase()} ${route} lacks the terminal error envelope`,
+      );
+    }
+  }
   const eventDeleteSchema =
     document.paths?.["/api/admin/events"]?.delete?.requestBody?.content?.[
       "application/json"
@@ -822,26 +976,6 @@ function validateContract(openapiPath) {
     document.components?.schemas?.RunTypeUpdateData?.properties?.run_type?.enum;
   if (JSON.stringify(runTypes) !== JSON.stringify([0, 1, 3])) {
     throw new Error("run type values are out of sync");
-  }
-  const terminalUpdate =
-    document.components?.schemas?.TerminalFeatureUpdateData ?? {};
-  if (
-    (terminalUpdate.required ?? []).length !== 0 ||
-    terminalUpdate.properties?.resume_backend
-  ) {
-    throw new Error(
-      "terminal updates must remain partial and exclude the runtime-owned backend",
-    );
-  }
-  const terminalData =
-    document.components?.schemas?.TerminalFeatureData?.properties ?? {};
-  if (
-    terminalData.max_sessions?.minimum !== 1 ||
-    terminalData.max_sessions?.maximum !== 12 ||
-    terminalData.idle_timeout_seconds?.minimum !== 60 ||
-    terminalData.idle_timeout_seconds?.maximum !== 604_800
-  ) {
-    throw new Error("terminal feature bounds are out of sync");
   }
   const appearancePresets =
     document.components?.schemas?.PanelAppearanceData?.properties
@@ -1013,69 +1147,6 @@ function validateContract(openapiPath) {
     dnsmasqState.properties?.progress?.maximum !== 100
   ) {
     throw new Error("dnsmasq install-state contract is out of sync");
-  }
-  const terminalTmux =
-    document.components?.schemas?.TerminalTmuxInstallStateData ?? {};
-  if (
-    JSON.stringify(terminalTmux.properties?.status?.enum) !==
-      JSON.stringify(["uninstalled", "installing", "installed", "error"]) ||
-    terminalTmux.properties?.progress?.minimum !== 0 ||
-    terminalTmux.properties?.progress?.maximum !== 100 ||
-    JSON.stringify(terminalTmux.properties?.detectionSource?.enum) !==
-      JSON.stringify(["env-path", "absolute-path", null]) ||
-    !(terminalTmux.required ?? []).includes("detectionSource")
-  ) {
-    throw new Error("terminal tmux state contract is out of sync");
-  }
-  const terminalRuntime =
-    document.components?.schemas?.TerminalRuntimeStatusData ?? {};
-  if (
-    terminalRuntime.properties?.httpPollingAvailable?.const !== true ||
-    !(terminalRuntime.required ?? []).includes("tmuxDetectionSource")
-  ) {
-    throw new Error("terminal runtime capability contract is out of sync");
-  }
-  const terminalSession =
-    document.components?.schemas?.TerminalSessionData ?? {};
-  if (
-    JSON.stringify(terminalSession.properties?.status?.enum) !==
-      JSON.stringify(["created", "attached", "detached", "stopped", "error"]) ||
-    terminalSession.properties?.cols?.minimum !== 20 ||
-    terminalSession.properties?.cols?.maximum !== 400 ||
-    terminalSession.properties?.rows?.minimum !== 8 ||
-    terminalSession.properties?.rows?.maximum !== 200 ||
-    terminalSession.properties?.resume_backend?.const !== "tmux" ||
-    !(terminalSession.required ?? []).includes("last_frame_revision")
-  ) {
-    throw new Error("terminal session contract is out of sync");
-  }
-  if (
-    document.components?.schemas?.TerminalAttachmentData?.properties?.transport
-      ?.const !== "http-polling" ||
-    document.components?.schemas?.TerminalOutputChunkData?.properties?.cursor
-      ?.minimum !== 0 ||
-    !(
-      document.components?.schemas?.TerminalPollResultData?.required ?? []
-    ).includes("chunk")
-  ) {
-    throw new Error("terminal attachment polling contract is out of sync");
-  }
-  const terminalPollParameters =
-    document.paths?.["/api/admin/terminal/attachments/{id}/poll"]?.get
-      ?.parameters ?? [];
-  const terminalCursor = terminalPollParameters.find(
-    (parameter) => parameter.name === "cursor",
-  )?.schema;
-  const terminalTimeout = terminalPollParameters.find(
-    (parameter) => parameter.name === "timeout_ms",
-  )?.schema;
-  if (
-    terminalCursor?.default !== 0 ||
-    terminalCursor?.oneOf?.[0]?.minimum !== 0 ||
-    terminalCursor?.oneOf?.[1]?.pattern !== "^\\s*[+-]?\\d+" ||
-    terminalTimeout?.default !== 15_000
-  ) {
-    throw new Error("terminal long-poll query contract is out of sync");
   }
   const cloudflaredConfig =
     document.components?.schemas?.CloudflaredConfigData ?? {};

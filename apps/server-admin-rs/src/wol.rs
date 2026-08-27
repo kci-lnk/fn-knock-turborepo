@@ -1,3 +1,4 @@
+mod backup;
 mod discovery;
 mod dispatch;
 mod integrations;
@@ -10,6 +11,14 @@ mod ssh;
 mod status;
 mod store;
 
+pub(crate) use backup::{
+    WolCredentialBackup, export_credentials_for_backup, restore_credentials_after_backup,
+};
+#[cfg(test)]
+pub(crate) use backup::{
+    read_backup_test_relay_secret, read_backup_test_target_secrets, write_backup_test_relay_secret,
+    write_backup_test_target_secrets,
+};
 pub(crate) use routes::{
     shutdown_target_for_portal, wol_discovery_openapi_routes, wol_local_relay_openapi_routes,
     wol_relay_openapi_routes, wol_routes, wol_target_openapi_routes,
@@ -33,11 +42,7 @@ pub(crate) async fn clear_secrets_after_backup_restore(
     state: &crate::state::AppState,
 ) -> Result<(), String> {
     let _guard = state.wol.config_lock.lock().await;
-    secrets::secret_store(state).clear_all()?;
-    state.wol.integration_status.write().await.clear();
-    state.wol.relay_reload.notify_one();
-    notify_runtime_reload(state);
-    Ok(())
+    restore_credentials_after_backup(state, &WolCredentialBackup::default()).await
 }
 
 pub(crate) fn notify_runtime_reload(state: &crate::state::AppState) {

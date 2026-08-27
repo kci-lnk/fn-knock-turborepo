@@ -24,7 +24,10 @@ export const useTerminalFontSize = ({
   const terminalFontSize = ref(DEFAULT_TERMINAL_FONT_SIZE);
 
   const persistTerminalFontSize = () => {
-    localStorage.setItem(TERMINAL_FONT_SIZE_KEY, String(terminalFontSize.value));
+    localStorage.setItem(
+      TERMINAL_FONT_SIZE_KEY,
+      String(terminalFontSize.value),
+    );
   };
 
   const loadTerminalFontSize = () => {

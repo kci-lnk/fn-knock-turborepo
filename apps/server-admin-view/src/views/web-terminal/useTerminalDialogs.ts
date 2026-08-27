@@ -1,13 +1,15 @@
-import { nextTick, ref, type ComputedRef, type Ref } from "vue";
+import { nextTick, ref, watch, type ComputedRef, type Ref } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import type {
   TerminalAttachmentRecord,
   TerminalSessionRecord,
-} from "@/types";
+} from "@/lib/api/terminal";
 import { focusElementWithoutScroll } from "./terminal-dom";
+import { extractTerminalErrorMessage } from "./terminal-errors";
 
 export const useTerminalDialogs = ({
   activeAttachment,
+  cancelRenameSession,
   clearArmedModifier,
   focusTerminal,
   selectedSession,
@@ -17,6 +19,7 @@ export const useTerminalDialogs = ({
   updateSessionTitle,
 }: {
   activeAttachment: Ref<TerminalAttachmentRecord | null>;
+  cancelRenameSession: () => void;
   clearArmedModifier: () => void;
   focusTerminal: () => void;
   selectedSession: ComputedRef<TerminalSessionRecord | null>;
@@ -34,6 +37,16 @@ export const useTerminalDialogs = ({
   const renameDialogOpen = ref(false);
   const renameDialogValue = ref("");
   const isRenamingSession = ref(false);
+
+  watch(
+    renameDialogOpen,
+    (open) => {
+      if (open) return;
+      cancelRenameSession();
+      isRenamingSession.value = false;
+    },
+    { flush: "sync" },
+  );
 
   const focusSendDialogTextarea = () => {
     void nextTick(() => {
@@ -88,11 +101,12 @@ export const useTerminalDialogs = ({
       renameDialogOpen.value = false;
       focusTerminal();
     } catch (error) {
+      if (!renameDialogOpen.value) return;
       toast.error(translate("admin.webTerminal.renameFailed"), {
-        description:
-          error instanceof Error
-            ? error.message
-            : translate("admin.webTerminal.renameFailedDescription"),
+        description: extractTerminalErrorMessage(
+          error,
+          translate("admin.webTerminal.renameFailedDescription"),
+        ),
       });
     } finally {
       isRenamingSession.value = false;
@@ -112,10 +126,10 @@ export const useTerminalDialogs = ({
       focusTerminal();
     } catch (error) {
       toast.error(translate("admin.webTerminal.sendFailed"), {
-        description:
-          error instanceof Error
-            ? error.message
-            : translate("admin.webTerminal.sendFailedDescription"),
+        description: extractTerminalErrorMessage(
+          error,
+          translate("admin.webTerminal.sendFailedDescription"),
+        ),
       });
     } finally {
       isSendingDialogPayload.value = false;

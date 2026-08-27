@@ -228,9 +228,7 @@ pub(crate) async fn run_with_settings(
     start_common_auth_location_tasks(state.clone());
     start_whitelist_tasks(state.clone());
     start_waf_tasks(state.clone());
-    if capabilities.terminal_available {
-        start_terminal_tasks(state.clone());
-    }
+    start_terminal_tasks(state.clone());
     if capabilities.ssh_security_available {
         start_ssh_security_tasks(state.clone());
     }

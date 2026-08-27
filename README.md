@@ -51,6 +51,8 @@ fn-knock 把反向代理、登录鉴权、证书、DDNS、访问控制、WAF、�
 | 日常运维   | 系统监控、事件审计、在线终端、通知、备份与更新检查                       |
 | 多平台交付 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM 与通用 Linux         |
 
+Web 终端在所有发行平台均可用，但只连接管理员显式配置并确认主机指纹的 SSH 目标；它不会直接打开 fn-knock 所在主机的本机 Shell。目标可以是运行 OpenSSH Server 并允许交互式 PTY 的 Linux、macOS 或 Windows 主机。
+
 ## 架构
 
 ```mermaid
@@ -116,7 +118,7 @@ macOS 13 及以上版本提供 Intel (`amd64`) 和 Apple Silicon (`arm64`) 两�
 curl -fsSL https://cdn.fnknock.cn/macos/install.sh | sudo bash
 ```
 
-安装后运行 `sudo knock` 管理服务。管理面板默认仅监听 `127.0.0.1:7991`；macOS 版本不支持 iptables、主机防火墙管理或网页终端。当前发行包未经 Apple Developer ID 签名或公证，请通过 Release 中的 `SHA256SUMS` 校验手动下载文件。
+安装后运行 `sudo knock` 管理服务。管理面板默认仅监听 `127.0.0.1:7991`；macOS 版本不支持 iptables 或主机防火墙管理，网页终端通过用户配置的 SSH 目标提供。当前发行包未经 Apple Developer ID 签名或公证，请通过 Release 中的 `SHA256SUMS` 校验手动下载文件。
 
 ## 默认端口
 

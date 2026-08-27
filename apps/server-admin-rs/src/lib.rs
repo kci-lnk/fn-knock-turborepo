@@ -60,8 +60,7 @@ pub(crate) use shared::{
 };
 pub(crate) use storage::store;
 pub(crate) use system::{
-    dashboard, maintenance, system_assets, system_info, system_monitor, terminal, terminal_paths,
-    update,
+    dashboard, maintenance, system_assets, system_info, system_monitor, terminal, update,
 };
 pub(crate) use tunnels::{cloudflared, frpc};
 pub(crate) use wol::wol_routes;

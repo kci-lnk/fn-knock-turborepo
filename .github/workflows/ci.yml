@@ -119,9 +119,14 @@ jobs:
             echo "No base OpenAPI contract exists yet; generated-file checks still apply"
             exit 0
           fi
+          current="packages/api-contract/openapi.json"
+          filtered_baseline="${RUNNER_TEMP}/openapi-base-filtered.json"
+          filtered_current="${RUNNER_TEMP}/openapi-current-filtered.json"
+          node ./scripts/filter-intentional-terminal-openapi-breaks.mjs \
+            "${baseline}" "${current}" "${filtered_baseline}" "${filtered_current}"
           go install github.com/oasdiff/oasdiff@v1.26.1
           "$(go env GOPATH)/bin/oasdiff" breaking --fail-on ERR --format githubactions \
-            "${baseline}" packages/api-contract/openapi.json
+            "${filtered_baseline}" "${filtered_current}"
 
       - name: Verify generated Go control-plane stubs
         shell: bash

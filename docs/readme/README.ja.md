@@ -48,7 +48,9 @@ fn-knock は、リバースプロキシ、アクセス認証、TLS 証明書、D
 | プロアクティブ防御         | IP 許可リスト、地域別アクセス制御、WAF、ボット遮断、ログインバックオフ、レート制限                      |
 | 外部公開用トンネル         | Cloudflare Tunnel（`cloudflared`）と frp クライアント（`frpc`）の設定、起動・停止、ログ、稼働状況の管理 |
 | 日常運用                   | システム監視、監査イベント、Web ターミナル、通知、バックアップ、アップデート確認                        |
-| マルチプラットフォーム配布 | fnOS、OpenWrt、Docker、Windows、Synology DSM、汎用 Linux                                                |
+| マルチプラットフォーム配布 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM、汎用 Linux                                         |
+
+Web ターミナルはすべての fn-knock 配布パッケージで利用できますが、管理者がホストフィンガープリントを明示的に信頼した SSH ターゲットにのみ接続します。fn-knock ホスト上のローカル Shell を直接開くことはありません。対話型 PTY を提供する SSH Server があれば、Linux、macOS、Windows をターゲットにできます。
 
 ## アーキテクチャ
 

@@ -39,7 +39,6 @@ export interface RuntimeCapabilities {
   fnos_certificate_sync_available?: boolean;
   system_clock_sync_available: boolean;
   self_update_available: boolean;
-  terminal_available: boolean;
   deep_monitor_available?: boolean;
   auto_https_available?: boolean;
   fnos_network_tuning_available?: boolean;
@@ -399,33 +398,8 @@ export interface AutomaticBackupFilesPayload {
 export type FnKnockBackupExportToDirectoryResult =
   ApiContractComponents["schemas"]["BackupDirectoryExportData"];
 
-export type TerminalFeatureConfig =
-  ApiContractComponents["schemas"]["TerminalFeatureData"];
-
 export type WOLFeatureConfig =
   ApiContractComponents["schemas"]["WolFeatureConfigData"];
-
-export type TerminalTmuxInstallState =
-  ApiContractComponents["schemas"]["TerminalTmuxInstallStateData"];
-export type TerminalTmuxDetectionSource = Exclude<
-  TerminalTmuxInstallState["detectionSource"],
-  null
->;
-export type TerminalTmuxInstallStatus = TerminalTmuxInstallState["status"];
-
-export type TerminalSessionRecord =
-  ApiContractComponents["schemas"]["TerminalSessionData"];
-export type TerminalSessionStatus = TerminalSessionRecord["status"];
-
-export type TerminalAttachmentRecord =
-  ApiContractComponents["schemas"]["TerminalAttachmentData"];
-export type TerminalTransport = TerminalAttachmentRecord["transport"];
-
-export type TerminalOutputChunk =
-  ApiContractComponents["schemas"]["TerminalOutputChunkData"];
-
-export type TerminalRuntimeStatus =
-  ApiContractComponents["schemas"]["TerminalRuntimeStatusData"];
 
 export type FirewallAdditionalPortsDetails =
   ApiContractComponents["schemas"]["FirewallAdditionalPortsData"];

@@ -172,6 +172,7 @@ pub fn default_config() -> Value {
             "ssh_ip_blocked": { "enabled": true },
             "runtime_lifecycle": { "enabled": true },
             "runtime_health": { "enabled": true },
+            "terminal_audit": { "enabled": true },
             "cpu_alert": {
                 "enabled": true,
                 "threshold_percent": 80,
@@ -187,15 +188,6 @@ pub fn default_config() -> Value {
                 "sustain_seconds": 30
             }
         }
-    });
-    let terminal_feature = json!({
-        "enabled": false,
-        "default_cwd": "~",
-        "max_sessions": 3,
-        "idle_timeout_seconds": 86400,
-        "resume_backend": "tmux",
-        "allow_mobile_toolbar": true,
-        "dangerously_run_as_current_user": true
     });
     let ssh_security = json!({
         "enabled": false,
@@ -246,7 +238,6 @@ pub fn default_config() -> Value {
         "locale": locale,
         "auth_credential_settings": auth_credential_settings,
         "event_system": event_system,
-        "terminal_feature": terminal_feature,
         "wol_feature": wol_feature,
         "ssh_security": ssh_security
     })

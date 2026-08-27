@@ -252,16 +252,11 @@ pub(super) async fn apply_runtime_constraints_on_boot(
         corrected.push("smart_connect.enabled -> false".to_string());
     }
 
-    let terminal = normalize_terminal_feature(config.get("terminal_feature"));
-    if !capabilities.terminal_available
-        && terminal.get("enabled").and_then(Value::as_bool) == Some(true)
+    if ensure_config_object(config)
+        .remove("terminal_feature")
+        .is_some()
     {
-        let mut next = terminal;
-        if let Some(object) = next.as_object_mut() {
-            object.insert("enabled".to_string(), Value::Bool(false));
-        }
-        ensure_config_object(config).insert("terminal_feature".to_string(), next);
-        corrected.push("terminal_feature.enabled -> false".to_string());
+        corrected.push("remove legacy terminal_feature".to_string());
     }
 
     let auto_https = auto_https::normalize_auto_https_config(config.get("auto_https"));

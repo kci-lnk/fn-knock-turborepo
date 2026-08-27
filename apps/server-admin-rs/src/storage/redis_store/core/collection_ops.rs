@@ -155,38 +155,6 @@ impl Store {
         pipe.query_async(&mut conn).await
     }
 
-    pub async fn save_expiring_string_and_sadd(
-        &self,
-        data_key: &str,
-        value: &str,
-        ttl_seconds: usize,
-        set_key: &str,
-        member: &str,
-    ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        let ttl = ttl_seconds.max(1);
-        let mut pipe = redis::pipe();
-        pipe.set_ex(data_key, value, ttl as u64)
-            .ignore()
-            .sadd(set_key, member)
-            .ignore()
-            .expire(set_key, ttl as i64)
-            .ignore();
-        pipe.query_async(&mut conn).await
-    }
-
-    pub async fn delete_string_and_srem(
-        &self,
-        data_key: &str,
-        set_key: &str,
-        member: &str,
-    ) -> crate::storage::StorageResult<()> {
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-        pipe.del(data_key).ignore().srem(set_key, member).ignore();
-        pipe.query_async(&mut conn).await
-    }
-
     pub async fn delete_keys(&self, keys: &[String]) -> crate::storage::StorageResult<()> {
         if keys.is_empty() {
             return Ok(());

@@ -7,9 +7,7 @@ import type { AppConfig } from "../types";
 import { isProtectedAdminPanelDeploymentTarget } from "../lib/admin-panel-runtime";
 import { canUseFnosConnectWafForRuntime } from "../lib/fnos-connect-waf";
 
-export const useConfigRuntimeCapabilities = (
-  config: Ref<AppConfig | null>,
-) => {
+export const useConfigRuntimeCapabilities = (config: Ref<AppConfig | null>) => {
   const runtimeProfile = computed(() =>
     getEffectiveRuntimeProfile(config.value?.runtime_profile),
   );
@@ -59,9 +57,6 @@ export const useConfigRuntimeCapabilities = (
   );
   const canSyncSystemClock = computed(
     () => capabilities.value?.system_clock_sync_available === true,
-  );
-  const canUseTerminal = computed(
-    () => capabilities.value?.terminal_available === true,
   );
   const canUseDeepMonitor = computed(
     () => capabilities.value?.deep_monitor_available === true,
@@ -120,7 +115,6 @@ export const useConfigRuntimeCapabilities = (
     canUseFnosCertificateSync,
     canSelfUpdate,
     canSyncSystemClock,
-    canUseTerminal,
     canUseDeepMonitor,
     canUseAutoHttps,
     canUseFnosNetworkTuning,

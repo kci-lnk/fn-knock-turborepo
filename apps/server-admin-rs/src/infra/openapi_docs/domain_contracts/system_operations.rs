@@ -70,27 +70,6 @@ pub(super) struct AutoManageFirewallData {
 }
 
 #[derive(Serialize, ToSchema)]
-pub(super) struct TerminalFeatureData {
-    enabled: bool,
-    default_cwd: String,
-    max_sessions: i64,
-    idle_timeout_seconds: i64,
-    resume_backend: String,
-    allow_mobile_toolbar: bool,
-    dangerously_run_as_current_user: bool,
-}
-
-#[derive(Serialize, ToSchema)]
-pub(super) struct TerminalFeatureUpdateData {
-    enabled: Option<bool>,
-    default_cwd: Option<String>,
-    max_sessions: Option<i64>,
-    idle_timeout_seconds: Option<i64>,
-    allow_mobile_toolbar: Option<bool>,
-    dangerously_run_as_current_user: Option<bool>,
-}
-
-#[derive(Serialize, ToSchema)]
 pub(super) struct AutoHttpsConfigData {
     enabled: bool,
 }

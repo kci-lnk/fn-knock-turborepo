@@ -45,6 +45,7 @@ pub(crate) const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
     "FN_EVENT_PANEL_SYNC_FAILED",
     "FN_EVENT_PANEL_SYNC_RECOVERED",
+    "FN_EVENT_TERMINAL_AUDIT",
 ];
 pub(crate) const SYSTEM_EVENT_LEVELS: &[&str] = &["INFO", "WARN", "ERROR", "CRITICAL"];
 pub(crate) const SYSTEM_EVENT_SOURCES: &[&str] = &[
@@ -306,6 +307,59 @@ pub async fn publish_panel_sync_event(
                 "recovered": recovered,
                 "message": message.unwrap_or_default(),
             }),
+        },
+    )
+    .await
+}
+
+/// Writes a deliberately metadata-only terminal audit event. Callers cannot
+/// attach arbitrary payload fields, which keeps credentials and terminal I/O
+/// out of the persistent event stream by construction.
+pub async fn publish_terminal_audit_event(
+    state: &AppState,
+    action: &str,
+    target_id: Option<&str>,
+    session_id: Option<&str>,
+    revision: Option<u64>,
+    error_code: Option<&str>,
+) -> anyhow::Result<bool> {
+    let mut payload = Map::new();
+    payload.insert("action".to_string(), Value::String(action.to_string()));
+    if let Some(target_id) = target_id.filter(|value| !value.is_empty()) {
+        payload.insert(
+            "target_id".to_string(),
+            Value::String(target_id.to_string()),
+        );
+    }
+    if let Some(session_id) = session_id.filter(|value| !value.is_empty()) {
+        payload.insert(
+            "session_id".to_string(),
+            Value::String(session_id.to_string()),
+        );
+    }
+    if let Some(revision) = revision {
+        payload.insert("revision".to_string(), Value::Number(revision.into()));
+    }
+    if let Some(error_code) = error_code.filter(|value| !value.is_empty()) {
+        payload.insert(
+            "error_code".to_string(),
+            Value::String(error_code.to_string()),
+        );
+    }
+    let subject_id = session_id.or(target_id).unwrap_or("terminal");
+    publish_system_event_body(
+        state,
+        InternalSystemEventBody {
+            trace_id: None,
+            event_type: "FN_EVENT_TERMINAL_AUDIT".to_string(),
+            source: "SERVER_ADMIN".to_string(),
+            level: Some(if error_code.is_some() { "WARN" } else { "INFO" }.to_string()),
+            happened_at: None,
+            dedupe_key: None,
+            dedupe_ttl_seconds: None,
+            subject: Some(json!({ "kind": "COMPONENT", "id": subject_id })),
+            tags: Some(vec!["terminal".to_string(), "audit".to_string()]),
+            payload: Value::Object(payload),
         },
     )
     .await
@@ -1444,6 +1498,7 @@ fn event_rule_key(event_type: &str) -> Option<&'static str> {
         | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => Some("runtime_lifecycle"),
         "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" => Some("runtime_health"),
         "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" => Some("panel_sync"),
+        "FN_EVENT_TERMINAL_AUDIT" => Some("terminal_audit"),
         _ => None,
     }
 }
@@ -1465,6 +1520,7 @@ fn default_event_level(event_type: &str) -> &'static str {
         | "FN_EVENT_RUNTIME_STOPPED"
         | "FN_EVENT_RUNTIME_RECOVERED"
         | "FN_EVENT_PANEL_SYNC_RECOVERED" => "INFO",
+        "FN_EVENT_TERMINAL_AUDIT" => "INFO",
         "FN_EVENT_RUNTIME_RESTARTED" => "WARN",
         "FN_EVENT_SYSTEM_CPU_ALERT"
         | "FN_EVENT_SYSTEM_MEMORY_ALERT"

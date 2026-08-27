@@ -67,12 +67,6 @@ export const jaJPServer = {
         deployment:
           "現在のデプロイ形式ではアプリ内アップデートを利用できません",
       },
-      terminal_available: {
-        lite: "Knock Lite は Web ターミナルを提供しません",
-        docker: "Docker 環境では Web ターミナルを利用できません",
-        openwrt: "OpenWrt 環境では Web ターミナルを利用できません",
-        platform: "現在の実行環境では Web ターミナルを利用できません",
-      },
       auto_https_available: {
         lite: "Knock Lite は Root 権限が必要なポート 80 を使用できません",
         platform: "現在の実行環境では自動 HTTPS を利用できません",
@@ -366,8 +360,6 @@ export const jaJPServer = {
     runtimeConfigRoutes: {
       loadCaptchaFailed: "CAPTCHA 設定の読み込みに失敗しました",
       saveCaptchaFailed: "CAPTCHA 設定の保存に失敗しました",
-      loadTerminalFeatureFailed: "ターミナル機能設定の読み込みに失敗しました",
-      saveTerminalFeatureFailed: "ターミナル機能設定の保存に失敗しました",
       loadWolFeatureFailed: "Wake-on-LAN 機能設定の読み込みに失敗しました",
       saveWolFeatureFailed: "Wake-on-LAN 機能設定の保存に失敗しました",
       syncWolFeatureFailed:
@@ -1031,45 +1023,11 @@ export const jaJPServer = {
   terminal: {
     defaultTitle: "Web ターミナル",
     defaultSessionTitlePrefix: "セッション-",
-    tmuxNotDetectedInstallFirst:
-      "tmux が検出されません。最初に tmux 環境をインストールしてください。",
-    tmuxReadyWithVersion: "tmux の準備ができました: {version}",
-    refreshingApt: "Debian パッケージリストを更新中...",
-    aptUpdateFailed: "apt-get update の実行に失敗しました",
-    installingTmux: "tmux をインストールしています...",
-    aptInstallTmuxFailed: "apt-get install tmux の実行に失敗しました",
-    verifyingTmuxInstall: "tmux のインストール結果を確認しています...",
-    tmuxMissingAfterInstall: "インストール完了後も tmux を検出できません",
-    tmuxInstallCompleteWithVersion:
-      "tmux のインストールが完了しました: {version}",
-    tmuxInstallFailed: "tmux のインストールに失敗しました",
     operationFailed: "ターミナル操作に失敗しました",
     operationFailedWithMessage: "ターミナル操作に失敗しました: {message}",
-    cwdUnavailable:
-      "作業ディレクトリが存在しないか、アクセスできません: {path}",
-    webTerminalDisabled: "Web ターミナルが無効です",
-    tmuxInstallingWait:
-      "tmux がインストールされています。インストールが完了するまでお待ちください。",
-    tmuxStatusError: "tmux の状態エラー: {message}",
-    tmuxMissingCannotCreate:
-      "tmux を検出できないため、再接続可能なターミナルセッションを作成できません",
-    rootRunRequiresDangerToggle:
-      "現在のプロセスは root として実行されています。ターミナルを作成する前に、設定で高リスク操作スイッチを明示的にオンにする必要があります。",
-    requestedShellUnavailable: "要求されたシェルは利用できません: {shell}",
-    noShellDetected:
-      "利用可能なシェルが検出されませんでした。zsh、bash、または sh がシステムにインストールされていることを確認してください",
-    paneMetadataReadFailed: "ターミナルペインのメタデータを読み取れません",
-    paneTtyParseFailed: "ターミナルペイン tty を解析できません",
-    inputPipeCreateFailed: "ターミナル入力パイプを作成できません",
-    ioRelayCreateFailed: "ターミナルの I/O リレーを作成できません",
     sessionLimitReached: "ターミナルセッションの制限に達しました ({count})",
-    tmuxSessionCreateFailed: "tmux セッションの作成に失敗しました",
     sessionTitleRequired: "セッション名は必須です",
     sessionMissingOrExpired: "ターミナルセッションが存在しないか、期限切れです",
-    tmuxMissingCannotAttach:
-      "tmux を検出できないため、ターミナルセッションへ接続できません",
-    inputPipeNotReady: "ターミナル入力パイプはまだ準備ができていません",
-    inputWriteInterrupted: "ターミナルへの入力書き込みが中断されました",
     attachmentExpired: "ターミナル接続の有効期限が切れました",
     inputSendFailed: "ターミナル入力の送信に失敗しました",
     resizeFailed: "ターミナルサイズ調整に失敗しました",

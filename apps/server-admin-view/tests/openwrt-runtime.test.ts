@@ -11,17 +11,16 @@ import {
 
 describe("OpenWrt runtime behavior", () => {
   const openWrtRouteAccess = {
-    canUseTerminal: false,
     canUseSshSecurity: false,
     sshSecurityEnabled: false,
     canUseSmartConnect: false,
     canUseFnosCertificateSync: false,
   };
 
-  it("redirects unsupported OpenWrt feature routes", () => {
-    assert.deepEqual(
+  it("keeps the SSH terminal route while redirecting unsupported host features", () => {
+    assert.equal(
       resolveRuntimeCapabilityRedirect("/terminal", openWrtRouteAccess),
-      { path: "/system" },
+      null,
     );
     assert.deepEqual(
       resolveRuntimeCapabilityRedirect("/ssh-security", openWrtRouteAccess),
@@ -36,15 +35,13 @@ describe("OpenWrt runtime behavior", () => {
     );
   });
 
-  it("hides SSH security, Web terminal, and Smart Connect entries", () => {
+  it("hides SSH security and Smart Connect entries", () => {
     assert.deepEqual(
       privilegedNavigationVisibility({
         canUseSshSecurity: false,
         sshSecurityEnabled: true,
-        canUseTerminal: false,
-        terminalEnabled: true,
       }),
-      { sshSecurity: false, terminal: false },
+      { sshSecurity: false },
     );
     assert.equal(
       smartConnectFeatureEntryVisible({

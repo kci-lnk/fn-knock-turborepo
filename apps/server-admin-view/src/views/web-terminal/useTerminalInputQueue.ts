@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import type { TerminalAttachmentRecord } from "@/types";
+import type { TerminalAttachmentRecord } from "@/lib/api/terminal";
 import {
   INPUT_BATCH_MAX_BYTES,
   INPUT_BATCH_WINDOW_MS,
@@ -8,22 +8,25 @@ import {
   encodeInputToBase64,
   getInputByteLength,
   isSafeRemoteTerminalResponse,
+  splitTerminalInputByByteLength,
   summarizeTerminalResponseCodePoints,
 } from "./terminal-input";
+
+const MAX_PENDING_INPUT_BYTES = 64 * 1024;
 
 type TerminalConnectionState = "idle" | "connecting" | "connected" | "error";
 
 export const useTerminalInputQueue = ({
   activeAttachment,
-  connectionError,
   connectionState,
+  onSendError,
   selectedSessionId,
   sendInput,
   translate,
 }: {
   activeAttachment: Ref<TerminalAttachmentRecord | null>;
-  connectionError: Ref<string>;
-  connectionState: Ref<TerminalConnectionState>;
+  connectionState: Readonly<Ref<TerminalConnectionState>>;
+  onSendError: (error: unknown) => void;
   selectedSessionId: Ref<string>;
   sendInput: (attachmentId: string, payload: string) => Promise<unknown>;
   translate: (key: string) => string;
@@ -32,6 +35,7 @@ export const useTerminalInputQueue = ({
   let pendingInputBuffer = "";
   let pendingInputBytes = 0;
   let inputSendQueue: Promise<unknown> = Promise.resolve();
+  let inputQueueGeneration = 0;
 
   const shouldFlushInputImmediately = (data: string): boolean =>
     data.includes("\r") ||
@@ -42,6 +46,7 @@ export const useTerminalInputQueue = ({
     getInputByteLength(data) >= INPUT_BATCH_MAX_BYTES;
 
   const clearPendingInput = () => {
+    inputQueueGeneration += 1;
     if (inputFlushTimer) {
       window.clearTimeout(inputFlushTimer);
       inputFlushTimer = null;
@@ -56,23 +61,29 @@ export const useTerminalInputQueue = ({
   });
 
   const setInputSendError = (error: unknown) => {
-    console.error(error);
-    connectionState.value = "error";
-    connectionError.value =
-      error instanceof Error
-        ? error.message
-        : translate("admin.webTerminal.inputSendFailed");
+    onSendError(error);
   };
 
   const queueInputPayload = (attachmentId: string, payload: string) => {
+    const generation = inputQueueGeneration;
     inputSendQueue = inputSendQueue
       .catch(() => undefined)
       .then(async () => {
-        if (activeAttachment.value?.id !== attachmentId) return;
+        if (
+          generation !== inputQueueGeneration ||
+          activeAttachment.value?.id !== attachmentId
+        ) {
+          return;
+        }
         await sendInput(attachmentId, encodeInputToBase64(payload));
       })
       .catch((error) => {
-        if (activeAttachment.value?.id !== attachmentId) return;
+        if (
+          generation !== inputQueueGeneration ||
+          activeAttachment.value?.id !== attachmentId
+        ) {
+          return;
+        }
         setInputSendError(error);
       });
     return inputSendQueue;
@@ -85,20 +96,30 @@ export const useTerminalInputQueue = ({
     }
 
     const attachmentId = activeAttachment.value?.id;
-    if (!pendingInputBuffer) return;
+    if (!pendingInputBuffer) {
+      await inputSendQueue;
+      return;
+    }
     if (!attachmentId) {
-      console.warn("[terminal] input flush deferred until attachment is ready", {
-        connectionState: connectionState.value,
-        bufferedBytes: pendingInputBytes,
-        selectedSessionId: selectedSessionId.value || null,
-      });
+      console.warn(
+        "[terminal] input flush deferred until attachment is ready",
+        {
+          connectionState: connectionState.value,
+          bufferedBytes: pendingInputBytes,
+          selectedSessionId: selectedSessionId.value || null,
+        },
+      );
       return;
     }
 
-    const payload = pendingInputBuffer;
+    const payloads = splitTerminalInputByByteLength(
+      pendingInputBuffer,
+      INPUT_BATCH_MAX_BYTES,
+    );
     pendingInputBuffer = "";
     pendingInputBytes = 0;
-    await queueInputPayload(attachmentId, payload);
+    for (const payload of payloads) queueInputPayload(attachmentId, payload);
+    await inputSendQueue;
   };
 
   const scheduleInputFlush = () => {
@@ -139,19 +160,50 @@ export const useTerminalInputQueue = ({
       );
     }
 
-    pendingInputBuffer += data;
-    pendingInputBytes += getInputByteLength(data);
-
-    if (
-      options?.immediate ||
-      shouldFlushInputImmediately(data) ||
-      pendingInputBytes >= INPUT_BATCH_MAX_BYTES
-    ) {
-      void flushPendingInput();
+    const combined = `${pendingInputBuffer}${data}`;
+    const attachmentId = activeAttachment.value?.id;
+    if (!attachmentId) {
+      const bounded = splitTerminalInputByByteLength(
+        combined,
+        MAX_PENDING_INPUT_BYTES,
+      );
+      pendingInputBuffer = bounded[0] ?? "";
+      pendingInputBytes = getInputByteLength(pendingInputBuffer);
+      if (bounded.length > 1) {
+        console.warn(
+          "[terminal] dropped input beyond the pending buffer limit",
+          {
+            bufferedBytes: pendingInputBytes,
+            connectionState: connectionState.value,
+            selectedSessionId: selectedSessionId.value || null,
+          },
+        );
+      }
       return;
     }
 
-    scheduleInputFlush();
+    if (inputFlushTimer) {
+      window.clearTimeout(inputFlushTimer);
+      inputFlushTimer = null;
+    }
+    pendingInputBuffer = "";
+    pendingInputBytes = 0;
+    const chunks = splitTerminalInputByByteLength(
+      combined,
+      INPUT_BATCH_MAX_BYTES,
+    );
+    const flushTail = options?.immediate || shouldFlushInputImmediately(data);
+    chunks.forEach((chunk, index) => {
+      const bytes = getInputByteLength(chunk);
+      const isTail = index === chunks.length - 1;
+      if (!isTail || flushTail || bytes >= INPUT_BATCH_MAX_BYTES) {
+        queueInputPayload(attachmentId, chunk);
+      } else {
+        pendingInputBuffer = chunk;
+        pendingInputBytes = bytes;
+      }
+    });
+    if (pendingInputBuffer) scheduleInputFlush();
   };
 
   const queueRemoteTerminalResponse = (data: string) => {
@@ -176,7 +228,15 @@ export const useTerminalInputQueue = ({
     }
 
     try {
-      await sendInput(attachmentId, encodeInputToBase64(payload));
+      for (const chunk of splitTerminalInputByByteLength(
+        payload,
+        INPUT_BATCH_MAX_BYTES,
+      )) {
+        if (activeAttachment.value?.id !== attachmentId) {
+          throw new Error(translate("admin.webTerminal.noConnection"));
+        }
+        await sendInput(attachmentId, encodeInputToBase64(chunk));
+      }
     } catch (error) {
       setInputSendError(error);
       throw error;

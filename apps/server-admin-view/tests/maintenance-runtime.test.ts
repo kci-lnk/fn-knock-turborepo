@@ -24,7 +24,6 @@ const capabilities = (
   smart_connect_available: true,
   system_clock_sync_available: true,
   self_update_available: false,
-  terminal_available: true,
   shared_root_available: false,
   ...patch,
 });

@@ -112,7 +112,6 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_fnos_connect_waf = crate::runtime_config::fnos_connect_waf_routes().into_openapi();
     let typed_fnos_share_bypass = crate::runtime_config::fnos_share_bypass_routes().into_openapi();
     let typed_smart_connect = crate::runtime_config::smart_connect_config_routes().into_openapi();
-    let typed_terminal_feature = crate::runtime_config::terminal_feature_routes().into_openapi();
     let typed_proxy_protocol_force =
         crate::runtime_config::proxy_protocol_force_routes().into_openapi();
     let typed_run_mode_prompt_preferences =
@@ -201,6 +200,16 @@ pub(crate) fn build_openapi_document() -> Value {
             .and_then(Value::as_object)
     {
         schemas.extend(panel_sync_schemas.clone());
+    }
+    if let Ok(terminal_document) = serde_json::to_value(&typed_terminal_runtime)
+        && let Some(terminal_schemas) = terminal_document
+            .pointer("/components/schemas")
+            .and_then(Value::as_object)
+    {
+        // The terminal contract is generated from the same domain types used
+        // by the handlers. This prevents secret-bearing request fields and
+        // runtime response fields from drifting apart in duplicate schemas.
+        schemas.extend(terminal_schemas.clone());
     }
     components.insert(
         "securitySchemes".to_string(),
@@ -2062,54 +2071,88 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
-    insert_typed_enveloped_operation(
-        &mut paths,
-        &typed_terminal_runtime,
-        "/api/admin/terminal/status",
-        "get",
-        "TerminalRuntimeStatusData",
-        None,
-        None,
-    );
     insert_typed_array_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
-        "/api/admin/terminal/sessions",
+        "/api/admin/terminal/targets",
         "get",
-        "TerminalSessionData",
+        "TerminalTarget",
     );
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
-        "/api/admin/terminal/sessions",
+        "/api/admin/terminal/targets",
         "post",
-        "TerminalSessionData",
+        "TerminalTarget",
         None,
-        Some("TerminalCreateSessionBodyData"),
+        Some("TargetCreateInput"),
     );
-    let terminal_session_id_parameter = json!([{
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "string" }
-    }]);
+    for (method, response_schema, request_schema) in [
+        ("get", "TerminalTarget", None),
+        ("patch", "TerminalTarget", Some("TargetUpdateInput")),
+    ] {
+        insert_typed_enveloped_operation(
+            &mut paths,
+            &typed_terminal_runtime,
+            "/api/admin/terminal/targets/{id}",
+            method,
+            response_schema,
+            None,
+            request_schema,
+        );
+    }
+    insert_typed_empty_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/targets/{id}",
+        "delete",
+        None,
+        None,
+    );
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
-        "/api/admin/terminal/sessions/{id}",
-        "get",
-        "TerminalSessionData",
-        Some(terminal_session_id_parameter.clone()),
+        "/api/admin/terminal/targets/probe-host-key",
+        "post",
+        "HostKeyProbeResult",
         None,
+        Some("ProbeHostKeyInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/targets/test-connection",
+        "post",
+        "ConnectionTestResult",
+        None,
+        Some("TerminalTestConnectionInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/sessions",
+        "get",
+        "SessionListResult",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/targets/{id}/sessions",
+        "post",
+        "TerminalSession",
+        None,
+        Some("CreateSessionInput"),
     );
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
         "/api/admin/terminal/sessions/{id}",
         "patch",
-        "TerminalSessionData",
-        Some(terminal_session_id_parameter.clone()),
-        Some("TerminalRenameSessionBodyData"),
+        "TerminalSession",
+        None,
+        Some("RenameSessionInput"),
     );
     insert_typed_empty_enveloped_operation(
         &mut paths,
@@ -2117,61 +2160,48 @@ pub(crate) fn build_openapi_document() -> Value {
         "/api/admin/terminal/sessions/{id}",
         "delete",
         None,
-        Some(terminal_session_id_parameter),
+        None,
     );
-    let terminal_attachment_id_parameter = json!([{
-        "name": "id",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "string" }
-    }]);
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
         "/api/admin/terminal/sessions/{id}/attachments",
         "post",
-        "TerminalAttachmentData",
-        Some(terminal_attachment_id_parameter.clone()),
+        "TerminalAttachment",
         None,
+        Some("CreateAttachmentInput"),
     );
-    let terminal_attachment_poll_parameters = json!([
-        {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-        },
-        {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-                "default": 0,
-                "description": "Byte cursor. Legacy integer-prefix strings remain accepted.",
-                "oneOf": [
-                    { "minimum": 0, "type": "integer" },
-                    { "pattern": "^\\s*[+-]?\\d+", "type": "string" }
-                ]
-            }
-        },
-        {
-            "name": "timeout_ms",
-            "in": "query",
-            "required": false,
-            "schema": {
-                "default": 15_000,
-                "description": "Long-poll timeout; non-zero values are clamped to 1000–20000 ms and zero selects the default.",
-                "type": "number"
-            }
-        }
-    ]);
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
-        "/api/admin/terminal/attachments/{id}/poll",
+        "/api/admin/terminal/attachments/{id}/events",
         "get",
-        "TerminalPollResultData",
-        Some(terminal_attachment_poll_parameters),
+        "EventsResult",
+        Some(json!([
+            {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "string" }
+            },
+            {
+                "name": "after",
+                "in": "query",
+                "required": false,
+                "schema": { "type": "integer", "minimum": 0, "default": 0 }
+            },
+            {
+                "name": "timeoutMs",
+                "in": "query",
+                "required": false,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5_000,
+                    "default": 4_500
+                }
+            }
+        ])),
         None,
     );
     insert_typed_empty_enveloped_operation(
@@ -2179,17 +2209,26 @@ pub(crate) fn build_openapi_document() -> Value {
         &typed_terminal_runtime,
         "/api/admin/terminal/attachments/{id}/input",
         "post",
-        Some("TerminalInputBodyData"),
-        Some(terminal_attachment_id_parameter.clone()),
+        Some("InputRequest"),
+        None,
     );
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
         "/api/admin/terminal/attachments/{id}/resize",
         "post",
-        "TerminalSessionData",
-        Some(terminal_attachment_id_parameter.clone()),
-        Some("TerminalResizeBodyData"),
+        "TerminalSession",
+        None,
+        Some("ResizeRequest"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/attachments/{id}/control",
+        "post",
+        "TerminalAttachment",
+        None,
+        Some("ClaimControlRequest"),
     );
     insert_typed_empty_enveloped_operation(
         &mut paths,
@@ -2197,17 +2236,29 @@ pub(crate) fn build_openapi_document() -> Value {
         "/api/admin/terminal/attachments/{id}",
         "delete",
         None,
-        Some(terminal_attachment_id_parameter),
-    );
-    insert_typed_enveloped_operation(
-        &mut paths,
-        &typed_terminal_runtime,
-        "/api/admin/terminal/tmux/install",
-        "post",
-        "TerminalTmuxInstallStateData",
-        None,
         None,
     );
+    for (method, path) in [
+        ("get", "/api/admin/terminal/targets"),
+        ("post", "/api/admin/terminal/targets"),
+        ("get", "/api/admin/terminal/targets/{id}"),
+        ("patch", "/api/admin/terminal/targets/{id}"),
+        ("delete", "/api/admin/terminal/targets/{id}"),
+        ("post", "/api/admin/terminal/targets/probe-host-key"),
+        ("post", "/api/admin/terminal/targets/test-connection"),
+        ("get", "/api/admin/terminal/sessions"),
+        ("post", "/api/admin/terminal/targets/{id}/sessions"),
+        ("patch", "/api/admin/terminal/sessions/{id}"),
+        ("delete", "/api/admin/terminal/sessions/{id}"),
+        ("post", "/api/admin/terminal/sessions/{id}/attachments"),
+        ("get", "/api/admin/terminal/attachments/{id}/events"),
+        ("post", "/api/admin/terminal/attachments/{id}/input"),
+        ("post", "/api/admin/terminal/attachments/{id}/resize"),
+        ("post", "/api/admin/terminal/attachments/{id}/control"),
+        ("delete", "/api/admin/terminal/attachments/{id}"),
+    ] {
+        set_operation_error_schema(&mut paths, path, method, "TerminalErrorEnvelope");
+    }
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_dnsmasq_assets,
@@ -2962,24 +3013,6 @@ pub(crate) fn build_openapi_document() -> Value {
         "SmartConnectDetailsData",
         None,
         Some("SmartConnectUpdateData"),
-    );
-    insert_typed_enveloped_operation(
-        &mut paths,
-        &typed_terminal_feature,
-        "/api/admin/config/terminal_feature",
-        "get",
-        "TerminalFeatureData",
-        None,
-        None,
-    );
-    insert_typed_enveloped_operation(
-        &mut paths,
-        &typed_terminal_feature,
-        "/api/admin/config/terminal_feature",
-        "post",
-        "TerminalFeatureData",
-        None,
-        Some("TerminalFeatureUpdateData"),
     );
     insert_typed_enveloped_operation(
         &mut paths,
@@ -4087,6 +4120,32 @@ fn add_standard_error_response(
     );
 }
 
+fn set_operation_error_schema(
+    paths: &mut Map<String, Value>,
+    path: &str,
+    method: &str,
+    schema: &str,
+) {
+    let Some(default_response) = paths
+        .get_mut(path)
+        .and_then(Value::as_object_mut)
+        .and_then(|item| item.get_mut(method))
+        .and_then(|operation| operation.get_mut("responses"))
+        .and_then(Value::as_object_mut)
+        .and_then(|responses| responses.get_mut("default"))
+    else {
+        return;
+    };
+    *default_response = json!({
+        "description": "Stable Web Terminal domain error",
+        "content": {
+            "application/json": {
+                "schema": { "$ref": format!("#/components/schemas/{schema}") }
+            }
+        }
+    });
+}
+
 fn insert_typed_message_operation(
     paths: &mut Map<String, Value>,
     document: &utoipa::openapi::OpenApi,
@@ -4753,10 +4812,7 @@ mod tests {
                     );
                 }
                 let summary = operation["summary"].as_str().expect("operation summary");
-                let untranslated = summary
-                    .replace("Cloudflare", "")
-                    .replace("Web", "")
-                    .replace("Tmux", "");
+                let untranslated = summary.replace("Cloudflare", "").replace("Web", "");
                 assert!(
                     !untranslated
                         .chars()
@@ -4777,7 +4833,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 442);
+        assert_eq!(operations, 445);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -4886,8 +4942,6 @@ mod tests {
             ("/api/admin/config/fnos_share_bypass", "post"),
             ("/api/admin/config/smart_connect/details", "get"),
             ("/api/admin/config/smart_connect", "post"),
-            ("/api/admin/config/terminal_feature", "get"),
-            ("/api/admin/config/terminal_feature", "post"),
             ("/api/admin/config/proxy_protocol_force", "get"),
             ("/api/admin/config/proxy_protocol_force", "post"),
             ("/api/admin/config/run_mode_prompt_preferences", "get"),
@@ -5061,16 +5115,6 @@ mod tests {
                 "/api/admin/config/smart_connect",
                 "post",
                 "post_api_admin_config_smart_connect",
-            ),
-            (
-                "/api/admin/config/terminal_feature",
-                "get",
-                "get_api_admin_config_terminal_feature",
-            ),
-            (
-                "/api/admin/config/terminal_feature",
-                "post",
-                "post_api_admin_config_terminal_feature",
             ),
             (
                 "/api/admin/config/proxy_protocol_force",
@@ -5460,7 +5504,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 442);
+        assert_eq!(operations.len(), 445);
         assert!(
             operations
                 .iter()
@@ -5543,16 +5587,6 @@ mod tests {
         assert_eq!(
             document.pointer("/components/schemas/RunTypeUpdateData/properties/run_type/enum"),
             Some(&json!([0, 1, 3]))
-        );
-        assert!(
-            document
-                .pointer("/components/schemas/TerminalFeatureUpdateData/properties/resume_backend")
-                .is_none()
-        );
-        assert_eq!(
-            document
-                .pointer("/components/schemas/TerminalFeatureData/properties/max_sessions/maximum"),
-            Some(&json!(12))
         );
         assert_eq!(
             document.pointer(
@@ -5651,27 +5685,19 @@ mod tests {
             Some(&json!(["uninstalled", "installing", "installed", "error"]))
         );
         assert_eq!(
-            document.pointer(
-                "/components/schemas/TerminalTmuxInstallStateData/properties/detectionSource/enum"
-            ),
-            Some(&json!(["env-path", "absolute-path", null]))
-        );
-        assert_eq!(
-            document
-                .pointer("/components/schemas/TerminalSessionData/properties/resume_backend/const"),
-            Some(&json!("tmux"))
+            document.pointer("/components/schemas/TerminalAttachment/properties/transport/type"),
+            Some(&json!("string"))
         );
         assert!(
             document
-                .pointer("/components/schemas/TerminalPollResultData/required")
+                .pointer("/components/schemas/SessionListResult/required")
                 .and_then(Value::as_array)
-                .is_some_and(|required| required.iter().any(|field| field == "chunk"))
+                .is_some_and(|required| required.iter().any(|field| field == "runtimeId"))
         );
-        assert_eq!(
-            document.pointer(
-                "/paths/~1api~1admin~1terminal~1attachments~1{id}~1poll/get/parameters/1/schema/default"
-            ),
-            Some(&json!(0))
+        assert!(
+            document
+                .pointer("/paths/~1api~1admin~1terminal~1attachments~1{id}~1events/get")
+                .is_some()
         );
         assert_eq!(
             document.pointer(

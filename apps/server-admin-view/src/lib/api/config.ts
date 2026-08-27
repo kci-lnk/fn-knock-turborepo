@@ -110,7 +110,6 @@ export type {
   SSLStatus,
   StreamMapping,
   SubdomainModeConfig,
-  TerminalFeatureConfig,
   TOTPCredential,
   TOTPCredentialImportSummary,
   TOTPSubdomainAccess,

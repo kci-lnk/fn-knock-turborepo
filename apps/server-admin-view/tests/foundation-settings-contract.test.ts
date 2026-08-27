@@ -42,16 +42,16 @@ const contract = JSON.parse(
 };
 
 describe("foundation settings API contract", () => {
-  it("keeps terminal feature settings bound to the actual typed router", () => {
-    for (const method of ["get", "post"] as const) {
-      assert.equal(
-        contract.paths["/api/admin/config/terminal_feature"]?.[method]?.[
-          "x-fn-knock-contract-source"
-        ],
-        "utoipa",
-        method.toUpperCase(),
-      );
-    }
+  it("removes the legacy terminal feature settings contract", () => {
+    assert.equal(
+      contract.paths["/api/admin/config/terminal_feature"],
+      undefined,
+    );
+    assert.equal(contract.components.schemas.TerminalFeatureData, undefined);
+    assert.equal(
+      contract.components.schemas.TerminalFeatureUpdateData,
+      undefined,
+    );
   });
 
   it("keeps the FPK console application list in the dashboard display contract", () => {
@@ -318,20 +318,10 @@ describe("foundation settings API contract", () => {
     );
   });
 
-  it("preserves runtime modes and terminal bounds", () => {
+  it("preserves runtime modes", () => {
     assert.deepEqual(
       contract.components.schemas.RunTypeUpdateData.properties?.run_type?.enum,
       [0, 1, 3],
-    );
-    assert.equal(
-      contract.components.schemas.TerminalFeatureUpdateData.properties
-        ?.resume_backend,
-      undefined,
-    );
-    assert.equal(
-      contract.components.schemas.TerminalFeatureData.properties?.max_sessions
-        ?.maximum,
-      12,
     );
   });
 
@@ -342,12 +332,12 @@ describe("foundation settings API contract", () => {
       readSource("../src/lib/api/config-core-api.ts");
 
     assert.match(types, /\["RunTypeUpdateData"\]\["run_type"\]/u);
-    assert.match(types, /\["TerminalFeatureData"\]/u);
+    assert.doesNotMatch(types, /\["TerminalFeatureData"\]/u);
     assert.doesNotMatch(types, /WelcomeGuideData|WelcomeGuideStatus/u);
     assert.doesNotMatch(types, /export interface TerminalFeatureConfig/u);
     assert.match(configApi, /\["CaptchaSettingsUpdateData"\]/u);
     assert.match(configApi, /\["AutoManageFirewallUpdateData"\]/u);
-    assert.match(configApi, /\["TerminalFeatureUpdateData"\]/u);
+    assert.doesNotMatch(configApi, /\["TerminalFeatureUpdateData"\]/u);
     assert.doesNotMatch(configApi, /welcome_guide|WelcomeGuide/u);
   });
 });

@@ -48,8 +48,6 @@ export const useLayoutNavigation = () => {
     const privilegedNavigation = privilegedNavigationVisibility({
       canUseSshSecurity: configStore.canUseSshSecurity,
       sshSecurityEnabled: configStore.config?.ssh_security?.enabled === true,
-      canUseTerminal: configStore.canUseTerminal,
-      terminalEnabled: configStore.config?.terminal_feature?.enabled === true,
     });
     const items: SidebarNavItem[] = [
       {
@@ -173,14 +171,12 @@ export const useLayoutNavigation = () => {
         icon: ShieldAlert,
       });
     }
-    if (privilegedNavigation.terminal) {
-      items.push({
-        id: "web_terminal",
-        name: t("admin.nav.webTerminal"),
-        path: "/terminal",
-        icon: SquareTerminal,
-      });
-    }
+    items.push({
+      id: "web_terminal",
+      name: t("admin.nav.webTerminal"),
+      path: "/terminal",
+      icon: SquareTerminal,
+    });
     items.push({
       id: "system_settings",
       name: t("admin.nav.systemSettings"),

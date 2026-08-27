@@ -2094,6 +2094,13 @@
         },
         "type": "object"
       },
+      "AttachmentRole": {
+        "enum": [
+          "controller",
+          "viewer"
+        ],
+        "type": "string"
+      },
       "AuthAccountCreateBody": {
         "properties": {
           "password": {
@@ -2378,6 +2385,13 @@
           "mode"
         ],
         "type": "object"
+      },
+      "AuthMethod": {
+        "enum": [
+          "password",
+          "privateKey"
+        ],
+        "type": "string"
       },
       "AuthModePreviewData": {
         "properties": {
@@ -3467,6 +3481,19 @@
           "provinces",
           "cities"
         ],
+        "type": "object"
+      },
+      "ClaimControlRequest": {
+        "properties": {
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "CloudflareConnectionData": {
@@ -5626,6 +5653,27 @@
         ],
         "type": "object"
       },
+      "ConnectionTestResult": {
+        "properties": {
+          "latencyMs": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "verificationToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "latencyMs",
+          "verificationToken"
+        ],
+        "type": "object"
+      },
       "ConnectionUpdateInput": {
         "properties": {
           "allow_invalid_tls": {
@@ -5663,6 +5711,54 @@
           "name",
           "base_url"
         ],
+        "type": "object"
+      },
+      "CreateAttachmentInput": {
+        "properties": {
+          "cols": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rows": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "CreateSessionInput": {
+        "properties": {
+          "cols": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rows": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "CredentialImportBodyData": {
@@ -5815,6 +5911,24 @@
           "skipped_file_duplicate",
           "invalid",
           "total"
+        ],
+        "type": "object"
+      },
+      "CredentialMutation": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/SecretAction"
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "action"
         ],
         "type": "object"
       },
@@ -8410,6 +8524,26 @@
           "initialized",
           "version",
           "install_state"
+        ],
+        "type": "object"
+      },
+      "EventsResult": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TerminalEvent"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "events",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -12441,6 +12575,31 @@
         ],
         "type": "object"
       },
+      "HostKeyProbeResult": {
+        "properties": {
+          "algorithm": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "port",
+          "algorithm",
+          "fingerprint"
+        ],
+        "type": "object"
+      },
       "HostMappingBasicAuthInputData": {
         "properties": {
           "enabled": {
@@ -12817,6 +12976,29 @@
         },
         "required": [
           "path"
+        ],
+        "type": "object"
+      },
+      "InputRequest": {
+        "properties": {
+          "dataBase64": {
+            "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sequence": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataBase64",
+          "sequence",
+          "generation"
         ],
         "type": "object"
       },
@@ -14677,7 +14859,8 @@
               "FN_EVENT_RUNTIME_RECOVERED",
               "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
               "FN_EVENT_PANEL_SYNC_FAILED",
-              "FN_EVENT_PANEL_SYNC_RECOVERED"
+              "FN_EVENT_PANEL_SYNC_RECOVERED",
+              "FN_EVENT_TERMINAL_AUDIT"
             ],
             "type": "string"
           },
@@ -14822,7 +15005,8 @@
               "FN_EVENT_RUNTIME_RECOVERED",
               "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
               "FN_EVENT_PANEL_SYNC_FAILED",
-              "FN_EVENT_PANEL_SYNC_RECOVERED"
+              "FN_EVENT_PANEL_SYNC_RECOVERED",
+              "FN_EVENT_TERMINAL_AUDIT"
             ],
             "type": "string"
           },
@@ -15001,7 +15185,8 @@
               "FN_EVENT_RUNTIME_RECOVERED",
               "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
               "FN_EVENT_PANEL_SYNC_FAILED",
-              "FN_EVENT_PANEL_SYNC_RECOVERED"
+              "FN_EVENT_PANEL_SYNC_RECOVERED",
+              "FN_EVENT_TERMINAL_AUDIT"
             ],
             "type": [
               "string",
@@ -16138,6 +16323,24 @@
         ],
         "type": "object"
       },
+      "PassphraseMutation": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/SecretAction"
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
       "PlanAction": {
         "properties": {
           "detail": {
@@ -16233,6 +16436,23 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ProbeHostKeyInput": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "port"
+        ],
         "type": "object"
       },
       "ProbeResult": {
@@ -16484,6 +16704,48 @@
         },
         "required": [
           "proxy_protocol_force"
+        ],
+        "type": "object"
+      },
+      "RenameSessionInput": {
+        "properties": {
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "ResizeRequest": {
+        "properties": {
+          "cols": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rows": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cols",
+          "rows",
+          "revision",
+          "generation"
         ],
         "type": "object"
       },
@@ -18303,6 +18565,14 @@
         ],
         "type": "object"
       },
+      "SecretAction": {
+        "enum": [
+          "keep",
+          "replace",
+          "clear"
+        ],
+        "type": "string"
+      },
       "SecurityOverviewData": {
         "properties": {
           "rangeSec": {
@@ -18452,6 +18722,24 @@
         ],
         "type": "object"
       },
+      "SessionListResult": {
+        "properties": {
+          "runtimeId": {
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/TerminalSession"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runtimeId",
+          "sessions"
+        ],
+        "type": "object"
+      },
       "SessionMobilityDetailsData": {
         "properties": {
           "events": {
@@ -18544,6 +18832,24 @@
           "driftCount"
         ],
         "type": "object"
+      },
+      "SessionPhase": {
+        "enum": [
+          "creating",
+          "resolving",
+          "connecting",
+          "verifyingHostKey",
+          "authenticating",
+          "openingChannel",
+          "requestingPty",
+          "running",
+          "closing",
+          "closed",
+          "exited",
+          "lost",
+          "failed"
+        ],
+        "type": "string"
       },
       "SessionRecordData": {
         "properties": {
@@ -21213,7 +21519,8 @@
               "FN_EVENT_RUNTIME_RECOVERED",
               "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
               "FN_EVENT_PANEL_SYNC_FAILED",
-              "FN_EVENT_PANEL_SYNC_RECOVERED"
+              "FN_EVENT_PANEL_SYNC_RECOVERED",
+              "FN_EVENT_TERMINAL_AUDIT"
             ],
             "type": "string"
           }
@@ -21367,7 +21674,8 @@
               "FN_EVENT_RUNTIME_RECOVERED",
               "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
               "FN_EVENT_PANEL_SYNC_FAILED",
-              "FN_EVENT_PANEL_SYNC_RECOVERED"
+              "FN_EVENT_PANEL_SYNC_RECOVERED",
+              "FN_EVENT_TERMINAL_AUDIT"
             ],
             "type": "string"
           }
@@ -21431,452 +21739,506 @@
         ],
         "type": "object"
       },
-      "TerminalAttachmentData": {
+      "TargetCreateInput": {
         "properties": {
-          "created_at": {
+          "authMethod": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/CredentialMutation"
+          },
+          "host": {
             "type": "string"
           },
-          "expires_at": {
+          "name": {
             "type": "string"
           },
-          "id": {
-            "type": "string"
+          "passphrase": {
+            "$ref": "#/components/schemas/PassphraseMutation"
           },
-          "session_id": {
-            "type": "string"
-          },
-          "transport": {
-            "const": "http-polling",
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "session_id",
-          "transport",
-          "created_at",
-          "updated_at",
-          "expires_at"
-        ],
-        "type": "object"
-      },
-      "TerminalCreateSessionBodyData": {
-        "properties": {
-          "cols": {
-            "default": 120,
-            "format": "double",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "cwd": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "rows": {
-            "default": 32,
-            "format": "double",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "shell": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "TerminalFeatureData": {
-        "properties": {
-          "allow_mobile_toolbar": {
-            "type": "boolean"
-          },
-          "dangerously_run_as_current_user": {
-            "type": "boolean"
-          },
-          "default_cwd": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "idle_timeout_seconds": {
-            "format": "int64",
-            "maximum": 604800,
-            "minimum": 60,
+          "port": {
+            "format": "int32",
+            "minimum": 0,
             "type": "integer"
           },
-          "max_sessions": {
-            "format": "int64",
-            "maximum": 12,
-            "minimum": 1,
-            "type": "integer"
+          "trustedHostKey": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrustedHostKey"
+              }
+            ]
           },
-          "resume_backend": {
-            "enum": [
-              "tmux"
-            ],
+          "username": {
             "type": "string"
-          }
-        },
-        "required": [
-          "enabled",
-          "default_cwd",
-          "max_sessions",
-          "idle_timeout_seconds",
-          "resume_backend",
-          "allow_mobile_toolbar",
-          "dangerously_run_as_current_user"
-        ],
-        "type": "object"
-      },
-      "TerminalFeatureUpdateData": {
-        "properties": {
-          "allow_mobile_toolbar": {
-            "type": [
-              "boolean",
-              "null"
-            ]
           },
-          "dangerously_run_as_current_user": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "default_cwd": {
+          "verificationToken": {
+            "description": "One-time proof returned by a successful connection test for this exact\ndraft and credential set.",
             "type": [
               "string",
               "null"
             ]
-          },
-          "enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "idle_timeout_seconds": {
-            "format": "int64",
-            "maximum": 604800,
-            "minimum": 60,
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "max_sessions": {
-            "format": "int64",
-            "maximum": 12,
-            "minimum": 1,
-            "type": [
-              "integer",
-              "null"
-            ]
           }
         },
+        "required": [
+          "name",
+          "host",
+          "port",
+          "username",
+          "authMethod",
+          "credential",
+          "passphrase"
+        ],
         "type": "object"
       },
-      "TerminalInputBodyData": {
+      "TargetDraft": {
         "properties": {
-          "dataBase64": {
-            "format": "byte",
+          "authMethod": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "trustedHostKey": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrustedHostKey"
+              }
+            ]
+          },
+          "username": {
             "type": "string"
           }
         },
         "required": [
-          "dataBase64"
+          "host",
+          "port",
+          "username",
+          "authMethod"
         ],
         "type": "object"
       },
-      "TerminalOutputChunkData": {
+      "TargetUpdateInput": {
+        "properties": {
+          "authMethod": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/CredentialMutation"
+          },
+          "host": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "passphrase": {
+            "$ref": "#/components/schemas/PassphraseMutation"
+          },
+          "port": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "trustedHostKey": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrustedHostKey"
+              }
+            ]
+          },
+          "username": {
+            "type": "string"
+          },
+          "verificationToken": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "port",
+          "username",
+          "authMethod",
+          "revision",
+          "credential",
+          "passphrase"
+        ],
+        "type": "object"
+      },
+      "TerminalAttachment": {
         "properties": {
           "cursor": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
           },
-          "data_base64": {
+          "expiresAt": {
             "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/AttachmentRole"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/TerminalTransport"
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "role",
+          "transport",
+          "generation",
+          "cursor",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "TerminalErrorCode": {
+        "enum": [
+          "invalid_request",
+          "target_not_found",
+          "session_not_found",
+          "host_key_required",
+          "host_key_mismatch",
+          "authentication_failed",
+          "pty_rejected",
+          "session_limit_reached",
+          "session_lost",
+          "attachment_expired",
+          "controller_conflict",
+          "target_revision_conflict",
+          "connect_timeout",
+          "conflict",
+          "upstream_unavailable",
+          "internal_error"
+        ],
+        "type": "string"
+      },
+      "TerminalErrorEnvelope": {
+        "properties": {
+          "activeSessionCount": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "confirmationToken": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorCode": {
+            "$ref": "#/components/schemas/TerminalErrorCode"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "errorCode",
+          "message"
+        ],
+        "type": "object"
+      },
+      "TerminalEvent": {
+        "properties": {
+          "cursor": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "dataBase64": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalErrorCode"
+              }
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exitCode": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "phase": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SessionPhase"
+              }
+            ]
           },
           "reset": {
             "type": "boolean"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AttachmentRole"
+              }
+            ]
+          },
+          "type": {
+            "$ref": "#/components/schemas/TerminalEventType"
+          }
+        },
+        "required": [
+          "type",
+          "cursor"
+        ],
+        "type": "object"
+      },
+      "TerminalEventType": {
+        "enum": [
+          "output",
+          "status",
+          "control"
+        ],
+        "type": "string"
+      },
+      "TerminalSession": {
+        "properties": {
+          "cols": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "errorCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalErrorCode"
+              }
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exitCode": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/SessionPhase"
+          },
+          "rows": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           },
           "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "cursor",
-          "data_base64",
-          "reset",
+          "id",
+          "targetId",
+          "title",
+          "phase",
+          "cols",
+          "rows",
+          "createdAt",
           "updatedAt"
         ],
         "type": "object"
       },
-      "TerminalPollResultData": {
+      "TerminalTarget": {
         "properties": {
-          "changed": {
+          "authMethod": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "credentialConfigured": {
             "type": "boolean"
           },
-          "chunk": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/TerminalOutputChunkData"
-              }
-            ]
-          }
-        },
-        "required": [
-          "changed",
-          "chunk"
-        ],
-        "type": "object"
-      },
-      "TerminalRenameSessionBodyData": {
-        "properties": {
-          "title": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "title"
-        ],
-        "type": "object"
-      },
-      "TerminalResizeBodyData": {
-        "properties": {
-          "cols": {
-            "format": "double",
-            "type": "number"
-          },
-          "rows": {
-            "format": "double",
-            "type": "number"
-          }
-        },
-        "required": [
-          "cols",
-          "rows"
-        ],
-        "type": "object"
-      },
-      "TerminalRuntimeStatusData": {
-        "properties": {
-          "blockedReason": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "httpPollingAvailable": {
-            "const": true,
-            "type": "boolean"
-          },
-          "runningAsRoot": {
-            "type": "boolean"
-          },
-          "tmuxAvailable": {
-            "type": "boolean"
-          },
-          "tmuxDetectionSource": {
-            "enum": [
-              "env-path",
-              "absolute-path",
-              null
-            ],
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tmuxExecutablePath": {
-            "type": "string"
-          },
-          "tmuxInstallState": {
-            "$ref": "#/components/schemas/TerminalTmuxInstallStateData"
-          },
-          "tmuxVersion": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "enabled",
-          "tmuxAvailable",
-          "tmuxExecutablePath",
-          "tmuxDetectionSource",
-          "tmuxVersion",
-          "tmuxInstallState",
-          "httpPollingAvailable",
-          "runningAsRoot",
-          "blockedReason"
-        ],
-        "type": "object"
-      },
-      "TerminalSessionData": {
-        "properties": {
-          "backend_session_name": {
-            "type": "string"
-          },
-          "cols": {
-            "format": "int64",
-            "maximum": 400,
-            "minimum": 20,
-            "type": "integer"
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "cwd": {
-            "type": "string"
-          },
-          "expires_at": {
+          "host": {
             "type": "string"
           },
           "id": {
             "type": "string"
           },
-          "input_pipe_path": {
-            "type": "string"
-          },
-          "last_attached_at": {
-            "type": "string"
-          },
-          "last_client_ip": {
-            "type": "string"
-          },
-          "last_detached_at": {
-            "type": "string"
-          },
-          "last_frame_revision": {
-            "type": "string"
-          },
-          "output_log_path": {
-            "type": "string"
-          },
-          "pane_tty_path": {
-            "type": "string"
-          },
-          "resume_backend": {
-            "const": "tmux",
-            "type": "string"
-          },
-          "rows": {
-            "format": "int64",
-            "maximum": 200,
-            "minimum": 8,
-            "type": "integer"
-          },
-          "shell": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "created",
-              "attached",
-              "detached",
-              "stopped",
-              "error"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "status",
-          "created_at",
-          "updated_at",
-          "last_attached_at",
-          "last_detached_at",
-          "last_client_ip",
-          "shell",
-          "cwd",
-          "cols",
-          "rows",
-          "resume_backend",
-          "backend_session_name",
-          "pane_tty_path",
-          "input_pipe_path",
-          "output_log_path",
-          "expires_at",
-          "last_frame_revision"
-        ],
-        "type": "object"
-      },
-      "TerminalTmuxInstallStateData": {
-        "properties": {
-          "detectionSource": {
-            "enum": [
-              "env-path",
-              "absolute-path",
-              null
-            ],
+          "lastVerifiedAt": {
             "type": [
               "string",
               "null"
             ]
           },
-          "executablePath": {
+          "name": {
             "type": "string"
           },
-          "message": {
-            "type": "string"
+          "passphraseConfigured": {
+            "type": "boolean"
           },
-          "progress": {
-            "format": "int64",
-            "maximum": 100,
+          "port": {
+            "format": "int32",
             "minimum": 0,
             "type": "integer"
           },
-          "status": {
-            "enum": [
-              "uninstalled",
-              "installing",
-              "installed",
-              "error"
-            ],
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "trustedHostKey": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrustedHostKey"
+              }
+            ]
+          },
+          "updatedAt": {
             "type": "string"
           },
-          "version": {
+          "username": {
             "type": "string"
           }
         },
         "required": [
-          "status",
-          "progress",
-          "message",
-          "executablePath",
-          "detectionSource",
-          "version"
+          "id",
+          "name",
+          "host",
+          "port",
+          "username",
+          "authMethod",
+          "credentialConfigured",
+          "passphraseConfigured",
+          "revision",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
+      },
+      "TerminalTestConnectionInput": {
+        "properties": {
+          "credential": {
+            "$ref": "#/components/schemas/CredentialMutation"
+          },
+          "draft": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TargetDraft"
+              }
+            ]
+          },
+          "passphrase": {
+            "$ref": "#/components/schemas/PassphraseMutation"
+          },
+          "targetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "credential",
+          "passphrase"
+        ],
+        "type": "object"
+      },
+      "TerminalTransport": {
+        "enum": [
+          "http-polling"
+        ],
+        "type": "string"
       },
       "TestConnectionInput": {
         "properties": {
@@ -22119,6 +22481,21 @@
           "waf_logs",
           "system_events",
           "notifications"
+        ],
+        "type": "object"
+      },
+      "TrustedHostKey": {
+        "properties": {
+          "algorithm": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "fingerprint"
         ],
         "type": "object"
       },
@@ -34270,120 +34647,6 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/config/terminal_feature": {
-      "get": {
-        "description": "读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/terminal_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_config_terminal_feature",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/TerminalFeatureData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「查看系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "查看系统配置终端功能",
-        "tags": [
-          "config"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      },
-      "post": {
-        "description": "读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/terminal_feature` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_config_terminal_feature",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TerminalFeatureUpdateData"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/TerminalFeatureData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「提交系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "提交系统配置终端功能",
-        "tags": [
-          "config"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
     "/api/admin/config/wol_feature": {
       "get": {
         "description": "读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/wol_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
@@ -36917,7 +37180,8 @@
                 "FN_EVENT_RUNTIME_RECOVERED",
                 "FN_EVENT_RUNTIME_ABNORMAL_EXIT",
                 "FN_EVENT_PANEL_SYNC_FAILED",
-                "FN_EVENT_PANEL_SYNC_RECOVERED"
+                "FN_EVENT_PANEL_SYNC_RECOVERED",
+                "FN_EVENT_TERMINAL_AUDIT"
               ],
               "type": "string"
             }
@@ -47497,7 +47761,7 @@
     "/api/admin/terminal/attachments/{id}": {
       "delete": {
         "description": "管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/attachments/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "delete_api_admin_terminal_attachments_by_id",
+        "operationId": "delete_attachment",
         "parameters": [
           {
             "in": "path",
@@ -47523,7 +47787,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -47537,10 +47801,10 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/terminal/attachments/{id}/input": {
+    "/api/admin/terminal/attachments/{id}/control": {
       "post": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/input` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_terminal_attachments_by_id_input",
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/control` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "claim_control",
         "parameters": [
           {
             "in": "path",
@@ -47555,7 +47819,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TerminalInputBodyData"
+                "$ref": "#/components/schemas/ClaimControlRequest"
               }
             }
           },
@@ -47566,82 +47830,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                }
-              }
-            },
-            "description": "「输入Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "输入Web 终端附件",
-        "tags": [
-          "terminal"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
-    "/api/admin/terminal/attachments/{id}/poll": {
-      "get": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_terminal_attachments__id__poll",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "description": "Byte cursor. Legacy integer-prefix strings remain accepted.",
-              "oneOf": [
-                {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                {
-                  "pattern": "^\\s*[+-]?\\d+",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "timeout_ms",
-            "required": false,
-            "schema": {
-              "default": 15000,
-              "description": "Long-poll timeout; non-zero values are clamped to 1000–20000 ms and zero selects the default.",
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalPollResultData"
+                      "$ref": "#/components/schemas/TerminalAttachment"
                     },
                     "message": {
                       "type": [
@@ -47662,30 +47854,114 @@
                 }
               }
             },
-            "description": "「轮询Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交Web 终端control」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "轮询Web 终端附件",
+        "summary": "提交Web 终端control",
         "tags": [
           "terminal"
         ],
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/terminal/attachments/{id}/resize": {
+    "/api/admin/terminal/attachments/{id}/events": {
+      "get": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/events` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "attachment_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeoutMs",
+            "required": false,
+            "schema": {
+              "default": 4500,
+              "maximum": 5000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/EventsResult"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看Web 终端事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看Web 终端事件",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/attachments/{id}/input": {
       "post": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/resize` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_terminal_attachments_by_id_resize",
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/input` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "send_input",
         "parameters": [
           {
             "in": "path",
@@ -47700,7 +47976,60 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TerminalResizeBodyData"
+                "$ref": "#/components/schemas/InputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "「输入Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "输入Web 终端附件",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/attachments/{id}/resize": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/resize` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "resize",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResizeRequest"
               }
             }
           },
@@ -47714,7 +48043,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalSessionData"
+                      "$ref": "#/components/schemas/TerminalSession"
                     },
                     "message": {
                       "type": [
@@ -47741,7 +48070,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -47758,7 +48087,7 @@
     "/api/admin/terminal/sessions": {
       "get": {
         "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_terminal_sessions",
+        "operationId": "list_sessions",
         "responses": {
           "200": {
             "content": {
@@ -47767,10 +48096,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "items": {
-                        "$ref": "#/components/schemas/TerminalSessionData"
-                      },
-                      "type": "array"
+                      "$ref": "#/components/schemas/SessionListResult"
                     },
                     "message": {
                       "type": [
@@ -47797,7 +48123,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -47809,73 +48135,12 @@
           "terminal"
         ],
         "x-fn-knock-contract-source": "utoipa"
-      },
-      "post": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_terminal_sessions",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TerminalCreateSessionBodyData"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/TerminalSessionData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "提交Web 终端会话",
-        "tags": [
-          "terminal"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
       }
     },
     "/api/admin/terminal/sessions/{id}": {
       "delete": {
         "description": "管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/sessions/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "delete_api_admin_terminal_sessions_by_id",
+        "operationId": "delete_session",
         "parameters": [
           {
             "in": "path",
@@ -47901,7 +48166,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -47914,70 +48179,9 @@
         ],
         "x-fn-knock-contract-source": "utoipa"
       },
-      "get": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_terminal_sessions_by_id",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/TerminalSessionData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「查看Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "查看Web 终端会话",
-        "tags": [
-          "terminal"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      },
       "patch": {
         "description": "管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/sessions/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "patch_api_admin_terminal_sessions_by_id",
+        "operationId": "rename_session",
         "parameters": [
           {
             "in": "path",
@@ -47992,7 +48196,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TerminalRenameSessionBodyData"
+                "$ref": "#/components/schemas/RenameSessionInput"
               }
             }
           },
@@ -48006,7 +48210,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalSessionData"
+                      "$ref": "#/components/schemas/TerminalSession"
                     },
                     "message": {
                       "type": [
@@ -48033,7 +48237,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -48049,8 +48253,8 @@
     },
     "/api/admin/terminal/sessions/{id}/attachments": {
       "post": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions/{id}/attachments` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_terminal_sessions_by_id_attachments",
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions/{id}/attachments` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "create_attachment",
         "parameters": [
           {
             "in": "path",
@@ -48061,6 +48265,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttachmentInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -48069,7 +48283,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalAttachmentData"
+                      "$ref": "#/components/schemas/TerminalAttachment"
                     },
                     "message": {
                       "type": [
@@ -48096,7 +48310,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
@@ -48110,10 +48324,10 @@
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/terminal/status": {
+    "/api/admin/terminal/targets": {
       "get": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_terminal_status",
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/targets` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "list_targets",
         "responses": {
           "200": {
             "content": {
@@ -48122,7 +48336,10 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalRuntimeStatusData"
+                      "items": {
+                        "$ref": "#/components/schemas/TerminalTarget"
+                      },
+                      "type": "array"
                     },
                     "message": {
                       "type": [
@@ -48143,30 +48360,101 @@
                 }
               }
             },
-            "description": "「查看Web 终端状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「查看Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "查看Web 终端状态",
+        "summary": "查看Web 终端目标",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "create_target",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetCreateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalTarget"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端目标",
         "tags": [
           "terminal"
         ],
         "x-fn-knock-contract-source": "utoipa"
       }
     },
-    "/api/admin/terminal/tmux/install": {
+    "/api/admin/terminal/targets/probe-host-key": {
       "post": {
-        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/tmux/install` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_terminal_tmux_install",
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/probe-host-key` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "probe_host_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeHostKeyInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -48175,7 +48463,7 @@
                   "additionalProperties": true,
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/TerminalTmuxInstallStateData"
+                      "$ref": "#/components/schemas/HostKeyProbeResult"
                     },
                     "message": {
                       "type": [
@@ -48196,20 +48484,373 @@
                 }
               }
             },
-            "description": "「安装Web 终端Tmux 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「提交Web 终端probe host key」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
                 }
               }
             },
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "安装Web 终端Tmux 组件",
+        "summary": "提交Web 终端probe host key",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/targets/test-connection": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/test-connection` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "test_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminalTestConnectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ConnectionTestResult"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交Web 终端test connection」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端test connection",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/targets/{id}": {
+      "delete": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/targets/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "delete_target",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirmationToken",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                }
+              }
+            },
+            "description": "「删除Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "删除Web 终端目标",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "get": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/targets/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "get_target",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalTarget"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「查看Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "查看Web 终端目标",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      },
+      "patch": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/targets/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "update_target",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirmationToken",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetUpdateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalTarget"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「修改Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "修改Web 终端目标",
+        "tags": [
+          "terminal"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/terminal/targets/{id}/sessions": {
+      "post": {
+        "description": "管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/{id}/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "create_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TerminalSession"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交Web 终端会话",
         "tags": [
           "terminal"
         ],

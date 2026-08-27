@@ -60,12 +60,6 @@ export const koKRServer = {
           "OpenWrt 배포는 인앱 FPK 업데이트를 지원하지 않습니다. 기기 아키텍처에 맞는 IPK를 opkg로 설치해 업그레이드하세요.",
         deployment: "현재 배포 유형은 인앱 업데이트를 지원하지 않습니다.",
       },
-      terminal_available: {
-        lite: "Knock Lite는 웹 터미널을 제공하지 않습니다.",
-        docker: "Docker 배포는 웹 터미널을 지원하지 않습니다.",
-        openwrt: "OpenWrt 배포는 아직 웹 터미널을 지원하지 않습니다.",
-        platform: "현재 런타임은 웹 터미널을 지원하지 않습니다.",
-      },
       auto_https_available: {
         lite: "Knock Lite는 Root 권한이 필요한 80 포트에 바인딩할 수 없습니다.",
         platform: "현재 런타임은 자동 HTTPS를 지원하지 않습니다.",
@@ -351,8 +345,6 @@ export const koKRServer = {
     runtimeConfigRoutes: {
       loadCaptchaFailed: "캡차 설정을 불러오지 못했습니다.",
       saveCaptchaFailed: "캡차 설정을 저장하지 못했습니다.",
-      loadTerminalFeatureFailed: "터미널 기능 설정을 불러오지 못했습니다.",
-      saveTerminalFeatureFailed: "터미널 기능 설정을 저장하지 못했습니다.",
       loadWolFeatureFailed: "Wake-on-LAN 기능 설정을 불러오지 못했습니다.",
       saveWolFeatureFailed: "Wake-on-LAN 기능 설정을 저장하지 못했습니다.",
       syncWolFeatureFailed:
@@ -1002,44 +994,11 @@ export const koKRServer = {
   terminal: {
     defaultTitle: "웹 터미널",
     defaultSessionTitlePrefix: "세션-",
-    tmuxNotDetectedInstallFirst:
-      "tmux가 감지되지 않았습니다. 먼저 tmux 환경을 설치하세요.",
-    tmuxReadyWithVersion: "tmux가 준비되었습니다: {version}",
-    refreshingApt: "Debian 패키지 소스를 새로 고치는 중...",
-    aptUpdateFailed: "apt-get update 실행 실패",
-    installingTmux: "tmux 설치 중...",
-    aptInstallTmuxFailed: "apt-get install tmux 실행 실패",
-    verifyingTmuxInstall: "tmux 설치 확인 중...",
-    tmuxMissingAfterInstall:
-      "설치가 완료된 후에도 tmux가 여전히 감지되지 않습니다.",
-    tmuxInstallCompleteWithVersion: "tmux 설치 완료: {version}",
-    tmuxInstallFailed: "tmux 설치 실패",
     operationFailed: "터미널 작업 실패",
     operationFailedWithMessage: "터미널 작업 실패: {message}",
-    cwdUnavailable: "작업 디렉터리가 없거나 접근할 수 없습니다: {path}",
-    webTerminalDisabled: "웹 터미널이 활성화되지 않았습니다.",
-    tmuxInstallingWait:
-      "tmux를 설치하는 중입니다. 설치가 완료될 때까지 기다리세요.",
-    tmuxStatusError: "tmux 상태 오류: {message}",
-    tmuxMissingCannotCreate:
-      "tmux가 감지되지 않아 재개 가능한 터미널 세션을 생성할 수 없습니다.",
-    rootRunRequiresDangerToggle:
-      "현재 프로세스는 루트로 실행 중입니다. 터미널을 생성하기 전에 설정에서 명시적인 고위험 실행 스위치를 활성화하세요.",
-    requestedShellUnavailable: "요청한 셸을 사용할 수 없습니다: {shell}",
-    noShellDetected:
-      "사용 가능한 셸을 찾지 못했습니다. zsh, bash 또는 sh가 설치되어 있는지 확인하세요.",
-    paneMetadataReadFailed: "터미널 창 메타데이터를 읽을 수 없습니다.",
-    paneTtyParseFailed: "터미널 창 tty를 파싱할 수 없습니다.",
-    inputPipeCreateFailed: "터미널 입력 파이프를 생성할 수 없습니다.",
-    ioRelayCreateFailed: "터미널 IO 릴레이를 생성할 수 없습니다.",
     sessionLimitReached: "터미널 세션 제한에 도달했습니다({count})",
-    tmuxSessionCreateFailed: "tmux 세션을 생성하지 못했습니다.",
     sessionTitleRequired: "세션 이름은 필수 항목입니다.",
     sessionMissingOrExpired: "터미널 세션이 존재하지 않거나 만료되었습니다.",
-    tmuxMissingCannotAttach:
-      "tmux가 감지되지 않아 터미널 세션을 연결할 수 없습니다.",
-    inputPipeNotReady: "터미널 입력 파이프가 아직 준비되지 않았습니다.",
-    inputWriteInterrupted: "터미널 입력 쓰기가 중단되었습니다.",
     attachmentExpired: "터미널 연결이 만료되었습니다",
     inputSendFailed: "터미널 입력을 보내지 못했습니다.",
     resizeFailed: "터미널 크기를 조정하지 못했습니다.",

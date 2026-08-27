@@ -2590,30 +2590,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/config/terminal_feature": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 查看系统配置终端功能
-         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/terminal_feature` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        get: operations["get_api_admin_config_terminal_feature"];
-        put?: never;
-        /**
-         * 提交系统配置终端功能
-         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/terminal_feature` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        post: operations["post_api_admin_config_terminal_feature"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/config/wol_feature": {
         parameters: {
             query?: never;
@@ -5924,7 +5900,47 @@ export interface paths {
          * 删除Web 终端附件
          * @description 管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/attachments/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        delete: operations["delete_api_admin_terminal_attachments_by_id"];
+        delete: operations["delete_attachment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/attachments/{id}/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端control
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/control` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["claim_control"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/attachments/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看Web 终端事件
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/events` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["attachment_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5943,27 +5959,7 @@ export interface paths {
          * 输入Web 终端附件
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/input` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        post: operations["post_api_admin_terminal_attachments_by_id_input"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/terminal/attachments/{id}/poll": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 轮询Web 终端附件
-         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/attachments/{id}/poll` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        get: operations["get_api_admin_terminal_attachments__id__poll"];
-        put?: never;
-        post?: never;
+        post: operations["send_input"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5983,7 +5979,7 @@ export interface paths {
          * 调整大小Web 终端附件
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/resize` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        post: operations["post_api_admin_terminal_attachments_by_id_resize"];
+        post: operations["resize"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6001,13 +5997,9 @@ export interface paths {
          * 查看Web 终端会话
          * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        get: operations["get_api_admin_terminal_sessions"];
+        get: operations["list_sessions"];
         put?: never;
-        /**
-         * 提交Web 终端会话
-         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        post: operations["post_api_admin_terminal_sessions"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6021,25 +6013,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * 查看Web 终端会话
-         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/sessions/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        get: operations["get_api_admin_terminal_sessions_by_id"];
+        get?: never;
         put?: never;
         post?: never;
         /**
          * 删除Web 终端会话
          * @description 管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/sessions/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        delete: operations["delete_api_admin_terminal_sessions_by_id"];
+        delete: operations["delete_session"];
         options?: never;
         head?: never;
         /**
          * 修改Web 终端会话
          * @description 管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/sessions/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        patch: operations["patch_api_admin_terminal_sessions_by_id"];
+        patch: operations["rename_session"];
         trace?: never;
     };
     "/api/admin/terminal/sessions/{id}/attachments": {
@@ -6053,16 +6041,16 @@ export interface paths {
         put?: never;
         /**
          * 提交Web 终端附件
-         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions/{id}/attachments` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/sessions/{id}/attachments` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        post: operations["post_api_admin_terminal_sessions_by_id_attachments"];
+        post: operations["create_attachment"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/admin/terminal/status": {
+    "/api/admin/terminal/targets": {
         parameters: {
             query?: never;
             header?: never;
@@ -6070,19 +6058,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 查看Web 终端状态
-         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/status` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         * 查看Web 终端目标
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/targets` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        get: operations["get_api_admin_terminal_status"];
+        get: operations["list_targets"];
         put?: never;
-        post?: never;
+        /**
+         * 提交Web 终端目标
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["create_target"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/admin/terminal/tmux/install": {
+    "/api/admin/terminal/targets/probe-host-key": {
         parameters: {
             query?: never;
             header?: never;
@@ -6092,10 +6084,78 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 安装Web 终端Tmux 组件
-         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/tmux/install` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         * 提交Web 终端probe host key
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/probe-host-key` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
-        post: operations["post_api_admin_terminal_tmux_install"];
+        post: operations["probe_host_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/targets/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端test connection
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/test-connection` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["test_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terminal/targets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看Web 终端目标
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/targets/{id}` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get_target"];
+        put?: never;
+        post?: never;
+        /**
+         * 删除Web 终端目标
+         * @description 管理 Web 终端运行时能力和交互会话。。`DELETE /api/admin/terminal/targets/{id}` 用于删除、清理或撤销资源。执行前请确认目标和可能不可恢复的影响。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        delete: operations["delete_target"];
+        options?: never;
+        head?: never;
+        /**
+         * 修改Web 终端目标
+         * @description 管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/targets/{id}` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        patch: operations["update_target"];
+        trace?: never;
+    };
+    "/api/admin/terminal/targets/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/{id}/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["create_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7628,6 +7688,8 @@ export interface components {
             stream_mappings?: unknown[] | null;
             whitelist_ips?: string[] | null;
         };
+        /** @enum {string} */
+        AttachmentRole: "controller" | "viewer";
         AuthAccountCreateBody: {
             password: string;
             username: string;
@@ -7700,6 +7762,8 @@ export interface components {
             /** @enum {string} */
             mode: "totp" | "password";
         };
+        /** @enum {string} */
+        AuthMethod: "password" | "privateKey";
         AuthModePreviewData: {
             accountCount: number;
             blockingIssueCount: number;
@@ -7975,6 +8039,10 @@ export interface components {
         CidrSelectorData: {
             cities: null | components["schemas"]["CidrCitiesData"];
             provinces: components["schemas"]["CidrProvincesData"];
+        };
+        ClaimControlRequest: {
+            /** Format: int64 */
+            generation?: number | null;
         };
         CloudflareConnectionData: {
             accountId: string | null;
@@ -8448,6 +8516,12 @@ export interface components {
             name: string;
             provider: components["schemas"]["PanelProvider"];
         };
+        ConnectionTestResult: {
+            /** Format: int64 */
+            latencyMs: number;
+            success: boolean;
+            verificationToken: string;
+        };
         ConnectionUpdateInput: {
             allow_invalid_tls?: boolean;
             api_path?: string | null;
@@ -8457,6 +8531,19 @@ export interface components {
             credential?: string | null;
             grouping?: components["schemas"]["GroupingConfig"];
             name: string;
+        };
+        CreateAttachmentInput: {
+            /** Format: int32 */
+            cols?: number | null;
+            /** Format: int32 */
+            rows?: number | null;
+        };
+        CreateSessionInput: {
+            /** Format: int32 */
+            cols?: number | null;
+            /** Format: int32 */
+            rows?: number | null;
+            title?: string | null;
         };
         CredentialImportBodyData: {
             payload: components["schemas"]["CredentialTransferData"];
@@ -8483,6 +8570,10 @@ export interface components {
             totp_skipped_existing_secret?: number | null;
             totp_skipped_file_duplicate?: number | null;
             totp_total?: number | null;
+        };
+        CredentialMutation: {
+            action: components["schemas"]["SecretAction"];
+            secret?: string | null;
         };
         CredentialTransferData: {
             accounts?: components["schemas"]["AuthAccountTransferData"][] | null;
@@ -9108,6 +9199,11 @@ export interface components {
             installed: boolean;
             service_active: boolean;
             version: string;
+        };
+        EventsResult: {
+            events: components["schemas"]["TerminalEvent"][];
+            /** Format: int64 */
+            nextCursor: number;
         };
         ExternalAuthConnectionTestData: {
             message: string;
@@ -10141,6 +10237,13 @@ export interface components {
             namespace?: string;
             single_group_name?: string;
         };
+        HostKeyProbeResult: {
+            algorithm: string;
+            fingerprint: string;
+            host: string;
+            /** Format: int32 */
+            port: number;
+        };
         HostMappingBasicAuthInputData: {
             enabled: boolean;
             password: string;
@@ -10238,6 +10341,13 @@ export interface components {
         };
         ImportBackupFromDirectoryBody: {
             path: string;
+        };
+        InputRequest: {
+            dataBase64: string;
+            /** Format: int64 */
+            generation: number;
+            /** Format: int64 */
+            sequence: number;
         };
         IpListBodyData: {
             ips: string[];
@@ -10664,7 +10774,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -10685,7 +10795,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string} */
-            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
+            event_type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT";
             /** @enum {string} */
             group_by: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER";
             id: string;
@@ -10713,7 +10823,7 @@ export interface components {
             event_level_filter?: ("INFO" | "WARN" | "ERROR" | "CRITICAL")[] | null;
             event_source_filter?: ("SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR")[] | null;
             /** @enum {string|null} */
-            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | null;
+            event_type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT" | null;
             /** @enum {string|null} */
             group_by?: "GLOBAL" | "IP" | "SESSION" | "SUBJECT" | "HOSTNAME" | "PROVIDER" | null;
             message_template?: null | components["schemas"]["NotificationTemplateData"];
@@ -10957,6 +11067,10 @@ export interface components {
             transports?: string[] | null;
             webauthnCredential?: unknown;
         };
+        PassphraseMutation: {
+            action: components["schemas"]["SecretAction"];
+            secret?: string | null;
+        };
         PlanAction: {
             detail: string;
             kind: components["schemas"]["PlanActionKind"];
@@ -10978,6 +11092,11 @@ export interface components {
         PreviewRequest: {
             cleanup_remote?: boolean;
             refresh_remote?: boolean | null;
+        };
+        ProbeHostKeyInput: {
+            host: string;
+            /** Format: int32 */
+            port: number;
         };
         ProbeResult: {
             capabilities: components["schemas"]["AdapterCapabilities"];
@@ -11032,6 +11151,19 @@ export interface components {
         };
         ProxyProtocolForceData: {
             proxy_protocol_force: boolean;
+        };
+        RenameSessionInput: {
+            title: string;
+        };
+        ResizeRequest: {
+            /** Format: int32 */
+            cols: number;
+            /** Format: int64 */
+            generation: number;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int32 */
+            rows: number;
         };
         RunModePromptPreferencesData: {
             directToReverseProxy: boolean;
@@ -11462,6 +11594,8 @@ export interface components {
             /** Format: double */
             windowMinutes: number;
         };
+        /** @enum {string} */
+        SecretAction: "keep" | "replace" | "clear";
         SecurityOverviewData: {
             /** Format: int64 */
             rangeSec: number;
@@ -11498,6 +11632,10 @@ export interface components {
         SessionCommentBody: {
             comment: string;
         };
+        SessionListResult: {
+            runtimeId: string;
+            sessions: components["schemas"]["TerminalSession"][];
+        };
         SessionMobilityDetailsData: {
             events: components["schemas"]["SessionMobilityEventData"][];
             summary: components["schemas"]["SessionMobilitySummaryData"];
@@ -11519,6 +11657,8 @@ export interface components {
             lastDriftAt?: string | null;
             lastDriftSource?: string | null;
         };
+        /** @enum {string} */
+        SessionPhase: "creating" | "resolving" | "connecting" | "verifyingHostKey" | "authenticating" | "openingChannel" | "requestingPty" | "running" | "closing" | "closed" | "exited" | "lost" | "failed";
         SessionRecordData: {
             comment?: string | null;
             credentialId?: string | null;
@@ -12234,7 +12374,7 @@ export interface components {
             tags?: string[] | null;
             trace_id?: string | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT";
         };
         SystemEventDeleteBodyData: {
             ids: string[];
@@ -12260,7 +12400,7 @@ export interface components {
             tags?: string[] | null;
             trace_id?: string | null;
             /** @enum {string} */
-            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
+            type: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT";
         };
         SystemEventPublishResultData: {
             data: null | components["schemas"]["SystemEventData"];
@@ -12273,125 +12413,122 @@ export interface components {
             /** @enum {string} */
             kind: "IP" | "SESSION" | "DDNS" | "RESOURCE" | "APPLICATION" | "TUNNEL" | "COMPONENT" | "PANEL_SYNC";
         };
-        TerminalAttachmentData: {
-            created_at: string;
-            expires_at: string;
-            id: string;
-            session_id: string;
-            /** @constant */
-            transport: "http-polling";
-            updated_at: string;
-        };
-        TerminalCreateSessionBodyData: {
+        TargetCreateInput: {
+            authMethod: components["schemas"]["AuthMethod"];
+            credential: components["schemas"]["CredentialMutation"];
+            host: string;
+            name: string;
+            passphrase: components["schemas"]["PassphraseMutation"];
+            /** Format: int32 */
+            port: number;
+            trustedHostKey?: null | components["schemas"]["TrustedHostKey"];
+            username: string;
             /**
-             * Format: double
-             * @default 120
+             * @description One-time proof returned by a successful connection test for this exact
+             *     draft and credential set.
              */
-            cols: number | null;
-            cwd?: string | null;
-            /**
-             * Format: double
-             * @default 32
-             */
-            rows: number | null;
-            shell?: string | null;
-            title?: string | null;
+            verificationToken?: string | null;
         };
-        TerminalFeatureData: {
-            allow_mobile_toolbar: boolean;
-            dangerously_run_as_current_user: boolean;
-            default_cwd: string;
-            enabled: boolean;
-            /** Format: int64 */
-            idle_timeout_seconds: number;
-            /** Format: int64 */
-            max_sessions: number;
-            /** @enum {string} */
-            resume_backend: "tmux";
+        TargetDraft: {
+            authMethod: components["schemas"]["AuthMethod"];
+            host: string;
+            /** Format: int32 */
+            port: number;
+            trustedHostKey?: null | components["schemas"]["TrustedHostKey"];
+            username: string;
         };
-        TerminalFeatureUpdateData: {
-            allow_mobile_toolbar?: boolean | null;
-            dangerously_run_as_current_user?: boolean | null;
-            default_cwd?: string | null;
-            enabled?: boolean | null;
+        TargetUpdateInput: {
+            authMethod: components["schemas"]["AuthMethod"];
+            credential: components["schemas"]["CredentialMutation"];
+            host: string;
+            name: string;
+            passphrase: components["schemas"]["PassphraseMutation"];
+            /** Format: int32 */
+            port: number;
             /** Format: int64 */
-            idle_timeout_seconds?: number | null;
-            /** Format: int64 */
-            max_sessions?: number | null;
+            revision: number;
+            trustedHostKey?: null | components["schemas"]["TrustedHostKey"];
+            username: string;
+            verificationToken?: string | null;
         };
-        TerminalInputBodyData: {
-            /** Format: byte */
-            dataBase64: string;
-        };
-        TerminalOutputChunkData: {
+        TerminalAttachment: {
             /** Format: int64 */
             cursor: number;
-            data_base64: string;
-            reset: boolean;
+            expiresAt: string;
+            /** Format: int64 */
+            generation: number;
+            id: string;
+            role: components["schemas"]["AttachmentRole"];
+            sessionId: string;
+            transport: components["schemas"]["TerminalTransport"];
+        };
+        /** @enum {string} */
+        TerminalErrorCode: "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
+        TerminalErrorEnvelope: {
+            activeSessionCount?: number | null;
+            confirmationToken?: string | null;
+            errorCode: components["schemas"]["TerminalErrorCode"];
+            message: string;
+            success: boolean;
+        };
+        TerminalEvent: {
+            /** Format: int64 */
+            cursor: number;
+            dataBase64?: string | null;
+            errorCode?: null | components["schemas"]["TerminalErrorCode"];
+            errorMessage?: string | null;
+            /** Format: int32 */
+            exitCode?: number | null;
+            /** Format: int64 */
+            generation?: number | null;
+            phase?: null | components["schemas"]["SessionPhase"];
+            reset?: boolean;
+            role?: null | components["schemas"]["AttachmentRole"];
+            type: components["schemas"]["TerminalEventType"];
+        };
+        /** @enum {string} */
+        TerminalEventType: "output" | "status" | "control";
+        TerminalSession: {
+            /** Format: int32 */
+            cols: number;
+            createdAt: string;
+            errorCode?: null | components["schemas"]["TerminalErrorCode"];
+            errorMessage?: string | null;
+            /** Format: int32 */
+            exitCode?: number | null;
+            id: string;
+            phase: components["schemas"]["SessionPhase"];
+            /** Format: int32 */
+            rows: number;
+            targetId: string;
+            title: string;
             updatedAt: string;
         };
-        TerminalPollResultData: {
-            changed: boolean;
-            chunk: null | components["schemas"]["TerminalOutputChunkData"];
-        };
-        TerminalRenameSessionBodyData: {
-            title: string;
-        };
-        TerminalResizeBodyData: {
-            /** Format: double */
-            cols: number;
-            /** Format: double */
-            rows: number;
-        };
-        TerminalRuntimeStatusData: {
-            blockedReason: string;
-            enabled: boolean;
-            /** @constant */
-            httpPollingAvailable: true;
-            runningAsRoot: boolean;
-            tmuxAvailable: boolean;
-            /** @enum {string|null} */
-            tmuxDetectionSource: "env-path" | "absolute-path" | null;
-            tmuxExecutablePath: string;
-            tmuxInstallState: components["schemas"]["TerminalTmuxInstallStateData"];
-            tmuxVersion: string;
-        };
-        TerminalSessionData: {
-            backend_session_name: string;
-            /** Format: int64 */
-            cols: number;
-            created_at: string;
-            cwd: string;
-            expires_at: string;
+        TerminalTarget: {
+            authMethod: components["schemas"]["AuthMethod"];
+            createdAt: string;
+            credentialConfigured: boolean;
+            host: string;
             id: string;
-            input_pipe_path: string;
-            last_attached_at: string;
-            last_client_ip: string;
-            last_detached_at: string;
-            last_frame_revision: string;
-            output_log_path: string;
-            pane_tty_path: string;
-            /** @constant */
-            resume_backend: "tmux";
+            lastVerifiedAt?: string | null;
+            name: string;
+            passphraseConfigured: boolean;
+            /** Format: int32 */
+            port: number;
             /** Format: int64 */
-            rows: number;
-            shell: string;
-            /** @enum {string} */
-            status: "created" | "attached" | "detached" | "stopped" | "error";
-            title: string;
-            updated_at: string;
+            revision: number;
+            trustedHostKey?: null | components["schemas"]["TrustedHostKey"];
+            updatedAt: string;
+            username: string;
         };
-        TerminalTmuxInstallStateData: {
-            /** @enum {string|null} */
-            detectionSource: "env-path" | "absolute-path" | null;
-            executablePath: string;
-            message: string;
-            /** Format: int64 */
-            progress: number;
-            /** @enum {string} */
-            status: "uninstalled" | "installing" | "installed" | "error";
-            version: string;
+        TerminalTestConnectionInput: {
+            credential: components["schemas"]["CredentialMutation"];
+            draft?: null | components["schemas"]["TargetDraft"];
+            passphrase: components["schemas"]["PassphraseMutation"];
+            targetId?: string | null;
         };
+        /** @enum {string} */
+        TerminalTransport: "http-polling";
         TestConnectionInput: {
             connection_id?: string | null;
             draft?: null | components["schemas"]["ConnectionInput"];
@@ -12449,6 +12586,10 @@ export interface components {
             notifications: components["schemas"]["TraceSourceStatusData"];
             system_events: components["schemas"]["TraceSourceStatusData"];
             waf_logs: components["schemas"]["TraceSourceStatusData"];
+        };
+        TrustedHostKey: {
+            algorithm: string;
+            fingerprint: string;
         };
         TypedConfigShadowStatusData: {
             healthy: boolean;
@@ -19244,82 +19385,6 @@ export interface operations {
             };
         };
     };
-    get_api_admin_config_terminal_feature: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「查看系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalFeatureData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    post_api_admin_config_terminal_feature: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TerminalFeatureUpdateData"];
-            };
-        };
-        responses: {
-            /** @description 「提交系统配置终端功能」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalFeatureData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
     get_api_admin_config_wol_feature: {
         parameters: {
             query?: never;
@@ -20781,7 +20846,7 @@ export interface operations {
                 limit?: string;
                 search?: string;
                 trace_id?: string;
-                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED";
+                type?: "FN_EVENT_AUTH_LOGIN_SUCCESS" | "FN_EVENT_AUTH_LOGOUT" | "FN_EVENT_AUTH_LOGIN_FAILURE" | "FN_EVENT_AUTH_SESSION_IP_DRIFT" | "FN_EVENT_SECURITY_SCANNER_BLOCKED" | "FN_EVENT_DDNS_UPDATE_COMPLETED" | "FN_EVENT_WOL_WAKE_COMPLETED" | "FN_EVENT_WOL_SHUTDOWN_COMPLETED" | "FN_EVENT_GATEWAY_THROTTLE_BLOCKED" | "FN_EVENT_GATEWAY_VISIBILITY_BLOCKED" | "FN_EVENT_WAF_BLOCKED" | "FN_EVENT_SSH_LOGIN_SUCCESS" | "FN_EVENT_SSH_LOGIN_FAILURE" | "FN_EVENT_SSH_IP_BLOCKED" | "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" | "FN_EVENT_SYSTEM_CPU_ALERT" | "FN_EVENT_SYSTEM_CPU_RECOVERED" | "FN_EVENT_SYSTEM_MEMORY_ALERT" | "FN_EVENT_SYSTEM_MEMORY_RECOVERED" | "FN_EVENT_TUNNEL_FRP_CONNECTED" | "FN_EVENT_TUNNEL_FRP_DISCONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED" | "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED" | "FN_EVENT_RUNTIME_STARTED" | "FN_EVENT_RUNTIME_STOPPED" | "FN_EVENT_RUNTIME_RESTARTED" | "FN_EVENT_RUNTIME_HEALTH_FAILED" | "FN_EVENT_RUNTIME_RECOVERED" | "FN_EVENT_RUNTIME_ABNORMAL_EXIT" | "FN_EVENT_PANEL_SYNC_FAILED" | "FN_EVENT_PANEL_SYNC_RECOVERED" | "FN_EVENT_TERMINAL_AUDIT";
                 level?: "INFO" | "WARN" | "ERROR" | "CRITICAL";
                 source?: "SERVER_ADMIN" | "GO_REAUTH_PROXY" | "SYSTEM_MONITOR" | "RUNTIME_MONITOR";
             };
@@ -27561,7 +27626,7 @@ export interface operations {
             };
         };
     };
-    delete_api_admin_terminal_attachments_by_id: {
+    delete_attachment: {
         parameters: {
             query?: never;
             header?: never;
@@ -27587,12 +27652,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    post_api_admin_terminal_attachments_by_id_input: {
+    claim_control: {
         parameters: {
             query?: never;
             header?: never;
@@ -27603,7 +27668,90 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TerminalInputBodyData"];
+                "application/json": components["schemas"]["ClaimControlRequest"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端control」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalAttachment"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attachment_events: {
+        parameters: {
+            query?: {
+                after?: number;
+                timeoutMs?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看Web 终端事件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["EventsResult"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    send_input: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InputRequest"];
             };
         };
         responses: {
@@ -27622,53 +27770,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    get_api_admin_terminal_attachments__id__poll: {
-        parameters: {
-            query?: {
-                cursor?: number | string;
-                timeout_ms?: number;
-            };
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「轮询Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalPollResultData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    post_api_admin_terminal_attachments_by_id_resize: {
+    resize: {
         parameters: {
             query?: never;
             header?: never;
@@ -27679,7 +27786,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TerminalResizeBodyData"];
+                "application/json": components["schemas"]["ResizeRequest"];
             };
         };
         responses: {
@@ -27690,7 +27797,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["TerminalSessionData"];
+                        data: components["schemas"]["TerminalSession"];
                         message?: string | null;
                         /** @constant */
                         success: true;
@@ -27705,12 +27812,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    get_api_admin_terminal_sessions: {
+    list_sessions: {
         parameters: {
             query?: never;
             header?: never;
@@ -27726,7 +27833,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["TerminalSessionData"][];
+                        data: components["schemas"]["SessionListResult"];
                         message?: string | null;
                         /** @constant */
                         success: true;
@@ -27741,90 +27848,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    post_api_admin_terminal_sessions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TerminalCreateSessionBodyData"];
-            };
-        };
-        responses: {
-            /** @description 「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalSessionData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    get_api_admin_terminal_sessions_by_id: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「查看Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalSessionData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    delete_api_admin_terminal_sessions_by_id: {
+    delete_session: {
         parameters: {
             query?: never;
             header?: never;
@@ -27850,12 +27879,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    patch_api_admin_terminal_sessions_by_id: {
+    rename_session: {
         parameters: {
             query?: never;
             header?: never;
@@ -27866,7 +27895,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TerminalRenameSessionBodyData"];
+                "application/json": components["schemas"]["RenameSessionInput"];
             };
         };
         responses: {
@@ -27877,7 +27906,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["TerminalSessionData"];
+                        data: components["schemas"]["TerminalSession"];
                         message?: string | null;
                         /** @constant */
                         success: true;
@@ -27892,12 +27921,210 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    post_api_admin_terminal_sessions_by_id_attachments: {
+    create_attachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAttachmentInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalAttachment"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    list_targets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalTarget"][];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetCreateInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalTarget"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    probe_host_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProbeHostKeyInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端probe host key」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["HostKeyProbeResult"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    test_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TerminalTestConnectionInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端test connection」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ConnectionTestResult"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_target: {
         parameters: {
             query?: never;
             header?: never;
@@ -27908,14 +28135,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 「提交Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「查看Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["TerminalAttachmentData"];
+                        data: components["schemas"]["TerminalTarget"];
                         message?: string | null;
                         /** @constant */
                         success: true;
@@ -27930,34 +28157,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    get_api_admin_terminal_status: {
+    delete_target: {
         parameters: {
-            query?: never;
+            query: {
+                revision: number;
+                force?: boolean;
+                confirmationToken?: string;
+            };
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 「查看Web 终端状态」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「删除Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        data: components["schemas"]["TerminalRuntimeStatusData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ApiSuccessEnvelope"];
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
@@ -27966,28 +28192,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };
     };
-    post_api_admin_terminal_tmux_install: {
+    update_target: {
         parameters: {
-            query?: never;
+            query?: {
+                force?: boolean;
+                confirmationToken?: string;
+            };
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetUpdateInput"];
+            };
+        };
         responses: {
-            /** @description 「安装Web 终端Tmux 组件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「修改Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        data: components["schemas"]["TerminalTmuxInstallStateData"];
+                        data: components["schemas"]["TerminalTarget"];
                         message?: string | null;
                         /** @constant */
                         success: true;
@@ -28002,7 +28237,49 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalSession"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
                 };
             };
         };

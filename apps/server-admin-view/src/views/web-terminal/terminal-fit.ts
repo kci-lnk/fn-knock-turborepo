@@ -37,7 +37,10 @@ export const createTerminalFitController = ({
 
     const dimensions = fitAddon.proposeDimensions();
     if (!dimensions) return;
-    if (dimensions.cols === terminal.cols && dimensions.rows === terminal.rows) {
+    if (
+      dimensions.cols === terminal.cols &&
+      dimensions.rows === terminal.rows
+    ) {
       return;
     }
 

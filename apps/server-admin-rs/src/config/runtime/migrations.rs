@@ -1,5 +1,9 @@
 use super::*;
 
+const REVERSE_PROXY_THROTTLE_V1_REQUESTS_PER_SECOND: i64 = 100;
+const REVERSE_PROXY_THROTTLE_V1_BURST: i64 = 200;
+const REVERSE_PROXY_THROTTLE_V1_BLOCK_SECONDS: i64 = 30;
+
 pub(super) async fn apply_boot_config_migrations(
     state: &AppState,
     config: &mut Value,
@@ -7,6 +11,7 @@ pub(super) async fn apply_boot_config_migrations(
     let mut applied = Vec::new();
     let mut config_changed = false;
     let mut mark_throttle_patch_done = false;
+    let mut mark_throttle_default_v2_patch_done = false;
     let mut mark_resource_alerts_patch_done = false;
     let mut mark_gateway_wol_default_patch_done = false;
 
@@ -63,9 +68,15 @@ pub(super) async fn apply_boot_config_migrations(
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
-            throttle.insert("requests_per_second".to_string(), json!(100));
-            throttle.insert("burst".to_string(), json!(200));
-            throttle.insert("block_seconds".to_string(), json!(30));
+            throttle.insert(
+                "requests_per_second".to_string(),
+                json!(REVERSE_PROXY_THROTTLE_V1_REQUESTS_PER_SECOND),
+            );
+            throttle.insert("burst".to_string(), json!(REVERSE_PROXY_THROTTLE_V1_BURST));
+            throttle.insert(
+                "block_seconds".to_string(),
+                json!(REVERSE_PROXY_THROTTLE_V1_BLOCK_SECONDS),
+            );
             ensure_config_object(config).insert(
                 "reverse_proxy_throttle".to_string(),
                 Value::Object(throttle),
@@ -74,6 +85,23 @@ pub(super) async fn apply_boot_config_migrations(
             applied.push("legacy_reverse_proxy_throttle");
         }
         mark_throttle_patch_done = true;
+    }
+
+    // Keep this after the v1 patch so a 20/50 snapshot can advance through
+    // both historical defaults during one boot or backup import.
+    if state
+        .storage
+        .store
+        .get_string_value(REVERSE_PROXY_THROTTLE_DEFAULT_V2_PATCH_FLAG_KEY)
+        .await?
+        .as_deref()
+        != Some("1")
+    {
+        if migrate_reverse_proxy_throttle_default_v2(config) {
+            config_changed = true;
+            applied.push("reverse_proxy_throttle_default_v2");
+        }
+        mark_throttle_default_v2_patch_done = true;
     }
 
     if state
@@ -128,6 +156,13 @@ pub(super) async fn apply_boot_config_migrations(
             .storage
             .store
             .set_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY, "1")
+            .await?;
+    }
+    if mark_throttle_default_v2_patch_done {
+        state
+            .storage
+            .store
+            .set_string_value(REVERSE_PROXY_THROTTLE_DEFAULT_V2_PATCH_FLAG_KEY, "1")
             .await?;
     }
     if mark_resource_alerts_patch_done {
@@ -387,9 +422,49 @@ fn is_legacy_default_auth_service_target(target: &str) -> bool {
 }
 
 pub(super) fn legacy_reverse_proxy_throttle_matches(value: Option<&Value>) -> bool {
-    int_field(value, "requests_per_second", 100, 1, 10_000) == 20
-        && int_field(value, "burst", 200, 1, 100_000) == 50
-        && int_field(value, "block_seconds", 30, 1, 86_400) == 30
+    int_field(
+        value,
+        "requests_per_second",
+        REVERSE_PROXY_THROTTLE_V1_REQUESTS_PER_SECOND,
+        1,
+        10_000,
+    ) == 20
+        && int_field(value, "burst", REVERSE_PROXY_THROTTLE_V1_BURST, 1, 100_000) == 50
+        && int_field(
+            value,
+            "block_seconds",
+            REVERSE_PROXY_THROTTLE_V1_BLOCK_SECONDS,
+            1,
+            86_400,
+        ) == REVERSE_PROXY_THROTTLE_V1_BLOCK_SECONDS
+}
+
+pub(super) fn migrate_reverse_proxy_throttle_default_v2(config: &mut Value) -> bool {
+    let Some(throttle) = config
+        .get_mut("reverse_proxy_throttle")
+        .and_then(Value::as_object_mut)
+    else {
+        return false;
+    };
+    let matches_previous_default = throttle
+        .get("requests_per_second")
+        .and_then(parse_int_field_value)
+        == Some(REVERSE_PROXY_THROTTLE_V1_REQUESTS_PER_SECOND)
+        && throttle.get("burst").and_then(parse_int_field_value)
+            == Some(REVERSE_PROXY_THROTTLE_V1_BURST);
+    if !matches_previous_default {
+        return false;
+    }
+
+    throttle.insert(
+        "requests_per_second".to_string(),
+        json!(gateway_settings::DEFAULT_REVERSE_PROXY_THROTTLE_REQUESTS_PER_SECOND),
+    );
+    throttle.insert(
+        "burst".to_string(),
+        json!(gateway_settings::DEFAULT_REVERSE_PROXY_THROTTLE_BURST),
+    );
+    true
 }
 
 pub(super) fn legacy_resource_alert_rules_match(config: &Value) -> bool {

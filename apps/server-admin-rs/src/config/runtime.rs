@@ -56,6 +56,8 @@ const WELCOME_GUIDE_STATUS_KEY: &str = "fn_knock:welcome-guide:status";
 const SMART_CONNECT_RUNTIME_KEY: &str = "fn_knock:smart-connect:runtime";
 const LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:reverse-proxy-throttle:v1";
+const REVERSE_PROXY_THROTTLE_DEFAULT_V2_PATCH_FLAG_KEY: &str =
+    "fn_knock:patch:reverse-proxy-throttle-default:v2";
 const LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:event-system-resource-alerts:v1";
 const GATEWAY_PORTAL_SHOW_WOL_DEFAULT_PATCH_FLAG_KEY: &str =

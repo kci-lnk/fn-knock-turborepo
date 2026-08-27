@@ -26,6 +26,9 @@ const GATEWAY_PORTAL_TITLE_HOST_RULES_PATCH_FLAG_KEY: &str =
 const GATEWAY_PORTAL_ICON_HOST_RULES_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:gateway-portal-icon-host-rules:v1";
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
+pub(crate) const DEFAULT_REVERSE_PROXY_THROTTLE_REQUESTS_PER_SECOND: i64 = 500;
+pub(crate) const DEFAULT_REVERSE_PROXY_THROTTLE_BURST: i64 = 1_000;
+pub(crate) const DEFAULT_REVERSE_PROXY_THROTTLE_BLOCK_SECONDS: i64 = 30;
 pub(crate) const DEFAULT_GATEWAY_GC_PERCENT: i32 = 100;
 pub(crate) const MIN_GATEWAY_GC_PERCENT: i32 = 25;
 pub(crate) const MAX_GATEWAY_GC_PERCENT: i32 = 500;
@@ -295,6 +298,7 @@ use compile::*;
 use details::*;
 use hosts::*;
 pub(crate) use migrate::{migrate_visibility_policies_locked, migrate_visibility_policies_on_boot};
+pub(crate) use normalize::default_reverse_proxy_throttle;
 use normalize::*;
 use patch::*;
 use proxy_protocol::*;

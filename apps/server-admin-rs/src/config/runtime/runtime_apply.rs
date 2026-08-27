@@ -91,12 +91,7 @@ async fn apply_run_type_config_inner(
             .map_err(|error| error.to_string()),
         "sync auth gateway config",
     );
-    let default_throttle = json!({
-        "enabled": true,
-        "requests_per_second": 100,
-        "burst": 200,
-        "block_seconds": 30,
-    });
+    let default_throttle = gateway_settings::default_reverse_proxy_throttle();
     let throttle = config
         .get("reverse_proxy_throttle")
         .unwrap_or(&default_throttle);

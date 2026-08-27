@@ -16,6 +16,7 @@ import {
 } from "@/lib/gatewayUnmatchedRoute";
 import { useConfigStore } from "@/store/config";
 import type { GatewaySettings } from "@/types";
+import { DEFAULT_REVERSE_PROXY_THROTTLE } from "./gatewaySettingsModel";
 import { useGatewaySubdomainEditorAvailability } from "./useGatewaySubdomainEditorAvailability";
 
 type GatewaySettingsForm = Pick<
@@ -45,12 +46,7 @@ export const useGatewaySettingsController = () => {
       enabled: false,
       updated_at: null,
     },
-    reverse_proxy_throttle: {
-      enabled: true,
-      requests_per_second: 100,
-      burst: 200,
-      block_seconds: 30,
-    },
+    reverse_proxy_throttle: { ...DEFAULT_REVERSE_PROXY_THROTTLE },
   });
 
   const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
@@ -236,12 +232,15 @@ export const useGatewaySettingsController = () => {
             enabled: form.reverse_proxy_throttle.enabled,
             requests_per_second: clampPositiveInt(
               form.reverse_proxy_throttle.requests_per_second,
-              100,
+              DEFAULT_REVERSE_PROXY_THROTTLE.requests_per_second,
             ),
-            burst: clampPositiveInt(form.reverse_proxy_throttle.burst, 200),
+            burst: clampPositiveInt(
+              form.reverse_proxy_throttle.burst,
+              DEFAULT_REVERSE_PROXY_THROTTLE.burst,
+            ),
             block_seconds: clampPositiveInt(
               form.reverse_proxy_throttle.block_seconds,
-              30,
+              DEFAULT_REVERSE_PROXY_THROTTLE.block_seconds,
             ),
           },
           crawler_blocker: {

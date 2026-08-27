@@ -29,9 +29,18 @@ pub(super) fn normalize_disabled_hosts_config(value: &Value) -> Value {
 pub(super) fn normalize_reverse_proxy_throttle(value: &Value) -> Value {
     json!({
         "enabled": value.get("enabled").and_then(Value::as_bool).unwrap_or(true),
-        "requests_per_second": positive_int(value.get("requests_per_second"), 100),
-        "burst": positive_int(value.get("burst"), 200),
-        "block_seconds": positive_int(value.get("block_seconds"), 30),
+        "requests_per_second": positive_int(
+            value.get("requests_per_second"),
+            DEFAULT_REVERSE_PROXY_THROTTLE_REQUESTS_PER_SECOND,
+        ),
+        "burst": positive_int(
+            value.get("burst"),
+            DEFAULT_REVERSE_PROXY_THROTTLE_BURST,
+        ),
+        "block_seconds": positive_int(
+            value.get("block_seconds"),
+            DEFAULT_REVERSE_PROXY_THROTTLE_BLOCK_SECONDS,
+        ),
     })
 }
 
@@ -183,12 +192,12 @@ pub(super) fn default_disabled_hosts_config() -> Value {
     json!({ "disabled_hosts": [] })
 }
 
-pub(super) fn default_reverse_proxy_throttle() -> Value {
+pub(crate) fn default_reverse_proxy_throttle() -> Value {
     json!({
         "enabled": true,
-        "requests_per_second": 100,
-        "burst": 200,
-        "block_seconds": 30,
+        "requests_per_second": DEFAULT_REVERSE_PROXY_THROTTLE_REQUESTS_PER_SECOND,
+        "burst": DEFAULT_REVERSE_PROXY_THROTTLE_BURST,
+        "block_seconds": DEFAULT_REVERSE_PROXY_THROTTLE_BLOCK_SECONDS,
     })
 }
 

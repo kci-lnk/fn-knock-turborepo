@@ -80,12 +80,7 @@ pub fn default_config() -> Value {
         "drain_interval_seconds": 2,
         "updated_at": null
     });
-    let reverse_proxy_throttle = json!({
-        "enabled": true,
-        "requests_per_second": 100,
-        "burst": 200,
-        "block_seconds": 30
-    });
+    let reverse_proxy_throttle = crate::gateway_settings::default_reverse_proxy_throttle();
     let gateway_visibility = json!({
         "enabled": false,
         "selections": [],

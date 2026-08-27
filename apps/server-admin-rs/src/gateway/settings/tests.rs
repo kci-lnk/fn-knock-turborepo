@@ -136,6 +136,15 @@ fn gateway_response_uses_node_defaults() {
         default_reverse_proxy_throttle()
     );
     assert_eq!(
+        default_reverse_proxy_throttle(),
+        json!({
+            "enabled": true,
+            "requests_per_second": 500,
+            "burst": 1_000,
+            "block_seconds": 30
+        })
+    );
+    assert_eq!(
         normalize_gateway_unmatched_route(&json!({})),
         json!({
             "behavior": "error_page",

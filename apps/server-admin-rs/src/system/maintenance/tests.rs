@@ -132,6 +132,9 @@ async fn clear_all_data_keeps_storage_when_gateway_reset_fails() {
 #[test]
 fn filters_backup_keys_like_node() {
     assert!(should_export_backup_key("fn_knock:config"));
+    assert!(should_export_backup_key(
+        "fn_knock:patch:reverse-proxy-throttle-default:v2"
+    ));
     assert!(should_export_backup_key("fn_knock:wol:local-relay"));
     assert!(should_export_backup_key("fn_knock:wol:relay:relay-id"));
     assert!(should_export_backup_key("fn_knock:wol:target:target-id"));

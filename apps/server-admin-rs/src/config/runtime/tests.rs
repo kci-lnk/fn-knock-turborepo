@@ -122,6 +122,146 @@ async fn boot_migration_enables_gateway_wol_shortcut_once() {
 }
 
 #[tokio::test]
+async fn boot_migration_raises_previous_throttle_defaults_once() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["reverse_proxy_throttle"] = json!({
+        "enabled": false,
+        "requests_per_second": 100,
+        "burst": 200,
+        "block_seconds": 77,
+        "future_option": "preserved"
+    });
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(applied.contains(&"reverse_proxy_throttle_default_v2"));
+    assert_eq!(config["reverse_proxy_throttle"]["enabled"], json!(false));
+    assert_eq!(
+        config["reverse_proxy_throttle"]["requests_per_second"],
+        json!(500)
+    );
+    assert_eq!(config["reverse_proxy_throttle"]["burst"], json!(1_000));
+    assert_eq!(config["reverse_proxy_throttle"]["block_seconds"], json!(77));
+    assert_eq!(
+        config["reverse_proxy_throttle"]["future_option"],
+        json!("preserved")
+    );
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_string_value(REVERSE_PROXY_THROTTLE_DEFAULT_V2_PATCH_FLAG_KEY)
+            .await
+            .expect("read throttle v2 patch marker")
+            .as_deref(),
+        Some("1")
+    );
+
+    let persisted = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload migrated config");
+    assert_eq!(
+        persisted["reverse_proxy_throttle"],
+        config["reverse_proxy_throttle"]
+    );
+
+    config["reverse_proxy_throttle"]["requests_per_second"] = json!(100);
+    config["reverse_proxy_throttle"]["burst"] = json!(200);
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("save explicit post-migration throttle choice");
+    let mut config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload explicit throttle choice");
+    let reapplied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("reapply config migrations");
+    assert!(!reapplied.contains(&"reverse_proxy_throttle_default_v2"));
+    assert_eq!(
+        config["reverse_proxy_throttle"]["requests_per_second"],
+        json!(100)
+    );
+    assert_eq!(config["reverse_proxy_throttle"]["burst"], json!(200));
+    let persisted = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("reload preserved throttle choice");
+    assert_eq!(
+        persisted["reverse_proxy_throttle"],
+        config["reverse_proxy_throttle"]
+    );
+}
+
+#[tokio::test]
+async fn boot_migration_preserves_partially_custom_throttle_values() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["reverse_proxy_throttle"] = json!({
+        "enabled": true,
+        "requests_per_second": 101,
+        "burst": 200,
+        "block_seconds": 30
+    });
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(!applied.contains(&"reverse_proxy_throttle_default_v2"));
+    assert_eq!(
+        config["reverse_proxy_throttle"]["requests_per_second"],
+        json!(101)
+    );
+    assert_eq!(config["reverse_proxy_throttle"]["burst"], json!(200));
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_string_value(REVERSE_PROXY_THROTTLE_DEFAULT_V2_PATCH_FLAG_KEY)
+            .await
+            .expect("read throttle v2 patch marker")
+            .as_deref(),
+        Some("1")
+    );
+}
+
+#[tokio::test]
+async fn boot_migration_chains_all_historical_throttle_defaults() {
+    let (_directory, state) = fpk_lite_runtime_test_state().await;
+    let mut config = state.storage.store.get_config().await.expect("load config");
+    config["reverse_proxy_throttle"] = json!({
+        "enabled": true,
+        "requests_per_second": 20,
+        "burst": 50,
+        "block_seconds": 30
+    });
+
+    let applied = apply_boot_config_migrations(&state, &mut config)
+        .await
+        .expect("apply config migrations");
+    assert!(applied.contains(&"legacy_reverse_proxy_throttle"));
+    assert!(applied.contains(&"reverse_proxy_throttle_default_v2"));
+    assert_eq!(
+        config["reverse_proxy_throttle"]["requests_per_second"],
+        json!(500)
+    );
+    assert_eq!(config["reverse_proxy_throttle"]["burst"], json!(1_000));
+    assert_eq!(config["reverse_proxy_throttle"]["block_seconds"], json!(30));
+}
+
+#[tokio::test]
 async fn boot_migration_reenables_unvalidated_stream_mappings() {
     let (_directory, state) = fpk_lite_runtime_test_state().await;
     let mut config = state.storage.store.get_config().await.expect("load config");

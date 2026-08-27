@@ -145,8 +145,11 @@ set -- -s
 [ -n "$HTTP_X_SIGNATURE" ]      && set -- "$@" -H "x-signature: $HTTP_X_SIGNATURE"
 [ -n "$HTTP_X_REQUESTED_WITH" ] && set -- "$@" -H "x-requested-with: $HTTP_X_REQUESTED_WITH"
 [ -n "$HTTP_ACCEPT" ]           && set -- "$@" -H "accept: $HTTP_ACCEPT"
-[ -n "${HTTP_ACCEPT_ENCODING:-}" ] && \
-    set -- "$@" -H "accept-encoding: $HTTP_ACCEPT_ENCODING"
+# Do not negotiate a compressed representation across the fnOS CGI boundary.
+# Some embedded Android/Huawei WebViews cache a Brotli module response with
+# inconsistent representation metadata: the first load succeeds, then later
+# loads fail before the module can execute. The loopback hop is local, so send
+# raw bytes here and keep precompressed assets available to direct HTTP clients.
 [ -n "$HTTP_ACCEPT_LANGUAGE" ]  && set -- "$@" -H "accept-language: $HTTP_ACCEPT_LANGUAGE"
 [ -n "$HTTP_USER_AGENT" ]       && set -- "$@" -H "user-agent: $HTTP_USER_AGENT"
 [ -n "$HTTP_ORIGIN" ]           && set -- "$@" -H "origin: $HTTP_ORIGIN"
@@ -196,11 +199,8 @@ else
 fi
 
 emit_upstream_cache_headers
-emit_upstream_header "Content-Encoding"
 emit_upstream_header "Content-Length"
 emit_upstream_header "Content-Disposition"
 emit_upstream_header "X-Content-Type-Options"
 printf "\r\n"
-# Frontend assets use relative URLs, so preserve negotiated br/gzip bytes
-# exactly as received. Rewriting an encoded body would corrupt it.
 cat "$BODY_FILE"

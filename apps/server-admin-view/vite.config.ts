@@ -5,6 +5,17 @@ import path from "path";
 
 const isFpkLiteBuild = process.env.FN_KNOCK_FRONTEND_TARGET === "fpk-lite";
 
+const createChunkMatcher = (patterns: string[]) => (id: string) =>
+  patterns.some((pattern) => id.includes(pattern));
+
+const isFrameworkChunk = createChunkMatcher([
+  "node_modules/vue/",
+  "node_modules/@vue/",
+  "node_modules/vue-router/",
+  "node_modules/pinia/",
+  "node_modules/@vueuse/",
+]);
+
 const createGhosttyExternalWasmPlugin = (): Plugin => ({
   name: "fn-knock:ghostty-external-wasm",
   enforce: "pre",
@@ -37,6 +48,18 @@ const createGhosttyExternalWasmPlugin = (): Plugin => ({
   },
 });
 
+const isCriticalHtmlPreload = (dependency: string) => {
+  const name = path.basename(dependency);
+  return (
+    name.startsWith("_plugin-vue_export-helper-") ||
+    name.startsWith("rolldown-runtime-") ||
+    name.startsWith("preload-helper-") ||
+    name.startsWith("framework-") ||
+    name.startsWith("config-") ||
+    name.startsWith("dockerAdminAuth-")
+  );
+};
+
 export default defineConfig({
   base: "./",
   publicDir: path.resolve(__dirname, "../../packages/icons"),
@@ -54,6 +77,19 @@ export default defineConfig({
     manifest: true,
     target: "chrome109",
     cssMinify: "esbuild",
+    modulePreload: {
+      resolveDependencies(_filename, dependencies, context) {
+        if (context.hostType !== "html") return dependencies;
+        return dependencies.filter(isCriticalHtmlPreload);
+      },
+    },
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (isFrameworkChunk(id)) return "framework";
+        },
+      },
+    },
   },
   resolve: {
     alias: {

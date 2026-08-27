@@ -15,6 +15,8 @@ const compressibleExtensions = new Set([
   ".wasm",
 ]);
 const MAX_INITIAL_SCRIPT_BROTLI = 100 * 1024;
+const MAX_ADMIN_ENTRY_IMPORTS = 16;
+const MAX_ADMIN_HTML_MODULE_PRELOADS = 8;
 
 const apps = [
   {
@@ -94,6 +96,24 @@ for (const app of apps) {
   const entries = Object.entries(manifest);
   const entryKey = entries.find(([, record]) => record.isEntry)?.[0];
   if (!entryKey) fail(`${app.name} manifest has no entry chunk`);
+  if (app.name === "admin") {
+    const entryImports = manifest[entryKey].imports?.length ?? 0;
+    if (entryImports > MAX_ADMIN_ENTRY_IMPORTS) {
+      console.error(
+        `[frontend-budget] admin entry has ${entryImports} direct imports (limit ${MAX_ADMIN_ENTRY_IMPORTS})`,
+      );
+      failed = true;
+    }
+
+    const html = readFileSync(path.join(directory, "index.html"), "utf8");
+    const modulePreloads = html.match(/rel=["']modulepreload["']/gu)?.length ?? 0;
+    if (modulePreloads > MAX_ADMIN_HTML_MODULE_PRELOADS) {
+      console.error(
+        `[frontend-budget] admin HTML has ${modulePreloads} module preloads (limit ${MAX_ADMIN_HTML_MODULE_PRELOADS})`,
+      );
+      failed = true;
+    }
+  }
   const allFiles = walkFiles(directory).map((value) =>
     value.replaceAll("\\", "/"),
   );

@@ -31,16 +31,27 @@ for cgi in \
 do
   sh -n "${cgi}" || fail "invalid CGI shell syntax: ${cgi}"
   assert_contains "${cgi}" 'HTTP_ORIGIN' 'browser Origin forwarding'
-  assert_contains "${cgi}" 'HTTP_ACCEPT_ENCODING' 'compression negotiation forwarding'
-  assert_contains "${cgi}" '-H "accept-encoding:' 'Accept-Encoding upstream header'
-  assert_contains "${cgi}" 'Content-Encoding' 'compressed response encoding forwarding'
-  assert_contains "${cgi}" 'Content-Length' 'compressed response length forwarding'
+  assert_contains "${cgi}" 'Content-Length' 'response length forwarding'
   assert_not_contains "${cgi}" 'HTTP_HOST' 'retired CGI authority forwarding'
   assert_not_contains "${cgi}" 'PUBLIC_SCHEME' 'retired CGI scheme resolution'
   assert_not_contains "${cgi}" 'HTTP_SEC_FETCH_SITE' 'retired Fetch Metadata forwarding'
   assert_not_contains "${cgi}" 'HTTP_X_FN_KNOCK_BROWSER_ORIGIN' 'retired browser-origin proof'
   assert_not_contains "${cgi}" 's|src="/|src="./|g' 'compressed response body mutation'
 done
+
+for cgi in \
+  "${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi" \
+  "${ROOT_DIR}/apps/fn-knock-lite/app/ui/index.cgi"
+do
+  assert_not_contains "${cgi}" 'HTTP_ACCEPT_ENCODING' 'fnOS WebView compression negotiation'
+  assert_not_contains "${cgi}" '-H "accept-encoding:' 'fnOS WebView Accept-Encoding upstream header'
+  assert_not_contains "${cgi}" 'emit_upstream_header "Content-Encoding"' 'fnOS WebView response encoding forwarding'
+done
+
+SYNOLOGY_CGI="${ROOT_DIR}/apps/fn-knock-synology/package/ui/index.cgi"
+assert_contains "${SYNOLOGY_CGI}" 'HTTP_ACCEPT_ENCODING' 'Synology compression negotiation forwarding'
+assert_contains "${SYNOLOGY_CGI}" '-H "accept-encoding:' 'Synology Accept-Encoding upstream header'
+assert_contains "${SYNOLOGY_CGI}" 'Content-Encoding' 'Synology compressed response encoding forwarding'
 
 assert_not_contains "${ROUTER}" 'same_origin_middleware' 'retired request-origin middleware'
 assert_not_contains "${ROUTER}" 'browser_request_origin_allowed' 'retired request-origin filter'
@@ -79,12 +90,12 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ "${accept_encoding}" = "${EXPECTED_ACCEPT_ENCODING}" ] || exit 65
-body='compressed-src="/fixture.js"'
+body='raw-src="/fixture.js"'
 case "${target_url}" in
   */assets/*) content_type='text/javascript; charset=utf-8' ;;
   *) content_type='text/html; charset=utf-8' ;;
 esac
-printf 'HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: public, max-age=31536000, immutable\r\nContent-Encoding: br\r\nContent-Length: %s\r\nVary: Accept-Encoding\r\nX-Content-Type-Options: nosniff\r\n\r\n' \
+printf 'HTTP/1.1 200 OK\r\nContent-Type: %s\r\nCache-Control: public, max-age=31536000, immutable\r\nContent-Length: %s\r\nVary: Accept-Encoding\r\nX-Content-Type-Options: nosniff\r\n\r\n' \
   "${content_type}" "${#body}" > "${header_file}"
 printf '%s' "${body}" > "${body_file}"
 FAKE_CURL
@@ -96,17 +107,18 @@ for cgi in \
 do
   output="$(
     PATH="${WORK_DIR}/bin:${PATH}" \
-    EXPECTED_ACCEPT_ENCODING='gzip, deflate, br' \
+    EXPECTED_ACCEPT_ENCODING='' \
     HTTP_ACCEPT_ENCODING='gzip, deflate, br' \
     REQUEST_METHOD=GET \
     REQUEST_URI='/cgi/ThirdParty/fn-knock/index.cgi/' \
       sh "${cgi}"
   )"
   normalized_output="$(printf '%s' "${output}" | tr -d '\r')"
-  printf '%s' "${normalized_output}" | grep -Fq 'Content-Encoding: br' || \
-    fail "compressed response lost Content-Encoding: ${cgi}"
+  if printf '%s' "${normalized_output}" | grep -Fq 'Content-Encoding:'; then
+    fail "fnOS CGI forwarded a compressed representation: ${cgi}"
+  fi
   printf '%s' "${normalized_output}" | grep -Fq 'Vary: Accept-Encoding' || \
-    fail "compressed response lost Vary: ${cgi}"
+    fail "raw response lost Vary: ${cgi}"
   printf '%s' "${normalized_output}" | grep -Fq \
     'Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate' || \
     fail "index response is storable: ${cgi}"
@@ -116,12 +128,12 @@ do
     'Cache-Control: public, max-age=31536000, immutable'; then
     fail "index response retained the asset cache policy: ${cgi}"
   fi
-  printf '%s' "${normalized_output}" | grep -Fq 'compressed-src="/fixture.js"' || \
-    fail "compressed response body was changed: ${cgi}"
+  printf '%s' "${normalized_output}" | grep -Fq 'raw-src="/fixture.js"' || \
+    fail "raw response body was changed: ${cgi}"
 
   fallback_output="$(
     PATH="${WORK_DIR}/bin:${PATH}" \
-    EXPECTED_ACCEPT_ENCODING='gzip, deflate, br' \
+    EXPECTED_ACCEPT_ENCODING='' \
     HTTP_ACCEPT_ENCODING='gzip, deflate, br' \
     REQUEST_METHOD=GET \
     REQUEST_URI='/cgi/ThirdParty/fn-knock/index.cgi/settings' \
@@ -133,7 +145,7 @@ do
 
   asset_output="$(
     PATH="${WORK_DIR}/bin:${PATH}" \
-    EXPECTED_ACCEPT_ENCODING='gzip, deflate, br' \
+    EXPECTED_ACCEPT_ENCODING='' \
     HTTP_ACCEPT_ENCODING='gzip, deflate, br' \
     REQUEST_METHOD=GET \
     REQUEST_URI='/cgi/ThirdParty/fn-knock/index.cgi/assets/app-ABCDEFG.js' \
@@ -147,4 +159,4 @@ do
     fail "static asset lost nosniff protection: ${cgi}"
 done
 
-printf '[test-cgi-proxy-contract] CGI forwarding and compression contract passed\n'
+printf '[test-cgi-proxy-contract] CGI forwarding and fnOS WebView compression contract passed\n'

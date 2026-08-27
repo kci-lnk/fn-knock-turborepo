@@ -149,12 +149,17 @@
         </div>
 
         <OidcProviderButtons
-          v-if="oidcProviders.length > 0"
+          v-if="
+            oidcProviders.length > 0 &&
+            (!isCaptchaVerified || activeCaptchaProvider === 'turnstile')
+          "
           :active-provider-id="activeOidcProviderId"
           :disabled="isOidcLoading || isLoginCoolingDown"
           :is-loading="isOidcLoading"
           :providers="oidcProviders"
-          :show-divider="isPasskeySupported && isPasskeyAvailable"
+          :show-divider="
+            !isCaptchaVerified && isPasskeySupported && isPasskeyAvailable
+          "
           @login="handleOidcLogin"
         />
 

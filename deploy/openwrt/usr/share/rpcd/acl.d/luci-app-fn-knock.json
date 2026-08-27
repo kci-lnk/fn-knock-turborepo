@@ -4,8 +4,7 @@
 		"read": {
 			"uci": [ "fn-knock" ],
 			"file": {
-				"/etc/init.d/fn-knock status": [ "exec" ],
-				"/usr/libexec/fn-knock-firewall status": [ "exec" ]
+				"/etc/init.d/fn-knock status": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec" ]

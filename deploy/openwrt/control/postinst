@@ -3,50 +3,12 @@ set -e
 
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
-UCI_BIN="${FN_KNOCK_POSTINST_UCI_BIN:-$(command -v uci 2>/dev/null || true)}"
-
-initialize_firewall_default() {
-	local data_dir
-	local marker
-
-	if [ -z "$UCI_BIN" ] || [ ! -x "$UCI_BIN" ]; then
-		[ "${PKG_UPGRADE:-0}" = "1" ] && return 1
-		return 0
-	fi
-	data_dir="$("$UCI_BIN" -q get fn-knock.main.data_dir 2>/dev/null || printf '/etc/fn-knock/data')"
-	marker="${FN_KNOCK_FIREWALL_DEFAULT_MARKER:-${data_dir}/.firewall-default-v1}"
-	[ -e "$marker" ] && return 0
-
-	# An unchanged conffile may be replaced with the new-install template during
-	# upgrade. Force the first upgrade from a pre-feature release back to the
-	# safe disabled default before the service can synchronize its WAN rule.
-	if [ "${PKG_UPGRADE:-0}" = "1" ]; then
-		"$UCI_BIN" set fn-knock.main.auto_open_firewall='0' >/dev/null 2>&1 || return 1
-		"$UCI_BIN" commit fn-knock >/dev/null 2>&1 || return 1
-	fi
-
-	if ! mkdir -p "$(dirname "$marker")" || ! touch "$marker"; then
-		echo "fn-knock: warning: failed to persist the firewall-default migration marker" >&2
-	fi
-	return 0
-}
-
-if [ "${FN_KNOCK_POSTINST_TEST_FIREWALL_DEFAULT_ONLY:-0}" = "1" ]; then
-	initialize_firewall_default
-	exit $?
-fi
-
 # Older releases generated an executable firewall cleanup script. OpenWrt
 # never executes that script and removes the known legacy path on upgrade.
 rm -f /var/lib/fn-knock/clean.sh 2>/dev/null || true
 
 if [ -x /usr/libexec/fn-knock-migrate-data-dir ]; then
 	/usr/libexec/fn-knock-migrate-data-dir
-fi
-
-if ! initialize_firewall_default; then
-	echo "fn-knock: failed to preserve the safe firewall default during upgrade" >&2
-	exit 1
 fi
 
 reload_luci() {

@@ -26,23 +26,7 @@ load_config() {
 	config_get auth_port main auth_port "7997"
 	config_get go_backend_port main go_backend_port "7996"
 	config_get go_reproxy_port main go_reproxy_port "7999"
-	# Missing means disabled so upgrades never expand an existing installation's
-	# WAN exposure. Fresh installs receive an explicit value in the UCI template.
-	config_get_bool auto_open_firewall main auto_open_firewall 0
 	config_get root_share_dir main root_share_dir ""
-}
-
-sync_openwrt_firewall() {
-	local helper="/usr/libexec/fn-knock-firewall"
-
-	if [ ! -x "$helper" ]; then
-		logger -t fn-knock "firewall helper is unavailable; gateway ingress rule was not synchronized"
-		return 0
-	fi
-	if ! "$helper" sync; then
-		logger -t fn-knock "firewall synchronization failed; continuing service startup for LAN access"
-	fi
-	return 0
 }
 
 generate_random_hex() {
@@ -261,13 +245,9 @@ done
 
 start_service() {
 	load_config
-	if [ "$enabled" != "1" ]; then
-		sync_openwrt_firewall
-		return 0
-	fi
+	[ "$enabled" = "1" ] || return 0
 
 	validate_ports || return 1
-	sync_openwrt_firewall
 	ensure_runtime_layout || return 1
 
 	load_or_create_secret ALTCHA_HMAC_KEY "$data_dir/altcha_hmac_key" || return 1

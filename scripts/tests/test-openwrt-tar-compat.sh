@@ -101,7 +101,6 @@ LARGE_PAYLOAD_LISTING="$({
   printf '%s\n' \
     "etc/config/fn-knock" \
     "etc/init.d/fn-knock" \
-    "usr/libexec/fn-knock-firewall" \
     "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" \
     "usr/lib/fn-knock/server/server-admin-rs" \
     "usr/lib/fn-knock/bin/server-admin-rs" \

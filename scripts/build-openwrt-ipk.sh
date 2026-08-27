@@ -656,8 +656,6 @@ validate_payload_listing() {
     fail "data payload missing /etc/config/fn-knock"
   grep -Fxq "etc/init.d/fn-knock" <<<"${listing}" || \
     fail "data payload missing /etc/init.d/fn-knock"
-  grep -Fxq "usr/libexec/fn-knock-firewall" <<<"${listing}" || \
-    fail "data payload missing /usr/libexec/fn-knock-firewall"
   grep -Fxq "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" <<<"${listing}" || \
     fail "data payload missing ACME bundled resource"
   grep -Fxq "usr/lib/fn-knock/server/server-admin-rs" <<<"${listing}" || \
@@ -715,8 +713,6 @@ validate_extracted_payload() {
     "packaged Rust backend binary"
   [ -x "${extract_dir}/etc/init.d/fn-knock" ] || \
     fail "init script is not executable"
-  [ -x "${extract_dir}/usr/libexec/fn-knock-firewall" ] || \
-    fail "firewall helper is not executable"
   [ -x "${extract_dir}/usr/bin/fn-knock-reset-panel-password" ] || \
     fail "reset command is not executable"
 }

@@ -4003,7 +4003,13 @@ pub(super) fn components() -> Map<String, Value> {
         &mut schemas,
         "ScanDiscoveryHostCandidateData",
         "source",
-        &["configured", "proxy", "request_host"],
+        &[
+            "configured",
+            "proxy",
+            "request_host",
+            "loopback",
+            "interface",
+        ],
     );
     set_property_enum(
         &mut schemas,

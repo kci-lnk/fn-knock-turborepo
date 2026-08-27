@@ -15,7 +15,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use get_if_addrs::{IfAddr, get_if_addrs};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::{
@@ -27,7 +26,7 @@ use tokio::{
 use url::Url;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{i18n::Translator, response, runtime_profile, state::AppState};
+use crate::{i18n::Translator, net_utils, response, runtime_profile, state::AppState};
 
 mod analyzer;
 mod handlers;

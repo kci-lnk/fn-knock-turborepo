@@ -1264,32 +1264,32 @@ fn docker_discover_candidates_merge_config_proxy_and_request_host_in_priority_or
     assert_eq!(
         candidates,
         vec![
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "10.20.0.8".to_string(),
                 cidr: "10.20.0.0/23".to_string(),
                 source: "configured",
             },
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "10.21.0.8".to_string(),
                 cidr: "10.21.0.0/16".to_string(),
                 source: "configured",
             },
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "10.30.0.9".to_string(),
                 cidr: "10.30.0.0/24".to_string(),
                 source: "configured",
             },
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "192.168.1.9".to_string(),
                 cidr: "192.168.0.0/23".to_string(),
                 source: "proxy",
             },
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "192.168.50.9".to_string(),
                 cidr: "192.168.50.0/24".to_string(),
                 source: "proxy",
             },
-            DockerDiscoverHostCandidate {
+            DiscoverHostCandidate {
                 address: "192.168.60.9".to_string(),
                 cidr: "192.168.60.0/24".to_string(),
                 source: "request_host",
@@ -1299,26 +1299,57 @@ fn docker_discover_candidates_merge_config_proxy_and_request_host_in_priority_or
 }
 
 #[test]
-fn ovs_bridge_filter_only_excludes_docker_generated_bridge_names() {
-    for name in ["br0", "br-lan", "ovs-system"] {
-        assert!(!is_excluded_interface(name), "{name} should be included");
-    }
-    for name in [
-        "docker0",
-        "br-0123456789ab",
-        "veth1234",
-        "gre0",
-        "gretap0",
-        "ipip0",
-        "sit0",
-        "vxlan100",
-        "genev_sys_6081",
-        "erspan0",
-        "ip6tnl0",
-        "ip6gre0",
-    ] {
-        assert!(is_excluded_interface(name), "{name} should be excluded");
-    }
+fn native_host_candidates_keep_loopback_first_and_include_private_interfaces() {
+    let interface_candidates = [
+        net_utils::PrivateIpv4Candidate {
+            interface: "br-lan".to_string(),
+            address: Ipv4Addr::new(192, 168, 50, 8),
+            netmask: Ipv4Addr::new(255, 255, 255, 0),
+            prefix: Some(24),
+        },
+        net_utils::PrivateIpv4Candidate {
+            interface: "eth0".to_string(),
+            address: Ipv4Addr::new(10, 20, 0, 8),
+            netmask: Ipv4Addr::new(255, 255, 0, 0),
+            prefix: Some(16),
+        },
+        net_utils::PrivateIpv4Candidate {
+            interface: "duplicate".to_string(),
+            address: Ipv4Addr::new(192, 168, 50, 8),
+            netmask: Ipv4Addr::new(255, 255, 255, 0),
+            prefix: Some(24),
+        },
+    ];
+    let candidates = build_native_discover_host_candidates(&interface_candidates);
+    assert_eq!(
+        candidates,
+        vec![
+            DiscoverHostCandidate {
+                address: "127.0.0.1".to_string(),
+                cidr: "127.0.0.1/32".to_string(),
+                source: "loopback",
+            },
+            DiscoverHostCandidate {
+                address: "192.168.50.8".to_string(),
+                cidr: "192.168.50.0/24".to_string(),
+                source: "interface",
+            },
+            DiscoverHostCandidate {
+                address: "10.20.0.8".to_string(),
+                cidr: "10.20.0.0/24".to_string(),
+                source: "interface",
+            },
+        ]
+    );
+
+    let payload = build_discover_host_candidates_payload(
+        &candidates,
+        &BTreeSet::from(["127.0.0.1/32".to_string(), "192.168.50.0/24".to_string()]),
+    );
+    assert_eq!(payload[0]["recommended"], json!(true));
+    assert_eq!(payload[0]["source"], json!("loopback"));
+    assert_eq!(payload[1]["includedInAutomaticScan"], json!(true));
+    assert_eq!(payload[2]["includedInAutomaticScan"], json!(false));
 }
 
 #[test]

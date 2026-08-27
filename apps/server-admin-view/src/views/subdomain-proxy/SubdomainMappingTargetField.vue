@@ -12,7 +12,7 @@ import {
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import { useConfigStore } from "@/store/config";
 import type { HostTargetPathMode } from "@/types";
-import { useDockerHostTargetCandidates } from "./useDockerHostTargetCandidates";
+import { useHostTargetCandidates } from "./useHostTargetCandidates";
 
 const props = defineProps<{
   modelValue: string;
@@ -51,7 +51,7 @@ const targetPathModeDescription = computed(() =>
     : t("admin.subdomainProxy.targetPathModeEntryDescription"),
 );
 const { targetCandidateHint, targetPlaceholder, targetSuggestions } =
-  useDockerHostTargetCandidates({
+  useHostTargetCandidates({
     isDockerDeployment: computed(() => configStore.isDockerDeployment),
     open: computed(() => props.open),
     translate: (key) => t(key),

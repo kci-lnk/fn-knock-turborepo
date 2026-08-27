@@ -3,26 +3,62 @@ import { ScanAPI, type ScanDiscoveryHostCandidate } from "@/lib/api/scan";
 
 type Translate = (key: string) => string;
 
-export const buildDockerHostTargetSuggestions = (
+const NATIVE_LOOPBACK_ADDRESS = "127.0.0.1";
+const DOCKER_HOST_CANDIDATE_SOURCES = new Set<
+  ScanDiscoveryHostCandidate["source"]
+>(["configured", "proxy", "request_host"]);
+
+const nativeLoopbackCandidate = (): ScanDiscoveryHostCandidate => ({
+  address: NATIVE_LOOPBACK_ADDRESS,
+  cidr: `${NATIVE_LOOPBACK_ADDRESS}/32`,
+  source: "loopback",
+  recommended: true,
+  includedInAutomaticScan: true,
+});
+
+const effectiveCandidates = (
   candidates: readonly ScanDiscoveryHostCandidate[],
   isDockerDeployment: boolean,
-): string[] => {
-  if (!isDockerDeployment) return ["127.0.0.1:"];
-  return [...new Set(candidates.map((candidate) => `${candidate.address}:`))];
+): readonly ScanDiscoveryHostCandidate[] => {
+  if (isDockerDeployment) {
+    return candidates.filter(
+      (candidate) =>
+        DOCKER_HOST_CANDIDATE_SOURCES.has(candidate.source) &&
+        !candidate.address.startsWith("127."),
+    );
+  }
+  return [
+    nativeLoopbackCandidate(),
+    ...candidates.filter(
+      (candidate) => !candidate.address.startsWith("127."),
+    ),
+  ];
 };
 
-export const buildDockerHostTargetPlaceholder = (
+export const buildHostTargetSuggestions = (
+  candidates: readonly ScanDiscoveryHostCandidate[],
+  isDockerDeployment: boolean,
+): string[] => [
+  ...new Set(
+    effectiveCandidates(candidates, isDockerDeployment).map(
+      (candidate) => `${candidate.address}:`,
+    ),
+  ),
+];
+
+export const buildHostTargetPlaceholder = (
   candidates: readonly ScanDiscoveryHostCandidate[],
   isDockerDeployment: boolean,
   dockerFallback: string,
 ): string => {
-  if (!isDockerDeployment) return "127.0.0.1:5173";
+  const resolved = effectiveCandidates(candidates, isDockerDeployment);
   const recommended =
-    candidates.find((candidate) => candidate.recommended) ?? candidates[0];
-  return recommended ? `${recommended.address}:8080` : dockerFallback;
+    resolved.find((candidate) => candidate.recommended) ?? resolved[0];
+  if (!recommended) return dockerFallback;
+  return `${recommended.address}:${isDockerDeployment ? 8080 : 5173}`;
 };
 
-export const useDockerHostTargetCandidates = ({
+export const useHostTargetCandidates = ({
   isDockerDeployment,
   open,
   translate,
@@ -36,10 +72,6 @@ export const useDockerHostTargetCandidates = ({
   let requestId = 0;
 
   const loadCandidates = async () => {
-    if (!isDockerDeployment.value) {
-      candidates.value = [];
-      return;
-    }
     const currentRequestId = ++requestId;
     isLoading.value = true;
     try {
@@ -50,7 +82,7 @@ export const useDockerHostTargetCandidates = ({
     } catch (error) {
       if (currentRequestId === requestId) {
         candidates.value = [];
-        console.warn("load Docker host target candidates failed", error);
+        console.warn("load host target candidates failed", error);
       }
     } finally {
       if (currentRequestId === requestId) isLoading.value = false;
@@ -59,24 +91,17 @@ export const useDockerHostTargetCandidates = ({
 
   watch(
     [open, isDockerDeployment],
-    ([isOpen, isDocker]) => {
-      if (!isDocker) {
-        candidates.value = [];
-        return;
-      }
+    ([isOpen]) => {
       if (isOpen) void loadCandidates();
     },
     { immediate: true },
   );
 
   const targetSuggestions = computed(() =>
-    buildDockerHostTargetSuggestions(
-      candidates.value,
-      isDockerDeployment.value,
-    ),
+    buildHostTargetSuggestions(candidates.value, isDockerDeployment.value),
   );
   const targetPlaceholder = computed(() =>
-    buildDockerHostTargetPlaceholder(
+    buildHostTargetPlaceholder(
       candidates.value,
       isDockerDeployment.value,
       translate("admin.subdomainProxy.dockerTargetPlaceholder"),
@@ -87,7 +112,7 @@ export const useDockerHostTargetCandidates = ({
     if (isLoading.value) {
       return translate("admin.subdomainProxy.dockerTargetCandidatesLoading");
     }
-    return candidates.value.length > 0
+    return targetSuggestions.value.length > 0
       ? translate("admin.subdomainProxy.dockerTargetCandidatesHint")
       : translate("admin.subdomainProxy.dockerTargetCandidatesEmpty");
   });

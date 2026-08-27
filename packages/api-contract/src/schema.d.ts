@@ -11313,7 +11313,7 @@ export interface components {
             includedInAutomaticScan: boolean;
             recommended: boolean;
             /** @enum {string} */
-            source: "configured" | "proxy" | "request_host";
+            source: "configured" | "proxy" | "request_host" | "loopback" | "interface";
         };
         ScanDiscoveryLimitsData: {
             maxCidrs: number;

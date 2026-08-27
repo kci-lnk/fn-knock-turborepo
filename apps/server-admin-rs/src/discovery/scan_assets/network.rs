@@ -1,5 +1,4 @@
 use super::*;
-use crate::net_utils::ipv4_prefix_len;
 
 pub(super) fn normalize_allowed_scan_cidrs(
     values: impl IntoIterator<Item = String>,
@@ -169,82 +168,6 @@ pub(super) fn allowed_ranges() -> Vec<(u32, u32)> {
     .collect()
 }
 
-pub(super) struct Ipv4Candidate {
-    pub(super) name: String,
-    pub(super) address: String,
-    pub(super) prefix: Option<u8>,
-}
-
-pub(super) fn list_private_ipv4_candidates() -> Vec<Ipv4Candidate> {
-    let mut seen = BTreeSet::new();
-    let mut output = Vec::new();
-    let Ok(addrs) = get_if_addrs() else {
-        return output;
-    };
-    for iface in addrs {
-        if is_excluded_interface(&iface.name) || iface.is_loopback() {
-            continue;
-        }
-        let IfAddr::V4(addr) = iface.addr else {
-            continue;
-        };
-        let address = addr.ip.to_string();
-        if !is_private_ipv4(addr.ip) || !seen.insert(address.clone()) {
-            continue;
-        }
-        output.push(Ipv4Candidate {
-            name: iface.name,
-            address,
-            prefix: Some(ipv4_prefix_len(addr.netmask) as u8),
-        });
-    }
-    output.sort_by(|left, right| {
-        left.name
-            .cmp(&right.name)
-            .then_with(|| left.address.cmp(&right.address))
-    });
-    output
-}
-
-pub(super) fn is_excluded_interface(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower == "lo"
-        || lower.starts_with("docker")
-        || is_docker_generated_bridge_name(&lower)
-        || lower.starts_with("veth")
-        || lower.starts_with("tailscale")
-        || lower.starts_with("zt")
-        || lower.starts_with("tun")
-        || lower.starts_with("tap")
-        || lower.starts_with("wg")
-        || lower.starts_with("gre")
-        || lower.starts_with("ipip")
-        || lower.starts_with("sit")
-        || lower.starts_with("vxlan")
-        || lower.starts_with("genev")
-        || lower.starts_with("erspan")
-        || lower.starts_with("ip6tnl")
-        || lower.starts_with("ip6gre")
-}
-
-pub(super) fn is_docker_generated_bridge_name(name: &str) -> bool {
-    let lower = name.trim().to_ascii_lowercase();
-    let Some(suffix) = lower.strip_prefix("br-") else {
-        return false;
-    };
-    (12..=64).contains(&suffix.len())
-        && suffix
-            .chars()
-            .all(|character| character.is_ascii_hexdigit())
-}
-
-pub(super) fn is_private_ipv4(ip: Ipv4Addr) -> bool {
-    let octets = ip.octets();
-    octets[0] == 10
-        || (octets[0] == 172 && (16..=31).contains(&octets[1]))
-        || (octets[0] == 192 && octets[1] == 168)
-}
-
 pub(super) fn extract_ipv4_from_target(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -263,7 +186,7 @@ pub(super) fn extract_ipv4_from_target(value: &str) -> Option<String> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct DockerDiscoverHostCandidate {
+pub(super) struct DiscoverHostCandidate {
     pub(super) address: String,
     pub(super) cidr: String,
     pub(super) source: &'static str,
@@ -271,7 +194,7 @@ pub(super) struct DockerDiscoverHostCandidate {
 
 pub(super) fn resolve_docker_discover_candidates(
     headers: &HeaderMap,
-) -> Vec<DockerDiscoverHostCandidate> {
+) -> Vec<DiscoverHostCandidate> {
     let mut output = Vec::new();
     let mut seen_addresses = BTreeSet::new();
 
@@ -356,7 +279,7 @@ fn discover_candidate_address(value: &str) -> Option<String> {
 }
 
 fn push_docker_discover_candidate(
-    output: &mut Vec<DockerDiscoverHostCandidate>,
+    output: &mut Vec<DiscoverHostCandidate>,
     seen_addresses: &mut BTreeSet<String>,
     value: &str,
     source: &'static str,
@@ -386,7 +309,7 @@ fn push_docker_discover_candidate(
     if !seen_addresses.insert(address.clone()) {
         return;
     }
-    output.push(DockerDiscoverHostCandidate {
+    output.push(DiscoverHostCandidate {
         address,
         cidr,
         source,

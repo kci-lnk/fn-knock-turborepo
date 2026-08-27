@@ -47,7 +47,7 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
         if selected_ipv4.is_empty() {
             return Err(smart_connect_text(&translator, "selectLocalIp"));
         }
-        if !is_private_ipv4(&selected_ipv4) {
+        if !selected_ipv4.parse().is_ok_and(net_utils::is_private_ipv4) {
             return Err(smart_connect_text(&translator, "selectValidLocalIpv4"));
         }
         let dnsmasq = system_assets::build_dnsmasq_status_with_translator(&translator);
@@ -304,85 +304,19 @@ pub(super) fn strip_alpha_scheme(value: &str) -> &str {
 }
 
 pub(super) fn list_private_ipv4_candidates() -> Vec<Value> {
-    let Ok(items) = get_if_addrs::get_if_addrs() else {
-        return Vec::new();
-    };
-    let mut seen = BTreeSet::new();
-    let mut output = Vec::new();
-    for item in items {
-        if item.is_loopback() || is_excluded_interface(&item.name) {
-            continue;
-        }
-        let get_if_addrs::IfAddr::V4(v4) = item.addr else {
-            continue;
-        };
-        let address = v4.ip.to_string();
-        if !is_private_ipv4(&address) || !seen.insert(address.clone()) {
-            continue;
-        }
-        let netmask = v4.netmask.to_string();
-        let prefix = ipv4_netmask_to_prefix(v4.netmask);
-        output.push(json!({
-            "label": format!("{} ({})", address, item.name),
-            "value": address,
-            "interface": item.name,
-            "netmask": netmask,
-            "prefix": prefix,
-        }));
-    }
-    output.sort_by(|left, right| {
-        let left_key = format!(
-            "{}\0{}",
-            left.get("interface").and_then(Value::as_str).unwrap_or(""),
-            left.get("value").and_then(Value::as_str).unwrap_or("")
-        );
-        let right_key = format!(
-            "{}\0{}",
-            right.get("interface").and_then(Value::as_str).unwrap_or(""),
-            right.get("value").and_then(Value::as_str).unwrap_or("")
-        );
-        left_key.cmp(&right_key)
-    });
-    output
-}
-
-pub(super) fn is_excluded_interface(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower == "lo"
-        || lower.starts_with("docker")
-        || lower.starts_with("br-")
-        || lower.starts_with("veth")
-        || lower.starts_with("tailscale")
-        || lower.starts_with("zt")
-        || lower.starts_with("tun")
-        || lower.starts_with("tap")
-        || lower.starts_with("wg")
-}
-
-pub(super) fn ipv4_netmask_to_prefix(mask: Ipv4Addr) -> Option<u8> {
-    let mask = u32::from(mask);
-    let mut prefix = 0;
-    let mut seen_zero = false;
-    for bit in (0..32).rev() {
-        let one = (mask & (1 << bit)) != 0;
-        if one && seen_zero {
-            return None;
-        }
-        if one {
-            prefix += 1;
-        } else {
-            seen_zero = true;
-        }
-    }
-    Some(prefix)
-}
-
-pub(super) fn is_private_ipv4(value: &str) -> bool {
-    let Ok(ip) = value.parse::<Ipv4Addr>() else {
-        return false;
-    };
-    let [a, b, _, _] = ip.octets();
-    a == 10 || (a == 172 && (16..=31).contains(&b)) || (a == 192 && b == 168)
+    net_utils::list_private_ipv4_candidates()
+        .into_iter()
+        .map(|candidate| {
+            let address = candidate.address.to_string();
+            json!({
+                "label": format!("{} ({})", address, candidate.interface),
+                "value": address,
+                "interface": candidate.interface,
+                "netmask": candidate.netmask.to_string(),
+                "prefix": candidate.prefix,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn apply_smart_connect_managed_config(

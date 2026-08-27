@@ -17745,7 +17745,9 @@
             "enum": [
               "configured",
               "proxy",
-              "request_host"
+              "request_host",
+              "loopback",
+              "interface"
             ],
             "type": "string"
           }

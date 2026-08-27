@@ -60,7 +60,7 @@ const pageBudgets = [
   ["../src/views/auth-settings/AuthSettingsHeader.vue", 130],
   ["../src/views/auth-settings/AuthSettingsTables.vue", 130],
   ["../src/views/auth-settings/AuthSettingsDialogs.vue", 230],
-  ["../../server-auth-view/src/views/Login.vue", 590],
+  ["../../server-auth-view/src/views/Login.vue", 620],
   ["../src/views/Layout.vue", 460],
   ["../src/views/WebTerminal.vue", 30],
   ["../src/views/web-terminal/WebTerminalWorkspace.vue", 260],

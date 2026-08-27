@@ -1768,6 +1768,8 @@ export const koKRAdmin = {
   gatewayLocationsSettings: {
     systemSettings: "시스템 설정",
     gateway: "게이트웨이",
+    subdomains: "서브도메인 매핑",
+    breadcrumbTitle: "경로",
     title: "경로 응답",
     description:
       "지정한 Host에 경로별 리버스 프록시 규칙이나 고정 응답을 추가합니다. 규칙과 일치하지 않는 요청은 기존 Host 대상으로 전달됩니다.",
@@ -1795,6 +1797,10 @@ export const koKRAdmin = {
     unavailableTitle: "현재 모드에서는 사용할 수 없습니다.",
     unavailableDescription:
       "경로 응답은 서브도메인 매핑 모드에서만 적용됩니다.",
+    hostNotFoundTitle: "서브도메인 매핑을 찾을 수 없음",
+    hostNotFoundDescription:
+      "서브도메인 매핑 {host}이(가) 없거나 삭제되었습니다.",
+    backToSubdomains: "서브도메인 매핑으로 돌아가기",
     switchHostAria:
       "경로 응답 Host 전환. 현재 Host: {host}, 사이트 제목: {title}",
     currentHost: "현재 Host",
@@ -1809,6 +1815,15 @@ export const koKRAdmin = {
     match: "일치 방식",
     path: "경로",
     action: "동작",
+    authBehavior: "인증 동작",
+    authInherit: "서브도메인 매핑 상속",
+    authPublic: "공개 액세스",
+    authInheritProtected: "상속됨(인증 필요)",
+    authInheritPublic: "상속됨(현재 공개)",
+    authInheritDescription:
+      "현재 서브도메인 매핑의 로그인, 엄격한 허용 목록 및 고급 인증 설정을 따릅니다.",
+    authPublicDescription:
+      "이 경로는 Fn-Knock 인증 없이 액세스할 수 있습니다. 가시성, 사용 가능 시간, WAF 및 속도 제한은 계속 적용됩니다.",
     targetResponse: "대상/응답",
     processing: "처리",
     actions: "작업",

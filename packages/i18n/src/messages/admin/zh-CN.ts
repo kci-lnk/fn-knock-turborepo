@@ -1632,6 +1632,8 @@ export const zhCNAdmin = {
   gatewayLocationsSettings: {
     systemSettings: "系统设置",
     gateway: "网关",
+    subdomains: "子域映射",
+    breadcrumbTitle: "路径",
     title: "路径响应",
     description:
       "为指定 Host 添加路径级反代或固定响应。未命中的请求仍访问该 Host 的目标地址。",
@@ -1657,6 +1659,9 @@ export const zhCNAdmin = {
     addRule: "添加规则",
     unavailableTitle: "当前模式暂不可用",
     unavailableDescription: "路径响应仅在子域映射模式下生效。",
+    hostNotFoundTitle: "未找到子域映射",
+    hostNotFoundDescription: "子域映射 {host} 不存在或已被删除。",
+    backToSubdomains: "返回子域映射",
     switchHostAria: "切换路径响应 Host，当前为 {host}，站点标题 {title}",
     currentHost: "当前 Host",
     noHost: "暂无可用 Host",
@@ -1670,6 +1675,15 @@ export const zhCNAdmin = {
     match: "匹配",
     path: "路径",
     action: "动作",
+    authBehavior: "鉴权行为",
+    authInherit: "继承子域映射",
+    authPublic: "公开访问",
+    authInheritProtected: "继承（需要鉴权）",
+    authInheritPublic: "继承（当前公开）",
+    authInheritDescription:
+      "跟随当前子域映射的登录、严格白名单和高级鉴权设置。",
+    authPublicDescription:
+      "该路径无需 Fn-Knock 鉴权即可访问；可见性、可用时段、WAF 和限流仍然生效。",
     targetResponse: "目标/响应",
     processing: "处理",
     actions: "操作",

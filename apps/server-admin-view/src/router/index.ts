@@ -77,6 +77,12 @@ const router = createRouter({
           component: () => import("../views/DeepMonitor.vue"),
         },
         {
+          path: "subdomains/:host/paths",
+          name: "SubdomainPaths",
+          component: () =>
+            import("../views/system-settings/GatewayLocationsSettings.vue"),
+        },
+        {
           path: "streams",
           name: "StreamMappings",
           component: () => import("../views/StreamMappings.vue"),
@@ -203,12 +209,6 @@ const router = createRouter({
           name: "GatewayHostResponseSettings",
           component: () =>
             import("../views/system-settings/GatewayHostResponseSettings.vue"),
-        },
-        {
-          path: "system/gateway-locations",
-          name: "GatewayLocationsSettings",
-          component: () =>
-            import("../views/system-settings/GatewayLocationsSettings.vue"),
         },
         {
           path: "system/smart-connect",

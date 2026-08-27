@@ -79,8 +79,7 @@ export const toHostMappingUpdatePayload = (
   sync_id: mapping.sync_id,
   group_id: mapping.group_id || null,
   target: mapping.target,
-  target_path_mode:
-    mapping.target_path_mode === "prefix" ? "prefix" : "entry",
+  target_path_mode: mapping.target_path_mode === "prefix" ? "prefix" : "entry",
   waf_enabled: mapping.waf_enabled !== false,
   use_auth: mapping.use_auth,
   access_mode: mapping.access_mode,
@@ -114,6 +113,7 @@ export const toHostMappingUpdatePayload = (
     target: location.target.trim(),
     strip_path: location.strip_path,
     rewrite_html: location.rewrite_html,
+    auth_mode: location.auth_mode === "public" ? "public" : "inherit",
     response: {
       status: location.response.status,
       content_type: location.response.content_type.trim(),

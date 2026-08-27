@@ -10,9 +10,6 @@ export const useSubdomainNavigation = () => {
       openSubdomainPage(host, "advanced-auth"),
     openDeepMonitor: (host: string) => openSubdomainPage(host, "deep-monitor"),
     navigateToGatewayLocations: (host: string) =>
-      void router.push({
-        path: "/system/gateway-locations",
-        query: { host },
-      }),
+      openSubdomainPage(host, "paths"),
   };
 };

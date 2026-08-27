@@ -31,7 +31,7 @@ const adminRoutes = [
   "/system/gateway-portal",
   "/system/gateway-proxy-headers",
   "/system/gateway-host-response",
-  "/system/gateway-locations",
+  "/subdomains/a11y.invalid/paths",
   "/system/smart-connect",
   "/system/sidebar-menu-order",
   "/system/fnos-certificate-sync",

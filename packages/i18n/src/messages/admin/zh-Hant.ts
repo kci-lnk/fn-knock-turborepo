@@ -1575,6 +1575,8 @@ export const zhHantAdmin = {
   gatewayLocationsSettings: {
     systemSettings: "系統設定",
     gateway: "網關",
+    subdomains: "子域映射",
+    breadcrumbTitle: "路徑",
     title: "路徑響應",
     description:
       "為指定 Host 添加路徑級反代或固定響應。未命中的請求仍訪問該 Host 的目標地址。",
@@ -1600,6 +1602,9 @@ export const zhHantAdmin = {
     addRule: "添加規則",
     unavailableTitle: "當前模式暫不可用",
     unavailableDescription: "路徑響應僅在子域映射模式下生效。",
+    hostNotFoundTitle: "未找到子域映射",
+    hostNotFoundDescription: "子域映射 {host} 不存在或已被刪除。",
+    backToSubdomains: "返回子域映射",
     switchHostAria: "切換路徑響應 Host，當前為 {host}，站點標題 {title}",
     currentHost: "當前 Host",
     noHost: "暫無可用 Host",
@@ -1613,6 +1618,15 @@ export const zhHantAdmin = {
     match: "匹配",
     path: "路徑",
     action: "動作",
+    authBehavior: "鑒權行為",
+    authInherit: "繼承子域映射",
+    authPublic: "公開訪問",
+    authInheritProtected: "繼承（需要鑒權）",
+    authInheritPublic: "繼承（當前公開）",
+    authInheritDescription:
+      "跟隨當前子域映射的登錄、嚴格白名單和高級鑒權設置。",
+    authPublicDescription:
+      "該路徑無需 Fn-Knock 鑒權即可訪問；可見性、可用時段、WAF 和限流仍然生效。",
     targetResponse: "目標/響應",
     processing: "處理",
     actions: "操作",

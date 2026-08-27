@@ -22,6 +22,7 @@ const {
   canSave,
   draftLocations,
   formatAction,
+  formatAuthMode,
   formatTarget,
   indexedDraftLocations,
   isDirty,
@@ -47,7 +48,12 @@ const {
         <TableRow>
           <TableHead>{{ t("admin.gatewayLocationsSettings.match") }}</TableHead>
           <TableHead>{{ t("admin.gatewayLocationsSettings.path") }}</TableHead>
-          <TableHead>{{ t("admin.gatewayLocationsSettings.action") }}</TableHead>
+          <TableHead>{{
+            t("admin.gatewayLocationsSettings.action")
+          }}</TableHead>
+          <TableHead>
+            {{ t("admin.gatewayLocationsSettings.authBehavior") }}
+          </TableHead>
           <TableHead>
             {{ t("admin.gatewayLocationsSettings.targetResponse") }}
           </TableHead>
@@ -61,7 +67,7 @@ const {
       </TableHeader>
       <TableBody>
         <TableRow v-if="draftLocations.length === 0">
-          <TableCell colspan="6" class="py-8 text-center text-muted-foreground">
+          <TableCell colspan="7" class="py-8 text-center text-muted-foreground">
             {{ t("admin.gatewayLocationsSettings.noRules") }}
           </TableCell>
         </TableRow>
@@ -78,6 +84,9 @@ const {
           </TableCell>
           <TableCell class="font-medium">{{ location.path }}</TableCell>
           <TableCell>{{ formatAction(location) }}</TableCell>
+          <TableCell class="text-xs text-muted-foreground">
+            {{ formatAuthMode(location) }}
+          </TableCell>
           <TableCell class="max-w-[22rem] truncate">
             {{ formatTarget(location) }}
           </TableCell>
@@ -107,7 +116,11 @@ const {
           </TableCell>
           <TableCell class="text-right">
             <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="icon" @click="openEditDialog(index)">
+              <Button
+                variant="ghost"
+                size="icon"
+                @click="openEditDialog(index)"
+              >
                 <Pencil class="h-4 w-4" />
                 <span class="sr-only">
                   {{ t("admin.gatewayLocationsSettings.editRuleSr") }}
@@ -120,7 +133,9 @@ const {
                     path: location.path,
                   })
                 "
-                :confirm-text="t('admin.gatewayLocationsSettings.confirmDelete')"
+                :confirm-text="
+                  t('admin.gatewayLocationsSettings.confirmDelete')
+                "
                 :on-confirm="() => removeLocation(index)"
                 content-class="w-64 text-left"
               >

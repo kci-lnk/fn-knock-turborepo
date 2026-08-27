@@ -125,6 +125,8 @@ export interface HostLocationResponse {
   body: string;
 }
 
+export type HostLocationAuthMode = "inherit" | "public";
+
 export interface HostLocation {
   path: string;
   match: HostLocationMatch;
@@ -133,6 +135,7 @@ export interface HostLocation {
   strip_path: boolean;
   rewrite_html: boolean;
   response: HostLocationResponse;
+  auth_mode: HostLocationAuthMode;
 }
 
 export interface HostMapping {

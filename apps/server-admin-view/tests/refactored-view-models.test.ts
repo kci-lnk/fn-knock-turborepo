@@ -5,6 +5,7 @@ import {
   cloneLocation,
   createDefaultLocation,
   DEFAULT_RESPONSE_CONTENT_TYPE,
+  snapshotLocations,
 } from "../src/views/system-settings/gateway-locations/gatewayLocationModel";
 import {
   applyStreamMappingSubmission,
@@ -85,6 +86,30 @@ import type {
 } from "../src/types";
 
 describe("gateway location model", () => {
+  it("defaults new and legacy locations to inherited authentication", () => {
+    assert.equal(createDefaultLocation().auth_mode, "inherit");
+    const legacy = createDefaultLocation() as HostLocation & {
+      auth_mode?: HostLocation["auth_mode"];
+    };
+    delete legacy.auth_mode;
+    assert.equal(cloneLocation(legacy as HostLocation).auth_mode, "inherit");
+    assert.equal(
+      snapshotLocations([legacy as HostLocation]),
+      snapshotLocations([cloneLocation(legacy as HostLocation)]),
+    );
+    assert.equal(
+      cloneLocation({
+        ...createDefaultLocation(),
+        auth_mode: "public",
+      }).auth_mode,
+      "public",
+    );
+    assert.notEqual(
+      snapshotLocations([createDefaultLocation()]),
+      snapshotLocations([{ ...createDefaultLocation(), auth_mode: "public" }]),
+    );
+  });
+
   it("normalizes dot segments without accepting a missing leading slash", () => {
     assert.equal(cleanHostLocationPath(" /api/../v1//./users "), "/v1/users");
     assert.equal(cleanHostLocationPath("api/v1"), "api/v1");

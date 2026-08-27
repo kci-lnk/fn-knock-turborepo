@@ -112,6 +112,32 @@ const pathForwardingPreview = computed(() =>
           </div>
         </div>
 
+        <div class="space-y-2 rounded-md border border-border/60 p-4">
+          <Label for="location-auth-mode">
+            {{ t("admin.gatewayLocationsSettings.authBehavior") }}
+          </Label>
+          <Select v-model="form.auth_mode">
+            <SelectTrigger id="location-auth-mode" class="w-full sm:w-72">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">
+                {{ t("admin.gatewayLocationsSettings.authInherit") }}
+              </SelectItem>
+              <SelectItem value="public">
+                {{ t("admin.gatewayLocationsSettings.authPublic") }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-xs leading-5 text-muted-foreground">
+            {{
+              form.auth_mode === "public"
+                ? t("admin.gatewayLocationsSettings.authPublicDescription")
+                : t("admin.gatewayLocationsSettings.authInheritDescription")
+            }}
+          </p>
+        </div>
+
         <div class="space-y-2">
           <div class="text-sm font-medium">
             {{ t("admin.gatewayLocationsSettings.action") }}

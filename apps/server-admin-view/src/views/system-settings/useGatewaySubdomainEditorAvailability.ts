@@ -36,7 +36,5 @@ export const useGatewaySubdomainEditorAvailability = () => {
     proxyHeadersDisabledReason: disabledReason,
     isHostResponseAvailable: isEditorAvailable,
     hostResponseDisabledReason: disabledReason,
-    isLocationsAvailable: isEditorAvailable,
-    locationsDisabledReason: disabledReason,
   };
 };

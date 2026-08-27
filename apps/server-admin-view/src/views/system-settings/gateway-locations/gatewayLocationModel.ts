@@ -19,6 +19,7 @@ export const createDefaultLocation = (): HostLocation => ({
   target: "",
   strip_path: true,
   rewrite_html: true,
+  auth_mode: "inherit",
   response: {
     status: 200,
     content_type: DEFAULT_RESPONSE_CONTENT_TYPE,
@@ -34,6 +35,7 @@ export const createDefaultLocationForm = (): GatewayLocationForm => ({
 
 export const cloneLocation = (location: HostLocation): HostLocation => ({
   ...location,
+  auth_mode: location.auth_mode === "public" ? "public" : "inherit",
   response: {
     status: location.response?.status ?? 200,
     content_type:
@@ -42,6 +44,9 @@ export const cloneLocation = (location: HostLocation): HostLocation => ({
     body: location.response?.body ?? "",
   },
 });
+
+export const snapshotLocations = (locations: readonly HostLocation[]): string =>
+  JSON.stringify(locations.map(cloneLocation));
 
 export const cleanHostLocationPath = (value: string): string => {
   const raw = value.trim();

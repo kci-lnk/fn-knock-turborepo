@@ -171,6 +171,7 @@ export const useGatewayLocationEditor = (options: {
       path: cleanHostLocationPath(form.path),
       match: form.match,
       action,
+      auth_mode: form.auth_mode,
       target: action === "proxy" ? form.target.trim() : "",
       strip_path: action === "proxy" ? form.strip_path : false,
       rewrite_html:

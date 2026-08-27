@@ -145,8 +145,6 @@ export const useGatewaySettingsController = () => {
     proxyHeadersDisabledReason,
     isHostResponseAvailable,
     hostResponseDisabledReason,
-    isLocationsAvailable,
-    locationsDisabledReason,
   } = useGatewaySubdomainEditorAvailability();
 
   const openVisibilityEditor = () =>
@@ -164,12 +162,6 @@ export const useGatewaySettingsController = () => {
       void router.push("/system/gateway-host-response");
     }
   };
-  const openLocationsEditor = () => {
-    if (isLocationsAvailable.value) {
-      void router.push("/system/gateway-locations");
-    }
-  };
-
   const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
     ...data,
     portal: normalizeGatewayPortalConfig(data.portal),
@@ -272,12 +264,9 @@ export const useGatewaySettingsController = () => {
     isGatewaySettingsBusy,
     isHostResponseAvailable,
     isLoading,
-    isLocationsAvailable,
     isProxyHeadersAvailable,
     isSaving,
-    locationsDisabledReason,
     openHostResponseEditor,
-    openLocationsEditor,
     openPortalEditor,
     openProxyHeadersEditor,
     openProxyProtocolEditor,

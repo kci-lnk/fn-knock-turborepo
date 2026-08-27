@@ -30,11 +30,8 @@ const {
   isGatewaySettingsBusy,
   isHostResponseAvailable,
   isLoading,
-  isLocationsAvailable,
   isProxyHeadersAvailable,
-  locationsDisabledReason,
   openHostResponseEditor,
-  openLocationsEditor,
   openPortalEditor,
   openProxyHeadersEditor,
   openProxyProtocolEditor,
@@ -229,15 +226,6 @@ const {
         :disabled="!isHostResponseAvailable"
         :disabled-reason="hostResponseDisabledReason"
         @action="openHostResponseEditor"
-      />
-
-      <GatewayEditorRow
-        :title="t('admin.gatewaySettings.locations')"
-        :description="t('admin.gatewaySettings.locationsDescription')"
-        :action-label="t('admin.gatewaySettings.editLocations')"
-        :disabled="!isLocationsAvailable"
-        :disabled-reason="locationsDisabledReason"
-        @action="openLocationsEditor"
       />
 
       <FloatingActionDock

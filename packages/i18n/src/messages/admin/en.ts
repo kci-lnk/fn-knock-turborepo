@@ -1785,6 +1785,8 @@ export const enAdmin = {
   gatewayLocationsSettings: {
     systemSettings: "System settings",
     gateway: "Gateway",
+    subdomains: "Subdomain mappings",
+    breadcrumbTitle: "Paths",
     title: "Path responses",
     description:
       "Add path-level reverse proxy rules or fixed responses for a specific Host. Requests that do not match still go to the Host target.",
@@ -1812,6 +1814,10 @@ export const enAdmin = {
     unavailableTitle: "Unavailable in the current mode",
     unavailableDescription:
       "Path responses only take effect in subdomain mapping mode.",
+    hostNotFoundTitle: "Subdomain mapping not found",
+    hostNotFoundDescription:
+      "The subdomain mapping {host} does not exist or has been deleted.",
+    backToSubdomains: "Back to subdomain mappings",
     switchHostAria:
       "Switch path response Host. Current Host is {host}; site title is {title}",
     currentHost: "Current Host",
@@ -1826,6 +1832,15 @@ export const enAdmin = {
     match: "Match",
     path: "Path",
     action: "Action",
+    authBehavior: "Authentication",
+    authInherit: "Inherit subdomain mapping",
+    authPublic: "Public access",
+    authInheritProtected: "Inherited (authentication required)",
+    authInheritPublic: "Inherited (currently public)",
+    authInheritDescription:
+      "Follow the current subdomain mapping's login, strict allowlist, and advanced authentication settings.",
+    authPublicDescription:
+      "This path is accessible without Fn-Knock authentication. Visibility, availability, WAF, and throttling still apply.",
     targetResponse: "Target/response",
     processing: "Processing",
     actions: "Actions",

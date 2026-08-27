@@ -13,6 +13,7 @@ import type { HostLocation, HostMapping } from "../../../types";
 import {
   cloneLocation,
   DEFAULT_RESPONSE_CONTENT_TYPE,
+  snapshotLocations,
 } from "./gatewayLocationModel";
 import { useGatewayLocationEditor } from "./useGatewayLocationEditor";
 
@@ -63,9 +64,12 @@ export function useGatewayLocationsPage() {
   const isAvailable = computed(() =>
     isAnySubdomainRoutingMode(configStore.config),
   );
+  const isMissingHost = computed(
+    () => Boolean(selectedHost.value) && selectedMapping.value === null,
+  );
   const isDirty = computed(() => {
     const saved = selectedMapping.value?.locations ?? [];
-    return JSON.stringify(saved) !== JSON.stringify(draftLocations.value);
+    return snapshotLocations(saved) !== snapshotLocations(draftLocations.value);
   });
   const indexedDraftLocations = computed(() =>
     draftLocations.value.map((location, index) => ({ location, index })),
@@ -74,12 +78,10 @@ export function useGatewayLocationsPage() {
     () => Boolean(selectedMapping.value) && isDirty.value && !isSaving.value,
   );
 
-  const getMappingDisplayTitle = (
-    mapping?: HostMappingTitleInfo | null,
-  ) => mapping?.title_override.trim() || mapping?.title.trim() || "";
-  const getMappingTitleForDisplay = (
-    mapping?: HostMappingTitleInfo | null,
-  ) => getMappingDisplayTitle(mapping) || "-";
+  const getMappingDisplayTitle = (mapping?: HostMappingTitleInfo | null) =>
+    mapping?.title_override.trim() || mapping?.title.trim() || "";
+  const getMappingTitleForDisplay = (mapping?: HostMappingTitleInfo | null) =>
+    getMappingDisplayTitle(mapping) || "-";
 
   const resetDraftFromSelected = () => {
     draftLocations.value = (selectedMapping.value?.locations ?? []).map(
@@ -89,10 +91,11 @@ export function useGatewayLocationsPage() {
 
   const selectHost = (host: string) => {
     selectedHost.value = host;
-    void router.replace({
-      path: "/system/gateway-locations",
-      query: host ? { host } : {},
-    });
+    if (host) {
+      void router.push(`/subdomains/${encodeURIComponent(host)}/paths`);
+    } else {
+      void router.push("/subdomains");
+    }
     resetDraftFromSelected();
   };
 
@@ -110,13 +113,8 @@ export function useGatewayLocationsPage() {
 
   const ensureSelectedHost = () => {
     const requestedHost =
-      typeof route.query.host === "string" ? route.query.host.trim() : "";
-    const hostExists = availableMappings.value.some(
-      (mapping) => mapping.host === requestedHost,
-    );
-    selectedHost.value = hostExists
-      ? requestedHost
-      : (availableMappings.value[0]?.host ?? "");
+      typeof route.params.host === "string" ? route.params.host.trim() : "";
+    selectedHost.value = requestedHost;
     resetDraftFromSelected();
   };
 
@@ -159,8 +157,17 @@ export function useGatewayLocationsPage() {
     }
     return location.target;
   };
+  const formatAuthMode = (location: HostLocation) => {
+    if (location.auth_mode === "public") {
+      return t("admin.gatewayLocationsSettings.authPublic");
+    }
+    return selectedMapping.value?.use_auth
+      ? t("admin.gatewayLocationsSettings.authInheritProtected")
+      : t("admin.gatewayLocationsSettings.authInheritPublic");
+  };
+  const backToSubdomains = () => void router.push("/subdomains");
 
-  watch(() => route.query.host, ensureSelectedHost);
+  watch(() => route.params.host, ensureSelectedHost);
   onMounted(async () => {
     if (!configStore.config) {
       await runLoad(() => configStore.loadConfig());
@@ -174,6 +181,7 @@ export function useGatewayLocationsPage() {
     canSave,
     draftLocations,
     formatAction,
+    formatAuthMode,
     formatTarget,
     getMappingTitleForDisplay,
     handleHostPickerOpenChange,
@@ -182,10 +190,12 @@ export function useGatewayLocationsPage() {
     isDirty,
     isHostPickerOpen,
     isLoading,
+    isMissingHost,
     isSaving,
     openHostPicker,
     resetDraftFromSelected,
     saveLocations,
+    backToSubdomains,
     selectedHost,
     selectedMapping,
     selectHostFromDialog,

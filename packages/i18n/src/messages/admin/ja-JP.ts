@@ -1787,6 +1787,8 @@ export const jaJPAdmin = {
   gatewayLocationsSettings: {
     systemSettings: "システム設定",
     gateway: "ゲートウェイ",
+    subdomains: "サブドメインマッピング",
+    breadcrumbTitle: "パス",
     title: "パス別応答",
     description:
       "指定した Host に、パス単位のリバースプロキシルールまたは固定レスポンスを追加します。どのルールにも一致しないリクエストは、引き続き Host の転送先へ送信されます。",
@@ -1813,6 +1815,10 @@ export const jaJPAdmin = {
     unavailableTitle: "現在のモードでは利用できません",
     unavailableDescription:
       "パス別応答はサブドメインマッピングモードでのみ有効です。",
+    hostNotFoundTitle: "サブドメインマッピングが見つかりません",
+    hostNotFoundDescription:
+      "サブドメインマッピング {host} は存在しないか、削除されています。",
+    backToSubdomains: "サブドメインマッピングに戻る",
     switchHostAria:
       "パス別応答の Host を切り替え。現在: {host}、サイトタイトル: {title}",
     currentHost: "現在の Host",
@@ -1827,6 +1833,15 @@ export const jaJPAdmin = {
     match: "一致方法",
     path: "パス",
     action: "アクション",
+    authBehavior: "認証動作",
+    authInherit: "サブドメインマッピングを継承",
+    authPublic: "公開アクセス",
+    authInheritProtected: "継承（認証が必要）",
+    authInheritPublic: "継承（現在は公開）",
+    authInheritDescription:
+      "現在のサブドメインマッピングのログイン、厳格な許可リスト、高度な認証設定に従います。",
+    authPublicDescription:
+      "このパスは Fn-Knock 認証なしでアクセスできます。可視性、利用時間、WAF、レート制限は引き続き適用されます。",
     targetResponse: "転送先／レスポンス",
     processing: "処理",
     actions: "操作",

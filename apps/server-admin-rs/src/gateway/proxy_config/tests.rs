@@ -159,6 +159,76 @@ fn normalizes_host_mapping_route_shape() {
         mapping_value.pointer("/locations/0/response/headers/X-Test"),
         Some(&Value::String("ok".to_string()))
     );
+    assert_eq!(
+        mapping_value
+            .pointer("/locations/0/auth_mode")
+            .and_then(Value::as_str),
+        Some("inherit")
+    );
+}
+
+#[test]
+fn validates_host_location_auth_modes() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "locations": [{
+                "path": "/healthz",
+                "match": "exact",
+                "action": "response",
+                "auth_mode": "public"
+            }]
+        })],
+        &json!({}),
+    )
+    .unwrap();
+    assert_eq!(
+        mappings[0]
+            .pointer("/locations/0/auth_mode")
+            .and_then(Value::as_str),
+        Some("public")
+    );
+    assert_eq!(
+        build_host_rules_payload(&mappings)
+            .pointer("/0/locations/0/auth_mode")
+            .and_then(Value::as_str),
+        Some("public")
+    );
+
+    let error = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "locations": [{
+                "path": "/healthz",
+                "match": "exact",
+                "action": "response",
+                "auth_mode": "private"
+            }]
+        })],
+        &json!({}),
+    )
+    .unwrap_err();
+    assert!(error.contains("auth mode private is invalid"));
+
+    for invalid in [json!(true), json!(["public"]), json!({"mode": "public"})] {
+        let error = normalize_host_mappings_for_route(
+            vec![json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8080",
+                "locations": [{
+                    "path": "/healthz",
+                    "match": "exact",
+                    "action": "response",
+                    "auth_mode": invalid
+                }]
+            })],
+            &json!({}),
+        )
+        .unwrap_err();
+        assert!(error.contains("auth mode must be a string"));
+    }
 }
 
 #[test]

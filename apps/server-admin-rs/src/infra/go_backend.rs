@@ -917,6 +917,14 @@ fn string_field(value: &Value, key: &str) -> String {
         .to_string()
 }
 
+fn host_location_auth_mode(value: String) -> String {
+    if value.trim().is_empty() {
+        "inherit".to_string()
+    } else {
+        value
+    }
+}
+
 fn bool_field(value: &Value, key: &str, default: bool) -> bool {
     value.get(key).and_then(Value::as_bool).unwrap_or(default)
 }
@@ -1051,6 +1059,7 @@ fn parse_host_locations(value: &Value) -> Vec<HostLocation> {
                     strip_path: bool_field(item, "strip_path", true),
                     rewrite_html: bool_field(item, "rewrite_html", true),
                     response: item.get("response").and_then(parse_host_location_response),
+                    auth_mode: host_location_auth_mode(string_field(item, "auth_mode")),
                 })
                 .collect()
         })
@@ -1637,7 +1646,8 @@ fn host_rules_to_json(bundle: HostRules) -> Value {
                         "target": location.target,
                         "strip_path": location.strip_path,
                         "rewrite_html": location.rewrite_html,
-                        "response": host_location_response_to_json(location.response)
+                        "response": host_location_response_to_json(location.response),
+                        "auth_mode": host_location_auth_mode(location.auth_mode)
                     })).collect::<Vec<_>>()
                 })
             })
@@ -2326,6 +2336,42 @@ mod tests {
         assert_eq!(
             echoed.pointer("/groups/0/conditions/0/policy_id"),
             Some(&json!("ipset-v2:expected"))
+        );
+    }
+
+    #[test]
+    fn host_location_grpc_conversion_preserves_auth_mode() {
+        let locations = parse_host_locations(&json!([
+            {
+                "path": "/healthz",
+                "match": "exact",
+                "action": "response",
+                "auth_mode": "public"
+            },
+            {
+                "path": "/legacy",
+                "match": "exact",
+                "action": "response"
+            }
+        ]));
+        assert_eq!(locations[0].auth_mode, "public");
+        assert_eq!(locations[1].auth_mode, "inherit");
+
+        let echoed = host_rules_to_json(HostRules {
+            items: vec![HostRule {
+                host: "app.example.com".to_string(),
+                locations,
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert_eq!(
+            echoed.pointer("/items/0/locations/0/auth_mode"),
+            Some(&json!("public"))
+        );
+        assert_eq!(
+            echoed.pointer("/items/0/locations/1/auth_mode"),
+            Some(&json!("inherit"))
         );
     }
 

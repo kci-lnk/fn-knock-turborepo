@@ -23,6 +23,7 @@ const controller = useGatewayLocationsPage();
 const {
   addHeaderRow,
   availableMappings,
+  backToSubdomains,
   closeDialog,
   editingIndex,
   form,
@@ -32,6 +33,7 @@ const {
   isDialogOpen,
   isHostPickerOpen,
   isLoading,
+  isMissingHost,
   isProxyLocationWebSocketTarget,
   isSaving,
   openCreateDialog,
@@ -50,20 +52,14 @@ const {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system">
-            {{ t("admin.gatewayLocationsSettings.systemSettings") }}
-          </BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbLink href="#/system?tab=gateway">
-            {{ t("admin.gatewayLocationsSettings.gateway") }}
+          <BreadcrumbLink href="#/subdomains">
+            {{ t("admin.gatewayLocationsSettings.subdomains") }}
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbPage>
-            {{ t("admin.gatewayLocationsSettings.title") }}
+            {{ t("admin.gatewayLocationsSettings.breadcrumbTitle") }}
           </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -100,7 +96,28 @@ const {
         </div>
 
         <template v-else>
-          <Alert v-if="!isAvailable" class="border-zinc-200 bg-zinc-50">
+          <Alert
+            v-if="isMissingHost"
+            class="border-destructive/30 bg-destructive/5"
+          >
+            <AlertTitle>
+              {{ t("admin.gatewayLocationsSettings.hostNotFoundTitle") }}
+            </AlertTitle>
+            <AlertDescription class="space-y-3 text-sm leading-6">
+              <p>
+                {{
+                  t("admin.gatewayLocationsSettings.hostNotFoundDescription", {
+                    host: selectedHost,
+                  })
+                }}
+              </p>
+              <Button variant="outline" size="sm" @click="backToSubdomains">
+                {{ t("admin.gatewayLocationsSettings.backToSubdomains") }}
+              </Button>
+            </AlertDescription>
+          </Alert>
+
+          <Alert v-else-if="!isAvailable" class="border-zinc-200 bg-zinc-50">
             <AlertTitle>
               {{ t("admin.gatewayLocationsSettings.unavailableTitle") }}
             </AlertTitle>
@@ -109,8 +126,10 @@ const {
             </AlertDescription>
           </Alert>
 
-          <GatewayLocationHostSummary :controller="controller" />
-          <GatewayLocationRulesTable :controller="controller" />
+          <template v-if="!isMissingHost">
+            <GatewayLocationHostSummary :controller="controller" />
+            <GatewayLocationRulesTable :controller="controller" />
+          </template>
         </template>
       </CardContent>
     </Card>

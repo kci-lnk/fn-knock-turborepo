@@ -1283,6 +1283,24 @@ pub(super) fn normalize_host_mapping_locations_for_route(
             validate_location_response(host, &path, object.get("response"))?;
         }
 
+        let auth_mode = match object.get("auth_mode") {
+            None | Some(Value::Null) => "inherit",
+            Some(Value::String(value)) => match value.trim() {
+                "" | "inherit" => "inherit",
+                "public" => "public",
+                value => {
+                    return Err(format!(
+                        "Host mapping {host} location {path} auth mode {value} is invalid"
+                    ));
+                }
+            },
+            Some(_) => {
+                return Err(format!(
+                    "Host mapping {host} location {path} auth mode must be a string"
+                ));
+            }
+        };
+
         normalized.push(json!({
             "path": path,
             "match": match_mode,
@@ -1295,6 +1313,7 @@ pub(super) fn normalize_host_mapping_locations_for_route(
             } else {
                 normalize_location_response(None)
             },
+            "auth_mode": auth_mode,
         }));
     }
 

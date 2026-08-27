@@ -28,7 +28,6 @@ type AutoManageFirewallData =
 type TerminalFeature = ApiContractComponents["schemas"]["TerminalFeatureData"];
 type TerminalFeatureUpdate =
   ApiContractComponents["schemas"]["TerminalFeatureUpdateData"];
-type WelcomeGuide = ApiContractComponents["schemas"]["WelcomeGuideData"];
 type AppearanceContract =
   ApiContractComponents["schemas"]["PanelAppearanceData"];
 type DefaultTunnelUpdate =
@@ -99,14 +98,6 @@ export const configCoreApi = {
   },
   async updateLocaleConfig(payload: LocaleConfig): Promise<LocaleConfig> {
     const res = await apiClient.post("/config/locale", payload);
-    return res.data.data;
-  },
-  async getWelcomeGuideStatus(): Promise<WelcomeGuide> {
-    const res = await apiClient.get("/config/welcome_guide");
-    return res.data.data;
-  },
-  async completeWelcomeGuide(): Promise<WelcomeGuide> {
-    const res = await apiClient.post("/config/welcome_guide/complete");
     return res.data.data;
   },
   async updateRunType(payload: RunTypeUpdate): Promise<string | null> {

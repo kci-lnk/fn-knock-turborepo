@@ -5485,14 +5485,6 @@ export const zhCNAdmin = {
     unavailable: "属地暂未获取",
     loadFailed: "活跃 IP 加载失败",
   },
-  welcomeGuide: {
-    saveStatusFailed: "保存欢迎向导状态失败",
-  },
-  welcomeScreen: {
-    title: "欢迎使用 fn-knock",
-    entering: "正在进入...",
-    start: "开始使用",
-  },
   hostTraffic: {
     detailsAria: "{title} {host} 流量详情",
     view: "查看",

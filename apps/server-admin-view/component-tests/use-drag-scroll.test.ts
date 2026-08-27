@@ -66,6 +66,10 @@ let windowListeners: Record<string, Listener[]>;
 
 beforeEach(() => {
   windowListeners = {};
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: true })),
+  );
   vi.spyOn(window, "addEventListener").mockImplementation(
     (type: string, listener: EventListenerOrEventListenerObject) => {
       (windowListeners[type] ??= []).push(listener as Listener);
@@ -81,6 +85,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -231,6 +236,45 @@ describe("useDragScroll", () => {
     } as unknown as PointerEvent);
     expect(isDragging.value).toBe(false);
     expect(el.setPointerCapture).not.toHaveBeenCalled();
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
+  it("ignores mouse-like events on coarse non-hover touch devices", () => {
+    vi.mocked(window.matchMedia).mockReturnValue({
+      matches: false,
+    } as MediaQueryList);
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+
+    onPointerDown(downEvent(100));
+
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
+  it("ignores WebView mouse events that originated from touch", () => {
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+    const event = downEvent(100) as PointerEvent & {
+      sourceCapabilities?: { firesTouchEvents?: boolean };
+    };
+    event.sourceCapabilities = { firesTouchEvents: true };
+
+    onPointerDown(event);
+
+    expect(windowListeners["pointermove"]).toBeUndefined();
+  });
+
+  it("ignores misclassified mouse events with touch contact geometry", () => {
+    const el = createElement();
+    const elRef = ref<HTMLElement | null>(el);
+    const { onPointerDown } = useDragScroll(elRef);
+    const event = downEvent(100);
+    Object.assign(event, { width: 12, height: 10 });
+
+    onPointerDown(event);
+
     expect(windowListeners["pointermove"]).toBeUndefined();
   });
 

@@ -21,9 +21,6 @@ export type ReverseProxySubmode = NonNullable<
 export type LocaleConfig = ApiContractComponents["schemas"]["LocaleConfigData"];
 export type LocaleCode = LocaleConfig["default_locale"];
 
-export type WelcomeGuideStatus =
-  ApiContractComponents["schemas"]["WelcomeGuideData"];
-
 export type DeploymentTarget =
   ApiContractComponents["schemas"]["PanelBootstrapData"]["deployment_target"];
 

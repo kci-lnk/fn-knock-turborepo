@@ -5858,14 +5858,6 @@ export const koKRAdmin = {
     unavailable: "위치를 알 수 없음",
     loadFailed: "활성 IP를 불러오지 못했습니다.",
   },
-  welcomeGuide: {
-    saveStatusFailed: "환영 가이드 상태를 저장하지 못했습니다.",
-  },
-  welcomeScreen: {
-    title: "fn-knock에 오신 것을 환영합니다",
-    entering: "시작 중...",
-    start: "시작하기",
-  },
   hostTraffic: {
     detailsAria: "{title} {host} 트래픽 세부 정보",
     view: "보기",

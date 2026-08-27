@@ -5903,14 +5903,6 @@ export const enAdmin = {
     unavailable: "Location unavailable",
     loadFailed: "Failed to load active IPs",
   },
-  welcomeGuide: {
-    saveStatusFailed: "Failed to save welcome guide status",
-  },
-  welcomeScreen: {
-    title: "Welcome to fn-knock",
-    entering: "Entering...",
-    start: "Get started",
-  },
   hostTraffic: {
     detailsAria: "{title} {host} traffic details",
     view: "View",

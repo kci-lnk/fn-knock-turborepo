@@ -118,9 +118,6 @@ try {
   });
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
-  await context.addInitScript(() => {
-    window.localStorage.setItem("fn_knock:welcome-guide:completed", "1");
-  });
   const page = await context.newPage();
 
   await page.goto(runtime.adminUrl, { waitUntil: "domcontentloaded" });

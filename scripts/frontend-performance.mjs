@@ -197,9 +197,6 @@ const measure = async ({
 
 const setupAdminStorage = async (browser, adminUrl) => {
   const context = await browser.newContext();
-  await context.addInitScript(() => {
-    window.localStorage.setItem("fn_knock:welcome-guide:completed", "1");
-  });
   const page = await context.newPage();
   await page.goto(adminUrl, { waitUntil: "domcontentloaded" });
   const input = page.locator('input[autocomplete="new-password"]');
@@ -218,7 +215,6 @@ const initScript = () => {
       window.__fnKnockLongTaskTotal += entry.duration;
     }
   }).observe({ type: "longtask", buffered: true });
-  window.localStorage.setItem("fn_knock:welcome-guide:completed", "1");
   window.localStorage.setItem("fn-knock:locale", "zh-CN");
 };
 

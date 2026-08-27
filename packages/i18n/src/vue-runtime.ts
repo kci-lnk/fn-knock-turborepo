@@ -97,8 +97,27 @@ export const createScopedFnKnockI18n = async (
   scope: BrowserI18nScope,
   { defaultLocale }: Pick<CreateFnKnockI18nOptions, "defaultLocale"> = {},
 ) => {
-  const locale = detectBrowserLocale(defaultLocale);
-  await ensureScopedLocaleReady(scope, locale);
+  const preferredLocale = detectBrowserLocale(defaultLocale);
+  let locale = preferredLocale;
+  try {
+    await ensureScopedLocaleReady(scope, preferredLocale);
+  } catch (error) {
+    if (preferredLocale === DEFAULT_LOCALE) throw error;
+
+    // A persisted locale points at its own fingerprinted chunk. After an
+    // upgrade, an embedded browser can retain that preference while holding a
+    // stale document or a broken representation of the chunk. Keep the app
+    // mountable by falling back to the default locale. Persisting the fallback
+    // also prevents repeat failures in clients where browser storage is the
+    // active locale source.
+    console.warn(
+      `[i18n] failed to load ${scope} locale "${preferredLocale}"; falling back to "${DEFAULT_LOCALE}"`,
+      error,
+    );
+    await ensureScopedLocaleReady(scope, DEFAULT_LOCALE);
+    locale = DEFAULT_LOCALE;
+    persistBrowserLocale(DEFAULT_LOCALE);
+  }
   setActiveBrowserLocale(scope, locale);
   applyDocumentLocale(locale);
   return createI18n({

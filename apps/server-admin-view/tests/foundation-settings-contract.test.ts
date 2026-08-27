@@ -77,17 +77,13 @@ describe("foundation settings API contract", () => {
     );
   });
 
-  it("keeps welcome guide operations bound to the actual typed router", () => {
-    for (const [method, path] of [
-      ["get", "/api/admin/config/welcome_guide"],
-      ["post", "/api/admin/config/welcome_guide/complete"],
-    ] as const) {
-      assert.equal(
-        contract.paths[path]?.[method]?.["x-fn-knock-contract-source"],
-        "utoipa",
-        `${method.toUpperCase()} ${path}`,
-      );
-    }
+  it("does not publish the removed welcome guide contract", () => {
+    assert.equal(contract.paths["/api/admin/config/welcome_guide"], undefined);
+    assert.equal(
+      contract.paths["/api/admin/config/welcome_guide/complete"],
+      undefined,
+    );
+    assert.equal(contract.components.schemas.WelcomeGuideData, undefined);
   });
 
   it("keeps proxy protocol and run mode prompt settings bound to typed routers", () => {
@@ -322,7 +318,7 @@ describe("foundation settings API contract", () => {
     );
   });
 
-  it("preserves runtime modes, terminal bounds, and nullable completion time", () => {
+  it("preserves runtime modes and terminal bounds", () => {
     assert.deepEqual(
       contract.components.schemas.RunTypeUpdateData.properties?.run_type?.enum,
       [0, 1, 3],
@@ -337,11 +333,6 @@ describe("foundation settings API contract", () => {
         ?.maximum,
       12,
     );
-    assert.ok(
-      contract.components.schemas.WelcomeGuideData.required?.includes(
-        "completed_at",
-      ),
-    );
   });
 
   it("derives frontend models and requests from the generated contract", () => {
@@ -351,12 +342,12 @@ describe("foundation settings API contract", () => {
       readSource("../src/lib/api/config-core-api.ts");
 
     assert.match(types, /\["RunTypeUpdateData"\]\["run_type"\]/u);
-    assert.match(types, /\["WelcomeGuideData"\]/u);
     assert.match(types, /\["TerminalFeatureData"\]/u);
-    assert.doesNotMatch(types, /export interface WelcomeGuideStatus/u);
+    assert.doesNotMatch(types, /WelcomeGuideData|WelcomeGuideStatus/u);
     assert.doesNotMatch(types, /export interface TerminalFeatureConfig/u);
     assert.match(configApi, /\["CaptchaSettingsUpdateData"\]/u);
     assert.match(configApi, /\["AutoManageFirewallUpdateData"\]/u);
     assert.match(configApi, /\["TerminalFeatureUpdateData"\]/u);
+    assert.doesNotMatch(configApi, /welcome_guide|WelcomeGuide/u);
   });
 });

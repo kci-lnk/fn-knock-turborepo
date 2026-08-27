@@ -383,8 +383,6 @@ export const koKRServer = {
         "실행 모드 안내 기본 설정을 불러오지 못했습니다.",
       saveRunModePromptPreferencesFailed:
         "실행 모드 안내 기본 설정을 저장하지 못했습니다.",
-      loadWelcomeGuideFailed: "환영 가이드 상태를 불러오지 못했습니다.",
-      saveWelcomeGuideFailed: "환영 가이드 상태를 저장하지 못했습니다.",
     },
     captcha: {
       turnstileKeysRequired:

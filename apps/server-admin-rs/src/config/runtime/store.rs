@@ -157,35 +157,6 @@ pub(super) async fn load_run_mode_prompt_preferences(
     ))
 }
 
-pub(super) async fn load_welcome_guide_status(
-    state: &AppState,
-) -> crate::storage::StorageResult<Value> {
-    let raw = state
-        .storage
-        .store
-        .get_string_value(WELCOME_GUIDE_STATUS_KEY)
-        .await?;
-    Ok(match raw.as_deref() {
-        None => json!({ "completed": false, "completed_at": Value::Null }),
-        Some("1") | Some("true") => json!({ "completed": true, "completed_at": Value::Null }),
-        Some(value) => serde_json::from_str::<Value>(value)
-            .ok()
-            .map(|value| {
-                json!({
-                    "completed": value.get("completed").and_then(Value::as_bool).unwrap_or(false),
-                    "completed_at": value
-                        .get("completed_at")
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(|value| Value::String(value.to_string()))
-                        .unwrap_or(Value::Null),
-                })
-            })
-            .unwrap_or_else(|| json!({ "completed": false, "completed_at": Value::Null })),
-    })
-}
-
 pub(super) fn merge_object(target: &mut Value, patch: &Value) {
     let Some(target) = target.as_object_mut() else {
         return;

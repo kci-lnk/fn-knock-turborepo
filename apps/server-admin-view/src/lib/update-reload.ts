@@ -95,13 +95,28 @@ export const isDynamicImportFailure = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const name = error instanceof Error ? error.name : "";
   const description = `${name} ${message}`.toLowerCase();
-  return [
-    "failed to fetch dynamically imported module",
-    "importing a module script failed",
-    "error loading dynamically imported module",
-    "load failed for module with source",
-    "chunkloaderror",
-  ].some((fragment) => description.includes(fragment));
+  if (
+    [
+      "failed to fetch dynamically imported module",
+      "importing a module script failed",
+      "error loading dynamically imported module",
+      "load failed for module with source",
+      "chunkloaderror",
+    ].some((fragment) => description.includes(fragment))
+  ) {
+    return true;
+  }
+
+  // Chromium-based WebViews and older Safari builds can report a failed
+  // dynamic import as only a generic TypeError. Router errors and bootstrap
+  // errors reach this helper only while resolving an async module, so these
+  // otherwise ambiguous messages are safe to treat as chunk failures here.
+  const normalizedMessage = message.trim().toLowerCase();
+  return (
+    name.toLowerCase() === "typeerror" &&
+    (normalizedMessage === "failed to fetch" ||
+      normalizedMessage === "load failed")
+  );
 };
 
 const recentTimestamp = (

@@ -320,8 +320,6 @@ export const zhCNServer = {
       proxyProtocolForceBooleanRequired: "proxy_protocol_force 必须是布尔值",
       loadRunModePromptPreferencesFailed: "加载运行模式提示偏好失败",
       saveRunModePromptPreferencesFailed: "保存运行模式提示偏好失败",
-      loadWelcomeGuideFailed: "加载欢迎引导状态失败",
-      saveWelcomeGuideFailed: "保存欢迎引导状态失败",
     },
     captcha: {
       turnstileKeysRequired:

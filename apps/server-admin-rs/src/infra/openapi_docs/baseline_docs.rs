@@ -651,7 +651,6 @@ fn segment_label(segment: &str) -> String {
         "visibility" => "可见性".to_string(),
         "whitelist" => "白名单".to_string(),
         "web-status" => "Web 状态".to_string(),
-        "welcome_guide" => "欢迎引导".to_string(),
         "wol_feature" => "网络唤醒功能".to_string(),
         _ => segment.replace(['-', '_'], " "),
     }

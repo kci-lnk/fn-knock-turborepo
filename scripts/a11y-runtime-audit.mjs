@@ -230,16 +230,6 @@ const assertDocumentStructure = async (page, scope, expectedMain = true) => {
   assert(Boolean(structure.title), scope, "document title is empty");
 };
 
-const installCompletedWelcomeMock = async (page) => {
-  await page.route("**/api/admin/config/welcome_guide", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill(jsonResponse({ completed: true }));
-      return;
-    }
-    await route.fallback();
-  });
-};
-
 const scanAdminRoutes = async (browser, adminUrl) => {
   for (const colorScheme of ["light", "dark"]) {
     const context = await browser.newContext({
@@ -252,7 +242,6 @@ const scanAdminRoutes = async (browser, adminUrl) => {
     for (const routePath of adminRoutes) {
       const page = await context.newPage();
       const scope = `admin ${colorScheme} ${routePath}`;
-      await installCompletedWelcomeMock(page);
       try {
         await page.goto(`${adminUrl}/#${routePath}`, {
           waitUntil: "domcontentloaded",
@@ -291,7 +280,6 @@ const testAdminInteractiveAffordances = async (browser, adminUrl) => {
       });
       const page = await context.newPage();
       const scope = `admin affordances ${viewport.label} ${colorScheme}`;
-      await installCompletedWelcomeMock(page);
       await page.route("**/api/admin/totp/status", (route) =>
         route.fulfill(
           jsonResponse({
@@ -351,7 +339,6 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
     viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
-  await installCompletedWelcomeMock(page);
   await page.goto(`${adminUrl}/#/`, { waitUntil: "domcontentloaded" });
   await page.locator("#main-content").waitFor({ state: "attached" });
 
@@ -439,69 +426,6 @@ const testAdminKeyboardFlow = async (browser, adminUrl) => {
   await context.close();
 };
 
-const testWelcomeDialog = async (browser, adminUrl) => {
-  const context = await browser.newContext({
-    reducedMotion: "reduce",
-    viewport: { width: 1440, height: 900 },
-  });
-  const page = await context.newPage();
-  await page.route("**/api/admin/config/welcome_guide/complete", (route) =>
-    route.fulfill(jsonResponse({ completed: true })),
-  );
-  await page.route("**/api/admin/config/welcome_guide", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill(jsonResponse({ completed: false }));
-      return;
-    }
-    await route.fallback();
-  });
-  await page.goto(`${adminUrl}/#/`, { waitUntil: "domcontentloaded" });
-  const dialog = page.locator('dialog[aria-modal="true"]');
-  await dialog.waitFor({ state: "visible" });
-  await dialog.locator("button").waitFor({ state: "visible" });
-
-  const initialState = await page.evaluate(() => ({
-    activeInside: Boolean(document.activeElement?.closest("dialog")),
-    backgroundHidden:
-      document.querySelector(".contents")?.getAttribute("aria-hidden") ===
-      "true",
-    backgroundInert:
-      document.querySelector(".contents")?.hasAttribute("inert") === true,
-  }));
-  assert(
-    initialState.activeInside,
-    "admin welcome dialog",
-    "initial focus is outside",
-  );
-  assert(
-    initialState.backgroundHidden && initialState.backgroundInert,
-    "admin welcome dialog",
-    "background content is not hidden and inert",
-  );
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Shift+Tab");
-  assert(
-    await page.evaluate(() =>
-      Boolean(document.activeElement?.closest("dialog")),
-    ),
-    "admin welcome dialog",
-    "focus escaped the welcome dialog",
-  );
-  await auditPage(page, "admin welcome dialog");
-  await dialog.locator("button").click();
-  await dialog.waitFor({ state: "hidden" });
-  assert(
-    await page.evaluate(
-      () =>
-        document.activeElement?.id === "main-content" &&
-        !document.querySelector(".contents")?.hasAttribute("inert"),
-    ),
-    "admin welcome dialog",
-    "focus or background state was not restored",
-  );
-  await context.close();
-};
-
 const automaticBackupDetails = {
   config: {
     enabled: false,
@@ -527,7 +451,6 @@ const testAutomaticBackupSettings = async (browser, adminUrl) => {
       viewport: { width: 1440, height: 900 },
     });
     const page = await context.newPage();
-    await installCompletedWelcomeMock(page);
     await page.route(
       "**/api/admin/maintenance/backup/automatic",
       async (route) => {
@@ -834,7 +757,6 @@ try {
   await scanAuthLoginStates(browser, runtime.authUrl);
   if (!affordanceOnly) {
     await testAdminKeyboardFlow(browser, runtime.adminUrl);
-    await testWelcomeDialog(browser, runtime.adminUrl);
     await testAutomaticBackupSettings(browser, runtime.adminUrl);
     await testAuthHomeDialog(browser, runtime.authUrl);
     await scanAuthRoutes(browser, runtime.authUrl);

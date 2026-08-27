@@ -112,7 +112,6 @@ pub(crate) fn build_openapi_document() -> Value {
     let typed_fnos_share_bypass = crate::runtime_config::fnos_share_bypass_routes().into_openapi();
     let typed_smart_connect = crate::runtime_config::smart_connect_config_routes().into_openapi();
     let typed_terminal_feature = crate::runtime_config::terminal_feature_routes().into_openapi();
-    let typed_welcome_guide = crate::runtime_config::welcome_guide_routes().into_openapi();
     let typed_proxy_protocol_force =
         crate::runtime_config::proxy_protocol_force_routes().into_openapi();
     let typed_run_mode_prompt_preferences =
@@ -2955,15 +2954,6 @@ pub(crate) fn build_openapi_document() -> Value {
     );
     insert_typed_enveloped_operation(
         &mut paths,
-        &typed_welcome_guide,
-        "/api/admin/config/welcome_guide",
-        "get",
-        "WelcomeGuideData",
-        None,
-        None,
-    );
-    insert_typed_enveloped_operation(
-        &mut paths,
         &typed_proxy_protocol_force,
         "/api/admin/config/proxy_protocol_force",
         "get",
@@ -3782,16 +3772,6 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
         None,
     );
-    insert_typed_enveloped_operation(
-        &mut paths,
-        &typed_welcome_guide,
-        "/api/admin/config/welcome_guide/complete",
-        "post",
-        "WelcomeGuideData",
-        None,
-        None,
-    );
-
     domain_contracts::apply(&mut paths);
     promote_typed_operations(
         &mut paths,
@@ -4739,7 +4719,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 443);
+        assert_eq!(operations, 441);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -4850,8 +4830,6 @@ mod tests {
             ("/api/admin/config/smart_connect", "post"),
             ("/api/admin/config/terminal_feature", "get"),
             ("/api/admin/config/terminal_feature", "post"),
-            ("/api/admin/config/welcome_guide", "get"),
-            ("/api/admin/config/welcome_guide/complete", "post"),
             ("/api/admin/config/proxy_protocol_force", "get"),
             ("/api/admin/config/proxy_protocol_force", "post"),
             ("/api/admin/config/run_mode_prompt_preferences", "get"),
@@ -5035,16 +5013,6 @@ mod tests {
                 "/api/admin/config/terminal_feature",
                 "post",
                 "post_api_admin_config_terminal_feature",
-            ),
-            (
-                "/api/admin/config/welcome_guide",
-                "get",
-                "get_api_admin_config_welcome_guide",
-            ),
-            (
-                "/api/admin/config/welcome_guide/complete",
-                "post",
-                "post_api_admin_config_welcome_guide_complete",
             ),
             (
                 "/api/admin/config/proxy_protocol_force",
@@ -5434,7 +5402,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 443);
+        assert_eq!(operations.len(), 441);
         assert!(
             operations
                 .iter()
@@ -5528,11 +5496,6 @@ mod tests {
                 .pointer("/components/schemas/TerminalFeatureData/properties/max_sessions/maximum"),
             Some(&json!(12))
         );
-        let welcome_required = document
-            .pointer("/components/schemas/WelcomeGuideData/required")
-            .and_then(Value::as_array)
-            .expect("welcome guide required fields");
-        assert!(welcome_required.iter().any(|field| field == "completed_at"));
         assert_eq!(
             document.pointer(
                 "/paths/~1api~1admin~1config~1appearance/post/requestBody/content/application~1json/schema/$ref"

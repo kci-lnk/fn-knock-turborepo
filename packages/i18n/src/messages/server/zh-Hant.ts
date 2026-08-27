@@ -320,8 +320,6 @@ export const zhHantServer = {
       proxyProtocolForceBooleanRequired: "proxy_protocol_force 必須是布林值",
       loadRunModePromptPreferencesFailed: "載入運行模式提示偏好失敗",
       saveRunModePromptPreferencesFailed: "保存運行模式提示偏好失敗",
-      loadWelcomeGuideFailed: "載入歡迎引導狀態失敗",
-      saveWelcomeGuideFailed: "保存歡迎引導狀態失敗",
     },
     captcha: {
       turnstileKeysRequired:

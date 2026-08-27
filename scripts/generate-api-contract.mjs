@@ -60,8 +60,6 @@ function validateContract(openapiPath) {
     ],
     ["get /api/admin/config/terminal_feature", null],
     ["post /api/admin/config/terminal_feature", "TerminalFeatureUpdateData"],
-    ["get /api/admin/config/welcome_guide", null],
-    ["post /api/admin/config/welcome_guide/complete", null],
     ["get /api/admin/config/appearance", null],
     ["post /api/admin/config/appearance", "PanelAppearanceData"],
     ["get /api/admin/config/auto_https", null],
@@ -843,11 +841,6 @@ function validateContract(openapiPath) {
     terminalData.idle_timeout_seconds?.maximum !== 604_800
   ) {
     throw new Error("terminal feature bounds are out of sync");
-  }
-  const welcomeRequired =
-    document.components?.schemas?.WelcomeGuideData?.required ?? [];
-  if (!welcomeRequired.includes("completed_at")) {
-    throw new Error("welcome guide must always emit nullable completed_at");
   }
   const appearancePresets =
     document.components?.schemas?.PanelAppearanceData?.properties

@@ -384,8 +384,6 @@ export const enServer = {
         "Failed to load run mode prompt preferences",
       saveRunModePromptPreferencesFailed:
         "Failed to save run mode prompt preferences",
-      loadWelcomeGuideFailed: "Failed to load welcome guide status",
-      saveWelcomeGuideFailed: "Failed to save welcome guide status",
     },
     captcha: {
       turnstileKeysRequired:

@@ -91,13 +91,6 @@ pub(super) struct TerminalFeatureUpdateData {
 }
 
 #[derive(Serialize, ToSchema)]
-pub(super) struct WelcomeGuideData {
-    completed: bool,
-    #[schema(required = true)]
-    completed_at: Option<String>,
-}
-
-#[derive(Serialize, ToSchema)]
 pub(super) struct AutoHttpsConfigData {
     enabled: bool,
 }

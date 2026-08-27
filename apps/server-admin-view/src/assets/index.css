@@ -186,6 +186,13 @@
   * {
     @apply border-border outline-ring/50;
   }
+  a,
+  button,
+  [role="button"] {
+    /* Ask embedded mobile browsers to dispatch taps as activation gestures
+       instead of waiting for a possible double-tap zoom gesture. */
+    touch-action: manipulation;
+  }
   button:not(:disabled),
   [role="button"]:not(button):not([aria-disabled="true"]) {
     cursor: pointer;

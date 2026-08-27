@@ -2614,46 +2614,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/config/welcome_guide": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 查看系统配置欢迎引导
-         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/welcome_guide` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        get: operations["get_api_admin_config_welcome_guide"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/config/welcome_guide/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 完成系统配置欢迎引导
-         * @description 读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/welcome_guide/complete` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
-         */
-        post: operations["post_api_admin_config_welcome_guide_complete"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/config/wol_feature": {
         parameters: {
             query?: never;
@@ -12749,11 +12709,6 @@ export interface components {
             content_base64: string;
             filename: string;
         };
-        WelcomeGuideData: {
-            completed: boolean;
-            /** Format: date-time */
-            completed_at: string | null;
-        };
         WhitelistAddBodyData: {
             /** Format: int64 */
             checkIntervalMinutes?: number | null;
@@ -19302,78 +19257,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["TerminalFeatureData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    get_api_admin_config_welcome_guide: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「查看系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["WelcomeGuideData"];
-                        message?: string | null;
-                        /** @constant */
-                        success: true;
-                    } & {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorEnvelope"];
-                };
-            };
-        };
-    };
-    post_api_admin_config_welcome_guide_complete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 「完成系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        data: components["schemas"]["WelcomeGuideData"];
                         message?: string | null;
                         /** @constant */
                         success: true;

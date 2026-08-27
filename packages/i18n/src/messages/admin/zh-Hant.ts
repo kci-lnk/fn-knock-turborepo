@@ -5402,14 +5402,6 @@ export const zhHantAdmin = {
     unavailable: "屬地暫未取得",
     loadFailed: "活躍 IP 載入失敗",
   },
-  welcomeGuide: {
-    saveStatusFailed: "保存歡迎嚮導狀態失敗",
-  },
-  welcomeScreen: {
-    title: "歡迎使用 fn-knock",
-    entering: "正在進入...",
-    start: "開始使用",
-  },
   hostTraffic: {
     detailsAria: "{title} {host} 流量詳情",
     view: "查看",

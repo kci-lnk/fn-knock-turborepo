@@ -91,6 +91,12 @@ describe("FPK update reload", () => {
       ),
       true,
     );
+    assert.equal(
+      isDynamicImportFailure(new TypeError("Failed to fetch")),
+      true,
+    );
+    assert.equal(isDynamicImportFailure(new TypeError("Load failed")), true);
+    assert.equal(isDynamicImportFailure(new TypeError("Invalid URL")), false);
     const chunkError = new Error("Loading an application route failed");
     chunkError.name = "ChunkLoadError";
     assert.equal(isDynamicImportFailure(chunkError), true);

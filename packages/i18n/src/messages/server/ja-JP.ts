@@ -399,8 +399,6 @@ export const jaJPServer = {
         "動作モード案内設定の読み込みに失敗しました",
       saveRunModePromptPreferencesFailed:
         "動作モード案内設定の保存に失敗しました",
-      loadWelcomeGuideFailed: "ウェルカムガイド状態の読み込みに失敗しました",
-      saveWelcomeGuideFailed: "ウェルカムガイド状態の保存に失敗しました",
     },
     captcha: {
       turnstileKeysRequired:

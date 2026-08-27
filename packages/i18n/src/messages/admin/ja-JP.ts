@@ -5904,14 +5904,6 @@ export const jaJPAdmin = {
     unavailable: "位置情報を取得できません",
     loadFailed: "アクティブ IP の読み込みに失敗しました",
   },
-  welcomeGuide: {
-    saveStatusFailed: "ウェルカムガイドの状態を保存できませんでした",
-  },
-  welcomeScreen: {
-    title: "fn-knock へようこそ",
-    entering: "移動中...",
-    start: "始めましょう",
-  },
   hostTraffic: {
     detailsAria: "{title} {host} のトラフィック詳細",
     view: "表示",

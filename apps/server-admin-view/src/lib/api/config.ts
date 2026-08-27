@@ -116,7 +116,6 @@ export type {
   TOTPSubdomainAccess,
   TOTPAccessScope,
   UrlMetadataPreview,
-  WelcomeGuideStatus,
 } from "../../types";
 
 export const MaintenanceAPI = {

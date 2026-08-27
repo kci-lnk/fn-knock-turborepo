@@ -52,7 +52,6 @@ pub(crate) const POW_DEFAULT_BASE_MAX_NUMBER: i64 = 100_000;
 pub(crate) const POW_DEFAULT_UNCOMMON_MAX_NUMBER: i64 = 300_000;
 const PROTOCOL_MAPPING_FEATURE_KEY: &str = "fn_knock:protocol-mapping:feature";
 const RUN_MODE_PROMPT_PREFERENCES_KEY: &str = "fn_knock:run-mode:prompt-preferences";
-const WELCOME_GUIDE_STATUS_KEY: &str = "fn_knock:welcome-guide:status";
 const SMART_CONNECT_RUNTIME_KEY: &str = "fn_knock:smart-connect:runtime";
 const LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY: &str =
     "fn_knock:patch:reverse-proxy-throttle:v1";
@@ -138,12 +137,6 @@ pub(crate) fn fnos_share_bypass_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(get_fnos_share_bypass))
         .routes(routes!(update_fnos_share_bypass))
-}
-
-pub(crate) fn welcome_guide_routes() -> OpenApiRouter<AppState> {
-    OpenApiRouter::new()
-        .routes(routes!(get_welcome_guide))
-        .routes(routes!(complete_welcome_guide))
 }
 
 pub fn terminal_feature_routes() -> OpenApiRouter<AppState> {

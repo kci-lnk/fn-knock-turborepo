@@ -23236,25 +23236,6 @@
         ],
         "type": "object"
       },
-      "WelcomeGuideData": {
-        "properties": {
-          "completed": {
-            "type": "boolean"
-          },
-          "completed_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "completed",
-          "completed_at"
-        ],
-        "type": "object"
-      },
       "WhitelistAddBodyData": {
         "properties": {
           "checkIntervalMinutes": {
@@ -34290,112 +34271,6 @@
           }
         },
         "summary": "提交系统配置终端功能",
-        "tags": [
-          "config"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
-    "/api/admin/config/welcome_guide": {
-      "get": {
-        "description": "读取和更新管理端、网关、安全及平台功能的配置。。`GET /api/admin/config/welcome_guide` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "get_api_admin_config_welcome_guide",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/WelcomeGuideData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「查看系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "查看系统配置欢迎引导",
-        "tags": [
-          "config"
-        ],
-        "x-fn-knock-contract-source": "utoipa"
-      }
-    },
-    "/api/admin/config/welcome_guide/complete": {
-      "post": {
-        "description": "读取和更新管理端、网关、安全及平台功能的配置。。`POST /api/admin/config/welcome_guide/complete` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
-        "operationId": "post_api_admin_config_welcome_guide_complete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/WelcomeGuideData"
-                    },
-                    "message": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "success": {
-                      "const": true,
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "「完成系统配置欢迎引导」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
-          }
-        },
-        "summary": "完成系统配置欢迎引导",
         "tags": [
           "config"
         ],

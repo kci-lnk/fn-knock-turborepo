@@ -764,7 +764,6 @@ struct BackupImportResultData {
     AutoManageFirewallData,
     TerminalFeatureData,
     TerminalFeatureUpdateData,
-    WelcomeGuideData,
     AutoHttpsConfigData,
     AutoHttpsUpdateData,
     AutoHttpsRuntimeData,
@@ -2026,13 +2025,6 @@ pub(super) fn components() -> Map<String, Value> {
             json!(7 * 24 * 60 * 60),
         );
     }
-    set_property_metadata(
-        &mut schemas,
-        "WelcomeGuideData",
-        "completed_at",
-        "format",
-        json!("date-time"),
-    );
     set_property_enum(
         &mut schemas,
         "AutoHttpsRuntimeData",

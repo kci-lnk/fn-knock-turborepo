@@ -121,6 +121,9 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:waf:log:",
     "fn_knock:waf:logs:",
     "fn_knock:waf:stats:",
+    // Databases upgraded from releases with the removed Welcome guide can
+    // still contain this obsolete marker. Keep it quarantined from exports so
+    // backups cannot reintroduce the deleted feature state.
     "fn_knock:welcome-guide:",
 ];
 

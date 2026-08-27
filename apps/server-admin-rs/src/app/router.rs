@@ -42,7 +42,7 @@ use crate::{
         fnos_port_icon_hijack_routes, fnos_share_bypass_routes, protocol_mapping_feature_routes,
         proxy_protocol_force_routes, run_mode_prompt_preferences_routes, run_type_config_routes,
         smart_connect_config_routes, sync_routes_config_routes, terminal_feature_routes,
-        welcome_guide_routes, wol_feature_config_routes,
+        wol_feature_config_routes,
     },
     runtime_health::routes::runtime_health_routes,
     runtime_profile,
@@ -95,7 +95,6 @@ fn backend_router_with_capabilities(
     let fnos_port_icon_hijack_routes: Router<AppState> = fnos_port_icon_hijack_routes().into();
     let fnos_network_tuning_routes: Router<AppState> = fnos_network_tuning_routes().into();
     let fnos_share_bypass_routes: Router<AppState> = fnos_share_bypass_routes().into();
-    let welcome_guide_routes: Router<AppState> = welcome_guide_routes().into();
     let proxy_protocol_force_routes: Router<AppState> = proxy_protocol_force_routes().into();
     let run_mode_prompt_preferences_routes: Router<AppState> =
         run_mode_prompt_preferences_routes().into();
@@ -121,7 +120,6 @@ fn backend_router_with_capabilities(
         .merge(fnos_port_icon_hijack_routes)
         .merge(fnos_network_tuning_routes)
         .merge(fnos_share_bypass_routes)
-        .merge(welcome_guide_routes)
         .merge(proxy_protocol_force_routes)
         .merge(run_mode_prompt_preferences_routes)
         .merge(protocol_mapping_feature_routes)
@@ -669,7 +667,31 @@ mod tests {
             }
         }
 
-        assert_eq!(checked, 443, "all OpenAPI operations should be probed");
+        assert_eq!(checked, 441, "all OpenAPI operations should be probed");
+    }
+
+    #[tokio::test]
+    async fn removed_welcome_guide_routes_return_not_found() {
+        let (_directory, state) = openwrt_test_state().await;
+        let app = backend_router(state, false);
+
+        for (method, path) in [
+            (Method::GET, "/api/admin/config/welcome_guide"),
+            (Method::POST, "/api/admin/config/welcome_guide/complete"),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .expect("removed welcome guide route request"),
+                )
+                .await
+                .expect("removed welcome guide route response");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+        }
     }
 
     #[tokio::test]

@@ -149,7 +149,7 @@
         </div>
 
         <OidcProviderButtons
-          v-if="!isCaptchaVerified && oidcProviders.length > 0"
+          v-if="oidcProviders.length > 0"
           :active-provider-id="activeOidcProviderId"
           :disabled="isOidcLoading || isLoginCoolingDown"
           :is-loading="isOidcLoading"

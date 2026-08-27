@@ -20,6 +20,8 @@ const compressibleExtensions = new Set([
 const MAX_INITIAL_SCRIPT_BROTLI = 100 * 1024;
 const MAX_ADMIN_ENTRY_IMPORTS = 16;
 const MAX_ADMIN_HTML_MODULE_PRELOADS = 8;
+const MAX_AUTH_ENTRY_IMPORTS = 0;
+const MAX_AUTH_HTML_MODULE_PRELOADS = 0;
 
 const apps = [
   {
@@ -44,16 +46,19 @@ const apps = [
       {
         name: "Home+zh-CN",
         limit: 125 * 1024,
+        fileLimit: 8,
         sources: ["/src/views/Home.vue", "/messages/scopes/auth/zh-CN.ts"],
       },
       {
         name: "LoginBase+zh-CN",
         limit: 155 * 1024,
+        fileLimit: 9,
         sources: ["/src/views/Login.vue", "/messages/scopes/auth/zh-CN.ts"],
       },
       {
         name: "Login+ALTCHA+zh-CN",
         limit: 180 * 1024,
+        fileLimit: 10,
         sources: [
           "/src/views/Login.vue",
           "/messages/scopes/auth/zh-CN.ts",
@@ -63,6 +68,7 @@ const apps = [
       {
         name: "Login+PoW+zh-CN",
         limit: 175 * 1024,
+        fileLimit: 10,
         sources: ["/src/views/Login.vue", "/messages/scopes/auth/zh-CN.ts"],
         files: [/pow\.worker[^/]*\.js$/u],
       },
@@ -121,6 +127,24 @@ for (const app of apps) {
     if (modulePreloads > MAX_ADMIN_HTML_MODULE_PRELOADS) {
       console.error(
         `[frontend-budget] admin HTML has ${modulePreloads} module preloads (limit ${MAX_ADMIN_HTML_MODULE_PRELOADS})`,
+      );
+      failed = true;
+    }
+  }
+  if (app.name === "auth") {
+    const entryImports = manifest[entryKey].imports?.length ?? 0;
+    if (entryImports > MAX_AUTH_ENTRY_IMPORTS) {
+      console.error(
+        `[frontend-budget] auth entry has ${entryImports} direct imports (limit ${MAX_AUTH_ENTRY_IMPORTS})`,
+      );
+      failed = true;
+    }
+
+    const html = readFileSync(path.join(directory, "index.html"), "utf8");
+    const modulePreloads = html.match(/rel=["']modulepreload["']/gu)?.length ?? 0;
+    if (modulePreloads > MAX_AUTH_HTML_MODULE_PRELOADS) {
+      console.error(
+        `[frontend-budget] auth HTML has ${modulePreloads} module preloads (limit ${MAX_AUTH_HTML_MODULE_PRELOADS})`,
       );
       failed = true;
     }

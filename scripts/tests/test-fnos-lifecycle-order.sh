@@ -90,6 +90,9 @@ grep -Fq 'fn_connect_waf_rules_absent' "${MAIN_ENTRYPOINT}" || \
 
 deploy_source="$(cat "${DEPLOY_SCRIPT}")"
 printf '%s\n' "${deploy_source}" | grep -Fq \
+  'REMOTE_LIFECYCLE_MAIN="/var/apps/${APP_NAME}/cmd/main"' || \
+  fail 'remote deploy must stage lifecycle scripts in the fnOS App Center metadata directory'
+printf '%s\n' "${deploy_source}" | grep -Fq \
   'Stage the packaged lifecycle entrypoint for upgrade compatibility' || \
   fail 'remote deploy no longer stages the fixed lifecycle before stopping an old app'
 if printf '%s\n' "${deploy_source}" | grep -Eq \

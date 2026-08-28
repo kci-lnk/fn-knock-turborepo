@@ -30,8 +30,8 @@
           <div class="border-b px-4 py-3 text-sm font-semibold">
             {{ t("admin.nav.navigationMenu") }}
           </div>
-          <nav
-            class="flex-1 space-y-2 overflow-y-auto p-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          <LayoutScrollArea
+            hint-on-mount class="flex-1" content-class="space-y-2 p-3"
             :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
           >
             <Button
@@ -44,7 +44,7 @@
               <component :is="item.icon" class="h-4 w-4" />
               <span>{{ item.name }}</span>
             </Button>
-          </nav>
+          </LayoutScrollArea>
           <div class="border-t p-3">
             <div class="mb-5 flex justify-center gap-2">
               <ThemeModeToggle />
@@ -120,8 +120,7 @@
         class="hidden shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)] sm:w-36 md:w-[9.25rem] xl:w-[9.5rem]"
       >
         <div class="flex h-full min-h-0 flex-col gap-3">
-          <nav
-            class="flex min-h-0 flex-1 flex-col items-stretch gap-1.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          <LayoutScrollArea class="min-h-0 flex-1" content-class="flex min-h-full flex-col items-stretch gap-1.5"
             :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
           >
             <Button
@@ -139,7 +138,7 @@
               <component :is="item.icon" class="h-4 w-4 shrink-0" />
               <span class="min-w-0 truncate">{{ item.name }}</span>
             </Button>
-          </nav>
+          </LayoutScrollArea>
           <div>
             <div class="mb-5 flex justify-center gap-2">
               <ThemeModeToggle />
@@ -275,6 +274,7 @@ import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
+import LayoutScrollArea from "./layout/LayoutScrollArea.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";

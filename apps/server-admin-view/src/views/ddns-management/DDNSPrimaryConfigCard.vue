@@ -218,26 +218,25 @@ const { t } = useI18n();
     <template #actions="{ collapse }">
       <FloatingActionDock
         :active="isDirty"
-        inline-class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-between gap-2 sm:justify-end sm:gap-3 rounded-b-lg"
+        inline-class="grid grid-cols-2 gap-2 border-t bg-muted/30 p-4 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4 rounded-b-lg"
+        floating-class="w-full sm:w-fit"
       >
         <template #inline>
           <Button
             variant="outline"
-            class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
+            class="h-10 w-full gap-2 px-3 sm:h-9 sm:w-auto sm:px-4"
             :aria-label="t('admin.ddns.collapse')"
             :title="t('admin.ddns.collapse')"
             @click="collapse"
           >
-            <ChevronUp class="h-4 w-4 sm:hidden" />
-            <span class="hidden sm:inline">
-              {{ t("admin.ddns.collapse") }}
-            </span>
+            <ChevronUp class="h-4 w-4 shrink-0" />
+            {{ t("admin.ddns.collapse") }}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
                 variant="outline"
-                class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-24 sm:gap-2 sm:px-4"
+                class="h-10 w-full gap-2 px-3 sm:h-9 sm:w-24 sm:px-4"
                 :aria-label="t('admin.ddns.actions')"
                 :title="t('admin.ddns.actions')"
                 :disabled="
@@ -247,9 +246,7 @@ const { t } = useI18n();
                 "
               >
                 <Ellipsis class="h-4 w-4 sm:hidden" />
-                <span class="hidden sm:inline">
-                  {{ t("admin.ddns.actions") }}
-                </span>
+                {{ t("admin.ddns.actions") }}
                 <ChevronDown
                   class="hidden h-4 w-4 text-muted-foreground sm:block"
                 />
@@ -273,10 +270,10 @@ const { t } = useI18n();
             :aria-label="t('common.cancel')"
             :title="t('common.cancel')"
             @click="emit('cancel')"
-            class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
+            class="h-10 w-full gap-2 px-3 sm:h-9 sm:w-auto sm:px-4"
           >
-            <Undo2 class="h-4 w-4" />
-            <span class="hidden sm:inline">{{ t("common.cancel") }}</span>
+            <Undo2 class="h-4 w-4 shrink-0" />
+            {{ t("common.cancel") }}
           </Button>
           <Button
             v-if="isDirty"
@@ -285,13 +282,11 @@ const { t } = useI18n();
             :aria-label="isSaving ? t('admin.ddns.saving') : t('common.save')"
             :title="isSaving ? t('admin.ddns.saving') : t('common.save')"
             @click="emit('save')"
-            class="h-10 w-10 min-w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:min-w-[88px] sm:gap-2 sm:px-4"
+            class="h-10 w-full gap-2 px-3 sm:h-9 sm:w-auto sm:min-w-[88px] sm:px-4"
           >
-            <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
-            <Save v-else class="h-4 w-4" />
-            <span class="hidden sm:inline">
-              {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
-            </span>
+            <RefreshCw v-if="isSaving" class="h-4 w-4 shrink-0 animate-spin" />
+            <Save v-else class="h-4 w-4 shrink-0" />
+            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
           </Button>
           <Button
             :disabled="isTesting || isSaving || !selectedProvider"
@@ -306,17 +301,17 @@ const { t } = useI18n();
                 : t('admin.ddns.saveAndUpdate')
             "
             @click="emit('test')"
-            class="h-10 w-10 min-w-10 shrink-0 gap-0 px-0 shadow-sm sm:h-9 sm:w-auto sm:min-w-[100px] sm:gap-2 sm:px-4"
+            class="col-span-2 h-10 w-full gap-2 px-4 shadow-sm sm:col-auto sm:h-9 sm:w-auto sm:min-w-[100px]"
           >
-            <RefreshCw v-if="isTesting" class="h-4 w-4 animate-spin" />
-            <RefreshCw v-else class="h-4 w-4 sm:hidden" />
-            <span class="hidden sm:inline">
-              {{
-                isTesting
-                  ? t("admin.ddns.updating")
-                  : t("admin.ddns.saveAndUpdate")
-              }}
-            </span>
+            <RefreshCw
+              class="h-4 w-4 shrink-0"
+              :class="isTesting ? 'animate-spin' : ''"
+            />
+            {{
+              isTesting
+                ? t("admin.ddns.updating")
+                : t("admin.ddns.saveAndUpdate")
+            }}
           </Button>
         </template>
 
@@ -328,10 +323,10 @@ const { t } = useI18n();
             :aria-label="t('common.cancel')"
             :title="t('common.cancel')"
             @click="emit('cancel')"
-            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
+            class="h-10 min-w-0 flex-1 gap-2 border-white/20 bg-transparent px-3 text-white hover:bg-white/10 hover:text-white sm:h-9 sm:min-w-[5.65rem] sm:flex-none sm:px-[1.15rem]"
           >
-            <Undo2 class="h-4 w-4" />
-            <span class="hidden sm:inline">{{ t("common.cancel") }}</span>
+            <Undo2 class="h-4 w-4 shrink-0" />
+            {{ t("common.cancel") }}
           </Button>
           <Button
             v-if="isDirty"
@@ -340,13 +335,11 @@ const { t } = useI18n();
             :aria-label="isSaving ? t('admin.ddns.saving') : t('common.save')"
             :title="isSaving ? t('admin.ddns.saving') : t('common.save')"
             @click="emit('save')"
-            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
+            class="h-10 min-w-0 flex-1 gap-2 border-white/20 bg-transparent px-3 text-white hover:bg-white/10 hover:text-white sm:h-9 sm:min-w-[5.65rem] sm:flex-none sm:px-[1.15rem]"
           >
-            <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
-            <Save v-else class="h-4 w-4" />
-            <span class="hidden sm:inline">
-              {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
-            </span>
+            <RefreshCw v-if="isSaving" class="h-4 w-4 shrink-0 animate-spin" />
+            <Save v-else class="h-4 w-4 shrink-0" />
+            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
           </Button>
           <Button
             :disabled="isTesting || isSaving || !selectedProvider"
@@ -361,17 +354,17 @@ const { t } = useI18n();
                 : t('admin.ddns.saveAndUpdate')
             "
             @click="emit('test')"
-            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 shadow-sm sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
+            class="h-10 w-full basis-full gap-2 px-4 shadow-sm sm:h-9 sm:w-auto sm:min-w-[5.65rem] sm:basis-auto sm:px-[1.15rem]"
           >
-            <RefreshCw v-if="isTesting" class="h-4 w-4 animate-spin" />
-            <RefreshCw v-else class="h-4 w-4 sm:hidden" />
-            <span class="hidden sm:inline">
-              {{
-                isTesting
-                  ? t("admin.ddns.updating")
-                  : t("admin.ddns.saveAndUpdate")
-              }}
-            </span>
+            <RefreshCw
+              class="h-4 w-4 shrink-0"
+              :class="isTesting ? 'animate-spin' : ''"
+            />
+            {{
+              isTesting
+                ? t("admin.ddns.updating")
+                : t("admin.ddns.saveAndUpdate")
+            }}
           </Button>
         </template>
       </FloatingActionDock>

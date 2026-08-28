@@ -18,26 +18,30 @@
   }
 }
 
-.sidebar-menu-editing > button {
+.sidebar-menu-editing .layout-scroll-area__viewport > button {
   transform-origin: center;
   animation: sidebar-menu-item-wiggle 220ms ease-in-out infinite;
   will-change: transform;
 }
 
-.sidebar-menu-editing > button:nth-child(2n) {
+.sidebar-menu-editing .layout-scroll-area__viewport > button:nth-child(2n) {
   animation-direction: reverse;
 }
 
-.sidebar-menu-editing > button:nth-child(3n + 1) {
+.sidebar-menu-editing
+  .layout-scroll-area__viewport
+  > button:nth-child(3n + 1) {
   animation-delay: -57ms;
 }
 
-.sidebar-menu-editing > button:nth-child(3n + 2) {
+.sidebar-menu-editing
+  .layout-scroll-area__viewport
+  > button:nth-child(3n + 2) {
   animation-delay: -113ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar-menu-editing > button {
+  .sidebar-menu-editing .layout-scroll-area__viewport > button {
     animation: none;
   }
 }

@@ -2,6 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import type { SidebarNavItemId } from "../src/types";
 import {
@@ -15,6 +16,24 @@ import {
 const item = (id: SidebarNavItemId) => ({ id });
 
 describe("sidebar navigation order", () => {
+  it("uses a reliable interaction-revealed scrollbar in both layout menus", () => {
+    const layoutSource = readFileSync(
+      new URL("../src/views/Layout.vue", import.meta.url),
+      "utf8",
+    );
+    const scrollAreaSource = readFileSync(
+      new URL("../src/views/layout/LayoutScrollArea.vue", import.meta.url),
+      "utf8",
+    );
+
+    assert.equal(layoutSource.match(/<LayoutScrollArea/g)?.length, 2);
+    assert.match(layoutSource, /hint-on-mount/u);
+    assert.match(scrollAreaSource, /scrollHeight > clientHeight \+ 1/u);
+    assert.match(scrollAreaSource, /isScrolling\.value = true/u);
+    assert.match(scrollAreaSource, /setPointerCapture/u);
+    assert.match(scrollAreaSource, /rgb\(0 0 0 \/ 16%\)/u);
+  });
+
   it("keeps deep monitoring under subdomain mappings instead of the sidebar", () => {
     assert.equal(
       (DEFAULT_SIDEBAR_MENU_ORDER as readonly string[]).includes(

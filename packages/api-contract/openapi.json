@@ -47854,7 +47854,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端control」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「接管Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -47867,7 +47867,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端control",
+        "summary": "接管Web 终端附件",
         "tags": [
           "terminal"
         ],
@@ -48484,7 +48484,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端probe host key」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「探测主机密钥Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -48497,7 +48497,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端probe host key",
+        "summary": "探测主机密钥Web 终端目标",
         "tags": [
           "terminal"
         ],
@@ -48547,7 +48547,7 @@
                 }
               }
             },
-            "description": "「提交Web 终端test connection」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+            "description": "「测试连接Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
           },
           "default": {
             "content": {
@@ -48560,7 +48560,7 @@
             "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
           }
         },
-        "summary": "提交Web 终端test connection",
+        "summary": "测试连接Web 终端目标",
         "tags": [
           "terminal"
         ],

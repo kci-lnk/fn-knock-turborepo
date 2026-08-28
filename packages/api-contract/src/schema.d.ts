@@ -5916,7 +5916,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端control
+         * 接管Web 终端附件
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/attachments/{id}/control` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["claim_control"];
@@ -6084,7 +6084,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端probe host key
+         * 探测主机密钥Web 终端目标
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/probe-host-key` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["probe_host_key"];
@@ -6104,7 +6104,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 提交Web 终端test connection
+         * 测试连接Web 终端目标
          * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/targets/test-connection` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
          */
         post: operations["test_connection"];
@@ -27672,7 +27672,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交Web 终端control」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「接管Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -28057,7 +28057,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交Web 终端probe host key」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「探测主机密钥Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -28097,7 +28097,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 「提交Web 终端test connection」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            /** @description 「测试连接Web 终端目标」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

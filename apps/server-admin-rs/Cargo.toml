@@ -79,7 +79,7 @@ url = "2.5"
 uuid = { version = "1.19", features = ["v4"] }
 utoipa = "5.4.0"
 utoipa-axum = "0.2.0"
-vt100 = "0.16"
+vt100 = { path = "../../third_party/vt100" }
 webauthn-rs = { version = "0.6.1-dev", features = ["danger-allow-state-serialisation", "danger-credential-internals", "workaround-google-passkey-specific-issues"] }
 webauthn-rs-core = "0.6.1-dev"
 x509-parser = { version = "0.18", features = ["verify"] }

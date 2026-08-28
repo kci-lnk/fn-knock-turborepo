@@ -19,6 +19,20 @@ fail() {
   exit 1
 }
 
+assert_vendored_vt100_freshness_guard() {
+  local script="$1"
+  local function_body
+
+  function_body="$(awk '
+    /^rust_backend_is_fresh\(\) \{/ { capture = 1 }
+    capture { print }
+    capture && /^}$/ { exit }
+  ' "${script}")"
+  [ -n "${function_body}" ] || fail "missing rust_backend_is_fresh in ${script}"
+  printf '%s\n' "${function_body}" | grep -Fq '"${ROOT_DIR}/third_party/vt100"' || \
+    fail "Rust freshness check ignores vendored vt100 sources in ${script}"
+}
+
 mkdir -p "${FAKE_BIN}" "${GO_FIXTURE}/pkg/grpc/pb"
 
 cat > "${FAKE_BIN}/go" <<'EOF'
@@ -156,5 +170,8 @@ CI=true \
   bash "${ROOT_DIR}/scripts/build-rust-backend.sh" musl amd64 "${RUST_OUTPUT}" >/dev/null
 
 [ -x "${RUST_OUTPUT}" ] || fail "musl helper did not preserve executable mode"
+
+assert_vendored_vt100_freshness_guard "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh"
+assert_vendored_vt100_freshness_guard "${ROOT_DIR}/scripts/fn-knock-docker.sh"
 
 printf '[test-release-build-helpers] all build helper tests passed\n'

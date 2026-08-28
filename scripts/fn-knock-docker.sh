@@ -216,6 +216,11 @@ rust_backend_is_fresh() {
     -o \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'Cargo.lock' \) -newer "${bin}" -print -quit | grep -q .; then
     return 1
   fi
+  if find "${ROOT_DIR}/third_party/vt100" -type f \
+    \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'Cargo.lock' -o -name 'build.rs' \) \
+    -newer "${bin}" -print -quit | grep -q .; then
+    return 1
+  fi
   return 0
 }
 

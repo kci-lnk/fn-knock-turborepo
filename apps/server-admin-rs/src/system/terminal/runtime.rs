@@ -1842,6 +1842,17 @@ mod unit {
         ssh::{InteractiveShell, SshConnector},
     };
 
+    #[test]
+    fn terminal_parser_survives_resize_that_truncates_a_wide_character() {
+        let mut parser = vt100::Parser::new(2, 40, 0);
+        parser.process(format!("{}你", "x".repeat(38)).as_bytes());
+
+        parser.screen_mut().set_size(2, 39);
+        parser.process(b"\x1b[K");
+
+        assert_eq!(parser.screen().size(), (2, 39));
+    }
+
     struct FailingConnector;
 
     #[async_trait]

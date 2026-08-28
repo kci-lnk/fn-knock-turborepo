@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 19;
+  CONTROL_API_VERSION_CURRENT = 20;
 }
 
 message RpcStatus {
@@ -1185,6 +1185,11 @@ message AuthBridgeReady {
 
 message AuthBridgeEnvelope {
   string request_id = 1;
+  // Absolute wall-clock deadline assigned by the Go gateway before the
+  // request enters its bounded send queue. Rust uses the same deadline for
+  // bridge admission, authorization work, and response delivery so time spent
+  // waiting in either process cannot reset the request budget.
+  int64 deadline_unix_millis = 11;
   oneof payload {
     AuthBridgeReady ready = 2;
     VerifyAuthRequest verify_auth_request = 3;

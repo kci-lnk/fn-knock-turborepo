@@ -218,10 +218,15 @@ fn_connect_waf_rules_absent() {
             if ! rules="$("${firewall}" -w 5 -t "${table}" -S 2>&1)"; then
                 error="${rules}"
                 case "${error}" in
-                    *"Table does not exist"*|*"table does not exist"*)
+                    *"Table does not exist"*|*"table does not exist"*|\
+                    *"Address family not supported"*|*"address family not supported"*|\
+                    *"Protocol not supported"*|*"protocol not supported"*)
+                        log_msg "FN Connect WAF verification skipped: ${firewall} ${table} is unavailable"
                         continue
                         ;;
                     *)
+                        error="$(printf '%s' "${error}" | tr '\r\n' '  ' | cut -c 1-500)"
+                        log_msg "FN Connect WAF verification failed: ${firewall} ${table}: ${error:-<no error output>}"
                         return 2
                         ;;
                 esac
@@ -266,10 +271,31 @@ cleanup_fn_connect_waf_rules() {
 
     if [ "${absence_status}" -eq 2 ]; then
         log_msg "FN Connect WAF cleanup failed: firewall state could not be verified after ${max_attempts} attempts"
+        return 2
     else
         log_msg "FN Connect WAF cleanup failed: managed rules remain after ${max_attempts} attempts"
+        return 1
     fi
-    return 1
+}
+
+prepare_fn_connect_waf_for_start() {
+    local cleanup_status=0
+
+    cleanup_fn_connect_waf_rules || cleanup_status=$?
+    case "${cleanup_status}" in
+        0)
+            return 0
+            ;;
+        2)
+            log_msg "FN Connect WAF firewall state is unavailable; continuing startup without blocking the runtime"
+            supervisor_log WARN management waf_cleanup_unverifiable fnos_start null
+            return 0
+            ;;
+        *)
+            write_temp_log "fn-knock refused to start because stale FN Connect WAF rules remain and could not be removed"
+            return 1
+            ;;
+    esac
 }
 
 generate_random_hex() {
@@ -1001,8 +1027,7 @@ start() {
     fi
     rm -f "${READINESS_MARKER}"
     raise_nofile_limit "${NOFILE_LIMIT}" || true
-    if ! cleanup_fn_connect_waf_rules; then
-        write_temp_log "fn-knock refused to start because stale FN Connect WAF rules could not be verified or removed"
+    if ! prepare_fn_connect_waf_for_start; then
         return 1
     fi
 

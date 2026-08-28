@@ -48,6 +48,14 @@ extract_stop_body() {
   ' "$1"
 }
 
+extract_start_body() {
+  awk '
+    /^start\(\) \{/ { capture = 1 }
+    capture { print }
+    capture && /^}/ { exit }
+  ' "$1"
+}
+
 for entrypoint in \
   "${MAIN_ENTRYPOINT}" \
   "${LITE_ENTRYPOINT}" \
@@ -62,7 +70,12 @@ sh -n "${SYNOLOGY_LIFECYCLE}"
 bash -n "${DEPLOY_SCRIPT}"
 
 main_stop_body="$(extract_stop_body "${MAIN_ENTRYPOINT}")"
+main_start_body="$(extract_start_body "${MAIN_ENTRYPOINT}")"
 lite_stop_body="$(extract_stop_body "${LITE_ENTRYPOINT}")"
+
+printf '%s\n' "${main_start_body}" | grep -Fq \
+  'if ! prepare_fn_connect_waf_for_start; then' || \
+  fail 'fnOS startup no longer applies the WAF cleanup startup policy'
 
 assert_before "${main_stop_body}" \
   'if ! cleanup_fn_connect_waf_rules; then' \
@@ -118,6 +131,17 @@ case "${MOCK_FIREWALL_MODE:-absent}" in
     fi
     exit 1
     ;;
+  mixed)
+    if [ "$(basename "$0")" = "ip6tables" ]; then
+      echo 'Address family not supported by protocol' >&2
+      exit 2
+    fi
+    if [ "${last}" = "-S" ]; then
+      echo '-P INPUT ACCEPT'
+      exit 0
+    fi
+    exit 1
+    ;;
   absent)
     if [ "${last}" = "-S" ]; then
       echo '-P INPUT ACCEPT'
@@ -136,6 +160,8 @@ cleanup_functions="$(sed -n \
 (
   PATH="${firewall_bin_dir}:${PATH}"
   log_msg() { :; }
+  supervisor_log() { :; }
+  write_temp_log() { START_ERROR="$1"; }
   sleep() { :; }
   eval "${cleanup_functions}"
 
@@ -157,7 +183,24 @@ cleanup_functions="$(sed -n \
   cleanup_status=$?
   set -e
   [ "${error_status}" -eq 2 ] || fail 'firewall inspection errors were treated as absence'
-  [ "${cleanup_status}" -ne 0 ] || fail 'unverifiable firewall cleanup was treated as success'
+  [ "${cleanup_status}" -eq 2 ] || fail 'unverifiable firewall cleanup did not preserve its distinct status'
+
+  export MOCK_FIREWALL_MODE=mixed
+  fn_connect_waf_rules_absent || fail 'unsupported IPv6 firewall family was not skipped'
+  cleanup_fn_connect_waf_rules || fail 'unsupported IPv6 firewall family made cleanup fail'
+
+  export MOCK_FIREWALL_MODE=error
+  prepare_fn_connect_waf_for_start || fail 'unverifiable firewall state blocked startup'
+
+  export MOCK_FIREWALL_MODE=present
+  START_ERROR=""
+  set +e
+  prepare_fn_connect_waf_for_start
+  startup_status=$?
+  set -e
+  [ "${startup_status}" -eq 1 ] || fail 'confirmed residual WAF rules did not block startup'
+  [ "${START_ERROR}" = 'fn-knock refused to start because stale FN Connect WAF rules remain and could not be removed' ] || \
+    fail 'confirmed residual WAF rules did not provide the expected startup diagnostic'
 )
 
 assert_before "${lite_stop_body}" \

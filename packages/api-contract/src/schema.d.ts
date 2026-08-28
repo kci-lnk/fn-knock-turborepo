@@ -10648,7 +10648,6 @@ export interface components {
             severity: "info" | "warn" | "error" | "critical";
             summary: string;
             title: string;
-            trace_id?: string | null;
         };
         NotificationMessageFactData: {
             label: string;

@@ -102,9 +102,7 @@ fn builds_event_envelope_with_node_manager_nullish_semantics() {
     assert_eq!(event.get("happened_at"), Some(&json!("   ")));
     assert_eq!(event.get("dedupe_key"), Some(&json!("  dedupe  ")));
     assert_eq!(event.get("tags"), Some(&json!(["", " tag "])));
-    let trace_id = event.get("trace_id").and_then(Value::as_str).unwrap();
-    assert!(trace_id.starts_with("trc_"));
-    assert_ne!(trace_id, "client-forged");
+    assert!(event.get("trace_id").is_none());
 }
 
 #[test]
@@ -133,6 +131,18 @@ fn applies_internal_route_truthiness_before_manager_publish() {
     assert_ne!(event.get("happened_at"), Some(&json!("")));
     assert!(event.get("dedupe_key").is_none());
     assert_eq!(event.get("tags"), Some(&json!([""])));
+}
+
+#[test]
+fn standalone_events_do_not_invent_trace_ids() {
+    let body = app_update_available_body("2.4.0", "2.4.1", false, "Release notes", "scheduled");
+    let event = build_event_envelope(body, None, None);
+
+    assert!(event.get("trace_id").is_none());
+    assert_eq!(
+        event.get("type"),
+        Some(&json!("FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE"))
+    );
 }
 
 #[test]

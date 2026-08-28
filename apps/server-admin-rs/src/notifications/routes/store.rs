@@ -277,7 +277,7 @@ where
             continue;
         }
         if matched_total >= page_start && (items.len() as i64) < limit {
-            items.push(value);
+            items.push(sanitize_notification_record(value));
         }
         matched_total += 1;
     }

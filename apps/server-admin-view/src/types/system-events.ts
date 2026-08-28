@@ -96,7 +96,6 @@ export interface NotificationMessageAction {
 }
 
 export interface NotificationMessage {
-  trace_id?: string | null;
   title: string;
   summary: string;
   body_text: string;

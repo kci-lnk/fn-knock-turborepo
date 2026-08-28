@@ -39,6 +39,10 @@ export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
     labelKey: "admin.eventCenter.eventTypes.FN_EVENT_WOL_WAKE_COMPLETED",
   },
   {
+    value: "FN_EVENT_WOL_SHUTDOWN_COMPLETED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_WOL_SHUTDOWN_COMPLETED",
+  },
+  {
     value: "FN_EVENT_PANEL_SYNC_FAILED" as SystemEventType,
     labelKey: "admin.eventCenter.eventTypes.FN_EVENT_PANEL_SYNC_FAILED",
   },

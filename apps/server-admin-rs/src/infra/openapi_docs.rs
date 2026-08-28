@@ -5685,9 +5685,7 @@ mod tests {
             Some(&json!(["uninstalled", "installing", "installed", "error"]))
         );
         assert_eq!(
-            document.pointer(
-                "/components/schemas/TerminalAttachment/properties/transport/$ref"
-            ),
+            document.pointer("/components/schemas/TerminalAttachment/properties/transport/$ref"),
             Some(&json!("#/components/schemas/TerminalTransport"))
         );
         assert!(

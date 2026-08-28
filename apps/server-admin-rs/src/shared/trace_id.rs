@@ -5,10 +5,6 @@ pub(crate) const LEGACY_WAF_TRACE_ID_PREFIX: &str = "waf_";
 pub(crate) const TRACE_ID_PATTERN: &str =
     r"^(?:trc|waf)_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
 
-pub(crate) fn new_trace_id() -> String {
-    format!("{TRACE_ID_PREFIX}{}", uuid::Uuid::new_v4())
-}
-
 pub(crate) fn is_valid_trace_id(value: &str) -> bool {
     let value = value.trim();
     let suffix = value
@@ -23,14 +19,6 @@ pub(crate) fn is_valid_trace_id(value: &str) -> bool {
                 .is_some_and(|value| matches!(value, b'8' | b'9' | b'a' | b'b'))
             && uuid::Uuid::parse_str(suffix).is_ok_and(|uuid| uuid.to_string() == suffix)
     })
-}
-
-pub(crate) fn normalize_or_generate(value: Option<&str>) -> String {
-    value
-        .map(str::trim)
-        .filter(|value| is_valid_trace_id(value))
-        .map(str::to_string)
-        .unwrap_or_else(new_trace_id)
 }
 
 pub(crate) fn event_trace_id(event: &Value) -> Option<&str> {
@@ -87,13 +75,6 @@ pub(crate) fn record_trace_id(record: &Value) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn generated_trace_id_uses_canonical_format() {
-        let trace_id = new_trace_id();
-        assert!(trace_id.starts_with(TRACE_ID_PREFIX));
-        assert!(is_valid_trace_id(&trace_id));
-    }
 
     #[test]
     fn legacy_waf_trace_id_remains_queryable() {

@@ -67,10 +67,9 @@ describe("unified Trace ID contract", () => {
     assert.equal(isTraceId("trc_not-a-uuid"), false);
   });
 
-  it("keeps entity identifiers separate while exposing trace_id", () => {
+  it("keeps trace_id on internal records without exposing it in notification messages", () => {
     for (const schema of [
       "SystemEventData",
-      "NotificationMessageData",
       "NotificationTriggerData",
       "NotificationDeliveryData",
       "GatewayLogEntryData",
@@ -80,6 +79,10 @@ describe("unified Trace ID contract", () => {
         schema,
       );
     }
+    assert.equal(
+      contract.components.schemas.NotificationMessageData.properties?.trace_id,
+      undefined,
+    );
     assert.ok(
       contract.components.schemas.NotificationTriggerData.properties?.id,
     );

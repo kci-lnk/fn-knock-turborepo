@@ -98,7 +98,7 @@ pub(super) fn build_notification_message(
     translator: &Translator,
 ) -> Value {
     let event_type = event.get("type").and_then(Value::as_str).unwrap_or("event");
-    let mut details = build_notification_details(event, rule, matched_count, translator);
+    let details = build_notification_details(event, rule, matched_count, translator);
     let title = brand_notification_title(
         &build_notification_title(event, matched_count, translator),
         translator,
@@ -108,18 +108,6 @@ pub(super) fn build_notification_message(
         .and_then(Value::as_str)
         .unwrap_or("");
     let event_id = event.get("id").and_then(Value::as_str).unwrap_or("");
-    let trace_id = crate::trace_id::event_trace_id(event).unwrap_or("");
-    if !trace_id.is_empty()
-        && !details
-            .facts
-            .iter()
-            .any(|fact| fact.get("value").and_then(Value::as_str) == Some(trace_id))
-    {
-        details.facts.push(json!({
-            "label": notification_fact_label(translator, "traceId"),
-            "value": trace_id,
-        }));
-    }
     let window_seconds = rule
         .get("window_seconds")
         .and_then(Value::as_i64)
@@ -144,9 +132,7 @@ pub(super) fn build_notification_message(
         "dedupe_key": format!("{rule_id}:{group_key}"),
         "occurred_at": if happened_at.is_empty() { time_utils::now_iso() } else { happened_at.to_string() },
         "event_id": event_id,
-        "trace_id": trace_id,
         "metadata": {
-            "trace_id": trace_id,
             "event_type": event_type,
             "event_level": event.get("level").cloned().unwrap_or_else(|| json!("INFO")),
             "event_source": event.get("source").cloned().unwrap_or_else(|| json!("SERVER_ADMIN")),
@@ -159,6 +145,41 @@ pub(super) fn build_notification_message(
             "locale": translator.locale()
         }
     })
+}
+
+pub(super) fn sanitize_notification_message(message: &Value) -> Value {
+    let mut sanitized = message.clone();
+    let Some(object) = sanitized.as_object_mut() else {
+        return sanitized;
+    };
+
+    object.remove("trace_id");
+    object.remove("waf_trace_id");
+    if let Some(metadata) = object.get_mut("metadata").and_then(Value::as_object_mut) {
+        metadata.remove("trace_id");
+        metadata.remove("waf_trace_id");
+    }
+    if let Some(facts) = object.get_mut("facts").and_then(Value::as_array_mut) {
+        facts.retain(|fact| {
+            !fact
+                .get("value")
+                .and_then(Value::as_str)
+                .is_some_and(crate::trace_id::is_valid_trace_id)
+        });
+    }
+
+    sanitized
+}
+
+pub(super) fn sanitize_notification_record(record: Value) -> Value {
+    let mut sanitized = record;
+    if let Some(message) = sanitized
+        .get_mut("message_snapshot")
+        .filter(|value| !value.is_null())
+    {
+        *message = sanitize_notification_message(message);
+    }
+    sanitized
 }
 
 pub(super) fn notification_severity(level: Option<&str>) -> &'static str {

@@ -181,9 +181,8 @@ pub(super) async fn fanout_notification_rule(
 
         let translator = Translator::from_state(state).await;
         let now = time_utils::now_iso();
-        let draft = json!({
+        let mut draft = json!({
             "id": trigger_id,
-            "trace_id": trace_id,
             "rule_id": rule_id,
             "event_id": event_id,
             "group_key": group_key,
@@ -193,6 +192,9 @@ pub(super) async fn fanout_notification_rule(
             "status": "created",
             "created_at": now
         });
+        if !trace_id.is_empty() {
+            draft["trace_id"] = Value::String(trace_id.to_string());
+        }
         trigger_created = save_trigger_if_absent(state, &draft).await?;
         trigger = if trigger_created {
             Some(draft)
@@ -261,9 +263,10 @@ pub(super) async fn fanout_trigger_targets(
         .cloned()
         .unwrap_or_default();
     let translator = Translator::from_state(state).await;
-    let message = trigger.get("message_snapshot").cloned().unwrap_or_else(|| {
-        build_notification_message(event, &fanout_rule, 1, "global", &translator)
-    });
+    let message =
+        sanitize_notification_message(&trigger.get("message_snapshot").cloned().unwrap_or_else(
+            || build_notification_message(event, &fanout_rule, 1, "global", &translator),
+        ));
     let trigger_created_at = trigger
         .get("created_at")
         .and_then(Value::as_str)
@@ -520,6 +523,12 @@ pub(super) async fn process_delivery(state: &AppState, delivery_id: &str) -> any
     sending.insert("attempt_count".to_string(), json!(attempt_count));
     sending.insert("reason".to_string(), Value::Null);
     sending.insert("next_retry_at".to_string(), Value::Null);
+    if let Some(message) = sending.get("message_snapshot").cloned() {
+        sending.insert(
+            "message_snapshot".to_string(),
+            sanitize_notification_message(&message),
+        );
+    }
     let sending = Value::Object(sending);
     save_delivery_raw(state, &sending).await?;
 

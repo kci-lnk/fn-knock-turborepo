@@ -48,11 +48,7 @@ pub(in crate::notifications::routes) async fn send_wecom(
             "msgtype": "text",
             "text": {
                 "content": default_string(
-                    truncate_utf8_bytes_preserving_trace(
-                        &build_wecom_text_content(message),
-                        message,
-                        2048,
-                    ),
+                    truncate_utf8_bytes(&build_wecom_text_content(message), 2048),
                     DEFAULT_NOTIFICATION_MESSAGE_TITLE,
                 ),
                 "mentioned_list": mentioned_list,
@@ -64,7 +60,7 @@ pub(in crate::notifications::routes) async fn send_wecom(
             "msgtype": "markdown",
             "markdown": {
                 "content": default_string(
-                    truncate_utf8_bytes_preserving_trace(&markdown_content, message, 4096),
+                    truncate_utf8_bytes(&markdown_content, 4096),
                     DEFAULT_NOTIFICATION_MESSAGE_TITLE,
                 )
             }

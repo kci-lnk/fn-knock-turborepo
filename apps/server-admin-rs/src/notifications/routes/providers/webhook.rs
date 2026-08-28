@@ -180,10 +180,12 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
         .map(|value| value.trim().to_uppercase())
         .filter(|value| value == "POST" || value == "PUT")
         .unwrap_or_else(|| "POST".to_string());
-    let message = delivery
-        .get("message_snapshot")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
+    let message = sanitize_notification_message(
+        &delivery
+            .get("message_snapshot")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+    );
     let extra_headers = target_config
         .get("extra_headers_json")
         .and_then(Value::as_object)
@@ -202,8 +204,7 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
             "delivery_id": delivery.get("id").cloned().unwrap_or(Value::Null),
             "rule_id": rule.get("id").cloned().unwrap_or(Value::Null),
             "target_id": target.get("id").cloned().unwrap_or(Value::Null),
-            "event_id": delivery.get("event_id").cloned().unwrap_or(Value::Null),
-            "trace_id": delivery.get("trace_id").cloned().unwrap_or(Value::Null)
+            "event_id": delivery.get("event_id").cloned().unwrap_or(Value::Null)
         },
         "payload": { "extra_body": extra_body }
     });
@@ -226,14 +227,6 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
             header_names.push(key.clone());
             request = request.header(key, value);
         }
-    }
-    if let Some(trace_id) = delivery
-        .get("trace_id")
-        .and_then(Value::as_str)
-        .filter(|value| !value.is_empty())
-    {
-        header_names.push("x-fn-knock-trace-id".to_string());
-        request = request.header("x-fn-knock-trace-id", trace_id);
     }
     if let Some(secret) = config
         .get("shared_secret")

@@ -6497,6 +6497,7 @@ export const koKRAdmin = {
         connection_test_succeeded: "SSH 연결 테스트 성공",
         connection_test_failed: "SSH 연결 테스트 실패",
         session_creation_started: "SSH 세션 생성 시작",
+        session_creation_failed: "SSH 세션 생성 실패",
         session_ended: "SSH 세션 종료",
         session_exited: "원격 Shell 종료",
         session_lost: "SSH 세션 연결 끊김",

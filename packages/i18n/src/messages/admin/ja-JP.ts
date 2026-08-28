@@ -6539,6 +6539,7 @@ export const jaJPAdmin = {
         connection_test_succeeded: "SSH 接続テストに成功",
         connection_test_failed: "SSH 接続テストに失敗",
         session_creation_started: "SSH セッションの作成を開始",
+        session_creation_failed: "SSH セッションの作成に失敗",
         session_ended: "SSH セッションを終了",
         session_exited: "リモート Shell が終了",
         session_lost: "SSH セッションの接続が切断",

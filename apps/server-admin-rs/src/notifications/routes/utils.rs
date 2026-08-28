@@ -342,6 +342,7 @@ pub(super) fn notification_event_label_key(event_type: &str) -> Option<&'static 
         "FN_EVENT_RUNTIME_ABNORMAL_EXIT" => "events.runtimeAbnormalExit",
         "FN_EVENT_PANEL_SYNC_FAILED" => "events.panelSyncFailed",
         "FN_EVENT_PANEL_SYNC_RECOVERED" => "events.panelSyncRecovered",
+        "FN_EVENT_TERMINAL_AUDIT" => "events.terminalAudit",
         _ => return None,
     })
 }

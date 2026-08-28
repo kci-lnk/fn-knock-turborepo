@@ -57,8 +57,7 @@ pub(in crate::notifications::routes) async fn send_serverchan(
     );
     let url = format!("{}/{}.send", base_url.trim_end_matches('/'), sendkey);
     let title = truncate_text(&message_title(message), 32);
-    let desp =
-        truncate_utf8_bytes_preserving_trace(&build_markdown_body(message, ""), message, 32 * 1024);
+    let desp = truncate_utf8_bytes(&build_markdown_body(message, ""), 32 * 1024);
     let short = truncate_text(&config_text(&target_config, "short"), 64);
     let channel = config_text(&target_config, "channel");
     let openid = config_text(&target_config, "openid");

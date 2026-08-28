@@ -9,6 +9,7 @@ const terminalAuditActions = new Set([
   "connection_test_succeeded",
   "connection_test_failed",
   "session_creation_started",
+  "session_creation_failed",
   "session_ended",
   "session_exited",
   "session_lost",

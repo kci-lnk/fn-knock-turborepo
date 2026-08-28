@@ -6542,6 +6542,7 @@ export const enAdmin = {
         connection_test_succeeded: "SSH connection test succeeded",
         connection_test_failed: "SSH connection test failed",
         session_creation_started: "SSH session creation started",
+        session_creation_failed: "SSH session creation failed",
         session_ended: "SSH session ended",
         session_exited: "Remote shell exited",
         session_lost: "SSH session lost",

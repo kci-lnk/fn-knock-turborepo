@@ -592,8 +592,32 @@ pub(super) fn format_notification_summary(event: &Value, translator: &Translator
             read_payload_value(event, "message"),
             read_payload_value(event, "connection_id"),
         ]),
+        "FN_EVENT_TERMINAL_AUDIT" => join_compact_parts(&[
+            format_terminal_audit_action(&read_payload_value(event, "action"), translator),
+            read_payload_value(event, "session_id")
+                .if_empty(read_payload_value(event, "target_id")),
+            read_payload_value(event, "error_code"),
+        ]),
         _ => String::new(),
     }
+}
+
+pub(super) fn format_terminal_audit_action(value: &str, translator: &Translator) -> String {
+    let key = match value.trim() {
+        "target_created" => "terminalActions.targetCreated",
+        "target_updated" => "terminalActions.targetUpdated",
+        "target_deleted" => "terminalActions.targetDeleted",
+        "host_key_confirmed" => "terminalActions.hostKeyConfirmed",
+        "connection_test_succeeded" => "terminalActions.connectionTestSucceeded",
+        "connection_test_failed" => "terminalActions.connectionTestFailed",
+        "session_creation_started" => "terminalActions.sessionCreationStarted",
+        "session_creation_failed" => "terminalActions.sessionCreationFailed",
+        "session_ended" => "terminalActions.sessionEnded",
+        "session_exited" => "terminalActions.sessionExited",
+        "session_lost" => "terminalActions.sessionLost",
+        other => return other.to_string(),
+    };
+    notification_template_text(translator, key, &[])
 }
 
 pub(super) fn translate_notification_label(

@@ -17,6 +17,36 @@ fn notification_trace_filter_normalizes_input_and_supports_snapshot_fallback() {
     ));
 }
 
+#[test]
+fn delivery_records_omit_empty_trace_ids_but_keep_real_correlations() {
+    let build = |trace_id: &str| {
+        build_delivery_value(DeliveryBuildArgs {
+            id: "delivery-1".to_string(),
+            trace_id: trace_id.to_string(),
+            trigger_id: "trigger-1".to_string(),
+            rule_id: "rule-1".to_string(),
+            target_id: "target-1".to_string(),
+            provider_id: "provider-1".to_string(),
+            event_id: "event-1".to_string(),
+            status: "queued".to_string(),
+            reason: None,
+            provider_type: "webhook".to_string(),
+            message_snapshot: json!({}),
+            target_snapshot: json!({}),
+            provider_snapshot: json!({}),
+            attempt_count: 0,
+            triggered_at: "2026-08-29T00:00:00Z".to_string(),
+            next_retry_at: None,
+        })
+    };
+
+    assert!(build("").get("trace_id").is_none());
+    assert_eq!(
+        build("trc_3f93d40a-89ea-4dbe-a04f-67692778d973").get("trace_id"),
+        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
+    );
+}
+
 fn schema_field<'a>(view: &'a Value, schema: &str, key: &str) -> &'a Value {
     view.get(schema)
         .and_then(Value::as_array)
@@ -1077,14 +1107,8 @@ fn localizes_rule_names_and_fallback_messages() {
     );
 
     assert_eq!(message.get("title"), Some(&json!("敲门 Knock 登录成功 x2")));
-    assert_eq!(
-        message.get("trace_id"),
-        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
-    );
-    assert_eq!(
-        message.pointer("/metadata/trace_id"),
-        Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
-    );
+    assert!(message.get("trace_id").is_none());
+    assert!(message.pointer("/metadata/trace_id").is_none());
     assert!(
         message
             .get("body_text")
@@ -1101,21 +1125,6 @@ fn localizes_rule_names_and_fallback_messages() {
         facts
             .iter()
             .any(|fact| fact.get("label") == Some(&json!("风险级别")))
-    );
-    assert!(facts.iter().any(|fact| {
-        fact.get("value") == Some(&json!("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"))
-    }));
-    assert!(build_text_body(&message).contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973"));
-    assert!(
-        build_markdown_body(&message, "")
-            .replace('\\', "")
-            .contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
-    );
-    assert!(
-        build_bark_payload(&message, &json!({ "target_config": {} }))["body"]
-            .as_str()
-            .unwrap()
-            .contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
     );
     let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
     let rendered_channels = [
@@ -1135,8 +1144,8 @@ fn localizes_rule_names_and_fallback_messages() {
     for rendered in rendered_channels {
         let visible = rendered.replace('\\', "");
         assert!(
-            visible.contains(trace_id),
-            "notification representation omitted the Trace ID: {rendered}"
+            !visible.contains(trace_id),
+            "notification representation leaked the Trace ID: {rendered}"
         );
     }
 
@@ -1145,15 +1154,168 @@ fn localizes_rule_names_and_fallback_messages() {
     oversized_message["body_markdown"] = json!("x".repeat(40_000));
     let oversized_markdown = build_markdown_body(&oversized_message, "");
     for limit in [2048, 4096, 32 * 1024] {
-        let rendered =
-            truncate_utf8_bytes_preserving_trace(&oversized_markdown, &oversized_message, limit);
+        let rendered = truncate_utf8_bytes(&oversized_markdown, limit);
         assert!(rendered.len() <= limit);
-        assert!(rendered.contains(trace_id));
+        assert!(!rendered.contains(trace_id));
     }
     let telegram = build_telegram_text(&oversized_message);
     assert!(telegram.encode_utf16().count() <= 4096);
-    assert!(telegram.contains(trace_id));
+    assert!(!telegram.contains(trace_id));
     assert!(!serde_json::to_string(&message).unwrap().contains("Matched"));
+}
+
+#[test]
+fn sanitizes_legacy_notification_snapshots_before_display_or_delivery() {
+    let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
+    let record = json!({
+        "id": "delivery_legacy",
+        "trace_id": trace_id,
+        "message_snapshot": {
+            "title": "Legacy notification",
+            "summary": "A stored notification from before the fix",
+            "body_text": "Body",
+            "body_markdown": "Body",
+            "facts": [
+                { "label": "Trace ID", "value": trace_id },
+                { "label": "Event type", "value": "Login failure" }
+            ],
+            "trace_id": trace_id,
+            "waf_trace_id": trace_id,
+            "metadata": {
+                "trace_id": trace_id,
+                "waf_trace_id": trace_id,
+                "event_type": "FN_EVENT_AUTH_LOGIN_FAILURE"
+            }
+        }
+    });
+
+    let sanitized = sanitize_notification_record(record);
+    assert_eq!(sanitized.get("trace_id"), Some(&json!(trace_id)));
+    let message = sanitized.get("message_snapshot").unwrap();
+    assert!(message.get("trace_id").is_none());
+    assert!(message.get("waf_trace_id").is_none());
+    assert!(message.pointer("/metadata/trace_id").is_none());
+    assert!(message.pointer("/metadata/waf_trace_id").is_none());
+    assert_eq!(
+        message.pointer("/metadata/event_type"),
+        Some(&json!("FN_EVENT_AUTH_LOGIN_FAILURE"))
+    );
+    assert_eq!(
+        message.get("facts").and_then(Value::as_array).map(Vec::len),
+        Some(1)
+    );
+    for rendered in [
+        build_text_body(message),
+        build_markdown_body(message, ""),
+        build_pushplus_json_content(message),
+        build_telegram_text(message),
+    ] {
+        assert!(!rendered.contains(trace_id));
+    }
+}
+
+#[test]
+fn app_update_notification_keeps_trace_internal() {
+    let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
+    let translator = Translator::new("zh-CN");
+    let message = build_notification_message(
+        &json!({
+            "id": "evt_update_1",
+            "trace_id": trace_id,
+            "type": "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE",
+            "source": "SERVER_ADMIN",
+            "level": "INFO",
+            "happened_at": "2026-08-29T00:00:00.000Z",
+            "payload": {
+                "local_version": "2.4.0",
+                "latest_version": "2.4.1",
+                "force_update": false,
+                "release_notes": "修复通知与认证桥接问题",
+                "check_reason": "scheduled"
+            }
+        }),
+        &json!({
+            "id": "rule_update",
+            "window_seconds": 60,
+            "threshold_count": 1
+        }),
+        1,
+        "global",
+        &translator,
+    );
+
+    assert!(message.get("trace_id").is_none());
+    assert!(message.pointer("/metadata/trace_id").is_none());
+    assert!(!serde_json::to_string(&message).unwrap().contains(trace_id));
+
+    let rendered_channels = [
+        build_text_body(&message),
+        build_markdown_body(&message, ""),
+        build_pushplus_text_content(&message),
+        build_pushplus_markdown_content(&message),
+        build_pushplus_html_content(&message),
+        build_pushplus_json_content(&message),
+        build_wxpusher_html_content(&message),
+        build_wecom_markdown_content(&message, &[]),
+        build_wecom_text_content(&message),
+        serde_json::to_string(&build_feishu_post_content(&message, &[])).unwrap(),
+        build_magicpush_content(&message),
+        build_telegram_text(&message),
+        build_harmonyosmeow_body(&message),
+        build_email_plain_text_body(&message, &translator),
+        build_bark_payload(&message, &json!({ "target_config": {} }))["body"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+    ];
+    for rendered in rendered_channels {
+        assert!(
+            !rendered.replace('\\', "").contains(trace_id),
+            "app update notification leaked the Trace ID: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn terminal_audit_notifications_are_localized_and_descriptive() {
+    let translator = Translator::new("zh-CN");
+    let event = json!({
+        "id": "evt_terminal_1",
+        "type": "FN_EVENT_TERMINAL_AUDIT",
+        "source": "SERVER_ADMIN",
+        "level": "WARN",
+        "happened_at": "2026-08-29T00:00:00.000Z",
+        "payload": {
+            "action": "session_creation_failed",
+            "target_id": "target-1",
+            "session_id": "session-1",
+            "error_code": "connect_timeout"
+        }
+    });
+    let rule = json!({ "id": "rule_terminal", "window_seconds": 60 });
+    let message = build_notification_message(&event, &rule, 1, "session-1", &translator);
+
+    assert_eq!(
+        notification_event_label_key("FN_EVENT_TERMINAL_AUDIT"),
+        Some("events.terminalAudit")
+    );
+    assert_eq!(message.get("title"), Some(&json!("敲门 Knock 终端审计")));
+    assert!(
+        message
+            .get("summary")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("SSH 会话创建失败"))
+    );
+    let facts = message.get("facts").and_then(Value::as_array).unwrap();
+    assert!(facts.iter().any(|fact| {
+        fact.get("label") == Some(&json!("终端操作"))
+            && fact.get("value") == Some(&json!("SSH 会话创建失败"))
+    }));
+    assert!(facts.iter().any(|fact| {
+        fact.get("label") == Some(&json!("SSH 会话"))
+            && fact.get("value") == Some(&json!("session-1"))
+    }));
+    assert!(!build_text_body(&message).contains("FN_EVENT_TERMINAL_AUDIT"));
 }
 
 #[test]
@@ -1196,6 +1358,7 @@ fn notification_copy_includes_ip_location_without_generic_advice() {
             "source": "GO_REAUTH_PROXY",
             "level": "WARN",
             "payload": {
+                "trace_id": "trc_3f93d40a-89ea-4dbe-a04f-67692778d973",
                 "ip": "203.0.113.8",
                 "ip_location": "上海|上海|联通",
                 "path": "/api/203.0.113.8",
@@ -1214,6 +1377,11 @@ fn notification_copy_includes_ip_location_without_generic_advice() {
     );
     assert!(waf_details.body_text.contains("/api/203.0.113.8"));
     assert!(!waf_details.body_text.contains("/api/203.0.113.8（"));
+    assert!(
+        !serde_json::to_string(&waf_details.facts)
+            .unwrap()
+            .contains("trc_3f93d40a-89ea-4dbe-a04f-67692778d973")
+    );
 }
 
 #[test]

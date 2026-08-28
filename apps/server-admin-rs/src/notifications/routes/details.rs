@@ -984,7 +984,6 @@ pub(super) fn build_notification_details(
             let path = read_payload_value(event, "request_uri")
                 .if_empty(read_payload_value(event, "path"));
             let rule_ids = read_payload_value(event, "rule_ids");
-            let trace_id = read_payload_value(event, "trace_id");
             let action = read_payload_value(event, "action");
             let mode = read_payload_value(event, "mode");
             let action_label = format_waf_action_label(&action, translator);
@@ -1077,11 +1076,6 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "ipLocation"),
                 ip_location,
-            );
-            push_notification_fact(
-                &mut facts,
-                notification_fact_label(translator, "traceId"),
-                trace_id,
             );
             push_notification_fact(&mut facts, "Host".to_string(), host);
             push_notification_fact(
@@ -1637,6 +1631,46 @@ pub(super) fn build_notification_details(
                 &mut facts,
                 notification_fact_label(translator, "runtimeFeedback"),
                 runtime_message,
+            );
+        }
+        "FN_EVENT_TERMINAL_AUDIT" => {
+            let action =
+                format_terminal_audit_action(&read_payload_value(event, "action"), translator);
+            let target_id = read_payload_value(event, "target_id");
+            let session_id = read_payload_value(event, "session_id");
+            let revision = read_payload_value(event, "revision");
+            let error_code = read_payload_value(event, "error_code");
+
+            summary = join_compact_parts(&[
+                action.clone(),
+                session_id.clone().if_empty(target_id.clone()),
+                error_code.clone(),
+            ]);
+            overview = summary.clone();
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "terminalAction"),
+                action,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "terminalTarget"),
+                target_id,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "terminalSession"),
+                session_id,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "terminalRevision"),
+                revision,
+            );
+            push_notification_fact(
+                &mut facts,
+                notification_fact_label(translator, "errorCode"),
+                error_code,
             );
         }
         _ => {}

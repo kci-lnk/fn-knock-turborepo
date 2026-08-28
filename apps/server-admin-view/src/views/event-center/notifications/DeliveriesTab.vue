@@ -204,11 +204,7 @@ const {
     :copy-text="detailCopyText"
   >
     <div v-if="activeDelivery" class="space-y-5">
-      <TraceIdLink
-        :trace-id="
-          activeDelivery.trace_id || activeDelivery.message_snapshot.trace_id
-        "
-      />
+      <TraceIdLink :trace-id="activeDelivery.trace_id" />
       <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-md border p-4">
           <div class="mb-2 text-sm font-medium">

@@ -14229,12 +14229,6 @@
           },
           "title": {
             "type": "string"
-          },
-          "trace_id": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         },
         "required": [

@@ -57,6 +57,18 @@ const terminalAuditEvent: SystemEventRecord = {
   },
 };
 
+describe("system event catalog", () => {
+  it("keeps every notification grouping event selectable", () => {
+    const selectableTypes = SYSTEM_EVENT_TYPE_OPTIONS.map(
+      (option) => option.value,
+    ).sort();
+    const groupedTypes = Object.keys(DEFAULT_GROUP_BY_BY_EVENT_TYPE).sort();
+
+    assert.deepEqual(selectableTypes, groupedTypes);
+    assert.ok(selectableTypes.includes("FN_EVENT_WOL_SHUTDOWN_COMPLETED"));
+  });
+});
+
 describe("gateway visibility system event", () => {
   it("is available to filters and defaults notification grouping globally", () => {
     assert.ok(
@@ -198,6 +210,9 @@ describe("terminal audit system event", () => {
       assert.ok(catalog.eventCenter.eventTypes.FN_EVENT_TERMINAL_AUDIT);
       assert.ok(catalog.eventCenter.events.terminalAuditDescription);
       assert.ok(catalog.eventCenter.events.terminalAuditActions.session_lost);
+      assert.ok(
+        catalog.eventCenter.events.terminalAuditActions.session_creation_failed,
+      );
       assert.ok(catalog.eventCenter.events.detailFields.error_code);
     }
   });

@@ -1303,12 +1303,14 @@ fn build_event_envelope(
         "id".to_string(),
         Value::String(format!("evt_{}", hex::encode(rand::random::<[u8; 12]>()))),
     );
-    event.insert(
-        "trace_id".to_string(),
-        Value::String(crate::trace_id::normalize_or_generate(
-            body.trace_id.as_deref(),
-        )),
-    );
+    if let Some(trace_id) = body
+        .trace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| crate::trace_id::is_valid_trace_id(value))
+    {
+        event.insert("trace_id".to_string(), Value::String(trace_id.to_string()));
+    }
     event.insert("type".to_string(), Value::String(body.event_type.clone()));
     event.insert("source".to_string(), Value::String(body.source));
     event.insert(

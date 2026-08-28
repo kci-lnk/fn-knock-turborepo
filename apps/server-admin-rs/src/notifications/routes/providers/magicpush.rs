@@ -77,7 +77,6 @@ pub(in crate::notifications::routes) async fn send_magicpush(
             "dedupe_key": message.get("dedupe_key").cloned().unwrap_or(Value::Null),
             "occurred_at": message.get("occurred_at").cloned().unwrap_or(Value::Null),
             "event_id": message.get("event_id").cloned().unwrap_or(Value::Null),
-            "trace_id": message.get("trace_id").cloned().unwrap_or(Value::Null),
             "metadata": message.get("metadata").cloned().unwrap_or_else(|| json!({}))
         })
     } else {

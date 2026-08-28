@@ -5998,6 +5998,7 @@ export const zhHantAdmin = {
         connection_test_succeeded: "SSH 連線測試成功",
         connection_test_failed: "SSH 連線測試失敗",
         session_creation_started: "已開始建立 SSH 工作階段",
+        session_creation_failed: "SSH 工作階段建立失敗",
         session_ended: "SSH 工作階段已結束",
         session_exited: "遠端 Shell 已結束",
         session_lost: "SSH 工作階段連線遺失",

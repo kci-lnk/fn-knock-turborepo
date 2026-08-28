@@ -6089,6 +6089,7 @@ export const zhCNAdmin = {
         connection_test_succeeded: "SSH 连接测试成功",
         connection_test_failed: "SSH 连接测试失败",
         session_creation_started: "已开始创建 SSH 会话",
+        session_creation_failed: "SSH 会话创建失败",
         session_ended: "SSH 会话已结束",
         session_exited: "远端 Shell 已退出",
         session_lost: "SSH 会话连接丢失",

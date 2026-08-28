@@ -276,7 +276,6 @@ pub(super) struct NotificationMessageData {
     dedupe_key: Option<String>,
     occurred_at: String,
     event_id: Option<String>,
-    trace_id: Option<String>,
     metadata: Option<Value>,
 }
 

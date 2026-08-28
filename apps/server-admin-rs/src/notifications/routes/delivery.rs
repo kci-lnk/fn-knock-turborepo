@@ -20,9 +20,8 @@ pub(super) struct DeliveryBuildArgs {
 }
 
 pub(super) fn build_delivery_value(args: DeliveryBuildArgs) -> Value {
-    json!({
+    let mut delivery = json!({
         "id": args.id,
-        "trace_id": args.trace_id,
         "trigger_id": args.trigger_id,
         "rule_id": args.rule_id,
         "target_id": args.target_id,
@@ -40,7 +39,11 @@ pub(super) fn build_delivery_value(args: DeliveryBuildArgs) -> Value {
         "triggered_at": args.triggered_at,
         "sent_at": Value::Null,
         "next_retry_at": args.next_retry_at
-    })
+    });
+    if !args.trace_id.is_empty() {
+        delivery["trace_id"] = Value::String(args.trace_id);
+    }
+    delivery
 }
 
 pub(super) fn deleted_provider_snapshot(

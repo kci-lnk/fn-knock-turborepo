@@ -140,6 +140,8 @@ pub(super) async fn send_http_notification_provider(
     message: &Value,
     timeout_seconds: i64,
 ) -> ProviderTestResult {
+    let sanitized_message = sanitize_notification_message(message);
+    let message = &sanitized_message;
     match provider
         .get("type")
         .and_then(Value::as_str)

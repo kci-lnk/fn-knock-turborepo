@@ -83,6 +83,8 @@ pub(in crate::notifications::routes) async fn send_email_notification(
     timeout_seconds: i64,
     translator: &Translator,
 ) -> ProviderTestResult {
+    let sanitized_message = sanitize_notification_message(message);
+    let message = &sanitized_message;
     let config = provider_config(provider);
     let target_config = target_config(target);
     let smtp_host = config_text(&config, "smtp_host");

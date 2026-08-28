@@ -283,7 +283,11 @@ pub(super) fn clear_fnos_network_tuning_last_error(config: &mut Value) {
 }
 
 pub(super) fn build_fnos_network_tuning_status(state: &AppState, config: Value) -> Value {
-    let kernel_state = read_fnos_kernel_state();
+    let kernel_state = if fnos_network_tuning_blocked_reason_code(state).is_none() {
+        read_fnos_kernel_state_with_bbr_probe()
+    } else {
+        read_fnos_kernel_state()
+    };
     build_fnos_network_tuning_status_with_state(state, config, kernel_state)
 }
 
@@ -455,6 +459,27 @@ pub(super) fn read_fnos_kernel_state() -> Value {
     })
 }
 
+pub(super) fn read_fnos_kernel_state_with_bbr_probe() -> Value {
+    probe_fnos_bbr_support(read_fnos_kernel_state, try_load_bbr_module)
+}
+
+pub(super) fn probe_fnos_bbr_support<ReadState, LoadModule>(
+    mut read_state: ReadState,
+    load_module: LoadModule,
+) -> Value
+where
+    ReadState: FnMut() -> Value,
+    LoadModule: FnOnce(),
+{
+    let state = read_state();
+    if state.get("bbr_supported").and_then(Value::as_bool) == Some(true) {
+        return state;
+    }
+
+    load_module();
+    read_state()
+}
+
 pub(super) fn fnos_mtu_probing_active(value: Option<&str>) -> bool {
     value == Some("1")
 }
@@ -528,7 +553,7 @@ pub(super) fn apply_fnos_network_tuning_transition(
 }
 
 pub(super) fn ensure_bbr_supported(translator: &Translator) -> Result<(), String> {
-    let _ = Command::new("modprobe").arg("tcp_bbr").output();
+    try_load_bbr_module();
     let state = read_fnos_kernel_state();
     if state.get("bbr_supported").and_then(Value::as_bool) == Some(true) {
         return Ok(());
@@ -537,6 +562,31 @@ pub(super) fn ensure_bbr_supported(translator: &Translator) -> Result<(), String
         translator,
         "fnosNetworkTuning.errors.bbrNotSupported",
     ))
+}
+
+pub(super) fn try_load_bbr_module() {
+    for executable in ["modprobe", "/sbin/modprobe", "/usr/sbin/modprobe"] {
+        match Command::new(executable).arg("tcp_bbr").output() {
+            Ok(output) => {
+                if !output.status.success() {
+                    tracing::debug!(
+                        executable,
+                        status = ?output.status.code(),
+                        stderr = %String::from_utf8_lossy(&output.stderr).trim(),
+                        "tcp_bbr module probe did not succeed"
+                    );
+                }
+                return;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                tracing::debug!(executable, %error, "failed to execute tcp_bbr module probe");
+                return;
+            }
+        }
+    }
+
+    tracing::debug!("modprobe executable was not found while probing tcp_bbr support");
 }
 
 pub(super) fn unique_fnos_network_candidates(values: Vec<Option<String>>) -> Vec<String> {

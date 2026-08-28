@@ -1953,6 +1953,50 @@ fn fnos_network_tuning_module_loaded_reads_proc_modules_like_node() {
 }
 
 #[test]
+fn fnos_network_tuning_bbr_probe_rechecks_after_loading_a_cold_module() {
+    let reads = std::cell::Cell::new(0);
+    let loaded = std::cell::Cell::new(false);
+    let state = probe_fnos_bbr_support(
+        || {
+            reads.set(reads.get() + 1);
+            json!({
+                "bbr_supported": loaded.get(),
+                "tcp_available_congestion_control": if loaded.get() {
+                    json!(["reno", "cubic", "bbr"])
+                } else {
+                    json!(["reno", "cubic"])
+                },
+            })
+        },
+        || loaded.set(true),
+    );
+
+    assert_eq!(reads.get(), 2);
+    assert_eq!(state["bbr_supported"], json!(true));
+    assert_eq!(
+        state["tcp_available_congestion_control"],
+        json!(["reno", "cubic", "bbr"])
+    );
+}
+
+#[test]
+fn fnos_network_tuning_bbr_probe_does_not_reload_an_available_module() {
+    let reads = std::cell::Cell::new(0);
+    let load_attempted = std::cell::Cell::new(false);
+    let state = probe_fnos_bbr_support(
+        || {
+            reads.set(reads.get() + 1);
+            json!({ "bbr_supported": true })
+        },
+        || load_attempted.set(true),
+    );
+
+    assert_eq!(reads.get(), 1);
+    assert!(!load_attempted.get());
+    assert_eq!(state["bbr_supported"], json!(true));
+}
+
+#[test]
 fn fnos_network_tuning_available_depends_on_runtime_block_only() {
     assert!(fnos_network_tuning_available(None));
     assert!(!fnos_network_tuning_available(Some("deployment")));

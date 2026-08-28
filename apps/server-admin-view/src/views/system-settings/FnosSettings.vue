@@ -151,7 +151,7 @@ const {
       <FnosConnectWafSetting v-if="canUseFnosConnectWaf" />
 
       <div
-        v-if="canUseFnosNetworkTuning && isBbrSupported"
+        v-if="canUseFnosNetworkTuning"
         class="flex items-center justify-between bg-muted/10 p-6"
       >
         <div class="space-y-1 pr-6">
@@ -159,7 +159,7 @@ const {
             :for="`${a11yId}-fnos-bbr`"
             class="text-base font-medium"
             :class="
-              isNetworkTuningAvailable
+              isNetworkTuningAvailable && isBbrSupported
                 ? 'cursor-pointer'
                 : 'cursor-not-allowed text-zinc-500'
             "
@@ -169,7 +169,7 @@ const {
           <div
             class="text-sm"
             :class="
-              isNetworkTuningAvailable
+              isNetworkTuningAvailable && isBbrSupported
                 ? 'text-muted-foreground'
                 : 'text-zinc-500'
             "
@@ -219,7 +219,11 @@ const {
         <Switch
           :id="`${a11yId}-fnos-bbr`"
           :model-value="networkTuningForm.bbr_enabled"
-          :disabled="!isNetworkTuningAvailable || isNetworkTuningSaving"
+          :disabled="
+            !isNetworkTuningAvailable ||
+            !isBbrSupported ||
+            isNetworkTuningSaving
+          "
           @update:model-value="
             saveNetworkTuning(
               { bbr_enabled: $event === true },

@@ -12653,6 +12653,8 @@ export interface components {
         WafConfigData: {
             /** @constant */
             active_bundle_id: "local";
+            /** @enum {string} */
+            block_behavior: "error_page" | "reset_connection";
             common_location_exempt_enabled: boolean;
             disabled_hosts: string[];
             disabled_path_prefixes: string[];
@@ -12692,6 +12694,8 @@ export interface components {
             updated_at: string | null;
         };
         WafConfigUpdateData: {
+            /** @enum {string|null} */
+            block_behavior?: "error_page" | "reset_connection" | null;
             common_location_exempt_enabled?: boolean | null;
             enabled?: boolean | null;
             /** Format: int64 */

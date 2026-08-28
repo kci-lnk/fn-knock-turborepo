@@ -1,6 +1,6 @@
 use super::service::{
     apply_recommended_lfi_rule_patch_if_needed, apply_recommended_system_rule_state,
-    should_sync_system_rules_for_restore, waf_drain_schedule,
+    normalize_fixed_waf_config, should_sync_system_rules_for_restore, waf_drain_schedule,
 };
 use super::*;
 use serde_json::json;
@@ -36,6 +36,24 @@ async fn disabled_waf_has_no_periodic_drain_deadline() {
     config["waf"] = json!({"enabled": true, "drain_interval_seconds": 17});
     state.storage.store.save_config(&config).await.unwrap();
     assert_eq!(waf_drain_schedule(&state).await, Some(17));
+}
+
+#[tokio::test]
+async fn normalizes_waf_block_behavior_with_backward_compatible_default() {
+    let (_directory, state) = waf_test_state("http://127.0.0.1:1").await;
+
+    for input in [json!({}), json!({"block_behavior": "invalid"})] {
+        assert_eq!(
+            normalize_fixed_waf_config(Some(&input), &state).get("block_behavior"),
+            Some(&json!("error_page"))
+        );
+    }
+
+    assert_eq!(
+        normalize_fixed_waf_config(Some(&json!({"block_behavior": "reset_connection"})), &state,)
+            .get("block_behavior"),
+        Some(&json!("reset_connection"))
+    );
 }
 
 #[test]

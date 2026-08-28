@@ -1554,6 +1554,7 @@ export const zhCNAdmin = {
     systemRules: "系统规则",
     customRules: "自定义规则",
     protectionUpdated: "WAF 防护强度已更新",
+    blockBehaviorUpdated: "WAF 拦截响应已更新",
     settingsUpdated: "WAF 设置已更新",
     enabledTitle: "WAF 已开启",
     disabledTitle: "WAF 已关闭",
@@ -1591,6 +1592,13 @@ export const zhCNAdmin = {
     enableWaf: "启用WAF",
     enableWafDescription:
       "默认关闭。开启时会先更新系统规则，并跳过高频误报规则文件，再按当前强度加载到 Go 网关；关闭后网关会立即跳过 WAF 检查。",
+    blockBehavior: "拦截响应",
+    blockBehaviorDescription:
+      "显示拦截页会返回带追踪编号的安全提示；阻断连接不会返回页面，直接中止连接或当前请求流。",
+    blockBehaviorErrorPage: "显示拦截页",
+    blockBehaviorResetConnection: "阻断连接",
+    blockBehaviorResetWarning:
+      "启用后，HTTP/1 请求会被重置连接，HTTP/2 仅中止当前请求流。",
     autoUpdate: "规则自动更新",
     autoUpdateDescription:
       "开启后会自动维护 WAF 系统规则更新，失败后后续会继续尝试。",

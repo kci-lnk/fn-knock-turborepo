@@ -1572,11 +1572,16 @@ function validateContract(openapiPath) {
     wafConfig.properties?.paranoia_level?.maximum !== 4 ||
     wafConfig.properties?.executing_paranoia_level?.minimum !== 1 ||
     wafConfig.properties?.executing_paranoia_level?.maximum !== 4 ||
+    JSON.stringify(wafConfig.properties?.block_behavior?.enum) !==
+      JSON.stringify(["error_page", "reset_connection"]) ||
+    JSON.stringify(wafConfigUpdate.properties?.block_behavior?.enum) !==
+      JSON.stringify(["error_page", "reset_connection"]) ||
     (wafConfigUpdate.required ?? []).length !== 0 ||
     JSON.stringify(Object.keys(wafConfigUpdate.properties ?? {}).sort()) !==
       JSON.stringify(
         [
           "common_location_exempt_enabled",
+          "block_behavior",
           "enabled",
           "executing_paranoia_level",
           "paranoia_level",

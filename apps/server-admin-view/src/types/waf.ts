@@ -4,6 +4,7 @@ type WafSchemas = ApiContractComponents["schemas"];
 
 export type WAFMode = WafSchemas["WafStatusData"]["mode"];
 export type WAFConfig = WafSchemas["WafConfigData"];
+export type WAFBlockBehavior = WAFConfig["block_behavior"];
 export type WAFStatus = WafSchemas["WafStatusData"];
 
 // The gateway validates bundles internally; this remains a transport-neutral

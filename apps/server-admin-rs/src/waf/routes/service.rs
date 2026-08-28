@@ -67,6 +67,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "system_rules_auto_update_enabled",
             "common_location_exempt_enabled",
             "private_ip_exempt_enabled",
+            "block_behavior",
             "paranoia_level",
             "executing_paranoia_level",
         ] {
@@ -93,6 +94,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
             "paranoia_level",
             "executing_paranoia_level",
             "private_ip_exempt_enabled",
+            "block_behavior",
         ],
     );
     let should_sync_common_auth_locations =
@@ -861,6 +863,15 @@ pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState
             .and_then(|object| object.get("private_ip_exempt_enabled"))
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        "block_behavior": if raw
+            .and_then(|object| object.get("block_behavior"))
+            .and_then(Value::as_str)
+            == Some("reset_connection")
+        {
+            "reset_connection"
+        } else {
+            "error_page"
+        },
         "mode": "blocking",
         "active_bundle_id": "local",
         "rules_dir": waf_root_dir(state).to_string_lossy(),

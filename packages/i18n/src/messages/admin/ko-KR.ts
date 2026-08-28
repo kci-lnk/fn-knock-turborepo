@@ -1684,6 +1684,7 @@ export const koKRAdmin = {
     systemRules: "시스템 규칙",
     customRules: "사용자 지정 규칙",
     protectionUpdated: "WAF 보호 수준이 업데이트되었습니다.",
+    blockBehaviorUpdated: "WAF 차단 응답이 업데이트되었습니다.",
     settingsUpdated: "WAF 설정이 업데이트되었습니다.",
     enabledTitle: "WAF 사용",
     disabledTitle: "WAF 사용 안 함",
@@ -1725,6 +1726,13 @@ export const koKRAdmin = {
     enableWaf: "WAF 활성화",
     enableWafDescription:
       "기본값은 사용 안 함입니다. 사용하면 시스템 규칙을 먼저 업데이트하고 오탐이 잦은 규칙 파일을 제외한 뒤 현재 보호 수준으로 Go 게이트웨이에 적용합니다. 사용하지 않으면 게이트웨이가 즉시 WAF 검사를 건너뜁니다.",
+    blockBehavior: "차단 응답",
+    blockBehaviorDescription:
+      "차단 페이지는 추적 ID가 포함된 보안 안내를 반환합니다. 연결 차단은 페이지를 반환하지 않고 연결 또는 현재 요청 스트림을 즉시 중단합니다.",
+    blockBehaviorErrorPage: "차단 페이지 표시",
+    blockBehaviorResetConnection: "연결 차단",
+    blockBehaviorResetWarning:
+      "HTTP/1 요청은 연결을 재설정하고, HTTP/2는 현재 요청 스트림만 중단합니다.",
     autoUpdate: "자동 규칙 업데이트",
     autoUpdateDescription:
       "활성화되면 WAF 시스템 규칙 업데이트가 자동으로 유지되며 실패한 시도는 나중에 다시 시도됩니다.",

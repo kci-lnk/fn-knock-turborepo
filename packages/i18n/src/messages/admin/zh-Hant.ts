@@ -1497,6 +1497,7 @@ export const zhHantAdmin = {
     systemRules: "系統規則",
     customRules: "自定義規則",
     protectionUpdated: "WAF 防護強度已更新",
+    blockBehaviorUpdated: "WAF 攔截回應已更新",
     settingsUpdated: "WAF 設定已更新",
     enabledTitle: "WAF 已開啟",
     disabledTitle: "WAF 已關閉",
@@ -1534,6 +1535,13 @@ export const zhHantAdmin = {
     enableWaf: "啟用WAF",
     enableWafDescription:
       "默認關閉。開啟時會先更新系統規則，並跳過高頻誤報規則文件，再按當前強度載入到 Go 網關；關閉後網關會立即跳過 WAF 檢查。",
+    blockBehavior: "攔截回應",
+    blockBehaviorDescription:
+      "顯示攔截頁會傳回含追蹤編號的安全提示；阻斷連接不會傳回頁面，而是直接中止連接或目前請求串流。",
+    blockBehaviorErrorPage: "顯示攔截頁",
+    blockBehaviorResetConnection: "阻斷連接",
+    blockBehaviorResetWarning:
+      "啟用後，HTTP/1 請求會重設連接，HTTP/2 僅中止目前請求串流。",
     autoUpdate: "規則自動更新",
     autoUpdateDescription:
       "開啟後會自動維護 WAF 系統規則更新，失敗後後續會繼續嘗試。",

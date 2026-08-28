@@ -108,6 +108,10 @@ fn default_config_includes_node_runtime_feature_defaults() {
         config.pointer("/waf/system_rules_auto_update_enabled"),
         Some(&json!(true))
     );
+    assert_eq!(
+        config.pointer("/waf/block_behavior"),
+        Some(&json!("error_page"))
+    );
 }
 
 #[test]

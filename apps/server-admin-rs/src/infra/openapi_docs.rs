@@ -5905,6 +5905,10 @@ mod tests {
             Some(&json!("blocking"))
         );
         assert_eq!(
+            document.pointer("/components/schemas/WafConfigData/properties/block_behavior/enum"),
+            Some(&json!(["error_page", "reset_connection"]))
+        );
+        assert_eq!(
             document.pointer(
                 "/paths/~1api~1admin~1waf~1config/post/requestBody/content/application~1json/schema/$ref"
             ),

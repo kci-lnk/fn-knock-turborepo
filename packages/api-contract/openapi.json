@@ -22725,6 +22725,13 @@
             "const": "local",
             "type": "string"
           },
+          "block_behavior": {
+            "enum": [
+              "error_page",
+              "reset_connection"
+            ],
+            "type": "string"
+          },
           "common_location_exempt_enabled": {
             "type": "boolean"
           },
@@ -22823,6 +22830,7 @@
           "system_rules_auto_update_enabled",
           "common_location_exempt_enabled",
           "private_ip_exempt_enabled",
+          "block_behavior",
           "mode",
           "active_bundle_id",
           "rules_dir",
@@ -22844,6 +22852,16 @@
       },
       "WafConfigUpdateData": {
         "properties": {
+          "block_behavior": {
+            "enum": [
+              "error_page",
+              "reset_connection"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "common_location_exempt_enabled": {
             "type": [
               "boolean",

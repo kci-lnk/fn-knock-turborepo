@@ -67,10 +67,15 @@ describe("WAF API contract", () => {
     assert.equal(config.properties?.active_bundle_id?.const, "local");
     assert.equal(config.properties?.paranoia_level?.minimum, 1);
     assert.equal(config.properties?.paranoia_level?.maximum, 4);
+    assert.deepEqual(config.properties?.block_behavior?.enum, [
+      "error_page",
+      "reset_connection",
+    ]);
 
     const update = contract.components.schemas.WafConfigUpdateData;
     assert.deepEqual(update.required ?? [], []);
     assert.deepEqual(Object.keys(update.properties ?? {}).sort(), [
+      "block_behavior",
       "common_location_exempt_enabled",
       "enabled",
       "executing_paranoia_level",
@@ -142,5 +147,28 @@ describe("WAF API contract", () => {
     assert.match(api, /satisfies WafLogDeleteBody/u);
     assert.doesNotMatch(types, /interface WAFConfig/u);
     assert.doesNotMatch(types, /interface WAFEvent/u);
+  });
+
+  it("wires the WAF block response selector to immediate save and rollback", () => {
+    const view = readSource("../src/views/system-settings/WAFSettings.vue");
+    const settings = readSource(
+      "../src/views/system-settings/waf-settings/useWAFSettings.ts",
+    );
+    const row = readSource(
+      "../src/views/system-settings/waf-settings/WAFBlockBehaviorSettingRow.vue",
+    );
+
+    assert.match(view, /<WAFBlockBehaviorSettingRow/u);
+    assert.match(view, /v-if="form\.enabled"/u);
+    assert.match(view, /@update:model-value="handleBlockBehaviorChange"/u);
+    assert.match(settings, /block_behavior: "error_page"/u);
+    assert.match(
+      settings,
+      /WAFAPI\.updateConfig\(\{ block_behavior: normalized \}\)/u,
+    );
+    assert.match(settings, /form\.block_behavior = previousBehavior/u);
+    assert.match(row, /selectBehavior\('error_page'\)/u);
+    assert.match(row, /selectBehavior\('reset_connection'\)/u);
+    assert.match(row, /:aria-pressed=/u);
   });
 });

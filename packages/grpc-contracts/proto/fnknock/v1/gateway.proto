@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 20;
+  CONTROL_API_VERSION_CURRENT = 21;
 }
 
 message RpcStatus {
@@ -366,6 +366,7 @@ message WafConfig {
   repeated string disabled_path_prefixes = 14;
   string updated_at = 15;
   bool private_ip_exempt_enabled = 16;
+  string block_behavior = 17;
 }
 
 message WafStatus {

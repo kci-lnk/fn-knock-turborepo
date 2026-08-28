@@ -7,7 +7,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { WAFAPI } from "@/lib/api/gateway";
-import type { WAFDetails } from "../../../types";
+import type { WAFBlockBehavior, WAFDetails } from "../../../types";
 import { useConfigStore } from "../../../store/config";
 import { useWAFRuleManagement } from "./useWAFRuleManagement";
 
@@ -16,6 +16,9 @@ const clampLevel = (value: unknown, fallback = 1) => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(4, Math.max(1, parsed));
 };
+
+const normalizeBlockBehavior = (value: unknown): WAFBlockBehavior =>
+  value === "reset_connection" ? "reset_connection" : "error_page";
 
 export function useWAFSettings() {
   const { locale, t } = useI18n();
@@ -28,6 +31,7 @@ export function useWAFSettings() {
     system_rules_auto_update_enabled: true,
     common_location_exempt_enabled: false,
     private_ip_exempt_enabled: false,
+    block_behavior: "error_page" as WAFBlockBehavior,
     paranoia_level: 1,
     executing_paranoia_level: 1,
   });
@@ -113,6 +117,7 @@ export function useWAFSettings() {
       data.config.common_location_exempt_enabled === true;
     form.private_ip_exempt_enabled =
       data.config.private_ip_exempt_enabled === true;
+    form.block_behavior = normalizeBlockBehavior(data.config.block_behavior);
     const level = clampLevel(data.config.paranoia_level, 1);
     form.paranoia_level = level;
     form.executing_paranoia_level = level;
@@ -154,6 +159,7 @@ export function useWAFSettings() {
             form.system_rules_auto_update_enabled,
           common_location_exempt_enabled: form.common_location_exempt_enabled,
           private_ip_exempt_enabled: form.private_ip_exempt_enabled,
+          block_behavior: form.block_behavior,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         }),
@@ -190,6 +196,7 @@ export function useWAFSettings() {
             form.system_rules_auto_update_enabled,
           common_location_exempt_enabled: form.common_location_exempt_enabled,
           private_ip_exempt_enabled: form.private_ip_exempt_enabled,
+          block_behavior: form.block_behavior,
           paranoia_level: form.paranoia_level,
           executing_paranoia_level: form.executing_paranoia_level,
         });
@@ -234,6 +241,26 @@ export function useWAFSettings() {
         },
         onError: () => {
           form.common_location_exempt_enabled = previousEnabled;
+          if (details.value) applyFromDetails(details.value);
+        },
+      },
+    );
+  };
+
+  const handleBlockBehaviorChange = async (behavior: WAFBlockBehavior) => {
+    const normalized = normalizeBlockBehavior(behavior);
+    if (form.block_behavior === normalized || isBusy.value) return;
+    const previousBehavior = form.block_behavior;
+    form.block_behavior = normalized;
+    await runSaveSettings(
+      () => WAFAPI.updateConfig({ block_behavior: normalized }),
+      {
+        onSuccess: (data) => {
+          applyFromDetails(data);
+          toast.success(t("admin.wafSettings.blockBehaviorUpdated"));
+        },
+        onError: () => {
+          form.block_behavior = previousBehavior;
           if (details.value) applyFromDetails(details.value);
         },
       },
@@ -300,6 +327,7 @@ export function useWAFSettings() {
     formatDate,
     form,
     handleAutoUpdateChange,
+    handleBlockBehaviorChange,
     handleCommonLocationExemptChange,
     handleEnabledChange,
     handleParanoiaLevelChange,

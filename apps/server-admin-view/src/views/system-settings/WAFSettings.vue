@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import WAFRuleList from "./waf-settings/WAFRuleList.vue";
+import WAFBlockBehaviorSettingRow from "./waf-settings/WAFBlockBehaviorSettingRow.vue";
 import WAFSettingSwitchRow from "./waf-settings/WAFSettingSwitchRow.vue";
 import { useWAFSettings } from "./waf-settings/useWAFSettings";
 
@@ -47,6 +48,7 @@ const {
   formatSystemRuleMeta,
   formatSystemRuleName,
   handleAutoUpdateChange,
+  handleBlockBehaviorChange,
   handleCommonLocationExemptChange,
   handleEnabledChange,
   handleParanoiaLevelChange,
@@ -135,6 +137,20 @@ void uploadInputRef;
           :model-value="form.system_rules_auto_update_enabled"
           :title="t('admin.wafSettings.autoUpdate')"
           @change="handleAutoUpdateChange"
+        />
+
+        <WAFBlockBehaviorSettingRow
+          v-if="form.enabled"
+          :description="t('admin.wafSettings.blockBehaviorDescription')"
+          :disabled="isBusy"
+          :error-page-label="t('admin.wafSettings.blockBehaviorErrorPage')"
+          :model-value="form.block_behavior"
+          :reset-connection-label="
+            t('admin.wafSettings.blockBehaviorResetConnection')
+          "
+          :title="t('admin.wafSettings.blockBehavior')"
+          :warning="t('admin.wafSettings.blockBehaviorResetWarning')"
+          @update:model-value="handleBlockBehaviorChange"
         />
 
         <WAFSettingSwitchRow

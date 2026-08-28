@@ -1702,6 +1702,7 @@ export const jaJPAdmin = {
     systemRules: "システムルール",
     customRules: "カスタムルール",
     protectionUpdated: "WAF の保護レベルを更新しました",
+    blockBehaviorUpdated: "WAF のブロック応答を更新しました",
     settingsUpdated: "WAF 設定を更新しました",
     enabledTitle: "WAF を有効にしました",
     disabledTitle: "WAF を無効にしました",
@@ -1744,6 +1745,13 @@ export const jaJPAdmin = {
     enableWaf: "WAF を有効化",
     enableWafDescription:
       "デフォルトでは無効です。有効にすると、システムルールを更新し、誤検知の多いルールファイルを除外して、現在の保護レベルで Go ゲートウェイへ読み込みます。無効にすると、ゲートウェイは直ちに WAF チェックを停止します。",
+    blockBehavior: "ブロック応答",
+    blockBehaviorDescription:
+      "ブロックページはトレース ID 付きのセキュリティ通知を返します。接続を遮断するとページを返さず、接続または現在のリクエストストリームを直ちに中止します。",
+    blockBehaviorErrorPage: "ブロックページを表示",
+    blockBehaviorResetConnection: "接続を遮断",
+    blockBehaviorResetWarning:
+      "HTTP/1 リクエストは接続をリセットし、HTTP/2 は現在のリクエストストリームのみを中止します。",
     autoUpdate: "ルールを自動更新",
     autoUpdateDescription:
       "有効にすると WAF システムルールを自動的に更新し、失敗した場合は後で再試行します。",

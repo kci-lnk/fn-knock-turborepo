@@ -3147,6 +3147,14 @@ pub(super) fn components() -> Map<String, Value> {
         "const",
         json!("local"),
     );
+    for schema in ["WafConfigData", "WafConfigUpdateData"] {
+        set_property_enum(
+            &mut schemas,
+            schema,
+            "block_behavior",
+            &["error_page", "reset_connection"],
+        );
+    }
     for (property, value) in [
         ("inbound_anomaly_threshold", json!(5)),
         ("outbound_anomaly_threshold", json!(4)),

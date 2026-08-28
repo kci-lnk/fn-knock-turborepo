@@ -1700,6 +1700,7 @@ export const enAdmin = {
     systemRules: "System rules",
     customRules: "Custom rules",
     protectionUpdated: "WAF protection level updated",
+    blockBehaviorUpdated: "WAF block response updated",
     settingsUpdated: "WAF settings updated",
     enabledTitle: "WAF enabled",
     disabledTitle: "WAF disabled",
@@ -1742,6 +1743,13 @@ export const enAdmin = {
     enableWaf: "Enable WAF",
     enableWafDescription:
       "Disabled by default. When enabled, system rules are updated first, frequent false-positive rule files are skipped, and rules are loaded into the Go gateway at the current protection level. When disabled, the gateway skips WAF checks immediately.",
+    blockBehavior: "Block response",
+    blockBehaviorDescription:
+      "Show a block page to return a security notice with a trace ID, or block the connection without returning a page by aborting the connection or current request stream.",
+    blockBehaviorErrorPage: "Show block page",
+    blockBehaviorResetConnection: "Block connection",
+    blockBehaviorResetWarning:
+      "HTTP/1 requests will have their connection reset; HTTP/2 aborts only the current request stream.",
     autoUpdate: "Automatic rule updates",
     autoUpdateDescription:
       "When enabled, WAF system rule updates are maintained automatically, and failed attempts will be retried later.",

@@ -114,6 +114,38 @@ describe("subdomain target optimization model", () => {
     );
   });
 
+  it("never converts the protected 127.0.0.1:7998 backend target", () => {
+    for (const target of [
+      "http://127.0.0.1:7998",
+      "https://127.0.0.1:7998/admin?tab=status",
+      "  http://127.0.0.1:7998/health  ",
+    ]) {
+      assert.equal(parseOptimizableTargetHostname(target), null);
+      assert.equal(
+        rewriteTargetHostname(
+          target,
+          new Set(["127.0.0.1"]),
+          "192.168.50.8",
+        ),
+        null,
+      );
+    }
+
+    assert.deepEqual(
+      buildTargetOptimizationPreviews({
+        candidates: nativeCandidates,
+        destinationAddress: "192.168.50.8",
+        isAuthServiceTarget: () => false,
+        isDockerDeployment: false,
+        mappings: [
+          mapping("backend.example.test", "http://127.0.0.1:7998"),
+          mapping("app.example.test", "http://127.0.0.1:8080"),
+        ],
+      }).map((preview) => preview.host),
+      ["app.example.test"],
+    );
+  });
+
   it("converts only detected local interfaces back to exact loopback", () => {
     const mappings = [
       mapping("local.example.test", "http://192.168.50.8:8080/path"),

@@ -20,6 +20,8 @@ export interface TargetOptimizationPreview {
   target: string;
 }
 
+const PROTECTED_LOOPBACK_TARGET_PORT = "7998";
+
 const isIpv4Address = (value: string): boolean => {
   const parts = value.split(".");
   return (
@@ -37,6 +39,12 @@ export const parseOptimizableTargetHostname = (target: string): string | null =>
   if (!normalized) return null;
   try {
     const parsed = new URL(normalized);
+    if (
+      parsed.hostname === NATIVE_LOOPBACK_ADDRESS &&
+      parsed.port === PROTECTED_LOOPBACK_TARGET_PORT
+    ) {
+      return null;
+    }
     return isProxyTargetProtocol(parsed.protocol) &&
       isIpv4Address(parsed.hostname)
       ? parsed.hostname

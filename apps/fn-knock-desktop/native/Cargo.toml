@@ -1,6 +1,6 @@
 [package]
 name = "fn-knock-desktop"
-version = "2.3.6"
+version = "2.4.0"
 description = "Knock 敲门 Windows 管理程序"
 authors = ["KCI-LNK Corporation"]
 edition = "2024"

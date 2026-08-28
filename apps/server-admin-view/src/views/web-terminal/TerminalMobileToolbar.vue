@@ -59,7 +59,7 @@ const modifierKeys = computed(
         class="h-9 shrink-0 rounded-xl px-3 shadow-none transition-colors"
         :class="
           armedModifier === modifier
-            ? 'border-primary/50 bg-primary/10 text-primary'
+            ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
             : 'border-border/70 bg-background/80'
         "
         :aria-pressed="armedModifier === modifier"

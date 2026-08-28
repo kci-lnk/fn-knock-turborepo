@@ -49,11 +49,11 @@ const { t } = useI18n();
 
 <template>
   <div class="shrink-0 flex flex-col gap-2.5 lg:flex-row lg:items-center">
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex min-w-0 flex-nowrap items-center gap-1 sm:gap-2">
       <Button
         variant="outline"
         size="sm"
-        class="max-w-[210px] md:hidden"
+        class="min-w-0 flex-1 max-w-[210px] md:hidden"
         :disabled="isBooting"
         @click="openTargetDrawer"
       >
@@ -66,12 +66,12 @@ const { t } = useI18n();
         </span>
       </Button>
 
-      <div class="flex items-center gap-2 pl-2">
+      <div class="flex shrink-0 items-center gap-1 sm:gap-2 sm:pl-2">
         <LiveStatusBadge
           v-if="connectionState === 'connected'"
           :active="true"
           :active-label="t('admin.webTerminal.statusConnected')"
-          class="mt-px mr-3"
+          class="mt-px sm:mr-3"
         />
         <span
           v-else

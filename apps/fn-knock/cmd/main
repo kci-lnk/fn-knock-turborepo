@@ -115,7 +115,7 @@ wait_runtime_ready() {
     return 1
 }
 
-cleanup_fn_connect_waf_rules() {
+cleanup_fn_connect_waf_rules_once() {
     local firewall=""
     local comment="fn-knock:fn-connect-waf"
     local attempts=0
@@ -202,6 +202,74 @@ cleanup_fn_connect_waf_rules() {
         done
     done
     return "${cleanup_failed}"
+}
+
+fn_connect_waf_rules_absent() {
+    local firewall=""
+    local table=""
+    local rules=""
+    local error=""
+
+    for firewall in iptables ip6tables; do
+        command -v "${firewall}" >/dev/null 2>&1 || continue
+
+        for table in nat filter; do
+            error=""
+            if ! rules="$("${firewall}" -w 5 -t "${table}" -S 2>&1)"; then
+                error="${rules}"
+                case "${error}" in
+                    *"Table does not exist"*|*"table does not exist"*)
+                        continue
+                        ;;
+                    *)
+                        return 2
+                        ;;
+                esac
+            fi
+            if printf '%s\n' "${rules}" | grep -Eq \
+                '^-N FNK_FNC_(PRE|OUT|WAF|IN)( |$)|-j FNK_FNC_(PRE|OUT|WAF|IN)( |$)'; then
+                return 1
+            fi
+        done
+    done
+
+    return 0
+}
+
+cleanup_fn_connect_waf_rules() {
+    local attempt=1
+    local absence_status=0
+    local max_attempts=3
+    local pass_failed=0
+
+    while [ "${attempt}" -le "${max_attempts}" ]; do
+        pass_failed=0
+        cleanup_fn_connect_waf_rules_once || pass_failed=1
+        absence_status=0
+        fn_connect_waf_rules_absent || absence_status=$?
+        if [ "${absence_status}" -eq 0 ]; then
+            if [ "${pass_failed}" -ne 0 ]; then
+                log_msg "FN Connect WAF cleanup converged after a concurrent rule change"
+            fi
+            return 0
+        fi
+        if [ "${attempt}" -lt "${max_attempts}" ]; then
+            if [ "${absence_status}" -eq 1 ]; then
+                log_msg "FN Connect WAF cleanup will retry because managed rules are still present"
+            else
+                log_msg "FN Connect WAF cleanup will retry because firewall state could not be verified"
+            fi
+            sleep 1
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    if [ "${absence_status}" -eq 2 ]; then
+        log_msg "FN Connect WAF cleanup failed: firewall state could not be verified after ${max_attempts} attempts"
+    else
+        log_msg "FN Connect WAF cleanup failed: managed rules remain after ${max_attempts} attempts"
+    fi
+    return 1
 }
 
 generate_random_hex() {
@@ -1000,6 +1068,10 @@ stop() {
     fi
     if ! stop_matching_processes "${BACKEND_ENTRY}" "Backend"; then
         log_msg "Orphaned backend stop failed; refusing to finalize shutdown."
+        return 1
+    fi
+    if ! cleanup_fn_connect_waf_rules; then
+        log_msg "Runtime stopped, but residual FN Connect WAF rules could not be safely removed"
         return 1
     fi
     rm -f "${READINESS_MARKER}"

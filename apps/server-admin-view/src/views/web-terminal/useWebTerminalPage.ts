@@ -220,6 +220,7 @@ export const useWebTerminalPage = () => {
     }
     sessionsController.cancelMutations();
     targetsController.selectTarget(targetId);
+    sessionsController.reconcileSelection();
     viewport.closeTargetDrawer();
   };
 

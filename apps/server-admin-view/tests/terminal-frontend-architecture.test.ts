@@ -57,6 +57,14 @@ describe("SSH terminal frontend architecture", () => {
     );
   });
 
+  it("reconciles session selection in the same target-click batch", () => {
+    const page = readSource("../src/views/web-terminal/useWebTerminalPage.ts");
+    assert.match(
+      page,
+      /targetsController\.selectTarget\(targetId\);\s*sessionsController\.reconcileSelection\(\);\s*viewport\.closeTargetDrawer\(\);/u,
+    );
+  });
+
   it("rebuilds attachments without terminating the SSH session", () => {
     const attachment = readSource(
       "../src/views/web-terminal/useTerminalAttachment.ts",
@@ -97,6 +105,41 @@ describe("SSH terminal frontend architecture", () => {
     assert.match(targetList, /emit\(['"]selectSession['"], session\.id\)/u);
     assert.match(targetList, /drawer \? 'pr-14'/u);
     assert.doesNotMatch(targetList, /ChevronRight|KeyRound|targetReady/u);
+  });
+
+  it("keeps mobile terminal actions on one row", () => {
+    const toolbar = readSource(
+      "../src/views/web-terminal/TerminalSessionToolbar.vue",
+    );
+    assert.match(toolbar, /flex min-w-0 flex-nowrap items-center/u);
+    assert.match(toolbar, /min-w-0 flex-1 max-w-\[210px\] md:hidden/u);
+    assert.match(toolbar, /flex shrink-0 items-center gap-1/u);
+    assert.doesNotMatch(toolbar, /flex flex-wrap items-center/u);
+  });
+
+  it("uses a high-contrast selected state for mobile modifier keys", () => {
+    const toolbar = readSource(
+      "../src/views/web-terminal/TerminalMobileToolbar.vue",
+    );
+    assert.match(toolbar, /:aria-pressed="armedModifier === modifier"/u);
+    assert.match(
+      toolbar,
+      /border-primary bg-primary text-primary-foreground hover:bg-primary\/90 hover:text-primary-foreground/u,
+    );
+  });
+
+  it("keeps the terminal mount alive while targets and sessions switch", () => {
+    const workspace = readSource(
+      "../src/views/web-terminal/TerminalWorkspacePanel.vue",
+    );
+    assert.match(
+      workspace,
+      /v-show="!isBooting && selectedTarget && selectedSession"[\s\S]*:ref="setTerminalMountElement"/u,
+    );
+    assert.doesNotMatch(
+      workspace,
+      /<template v-else>[\s\S]*:ref="setTerminalMountElement"/u,
+    );
   });
 
   it("guards editor requests against stale async results", () => {

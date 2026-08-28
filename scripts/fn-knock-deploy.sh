@@ -17,6 +17,7 @@ REMOTE_BUILD_ARM64_DIR="${REMOTE_DIR}/build-arm64"
 REMOTE_FPK_AMD64_PATH="${REMOTE_DIR}/${APP_NAME}-amd64.fpk"
 REMOTE_FPK_ARM64_PATH="${REMOTE_DIR}/${APP_NAME}-arm64.fpk"
 REMOTE_UI_INDEX="/usr/local/apps/@appcenter/${APP_NAME}/ui/index.cgi"
+REMOTE_LIFECYCLE_MAIN="/usr/local/apps/@appcenter/${APP_NAME}/cmd/main"
 REMOTE_LOG_FILE="/usr/local/apps/@appdata/${APP_NAME}/info.log"
 REMOTE_INSTALL_ENV_PATH="${REMOTE_DIR}/install.env"
 REMOTE_APPCENTER_TMP_DIR="${FN_KNOCK_REMOTE_APPCENTER_TMP_DIR:-/tmp/appcenter}"
@@ -434,9 +435,36 @@ run_remote_install() {
     exit 1
   fi
 
-  log "Step 3/4: Stop and uninstall old app version"
-  ssh "${REMOTE_HOST}" "appcenter-cli stop '${APP_NAME}' || true"
-  ssh "${REMOTE_HOST}" "appcenter-cli uninstall '${APP_NAME}' || true"
+  status="$(get_remote_status)"
+  if echo "${status}" | grep -qi "noinstall"; then
+    log "Step 3/4: No installed app version to remove"
+  else
+    log "Step 3/4: Stage the packaged lifecycle entrypoint for upgrade compatibility"
+    ssh "${REMOTE_HOST}" "set -eu
+next='${REMOTE_LIFECYCLE_MAIN}.deploy-next'
+tar -xOzf '${REMOTE_FPK_AMD64_PATH}' cmd/main > \"\${next}\"
+chmod 0755 \"\${next}\"
+mv -f \"\${next}\" '${REMOTE_LIFECYCLE_MAIN}'"
+
+    log "Step 3/4: Stop and uninstall old app version"
+    if echo "${status}" | grep -Eqi "starting|running"; then
+      if ! ssh "${REMOTE_HOST}" "appcenter-cli stop '${APP_NAME}'"; then
+        log "Step 3/4: Stop failed; refusing to continue into a partial upgrade"
+        ssh "${REMOTE_HOST}" "tail -n 120 '${REMOTE_LOG_FILE}' || true"
+        exit 1
+      fi
+    fi
+    if ! ssh "${REMOTE_HOST}" "appcenter-cli uninstall '${APP_NAME}'"; then
+      log "Step 3/4: Uninstall failed; refusing to install over the existing app"
+      ssh "${REMOTE_HOST}" "tail -n 120 /var/log/trim_app_center/error.log || true"
+      exit 1
+    fi
+    status="$(get_remote_status)"
+    if ! echo "${status}" | grep -qi "noinstall"; then
+      echo "ERROR: application '${APP_NAME}' is still installed after uninstall" >&2
+      exit 1
+    fi
+  fi
 
   log "Step 3/4: Prepare wizard env file for CLI installation"
   ssh "${REMOTE_HOST}" "cat > '${REMOTE_INSTALL_ENV_PATH}' <<'EOF'

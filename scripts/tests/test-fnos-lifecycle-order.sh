@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-lifecycle-test.XXXXXX")"
 MAIN_ENTRYPOINT="${ROOT_DIR}/apps/fn-knock/cmd/main"
 LITE_ENTRYPOINT="${ROOT_DIR}/apps/fn-knock-lite/cmd/main"
 LINUX_ENTRYPOINT="${ROOT_DIR}/deploy/linux/fn-knock-entrypoint"
@@ -10,6 +11,12 @@ DOCKER_ENTRYPOINT="${ROOT_DIR}/deploy/docker/entrypoint.sh"
 SYNOLOGY_ENTRYPOINT="${ROOT_DIR}/apps/fn-knock-synology/package/bin/fn-knock-entrypoint"
 SYNOLOGY_LIFECYCLE="${ROOT_DIR}/apps/fn-knock-synology/scripts/start-stop-status"
 WINDOWS_SERVICE="${ROOT_DIR}/apps/server-admin-rs/src/windows_service.rs"
+DEPLOY_SCRIPT="${ROOT_DIR}/scripts/fn-knock-deploy.sh"
+
+cleanup() {
+  rm -rf "${WORK_DIR}"
+}
+trap cleanup EXIT
 
 fail() {
   printf '[test-fnos-lifecycle-order] ERROR: %s\n' "$*" >&2
@@ -52,6 +59,7 @@ do
   bash -n "${entrypoint}"
 done
 sh -n "${SYNOLOGY_LIFECYCLE}"
+bash -n "${DEPLOY_SCRIPT}"
 
 main_stop_body="$(extract_stop_body "${MAIN_ENTRYPOINT}")"
 lite_stop_body="$(extract_stop_body "${LITE_ENTRYPOINT}")"
@@ -75,6 +83,79 @@ assert_before "${main_stop_body}" \
 printf '%s\n' "${main_stop_body}" | grep -Fq \
   'backend kept running to preserve the auth upstream' || \
   fail 'gateway failure no longer preserves the auth upstream'
+[ "$(printf '%s\n' "${main_stop_body}" | grep -Fc 'if ! cleanup_fn_connect_waf_rules; then')" -eq 2 ] || \
+  fail 'fnOS shutdown must verify WAF cleanup before and after stopping the runtime'
+grep -Fq 'fn_connect_waf_rules_absent' "${MAIN_ENTRYPOINT}" || \
+  fail 'fnOS WAF cleanup no longer verifies converged firewall state'
+
+deploy_source="$(cat "${DEPLOY_SCRIPT}")"
+printf '%s\n' "${deploy_source}" | grep -Fq \
+  'Stage the packaged lifecycle entrypoint for upgrade compatibility' || \
+  fail 'remote deploy no longer stages the fixed lifecycle before stopping an old app'
+if printf '%s\n' "${deploy_source}" | grep -Eq \
+  "appcenter-cli (stop|uninstall).*\\|\\| true"; then
+  fail 'remote deploy must not ignore stop or uninstall failures'
+fi
+
+firewall_bin_dir="${WORK_DIR}/bin"
+mkdir -p "${firewall_bin_dir}"
+cat > "${firewall_bin_dir}/iptables" <<'EOF'
+#!/bin/bash
+last="${!#}"
+case "${MOCK_FIREWALL_MODE:-absent}" in
+  error)
+    echo 'xtables lock unavailable' >&2
+    exit 2
+    ;;
+  present)
+    if [ "${last}" = "-S" ]; then
+      echo '-N FNK_FNC_PRE'
+      echo '-A PREROUTING -j FNK_FNC_PRE'
+      exit 0
+    fi
+    exit 1
+    ;;
+  absent)
+    if [ "${last}" = "-S" ]; then
+      echo '-P INPUT ACCEPT'
+      exit 0
+    fi
+    exit 1
+    ;;
+esac
+EOF
+chmod 755 "${firewall_bin_dir}/iptables"
+cp "${firewall_bin_dir}/iptables" "${firewall_bin_dir}/ip6tables"
+
+cleanup_functions="$(sed -n \
+  '/^cleanup_fn_connect_waf_rules_once() {/,/^generate_random_hex() {/p' \
+  "${MAIN_ENTRYPOINT}" | sed '$d')"
+(
+  PATH="${firewall_bin_dir}:${PATH}"
+  log_msg() { :; }
+  sleep() { :; }
+  eval "${cleanup_functions}"
+
+  export MOCK_FIREWALL_MODE=absent
+  fn_connect_waf_rules_absent || fail 'absent firewall state was not accepted'
+
+  export MOCK_FIREWALL_MODE=present
+  set +e
+  fn_connect_waf_rules_absent
+  present_status=$?
+  set -e
+  [ "${present_status}" -eq 1 ] || fail 'managed firewall rules were not detected'
+
+  export MOCK_FIREWALL_MODE=error
+  set +e
+  fn_connect_waf_rules_absent
+  error_status=$?
+  cleanup_fn_connect_waf_rules
+  cleanup_status=$?
+  set -e
+  [ "${error_status}" -eq 2 ] || fail 'firewall inspection errors were treated as absence'
+  [ "${cleanup_status}" -ne 0 ] || fail 'unverifiable firewall cleanup was treated as success'
+)
 
 assert_before "${lite_stop_body}" \
   'if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then' \

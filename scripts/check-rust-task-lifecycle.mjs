@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 const sourceRoot = path.resolve("apps/server-admin-rs/src");
-const maxDirectSpawnCallSites = 105;
+const maxDirectSpawnCallSites = 107;
 
 // Direct spawns are limited to explicitly audited owners, request-scoped
 // fan-out, subprocess pipe/wait tasks, platform entry points, and tests.
@@ -17,8 +17,8 @@ const auditedBudgets = new Map(
     "auth/mobility.rs": 1,
     // Cancellation and concurrency probes; every handle is aborted or awaited.
     "auth/mobility/tests.rs": 5,
-    // One returned bridge owner plus one test-only waiter that is awaited.
-    "auth/routes/bridge.rs": 2,
+    // One returned bridge owner plus three test-only waiters; every waiter is awaited.
+    "auth/routes/bridge.rs": 4,
     "certificates/acme/jobs.rs": 5,
     "certificates/auto_https.rs": 1,
     "config/runtime/tests.rs": 5,

@@ -22,6 +22,7 @@ const { t } = useI18n();
 const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
 const brokenIcons = ref<Set<string>>(new Set());
 const isDialogOpen = ref(false);
+const dialogTriggerRef = ref<HTMLButtonElement | null>(null);
 const applicationListRef = ref<HTMLElement | null>(null);
 const { isDragging, onPointerDown } = useDragScroll(applicationListRef);
 const isVisible = computed(() =>
@@ -50,6 +51,11 @@ const markIconBroken = (key: string) => {
 const iconFailureKey = (key: string, iconSrc: string) =>
   `${key}\u0000${iconSrc}`;
 
+const handleDialogCloseAutoFocus = (event: Event) => {
+  event.preventDefault();
+  dialogTriggerRef.value?.focus({ preventScroll: true });
+};
+
 watch(
   isVisible,
   (visible) => {
@@ -66,6 +72,7 @@ watch(
     class="mb-4 flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-border/55 bg-muted/15 px-2.5 py-1.5 shadow-none"
   >
     <button
+      ref="dialogTriggerRef"
       type="button"
       :aria-label="t('admin.consoleApplicationList.ariaLabel')"
       :aria-expanded="isDialogOpen"
@@ -133,6 +140,7 @@ watch(
     <Dialog v-model:open="isDialogOpen">
       <DialogContent
         class="max-h-[calc(100dvh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
+        @close-auto-focus="handleDialogCloseAutoFocus"
       >
         <DialogHeader class="border-b px-5 py-4 text-left">
           <DialogTitle>{{

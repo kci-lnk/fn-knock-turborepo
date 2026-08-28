@@ -138,11 +138,14 @@ describe("ConsoleApplicationBar", () => {
     expect(link.attributes("title")).not.toContain("photos:3000");
     expect(accessEntry.load).toHaveBeenCalledTimes(1);
 
+    const focusSpy = vi.spyOn(trigger.element, "focus");
     await dialog.get('[data-slot="dialog-close"]').trigger("click");
     await nextTick();
     expect(
       document.body.querySelector('[data-slot="dialog-content"]'),
     ).toBeNull();
+    expect(focusSpy).toHaveBeenCalledOnce();
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
   });
 
   it("shows the empty state inside the dialog when no application is configured", async () => {

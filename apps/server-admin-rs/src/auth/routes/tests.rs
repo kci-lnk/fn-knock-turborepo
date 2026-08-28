@@ -634,6 +634,59 @@ fn client_ip_for_auth_matches_node_header_extraction() {
     assert_eq!(client_ip_for_auth(&headers), "127.0.0.1");
 }
 
+#[tokio::test]
+async fn loopback_sources_are_not_granted_local_network_exemption() {
+    let (_directory, state) = auth_route_test_state("loopback-local-exempt").await;
+    let config = shared_auth_test_config();
+    let headers = forwarded_headers("app.example.com");
+
+    for client_ip in [
+        "127.0.0.1",
+        "::1",
+        "localhost",
+        ":::1",
+        "0.0.0.0",
+        "::",
+        "224.0.0.1",
+        "ff02::1",
+    ] {
+        assert!(
+            !has_preflight_whitelist_access(&state, client_ip)
+                .await
+                .expect("resolve loopback strict-whitelist access"),
+            "loopback source passed strict-whitelist access: {client_ip}"
+        );
+        let access = resolve_preflight_normal_access(
+            &state,
+            &headers,
+            &Uri::from_static("/"),
+            &config,
+            client_ip,
+            RequestedAccessMode::LoginFirst,
+        )
+        .await
+        .expect("resolve loopback preflight");
+        assert!(
+            !access.authorized,
+            "loopback source was authorized: {client_ip}"
+        );
+        assert_ne!(access.grant_type.as_deref(), Some("local_exempt"));
+    }
+
+    let lan_access = resolve_preflight_normal_access(
+        &state,
+        &headers,
+        &Uri::from_static("/"),
+        &config,
+        "192.168.31.20",
+        RequestedAccessMode::LoginFirst,
+    )
+    .await
+    .expect("resolve LAN preflight");
+    assert!(lan_access.authorized);
+    assert_eq!(lan_access.grant_type.as_deref(), Some("local_exempt"));
+}
+
 #[test]
 fn inspect_auth_mobility_request_matches_node_cookie_rules() {
     let mut headers = HeaderMap::new();
@@ -899,7 +952,7 @@ async fn verify_clears_all_stale_cookie_scopes_even_when_local_access_is_allowed
         header::COOKIE,
         HeaderValue::from_static("x-go-reauth-proxy-session-id=missing-session"),
     );
-    headers.insert("x-forwarded-for", HeaderValue::from_static("127.0.0.1"));
+    headers.insert("x-forwarded-for", HeaderValue::from_static("192.168.31.20"));
 
     let response = verify(State(state), headers, Uri::from_static("/api/auth/verify")).await;
 

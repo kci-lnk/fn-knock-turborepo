@@ -240,9 +240,257 @@ fn session_ip_match_uses_normalized_addresses_and_rejects_empty_values() {
     let mut session = test_browser_session("[2001:db8::10]");
     assert!(session_ip_matches(&session, "2001:db8::10"));
     assert!(!session_ip_matches(&session, "2001:db8::11"));
+    assert!(!session_ip_matches(&session, "127.0.0.1"));
+    assert!(!session_ip_matches(&session, "::1"));
+    assert!(!session_ip_matches(&session, "localhost"));
+    assert!(!session_ip_matches(&session, ":::1"));
+
+    let loopback_session = test_browser_session("127.0.0.1");
+    assert!(!session_ip_matches(&loopback_session, "127.0.0.1"));
 
     session.ip.clear();
     assert!(!session_ip_matches(&session, ""));
+}
+
+#[tokio::test]
+async fn loopback_and_invalid_login_sources_are_stored_as_unknown_without_ip_grants() {
+    let (_directory, state) = mobility_test_state("loopback-login").await;
+    let config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("current config");
+
+    for (index, client_ip) in [
+        "127.0.0.1",
+        "::1",
+        "localhost",
+        ":::1",
+        "not-an-ip",
+        "0.0.0.0",
+        "::",
+        "224.0.0.1",
+        "ff02::1",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let created = create_login_session(
+            &state,
+            &config,
+            CreateLoginSessionInput {
+                auth_method: "TOTP".to_string(),
+                auth_provider_name: None,
+                credential_id: format!("loopback-totp-{index}"),
+                credential_name: "TOTP".to_string(),
+                totp_id: format!("loopback-totp-{index}"),
+                linked_totp_name: None,
+                totp_credential: None,
+                client_ip: client_ip.to_string(),
+                user_agent: "loopback-login-test".to_string(),
+                remember_me: false,
+            },
+        )
+        .await
+        .expect("loopback login session");
+
+        assert_eq!(created.grant_type, "browser_session");
+        assert!(created.whitelist_record_id.is_none());
+        assert!(created.post_login_ip_grant_mode.is_none());
+        let stored_session = state
+            .storage
+            .store
+            .get_session(&created.session_id)
+            .await
+            .expect("session lookup")
+            .expect("stored loopback login session");
+        assert_eq!(stored_session.ip, "unknown");
+        assert!(stored_session.ip_location.is_none());
+        assert!(
+            state
+                .storage
+                .store
+                .get_auth_mobility_binding("proxy-session", &created.session_id)
+                .await
+                .expect("binding lookup")
+                .is_none(),
+            "loopback login unexpectedly created an IP binding for {client_ip}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn loopback_session_refresh_does_not_drift_session_or_binding() {
+    let (_directory, state) = mobility_test_state("loopback-session-refresh").await;
+    let mut config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("current config");
+    config.as_object_mut().expect("config object").insert(
+        "auth_credential_settings".to_string(),
+        json!({
+            "session_ip_mobility_enabled": false,
+            "session_ip_mobility_window_seconds": 1200,
+            "post_login_ip_grant_mode": "follow_session"
+        }),
+    );
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("single-IP mobility config");
+
+    let session_id = "loopback-refresh-session";
+    let public_ip = "2408:8469:420:48ee:8dd4:d901:87ec:f2e0";
+    let session = test_browser_session(public_ip);
+    state
+        .storage
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .expect("session");
+    let binding = build_or_update_mobility_binding(
+        None,
+        "proxy-session",
+        session_id,
+        public_ip,
+        parse_iso_unix(session.expires_at.as_deref()),
+        Some(session_id),
+        None,
+    );
+    state
+        .storage
+        .store
+        .save_auth_mobility_binding_with_ttl("proxy-session", session_id, &binding, 3600)
+        .await
+        .expect("binding");
+
+    for client_ip in [
+        "127.0.0.1",
+        "::1",
+        "localhost",
+        ":::1",
+        "not-an-ip",
+        "0.0.0.0",
+        "::",
+        "224.0.0.1",
+        "ff02::1",
+    ] {
+        sync_trusted_request(
+            &state,
+            client_ip,
+            AuthMobilityRestoreIdentity {
+                session_id: Some(session_id),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("ignore loopback session refresh");
+    }
+
+    let stored_session = state
+        .storage
+        .store
+        .get_session(session_id)
+        .await
+        .expect("session lookup")
+        .expect("live session");
+    assert_eq!(stored_session.ip, public_ip);
+    let stored_binding = state
+        .storage
+        .store
+        .get_auth_mobility_binding("proxy-session", session_id)
+        .await
+        .expect("binding lookup")
+        .expect("live binding");
+    assert_eq!(
+        stored_binding.get("currentIp").and_then(Value::as_str),
+        Some(public_ip)
+    );
+
+    let drift_events = state
+        .storage
+        .store
+        .list_system_events(
+            1,
+            100,
+            "",
+            Some("FN_EVENT_AUTH_SESSION_IP_DRIFT"),
+            None,
+            None,
+        )
+        .await
+        .expect("drift event lookup");
+    assert_eq!(drift_events.get("total").and_then(Value::as_i64), Some(0));
+}
+
+#[tokio::test]
+async fn valid_remote_refresh_repairs_legacy_loopback_session_without_drift_event() {
+    let (_directory, state) = mobility_test_state("legacy-loopback-repair").await;
+    let mut config = state
+        .storage
+        .store
+        .get_config()
+        .await
+        .expect("current config");
+    config.as_object_mut().expect("config object").insert(
+        "auth_credential_settings".to_string(),
+        json!({
+            "session_ip_mobility_enabled": false,
+            "post_login_ip_grant_mode": "follow_session"
+        }),
+    );
+    state
+        .storage
+        .store
+        .save_config(&config)
+        .await
+        .expect("single-IP mobility config");
+
+    let session_id = "legacy-loopback-session";
+    state
+        .storage
+        .store
+        .add_session(session_id, &test_browser_session("127.0.0.1"), 3600)
+        .await
+        .expect("legacy loopback session");
+
+    let public_ip = "2408:8469:420:48ee:8dd4:d901:87ec:f2e0";
+    let repaired = sync_browser_session_ip(&state, session_id, public_ip, "browser-session")
+        .await
+        .expect("repair legacy loopback session")
+        .expect("live repaired session");
+    assert_eq!(repaired.ip, public_ip);
+    assert_eq!(
+        state
+            .storage
+            .store
+            .get_session(session_id)
+            .await
+            .expect("session lookup")
+            .expect("stored repaired session")
+            .ip,
+        public_ip
+    );
+
+    let drift_events = state
+        .storage
+        .store
+        .list_system_events(
+            1,
+            100,
+            "",
+            Some("FN_EVENT_AUTH_SESSION_IP_DRIFT"),
+            None,
+            None,
+        )
+        .await
+        .expect("drift event lookup");
+    assert_eq!(drift_events.get("total").and_then(Value::as_i64), Some(0));
 }
 
 #[tokio::test]

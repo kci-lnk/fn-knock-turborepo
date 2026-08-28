@@ -176,6 +176,12 @@ async fn sync_browser_session_ip_current(
         {
             tracing::warn!(%error, %session_id, "failed to publish auth session IP drift event");
         }
+    }
+
+    // Single-IP sessions feed the gateway trusted-client runtime. Refresh it
+    // after any accepted canonical IP write, including a silent repair from a
+    // legacy invalid/loopback value to a valid remote address.
+    if ip_needs_update && !settings.session_ip_mobility_enabled {
         whitelist::sync_reverse_proxy_trusted_ips(state).await;
     }
 

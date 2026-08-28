@@ -955,8 +955,20 @@ fn headers_from_auth_context(context: Option<&AuthContext>) -> HeaderMap {
             append_header(&mut headers, &header.name, value);
         }
     }
-    insert_header(&mut headers, "X-Real-IP", &context.client_ip);
-    insert_header(&mut headers, "X-Forwarded-For", &context.forwarded_for);
+    // The authenticated bridge's canonical client_ip is the only address
+    // assertion consumed by auth. Never let copied request headers or a raw
+    // forwarding chain override it.
+    for name in [
+        "x-forwarded-for",
+        "x-real-ip",
+        "eo-connecting-ip",
+        "ali-real-client-ip",
+    ] {
+        headers.remove(name);
+    }
+    let client_ip = http_utils::normalize_session_client_ip(&context.client_ip);
+    insert_header(&mut headers, "X-Real-IP", &client_ip);
+    insert_header(&mut headers, "X-Forwarded-For", &client_ip);
     insert_header(&mut headers, "X-Forwarded-Host", &context.forwarded_host);
     insert_header(&mut headers, "X-Forwarded-Proto", &context.forwarded_proto);
     insert_header(&mut headers, "X-Forwarded-Path", &context.forwarded_path);
@@ -1260,6 +1272,46 @@ mod tests {
         let headers = headers_from_auth_context(Some(&context));
         assert_eq!(headers["accesstoken"], "compact-token");
         assert_eq!(headers["access-token"], "hyphenated-token");
+    }
+
+    #[test]
+    fn auth_context_client_ip_cannot_be_overridden_by_forwarding_headers() {
+        let context = AuthContext {
+            client_ip: "203.0.113.10".to_string(),
+            forwarded_for: "127.0.0.1, 203.0.113.10".to_string(),
+            extra_headers: vec![
+                Header {
+                    name: "X-Forwarded-For".to_string(),
+                    values: vec!["192.168.1.10".to_string()],
+                },
+                Header {
+                    name: "EO-Connecting-IP".to_string(),
+                    values: vec!["::1".to_string()],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let headers = headers_from_auth_context(Some(&context));
+        assert_eq!(headers["x-forwarded-for"], "203.0.113.10");
+        assert_eq!(headers["x-real-ip"], "203.0.113.10");
+        assert!(!headers.contains_key("eo-connecting-ip"));
+        assert!(!headers.contains_key("ali-real-client-ip"));
+        assert_eq!(client_ip_for_auth(&headers), "203.0.113.10");
+
+        let invalid_context = AuthContext {
+            client_ip: "::1".to_string(),
+            forwarded_for: "203.0.113.10".to_string(),
+            extra_headers: vec![Header {
+                name: "X-Real-IP".to_string(),
+                values: vec!["198.51.100.20".to_string()],
+            }],
+            ..Default::default()
+        };
+        let invalid_headers = headers_from_auth_context(Some(&invalid_context));
+        assert_eq!(client_ip_for_auth(&invalid_headers), "");
+        assert!(!invalid_headers.contains_key("x-forwarded-for"));
+        assert!(!invalid_headers.contains_key("x-real-ip"));
     }
 
     #[test]

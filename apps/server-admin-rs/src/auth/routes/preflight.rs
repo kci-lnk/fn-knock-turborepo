@@ -327,8 +327,10 @@ pub(super) async fn resolve_preflight_normal_access(
     } else {
         None
     };
+    let normalized_session_source = http_utils::normalize_session_client_ip(client_ip);
+    let invalid_session_source = normalized_session_source.is_empty();
 
-    if http_utils::is_private_or_local_ip(client_ip) {
+    if http_utils::is_private_or_local_ip(client_ip) && !invalid_session_source {
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("local_exempt".to_string()),
@@ -337,7 +339,9 @@ pub(super) async fn resolve_preflight_normal_access(
         });
     }
 
-    if has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["manual"])).await? {
+    if !invalid_session_source
+        && has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["manual"])).await?
+    {
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("manual_whitelist".to_string()),
@@ -439,7 +443,9 @@ pub(super) async fn resolve_preflight_normal_access(
         }
     }
 
-    if has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["auto"])).await? {
+    if !invalid_session_source
+        && has_preflight_whitelist_access_from_sources(state, client_ip, Some(&["auto"])).await?
+    {
         let mobility =
             resolve_auto_ip_subdomain_access(state, headers, uri, config, client_ip).await?;
         if mobility.protected_host && mobility.has_owner_session && !mobility.allowed {
@@ -466,7 +472,10 @@ pub(super) async fn resolve_preflight_normal_access(
         // as a live credential whose subdomain scope denied the request.
     }
 
-    if access_mode != RequestedAccessMode::StrictWhitelist && identity.has_app_mobility_signal() {
+    if !invalid_session_source
+        && access_mode != RequestedAccessMode::StrictWhitelist
+        && identity.has_app_mobility_signal()
+    {
         let mobility =
             resolve_mobility_subdomain_access(state, headers, uri, config, client_ip, &identity)
                 .await?;
@@ -596,7 +605,7 @@ pub(super) async fn has_preflight_whitelist_access_from_sources(
     client_ip: &str,
     sources: Option<&[&str]>,
 ) -> anyhow::Result<bool> {
-    let normalized_ip = http_utils::normalize_ip(client_ip);
+    let normalized_ip = http_utils::normalize_session_client_ip(client_ip);
     if normalized_ip.is_empty() {
         return Ok(false);
     }

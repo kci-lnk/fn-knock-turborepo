@@ -161,6 +161,15 @@ fn strip_ipv4_port(candidate: &str) -> Option<&str> {
     }
 }
 
+fn strip_hostname_port(candidate: &str) -> Option<&str> {
+    let (host, port) = candidate.rsplit_once(':')?;
+    (!host.is_empty()
+        && !host.contains(':')
+        && !port.is_empty()
+        && port.chars().all(|ch| ch.is_ascii_digit()))
+    .then_some(host)
+}
+
 fn is_valid_ip(value: &str) -> bool {
     value.parse::<IpAddr>().is_ok()
 }
@@ -187,6 +196,54 @@ pub fn is_private_or_local_ip(value: &str) -> bool {
         }
         Err(_) => false,
     }
+}
+
+/// Loopback is never a trustworthy browser/session identity. A local reverse
+/// proxy can legitimately be the transport peer while the real visitor is
+/// remote, so accepting its address would collapse unrelated users onto a
+/// shared localhost identity.
+pub fn is_loopback_or_localhost(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let host = strip_bracketed_host(trimmed)
+        .or_else(|| strip_hostname_port(trimmed))
+        .unwrap_or(trimmed)
+        .trim_end_matches('.');
+    if host.eq_ignore_ascii_case("localhost") || host == ":::1" {
+        return true;
+    }
+
+    normalize_ip(trimmed)
+        .parse::<IpAddr>()
+        .is_ok_and(|address| address.is_loopback())
+}
+
+/// Canonicalize an address before it is used as a session identity. Invalid
+/// strings and loopback aliases fail closed instead of being persisted as a
+/// user-controlled identity value.
+pub fn normalize_session_client_ip(value: &str) -> String {
+    if is_loopback_or_localhost(value) {
+        return String::new();
+    }
+    let normalized = normalize_ip(value);
+    let Ok(address) = normalized.parse::<IpAddr>() else {
+        return String::new();
+    };
+    let invalid = match address {
+        IpAddr::V4(address) => {
+            address.is_unspecified()
+                || address.is_loopback()
+                || address.is_multicast()
+                || address.is_broadcast()
+        }
+        IpAddr::V6(address) => {
+            address.is_unspecified() || address.is_loopback() || address.is_multicast()
+        }
+    };
+    if invalid { String::new() } else { normalized }
 }
 
 pub fn is_secure_request(headers: &HeaderMap, uri: &Uri) -> bool {
@@ -237,6 +294,65 @@ mod tests {
         assert!(is_private_or_local_ip("fd7a:115c:a1e0::1"));
         assert!(!is_private_or_local_ip("100.128.0.1"));
         assert!(!is_private_or_local_ip("8.8.8.8"));
+    }
+
+    #[test]
+    fn identifies_loopback_and_localhost_session_sources() {
+        for value in [
+            "127.0.0.1",
+            "127.10.20.30:443",
+            "::1",
+            "[::1]:443",
+            "::ffff:127.0.0.1",
+            "localhost",
+            "LOCALHOST.",
+            "localhost:443",
+            "[localhost]:443",
+            ":::1",
+        ] {
+            assert!(
+                is_loopback_or_localhost(value),
+                "expected rejected loopback source: {value}"
+            );
+        }
+        for value in ["", "192.168.1.2", "203.0.113.10", "2001:db8::10"] {
+            assert!(
+                !is_loopback_or_localhost(value),
+                "unexpected rejected session source: {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn session_client_ip_normalization_fails_closed() {
+        assert_eq!(
+            normalize_session_client_ip("203.0.113.10:443"),
+            "203.0.113.10"
+        );
+        assert_eq!(
+            normalize_session_client_ip("[2001:db8::10]:443"),
+            "2001:db8::10"
+        );
+        for value in [
+            "",
+            "not-an-ip",
+            "localhost",
+            "127.0.0.1",
+            "::1",
+            "::ffff:127.0.0.1",
+            ":::1",
+            "0.0.0.0",
+            "::",
+            "224.0.0.1",
+            "ff02::1",
+            "255.255.255.255",
+        ] {
+            assert_eq!(
+                normalize_session_client_ip(value),
+                "",
+                "unexpected session identity for {value}"
+            );
+        }
     }
 
     #[test]

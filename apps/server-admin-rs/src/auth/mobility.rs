@@ -14,7 +14,7 @@ use crate::{
         session_mutation_lock_key as auth_mobility_session_mutation_lock_key,
         subject_hash as auth_mobility_subject_hash,
     },
-    http_utils::normalize_ip,
+    http_utils::normalize_session_client_ip,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location,
     state::AppState,
@@ -588,12 +588,7 @@ fn build_or_update_mobility_binding(
 }
 
 fn normalized_or_trimmed_ip(value: &str) -> String {
-    let normalized = normalize_ip(value);
-    if normalized.is_empty() {
-        value.trim().to_string()
-    } else {
-        normalized
-    }
+    normalize_session_client_ip(value)
 }
 
 pub(crate) fn session_ip_matches(session: &LoginSession, client_ip: &str) -> bool {

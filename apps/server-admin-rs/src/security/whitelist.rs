@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     auth_mobility,
     cidr::{CompiledIpSet, compile_ip_set, union_ip_sets},
-    http_utils::normalize_ip,
+    http_utils::{normalize_ip, normalize_session_client_ip},
     i18n::Translator,
     ip_location, response, runtime_profile,
     state::AppState,
@@ -1754,8 +1754,8 @@ fn reverse_proxy_compiled_whitelist_target<'a>(
 }
 
 fn add_ip_source(source_map: &mut BTreeMap<String, BTreeSet<String>>, ip: &str, source: String) {
-    let normalized = normalize_ip(ip);
-    if normalized.parse::<IpAddr>().is_err() {
+    let normalized = normalize_session_client_ip(ip);
+    if normalized.is_empty() {
         return;
     }
     source_map.entry(normalized).or_default().insert(source);

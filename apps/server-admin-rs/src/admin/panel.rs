@@ -1084,7 +1084,8 @@ pub(crate) async fn resolve_panel_auth_context(
                 let current_ip = client_ip_for_tracking(headers);
                 let current_user_agent = user_agent_for_tracking(headers);
                 let previous_ip = record.ip.clone();
-                let ip_changed = previous_ip != current_ip;
+                let (ip_needs_update, ip_changed) =
+                    panel_session_ip_transition(&previous_ip, &current_ip);
                 let user_agent_changed = record.user_agent != current_user_agent;
                 let session_audit_id = panel_session_audit_id(&session_id);
                 let strict_binding_mismatch = panel_session_binding()
@@ -1099,14 +1100,17 @@ pub(crate) async fn resolve_panel_auth_context(
                         "rejected docker admin session fingerprint drift in strict mode"
                     );
                 } else {
-                    if ip_changed || user_agent_changed {
+                    if ip_needs_update || user_agent_changed {
                         tracing::warn!(
                             session_id = %session_audit_id,
+                            %ip_needs_update,
                             %ip_changed,
                             %user_agent_changed,
                             "accepted docker admin session fingerprint drift in soft mode"
                         );
-                        record.ip = current_ip.clone();
+                        if ip_needs_update {
+                            record.ip = current_ip.clone();
+                        }
                         record.user_agent = current_user_agent;
                     }
                     record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
@@ -1459,12 +1463,20 @@ async fn register_login_failure(state: &AppState, ip: &str) -> anyhow::Result<(i
 }
 
 fn client_ip_for_tracking(headers: &HeaderMap) -> String {
-    let ip = http_utils::get_client_ip(headers);
+    let ip = http_utils::normalize_session_client_ip(&http_utils::get_client_ip(headers));
     if ip.is_empty() {
         "unknown".to_string()
     } else {
         ip
     }
+}
+
+fn panel_session_ip_transition(previous_ip: &str, current_ip: &str) -> (bool, bool) {
+    let previous_ip = http_utils::normalize_session_client_ip(previous_ip);
+    let current_ip = http_utils::normalize_session_client_ip(current_ip);
+    let needs_update = !current_ip.is_empty() && previous_ip != current_ip;
+    let is_real_drift = needs_update && !previous_ip.is_empty();
+    (needs_update, is_real_drift)
 }
 
 fn user_agent_for_tracking(headers: &HeaderMap) -> String {
@@ -1525,6 +1537,21 @@ mod tests {
     fn with_env_var<T>(key: &str, run: impl FnOnce(&EnvGuard) -> T) -> T {
         let env = EnvGuard::new(&[key]);
         run(&env)
+    }
+
+    async fn panel_test_state(name: &str) -> (tempfile::TempDir, AppState) {
+        let directory = tempfile::tempdir().expect("temporary panel database");
+        let mut settings = {
+            let _environment = EnvGuard::new(&[]);
+            crate::settings::Settings::from_env()
+        };
+        settings.data_dir = directory.path().join("data");
+        settings.gateway_config_dir = directory.path().join("gateway");
+        settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+        settings.legacy_redis_url = String::new();
+        settings.internal_rpc_token = format!("admin-panel-{name}-test");
+        let state = AppState::new(settings).await.expect("panel test state");
+        (directory, state)
     }
 
     #[test]
@@ -1608,6 +1635,137 @@ mod tests {
             env.set("DOCKER_ADMIN_SESSION_BINDING", "invalid");
             assert_eq!(panel_session_binding(), PanelSessionBinding::Soft);
         });
+    }
+
+    #[test]
+    fn docker_admin_session_ignores_loopback_ip_observations_and_repairs_legacy_values() {
+        for value in ["127.0.0.1", "::1", "localhost", ":::1"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-for",
+                HeaderValue::from_str(value).expect("tracking IP header"),
+            );
+            assert_eq!(client_ip_for_tracking(&headers), "unknown");
+            assert_eq!(
+                panel_session_ip_transition("203.0.113.10", value),
+                (false, false)
+            );
+        }
+
+        assert_eq!(
+            panel_session_ip_transition("127.0.0.1", "203.0.113.10"),
+            (true, false)
+        );
+        assert_eq!(
+            panel_session_ip_transition("203.0.113.10", "198.51.100.20"),
+            (true, true)
+        );
+        assert_eq!(
+            panel_session_ip_transition("203.0.113.10", "203.0.113.10"),
+            (false, false)
+        );
+    }
+
+    #[tokio::test]
+    async fn docker_admin_loopback_refresh_preserves_session_and_emits_no_drift_event() {
+        let (_directory, state) = panel_test_state("loopback-refresh").await;
+        let environment = EnvGuard::new(&["DOCKER_ADMIN_SESSION_BINDING"]);
+        environment.remove("DOCKER_ADMIN_SESSION_BINDING");
+        let password = test_password_record(&time_utils::now_iso());
+        let password_revision = docker_admin_password_revision(&password);
+        state
+            .storage
+            .store
+            .set_docker_admin_password(&password)
+            .await
+            .expect("panel password");
+        let mut session = test_panel_session(&time_utils::now_iso(), &password_revision);
+        session.expires_at = time_utils::iso_after_seconds(3_600);
+        session.ip = "203.0.113.10".to_string();
+        state
+            .storage
+            .store
+            .set_docker_admin_session(&session)
+            .await
+            .expect("panel session");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_str(&format!("{ADMIN_PANEL_SESSION_COOKIE_NAME}={}", session.id))
+                .expect("panel cookie"),
+        );
+        headers.insert(header::USER_AGENT, HeaderValue::from_static("test"));
+        headers.insert("x-forwarded-for", HeaderValue::from_static("[::1]:443"));
+
+        let context = resolve_panel_auth_context(&state, &headers)
+            .await
+            .expect("loopback panel refresh");
+        assert_eq!(
+            context.get("authenticated").and_then(Value::as_bool),
+            Some(true)
+        );
+        let stored = state
+            .storage
+            .store
+            .docker_admin_session(&session.id)
+            .await
+            .expect("panel session lookup")
+            .expect("live panel session");
+        assert_eq!(stored.ip, "203.0.113.10");
+
+        let events = state
+            .storage
+            .store
+            .list_system_events(
+                1,
+                100,
+                "",
+                Some("FN_EVENT_AUTH_SESSION_IP_DRIFT"),
+                None,
+                None,
+            )
+            .await
+            .expect("panel drift events");
+        assert_eq!(events.get("total").and_then(Value::as_i64), Some(0));
+
+        let mut legacy = stored;
+        legacy.ip = "127.0.0.1".to_string();
+        state
+            .storage
+            .store
+            .set_docker_admin_session(&legacy)
+            .await
+            .expect("legacy panel session");
+        headers.insert("x-forwarded-for", HeaderValue::from_static("198.51.100.20"));
+        resolve_panel_auth_context(&state, &headers)
+            .await
+            .expect("repair legacy panel session");
+        assert_eq!(
+            state
+                .storage
+                .store
+                .docker_admin_session(&session.id)
+                .await
+                .expect("repaired panel session lookup")
+                .expect("repaired panel session")
+                .ip,
+            "198.51.100.20"
+        );
+        let events = state
+            .storage
+            .store
+            .list_system_events(
+                1,
+                100,
+                "",
+                Some("FN_EVENT_AUTH_SESSION_IP_DRIFT"),
+                None,
+                None,
+            )
+            .await
+            .expect("repaired panel drift events");
+        assert_eq!(events.get("total").and_then(Value::as_i64), Some(0));
     }
 
     fn test_password_record(updated_at: &str) -> DockerAdminPasswordRecord {

@@ -84,7 +84,7 @@ fn localizes_whitelist_errors_and_response_comments() {
 }
 
 #[test]
-fn builds_gateway_trusted_source_map_with_private_ips() {
+fn builds_gateway_trusted_source_map_with_private_ips_but_rejects_loopback() {
     let mut source_map = BTreeMap::new();
     add_ip_source(&mut source_map, "192.168.1.2", "session:a".to_string());
     add_ip_source(&mut source_map, "8.8.8.8", "session:b".to_string());
@@ -108,15 +108,7 @@ fn builds_gateway_trusted_source_map_with_private_ips() {
             .collect::<Vec<_>>(),
         vec!["session:b".to_string()]
     );
-    assert_eq!(
-        source_map
-            .get("127.0.0.1")
-            .unwrap()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>(),
-        vec!["session:loopback".to_string()]
-    );
+    assert!(!source_map.contains_key("127.0.0.1"));
     assert!(!source_map.contains_key("not-an-ip"));
 }
 
@@ -144,6 +136,16 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
         )
         .await
         .expect("store public session");
+    state
+        .storage
+        .store
+        .add_session(
+            "loopback-session",
+            &gateway_trusted_test_session("127.0.0.1"),
+            3600,
+        )
+        .await
+        .expect("store loopback session");
 
     for record in [
         WhitelistRecord {
@@ -216,6 +218,7 @@ async fn gateway_trusted_runtime_compiles_sessions_and_all_whitelist_sources_whe
             "compiled IPs missing {expected}: {ips:?}"
         );
     }
+    assert!(!ips.contains("127.0.0.1"));
     assert!(compiled.get("cidrs").is_none());
     assert!(
         compiled

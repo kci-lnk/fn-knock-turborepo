@@ -25,6 +25,7 @@ const {
     :configured="details?.summary.configured === true"
     :ready="details !== null && !isLoading"
     :edit-label="t('admin.sshSecurity.editConfig')"
+    collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
     summary-class="text-xs text-muted-foreground"
     expanded-content-class="p-0 sm:p-0"
     actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse items-stretch gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"

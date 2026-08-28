@@ -102,4 +102,15 @@ describe("SSH security API contract", () => {
     assert.match(form, /<SelectItem value="month">/u);
     assert.match(form, /admin\.sshSecurity\.month/u);
   });
+
+  it("stacks the collapsed configuration summary and actions on mobile", () => {
+    const card = readSource(
+      "../src/views/ssh-security/SSHSecurityConfigurationCard.vue",
+    );
+
+    assert.match(
+      card,
+      /collapsed-content-class="[^"]*min-h-\[76px\][^"]*flex-col[^"]*sm:h-\[40px\][^"]*sm:flex-row[^"]*"/u,
+    );
+  });
 });

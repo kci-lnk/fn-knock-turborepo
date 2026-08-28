@@ -34,9 +34,14 @@ const trafficSeriesLabelKeys: Record<string, string> = {
 
 const metricIconTones = {
   liveIngress: { color: "#0f766e" },
-  liveEgress: { color: "#1d4ed8" },
-  totalIngress: { color: "#0369a1" },
-  totalEgress: { color: "#6d28d9" },
+  liveEgress: { color: "#c2410c" },
+  totalIngress: { color: "#0f766e" },
+  totalEgress: { color: "#c2410c" },
+} as const;
+
+export const DASHBOARD_TRAFFIC_COLORS = {
+  ingress: "#0f766e",
+  egress: "#c2410c",
 } as const;
 
 const normalizeSeriesData = (value: unknown) => {
@@ -118,7 +123,10 @@ export const useDashboardViewModel = ({
 
   const trafficSeries = computed<TimeSeriesChartSeries[]>(() => {
     const base = (stats.value?.traffic.echarts ?? {}) as any;
-    const colors = ["#0f766e", "#2563eb"];
+    const colors = [
+      DASHBOARD_TRAFFIC_COLORS.ingress,
+      DASHBOARD_TRAFFIC_COLORS.egress,
+    ];
 
     return (Array.isArray(base?.series) ? base.series : []).map(
       (series: any, index: number) => {

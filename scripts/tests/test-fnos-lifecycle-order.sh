@@ -12,6 +12,7 @@ SYNOLOGY_ENTRYPOINT="${ROOT_DIR}/apps/fn-knock-synology/package/bin/fn-knock-ent
 SYNOLOGY_LIFECYCLE="${ROOT_DIR}/apps/fn-knock-synology/scripts/start-stop-status"
 WINDOWS_SERVICE="${ROOT_DIR}/apps/server-admin-rs/src/windows_service.rs"
 DEPLOY_SCRIPT="${ROOT_DIR}/scripts/fn-knock-deploy.sh"
+UNINSTALL_CALLBACK="${ROOT_DIR}/apps/fn-knock/cmd/uninstall_callback"
 
 cleanup() {
   rm -rf "${WORK_DIR}"
@@ -68,6 +69,7 @@ do
 done
 sh -n "${SYNOLOGY_LIFECYCLE}"
 bash -n "${DEPLOY_SCRIPT}"
+bash -n "${UNINSTALL_CALLBACK}"
 
 main_stop_body="$(extract_stop_body "${MAIN_ENTRYPOINT}")"
 main_start_body="$(extract_start_body "${MAIN_ENTRYPOINT}")"
@@ -78,7 +80,7 @@ printf '%s\n' "${main_start_body}" | grep -Fq \
   fail 'fnOS startup no longer applies the WAF cleanup startup policy'
 
 assert_before "${main_stop_body}" \
-  'if ! cleanup_fn_connect_waf_rules; then' \
+  'if ! cleanup_fn_connect_waf_for_stop 1; then' \
   'if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then'
 assert_before "${main_stop_body}" \
   'if ! stop_service "${GATEWAY_PID_FILE}" "Gateway"; then' \
@@ -96,10 +98,34 @@ assert_before "${main_stop_body}" \
 printf '%s\n' "${main_stop_body}" | grep -Fq \
   'backend kept running to preserve the auth upstream' || \
   fail 'gateway failure no longer preserves the auth upstream'
-[ "$(printf '%s\n' "${main_stop_body}" | grep -Fc 'if ! cleanup_fn_connect_waf_rules; then')" -eq 2 ] || \
+[ "$(printf '%s\n' "${main_stop_body}" | grep -Fc 'if ! cleanup_fn_connect_waf_for_stop')" -eq 2 ] || \
   fail 'fnOS shutdown must verify WAF cleanup before and after stopping the runtime'
+printf '%s\n' "${main_stop_body}" | grep -Fq \
+  'if ! cleanup_fn_connect_waf_for_stop 3; then' || \
+  fail 'fnOS shutdown no longer retries firewall cleanup after processes exit'
 grep -Fq 'fn_connect_waf_rules_absent' "${MAIN_ENTRYPOINT}" || \
   fail 'fnOS WAF cleanup no longer verifies converged firewall state'
+grep -Fq 'local max_jump_deletions=64' "${MAIN_ENTRYPOINT}" || \
+  fail 'fnOS WAF cleanup no longer drains accumulated duplicate jumps'
+for runtime_file in backend.pid gateway.pid runtime.ready runtime-ports.env; do
+  grep -Fq '"${PKG_VAR_DIR}/'"${runtime_file}"'"' "${UNINSTALL_CALLBACK}" || \
+    fail "fnOS uninstall leaves stale runtime identity: ${runtime_file}"
+done
+uninstall_var_dir="${WORK_DIR}/uninstall-var"
+mkdir -p "${uninstall_var_dir}"
+touch \
+  "${uninstall_var_dir}/backend.pid" \
+  "${uninstall_var_dir}/gateway.pid" \
+  "${uninstall_var_dir}/runtime.ready" \
+  "${uninstall_var_dir}/runtime-ports.env" \
+  "${uninstall_var_dir}/settings.sqlite"
+TRIM_PKGVAR="${uninstall_var_dir}" bash "${UNINSTALL_CALLBACK}"
+for runtime_file in backend.pid gateway.pid runtime.ready runtime-ports.env; do
+  [ ! -e "${uninstall_var_dir}/${runtime_file}" ] || \
+    fail "fnOS uninstall did not remove runtime identity: ${runtime_file}"
+done
+[ -e "${uninstall_var_dir}/settings.sqlite" ] || \
+  fail 'fnOS uninstall callback removed persistent user data'
 
 deploy_source="$(cat "${DEPLOY_SCRIPT}")"
 printf '%s\n' "${deploy_source}" | grep -Fq \
@@ -163,6 +189,7 @@ cleanup_functions="$(sed -n \
   supervisor_log() { :; }
   write_temp_log() { START_ERROR="$1"; }
   sleep() { :; }
+  FIREWALL_WAIT_SECONDS=1
   eval "${cleanup_functions}"
 
   export MOCK_FIREWALL_MODE=absent
@@ -191,6 +218,7 @@ cleanup_functions="$(sed -n \
 
   export MOCK_FIREWALL_MODE=error
   prepare_fn_connect_waf_for_start || fail 'unverifiable firewall state blocked startup'
+  cleanup_fn_connect_waf_for_stop || fail 'unverifiable firewall state blocked a bounded stop'
 
   export MOCK_FIREWALL_MODE=present
   START_ERROR=""
@@ -201,6 +229,14 @@ cleanup_functions="$(sed -n \
   [ "${startup_status}" -eq 1 ] || fail 'confirmed residual WAF rules did not block startup'
   [ "${START_ERROR}" = 'fn-knock refused to start because stale FN Connect WAF rules remain and could not be removed' ] || \
     fail 'confirmed residual WAF rules did not provide the expected startup diagnostic'
+  START_ERROR=""
+  set +e
+  cleanup_fn_connect_waf_for_stop
+  stop_policy_status=$?
+  set -e
+  [ "${stop_policy_status}" -eq 1 ] || fail 'confirmed residual WAF rules did not block shutdown'
+  [ "${START_ERROR}" = 'fn-knock refused to stop because confirmed FN Connect WAF rules remain and could not be removed' ] || \
+    fail 'confirmed residual WAF rules did not provide the expected stop diagnostic'
 )
 
 assert_before "${lite_stop_body}" \

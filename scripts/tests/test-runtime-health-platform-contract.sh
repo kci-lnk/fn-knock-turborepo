@@ -67,6 +67,7 @@ do
   assert_contains "${native_fpk_launcher}" 'stop_matching_processes "${BACKEND_ENTRY}"' 'FPK orphaned backend confirmation'
   assert_contains "${native_fpk_launcher}" 'stop_matching_processes "${GATEWAY_BIN}"' 'FPK orphaned gateway confirmation'
 done
+assert_contains "${ROOT_DIR}/apps/fn-knock/cmd/main" 'FN_KNOCK_FIREWALL_WAIT_SECONDS:-1' 'FPK bounded firewall lock budget'
 assert_contains "${WINDOWS}" 'FN_KNOCK_RUNTIME_TARGET", "windows"' 'Windows runtime target'
 assert_contains "${WINDOWS}" 'paths.data.join("runtime/logs")' 'Windows runtime log directory'
 assert_contains "${RUNTIME}" 'let mut exit_code = 0u32;' 'Windows process exit-code type'

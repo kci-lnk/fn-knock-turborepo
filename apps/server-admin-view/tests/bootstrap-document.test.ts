@@ -14,6 +14,9 @@ test("admin document exposes recovery when a module fails before main executes",
   assert.match(source, /modulepreload/u);
   assert.match(source, /unhandledrejection/u);
   assert.match(source, /data-fn-knock-bootstrap-retry/u);
+  assert.match(source, /claimAutomaticReload/u);
+  assert.match(source, /automaticReloadClaimed/u);
+  assert.match(source, /previousReason === "stale-asset"/u);
   assert.match(source, /_fn_knock_reload_reason/u);
   assert.ok(
     source.indexOf("__fnKnockEarlyResourceFailure") <

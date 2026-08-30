@@ -1085,7 +1085,47 @@ resolve_install_volume() {{
   echo "$volume"
 }}
 
+stage_lifecycle_entrypoint() {{
+  lifecycle_main="/var/apps/fn-knock/cmd/main"
+  [ -f "$lifecycle_main" ] || return 0
+  lifecycle_next="${{lifecycle_main}}.update-next"
+  rm -f "$lifecycle_next"
+  if ! tar -xOzf {quoted_package_path} cmd/main > "$lifecycle_next"; then
+    rm -f "$lifecycle_next"
+    return 1
+  fi
+  if ! chmod 0755 "$lifecycle_next" || ! /bin/bash -n "$lifecycle_next"; then
+    rm -f "$lifecycle_next"
+    return 1
+  fi
+  mv -f "$lifecycle_next" "$lifecycle_main"
+  echo "Staged the updated lifecycle entrypoint before stopping the installed app"
+}}
+
+start_installed_application() {{
+  attempt=1
+  max_attempts=10
+  while [ "$attempt" -le "$max_attempts" ]; do
+    status="$(appcenter-cli status fn-knock 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)"
+    case "$status" in
+      running)
+        return 0
+        ;;
+      starting)
+        ;;
+      *)
+        appcenter-cli start fn-knock || true
+        ;;
+    esac
+    echo "Waiting for App Center before start retry $attempt/$max_attempts"
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  return 1
+}}
+
 install_volume="$(resolve_install_volume)"
+stage_lifecycle_entrypoint
 appcenter-cli stop fn-knock
 appcenter-cli uninstall fn-knock
 mkdir -p /tmp/appcenter
@@ -1095,7 +1135,7 @@ if [ -n "$install_volume" ]; then
 else
   appcenter-cli install-fpk {quoted_package_path} --env {quoted_env_path}
 fi
-appcenter-cli start fn-knock
+start_installed_application
 trap - EXIT
 "#
     )
@@ -1764,11 +1804,20 @@ mod tests {
         assert!(!script.contains("appcenter-cli uninstall fn-knock || true"));
         assert!(script.contains("trap restart_after_failure EXIT"));
         assert!(script.contains("appcenter-cli start fn-knock >/dev/null 2>&1 || true"));
+        assert!(script.contains("tar -xOzf '/tmp/update.fpk' cmd/main"));
+        assert!(script.contains("/bin/bash -n \"$lifecycle_next\""));
+        assert!(script.contains("rm -f \"$lifecycle_next\""));
+        assert!(script.contains("start_installed_application"));
+        assert!(script.contains("max_attempts=10"));
+        assert!(script.contains("tr -d '[:space:]'"));
+        assert!(script.contains("      running)"));
+        assert!(!script.contains("*running*)"));
 
+        let stage = script.find("stage_lifecycle_entrypoint\n").unwrap();
         let stop = script.find("appcenter-cli stop fn-knock").unwrap();
         let uninstall = script.find("appcenter-cli uninstall fn-knock").unwrap();
         let install = script.find("appcenter-cli install-fpk").unwrap();
-        assert!(stop < uninstall && uninstall < install);
+        assert!(stage < stop && stop < uninstall && uninstall < install);
 
         #[cfg(unix)]
         {

@@ -29,6 +29,7 @@ NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
 START_TIMEOUT_SECONDS="${FN_KNOCK_START_TIMEOUT_SECONDS:-300}"
 STOP_TIMEOUT_SECONDS="${FN_KNOCK_STOP_TIMEOUT_SECONDS:-75}"
 FORCE_KILL_TIMEOUT_SECONDS="${FN_KNOCK_FORCE_KILL_TIMEOUT_SECONDS:-10}"
+FIREWALL_WAIT_SECONDS="${FN_KNOCK_FIREWALL_WAIT_SECONDS:-1}"
 
 BACKEND_PORT=""
 ADMIN_VIEW_PORT=""
@@ -119,6 +120,7 @@ cleanup_fn_connect_waf_rules_once() {
     local firewall=""
     local comment="fn-knock:fn-connect-waf"
     local attempts=0
+    local max_jump_deletions=64
     local cleanup_failed=0
     local table=""
     local parent=""
@@ -141,12 +143,12 @@ cleanup_fn_connect_waf_rules_once() {
             parent="${parent_chain%%|*}"
             chain="${parent_chain#*|}"
             attempts=0
-            while [ "${attempts}" -lt 8 ]; do
+            while [ "${attempts}" -lt "${max_jump_deletions}" ]; do
                 if [ "${parent}" = "PREROUTING" ]; then
-                    "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                    "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -C "${parent}" \
                         -m addrtype --dst-type LOCAL \
                         -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1 || break
-                    if ! "${firewall}" -w 5 -t "${table}" -D "${parent}" \
+                    if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -D "${parent}" \
                         -m addrtype --dst-type LOCAL \
                         -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
                         log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} ${parent} jump"
@@ -154,9 +156,9 @@ cleanup_fn_connect_waf_rules_once() {
                         break
                     fi
                 else
-                    "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                    "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -C "${parent}" \
                         -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1 || break
-                    if ! "${firewall}" -w 5 -t "${table}" -D "${parent}" \
+                    if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -D "${parent}" \
                         -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
                         log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} ${parent} jump"
                         cleanup_failed=1
@@ -165,15 +167,15 @@ cleanup_fn_connect_waf_rules_once() {
                 fi
                 attempts=$((attempts + 1))
             done
-            if [ "${attempts}" -eq 8 ]; then
+            if [ "${attempts}" -eq "${max_jump_deletions}" ]; then
                 if [ "${parent}" = "PREROUTING" ]; then
-                    if "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                    if "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -C "${parent}" \
                         -m addrtype --dst-type LOCAL \
                         -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
                         log_msg "FN Connect WAF cleanup failed: too many ${firewall} ${table} ${parent} jumps to ${chain}"
                         cleanup_failed=1
                     fi
-                elif "${firewall}" -w 5 -t "${table}" -C "${parent}" \
+                elif "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -C "${parent}" \
                     -m comment --comment "${comment}" -j "${chain}" >/dev/null 2>&1; then
                     log_msg "FN Connect WAF cleanup failed: too many ${firewall} ${table} ${parent} jumps to ${chain}"
                     cleanup_failed=1
@@ -188,14 +190,14 @@ cleanup_fn_connect_waf_rules_once() {
             "filter|FNK_FNC_IN"; do
             table="${table_chain%%|*}"
             chain="${table_chain#*|}"
-            if ! "${firewall}" -w 5 -t "${table}" -S "${chain}" >/dev/null 2>&1; then
+            if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -S "${chain}" >/dev/null 2>&1; then
                 continue
             fi
-            if ! "${firewall}" -w 5 -t "${table}" -F "${chain}" >/dev/null 2>&1; then
+            if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -F "${chain}" >/dev/null 2>&1; then
                 log_msg "FN Connect WAF cleanup failed: unable to flush ${firewall} ${table} chain ${chain}"
                 cleanup_failed=1
             fi
-            if ! "${firewall}" -w 5 -t "${table}" -X "${chain}" >/dev/null 2>&1; then
+            if ! "${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -X "${chain}" >/dev/null 2>&1; then
                 log_msg "FN Connect WAF cleanup failed: unable to delete ${firewall} ${table} chain ${chain}"
                 cleanup_failed=1
             fi
@@ -215,7 +217,7 @@ fn_connect_waf_rules_absent() {
 
         for table in nat filter; do
             error=""
-            if ! rules="$("${firewall}" -w 5 -t "${table}" -S 2>&1)"; then
+            if ! rules="$("${firewall}" -w "${FIREWALL_WAIT_SECONDS}" -t "${table}" -S 2>&1)"; then
                 error="${rules}"
                 case "${error}" in
                     *"Table does not exist"*|*"table does not exist"*|\
@@ -244,14 +246,22 @@ fn_connect_waf_rules_absent() {
 cleanup_fn_connect_waf_rules() {
     local attempt=1
     local absence_status=0
-    local max_attempts=3
+    local max_attempts="${1:-3}"
     local pass_failed=0
 
     while [ "${attempt}" -le "${max_attempts}" ]; do
-        pass_failed=0
-        cleanup_fn_connect_waf_rules_once || pass_failed=1
         absence_status=0
         fn_connect_waf_rules_absent || absence_status=$?
+        if [ "${absence_status}" -eq 0 ]; then
+            return 0
+        fi
+
+        pass_failed=0
+        if [ "${absence_status}" -eq 1 ]; then
+            cleanup_fn_connect_waf_rules_once || pass_failed=1
+            absence_status=0
+            fn_connect_waf_rules_absent || absence_status=$?
+        fi
         if [ "${absence_status}" -eq 0 ]; then
             if [ "${pass_failed}" -ne 0 ]; then
                 log_msg "FN Connect WAF cleanup converged after a concurrent rule change"
@@ -276,6 +286,30 @@ cleanup_fn_connect_waf_rules() {
         log_msg "FN Connect WAF cleanup failed: managed rules remain after ${max_attempts} attempts"
         return 1
     fi
+}
+
+cleanup_fn_connect_waf_for_stop() {
+    local cleanup_status=0
+    local max_attempts="${1:-1}"
+
+    # App Center imposes its own stop deadline. Probe once with the short
+    # xtables lock budget so a temporarily unavailable firewall cannot hold an
+    # otherwise healthy upgrade open for minutes.
+    cleanup_fn_connect_waf_rules "${max_attempts}" || cleanup_status=$?
+    case "${cleanup_status}" in
+        0)
+            return 0
+            ;;
+        2)
+            log_msg "FN Connect WAF firewall state is unavailable; continuing the bounded runtime stop"
+            supervisor_log WARN management waf_cleanup_unverifiable fnos_stop null
+            return 0
+            ;;
+        *)
+            write_temp_log "fn-knock refused to stop because confirmed FN Connect WAF rules remain and could not be removed"
+            return 1
+            ;;
+    esac
 }
 
 prepare_fn_connect_waf_for_start() {
@@ -695,7 +729,7 @@ check_process() {
 
 validate_lifecycle_timeouts() {
     local value=""
-    for value in "${START_TIMEOUT_SECONDS}" "${STOP_TIMEOUT_SECONDS}" "${FORCE_KILL_TIMEOUT_SECONDS}"; do
+    for value in "${START_TIMEOUT_SECONDS}" "${STOP_TIMEOUT_SECONDS}" "${FORCE_KILL_TIMEOUT_SECONDS}" "${FIREWALL_WAIT_SECONDS}"; do
         case "${value}" in
             ''|*[!0-9]*|0) return 1 ;;
         esac
@@ -1075,7 +1109,7 @@ stop() {
     log_msg "=== fn-knock stop ==="
     supervisor_log INFO supervisor stop_requested fnos_stop null
     resolve_gateway_bin >/dev/null 2>&1 || true
-    if ! cleanup_fn_connect_waf_rules; then
+    if ! cleanup_fn_connect_waf_for_stop 1; then
         log_msg "Runtime kept running because FN Connect WAF rules could not be safely removed"
         return 1
     fi
@@ -1095,12 +1129,12 @@ stop() {
         log_msg "Orphaned backend stop failed; refusing to finalize shutdown."
         return 1
     fi
-    if ! cleanup_fn_connect_waf_rules; then
+    rm -f "${READINESS_MARKER}"
+    stop_external_resources
+    if ! cleanup_fn_connect_waf_for_stop 3; then
         log_msg "Runtime stopped, but residual FN Connect WAF rules could not be safely removed"
         return 1
     fi
-    rm -f "${READINESS_MARKER}"
-    stop_external_resources
     return 0
 }
 

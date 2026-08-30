@@ -90,11 +90,33 @@
     </div>
     <script>
       (() => {
+        let automaticReloadClaimed = false;
+        const claimAutomaticReload = () => {
+          const url = new URL(window.location.href);
+          const previousReason = url.searchParams.get(
+            "_fn_knock_reload_reason",
+          );
+          if (
+            automaticReloadClaimed ||
+            previousReason === "bootstrap" ||
+            previousReason === "stale-asset"
+          ) {
+            return false;
+          }
+          automaticReloadClaimed = true;
+          url.searchParams.set("_fn_knock_reload", String(Date.now()));
+          url.searchParams.set("_fn_knock_reload_reason", "bootstrap");
+          window.location.replace(url.toString());
+          return true;
+        };
         const showBootstrapFailure = () => {
           if (
             document.documentElement.getAttribute("data-fn-knock-mounted") ===
             "true"
           ) {
+            return;
+          }
+          if (claimAutomaticReload()) {
             return;
           }
           const root = document.getElementById("app");

@@ -264,7 +264,11 @@ pub async fn admin_fallback(
         )
         .await
     } else if is_asset_request_path(path) {
-        static_asset_not_found()
+        if is_recoverable_missing_javascript(path) {
+            stale_asset_recovery(req.method())
+        } else {
+            static_asset_not_found()
+        }
     } else {
         serve_index(
             &state,
@@ -570,6 +574,54 @@ fn static_asset_not_found() -> Response {
         .unwrap_or_else(|_| StatusCode::NOT_FOUND.into_response())
 }
 
+fn versioned_asset_from_request(path: &str) -> Option<(&str, &str)> {
+    let relative = path.strip_prefix("/assets/")?;
+    let (generation, asset) = relative.split_once('/')?;
+    if !generation.starts_with('v')
+        || generation.len() <= 1
+        || !generation
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return None;
+    }
+    Some((generation, asset))
+}
+
+fn is_recoverable_missing_javascript(path: &str) -> bool {
+    let Some((_, asset)) = versioned_asset_from_request(path) else {
+        return false;
+    };
+    let asset_path = Path::new(asset);
+    matches!(
+        asset_path
+            .extension()
+            .and_then(|extension| extension.to_str()),
+        Some("js" | "mjs")
+    ) && asset_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(has_fingerprinted_file_name)
+}
+
+fn stale_asset_recovery(method: &Method) -> Response {
+    const SCRIPT: &str = r#"const url=new URL(window.location.href);const reason=url.searchParams.get("_fn_knock_reload_reason");if(reason==="stale-asset"||reason==="bootstrap"){throw new Error("fn-knock asset recovery was already attempted");}url.searchParams.set("_fn_knock_reload",String(Date.now()));url.searchParams.set("_fn_knock_reload_reason","stale-asset");window.location.replace(url.toString());export {};"#;
+    let body = if method == Method::HEAD {
+        Body::empty()
+    } else {
+        Body::from(SCRIPT)
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/javascript; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .header("x-fn-knock-asset-recovery", "reload")
+        .header(header::CONTENT_LENGTH, SCRIPT.len().to_string())
+        .body(body)
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
 fn cache_control_for_file(path: &Path, kind: StaticFileKind) -> &'static str {
     match kind {
         StaticFileKind::Index => INDEX_CACHE_CONTROL,
@@ -686,10 +738,12 @@ mod tests {
     use super::{
         StaticFileKind, accepts_encoding, auth_not_found_html, cache_control_for_file,
         has_fingerprinted_file_name, if_none_match_matches, is_api_path, is_asset_request_path,
-        is_known_auth_view_path, last_modified_header, normalize_auth_path, serve_catalog_file,
-        serve_file, serve_index_file, static_asset_not_found, static_file_entry,
-        static_file_variant,
+        is_known_auth_view_path, is_recoverable_missing_javascript, last_modified_header,
+        normalize_auth_path, serve_catalog_file, serve_file, serve_index_file,
+        stale_asset_recovery, static_asset_not_found, static_file_entry, static_file_variant,
+        versioned_asset_from_request,
     };
+    use axum::body::to_bytes;
     use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
     use std::{
         path::Path,
@@ -775,6 +829,53 @@ mod tests {
                 .unwrap(),
             "nosniff"
         );
+    }
+
+    #[test]
+    fn missing_versioned_javascript_is_recoverable() {
+        assert_eq!(
+            versioned_asset_from_request("/assets/v2.4.1/index-OLDHASH.js"),
+            Some(("v2.4.1", "index-OLDHASH.js"))
+        );
+        assert!(is_recoverable_missing_javascript(
+            "/assets/v2.4.1/index-OLDHASH.js"
+        ));
+        assert!(is_recoverable_missing_javascript(
+            "/assets/v2.4.2/index-MISSING.js"
+        ));
+        assert!(!is_recoverable_missing_javascript(
+            "/assets/v2.4.1/index-OLDHASH.css"
+        ));
+        assert!(!is_recoverable_missing_javascript(
+            "/assets/index-OLDHASH.js"
+        ));
+        assert!(!is_recoverable_missing_javascript(
+            "/assets/v2.4.1/index.js"
+        ));
+    }
+
+    #[tokio::test]
+    async fn stale_javascript_asset_returns_a_one_shot_reload_module() {
+        let response = stale_asset_recovery(&Method::GET);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store"
+        );
+        assert_eq!(
+            response.headers().get("x-fn-knock-asset-recovery").unwrap(),
+            "reload"
+        );
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let script = std::str::from_utf8(&body).unwrap();
+        assert!(script.contains("_fn_knock_reload_reason"));
+        assert!(script.contains("stale-asset"));
+        assert!(script.contains("reason===\"bootstrap\""));
+        assert!(script.contains("window.location.replace"));
     }
 
     #[test]

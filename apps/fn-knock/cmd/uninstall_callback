@@ -2,4 +2,18 @@
 
 ### This script is called after the user uninstalls the application.
 
+set -u
+
+PKG_VAR_DIR="${TRIM_PKGVAR:-}"
+if [ -n "${PKG_VAR_DIR}" ]; then
+    # User data may intentionally survive an uninstall, but runtime identity
+    # never should. Leaving these files behind can make a reinstall mistake an
+    # old generation for a ready process or route the CGI to an obsolete port.
+    rm -f \
+        "${PKG_VAR_DIR}/backend.pid" \
+        "${PKG_VAR_DIR}/gateway.pid" \
+        "${PKG_VAR_DIR}/runtime.ready" \
+        "${PKG_VAR_DIR}/runtime-ports.env"
+fi
+
 exit 0

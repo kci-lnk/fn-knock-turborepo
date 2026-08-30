@@ -1215,7 +1215,7 @@ fn sanitizes_legacy_notification_snapshots_before_display_or_delivery() {
 }
 
 #[test]
-fn app_update_notification_keeps_trace_internal() {
+fn app_update_notification_keeps_release_notes_and_trace_internal() {
     let trace_id = "trc_3f93d40a-89ea-4dbe-a04f-67692778d973";
     let translator = Translator::new("zh-CN");
     let message = build_notification_message(
@@ -1247,6 +1247,18 @@ fn app_update_notification_keeps_trace_internal() {
     assert!(message.get("trace_id").is_none());
     assert!(message.pointer("/metadata/trace_id").is_none());
     assert!(!serde_json::to_string(&message).unwrap().contains(trace_id));
+    assert!(
+        message
+            .get("body_text")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("修复通知与认证桥接问题"))
+    );
+    assert!(
+        message
+            .get("body_markdown")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("修复通知与认证桥接问题"))
+    );
 
     let rendered_channels = [
         build_text_body(&message),
@@ -1272,6 +1284,10 @@ fn app_update_notification_keeps_trace_internal() {
         assert!(
             !rendered.replace('\\', "").contains(trace_id),
             "app update notification leaked the Trace ID: {rendered}"
+        );
+        assert!(
+            rendered.contains("修复通知与认证桥接问题"),
+            "app update notification omitted release notes: {rendered}"
         );
     }
 }

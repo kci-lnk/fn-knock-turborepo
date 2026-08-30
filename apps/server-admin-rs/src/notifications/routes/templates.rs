@@ -21,12 +21,12 @@ pub(super) fn build_notification_aggregation_text(
 pub(super) fn build_notification_body_text(
     overview: &str,
     aggregation: &str,
-    _advice: &str,
+    additional_content: &str,
 ) -> String {
     // The title and summary already identify the event. Keep provider payloads
-    // focused on event-specific context and aggregation, without repeating the
-    // generic remediation paragraph on every push.
-    [overview, aggregation]
+    // focused on event-specific context and aggregation. Callers may still
+    // supply essential event content, such as application release notes.
+    [overview, aggregation, additional_content]
         .into_iter()
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -37,10 +37,10 @@ pub(super) fn build_notification_body_text(
 pub(super) fn build_notification_body_markdown(
     overview: &str,
     aggregation: &str,
-    _advice: &str,
+    additional_content: &str,
     _translator: &Translator,
 ) -> String {
-    [overview, aggregation]
+    [overview, aggregation, additional_content]
         .into_iter()
         .map(str::trim)
         .filter(|value| !value.is_empty())

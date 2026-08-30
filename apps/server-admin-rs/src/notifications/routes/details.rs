@@ -1725,13 +1725,23 @@ pub(super) fn build_notification_details(
         );
     }
 
+    // Generic remediation advice is intentionally omitted from compact push
+    // bodies. Release notes are event data rather than generic advice, so keep
+    // them in the body for providers and delivery views that do not render
+    // structured facts (notably Bark).
+    let additional_content = if event_type == "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE" {
+        advice.as_str()
+    } else {
+        ""
+    };
+
     NotificationDetails {
         summary: summary.trim().to_string(),
-        body_text: build_notification_body_text(&overview, &aggregation, &advice),
+        body_text: build_notification_body_text(&overview, &aggregation, additional_content),
         body_markdown: build_notification_body_markdown(
             &overview,
             &aggregation,
-            &advice,
+            additional_content,
             translator,
         ),
         facts,

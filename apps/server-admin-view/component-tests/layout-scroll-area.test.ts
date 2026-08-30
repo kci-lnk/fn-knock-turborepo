@@ -88,4 +88,15 @@ describe("LayoutScrollArea", () => {
     expect(wrapper.find(".layout-scroll-area__rail").exists()).toBe(false);
     wrapper.unmount();
   });
+
+  it("can reserve a gutter so menu states do not overlap the rail", () => {
+    const wrapper = mount(LayoutScrollArea, {
+      props: { reserveRailGutter: true },
+    });
+
+    expect(wrapper.get(".layout-scroll-area__viewport").classes()).toContain(
+      "layout-scroll-area__viewport--rail-gutter",
+    );
+    wrapper.unmount();
+  });
 });

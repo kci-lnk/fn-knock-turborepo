@@ -70,6 +70,7 @@ import {
 import {
   alignTimeSeriesData,
   buildTimeSeriesLegendItems,
+  getTimeSeriesYAxisSize,
   hasRenderableTimeSeriesData,
   toTimeSeriesTimestampMs,
 } from "../src/components/charts/timeSeriesChartModel";
@@ -731,5 +732,16 @@ describe("time series chart model", () => {
         { name: "Traffic", color: "blue" },
       ],
     );
+  });
+
+  it("reserves enough y-axis width for formatted traffic labels", () => {
+    assert.equal(
+      getTimeSeriesYAxisSize(
+        ["0 B /s", "2.38 MB /s"],
+        (label) => label.length * 7,
+      ),
+      82,
+    );
+    assert.equal(getTimeSeriesYAxisSize(["0"], () => 7), 60);
   });
 });

@@ -28,10 +28,12 @@ describe("sidebar navigation order", () => {
 
     assert.equal(layoutSource.match(/<LayoutScrollArea/g)?.length, 2);
     assert.match(layoutSource, /hint-on-mount/u);
+    assert.match(layoutSource, /reserve-rail-gutter/u);
     assert.match(scrollAreaSource, /scrollHeight > clientHeight \+ 1/u);
     assert.match(scrollAreaSource, /isScrolling\.value = true/u);
     assert.match(scrollAreaSource, /setPointerCapture/u);
     assert.match(scrollAreaSource, /rgb\(0 0 0 \/ 16%\)/u);
+    assert.match(scrollAreaSource, /padding-inline-end: 12px/u);
   });
 
   it("restores focus to the locale dialog trigger after close", () => {

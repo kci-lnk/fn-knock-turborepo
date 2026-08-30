@@ -49,7 +49,6 @@ export function useDashboardData({
 }: UseDashboardDataOptions) {
   const rangeKey = ref<(typeof dashboardRanges)[number]["key"]>("1h");
   const isAutoRefresh = ref(true);
-  const { run: runLoadDashboard } = useAsyncAction();
   const isInitializing = ref(true);
   const errorMessage = ref("");
   const stats = ref<DashboardStats | null>(null);
@@ -60,6 +59,8 @@ export function useDashboardData({
   const { isPending: isDdnsPending, run: runLoadDdnsStatus } = useAsyncAction();
   const ddnsError = ref("");
   let ddnsLoadTimer: number | null = null;
+  let dashboardAbortController: AbortController | null = null;
+  let dashboardRequestId = 0;
   let disposed = false;
 
   const activeRange = computed(
@@ -93,48 +94,75 @@ export function useDashboardData({
   };
 
   const load = async (signal?: AbortSignal) => {
-    await runLoadDashboard(
-      async () => {
-        errorMessage.value = "";
-        const [statsResult, threatResult] = await Promise.allSettled([
-          DashboardAPI.getStats(activeRange.value.sec, undefined, signal),
-          SecurityAPI.getOverview(activeRange.value.sec, signal),
-        ]);
-        if (signal?.aborted) return;
-        if (statsResult.status === "fulfilled") {
-          stats.value = statsResult.value;
-          lastUpdatedAt.value = new Date();
-        } else {
-          const message =
-            (statsResult.reason as any)?.response?.data?.message ||
-            (statsResult.reason as any)?.message ||
-            translate("admin.dashboard.errors.loadFailed");
-          errorMessage.value = message;
-          toast.error(translate("admin.dashboard.errors.dashboardLoadFailed"), {
-            description: message,
-          });
-        }
-        if (threatResult.status === "fulfilled") {
-          threatOverview.value = threatResult.value;
-        }
-      },
-      {
-        onError: (error: any) => {
-          const message =
-            error?.response?.data?.message ||
-            error?.message ||
-            translate("admin.dashboard.errors.loadFailed");
-          errorMessage.value = message;
-          toast.error(translate("admin.dashboard.errors.dashboardLoadFailed"), {
-            description: message,
-          });
-        },
-        onFinally: () => {
-          isInitializing.value = false;
-        },
-      },
-    );
-    if (disposed || signal?.aborted) return;
+    const requestedRange = activeRange.value;
+    const requestId = ++dashboardRequestId;
+    dashboardAbortController?.abort();
+    const controller = new AbortController();
+    dashboardAbortController = controller;
+    let removeExternalAbortListener: (() => void) | undefined;
+    if (signal?.aborted) {
+      controller.abort(signal.reason);
+    } else if (signal) {
+      const relayAbort = () => controller.abort(signal.reason);
+      signal.addEventListener("abort", relayAbort, { once: true });
+      removeExternalAbortListener = () =>
+        signal.removeEventListener("abort", relayAbort);
+    }
+
+    const isCurrentRequest = () =>
+      !disposed &&
+      !controller.signal.aborted &&
+      requestId === dashboardRequestId &&
+      rangeKey.value === requestedRange.key;
+
+    errorMessage.value = "";
+    try {
+      const [statsResult, threatResult] = await Promise.allSettled([
+        DashboardAPI.getStats(
+          requestedRange.sec,
+          undefined,
+          controller.signal,
+        ),
+        SecurityAPI.getOverview(requestedRange.sec, controller.signal),
+      ]);
+      if (!isCurrentRequest()) return;
+      if (statsResult.status === "fulfilled") {
+        stats.value = statsResult.value;
+        lastUpdatedAt.value = new Date();
+      } else {
+        const message =
+          (statsResult.reason as any)?.response?.data?.message ||
+          (statsResult.reason as any)?.message ||
+          translate("admin.dashboard.errors.loadFailed");
+        errorMessage.value = message;
+        toast.error(translate("admin.dashboard.errors.dashboardLoadFailed"), {
+          description: message,
+        });
+      }
+      if (threatResult.status === "fulfilled") {
+        threatOverview.value = threatResult.value;
+      }
+    } catch (error: any) {
+      if (!isCurrentRequest()) return;
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        translate("admin.dashboard.errors.loadFailed");
+      errorMessage.value = message;
+      toast.error(translate("admin.dashboard.errors.dashboardLoadFailed"), {
+        description: message,
+      });
+    } finally {
+      removeExternalAbortListener?.();
+      if (dashboardAbortController === controller) {
+        dashboardAbortController = null;
+      }
+      if (isCurrentRequest()) {
+        isInitializing.value = false;
+      }
+    }
+
+    if (!isCurrentRequest()) return;
     scheduleTunnelStatusLoad();
     if (ddnsLoadTimer !== null) window.clearTimeout(ddnsLoadTimer);
     ddnsLoadTimer = window.setTimeout(() => {
@@ -166,6 +194,8 @@ export function useDashboardData({
   });
   onUnmounted(() => {
     disposed = true;
+    dashboardAbortController?.abort();
+    dashboardAbortController = null;
     if (ddnsLoadTimer !== null) window.clearTimeout(ddnsLoadTimer);
     ddnsLoadTimer = null;
     autoRefreshPoller.stop();

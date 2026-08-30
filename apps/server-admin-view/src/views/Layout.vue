@@ -120,7 +120,7 @@
         class="hidden shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)] sm:w-36 md:w-[9.25rem] xl:w-[9.5rem]"
       >
         <div class="flex h-full min-h-0 flex-col gap-3">
-          <LayoutScrollArea class="min-h-0 flex-1" content-class="flex min-h-full flex-col items-stretch gap-1.5"
+          <LayoutScrollArea reserve-rail-gutter class="min-h-0 flex-1" content-class="flex min-h-full flex-col items-stretch gap-1.5"
             :class="{ 'sidebar-menu-editing': isSidebarMenuOrderMode }"
           >
             <Button

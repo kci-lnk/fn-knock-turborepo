@@ -18,6 +18,26 @@ export type TimeSeriesLegendItem = {
   color: string;
 };
 
+const Y_AXIS_MIN_SIZE = 60;
+const Y_AXIS_LABEL_GUTTER = 12;
+
+export const getTimeSeriesYAxisSize = (
+  labels: readonly string[],
+  measureText: (label: string) => number,
+) => {
+  const widestLabel = labels.reduce((width, label) => {
+    const measuredWidth = measureText(label);
+    return Number.isFinite(measuredWidth)
+      ? Math.max(width, measuredWidth)
+      : width;
+  }, 0);
+
+  return Math.max(
+    Y_AXIS_MIN_SIZE,
+    Math.ceil(widestLabel + Y_AXIS_LABEL_GUTTER),
+  );
+};
+
 export const toTimeSeriesTimestampMs = (
   value: TimeSeriesPoint[0],
 ): number | null => {

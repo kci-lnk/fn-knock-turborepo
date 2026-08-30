@@ -12,6 +12,7 @@ import uPlot from "uplot";
 import {
   alignTimeSeriesData,
   buildTimeSeriesLegendItems,
+  getTimeSeriesYAxisSize,
   hasRenderableTimeSeriesData,
   type TimeSeriesChartSeries,
 } from "./timeSeriesChartModel";
@@ -286,7 +287,8 @@ export function useTimeSeriesChart(props: ResolvedTimeSeriesChartProps) {
           ticks: { show: false },
           values: (_chart, splits) =>
             splits.map((value) => formatValue(value)),
-          size: 60,
+          size: (_chart, values) =>
+            getTimeSeriesYAxisSize(values, estimateAxisLabelWidth),
         },
       ],
       series: [

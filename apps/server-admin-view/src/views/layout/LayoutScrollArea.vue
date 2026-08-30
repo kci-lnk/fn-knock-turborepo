@@ -3,7 +3,12 @@
     <div
       ref="viewport"
       class="layout-scroll-area__viewport"
-      :class="contentClass"
+      :class="[
+        contentClass,
+        {
+          'layout-scroll-area__viewport--rail-gutter': reserveRailGutter,
+        },
+      ]"
       @scroll.passive="handleScroll"
     >
       <slot />
@@ -41,10 +46,12 @@ const props = withDefaults(
   defineProps<{
     contentClass?: string;
     hintOnMount?: boolean;
+    reserveRailGutter?: boolean;
   }>(),
   {
     contentClass: "",
     hintOnMount: false,
+    reserveRailGutter: false,
   },
 );
 
@@ -189,6 +196,10 @@ onBeforeUnmount(() => {
 
 .layout-scroll-area__viewport::-webkit-scrollbar {
   display: none;
+}
+
+.layout-scroll-area__viewport--rail-gutter {
+  padding-inline-end: 12px;
 }
 
 .layout-scroll-area__rail {

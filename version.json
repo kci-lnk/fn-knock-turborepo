@@ -2,7 +2,7 @@
   "version": "2.4.1",
   "releaseChannel": "stable",
   "githubUrl": "https://github.com/kci-lnk/fn-knock-turborepo",
-  "gatewayCommit": "44c83d79cf7e7ed3d14fd0c7a133ac5668c34eda",
+  "gatewayCommit": "a906eaa79f27e4650632a88054f4fa765ad5c1ba",
   "backupSchemaVersion": 1,
   "backupImportMinVersion": "1.4.0"
 }

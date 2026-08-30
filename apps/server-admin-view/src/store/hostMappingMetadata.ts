@@ -1,4 +1,5 @@
 import type { HostMapping } from "../types";
+import { isProxyHostMapping } from "../lib/host-mapping-target";
 
 const normalizeComparableBasicAuth = (
   value: HostMapping["basic_auth"],
@@ -48,10 +49,13 @@ export const hasPendingHostMappingMetadata = (
   previousMappings: HostMapping[] | null = null,
 ): boolean => {
   const previousByHost = previousMappings
-    ? new Map(previousMappings.map((mapping) => [hostKey(mapping.host), mapping]))
+    ? new Map(
+        previousMappings.map((mapping) => [hostKey(mapping.host), mapping]),
+      )
     : null;
 
   return mappings.some((mapping) => {
+    if (!isProxyHostMapping(mapping)) return false;
     if (!mapping.target.trim()) return false;
     if (!mapping.title.trim() || !mapping.favicon.trim()) return true;
     if (!previousByHost || !hasUsableBasicAuth(mapping.basic_auth)) {
@@ -61,6 +65,7 @@ export const hasPendingHostMappingMetadata = (
     const previous = previousByHost.get(hostKey(mapping.host));
     return (
       !previous ||
+      !isProxyHostMapping(previous) ||
       previous.target.trim() !== mapping.target.trim() ||
       !basicAuthMatches(previous.basic_auth, mapping.basic_auth)
     );

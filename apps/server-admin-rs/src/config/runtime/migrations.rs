@@ -24,7 +24,9 @@ pub(super) async fn apply_boot_config_migrations(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    if proxy_config::ensure_host_mapping_sync_ids(config) > 0 {
+    let added_sync_ids = proxy_config::ensure_host_mapping_sync_ids(config);
+    let added_target_types = proxy_config::ensure_host_mapping_target_types(config);
+    if added_sync_ids > 0 || added_target_types > 0 {
         let replacement_host_mappings = config
             .get("host_mappings")
             .and_then(Value::as_array)
@@ -41,7 +43,12 @@ pub(super) async fn apply_boot_config_migrations(
             ));
         };
         *config = persisted;
-        applied.push("host_mapping_sync_ids");
+        if added_sync_ids > 0 {
+            applied.push("host_mapping_sync_ids");
+        }
+        if added_target_types > 0 {
+            applied.push("host_mapping_target_types");
+        }
     }
 
     if ensure_runtime_event_config(config) {

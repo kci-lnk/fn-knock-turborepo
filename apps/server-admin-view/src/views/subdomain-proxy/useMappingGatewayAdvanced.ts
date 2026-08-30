@@ -6,6 +6,7 @@ import type {
   GatewayProxyHeadersDetails,
   HostMapping,
 } from "@/types";
+import { isProxyHostMapping } from "@/lib/host-mapping-target";
 import {
   HOME_ASSISTANT_TARGET_PORT,
   hasSameDisabledHosts,
@@ -23,6 +24,7 @@ export const useMappingGatewayAdvanced = ({
   isDialogOpen,
   isGatewayAdvancedAvailableByMode,
   isMappingAuthService,
+  isMappingProxy,
   mappingDraftHost,
   setGatewayHostResponseDisabledHosts,
   setGatewayProxyHeadersDisabledHosts,
@@ -34,6 +36,7 @@ export const useMappingGatewayAdvanced = ({
   isDialogOpen: Ref<boolean>;
   isGatewayAdvancedAvailableByMode: Ref<boolean>;
   isMappingAuthService: Ref<boolean>;
+  isMappingProxy: Ref<boolean>;
   mappingDraftHost: Ref<string>;
   setGatewayHostResponseDisabledHosts: (disabledHosts: string[]) => void;
   setGatewayProxyHeadersDisabledHosts: (disabledHosts: string[]) => void;
@@ -57,7 +60,9 @@ export const useMappingGatewayAdvanced = ({
   const mappingAdvancedCleanupHosts = ref<string[]>([]);
   const isGatewayAdvancedLoading = computed(
     () =>
-      isLoadingGatewayProxyHeaders.value || isLoadingGatewayHostResponse.value,
+      isMappingProxy.value &&
+      (isLoadingGatewayProxyHeaders.value ||
+        isLoadingGatewayHostResponse.value),
   );
 
   let gatewayProxyHeadersRequestId = 0;
@@ -120,6 +125,7 @@ export const useMappingGatewayAdvanced = ({
   const hasProtocolHeadersSensitiveMappings = computed(() =>
     visibleMappings.value.some(
       (mapping) =>
+        isProxyHostMapping(mapping) &&
         parseTargetPort(mapping.target) === HOME_ASSISTANT_TARGET_PORT,
     ),
   );
@@ -147,6 +153,7 @@ export const useMappingGatewayAdvanced = ({
     );
 
     for (const mapping of visibleMappings.value) {
+      if (!isProxyHostMapping(mapping)) continue;
       const target = mapping.target.trim();
       if (target && disabledHosts.has(normalizeHostLike(mapping.host))) {
         targets.add(target);
@@ -170,7 +177,7 @@ export const useMappingGatewayAdvanced = ({
     visibleMappings.value
       .map(
         (mapping) =>
-          `${normalizeHostLike(mapping.host)}::${mapping.target.trim()}`,
+          `${normalizeHostLike(mapping.host)}::${isProxyHostMapping(mapping) ? mapping.target.trim() : "static"}`,
       )
       .join("|"),
   );
@@ -341,6 +348,11 @@ export const useMappingGatewayAdvanced = ({
   };
 
   const loadGatewayAdvancedDetails = async () => {
+    if (!isMappingProxy.value) {
+      cancelGatewayProxyHeadersLoad();
+      cancelGatewayHostResponseLoad();
+      return;
+    }
     await Promise.all([
       loadGatewayProxyHeadersDetails({ force: true, trackLoading: true }),
       loadGatewayHostResponseDetails({ trackLoading: true }),
@@ -351,8 +363,9 @@ export const useMappingGatewayAdvanced = ({
     normalized: HostMapping,
     previousHost: string | null,
   ) => {
-    const nextConfigHost =
-      normalized.service_role === "auth" ? "" : normalized.host;
+    const configureProxy =
+      normalized.service_role !== "auth" && isProxyHostMapping(normalized);
+    const nextConfigHost = configureProxy ? normalized.host : "";
     const cleanupHosts = collectMappingAdvancedCleanupHosts(previousHost);
     const currentProxyDisabledHosts = normalizeDisabledHosts(
       gatewayProxyHeadersDetails.value?.config.disabled_hosts ??
@@ -366,13 +379,13 @@ export const useMappingGatewayAdvanced = ({
       currentProxyDisabledHosts,
       cleanupHosts,
       nextConfigHost,
-      normalized.service_role === "auth" ? true : sendProxyHeaders.value,
+      configureProxy ? sendProxyHeaders.value : true,
     );
     const nextHostResponseDisabledHosts = mergeGatewayDisabledHostsForMapping(
       currentHostResponseDisabledHosts,
       cleanupHosts,
       nextConfigHost,
-      normalized.service_role === "auth" ? true : preserveHost.value,
+      configureProxy ? preserveHost.value : true,
     );
     const shouldUpdateProxyHeaders = !hasSameDisabledHosts(
       currentProxyDisabledHosts,
@@ -401,6 +414,7 @@ export const useMappingGatewayAdvanced = ({
   };
 
   const shouldShowProtocolHeadersWarning = (mapping: HostMapping): boolean => {
+    if (!isProxyHostMapping(mapping)) return false;
     const target = mapping.target.trim();
     if (!target || parseTargetPort(target) !== HOME_ASSISTANT_TARGET_PORT) {
       return false;
@@ -415,6 +429,15 @@ export const useMappingGatewayAdvanced = ({
 
     return !disabledGatewayProxyHeaderTargets.value.has(target);
   };
+
+  watch(isMappingProxy, (proxy) => {
+    if (!isDialogOpen.value) return;
+    if (proxy) void loadGatewayAdvancedDetails();
+    else {
+      cancelGatewayProxyHeadersLoad();
+      cancelGatewayHostResponseLoad();
+    }
+  });
 
   watch(
     visibleMappingsSignature,

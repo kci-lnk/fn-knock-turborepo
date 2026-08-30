@@ -35,6 +35,7 @@ mod metadata_refresh;
 mod metadata_special;
 mod normalize;
 mod runtime;
+mod static_serve;
 mod stream_security;
 mod subdomain;
 
@@ -59,6 +60,7 @@ pub(crate) use runtime::{
     sync_go_host_rules_for_config_locked, sync_go_host_rules_for_config_with_timeout_locked,
     sync_go_host_rules_for_config_without_reconcile_locked, sync_go_host_rules_locked,
 };
+use static_serve::*;
 use stream_security::*;
 use subdomain::*;
 
@@ -113,6 +115,33 @@ pub(crate) fn ensure_host_mapping_sync_ids(config: &mut Value) -> usize {
             object.insert("sync_id".to_string(), Value::String(sync_id));
             changed += 1;
         }
+    }
+    changed
+}
+
+/// Backfill the explicit v22 target discriminator without changing the
+/// behavior of configurations written by older releases.
+pub(crate) fn ensure_host_mapping_target_types(config: &mut Value) -> usize {
+    let Some(mappings) = config
+        .get_mut("host_mappings")
+        .and_then(Value::as_array_mut)
+    else {
+        return 0;
+    };
+    let mut changed = 0;
+    for mapping in mappings {
+        let Some(object) = mapping.as_object_mut() else {
+            continue;
+        };
+        if object.contains_key("target_type") {
+            continue;
+        }
+        object.insert(
+            "target_type".to_string(),
+            Value::String(HOST_TARGET_TYPE_PROXY.to_string()),
+        );
+        object.insert("static_serve".to_string(), Value::Null);
+        changed += 1;
     }
     changed
 }
@@ -948,6 +977,12 @@ pub(crate) struct MappingsBody {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub(crate) struct StaticPathProbeBody {
+    target_type: String,
+    path: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub(crate) struct HostMappingCatalogBody {
     mappings: Vec<Value>,
     #[serde(default)]
@@ -1025,6 +1060,7 @@ pub(crate) fn host_mapping_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(get_host_mapping_catalog))
         .routes(routes!(update_host_mapping_catalog))
         .routes(routes!(basic_auth_probe))
+        .routes(routes!(static_path_probe))
         .routes(routes!(get_advanced_auth))
         .routes(routes!(update_advanced_auth))
         .routes(routes!(host_mapping_metadata))
@@ -1223,11 +1259,23 @@ pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
         let Some(object) = mapping.as_object_mut() else {
             continue;
         };
-        let is_auth = object.get("service_role").and_then(Value::as_str) == Some("auth")
-            || object
-                .get("target")
-                .and_then(Value::as_str)
-                .is_some_and(is_auth_service_target);
+        let target_type =
+            host_target_type(object.get("target_type")).unwrap_or(HOST_TARGET_TYPE_PROXY);
+        let static_serve = normalize_static_serve_config(
+            object.get("host").and_then(Value::as_str).unwrap_or(""),
+            target_type,
+            object.get("static_serve"),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(Value::Null);
+        let is_static = target_type != HOST_TARGET_TYPE_PROXY;
+        let is_auth = !is_static
+            && (object.get("service_role").and_then(Value::as_str) == Some("auth")
+                || object
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .is_some_and(is_auth_service_target));
         let waf_enabled = is_auth
             || object
                 .get("waf_enabled")
@@ -1242,7 +1290,7 @@ pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
                     "cidrs": [],
                 })
             });
-        let target_path_mode = if is_auth {
+        let target_path_mode = if is_auth || is_static {
             "entry".to_string()
         } else {
             normalize_target_path_mode(object.get("target_path_mode"))
@@ -1251,6 +1299,18 @@ pub(crate) fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
             "service_role".to_string(),
             Value::String(if is_auth { "auth" } else { "app" }.to_string()),
         );
+        object.insert(
+            "target_type".to_string(),
+            Value::String(target_type.to_string()),
+        );
+        object.insert("static_serve".to_string(), static_serve);
+        if is_static {
+            object.insert("target".to_string(), Value::String(String::new()));
+            object.insert("suppress_toolbar".to_string(), Value::Bool(true));
+            object.insert("preserve_host".to_string(), Value::Bool(false));
+            object.insert("basic_auth".to_string(), disabled_host_basic_auth());
+            object.insert("locations".to_string(), Value::Array(Vec::new()));
+        }
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
         object.insert(
             "target_path_mode".to_string(),
@@ -1281,6 +1341,39 @@ async fn basic_auth_probe(State(state): State<AppState>, Json(body): Json<Value>
     let translator = Translator::from_state(&state).await;
     let target = body.get("target").and_then(Value::as_str).unwrap_or("");
     response::ok(probe_basic_auth_target(target, &translator).await).into_response()
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/admin/config/host_mappings/static_path_probe",
+    tag = "configuration",
+    operation_id = "post_api_admin_config_host_mappings_static_path_probe",
+    request_body = StaticPathProbeBody,
+    responses((status = 200, description = "Static path probe result"))
+)]
+async fn static_path_probe(
+    State(state): State<AppState>,
+    Json(body): Json<StaticPathProbeBody>,
+) -> Response {
+    let spec = match static_path_probe_spec(&body.target_type, &body.path) {
+        Ok(spec) => spec,
+        Err(_) => {
+            return response::ok(rejected_static_path_probe_result(&body.target_type))
+                .into_response();
+        }
+    };
+    match probe_static_path_with_gateway(&state, &spec).await {
+        Ok(result) => response::ok(result).into_response(),
+        Err(_) => {
+            // Do not export a gateway diagnostic here: a remote/older gateway
+            // could include a resolved filesystem path in its status text.
+            tracing::warn!("failed to probe static mapping path");
+            response::error(
+                StatusCode::BAD_GATEWAY,
+                "Static path probe is temporarily unavailable",
+            )
+        }
+    }
 }
 
 #[utoipa::path(
@@ -1561,6 +1654,21 @@ async fn update_host_mappings(
     State(state): State<AppState>,
     Json(body): Json<MappingsBody>,
 ) -> Response {
+    update_host_mappings_with_runtime_sync(state, body, |state, config, mappings| async move {
+        sync_host_mappings_runtime(&state, &config, &mappings).await
+    })
+    .await
+}
+
+async fn update_host_mappings_with_runtime_sync<F, Fut>(
+    state: AppState,
+    body: MappingsBody,
+    sync_runtime: F,
+) -> Response
+where
+    F: FnOnce(AppState, Value, Vec<Value>) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
     let translator = Translator::from_state(&state).await;
     // Keep persistence, runtime sync and any rollback in one transaction. The
     // mutex covers this AppState; the leased storage lock covers other states
@@ -1630,8 +1738,18 @@ async fn update_host_mappings(
                 );
             }
         };
-    let normalized = compiled.mappings;
+    let mut normalized = compiled.mappings;
     let visibility_policies = compiled.visibility_policies;
+    if let Err(message) =
+        probe_changed_static_paths(&state, &previous_mappings, &mut normalized).await
+    {
+        let status = if message == "Static path probe unavailable" {
+            StatusCode::BAD_GATEWAY
+        } else {
+            StatusCode::BAD_REQUEST
+        };
+        return response::error(status, message);
+    }
 
     let mut candidate_config = previous_config.clone();
     ensure_object(&mut candidate_config).insert(
@@ -1758,7 +1876,9 @@ async fn update_host_mappings(
         );
     }
 
-    if let Err(message) = sync_host_mappings_runtime(&state, &previous_config, &normalized).await {
+    if let Err(message) =
+        sync_runtime(state.clone(), previous_config.clone(), normalized.clone()).await
+    {
         rollback_host_mappings(&state, &previous_config, &normalized).await;
         tracing::warn!(%message, "failed to sync host mappings runtime");
         return response::error(
@@ -1797,6 +1917,27 @@ async fn update_host_mapping_catalog(
     headers: HeaderMap,
     Json(body): Json<HostMappingCatalogBody>,
 ) -> Response {
+    update_host_mapping_catalog_with_runtime_sync(
+        state,
+        headers,
+        body,
+        |state, config, mappings| async move {
+            sync_host_mappings_runtime(&state, &config, &mappings).await
+        },
+    )
+    .await
+}
+
+async fn update_host_mapping_catalog_with_runtime_sync<F, Fut>(
+    state: AppState,
+    headers: HeaderMap,
+    body: HostMappingCatalogBody,
+    sync_runtime: F,
+) -> Response
+where
+    F: FnOnce(AppState, Value, Vec<Value>) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
     let translator = Translator::from_state(&state).await;
     let _update_guard = state.gateway.host_mappings_update_lock.lock().await;
     let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
@@ -1885,8 +2026,18 @@ async fn update_host_mapping_catalog(
                 );
             }
         };
-    let normalized = compiled.mappings;
+    let mut normalized = compiled.mappings;
     let visibility_policies = compiled.visibility_policies;
+    if let Err(message) =
+        probe_changed_static_paths(&state, &previous_mappings, &mut normalized).await
+    {
+        let status = if message == "Static path probe unavailable" {
+            StatusCode::BAD_GATEWAY
+        } else {
+            StatusCode::BAD_REQUEST
+        };
+        return response::error(status, message);
+    }
 
     let mut candidate_config = previous_config.clone();
     let candidate_object = ensure_object(&mut candidate_config);
@@ -2006,7 +2157,9 @@ async fn update_host_mapping_catalog(
             admin_config_text(&translator, "hostMappings.revisionConflict"),
         );
     }
-    if let Err(message) = sync_host_mappings_runtime(&state, &previous_config, &normalized).await {
+    if let Err(message) =
+        sync_runtime(state.clone(), previous_config.clone(), normalized.clone()).await
+    {
         rollback().await;
         tracing::warn!(%message, "failed to sync host mapping catalog runtime");
         return response::error(

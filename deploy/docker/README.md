@@ -218,6 +218,27 @@ volumes:
 
 HOST 网络下不需要声明 `ports` 或自定义 bridge，容器直接监听宿主机端口。
 
+#### 为静态文件映射挂载内容目录
+
+子域映射中的“单文件”和“目录”目标使用 fn-knock 进程所在环境的绝对路径。
+Docker 部署时不能填写宿主机路径本身，需要先将内容以只读方式挂载进容器，
+再在管理面板中填写容器内路径。例如：
+
+```yaml
+services:
+  fn-knock:
+    volumes:
+      - fn_knock_data:/var/lib/fn-knock
+      - fn_knock_gateway:/usr/local/etc/fn-knock
+      - /srv/public-site:/srv/public-site:ro
+```
+
+上述配置对应的目录映射路径是 `/srv/public-site`。建议每个站点使用独立的
+最小目录，并始终保留 `:ro`；不要挂载 `/`、`/etc`、fn-knock 数据目录或
+其他包含密钥和系统配置的目录。修改 Compose 后运行
+`docker compose up -d` 使挂载生效，再使用管理面板中的“检查路径”确认容器
+内的文件类型和读取权限。
+
 #### 4. 启动并检查
 
 ```bash

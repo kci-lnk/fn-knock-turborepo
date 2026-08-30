@@ -123,7 +123,9 @@ export const useSubdomainDestructiveActions = ({
         {
           host,
           group_id: null,
+          target_type: "proxy",
           target,
+          static_serve: null,
           target_path_mode: "entry",
           waf_enabled: true,
           use_auth: false,

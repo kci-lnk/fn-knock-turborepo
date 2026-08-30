@@ -15,7 +15,9 @@ const hostMapping = (
 ): HostMapping => ({
   host,
   group_id: null,
+  target_type: "proxy",
   target: `http://${host}:8080`,
+  static_serve: null,
   target_path_mode: "entry",
   waf_enabled: true,
   use_auth: true,
@@ -193,6 +195,52 @@ describe("console application list", () => {
     assert.equal(items[0]?.iconSrc, "");
     assert.equal(items[0]?.showIcon, false);
     assert.equal(items[0]?.href, "https://app.example.test/");
+  });
+
+  it("keeps static file and directory mappings in the portal", () => {
+    const items = buildConsoleApplicationItems({
+      accessEntryPort: "443",
+      location,
+      config: config({
+        host_mappings: [
+          hostMapping("docs.example.test", {
+            target_type: "directory",
+            target: "",
+            static_serve: {
+              path: "/srv/docs",
+              index_files: ["index.html", "index.htm"],
+              directory_listing: { enabled: true, render_readme: true },
+            },
+            title_override: "Documentation",
+          }),
+          hostMapping("manual.example.test", {
+            target_type: "file",
+            target: "",
+            static_serve: {
+              path: "/srv/manual.pdf",
+              index_files: [],
+              directory_listing: { enabled: false, render_readme: false },
+            },
+          }),
+        ],
+      }),
+    });
+
+    assert.deepEqual(
+      items.map(({ label, href, kind }) => ({ label, href, kind })),
+      [
+        {
+          label: "Documentation",
+          href: "https://docs.example.test/",
+          kind: "host",
+        },
+        {
+          label: "manual.example.test",
+          href: "https://manual.example.test/",
+          kind: "host",
+        },
+      ],
+    );
   });
 
   it("falls back to same-gateway path mappings when no Host app is eligible", () => {

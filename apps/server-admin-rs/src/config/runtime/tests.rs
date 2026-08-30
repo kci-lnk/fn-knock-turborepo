@@ -497,6 +497,7 @@ async fn boot_migration_backfills_panel_sync_ids_through_host_mapping_cas() {
         .await
         .expect("apply config migrations");
     assert!(applied.contains(&"host_mapping_sync_ids"));
+    assert!(applied.contains(&"host_mapping_target_types"));
 
     let persisted = state
         .storage
@@ -517,12 +518,16 @@ async fn boot_migration_backfills_panel_sync_ids_through_host_mapping_cas() {
         })
         .collect::<std::collections::HashSet<_>>();
     assert_eq!(ids.len(), 2);
+    assert!(mappings.iter().all(|mapping| {
+        mapping["target_type"] == json!("proxy") && mapping["static_serve"] == Value::Null
+    }));
 
     let mut persisted = persisted;
     let reapplied = apply_boot_config_migrations(&state, &mut persisted)
         .await
         .expect("reapply config migrations");
     assert!(!reapplied.contains(&"host_mapping_sync_ids"));
+    assert!(!reapplied.contains(&"host_mapping_target_types"));
 }
 
 #[tokio::test]

@@ -4,6 +4,7 @@ import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput"
 import {
   getLocationRulesCount,
   getMappingSecurityIndicatorState,
+  isProxyHostMapping,
 } from "./model";
 import type { SubdomainMappingStatusIndicatorsProps } from "./subdomain-mapping-status-contract";
 import SubdomainMappingAccessIndicators from "./SubdomainMappingAccessIndicators.vue";
@@ -23,6 +24,7 @@ const securityIndicators = computed(() =>
 const shouldShowToolbarIndicator = computed(
   () =>
     props.isGatewayPortalEnabled &&
+    isProxyHostMapping(props.mapping) &&
     props.mapping.use_auth &&
     !props.mapping.suppress_toolbar &&
     !isWebSocketProxyTargetUrl(props.mapping.target),

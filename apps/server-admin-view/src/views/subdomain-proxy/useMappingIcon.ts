@@ -38,7 +38,10 @@ export const useMappingIcon = ({
   let uploadRequestId = 0;
 
   const hasFreshAutoFavicon = computed(
-    () => metadataTarget.value === mappingForm.target.trim(),
+    () =>
+      canRefreshMetadata.value &&
+      !!mappingForm.target.trim() &&
+      metadataTarget.value === mappingForm.target.trim(),
   );
   const iconPresentationMapping = computed<HostMapping>(() => ({
     ...mappingForm,
@@ -103,7 +106,12 @@ export const useMappingIcon = ({
   const restoreAutomaticFavicon = async () => {
     mappingForm.favicon_override = "";
     resetFaviconErrors();
-    await refreshAutomaticFavicon();
+    if (canRefreshMetadata.value) {
+      await refreshAutomaticFavicon();
+    } else {
+      mappingForm.favicon = "";
+      metadataTarget.value = "";
+    }
   };
 
   const uploadCustomFavicon = async (file: File) => {

@@ -290,11 +290,36 @@ enum HostTargetPathModeData {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+enum HostTargetTypeData {
+    Proxy,
+    File,
+    Directory,
+}
+
+#[derive(Serialize, ToSchema)]
+struct StaticDirectoryListingData {
+    enabled: bool,
+    render_readme: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+struct StaticServeConfigData {
+    path: String,
+    #[schema(max_items = 16)]
+    index_files: Vec<String>,
+    directory_listing: StaticDirectoryListingData,
+}
+
+#[derive(Serialize, ToSchema)]
 struct HostMappingData {
     host: String,
     sync_id: String,
     group_id: Option<String>,
     target: String,
+    target_type: HostTargetTypeData,
+    #[schema(required = true)]
+    static_serve: Option<StaticServeConfigData>,
     target_path_mode: HostTargetPathModeData,
     waf_enabled: bool,
     use_auth: bool,
@@ -557,6 +582,9 @@ struct BackupImportResultData {
     LocaleConfigData,
     ApplicationConfigData,
     HostMappingData,
+    HostTargetTypeData,
+    StaticDirectoryListingData,
+    StaticServeConfigData,
     HostMappingGroupData,
     HostMappingCatalogData,
     SessionRecordData,
@@ -842,6 +870,10 @@ struct BackupImportResultData {
     HostMappingBasicAuthInputData,
     HostMappingBasicAuthProbeBodyData,
     HostMappingBasicAuthProbeData,
+    StaticPathTargetTypeData,
+    StaticPathActualTypeData,
+    StaticPathProbeBodyData,
+    StaticPathProbeResultData,
     HostMappingMetadataBodyData,
     HostMappingMetadataData,
     HostMappingRefreshSummaryData,

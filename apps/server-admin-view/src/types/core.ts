@@ -61,6 +61,8 @@ export type HostAccessMode =
 export type HostProtocolMode = "auto" | "http1" | "http2";
 export type HostTargetPathMode =
   ApiContractComponents["schemas"]["HostTargetPathModeData"];
+export type HostMappingTargetType =
+  ApiContractComponents["schemas"]["HostTargetTypeData"];
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol =
   ApiContractComponents["schemas"]["StreamMappingData"]["protocol"];
@@ -137,11 +139,18 @@ export interface HostLocation {
   auth_mode: HostLocationAuthMode;
 }
 
+export type HostMappingDirectoryListing =
+  ApiContractComponents["schemas"]["StaticDirectoryListingData"];
+export type HostMappingStaticServe =
+  ApiContractComponents["schemas"]["StaticServeConfigData"];
+
 export interface HostMapping {
   host: string;
   sync_id?: string;
   group_id: string | null;
+  target_type: HostMappingTargetType;
   target: string;
+  static_serve: HostMappingStaticServe | null;
   target_path_mode: HostTargetPathMode;
   waf_enabled: boolean;
   use_auth: boolean;

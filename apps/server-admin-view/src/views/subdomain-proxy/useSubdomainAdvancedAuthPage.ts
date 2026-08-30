@@ -13,7 +13,7 @@ import {
   isAdvancedAuthBroadRule,
   snapshotAdvancedAuthConfig,
 } from "./advanced-auth-form";
-import { isHttpTargetUrl, normalizeHostLike } from "./model";
+import { normalizeHostLike } from "./model";
 
 export const useSubdomainAdvancedAuthPage = () => {
   const route = useRoute();
@@ -60,13 +60,13 @@ export const useSubdomainAdvancedAuthPage = () => {
       if (!host.value) throw new Error("Missing host");
       if (!configStore.config) await configStore.loadConfig();
       const mapping = configStore.config?.host_mappings?.find(
-        (item) => normalizeHostLike(item.host) === normalizeHostLike(host.value),
+        (item) =>
+          normalizeHostLike(item.host) === normalizeHostLike(host.value),
       );
       if (
         !mapping ||
         mapping.service_role === "auth" ||
-        mapping.use_auth !== true ||
-        !isHttpTargetUrl(mapping.target)
+        mapping.use_auth !== true
       ) {
         missing.value = true;
         loadError.value = t("admin.advancedAuth.notFound");

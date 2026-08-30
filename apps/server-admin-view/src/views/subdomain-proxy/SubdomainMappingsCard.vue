@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import type { HostMappingGroup } from "@/types";
+import { isProxyHostMapping } from "./model";
 import SubdomainGroupManagerDialog from "./SubdomainGroupManagerDialog.vue";
 import SubdomainMappingNotices from "./SubdomainMappingNotices.vue";
 import SubdomainMappingsCardHeader from "./SubdomainMappingsCardHeader.vue";
@@ -30,6 +31,9 @@ const searchModel = computed({
 const showGroupedView = computed(
   () => props.groups.length > 0 && props.groupedView,
 );
+const proxyMappingsCount = computed(
+  () => props.allRegularMappings.filter(isProxyHostMapping).length,
+);
 const updateGroupedView = (value: boolean) => {
   emit("update-grouped-view", value);
   mappingsTable.value?.clearSelection();
@@ -45,8 +49,7 @@ const saveGroupsAndCloseOnSuccess = (nextGroups: HostMappingGroup[]) => {
 };
 const tableActions: SubdomainMappingsTableActions = {
   batchDelete: (hosts, onComplete) => emit("batch-delete", hosts, onComplete),
-  batchDisable: (hosts, onComplete) =>
-    emit("batch-disable", hosts, onComplete),
+  batchDisable: (hosts, onComplete) => emit("batch-disable", hosts, onComplete),
   batchEnable: (hosts, onComplete) => emit("batch-enable", hosts, onComplete),
   batchSchedule: (hosts, onComplete) =>
     emit("batch-schedule", hosts, onComplete),
@@ -78,7 +81,6 @@ const tableActions: SubdomainMappingsTableActions = {
   <Card>
     <CardHeader>
       <SubdomainMappingsCardHeader
-        :all-mappings-count="allMappingsCount"
         :auth-service-mapping="authServiceMapping"
         :can-manage-new-mappings="canManageNewMappings"
         :discover-button-divider-class="discoverButtonDividerClass"
@@ -91,6 +93,7 @@ const tableActions: SubdomainMappingsTableActions = {
         :is-discovering="isDiscovering"
         :is-exporting-bookmarks="isExportingBookmarks"
         :is-refreshing-titles="isRefreshingTitles"
+        :proxy-mappings-count="proxyMappingsCount"
         :is-saving-mappings="isSavingMappings"
         :selection-mode="isSelectionMode"
         :is-syncing="isSyncing"

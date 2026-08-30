@@ -159,6 +159,7 @@ export const useSubdomainProxyPage = () => {
     isAuthServiceTarget,
     searchQuery,
     trafficRealtimeStats,
+    translate: (key) => t(key),
   });
   const isGatewayPortalEnabled = computed(
     () => configStore.config?.gateway_portal?.enabled !== false,
@@ -382,6 +383,7 @@ export const useSubdomainProxyPage = () => {
     getConfig: () => configStore.config,
     isAuthServiceTarget,
     isGatewayAdvancedAvailableByMode,
+    isWindowsDeployment: computed(() => configStore.isWindowsDeployment),
     resetFaviconErrors,
     runSaveMappings,
     savedRootDomain,

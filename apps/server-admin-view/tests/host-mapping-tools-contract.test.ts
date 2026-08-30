@@ -39,6 +39,7 @@ describe("host mapping utility API contract", () => {
   it("keeps metadata, bookmarks, probes, refresh, and advanced auth typed", () => {
     for (const [method, path] of [
       ["post", "/api/admin/config/host_mappings/basic_auth_probe"],
+      ["post", "/api/admin/config/host_mappings/static_path_probe"],
       ["get", "/api/admin/config/host_mappings/bookmarks/export"],
       ["post", "/api/admin/config/host_mappings/metadata"],
       ["post", "/api/admin/config/host_mappings/refresh_titles"],
@@ -49,6 +50,48 @@ describe("host mapping utility API contract", () => {
         contract.paths[path]?.[method]?.["x-fn-knock-contract-source"],
         "utoipa",
         `${method.toUpperCase()} ${path}`,
+      );
+    }
+  });
+
+  it("documents static serving and its non-authoritative path probe", () => {
+    const staticServe = contract.components.schemas.StaticServeConfigData;
+    const probeBody = contract.components.schemas.StaticPathProbeBodyData;
+    const probeResult = contract.components.schemas.StaticPathProbeResultData;
+    assert.equal(staticServe.properties?.index_files?.maxItems, 16);
+    assert.deepEqual(probeBody.required, ["target_type", "path"]);
+    for (const field of [
+      "target_type",
+      "normalized_path",
+      "exists",
+      "readable",
+      "actual_type",
+      "error_code",
+    ]) {
+      assert.ok(probeResult.required?.includes(field), field);
+    }
+  });
+
+  it("shows gateway-local Linux, Windows, and read-only Docker path examples", () => {
+    const field = readSource(
+      "../src/views/subdomain-proxy/SubdomainMappingStaticTargetField.vue",
+    );
+    assert.match(field, /staticServe\.pathHint/u);
+    assert.match(field, /v-if="configStore\.isDockerDeployment"/u);
+    assert.match(field, /staticServe\.pathDockerHint/u);
+
+    for (const locale of ["en", "ja-JP", "ko-KR", "zh-CN", "zh-Hant"]) {
+      const source = readSource(
+        `../../../packages/i18n/src/messages/admin/${locale}.ts`,
+      );
+      assert.ok(source.includes("/srv/site"), `${locale} Linux example`);
+      assert.ok(
+        source.includes("C:\\\\Sites\\\\docs"),
+        `${locale} Windows example`,
+      );
+      assert.ok(
+        source.includes("/host/docs:/srv/docs:ro"),
+        `${locale} read-only Docker example`,
       );
     }
   });
@@ -89,6 +132,9 @@ describe("host mapping utility API contract", () => {
   it("derives frontend models and normalizes the advanced-auth form boundary", () => {
     const types = readSource("../src/types/core.ts");
     const configApi = readSource("../src/lib/api/config-proxy-api.ts");
+    const staticConfigApi = readSource(
+      "../src/lib/api/config-host-mapping-static-api.ts",
+    );
     const advancedAuthView = readSource(
       "../src/views/subdomain-proxy/SubdomainAdvancedAuth.vue",
     );
@@ -100,9 +146,7 @@ describe("host mapping utility API contract", () => {
     );
     const advancedAuthRuleGroups = [
       readSource("../src/views/subdomain-proxy/AdvancedAuthRuleGroups.vue"),
-      readSource(
-        "../src/views/subdomain-proxy/AdvancedAuthRuleGroupCard.vue",
-      ),
+      readSource("../src/views/subdomain-proxy/AdvancedAuthRuleGroupCard.vue"),
       readSource(
         "../src/views/subdomain-proxy/AdvancedAuthConditionEditor.vue",
       ),
@@ -123,6 +167,9 @@ describe("host mapping utility API contract", () => {
     assert.match(configApi, /satisfies AdvancedAuthUpdate/u);
     assert.match(configApi, /satisfies HostMappingMetadataBody/u);
     assert.match(configApi, /satisfies HostMappingBasicAuthProbeBody/u);
+    assert.match(staticConfigApi, /StaticPathProbeBodyData/u);
+    assert.match(staticConfigApi, /satisfies StaticPathProbeBody/u);
+    assert.match(staticConfigApi, /StaticPathProbeResultData/u);
     assert.match(advancedAuthForm, /name: ""/u);
     assert.match(advancedAuthForm, /condition\.selections \?\? \[\]/u);
     assert.match(advancedAuthView, /useSubdomainAdvancedAuthPage/u);
@@ -131,8 +178,17 @@ describe("host mapping utility API contract", () => {
     assert.match(advancedAuthPage, /cloneAdvancedAuthConfig/u);
     assert.match(advancedAuthEditor, /AdvancedAuthRuleGroups/u);
     assert.match(advancedAuthEditor, /AdvancedAuthDurationSettings/u);
-    assert.match(advancedAuthRuleGroups, /advanced-auth-target-\$\{condition\.id\}/u);
-    assert.match(advancedAuthRuleGroups, /advanced-auth-operator-\$\{condition\.id\}/u);
-    assert.match(advancedAuthRuleGroups, /advanced-auth-value-\$\{condition\.id\}/u);
+    assert.match(
+      advancedAuthRuleGroups,
+      /advanced-auth-target-\$\{condition\.id\}/u,
+    );
+    assert.match(
+      advancedAuthRuleGroups,
+      /advanced-auth-operator-\$\{condition\.id\}/u,
+    );
+    assert.match(
+      advancedAuthRuleGroups,
+      /advanced-auth-value-\$\{condition\.id\}/u,
+    );
   });
 });

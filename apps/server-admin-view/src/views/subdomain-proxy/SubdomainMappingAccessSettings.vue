@@ -56,7 +56,10 @@ const basicAuthPasswordModel = computed({
   </div>
 
   <div
-    v-if="!dialog.isMappingWebSocketTarget"
+    v-if="
+      dialog.mappingForm.target_type === 'proxy' &&
+      !dialog.isMappingWebSocketTarget
+    "
     class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
   >
     <div class="min-w-0 space-y-1">

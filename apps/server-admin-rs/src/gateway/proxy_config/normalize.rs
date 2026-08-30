@@ -209,6 +209,11 @@ pub(super) fn normalize_host_mappings_for_catalog(
         let Some(object) = mapping.as_object() else {
             continue;
         };
+        if host_target_type(object.get("target_type")).unwrap_or(HOST_TARGET_TYPE_PROXY)
+            != HOST_TARGET_TYPE_PROXY
+        {
+            continue;
+        }
         let host = normalize_host_value(object.get("host").and_then(Value::as_str).unwrap_or(""));
         if previous_by_host.contains_key(&host) || explicit_previous_by_host.contains_key(&host) {
             continue;
@@ -254,23 +259,33 @@ pub(super) fn normalize_host_mappings_for_catalog(
             return Err(format!("Duplicate host mapping {host}"));
         }
 
-        let target = object
-            .get("target")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if !is_supported_proxy_target_url(&target) {
-            return Err(format!(
-                "Host mapping {host} target must be a supported HTTP/WebSocket URL"
-            ));
-        }
-
-        let service_role = if is_auth_service_target(&target) {
-            "auth"
+        let target_type = host_target_type(object.get("target_type"))
+            .map_err(|message| format!("Host mapping {host} {message}"))?;
+        let static_serve =
+            normalize_static_serve_config(&host, target_type, object.get("static_serve"))?;
+        let target = if target_type == HOST_TARGET_TYPE_PROXY {
+            let target = object
+                .get("target")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if !is_supported_proxy_target_url(&target) {
+                return Err(format!(
+                    "Host mapping {host} target must be a supported HTTP/WebSocket URL"
+                ));
+            }
+            target
         } else {
-            "app"
+            String::new()
         };
+
+        let service_role =
+            if target_type == HOST_TARGET_TYPE_PROXY && is_auth_service_target(&target) {
+                "auth"
+            } else {
+                "app"
+            };
         if service_role == "auth" {
             auth_mapping_count += 1;
             if auth_mapping_count > 1 {
@@ -290,7 +305,9 @@ pub(super) fn normalize_host_mappings_for_catalog(
             if host_basic_auth_enabled(object.get("basic_auth")) {
                 return Err(format!("Auth host mapping {host} cannot enable Basic Auth"));
             }
-        } else if host_basic_auth_invalid(object.get("basic_auth")) {
+        } else if target_type == HOST_TARGET_TYPE_PROXY
+            && host_basic_auth_invalid(object.get("basic_auth"))
+        {
             return Err(format!(
                 "Host mapping {host} Basic Auth settings are invalid"
             ));
@@ -338,7 +355,7 @@ pub(super) fn normalize_host_mappings_for_catalog(
             .filter(|value| uuid::Uuid::parse_str(value).is_ok())
             .map(str::to_string)
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let target_path_mode = if service_role == "auth" {
+        let target_path_mode = if service_role == "auth" || target_type != HOST_TARGET_TYPE_PROXY {
             "entry".to_string()
         } else if object.contains_key("target_path_mode") {
             parse_explicit_target_path_mode(object.get("target_path_mode")).ok_or_else(|| {
@@ -388,25 +405,27 @@ pub(super) fn normalize_host_mappings_for_catalog(
         )
         .map_err(|message| format!("Host mapping {host} {message}"))?;
 
-        let locations = if service_role == "auth" {
+        let locations = if service_role == "auth" || target_type != HOST_TARGET_TYPE_PROXY {
             Vec::new()
         } else {
             normalize_host_mapping_locations_for_route(&host, object.get("locations"))?
         };
 
-        let can_reuse_previous_metadata = previous
-            .and_then(|value| value.get("target"))
-            .and_then(Value::as_str)
-            .is_some_and(|value| value.trim() == target);
-        let normalized_basic_auth = if service_role == "auth" {
-            disabled_host_basic_auth()
-        } else {
-            normalize_host_basic_auth(
-                object
-                    .get("basic_auth")
-                    .or_else(|| previous.and_then(|value| value.get("basic_auth"))),
-            )
-        };
+        let can_reuse_previous_metadata = target_type == HOST_TARGET_TYPE_PROXY
+            && previous
+                .and_then(|value| value.get("target"))
+                .and_then(Value::as_str)
+                .is_some_and(|value| value.trim() == target);
+        let normalized_basic_auth =
+            if service_role == "auth" || target_type != HOST_TARGET_TYPE_PROXY {
+                disabled_host_basic_auth()
+            } else {
+                normalize_host_basic_auth(
+                    object
+                        .get("basic_auth")
+                        .or_else(|| previous.and_then(|value| value.get("basic_auth"))),
+                )
+            };
         let is_default = service_role != "auth"
             && object
                 .get("is_default")
@@ -419,6 +438,14 @@ pub(super) fn normalize_host_mappings_for_catalog(
 
         object.insert("host".to_string(), Value::String(host.clone()));
         object.insert("sync_id".to_string(), Value::String(sync_id));
+        object.insert(
+            "target_type".to_string(),
+            Value::String(target_type.to_string()),
+        );
+        object.insert(
+            "static_serve".to_string(),
+            static_serve.unwrap_or(Value::Null),
+        );
         object.insert("target".to_string(), Value::String(target));
         object.insert(
             "target_path_mode".to_string(),
@@ -455,20 +482,22 @@ pub(super) fn normalize_host_mappings_for_catalog(
         object.insert(
             "suppress_toolbar".to_string(),
             Value::Bool(
-                service_role != "auth"
-                    && object
-                        .get("suppress_toolbar")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false),
+                target_type != HOST_TARGET_TYPE_PROXY
+                    || (service_role != "auth"
+                        && object
+                            .get("suppress_toolbar")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false)),
             ),
         );
         object.insert(
             "preserve_host".to_string(),
             Value::Bool(
-                object
-                    .get("preserve_host")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(true),
+                target_type == HOST_TARGET_TYPE_PROXY
+                    && object
+                        .get("preserve_host")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
             ),
         );
         object.insert("is_default".to_string(), Value::Bool(is_default));
@@ -523,12 +552,16 @@ pub(super) fn normalize_host_mappings_for_catalog(
         );
         object.insert(
             "title".to_string(),
-            Value::String(normalize_metadata_string(
-                object.get("title"),
-                previous,
-                "title",
-                can_reuse_previous_metadata,
-            )),
+            Value::String(if target_type == HOST_TARGET_TYPE_PROXY {
+                normalize_metadata_string(
+                    object.get("title"),
+                    previous,
+                    "title",
+                    can_reuse_previous_metadata,
+                )
+            } else {
+                String::new()
+            }),
         );
         object.insert(
             "title_override".to_string(),
@@ -541,12 +574,16 @@ pub(super) fn normalize_host_mappings_for_catalog(
         );
         object.insert(
             "favicon".to_string(),
-            Value::String(normalize_metadata_string(
-                object.get("favicon"),
-                previous,
-                "favicon",
-                can_reuse_previous_metadata,
-            )),
+            Value::String(if target_type == HOST_TARGET_TYPE_PROXY {
+                normalize_metadata_string(
+                    object.get("favicon"),
+                    previous,
+                    "favicon",
+                    can_reuse_previous_metadata,
+                )
+            } else {
+                String::new()
+            }),
         );
         let favicon_override = if service_role == "auth" {
             String::new()

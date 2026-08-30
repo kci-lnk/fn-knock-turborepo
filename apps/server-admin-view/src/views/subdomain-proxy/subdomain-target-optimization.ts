@@ -1,11 +1,10 @@
 import { isProxyTargetProtocol } from "@admin-shared/utils/proxyTargetInput";
 import type { ScanDiscoveryHostCandidate } from "@/lib/api/scan";
 import type { HostMapping } from "@/types";
+import { isProxyHostMapping } from "@/lib/host-mapping-target";
 import { NATIVE_LOOPBACK_ADDRESS } from "./host-target-candidates";
 
-export type TargetOptimizationDirection =
-  | "loopback_to_lan"
-  | "lan_to_loopback";
+export type TargetOptimizationDirection = "loopback_to_lan" | "lan_to_loopback";
 
 export interface TargetOptimizationDestination {
   address: string;
@@ -34,7 +33,9 @@ const isIpv4Address = (value: string): boolean => {
   );
 };
 
-export const parseOptimizableTargetHostname = (target: string): string | null => {
+export const parseOptimizableTargetHostname = (
+  target: string,
+): string | null => {
   const normalized = target.trim();
   if (!normalized) return null;
   try {
@@ -84,7 +85,8 @@ export const rewriteTargetHostname = (
     return null;
   }
 
-  const absoluteHostStart = contentStart + authorityStart + hostStartInAuthority;
+  const absoluteHostStart =
+    contentStart + authorityStart + hostStartInAuthority;
   return `${target.slice(0, absoluteHostStart)}${destinationAddress}${target.slice(
     absoluteHostStart + sourceAddress.length,
   )}`;
@@ -161,6 +163,7 @@ export const buildTargetOptimizationPreviews = ({
   );
 
   return mappings.flatMap((mapping) => {
+    if (!isProxyHostMapping(mapping)) return [];
     if (isAuthServiceTarget(mapping.target)) return [];
     const nextTarget = rewriteTargetHostname(
       mapping.target,

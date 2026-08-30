@@ -113,10 +113,16 @@ watch(
             class="mr-2 h-4 w-4"
             :class="{ 'animate-spin': iconEditor.isRefreshingFavicon }"
           />
-          {{ t("admin.subdomainProxy.restoreAutomaticIcon") }}
+          {{
+            t(
+              iconEditor.canRefreshMetadata
+                ? "admin.subdomainProxy.restoreAutomaticIcon"
+                : "admin.subdomainProxy.staticServe.removeCustomIcon",
+            )
+          }}
         </Button>
         <Button
-          v-else
+          v-else-if="iconEditor.canRefreshMetadata"
           type="button"
           variant="outline"
           class="sm:flex-1"

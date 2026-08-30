@@ -30,7 +30,6 @@ import PanelSyncMenuItem from "./PanelSyncMenuItem.vue";
 import SubdomainMappingsMaintenanceMenuItems from "./SubdomainMappingsMaintenanceMenuItems.vue";
 
 defineProps<{
-  allMappingsCount: number;
   authServiceMapping: HostMapping | null;
   canManageNewMappings: boolean;
   discoverButtonDividerClass: string;
@@ -44,6 +43,7 @@ defineProps<{
   isExportingBookmarks: boolean;
   isRefreshingTitles: boolean;
   isSavingMappings: boolean;
+  proxyMappingsCount: number;
   selectionMode?: boolean;
   isSyncing: boolean;
   visibleMappingsCount: number;
@@ -193,7 +193,7 @@ const { t } = useI18n();
             </DropdownMenuItem>
             <SubdomainMappingsMaintenanceMenuItems
               :clearing="isClearingAllSubdomainConfig"
-              :has-mappings="hasRegularHostMappings"
+              :has-mappings="proxyMappingsCount > 0"
               :saving="isSavingMappings"
               @cleanup="emit('open-stale-cleanup')"
               @optimize="emit('open-target-optimization')"
@@ -205,7 +205,10 @@ const { t } = useI18n();
               <Plus class="mr-2 h-4 w-4" />
               {{ t("admin.subdomainProxy.addMapping") }}
             </DropdownMenuItem>
-            <DropdownMenuItem :disabled="isSyncing" @click="emit('sync-routes')">
+            <DropdownMenuItem
+              :disabled="isSyncing"
+              @click="emit('sync-routes')"
+            >
               <RefreshCw
                 class="mr-2 h-4 w-4"
                 :class="{ 'animate-spin': isSyncing }"
@@ -219,7 +222,7 @@ const { t } = useI18n();
             <PanelSyncMenuItem />
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              :disabled="isRefreshingTitles || allMappingsCount === 0"
+              :disabled="isRefreshingTitles || proxyMappingsCount === 0"
               @select="emit('refresh-all-titles')"
             >
               <Image

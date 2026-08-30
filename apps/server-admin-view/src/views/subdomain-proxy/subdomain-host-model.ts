@@ -263,7 +263,9 @@ export const buildDiscoveredServiceMappings = ({
   services.map((service) => ({
     host: composeHostFromSubdomain(service.suggestedSubdomain, rootDomain),
     group_id: null,
+    target_type: "proxy",
     target: `http://${resolveDiscoveredServiceHost(service, fallbackHost)}:${service.port}/`,
+    static_serve: null,
     target_path_mode: DEFAULT_TARGET_PATH_MODE,
     waf_enabled: true,
     use_auth: service.detail.rule.use_auth,

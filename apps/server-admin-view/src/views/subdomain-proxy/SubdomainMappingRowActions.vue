@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TableCell } from "@/components/ui/table";
 import type { HostMapping, HostMappingGroup } from "@/types";
-import { isHttpTargetUrl } from "./model";
+import { isProxyHostMapping } from "./model";
 
 defineProps<{
   canUseDeepMonitor: boolean;
@@ -79,7 +79,10 @@ const { t } = useI18n();
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-44">
           <DropdownMenuItem
-            v-if="!isAuthServiceTarget(mapping.target)"
+            v-if="
+              isProxyHostMapping(mapping) &&
+              !isAuthServiceTarget(mapping.target)
+            "
             @select="emit('open-gateway-locations', mapping.host)"
           >
             <RouteIcon class="mr-2 h-4 w-4" />
@@ -100,11 +103,7 @@ const { t } = useI18n();
             }}
           </DropdownMenuItem>
           <DropdownMenuItem
-            v-if="
-              !isAuthServiceTarget(mapping.target) &&
-              mapping.use_auth &&
-              isHttpTargetUrl(mapping.target)
-            "
+            v-if="!isAuthServiceTarget(mapping.target) && mapping.use_auth"
             @select="emit('open-advanced-auth', mapping.host)"
           >
             <ShieldOff class="mr-2 h-4 w-4" />

@@ -38,7 +38,6 @@ const createTestI18n = () =>
   });
 
 const headerProps = {
-  allMappingsCount: 0,
   authServiceMapping: null,
   canManageNewMappings: true,
   discoverButtonDividerClass: "border-primary",
@@ -53,6 +52,7 @@ const headerProps = {
   isRefreshingTitles: false,
   isSavingMappings: false,
   isSyncing: false,
+  proxyMappingsCount: 0,
   visibleMappingsCount: 0,
 };
 

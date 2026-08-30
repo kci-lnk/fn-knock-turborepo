@@ -8,6 +8,9 @@ import type {
 import {
   buildMappingTargetKey,
   getMappingDisplayTitle,
+  getHostMappingTargetText,
+  isProxyHostMapping,
+  normalizeHostMappingTargetType,
   normalizeHostLike,
 } from "./model";
 
@@ -19,6 +22,7 @@ export const useSubdomainMappingsView = ({
   isAuthServiceTarget,
   searchQuery,
   trafficRealtimeStats,
+  translate,
 }: {
   allMappings: ComputedRef<HostMapping[]>;
   draggableVisibleMappings: Ref<HostMapping[]>;
@@ -27,9 +31,13 @@ export const useSubdomainMappingsView = ({
   isAuthServiceTarget: (target: string) => boolean;
   searchQuery: Ref<string>;
   trafficRealtimeStats: Ref<TrafficStats | null>;
+  translate: (key: string) => string;
 }) => {
   const regularHostMappings = computed(() =>
-    allMappings.value.filter((mapping) => !isAuthServiceTarget(mapping.target)),
+    allMappings.value.filter(
+      (mapping) =>
+        !isProxyHostMapping(mapping) || !isAuthServiceTarget(mapping.target),
+    ),
   );
   const hasRegularHostMappings = computed(
     () => regularHostMappings.value.length > 0,
@@ -38,6 +46,7 @@ export const useSubdomainMappingsView = ({
     const targets = new Set<string>();
 
     for (const mapping of allMappings.value) {
+      if (!isProxyHostMapping(mapping)) continue;
       const targetKey = buildMappingTargetKey(mapping.target);
       if (targetKey) {
         targets.add(targetKey);
@@ -48,8 +57,9 @@ export const useSubdomainMappingsView = ({
   });
   const authServiceMapping = computed(
     () =>
-      allMappings.value.find((mapping) =>
-        isAuthServiceTarget(mapping.target),
+      allMappings.value.find(
+        (mapping) =>
+          isProxyHostMapping(mapping) && isAuthServiceTarget(mapping.target),
       ) ?? null,
   );
   const discoverButtonVariant = computed(() =>
@@ -61,7 +71,10 @@ export const useSubdomainMappingsView = ({
       : "border-border/70",
   );
   const visibleMappings = computed(() =>
-    allMappings.value.filter((mapping) => !isAuthServiceTarget(mapping.target)),
+    allMappings.value.filter(
+      (mapping) =>
+        !isProxyHostMapping(mapping) || !isAuthServiceTarget(mapping.target),
+    ),
   );
   const hostTrafficSamples = computed(() => {
     const samples = new Map<string, HostTrafficStats>();
@@ -83,16 +96,23 @@ export const useSubdomainMappingsView = ({
         .filter((group) => group.name.toLowerCase().includes(query))
         .map((group) => group.id),
     );
-    return visibleMappings.value.filter(
-      (mapping) =>
+    return visibleMappings.value.filter((mapping) => {
+      const targetType = normalizeHostMappingTargetType(mapping.target_type);
+      const targetTypeLabel = translate(
+        `admin.subdomainProxy.staticServe.targetTypes.${targetType}`,
+      );
+      return (
         (mapping.group_id != null && matchingGroupIds.has(mapping.group_id)) ||
         getMappingDisplayTitle(mapping).toLowerCase().includes(query) ||
         formatHostWithAccessEntryPort(mapping.host)
           .toLowerCase()
           .includes(query) ||
         mapping.host.toLowerCase().includes(query) ||
-        mapping.target.toLowerCase().includes(query),
-    );
+        getHostMappingTargetText(mapping).toLowerCase().includes(query) ||
+        targetType.includes(query) ||
+        targetTypeLabel.toLowerCase().includes(query)
+      );
+    });
   });
 
   const syncDraggableVisibleMappings = () => {

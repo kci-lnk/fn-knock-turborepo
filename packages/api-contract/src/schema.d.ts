@@ -2276,6 +2276,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/config/host_mappings/static_path_probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交代理与映射配置静态路径探测
+         * @description 管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/static_path_probe` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["post_api_admin_config_host_mappings_static_path_probe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/config/host_mappings/{host}/advanced_auth": {
         parameters: {
             query?: never;
@@ -10285,10 +10305,12 @@ export interface components {
             preserve_host: boolean;
             protocol_mode: string;
             service_role: string;
+            static_serve: null | components["schemas"]["StaticServeConfigData"];
             suppress_toolbar: boolean;
             sync_id: string;
             target: string;
             target_path_mode: components["schemas"]["HostTargetPathModeData"];
+            target_type: components["schemas"]["HostTargetTypeData"];
             title: string;
             title_override: string;
             use_auth: boolean;
@@ -10335,6 +10357,8 @@ export interface components {
         };
         /** @enum {string} */
         HostTargetPathModeData: "entry" | "prefix";
+        /** @enum {string} */
+        HostTargetTypeData: "proxy" | "file" | "directory";
         ImportBackupBody: {
             archive_base64: string;
             filename?: string | null;
@@ -12112,6 +12136,31 @@ export interface components {
             uncovered_recommended_domains: string[];
             /** @description 需要管理员处理的覆盖风险或配置提示。 */
             warnings: string[];
+        };
+        StaticDirectoryListingData: {
+            enabled: boolean;
+            render_readme: boolean;
+        };
+        /** @enum {string} */
+        StaticPathActualTypeData: "file" | "directory" | "other";
+        StaticPathProbeBodyData: {
+            path: string;
+            target_type: components["schemas"]["StaticPathTargetTypeData"];
+        };
+        StaticPathProbeResultData: {
+            actual_type: null | components["schemas"]["StaticPathActualTypeData"];
+            error_code: string | null;
+            exists: boolean;
+            normalized_path: string;
+            readable: boolean;
+            target_type: null | components["schemas"]["StaticPathTargetTypeData"];
+        };
+        /** @enum {string} */
+        StaticPathTargetTypeData: "file" | "directory";
+        StaticServeConfigData: {
+            directory_listing: components["schemas"]["StaticDirectoryListingData"];
+            index_files: string[];
+            path: string;
         };
         StreamBypassConditionData: {
             id: string;
@@ -18569,6 +18618,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HostMappingRefreshSummaryData"];
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorEnvelope"];
+                };
+            };
+        };
+    };
+    post_api_admin_config_host_mappings_static_path_probe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticPathProbeBodyData"];
+            };
+        };
+        responses: {
+            /** @description 「提交代理与映射配置静态路径探测」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["StaticPathProbeResultData"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */

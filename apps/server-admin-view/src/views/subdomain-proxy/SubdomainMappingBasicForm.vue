@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import SubdomainMappingAdvancedSettings from "./SubdomainMappingAdvancedSettings.vue";
 import SubdomainMappingGroupField from "./SubdomainMappingGroupField.vue";
 import SubdomainMappingIconEntry from "./SubdomainMappingIconEntry.vue";
-import SubdomainMappingTargetField from "./SubdomainMappingTargetField.vue";
+import SubdomainMappingTargetEditor from "./SubdomainMappingTargetEditor.vue";
 import type { SubdomainMappingDialogProps } from "./subdomain-mapping-dialog-contract";
 
 const { dialog } = defineProps<{ dialog: SubdomainMappingDialogProps }>();
@@ -31,6 +31,7 @@ const mappingSubdomainModel = computed({
           {{ t("admin.subdomainProxy.displayTitle") }}
         </Label>
         <Button
+          v-if="dialog.mappingForm.target_type === 'proxy'"
           variant="link"
           size="sm"
           data-affordance="edit"
@@ -55,10 +56,22 @@ const mappingSubdomainModel = computed({
       <Input
         id="mapping-display-title"
         v-model="titleOverrideModel"
-        :placeholder="t('admin.subdomainProxy.titleAutoPlaceholder')"
+        :placeholder="
+          t(
+            dialog.mappingForm.target_type === 'proxy'
+              ? 'admin.subdomainProxy.titleAutoPlaceholder'
+              : 'admin.subdomainProxy.staticServe.titlePlaceholder',
+          )
+        "
       />
       <p class="text-xs text-muted-foreground">
-        {{ t("admin.subdomainProxy.titleHelp") }}
+        {{
+          t(
+            dialog.mappingForm.target_type === "proxy"
+              ? "admin.subdomainProxy.titleHelp"
+              : "admin.subdomainProxy.staticServe.titleHint",
+          )
+        }}
         <span v-if="dialog.mappingResolvedTitle">
           {{
             t("admin.subdomainProxy.fetchedTitle", {
@@ -157,11 +170,11 @@ const mappingSubdomainModel = computed({
       </template>
     </div>
 
-    <SubdomainMappingTargetField
-      v-model="dialog.mappingForm.target"
-      v-model:target-path-mode="dialog.mappingForm.target_path_mode"
+    <SubdomainMappingTargetEditor
+      :mapping-form="dialog.mappingForm"
       :allow-target-path-mode="!dialog.isMappingAuthService"
       :open="dialog.open"
+      :update-mapping-form="dialog.updateMappingForm"
     />
     <SubdomainMappingGroupField
       v-if="dialog.groups.length > 0 && !dialog.isMappingAuthService"

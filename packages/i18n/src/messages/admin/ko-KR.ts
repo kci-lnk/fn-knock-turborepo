@@ -3810,6 +3810,72 @@ export const koKRAdmin = {
     discardChanges: "변경사항 취소",
     saveConfig: "설정 저장",
     mappingsTitle: "매핑",
+    staticServe: {
+      targetType: "응답 유형",
+      targetTypes: {
+        proxy: "리버스 프록시",
+        file: "단일 파일",
+        directory: "디렉터리",
+      },
+      targetTypeHints: {
+        proxy: "요청을 HTTP, HTTPS 또는 WebSocket 업스트림으로 전달합니다.",
+        file: "매핑 루트 경로에서만 서버의 이 파일을 제공합니다.",
+        directory: "웹 서버처럼 서버 디렉터리에서 파일을 제공합니다.",
+      },
+      titlePlaceholder: "표시 제목 입력",
+      titleHint:
+        "정적 매핑은 제목을 자동으로 가져오지 않습니다. 필요한 경우 입력하세요.",
+      removeCustomIcon: "사용자 지정 아이콘 제거",
+      pathLabel: "서버 경로",
+      pathHint:
+        "이 경로는 브라우저 컴퓨터가 아닌 게이트웨이 서버의 경로입니다. 예: Linux /srv/site, Windows C:\\Sites\\docs. 저장 및 제공 시 다시 검증합니다.",
+      pathDockerHint:
+        "Docker에서는 컨테이너 내부 경로를 읽기 전용으로 마운트하세요. 예: -v /host/docs:/srv/docs:ro.",
+      probe: "경로 확인",
+      probeSuccess: "사용 가능한 경로: {path}",
+      indexFiles: "기본 문서",
+      indexFilesPlaceholder: "예: index.html",
+      indexFilesHint:
+        "왼쪽부터 순서대로 찾습니다. 파일 이름만 최대 16개까지 입력하세요.",
+      moveIndexUp: "기본 문서 우선순위 높이기",
+      moveIndexDown: "기본 문서 우선순위 낮추기",
+      directoryListing: "디렉터리 목록",
+      directoryListingHint: "기본 문서가 없을 때 파일과 폴더를 나열합니다.",
+      renderReadme: "README.md 렌더링",
+      renderReadmeHint:
+        "디렉터리 목록 아래에 README.md를 안전하게 렌더링합니다.",
+      switchConfirmTitle: "정적 응답으로 전환할까요?",
+      switchConfirmDescription:
+        "경로 라우트, 업스트림 Basic Auth, Host 유지 및 대상 경로 설정이 지워집니다. 인증, 공개 범위, WAF, 사용 시간, 제목, 아이콘과 그룹은 유지됩니다. 닫기 전에 되돌리면 이 초안을 복원할 수 있습니다.",
+      switchConfirmAction: "전환 후 정리",
+      validation: {
+        path_required: "서버 경로를 입력하세요.",
+        path_not_absolute: "서버 경로는 절대 경로여야 합니다.",
+        path_has_parent_segment:
+          "경로에 .. 또는 null 문자를 사용할 수 없습니다.",
+        path_unsafe:
+          "경로는 루트가 아닌 표시 가능한 대상을 가리켜야 하며 제어 문자를 포함할 수 없습니다.",
+        invalid_index_file:
+          "기본 문서는 255 UTF-8바이트 이하의 표시 가능한 파일 이름이어야 하며 경로 구분자나 제어 문자를 포함할 수 없습니다.",
+        duplicate_index_file: "기본 문서는 중복될 수 없습니다.",
+        too_many_index_files: "기본 문서는 최대 16개까지 설정할 수 있습니다.",
+      },
+      probeErrors: {
+        invalid_target_type: "지원하지 않는 응답 유형입니다.",
+        path_required: "서버 경로를 입력하세요.",
+        not_absolute: "서버 경로는 절대 경로여야 합니다.",
+        not_found: "경로가 존재하지 않습니다.",
+        type_mismatch: "경로 유형이 선택한 응답 유형과 일치하지 않습니다.",
+        not_readable: "FN-Knock이 이 경로를 읽을 수 없습니다.",
+        unsupported_file_type: "지원하지 않는 파일 유형입니다.",
+        probe_failed: "경로 확인에 실패했습니다. 다시 시도하세요.",
+        invalid_path: "경로가 잘못되었거나 허용되지 않는 내용을 포함합니다.",
+        protected_path: "보안상 이 보호된 경로를 공개할 수 없습니다.",
+        permission_denied: "FN-Knock이 이 경로를 읽을 수 없습니다.",
+        unsupported_type: "제공 가능한 일반 파일이나 디렉터리가 아닙니다.",
+        unavailable: "현재 실행 환경에서는 경로 확인을 사용할 수 없습니다.",
+      },
+    },
     addAuthService: "인증 서비스 추가",
     discovering: "검색 중...",
     discover: "서비스 검색",

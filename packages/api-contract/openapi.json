@@ -12754,6 +12754,16 @@
           "service_role": {
             "type": "string"
           },
+          "static_serve": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaticServeConfigData"
+              }
+            ]
+          },
           "suppress_toolbar": {
             "type": "boolean"
           },
@@ -12765,6 +12775,9 @@
           },
           "target_path_mode": {
             "$ref": "#/components/schemas/HostTargetPathModeData"
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/HostTargetTypeData"
           },
           "title": {
             "type": "string"
@@ -12784,6 +12797,8 @@
           "host",
           "sync_id",
           "target",
+          "target_type",
+          "static_serve",
           "target_path_mode",
           "waf_enabled",
           "use_auth",
@@ -12948,6 +12963,14 @@
         "enum": [
           "entry",
           "prefix"
+        ],
+        "type": "string"
+      },
+      "HostTargetTypeData": {
+        "enum": [
+          "proxy",
+          "file",
+          "directory"
         ],
         "type": "string"
       },
@@ -20398,6 +20421,125 @@
           "covers_auth_host",
           "warnings",
           "summary"
+        ],
+        "type": "object"
+      },
+      "StaticDirectoryListingData": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "render_readme": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "render_readme"
+        ],
+        "type": "object"
+      },
+      "StaticPathActualTypeData": {
+        "enum": [
+          "file",
+          "directory",
+          "other"
+        ],
+        "type": "string"
+      },
+      "StaticPathProbeBodyData": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/StaticPathTargetTypeData"
+          }
+        },
+        "required": [
+          "target_type",
+          "path"
+        ],
+        "type": "object"
+      },
+      "StaticPathProbeResultData": {
+        "properties": {
+          "actual_type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaticPathActualTypeData"
+              }
+            ]
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "normalized_path": {
+            "type": "string"
+          },
+          "readable": {
+            "type": "boolean"
+          },
+          "target_type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaticPathTargetTypeData"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target_type",
+          "normalized_path",
+          "exists",
+          "readable",
+          "actual_type",
+          "error_code"
+        ],
+        "type": "object"
+      },
+      "StaticPathTargetTypeData": {
+        "enum": [
+          "file",
+          "directory"
+        ],
+        "type": "string"
+      },
+      "StaticServeConfigData": {
+        "properties": {
+          "directory_listing": {
+            "$ref": "#/components/schemas/StaticDirectoryListingData"
+          },
+          "index_files": {
+            "items": {
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)[^/\\\\\\u0000]+$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "index_files",
+          "directory_listing"
         ],
         "type": "object"
       },
@@ -33465,6 +33607,69 @@
           }
         },
         "summary": "提交代理与映射配置标题刷新",
+        "tags": [
+          "configuration"
+        ],
+        "x-fn-knock-contract-source": "utoipa"
+      }
+    },
+    "/api/admin/config/host_mappings/static_path_probe": {
+      "post": {
+        "description": "管理主机映射、反向代理、流映射和子域模式。。`POST /api/admin/config/host_mappings/static_path_probe` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。",
+        "operationId": "post_api_admin_config_host_mappings_static_path_probe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticPathProbeBodyData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/StaticPathProbeResultData"
+                    },
+                    "message": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "success": {
+                      "const": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "「提交代理与映射配置静态路径探测」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。"
+          }
+        },
+        "summary": "提交代理与映射配置静态路径探测",
         "tags": [
           "configuration"
         ],

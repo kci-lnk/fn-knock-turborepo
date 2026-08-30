@@ -6,7 +6,6 @@ import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
 
 export interface SubdomainMappingsCardProps {
   activeDeepMonitorHosts: string[];
-  allMappingsCount: number;
   allRegularMappings: HostMapping[];
   authServiceMapping: HostMapping | null;
   canManageNewMappings: boolean;

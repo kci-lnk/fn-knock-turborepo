@@ -1,10 +1,12 @@
 use super::*;
 use crate::cidr::compile_ip_set;
+use axum::{body::Body, http::Request};
 use std::collections::BTreeSet;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
 };
+use tower::ServiceExt;
 
 async fn proxy_config_test_state(go_backend_grpc_addr: String) -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().unwrap();
@@ -165,6 +167,132 @@ fn normalizes_host_mapping_route_shape() {
             .and_then(Value::as_str),
         Some("inherit")
     );
+}
+
+#[test]
+fn normalizes_directory_host_mapping_and_emits_static_runtime_contract() {
+    let path = std::env::temp_dir().join("fn-knock-static-docs");
+    let path = path.to_string_lossy().to_string();
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "static_serve": { "path": path },
+            "target": "http://ignored.invalid",
+            "protocol_mode": "http2",
+            "use_auth": true,
+            "locations": [{ "path": "/ignored", "action": "proxy" }],
+            "basic_auth": { "enabled": true, "username": "ignored", "password": "ignored" },
+            "preserve_host": true,
+            "suppress_toolbar": false,
+        })],
+        &json!({}),
+    )
+    .unwrap();
+    let mapping = &mappings[0];
+    assert_eq!(mapping["target_type"], json!("directory"));
+    assert_eq!(mapping["target"], json!(""));
+    assert_eq!(mapping["target_path_mode"], json!("entry"));
+    assert_eq!(mapping["protocol_mode"], json!("http2"));
+    assert_eq!(mapping["use_auth"], json!(true));
+    assert_eq!(mapping["suppress_toolbar"], json!(true));
+    assert_eq!(mapping["preserve_host"], json!(false));
+    assert_eq!(mapping["basic_auth"]["enabled"], json!(false));
+    assert_eq!(mapping["locations"], json!([]));
+    assert_eq!(
+        mapping["static_serve"]["index_files"],
+        json!(["index.html", "index.htm"])
+    );
+
+    let payload = build_host_rules_payload(&mappings);
+    assert_eq!(payload[0]["target_type"], json!("directory"));
+    assert_eq!(payload[0]["static_serve"], mapping["static_serve"]);
+}
+
+#[test]
+fn rejects_invalid_static_mapping_shapes() {
+    for mapping in [
+        json!({
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "static_serve": { "path": "relative/docs" }
+        }),
+        json!({
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "static_serve": { "path": std::env::temp_dir(), "index_files": ["../index.html"] }
+        }),
+        json!({
+            "host": "docs.example.com",
+            "target_type": "object-store",
+            "static_serve": { "path": std::env::temp_dir() }
+        }),
+    ] {
+        assert!(normalize_host_mappings_for_route(vec![mapping], &json!({})).is_err());
+    }
+}
+
+#[tokio::test]
+async fn static_path_probe_returns_stable_results_for_lexical_rejections() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+
+    for (target_type, path, expected_target_type, expected_code) in [
+        (
+            "directory",
+            "relative/secret/docs",
+            Some("directory"),
+            "invalid_path",
+        ),
+        (
+            "file",
+            "/tmp/secret\0manual.pdf",
+            Some("file"),
+            "invalid_path",
+        ),
+        (
+            "directory",
+            "/tmp/.secret-root",
+            Some("directory"),
+            "invalid_path",
+        ),
+        ("directory", "/", Some("directory"), "invalid_path"),
+        (
+            "object-store\n/secret",
+            "/tmp/public",
+            None,
+            "unsupported_type",
+        ),
+        ("proxy", "/tmp/public", None, "unsupported_type"),
+    ] {
+        let response = proxy_config_routes()
+            .with_state(state.clone())
+            .oneshot(
+                Request::post("/api/admin/config/host_mappings/static_path_probe")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        json!({ "target_type": target_type, "path": path }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("probe route response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read probe response");
+        let body: Value = serde_json::from_slice(&bytes).expect("parse probe response");
+        assert_eq!(body["success"], json!(true));
+        assert_eq!(body["data"]["target_type"], json!(expected_target_type));
+        assert_eq!(body["data"]["normalized_path"], json!(""));
+        assert_eq!(body["data"]["exists"], json!(false));
+        assert_eq!(body["data"]["readable"], json!(false));
+        assert_eq!(body["data"]["actual_type"], json!("other"));
+        assert_eq!(body["data"]["error_code"], json!(expected_code));
+        assert!(
+            !String::from_utf8_lossy(&bytes).contains("secret"),
+            "lexically rejected input was reflected"
+        );
+    }
 }
 
 #[test]
@@ -757,6 +885,8 @@ fn host_mapping_responses_backfill_legacy_defaults() {
     normalize_host_mapping_response_defaults(&mut mappings);
 
     assert_eq!(mappings[0]["service_role"], json!("app"));
+    assert_eq!(mappings[0]["target_type"], json!("proxy"));
+    assert_eq!(mappings[0]["static_serve"], Value::Null);
     assert_eq!(mappings[1]["service_role"], json!("auth"));
     assert_eq!(mappings[2]["service_role"], json!("auth"));
     assert_eq!(mappings[0]["waf_enabled"], json!(true));
@@ -775,6 +905,28 @@ fn host_mapping_responses_backfill_legacy_defaults() {
         mappings[3]["visibility"]["cidrs"],
         json!(["203.0.113.0/24"])
     );
+}
+
+#[test]
+fn migrates_missing_host_target_types_without_overwriting_static_entries() {
+    let mut config = json!({
+        "host_mappings": [
+            { "host": "legacy.example.com", "target": "http://127.0.0.1:8080" },
+            {
+                "host": "docs.example.com",
+                "target_type": "directory",
+                "static_serve": { "path": "/srv/docs" }
+            }
+        ]
+    });
+    assert_eq!(ensure_host_mapping_target_types(&mut config), 1);
+    assert_eq!(config["host_mappings"][0]["target_type"], json!("proxy"));
+    assert_eq!(config["host_mappings"][0]["static_serve"], Value::Null);
+    assert_eq!(
+        config["host_mappings"][1]["target_type"],
+        json!("directory")
+    );
+    assert_eq!(ensure_host_mapping_target_types(&mut config), 0);
 }
 
 #[test]
@@ -1004,6 +1156,88 @@ fn validates_go_backend_echoed_protocol_modes() {
         "protocol_mode": "auto"
     }]);
     ensure_go_host_protocol_modes_applied(&automatic, &old_backend).unwrap();
+}
+
+#[test]
+fn validates_go_backend_echoed_static_target_configuration() {
+    let static_serve = json!({
+        "path": "/srv/docs",
+        "index_files": ["index.html"],
+        "directory_listing": { "enabled": true, "render_readme": true }
+    });
+    let requested = json!([{
+        "host": "docs.example.com",
+        "protocol_mode": "auto",
+        "target_path_mode": "entry",
+        "target_type": "directory",
+        "static_serve": static_serve,
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{
+            "host": "docs.example.com",
+            "protocol_mode": "auto",
+            "target_path_mode": "entry",
+            "target_type": "directory",
+            "static_serve": static_serve,
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let old_backend = json!({
+        "success": true,
+        "data": [{
+            "host": "docs.example.com",
+            "protocol_mode": "auto",
+            "target_path_mode": "entry"
+        }]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply static target configuration"));
+
+    for replacement in [
+        json!({
+            "target_type": "file",
+            "static_serve": static_serve,
+        }),
+        json!({
+            "target_type": "directory",
+            "static_serve": {
+                "path": "/srv/other",
+                "index_files": ["index.html"],
+                "directory_listing": { "enabled": true, "render_readme": true }
+            },
+        }),
+        json!({
+            "target_type": "directory",
+            "static_serve": {
+                "path": "/srv/docs",
+                "index_files": ["home.html", "index.html"],
+                "directory_listing": { "enabled": true, "render_readme": true }
+            },
+        }),
+        json!({
+            "target_type": "directory",
+            "static_serve": {
+                "path": "/srv/docs",
+                "index_files": ["index.html"],
+                "directory_listing": { "enabled": false, "render_readme": false }
+            },
+        }),
+    ] {
+        let tampered = json!({
+            "success": true,
+            "data": [{
+                "host": "docs.example.com",
+                "protocol_mode": "auto",
+                "target_path_mode": "entry",
+                "target_type": replacement["target_type"],
+                "static_serve": replacement["static_serve"],
+            }]
+        });
+        let error = ensure_go_host_protocol_modes_applied(&requested, &tampered).unwrap_err();
+        assert!(error.contains("did not apply static target configuration"));
+    }
 }
 
 #[test]
@@ -1775,15 +2009,158 @@ async fn manual_metadata_refresh_rolls_back_config_when_runtime_sync_fails() {
 }
 
 #[tokio::test]
+async fn catalog_update_allows_unavailable_saved_static_path_metadata_edit_without_probe() {
+    let unavailable_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let unavailable_grpc_addr = unavailable_listener.local_addr().unwrap();
+    drop(unavailable_listener);
+    let (directory, state) = proxy_config_test_state(unavailable_grpc_addr.to_string()).await;
+    let missing_path = directory.path().join("detached-static-mount");
+    assert!(!missing_path.exists());
+
+    let previous_mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "static_serve": { "path": missing_path },
+            "title_override": "Before",
+            "visibility": {
+                "mode": "inherit",
+                "selections": [],
+                "custom_cidrs": [],
+            }
+        })],
+        &json!({}),
+    )
+    .expect("normalize saved mapping");
+    let previous_config = json!({
+        "run_type": 3,
+        "host_mappings": previous_mappings,
+        "host_mapping_groups": [],
+        "host_mapping_grouped_view": false,
+        "visibility_policies": {},
+    });
+    state
+        .storage
+        .store
+        .save_config(&previous_config)
+        .await
+        .expect("save previous mapping");
+
+    let mut edited = previous_mappings[0].clone();
+    edited["title_override"] = json!("After");
+    edited["visibility"] = json!({
+        "mode": "disabled",
+        "selections": [],
+        "custom_cidrs": [],
+    });
+    let synced_mappings = std::sync::Arc::new(tokio::sync::Mutex::new(None));
+    let captured_mappings = synced_mappings.clone();
+    let response = update_host_mapping_catalog_with_runtime_sync(
+        state.clone(),
+        HeaderMap::new(),
+        HostMappingCatalogBody {
+            mappings: vec![edited],
+            groups: vec![],
+            grouped_view: Some(false),
+            revision: None,
+        },
+        move |_state, _previous_config, mappings| async move {
+            *captured_mappings.lock().await = Some(mappings);
+            Ok(())
+        },
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let synced = synced_mappings
+        .lock()
+        .await
+        .clone()
+        .expect("runtime sync should receive the saved mapping");
+    assert_eq!(synced[0]["title_override"], json!("After"));
+    assert_eq!(synced[0]["visibility"]["mode"], json!("disabled"));
+    assert_eq!(
+        synced[0]["static_serve"]["path"],
+        previous_mappings[0]["static_serve"]["path"]
+    );
+    let stored = state.storage.store.get_config().await.unwrap();
+    assert_eq!(stored["host_mappings"][0]["title_override"], json!("After"));
+    assert_eq!(
+        stored["host_mappings"][0]["static_serve"]["path"],
+        previous_mappings[0]["static_serve"]["path"]
+    );
+}
+
+#[tokio::test]
+async fn static_runtime_echo_failure_returns_bad_gateway_and_rolls_back_saved_edit() {
+    let unavailable_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let unavailable_grpc_addr = unavailable_listener.local_addr().unwrap();
+    drop(unavailable_listener);
+    let (directory, state) = proxy_config_test_state(unavailable_grpc_addr.to_string()).await;
+    let missing_path = directory.path().join("detached-static-mount");
+    let previous_mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "static_serve": { "path": missing_path },
+            "title_override": "Before",
+        })],
+        &json!({}),
+    )
+    .expect("normalize saved mapping");
+    let previous_config = json!({
+        "run_type": 3,
+        "host_mappings": previous_mappings,
+        "host_mapping_groups": [],
+        "host_mapping_grouped_view": false,
+        "visibility_policies": {},
+    });
+    state
+        .storage
+        .store
+        .save_config(&previous_config)
+        .await
+        .expect("save previous mapping");
+
+    let mut edited = previous_mappings[0].clone();
+    edited["title_override"] = json!("Rejected by old gateway");
+    let response = update_host_mappings_with_runtime_sync(
+        state.clone(),
+        MappingsBody {
+            mappings: vec![edited],
+            revision: None,
+        },
+        |_state, _previous_config, _mappings| async move {
+            Err(
+                "Go gateway did not apply static target configuration; upgrade the gateway backend"
+                    .to_string(),
+            )
+        },
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        config_without_internal_metadata(state.storage.store.get_config().await.unwrap()),
+        config_without_internal_metadata(previous_config)
+    );
+}
+
+#[tokio::test]
 async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_store() {
     let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
     let previous_config = json!({
         "run_type": 3,
         "visibility_policies": {},
         "host_mappings": [{
-            "host": "video.example.com",
-            "target": "http://127.0.0.1:8080",
-            "protocol_mode": "http1",
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "target": "",
+            "static_serve": {
+                "path": "/srv/docs",
+                "index_files": ["index.html"],
+                "directory_listing": { "enabled": true, "render_readme": true }
+            },
             "title": "Before refresh"
         }]
     });
@@ -1791,9 +2168,14 @@ async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_
         "run_type": 3,
         "visibility_policies": {},
         "host_mappings": [{
-            "host": "video.example.com",
-            "target": "http://127.0.0.1:8080",
-            "protocol_mode": "http2",
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "target": "",
+            "static_serve": {
+                "path": "/srv/docs",
+                "index_files": ["home.html", "index.html"],
+                "directory_listing": { "enabled": false, "render_readme": false }
+            },
             "title": "After refresh"
         }]
     });
@@ -1858,22 +2240,28 @@ async fn host_mapping_rollback_does_not_overwrite_a_newer_mapping_commit() {
     let previous_config = json!({
         "run_type": 3,
         "host_mappings": [{
-            "host": "video.example.com",
-            "target": "http://127.0.0.1:8080",
-            "protocol_mode": "auto"
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "target": "",
+            "static_serve": { "path": "/srv/docs" },
+            "title": "Before"
         }]
     });
     let failed_update = vec![json!({
-        "host": "video.example.com",
-        "target": "http://127.0.0.1:8080",
-        "protocol_mode": "http1"
+        "host": "docs.example.com",
+        "target_type": "directory",
+        "target": "",
+        "static_serve": { "path": "/srv/docs" },
+        "title": "Failed"
     })];
     let newer_config = json!({
         "run_type": 3,
         "host_mappings": [{
-            "host": "video.example.com",
-            "target": "http://127.0.0.1:8080",
-            "protocol_mode": "http2"
+            "host": "docs.example.com",
+            "target_type": "directory",
+            "target": "",
+            "static_serve": { "path": "/srv/docs-v2" },
+            "title": "Newer"
         }]
     });
     state
@@ -2331,6 +2719,39 @@ fn host_mapping_metadata_refresh_decision_matches_node_save_rules() {
         ),
         (false, false)
     );
+    assert_eq!(
+        resolve_metadata_refresh_decision(
+            &json!({
+                "host": "static.example.com",
+                "target_type": "directory",
+                // A stale/corrupt proxy target must never turn a static
+                // mapping into an outbound metadata request.
+                "target": "http://127.0.0.1:9090",
+                "static_serve": { "path": "/srv/docs" },
+                "title": "",
+                "favicon": ""
+            }),
+            &previous_by_host
+        ),
+        (false, false)
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_metadata_refresh_never_fetches_static_stale_target() {
+    let mapping = json!({
+        "host": "static.example.com",
+        "target_type": "directory",
+        "target": "http://127.0.0.1:9/should-never-be-requested",
+        "static_serve": { "path": "/srv/docs" },
+        "title": "manual",
+        "favicon": "manual.ico"
+    });
+    let (mappings, summary) = refresh_host_mapping_metadata(vec![mapping.clone()]).await;
+    assert_eq!(mappings, vec![mapping]);
+    assert_eq!(summary["updated"], json!(0));
+    assert_eq!(summary["failed"], json!(0));
+    assert_eq!(summary["skipped"], json!(1));
 }
 
 #[test]

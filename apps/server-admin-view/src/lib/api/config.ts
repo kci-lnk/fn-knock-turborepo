@@ -13,6 +13,7 @@ import type {
 import { apiClient } from "./client";
 import { configAuthApi } from "./config-auth-api";
 import { configCoreApi } from "./config-core-api";
+import { configHostMappingStaticApi } from "./config-host-mapping-static-api";
 import { configProxyApi } from "./config-proxy-api";
 import { configSslLanApi } from "./config-ssl-lan-api";
 import {
@@ -30,6 +31,7 @@ type MaintenanceClearResult =
 
 export const ConfigAPI = {
   ...configCoreApi,
+  ...configHostMappingStaticApi,
   ...configProxyApi,
   ...configSslLanApi,
   ...configStreamApi,
@@ -48,6 +50,11 @@ export type {
   StreamServiceDescriptor,
   StreamServiceProfile,
 } from "./config-stream-api";
+export type {
+  StaticPathProbeErrorCode,
+  StaticPathProbeResult,
+  StaticPathProbeTargetType,
+} from "./config-host-mapping-static-api";
 export type {
   RevisionedConfig,
   RevisionedHostMappingCatalog,

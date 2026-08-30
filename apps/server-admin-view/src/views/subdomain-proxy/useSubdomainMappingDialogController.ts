@@ -11,9 +11,13 @@ import {
   canRefreshHostMappingMetadata,
   createDefaultMapping,
   DEFAULT_PROTOCOL_MODE,
+  getStaticServeValidationIssue,
   isMappingDraftValid,
+  isProxyHostMapping,
   normalizeMappingBasicAuth,
   normalizeMappingForm,
+  normalizeHostMappingStaticServe,
+  normalizeHostMappingTargetType,
   normalizeMappingVisibility,
   type TranslationParams,
 } from "./model";
@@ -44,6 +48,7 @@ export const useSubdomainMappingDialogController = ({
   getConfig,
   isAuthServiceTarget,
   isGatewayAdvancedAvailableByMode,
+  isWindowsDeployment,
   resetFaviconErrors,
   runSaveMappings,
   saveHostMappings,
@@ -58,6 +63,7 @@ export const useSubdomainMappingDialogController = ({
   getConfig: () => AppConfig | null | undefined;
   isAuthServiceTarget: (target: string) => boolean;
   isGatewayAdvancedAvailableByMode: Ref<boolean>;
+  isWindowsDeployment: Ref<boolean>;
   resetFaviconErrors: () => void;
   runSaveMappings: AsyncActionRun;
   saveHostMappings: (
@@ -118,22 +124,26 @@ export const useSubdomainMappingDialogController = ({
     translate,
   });
 
-  const isMappingAuthService = computed(() =>
-    isAuthServiceTarget(mappingForm.target),
+  const isMappingProxy = computed(() => isProxyHostMapping(mappingForm));
+  const isMappingAuthService = computed(
+    () => isMappingProxy.value && isAuthServiceTarget(mappingForm.target),
   );
-  const isMappingWebSocketTarget = computed(() =>
-    isWebSocketProxyTargetUrl(mappingForm.target),
+  const isMappingWebSocketTarget = computed(
+    () => isMappingProxy.value && isWebSocketProxyTargetUrl(mappingForm.target),
   );
   const basicAuthProbeEnabled = computed(
-    () => isDialogOpen.value && !isMappingAuthService.value,
+    () =>
+      isDialogOpen.value && isMappingProxy.value && !isMappingAuthService.value,
   );
   const mappingResolvedTitle = computed(() =>
+    isMappingProxy.value &&
     mappingMetadataTarget.value === mappingForm.target.trim()
       ? mappingForm.title.trim()
       : "",
   );
-  const canRefreshMappingMetadata = computed(() =>
-    canRefreshHostMappingMetadata(mappingForm.target),
+  const canRefreshMappingMetadata = computed(
+    () =>
+      isMappingProxy.value && canRefreshHostMappingMetadata(mappingForm.target),
   );
 
   const { currentBasicAuthProbeResult } = useBasicAuthProbe({
@@ -148,7 +158,10 @@ export const useSubdomainMappingDialogController = ({
   });
 
   const showToolbar = computed({
-    get: () => !isMappingWebSocketTarget.value && !mappingForm.suppress_toolbar,
+    get: () =>
+      isMappingProxy.value &&
+      !isMappingWebSocketTarget.value &&
+      !mappingForm.suppress_toolbar,
     set: (value: boolean) => {
       if (isMappingWebSocketTarget.value) {
         mappingForm.suppress_toolbar = true;
@@ -164,7 +177,10 @@ export const useSubdomainMappingDialogController = ({
     },
   });
   const basicAuthInjectionModel = computed({
-    get: () => !isMappingAuthService.value && mappingForm.basic_auth.enabled,
+    get: () =>
+      isMappingProxy.value &&
+      !isMappingAuthService.value &&
+      mappingForm.basic_auth.enabled,
     set: (value: boolean) => {
       mappingForm.basic_auth.enabled = value;
       if (!value) {
@@ -187,6 +203,7 @@ export const useSubdomainMappingDialogController = ({
   const canShowBasicAuthInjection = computed(
     () =>
       !isMappingAuthService.value &&
+      isMappingProxy.value &&
       (basicAuthInjectionModel.value ||
         currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
   );
@@ -226,6 +243,7 @@ export const useSubdomainMappingDialogController = ({
     isDialogOpen,
     isGatewayAdvancedAvailableByMode,
     isMappingAuthService,
+    isMappingProxy,
     mappingDraftHost,
     setGatewayHostResponseDisabledHosts,
     setGatewayProxyHeadersDisabledHosts,
@@ -246,7 +264,13 @@ export const useSubdomainMappingDialogController = ({
         canUseRootDomainSuffix: canUseRootDomainSuffix.value,
         host: mappingDraftHost.value,
         inputMode: mappingInputMode.value,
+        staticServeValidationIssue: getStaticServeValidationIssue({
+          isWindows: isWindowsDeployment.value,
+          staticServe: mappingForm.static_serve,
+          targetType: normalizeHostMappingTargetType(mappingForm.target_type),
+        }),
         target: mappingForm.target,
+        targetType: normalizeHostMappingTargetType(mappingForm.target_type),
       }),
   );
 
@@ -320,16 +344,25 @@ export const useSubdomainMappingDialogController = ({
   function openEditDialog(mapping: HostMapping) {
     editingHost.value = mapping.host;
     setMappingDraftInputFromHost(mapping.host);
+    const targetType = normalizeHostMappingTargetType(mapping.target_type);
     Object.assign(mappingForm, {
       ...mapping,
+      target_type: targetType,
+      target: targetType === "proxy" ? mapping.target : "",
+      static_serve: normalizeHostMappingStaticServe(
+        targetType,
+        mapping.static_serve,
+      ),
       favicon_override: mapping.favicon_override ?? "",
       target_path_mode: mapping.target_path_mode || "entry",
       protocol_mode: mapping.protocol_mode || DEFAULT_PROTOCOL_MODE,
       basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
       visibility: normalizeMappingVisibility(mapping.visibility),
     });
-    mappingMetadataTarget.value = mapping.target.trim();
-    faviconMetadataTarget.value = mapping.target.trim();
+    mappingMetadataTarget.value =
+      targetType === "proxy" ? mapping.target.trim() : "";
+    faviconMetadataTarget.value =
+      targetType === "proxy" ? mapping.target.trim() : "";
     resetMappingAdvancedState(mapping.host);
     isDialogOpen.value = true;
     void Promise.all([
@@ -427,7 +460,9 @@ export const useSubdomainMappingDialogController = ({
 
     const duplicateAuthService = allMappings.value.find(
       (item) =>
-        isAuthServiceTarget(item.target) && item.host !== editingHost.value,
+        isProxyHostMapping(item) &&
+        isAuthServiceTarget(item.target) &&
+        item.host !== editingHost.value,
     );
     if (normalized.service_role === "auth" && duplicateAuthService) {
       toast.error(translate("admin.subdomainProxy.authServiceExists"), {
@@ -524,6 +559,7 @@ export const useSubdomainMappingDialogController = ({
     iconEditor,
     isDialogOpen,
     isMappingAuthService,
+    isMappingProxy,
     isMappingValid,
     isMappingWebSocketTarget,
     isRefreshingMappingMetadata,

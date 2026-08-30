@@ -8,6 +8,7 @@ import type { HostMapping } from "@/types";
 import { getMappingFaviconSrc } from "./model";
 import SubdomainMappingRowActions from "./SubdomainMappingRowActions.vue";
 import SubdomainMappingStatusIndicators from "./SubdomainMappingStatusIndicators.vue";
+import SubdomainMappingTargetCell from "./SubdomainMappingTargetCell.vue";
 import SubdomainMappingTitleCell from "./SubdomainMappingTitleCell.vue";
 import type {
   SubdomainMappingsCardProps,
@@ -46,11 +47,7 @@ const { t } = useI18n();
       <div
         class="flex h-7 w-full items-center"
         :class="
-          selectionMode
-            ? 'justify-center'
-            : showGroupedView
-              ? 'gap-1 pl-7'
-              : ''
+          selectionMode ? 'justify-center' : showGroupedView ? 'gap-1 pl-7' : ''
         "
       >
         <Checkbox
@@ -134,13 +131,10 @@ const { t } = useI18n();
         <span class="break-all">{{ model.formatHost(mapping.host) }}</span>
       </button>
     </TableCell>
-    <TableCell
-      :class="{
-        'text-muted-foreground': model.isMappingUnavailable(mapping),
-      }"
-    >
-      {{ mapping.target }}
-    </TableCell>
+    <SubdomainMappingTargetCell
+      :mapping="mapping"
+      :unavailable="model.isMappingUnavailable(mapping)"
+    />
     <TableCell class="w-[7rem] min-w-[7rem] max-w-[7rem]">
       <HostTrafficActivity
         :host="mapping.host"

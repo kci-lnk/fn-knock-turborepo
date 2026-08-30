@@ -200,6 +200,40 @@ pub(super) struct HostMappingBasicAuthProbeData {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum StaticPathTargetTypeData {
+    File,
+    Directory,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum StaticPathActualTypeData {
+    File,
+    Directory,
+    Other,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StaticPathProbeBodyData {
+    target_type: StaticPathTargetTypeData,
+    path: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct StaticPathProbeResultData {
+    #[schema(required = true)]
+    target_type: Option<StaticPathTargetTypeData>,
+    normalized_path: String,
+    exists: bool,
+    readable: bool,
+    #[schema(required = true)]
+    actual_type: Option<StaticPathActualTypeData>,
+    #[schema(required = true)]
+    error_code: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub(super) struct HostMappingMetadataBodyData {
     target: String,
     basic_auth: Option<HostMappingBasicAuthInputData>,

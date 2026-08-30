@@ -12,6 +12,11 @@ pub(super) async fn refresh_host_mapping_metadata(mappings: Vec<Value>) -> (Vec<
             next_mappings.push(mapping);
             continue;
         };
+        if host_target_type(object.get("target_type")) != Ok(HOST_TARGET_TYPE_PROXY) {
+            skipped += 1;
+            next_mappings.push(Value::Object(object));
+            continue;
+        }
         let target = object.get("target").and_then(Value::as_str).unwrap_or("");
         if normalize_http_probe_url(target).is_none() {
             skipped += 1;
@@ -225,6 +230,9 @@ pub(super) fn resolve_metadata_refresh_decision(
     mapping: &Value,
     previous_by_host: &HashMap<String, Value>,
 ) -> (bool, bool) {
+    if host_target_type(mapping.get("target_type")) != Ok(HOST_TARGET_TYPE_PROXY) {
+        return (false, false);
+    }
     let target = mapping_target(mapping);
     if target.is_empty() || normalize_http_probe_url(&target).is_none() {
         return (false, false);
@@ -261,7 +269,10 @@ pub(super) fn merge_metadata_into_current_mappings(
             let Some(refreshed) = refreshed_by_host.get(&host_mapping_key(&mapping)) else {
                 return mapping;
             };
-            if mapping_target(&mapping) != mapping_target(&refreshed.mapping)
+            if host_target_type(mapping.get("target_type")) != Ok(HOST_TARGET_TYPE_PROXY)
+                || host_target_type(refreshed.mapping.get("target_type"))
+                    != Ok(HOST_TARGET_TYPE_PROXY)
+                || mapping_target(&mapping) != mapping_target(&refreshed.mapping)
                 || !host_mapping_basic_auth_matches(&mapping, &refreshed.mapping)
             {
                 return mapping;

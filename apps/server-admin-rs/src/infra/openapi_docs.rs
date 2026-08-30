@@ -194,6 +194,15 @@ pub(crate) fn build_openapi_document() -> Value {
         }),
     );
     schemas.extend(domain_contracts::components());
+    if let Some(index_file_schema) = schemas
+        .get_mut("StaticServeConfigData")
+        .and_then(|schema| schema.pointer_mut("/properties/index_files/items"))
+        .and_then(Value::as_object_mut)
+    {
+        index_file_schema.insert("minLength".to_string(), json!(1));
+        index_file_schema.insert("maxLength".to_string(), json!(255));
+        index_file_schema.insert("pattern".to_string(), json!(r"^(?!\.{1,2}$)[^/\\\u0000]+$"));
+    }
     if let Ok(panel_sync_document) = serde_json::to_value(&typed_panel_sync)
         && let Some(panel_sync_schemas) = panel_sync_document
             .pointer("/components/schemas")
@@ -3484,6 +3493,15 @@ pub(crate) fn build_openapi_document() -> Value {
         "HostMappingBasicAuthProbeData",
         Some("HostMappingBasicAuthProbeBodyData"),
     );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_host_mappings,
+        "/api/admin/config/host_mappings/static_path_probe",
+        "post",
+        "StaticPathProbeResultData",
+        None,
+        Some("StaticPathProbeBodyData"),
+    );
     insert_typed_html_operation(
         &mut paths,
         &typed_host_mappings,
@@ -4833,7 +4851,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(operations, 445);
+        assert_eq!(operations, 446);
         assert_eq!(documented_tags, operation_tags);
         assert!(documented_tags.iter().all(|tag| {
             tags.iter().any(|item| {
@@ -5504,7 +5522,7 @@ mod tests {
             .filter_map(Value::as_object)
             .flat_map(|path| path.values())
             .collect::<Vec<_>>();
-        assert_eq!(operations.len(), 445);
+        assert_eq!(operations.len(), 446);
         assert!(
             operations
                 .iter()
@@ -6088,6 +6106,30 @@ mod tests {
                 .pointer("/components/schemas/HostMappingBasicAuthProbeData/required")
                 .and_then(Value::as_array)
                 .is_some_and(|required| required.iter().any(|field| field == "httpStatus"))
+        );
+        assert_eq!(
+            document.pointer(
+                "/paths/~1api~1admin~1config~1host_mappings~1static_path_probe/post/requestBody/content/application~1json/schema/$ref"
+            ),
+            Some(&json!("#/components/schemas/StaticPathProbeBodyData"))
+        );
+        assert_eq!(
+            document.pointer(
+                "/paths/~1api~1admin~1config~1host_mappings~1static_path_probe/post/responses/200/content/application~1json/schema/properties/data/$ref"
+            ),
+            Some(&json!("#/components/schemas/StaticPathProbeResultData"))
+        );
+        assert_eq!(
+            document.pointer(
+                "/components/schemas/StaticServeConfigData/properties/index_files/maxItems"
+            ),
+            Some(&json!(16))
+        );
+        assert_eq!(
+            document.pointer(
+                "/components/schemas/StaticServeConfigData/properties/index_files/items/maxLength"
+            ),
+            Some(&json!(255))
         );
         assert_eq!(
             document.pointer(

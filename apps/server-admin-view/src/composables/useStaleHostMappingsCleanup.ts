@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { ScanAPI, type HostMappingProbeResult } from "@/lib/api/scan";
 import type { HostMapping } from "../types";
+import { isProxyHostMapping } from "../lib/host-mapping-target";
 
 type MappingsSource = Ref<HostMapping[]> | ComputedRef<HostMapping[]>;
 
@@ -24,6 +25,7 @@ export const useStaleHostMappingsCleanup = (
   const probeableMappings = computed(() =>
     options.mappings.value.filter(
       (mapping) =>
+        isProxyHostMapping(mapping) &&
         mapping.host.trim() &&
         mapping.target.trim() &&
         !options.isAuthServiceTarget(mapping.target),

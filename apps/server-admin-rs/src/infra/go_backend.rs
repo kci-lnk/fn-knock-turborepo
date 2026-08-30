@@ -22,10 +22,10 @@ use crate::grpc_proto::{
     HostActiveIpStats, HostLocation, HostLocationResponse, HostRule, HostRuleAvailability,
     HostRuleVisibility, HostRules, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SslConfig,
-    SslDeployedCertificate, SslLanDeployment, StreamAvailability, StreamBypassCondition,
-    StreamBypassGroup, StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules,
-    StreamServiceProfile, StringValue, WafConfig,
-    deep_monitor_service_client::DeepMonitorServiceClient,
+    SslDeployedCertificate, SslLanDeployment, StaticDirectoryListingConfig, StaticPathProbeRequest,
+    StaticServeConfig, StreamAvailability, StreamBypassCondition, StreamBypassGroup,
+    StreamBypassPolicy, StreamProbeRequest, StreamRule, StreamRules, StreamServiceProfile,
+    StringValue, WafConfig, deep_monitor_service_client::DeepMonitorServiceClient,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -499,6 +499,30 @@ impl GoBackendClient {
             "status": response.status,
             "profile": response.profile.map(stream_service_profile_to_json),
             "message": response.message,
+        }))
+    }
+
+    pub async fn probe_static_path(
+        &self,
+        requested_type: &str,
+        path: &str,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let response = client
+            .probe_static_path(self.request(StaticPathProbeRequest {
+                requested_type: host_rule_target_type_to_proto(requested_type),
+                path: path.to_string(),
+            }))
+            .await
+            .context("probe static path")?
+            .into_inner();
+        Ok(json!({
+            "target_type": host_rule_target_type_to_json(response.requested_type),
+            "normalized_path": response.normalized_path,
+            "exists": response.exists,
+            "readable": response.readable,
+            "actual_type": actual_static_path_type_to_json(response.actual_type),
+            "error_code": response.error_code,
         }))
     }
 
@@ -1237,6 +1261,12 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
                     website_icon_path: string_field(item, "website_icon_path"),
+                    target_type: host_rule_target_type_to_proto(
+                        item.get("target_type")
+                            .and_then(Value::as_str)
+                            .unwrap_or("proxy"),
+                    ),
+                    static_serve: parse_static_serve(item.get("static_serve")),
                     basic_auth: item.get("basic_auth").map(parse_basic_auth),
                     locations: item
                         .get("locations")
@@ -1246,6 +1276,78 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn host_rule_target_type_to_proto(value: &str) -> i32 {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "file" => 2,
+        "directory" => 3,
+        "proxy" => 1,
+        _ => 0,
+    }
+}
+
+fn host_rule_target_type_to_json(value: i32) -> &'static str {
+    match value {
+        2 => "file",
+        3 => "directory",
+        // UNSPECIFIED is the compatibility spelling of the legacy proxy rule.
+        _ => "proxy",
+    }
+}
+
+fn actual_static_path_type_to_json(value: i32) -> &'static str {
+    match value {
+        2 => "file",
+        3 => "directory",
+        _ => "other",
+    }
+}
+
+fn parse_static_serve(value: Option<&Value>) -> Option<StaticServeConfig> {
+    let value = value?.as_object()?;
+    Some(StaticServeConfig {
+        path: value
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        index_files: value
+            .get("index_files")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(ToString::to_string)
+            .collect(),
+        directory_listing: value
+            .get("directory_listing")
+            .and_then(Value::as_object)
+            .map(|listing| StaticDirectoryListingConfig {
+                enabled: listing
+                    .get("enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                render_readme: listing
+                    .get("render_readme")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            }),
+    })
+}
+
+fn static_serve_to_json(value: Option<StaticServeConfig>) -> Value {
+    value.map_or(Value::Null, |value| {
+        let listing = value.directory_listing.unwrap_or_default();
+        json!({
+            "path": value.path,
+            "index_files": value.index_files,
+            "directory_listing": {
+                "enabled": listing.enabled,
+                "render_readme": listing.render_readme,
+            },
+        })
+    })
 }
 
 fn parse_stream_rules(value: &Value) -> Vec<StreamRule> {
@@ -1616,6 +1718,8 @@ fn host_rules_to_json(bundle: HostRules) -> Value {
                 json!({
                     "host": item.host,
                     "target": item.target,
+                    "target_type": host_rule_target_type_to_json(item.target_type),
+                    "static_serve": static_serve_to_json(item.static_serve),
                     "target_path_mode": item.target_path_mode,
                     "use_auth": item.use_auth,
                     "access_mode": item.access_mode,
@@ -2546,6 +2650,37 @@ mod tests {
         assert_eq!(rules[0].target_path_mode, "prefix");
         assert_eq!(rules[0].group_id.as_deref(), Some(""));
         assert_eq!(rules[0].group_name.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn static_host_rule_grpc_conversion_round_trips_configuration() {
+        let payload = json!([{
+            "host": "docs.example.test",
+            "target_type": "directory",
+            "static_serve": {
+                "path": "/srv/docs",
+                "index_files": [],
+                "directory_listing": { "enabled": true, "render_readme": true }
+            }
+        }]);
+        let rules = parse_host_rules(&payload);
+        assert_eq!(rules[0].target_type, 3);
+        assert!(
+            rules[0]
+                .static_serve
+                .as_ref()
+                .is_some_and(|config| config.index_files.is_empty())
+        );
+
+        let echoed = host_rules_to_json(HostRules {
+            items: rules,
+            ..Default::default()
+        });
+        assert_eq!(echoed["items"][0]["target_type"], json!("directory"));
+        assert_eq!(
+            echoed["items"][0]["static_serve"],
+            payload[0]["static_serve"]
+        );
     }
 
     #[test]

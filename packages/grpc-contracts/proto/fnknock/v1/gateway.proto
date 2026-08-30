@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 // Generated clients and packaging tools consume this stable enum member.
 enum ControlApiVersion {
   CONTROL_API_VERSION_UNSPECIFIED = 0;
-  CONTROL_API_VERSION_CURRENT = 21;
+  CONTROL_API_VERSION_CURRENT = 22;
 }
 
 message RpcStatus {
@@ -115,6 +115,27 @@ message Rule {
   bool use_root_mode = 6;
 }
 
+// HostRuleTargetType selects the request handler installed for an exact host.
+// UNSPECIFIED preserves the pre-v22 behavior and is interpreted as PROXY by
+// both control-plane and gateway compatibility readers.
+enum HostRuleTargetType {
+  HOST_RULE_TARGET_TYPE_UNSPECIFIED = 0;
+  HOST_RULE_TARGET_TYPE_PROXY = 1;
+  HOST_RULE_TARGET_TYPE_FILE = 2;
+  HOST_RULE_TARGET_TYPE_DIRECTORY = 3;
+}
+
+message StaticDirectoryListingConfig {
+  bool enabled = 1;
+  bool render_readme = 2;
+}
+
+message StaticServeConfig {
+  string path = 1;
+  repeated string index_files = 2;
+  StaticDirectoryListingConfig directory_listing = 3;
+}
+
 message HostRule {
   string host = 1;
   string target = 2;
@@ -136,6 +157,22 @@ message HostRule {
   optional string group_name = 18;
   string target_path_mode = 19;
   string website_icon_path = 20;
+  HostRuleTargetType target_type = 21;
+  StaticServeConfig static_serve = 22;
+}
+
+message StaticPathProbeRequest {
+  HostRuleTargetType requested_type = 1;
+  string path = 2;
+}
+
+message StaticPathProbeResult {
+  HostRuleTargetType requested_type = 1;
+  HostRuleTargetType actual_type = 2;
+  string normalized_path = 3;
+  bool exists = 4;
+  bool readable = 5;
+  string error_code = 6;
 }
 
 message StreamRule {
@@ -1245,6 +1282,7 @@ service GatewayControlService {
   rpc GetHostRules(google.protobuf.Empty) returns (HostRules);
   rpc SetHostRules(HostRules) returns (HostRules);
   rpc FlushHostRules(google.protobuf.Empty) returns (RpcStatus);
+  rpc ProbeStaticPath(StaticPathProbeRequest) returns (StaticPathProbeResult);
   rpc GetStreamRules(google.protobuf.Empty) returns (StreamRules);
   rpc SetStreamRules(StreamRules) returns (StreamRules);
   rpc FlushStreamRules(google.protobuf.Empty) returns (RpcStatus);

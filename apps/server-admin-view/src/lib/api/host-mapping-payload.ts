@@ -4,13 +4,20 @@ import type {
   HostMappingBasicAuth,
 } from "../../types";
 import { normalizeHostMappingAvailability } from "../host-mapping-availability";
+import {
+  createDefaultStaticServe,
+  normalizeHostMappingStaticServe,
+  normalizeHostMappingTargetType,
+} from "../host-mapping-target";
 
 type HostMappingUpdatePayload = Pick<
   HostMapping,
   | "host"
   | "sync_id"
   | "group_id"
+  | "target_type"
   | "target"
+  | "static_serve"
   | "target_path_mode"
   | "waf_enabled"
   | "use_auth"
@@ -74,59 +81,75 @@ export const toHostMappingUpdatePayload = (
     includeTitle?: boolean;
     previousHost?: string;
   } = {},
-): HostMappingUpdatePayload => ({
-  host: mapping.host,
-  sync_id: mapping.sync_id,
-  group_id: mapping.group_id || null,
-  target: mapping.target,
-  target_path_mode: mapping.target_path_mode === "prefix" ? "prefix" : "entry",
-  waf_enabled: mapping.waf_enabled !== false,
-  use_auth: mapping.use_auth,
-  access_mode: mapping.access_mode,
-  suppress_toolbar: mapping.suppress_toolbar,
-  preserve_host: mapping.preserve_host,
-  is_default: mapping.is_default === true,
-  disabled: mapping.disabled === true,
-  availability: normalizeHostMappingAvailability(mapping.availability),
-  visibility: {
-    mode:
-      mapping.visibility?.mode === "custom" ||
-      mapping.visibility?.mode === "disabled"
-        ? mapping.visibility.mode
-        : "inherit",
-    selections: (mapping.visibility?.selections ?? []).map((selection) => ({
-      province: selection.province,
-      query_city: selection.query_city,
-      ...(selection.operator ? { operator: selection.operator } : {}),
-    })),
-    custom_cidrs: [...(mapping.visibility?.custom_cidrs ?? [])],
-  },
-  protocol_mode:
-    mapping.protocol_mode === "http1" || mapping.protocol_mode === "http2"
-      ? mapping.protocol_mode
-      : "auto",
-  basic_auth: toHostMappingBasicAuthPayload(mapping.basic_auth),
-  locations: (mapping.locations ?? []).map((location) => ({
-    path: location.path.trim(),
-    match: location.match,
-    action: location.action,
-    target: location.target.trim(),
-    strip_path: location.strip_path,
-    rewrite_html: location.rewrite_html,
-    auth_mode: location.auth_mode === "public" ? "public" : "inherit",
-    response: {
-      status: location.response.status,
-      content_type: location.response.content_type.trim(),
-      headers: { ...location.response.headers },
-      body: location.response.body,
+): HostMappingUpdatePayload => {
+  const targetType = normalizeHostMappingTargetType(mapping.target_type);
+  const isProxy = targetType === "proxy";
+  const staticServe = isProxy
+    ? null
+    : normalizeHostMappingStaticServe(
+        targetType,
+        mapping.static_serve ?? createDefaultStaticServe(targetType),
+      );
+
+  return {
+    host: mapping.host,
+    sync_id: mapping.sync_id,
+    group_id: mapping.group_id || null,
+    target_type: targetType,
+    target: isProxy ? mapping.target.trim() : "",
+    static_serve: staticServe,
+    target_path_mode:
+      isProxy && mapping.target_path_mode === "prefix" ? "prefix" : "entry",
+    waf_enabled: mapping.waf_enabled !== false,
+    use_auth: mapping.use_auth,
+    access_mode: mapping.access_mode,
+    suppress_toolbar: isProxy ? mapping.suppress_toolbar : true,
+    preserve_host: isProxy && mapping.preserve_host,
+    is_default: mapping.is_default === true,
+    disabled: mapping.disabled === true,
+    availability: normalizeHostMappingAvailability(mapping.availability),
+    visibility: {
+      mode:
+        mapping.visibility?.mode === "custom" ||
+        mapping.visibility?.mode === "disabled"
+          ? mapping.visibility.mode
+          : "inherit",
+      selections: (mapping.visibility?.selections ?? []).map((selection) => ({
+        province: selection.province,
+        query_city: selection.query_city,
+        ...(selection.operator ? { operator: selection.operator } : {}),
+      })),
+      custom_cidrs: [...(mapping.visibility?.custom_cidrs ?? [])],
     },
-  })),
-  title_override: mapping.title_override.trim(),
-  favicon_override: mapping.favicon_override?.trim() || "",
-  ...(options.includeFavicon ? { favicon: mapping.favicon.trim() } : {}),
-  ...(options.previousHost?.trim() &&
-  options.previousHost.trim() !== mapping.host.trim()
-    ? { previous_host: options.previousHost.trim() }
-    : {}),
-  ...(options.includeTitle ? { title: mapping.title.trim() } : {}),
-});
+    protocol_mode:
+      mapping.protocol_mode === "http1" || mapping.protocol_mode === "http2"
+        ? mapping.protocol_mode
+        : "auto",
+    basic_auth: isProxy
+      ? toHostMappingBasicAuthPayload(mapping.basic_auth)
+      : { enabled: false, username: "", password: "" },
+    locations: (isProxy ? (mapping.locations ?? []) : []).map((location) => ({
+      path: location.path.trim(),
+      match: location.match,
+      action: location.action,
+      target: location.target.trim(),
+      strip_path: location.strip_path,
+      rewrite_html: location.rewrite_html,
+      auth_mode: location.auth_mode === "public" ? "public" : "inherit",
+      response: {
+        status: location.response.status,
+        content_type: location.response.content_type.trim(),
+        headers: { ...location.response.headers },
+        body: location.response.body,
+      },
+    })),
+    title_override: mapping.title_override.trim(),
+    favicon_override: mapping.favicon_override?.trim() || "",
+    ...(options.includeFavicon ? { favicon: mapping.favicon.trim() } : {}),
+    ...(options.previousHost?.trim() &&
+    options.previousHost.trim() !== mapping.host.trim()
+      ? { previous_host: options.previousHost.trim() }
+      : {}),
+    ...(options.includeTitle ? { title: mapping.title.trim() } : {}),
+  };
+};

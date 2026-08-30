@@ -10,6 +10,7 @@ import { toast } from "@admin-shared/utils/toast";
 import { isAnySubdomainRoutingMode } from "../../../lib/reverse-proxy-submode";
 import { useConfigStore } from "../../../store/config";
 import type { HostLocation, HostMapping } from "../../../types";
+import { isProxyHostMapping } from "../../../lib/host-mapping-target";
 import {
   cloneLocation,
   DEFAULT_RESPONSE_CONTENT_TYPE,
@@ -52,7 +53,8 @@ export function useGatewayLocationsPage() {
 
   const availableMappings = computed(() =>
     (configStore.config?.host_mappings ?? []).filter(
-      (mapping) => mapping.service_role !== "auth",
+      (mapping) =>
+        mapping.service_role !== "auth" && isProxyHostMapping(mapping),
     ),
   );
   const selectedMapping = computed(

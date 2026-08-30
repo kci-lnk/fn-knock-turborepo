@@ -4,7 +4,17 @@ import {
   isSupportedProxyTargetUrl,
 } from "@admin-shared/utils/proxyTargetInput";
 import { normalizeHostMappingAvailability } from "@/lib/host-mapping-availability";
-import type { HostMapping, SubdomainModeConfig } from "@/types";
+import type {
+  HostMapping,
+  HostMappingTargetType,
+  SubdomainModeConfig,
+} from "@/types";
+import {
+  createDefaultStaticServe,
+  normalizeHostMappingStaticServe,
+  normalizeHostMappingTargetType,
+  type StaticServeValidationIssue,
+} from "./host-mapping-target-model";
 import {
   DEFAULT_ACCESS_MODE,
   DEFAULT_PROTOCOL_MODE,
@@ -42,18 +52,6 @@ export const isHttpTargetUrl = (target: string): boolean => {
     return (
       isHttpProxyTargetProtocol(parsed.protocol) && Boolean(parsed.hostname)
     );
-  } catch {
-    return false;
-  }
-};
-
-export const canRefreshHostMappingMetadata = (target: string): boolean => {
-  const normalizedTarget = target.trim();
-  if (!isSupportedProxyTargetUrl(normalizedTarget)) return false;
-
-  try {
-    const parsed = new URL(normalizedTarget);
-    return isHttpProxyTargetProtocol(parsed.protocol);
   } catch {
     return false;
   }
@@ -97,20 +95,26 @@ export const isMappingDraftValid = ({
   canUseRootDomainSuffix,
   host,
   inputMode,
+  staticServeValidationIssue,
   target,
+  targetType,
 }: {
   basicAuthValidationMessage: string;
   canUseRootDomainSuffix: boolean;
   host: string;
   inputMode: MappingInputMode;
+  staticServeValidationIssue: StaticServeValidationIssue | null;
   target: string;
+  targetType: HostMappingTargetType;
 }): boolean => {
-  const normalizedTarget = target.trim();
-
-  if (!host || !normalizedTarget) return false;
+  if (!host) return false;
   if (inputMode === "subdomain" && !canUseRootDomainSuffix) {
     return false;
   }
+  if (targetType !== "proxy") return staticServeValidationIssue === null;
+
+  const normalizedTarget = target.trim();
+  if (!normalizedTarget) return false;
 
   return (
     isSupportedProxyTargetUrl(normalizedTarget) && !basicAuthValidationMessage
@@ -307,7 +311,9 @@ export const normalizeBasicAuthProbeTarget = (value: string): string => {
 export const createDefaultMapping = (): HostMapping => ({
   host: "",
   group_id: null,
+  target_type: "proxy",
   target: "",
+  static_serve: null,
   target_path_mode: DEFAULT_TARGET_PATH_MODE,
   waf_enabled: true,
   use_auth: true,
@@ -360,9 +366,6 @@ export const buildBookmarkExportFilename = (rootDomain: string): string => {
     ? `fn-knock-bookmarks-${normalizedRootDomain}.html`
     : "fn-knock-bookmarks.html";
 };
-
-export const getLocationRulesCount = (mapping: HostMapping): number =>
-  mapping.locations?.length ?? 0;
 
 export type HostMappingVisibilityIndicator = "inherit" | "custom" | null;
 
@@ -437,19 +440,33 @@ export const normalizeMappingForm = (
     isWebSocketTarget: (target: string) => boolean;
   },
 ): HostMapping => {
-  const normalizedTarget = input.target.trim();
-  const serviceRole = isAuthServiceTarget(normalizedTarget) ? "auth" : "app";
+  const targetType = normalizeHostMappingTargetType(input.target_type);
+  const normalizedTarget = targetType === "proxy" ? input.target.trim() : "";
+  const serviceRole =
+    targetType === "proxy" && isAuthServiceTarget(normalizedTarget)
+      ? "auth"
+      : "app";
   const basicAuth =
-    serviceRole === "auth"
+    serviceRole === "auth" || targetType !== "proxy"
       ? createDisabledMappingBasicAuth()
       : normalizeMappingBasicAuth(input.basic_auth);
 
   return {
     host,
     group_id: serviceRole === "auth" ? null : input.group_id || null,
+    target_type: targetType,
     target: normalizedTarget,
+    static_serve:
+      targetType === "proxy"
+        ? null
+        : normalizeHostMappingStaticServe(
+            targetType,
+            input.static_serve ?? createDefaultStaticServe(targetType),
+          ),
     target_path_mode:
-      serviceRole !== "auth" && input.target_path_mode === "prefix"
+      serviceRole !== "auth" &&
+      targetType === "proxy" &&
+      input.target_path_mode === "prefix"
         ? "prefix"
         : DEFAULT_TARGET_PATH_MODE,
     waf_enabled: serviceRole === "auth" ? true : input.waf_enabled !== false,
@@ -459,12 +476,14 @@ export const normalizeMappingForm = (
         ? DEFAULT_ACCESS_MODE
         : input.access_mode || DEFAULT_ACCESS_MODE,
     suppress_toolbar:
-      serviceRole === "auth"
-        ? false
-        : isWebSocketTarget(normalizedTarget)
-          ? true
-          : input.suppress_toolbar,
-    preserve_host: input.preserve_host === true,
+      targetType !== "proxy"
+        ? true
+        : serviceRole === "auth"
+          ? false
+          : isWebSocketTarget(normalizedTarget)
+            ? true
+            : input.suppress_toolbar,
+    preserve_host: targetType === "proxy" && input.preserve_host === true,
     is_default: serviceRole === "auth" ? false : input.is_default === true,
     disabled: serviceRole === "auth" ? false : input.disabled === true,
     availability:
@@ -482,11 +501,18 @@ export const normalizeMappingForm = (
     basic_auth: basicAuth.enabled
       ? basicAuth
       : createDisabledMappingBasicAuth(),
-    locations: serviceRole === "auth" ? [] : [...(input.locations ?? [])],
+    locations:
+      serviceRole === "auth" || targetType !== "proxy"
+        ? []
+        : [...(input.locations ?? [])],
     service_role: serviceRole,
-    title: hasFreshTitleMetadata ? input.title.trim() : "",
+    title:
+      targetType === "proxy" && hasFreshTitleMetadata ? input.title.trim() : "",
     title_override: input.title_override.trim(),
-    favicon: hasFreshFaviconMetadata ? input.favicon.trim() : "",
+    favicon:
+      targetType === "proxy" && hasFreshFaviconMetadata
+        ? input.favicon.trim()
+        : "",
     favicon_override:
       serviceRole === "auth" ? "" : input.favicon_override?.trim() || "",
   };

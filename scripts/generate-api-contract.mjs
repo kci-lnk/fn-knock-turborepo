@@ -489,6 +489,10 @@ function validateContract(openapiPath) {
       "post /api/admin/config/host_mappings/basic_auth_probe",
       "HostMappingBasicAuthProbeBodyData",
     ],
+    [
+      "post /api/admin/config/host_mappings/static_path_probe",
+      "StaticPathProbeBodyData",
+    ],
     ["get /api/admin/config/host_mappings/bookmarks/export", null],
     [
       "post /api/admin/config/host_mappings/metadata",

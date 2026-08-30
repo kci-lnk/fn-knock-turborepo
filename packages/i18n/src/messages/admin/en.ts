@@ -3842,6 +3842,77 @@ export const enAdmin = {
     discardChanges: "Discard changes",
     saveConfig: "Save configuration",
     mappingsTitle: "Mappings",
+    staticServe: {
+      targetType: "Response type",
+      targetTypes: {
+        proxy: "Reverse proxy",
+        file: "Single file",
+        directory: "Directory",
+      },
+      targetTypeHints: {
+        proxy: "Forward requests to an HTTP, HTTPS, or WebSocket upstream.",
+        file: "Serve this server-side file only at the mapping root path.",
+        directory:
+          "Serve files from a server-side directory like a web server.",
+      },
+      titlePlaceholder: "Enter a display title",
+      titleHint:
+        "Static mappings do not fetch titles automatically. Add a display title if needed.",
+      removeCustomIcon: "Remove custom icon",
+      pathLabel: "Server path",
+      pathHint:
+        "This path belongs to the gateway server, not this browser computer. Examples: Linux /srv/site; Windows C:\\Sites\\docs. It is revalidated when saving and serving.",
+      pathDockerHint:
+        "Use a path inside the container and a read-only mount, for example: -v /host/docs:/srv/docs:ro.",
+      probe: "Check path",
+      probeSuccess: "Path is available: {path}",
+      indexFiles: "Default documents",
+      indexFilesPlaceholder: "For example, index.html",
+      indexFilesHint:
+        "Checked from left to right. Use plain file names only, up to 16 entries.",
+      moveIndexUp: "Increase default-document priority",
+      moveIndexDown: "Decrease default-document priority",
+      directoryListing: "Directory listing",
+      directoryListingHint:
+        "List files and folders when no default document matches.",
+      renderReadme: "Render README.md",
+      renderReadmeHint:
+        "Safely render README.md below the directory listing only.",
+      switchConfirmTitle: "Switch to a static response?",
+      switchConfirmDescription:
+        "This clears path routes, upstream Basic Auth, preserve-host, and target-path settings. Authentication, visibility, WAF, availability, title, icon, and group settings remain. Switching back before closing restores this draft.",
+      switchConfirmAction: "Switch and clear",
+      validation: {
+        path_required: "Enter a server path.",
+        path_not_absolute: "The server path must be absolute.",
+        path_has_parent_segment:
+          "The path cannot contain .. or a null character.",
+        path_unsafe:
+          "The path must name a visible non-root target without control characters.",
+        invalid_index_file:
+          "Default documents must be visible plain file names of at most 255 UTF-8 bytes, without path separators or control characters.",
+        duplicate_index_file: "Default documents cannot be duplicated.",
+        too_many_index_files: "You can configure at most 16 default documents.",
+      },
+      probeErrors: {
+        invalid_target_type: "This response type is not supported.",
+        path_required: "Enter a server path.",
+        not_absolute: "The server path must be absolute.",
+        not_found: "The path does not exist.",
+        type_mismatch:
+          "The path type does not match the selected response type.",
+        not_readable: "FN-Knock cannot read this path.",
+        unsupported_file_type: "This file type is not supported.",
+        probe_failed: "The path check failed. Try again.",
+        invalid_path: "The path is invalid or contains disallowed content.",
+        protected_path:
+          "This protected path cannot be exposed for security reasons.",
+        permission_denied: "FN-Knock cannot read this path.",
+        unsupported_type:
+          "The path is not a servable regular file or directory.",
+        unavailable: "Path checks are unavailable in this runtime.",
+      },
+    },
     addAuthService: "Add auth service",
     discovering: "Discovering...",
     discover: "Discover",

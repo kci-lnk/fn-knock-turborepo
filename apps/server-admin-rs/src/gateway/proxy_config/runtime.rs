@@ -209,6 +209,8 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     let echoed_advanced_auth = host_advanced_auth_by_host(echoed_payload)?;
     let requested_groups = host_groups_by_host(requested)?;
     let echoed_groups = host_groups_by_host(echoed_payload)?;
+    let requested_targets = host_targets_by_host(requested)?;
+    let echoed_targets = host_targets_by_host(echoed_payload)?;
     for (host, requested_mode) in &requested_modes {
         let Some(echoed_mode) = echoed_modes.get(host) else {
             return Err(format!(
@@ -234,6 +236,11 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         if echoed_groups.get(host) != requested_groups.get(host) {
             return Err(format!(
                 "Go backend did not apply host rule group for {host}; upgrade the gateway backend"
+            ));
+        }
+        if echoed_targets.get(host) != requested_targets.get(host) {
+            return Err(format!(
+                "Go backend did not apply static target configuration for {host}; upgrade the gateway backend"
             ));
         }
         let requested_visibility = requested_visibilities
@@ -275,6 +282,23 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+fn host_targets_by_host(value: &Value) -> Result<HashMap<String, (String, Value)>, String> {
+    let items = host_rule_items(value)
+        .ok_or_else(|| "Host-rules target payload must be an array".to_string())?;
+    let mut targets = HashMap::with_capacity(items.len());
+    for item in items {
+        let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
+        let target_type = normalized_host_target_type(item).to_string();
+        let static_serve = if target_type == HOST_TARGET_TYPE_PROXY {
+            Value::Null
+        } else {
+            item.get("static_serve").cloned().unwrap_or(Value::Null)
+        };
+        targets.insert(host, (target_type, static_serve));
+    }
+    Ok(targets)
 }
 
 fn host_rule_items(value: &Value) -> Option<&Vec<Value>> {

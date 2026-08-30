@@ -3831,6 +3831,72 @@ export const jaJPAdmin = {
     discardChanges: "変更を破棄",
     saveConfig: "設定を保存",
     mappingsTitle: "マッピング",
+    staticServe: {
+      targetType: "レスポンスタイプ",
+      targetTypes: {
+        proxy: "リバースプロキシ",
+        file: "単一ファイル",
+        directory: "ディレクトリ",
+      },
+      targetTypeHints: {
+        proxy: "HTTP、HTTPS、または WebSocket のアップストリームへ転送します。",
+        file: "マッピングのルートパスでのみサーバー上のこのファイルを返します。",
+        directory:
+          "Web サーバーのようにサーバー上のディレクトリから配信します。",
+      },
+      titlePlaceholder: "表示タイトルを入力",
+      titleHint:
+        "静的マッピングではタイトルを自動取得しません。必要に応じて入力してください。",
+      removeCustomIcon: "カスタムアイコンを削除",
+      pathLabel: "サーバーパス",
+      pathHint:
+        "このパスはブラウザー側ではなくゲートウェイサーバー上のものです。例: Linux /srv/site、Windows C:\\Sites\\docs。保存時と配信時に再検証されます。",
+      pathDockerHint:
+        "Docker ではコンテナ内のパスを読み取り専用でマウントしてください。例: -v /host/docs:/srv/docs:ro。",
+      probe: "パスを確認",
+      probeSuccess: "利用可能なパス: {path}",
+      indexFiles: "デフォルトドキュメント",
+      indexFilesPlaceholder: "例: index.html",
+      indexFilesHint: "左から順に検索します。ファイル名のみ、最大 16 件です。",
+      moveIndexUp: "優先度を上げる",
+      moveIndexDown: "優先度を下げる",
+      directoryListing: "ディレクトリ一覧",
+      directoryListingHint:
+        "デフォルトドキュメントがない場合にファイルとフォルダーを一覧表示します。",
+      renderReadme: "README.md を表示",
+      renderReadmeHint: "ディレクトリ一覧の下に README.md を安全に表示します。",
+      switchConfirmTitle: "静的レスポンスへ切り替えますか？",
+      switchConfirmDescription:
+        "パスルート、アップストリーム Basic Auth、Host 保持、ターゲットパス設定が消去されます。認証、公開範囲、WAF、利用時間、タイトル、アイコン、グループは保持されます。閉じる前に戻せばこの下書きを復元できます。",
+      switchConfirmAction: "切り替えて消去",
+      validation: {
+        path_required: "サーバーパスを入力してください。",
+        path_not_absolute: "サーバーパスは絶対パスである必要があります。",
+        path_has_parent_segment: "パスに .. または null 文字は使用できません。",
+        path_unsafe:
+          "パスはルート以外の可視ターゲットを指し、制御文字を含めないでください。",
+        invalid_index_file:
+          "デフォルトドキュメントは 255 UTF-8 バイト以内の可視ファイル名のみで、パス区切り文字や制御文字は使用できません。",
+        duplicate_index_file: "デフォルトドキュメントは重複できません。",
+        too_many_index_files: "デフォルトドキュメントは最大 16 件です。",
+      },
+      probeErrors: {
+        invalid_target_type: "このレスポンスタイプはサポートされていません。",
+        path_required: "サーバーパスを入力してください。",
+        not_absolute: "サーバーパスは絶対パスである必要があります。",
+        not_found: "パスが存在しません。",
+        type_mismatch: "パスの種類が選択したタイプと一致しません。",
+        not_readable: "FN-Knock はこのパスを読み取れません。",
+        unsupported_file_type: "このファイル形式はサポートされていません。",
+        probe_failed: "パスの確認に失敗しました。もう一度お試しください。",
+        invalid_path: "パスが無効、または許可されない内容を含みます。",
+        protected_path: "セキュリティ上、この保護されたパスは公開できません。",
+        permission_denied: "FN-Knock はこのパスを読み取れません。",
+        unsupported_type:
+          "通常ファイルまたはディレクトリではないため配信できません。",
+        unavailable: "現在の実行環境ではパスを確認できません。",
+      },
+    },
     addAuthService: "認証サービスを追加",
     discovering: "検出中...",
     discover: "サービスを検出",

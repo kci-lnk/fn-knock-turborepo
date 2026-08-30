@@ -56,7 +56,16 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                     .get("target")
                     .and_then(Value::as_str)
                     .unwrap_or("");
-                let target_path_mode = if is_auth_service_target(target) {
+                let target_type = host_target_type(object.get("target_type"))
+                    .unwrap_or(HOST_TARGET_TYPE_PROXY);
+                let static_serve = if target_type == HOST_TARGET_TYPE_PROXY {
+                    Value::Null
+                } else {
+                    object.get("static_serve").cloned().unwrap_or(Value::Null)
+                };
+                let target_path_mode = if is_auth_service_target(target)
+                    || target_type != HOST_TARGET_TYPE_PROXY
+                {
                     "entry".to_string()
                 } else {
                     normalize_target_path_mode(object.get("target_path_mode"))
@@ -81,6 +90,8 @@ fn build_host_rules_payload_with_groups(mappings: &[Value], groups: &[Value]) ->
                 json!({
                     "host": object.get("host").cloned().unwrap_or(Value::String(String::new())),
                     "target": object.get("target").cloned().unwrap_or(Value::String(String::new())),
+                    "target_type": target_type,
+                    "static_serve": static_serve,
                     "target_path_mode": target_path_mode,
                     "use_auth": object.get("use_auth").cloned().unwrap_or(Value::Bool(true)),
                     "access_mode": object.get("access_mode").cloned().unwrap_or(Value::String("login_first".to_string())),

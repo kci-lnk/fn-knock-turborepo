@@ -22,10 +22,12 @@ const Y_AXIS_MIN_SIZE = 60;
 const Y_AXIS_LABEL_GUTTER = 12;
 
 export const getTimeSeriesYAxisSize = (
-  labels: readonly string[],
+  labels: readonly string[] | null | undefined,
   measureText: (label: string) => number,
 ) => {
-  const widestLabel = labels.reduce((width, label) => {
+  // uPlot passes null during its initial axis sizing pass, despite its
+  // public TypeScript signature declaring this argument as string[].
+  const widestLabel = (labels ?? []).reduce((width, label) => {
     const measuredWidth = measureText(label);
     return Number.isFinite(measuredWidth)
       ? Math.max(width, measuredWidth)

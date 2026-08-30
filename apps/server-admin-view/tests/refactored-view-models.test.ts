@@ -736,6 +736,7 @@ describe("time series chart model", () => {
   });
 
   it("reserves enough y-axis width for formatted traffic labels", () => {
+    assert.equal(getTimeSeriesYAxisSize(null, () => 7), 60);
     assert.equal(
       getTimeSeriesYAxisSize(
         ["0 B /s", "2.38 MB /s"],

@@ -191,6 +191,7 @@ const pageBudgets = [
   ["../src/views/event-center/RuntimeTab.vue", 350],
   ["../src/views/AboutUpdate.vue", 130],
   ["../src/views/about-update/AboutUpdateDeploymentNotices.vue", 120],
+  ["../src/views/about-update/AboutUpdateVersionFlowArrow.vue", 150],
   ["../src/views/about-update/AboutUpdateVersionPanel.vue", 160],
   ["../src/views/about-update/AboutUpdateProgressOverlay.vue", 80],
   ["../src/views/request-analysis/RequestAnalyticsTab.vue", 90],

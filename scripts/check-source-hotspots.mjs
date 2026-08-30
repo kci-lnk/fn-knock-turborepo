@@ -743,6 +743,10 @@ const budgets = [
     maxLines: 120,
   },
   {
+    path: "apps/server-admin-view/src/views/about-update/AboutUpdateVersionFlowArrow.vue",
+    maxLines: 150,
+  },
+  {
     path: "apps/server-admin-view/src/views/about-update/AboutUpdateVersionPanel.vue",
     maxLines: 160,
   },

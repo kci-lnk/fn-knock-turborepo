@@ -79,6 +79,10 @@ describe("host mapping utility API contract", () => {
     assert.match(field, /staticServe\.pathHint/u);
     assert.match(field, /v-if="configStore\.isDockerDeployment"/u);
     assert.match(field, /staticServe\.pathDockerHint/u);
+    assert.doesNotMatch(
+      field,
+      /probeHostMappingStaticPath|staticServe\.probe/u,
+    );
 
     for (const locale of ["en", "ja-JP", "ko-KR", "zh-CN", "zh-Hant"]) {
       const source = readSource(

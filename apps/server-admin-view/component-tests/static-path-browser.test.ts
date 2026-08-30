@@ -1,5 +1,7 @@
-import { computed, effectScope, nextTick, ref } from "vue";
-import { flushPromises } from "@vue/test-utils";
+import { computed, effectScope, nextTick, reactive, ref } from "vue";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia } from "pinia";
+import { createI18n } from "vue-i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,6 +12,7 @@ import {
   type StaticPathProbeTargetType,
 } from "../src/lib/api/config";
 import { useStaticPathBrowser } from "../src/views/subdomain-proxy/useStaticPathBrowser";
+import SubdomainMappingStaticPathBrowser from "../src/views/subdomain-proxy/SubdomainMappingStaticPathBrowser.vue";
 
 const directoryEntry = (
   path: string,
@@ -96,6 +99,207 @@ afterEach(() => {
 });
 
 describe("static path browser", () => {
+  it("submits the editable address with Enter but ignores IME composition", async () => {
+    const browse = vi
+      .spyOn(ConfigAPI, "browseHostMappingStaticPath")
+      .mockResolvedValueOnce(browseResult("directory"))
+      .mockResolvedValueOnce(
+        browseResult("directory", { current_path: "/srv/docs" }),
+      );
+    const harness = createHarness();
+    harness.browser.openPathBrowser("directory", "/srv");
+    await flushPromises();
+
+    const wrapper = mount(SubdomainMappingStaticPathBrowser, {
+      props: { editor: reactive(harness.browser) },
+      global: {
+        plugins: [
+          createPinia(),
+          createI18n({
+            legacy: false,
+            locale: "en",
+            missingWarn: false,
+            fallbackWarn: false,
+            messages: { en: {} },
+          }),
+        ],
+      },
+    });
+    const address = wrapper.get("#static-path-browser-address");
+    await address.setValue("/srv/docs");
+
+    const composingEnter = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+      key: "Enter",
+    });
+    address.element.dispatchEvent(composingEnter);
+    expect(browse).toHaveBeenCalledTimes(1);
+    expect(composingEnter.defaultPrevented).toBe(false);
+
+    const navigationEnter = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+    });
+    address.element.dispatchEvent(navigationEnter);
+    await flushPromises();
+    expect(navigationEnter.defaultPrevented).toBe(true);
+    expect(browse).toHaveBeenNthCalledWith(2, "directory", "/srv/docs", null);
+    expect(harness.browser.pathDraft.value).toBe("/srv/docs");
+
+    wrapper.unmount();
+    harness.scope.stop();
+  });
+
+  it("navigates an edited path exactly and keeps failed input available for correction", async () => {
+    const requestedPath = "/srv/missing ";
+    const browse = vi
+      .spyOn(ConfigAPI, "browseHostMappingStaticPath")
+      .mockResolvedValueOnce(browseResult("directory"))
+      .mockResolvedValueOnce(
+        browseResult("directory", {
+          breadcrumbs: [],
+          current_path: null,
+          current_selectable: false,
+          error_code: "not_found",
+          parent_path: null,
+        }),
+      );
+    const harness = createHarness();
+
+    harness.browser.openPathBrowser("directory", "/srv");
+    await flushPromises();
+    expect(harness.browser.pathDraft.value).toBe("/srv");
+    expect(harness.browser.canConfirm.value).toBe(true);
+
+    harness.browser.updatePathDraft(requestedPath);
+    expect(harness.browser.canConfirm.value).toBe(false);
+    expect(harness.browser.selectionPath.value).toBeNull();
+    await harness.browser.navigateToPath();
+
+    expect(browse).toHaveBeenNthCalledWith(2, "directory", requestedPath, null);
+    expect(harness.browser.pathDraft.value).toBe(requestedPath);
+    expect(harness.browser.loadError.value).toBe(
+      "admin.subdomainProxy.staticServe.browser.errors.not_found",
+    );
+    expect(harness.browser.canConfirm.value).toBe(false);
+    harness.scope.stop();
+  });
+
+  it("opens a file path in its parent folder and selects it outside the current page", async () => {
+    const selectedFile = "/srv/manual.pdf";
+    vi.spyOn(ConfigAPI, "browseHostMappingStaticPath").mockResolvedValue(
+      browseResult("file", {
+        current_path: "/srv",
+        entries: [],
+        selected_path: selectedFile,
+      }),
+    );
+    const harness = createHarness("file");
+
+    harness.browser.openPathBrowser("file", selectedFile);
+    await flushPromises();
+
+    expect(harness.browser.pathDraft.value).toBe("/srv");
+    expect(harness.browser.selectedPath.value).toBe(selectedFile);
+    expect(harness.browser.selectionPath.value).toBe(selectedFile);
+    expect(harness.browser.canConfirm.value).toBe(true);
+
+    harness.browser.updatePathDraft("/srv/another-file.pdf");
+    expect(harness.browser.selectedPath.value).toBe(selectedFile);
+    expect(harness.browser.selectionPath.value).toBeNull();
+    expect(harness.browser.canConfirm.value).toBe(false);
+    harness.scope.stop();
+  });
+
+  it("ignores a slower Enter navigation after a newer edited path wins", async () => {
+    let resolveSlow!: (value: StaticPathBrowseResult) => void;
+    let resolveFast!: (value: StaticPathBrowseResult) => void;
+    const browse = vi
+      .spyOn(ConfigAPI, "browseHostMappingStaticPath")
+      .mockResolvedValueOnce(browseResult("directory"))
+      .mockReturnValueOnce(
+        new Promise<StaticPathBrowseResult>((resolve) => {
+          resolveSlow = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise<StaticPathBrowseResult>((resolve) => {
+          resolveFast = resolve;
+        }),
+      );
+    const harness = createHarness();
+
+    harness.browser.openPathBrowser("directory", "/srv");
+    await flushPromises();
+    harness.browser.updatePathDraft("/srv/slow");
+    const slowNavigation = harness.browser.navigateToPath();
+    harness.browser.updatePathDraft("/srv/fast");
+    const fastNavigation = harness.browser.navigateToPath();
+
+    resolveFast(
+      browseResult("directory", {
+        current_path: "/srv/fast",
+      }),
+    );
+    await fastNavigation;
+    expect(harness.browser.currentPath.value).toBe("/srv/fast");
+    expect(harness.browser.pathDraft.value).toBe("/srv/fast");
+
+    resolveSlow(
+      browseResult("directory", {
+        current_path: "/srv/slow",
+      }),
+    );
+    await slowNavigation;
+    expect(harness.browser.currentPath.value).toBe("/srv/fast");
+    expect(harness.browser.pathDraft.value).toBe("/srv/fast");
+    expect(browse).toHaveBeenNthCalledWith(2, "directory", "/srv/slow", null);
+    expect(browse).toHaveBeenNthCalledWith(3, "directory", "/srv/fast", null);
+    harness.scope.stop();
+  });
+
+  it("keeps the last successful listing when an in-flight browse is replaced by editing", async () => {
+    let resolveBrowse!: (value: StaticPathBrowseResult) => void;
+    const browse = vi
+      .spyOn(ConfigAPI, "browseHostMappingStaticPath")
+      .mockResolvedValueOnce(browseResult("directory"))
+      .mockReturnValueOnce(
+        new Promise<StaticPathBrowseResult>((resolve) => {
+          resolveBrowse = resolve;
+        }),
+      );
+    const harness = createHarness();
+
+    harness.browser.openPathBrowser("directory", "/srv");
+    await flushPromises();
+    harness.browser.updatePathDraft("/srv/slow");
+    const navigation = harness.browser.navigateToPath();
+    expect(harness.browser.isLoading.value).toBe(true);
+
+    harness.browser.updatePathDraft("/srv/new-draft");
+    expect(harness.browser.isLoading.value).toBe(false);
+    expect(harness.browser.loadError.value).toBe("");
+    resolveBrowse(
+      browseResult("directory", {
+        breadcrumbs: [],
+        current_path: null,
+        current_selectable: false,
+        error_code: "not_found",
+        parent_path: null,
+      }),
+    );
+    await navigation;
+
+    expect(browse).toHaveBeenNthCalledWith(2, "directory", "/srv/slow", null);
+    expect(harness.browser.currentPath.value).toBe("/srv");
+    expect(harness.browser.pathDraft.value).toBe("/srv/new-draft");
+    expect(harness.browser.loadError.value).toBe("");
+    harness.scope.stop();
+  });
+
   it("selects the current directory only after a successful path probe", async () => {
     const browse = vi
       .spyOn(ConfigAPI, "browseHostMappingStaticPath")
@@ -366,6 +570,38 @@ describe("static path browser", () => {
     expect(harness.appliedPaths).toEqual([]);
     expect(harness.view.value).toBe("path-browser");
     expect(harness.browser.currentPath.value).toBe("/srv/docs");
+    harness.scope.stop();
+  });
+
+  it("ignores a confirmation probe after the address is edited", async () => {
+    vi.spyOn(ConfigAPI, "browseHostMappingStaticPath").mockResolvedValue(
+      browseResult("directory", {
+        current_path: "/srv/docs",
+        current_selectable: true,
+      }),
+    );
+    let resolveProbe!: (value: StaticPathProbeResult) => void;
+    vi.spyOn(ConfigAPI, "probeHostMappingStaticPath").mockReturnValue(
+      new Promise<StaticPathProbeResult>((resolve) => {
+        resolveProbe = resolve;
+      }),
+    );
+    const harness = createHarness();
+
+    harness.browser.openPathBrowser("directory", "/srv/docs");
+    await flushPromises();
+    const confirmation = harness.browser.confirmSelection();
+    expect(harness.browser.isConfirming.value).toBe(true);
+
+    harness.browser.updatePathDraft("/srv/other");
+    expect(harness.browser.isConfirming.value).toBe(false);
+    expect(harness.browser.canConfirm.value).toBe(false);
+    resolveProbe(successfulProbe("directory", "/srv/docs"));
+    await confirmation;
+
+    expect(harness.appliedPaths).toEqual([]);
+    expect(harness.view.value).toBe("path-browser");
+    expect(harness.browser.pathDraft.value).toBe("/srv/other");
     harness.scope.stop();
   });
 });

@@ -3882,8 +3882,6 @@ export const enAdmin = {
         "This path belongs to the gateway server, not this browser computer. Examples: Linux /srv/site; Windows C:\\Sites\\docs. It is revalidated when saving and serving.",
       pathDockerHint:
         "Use a path inside the container and a read-only mount, for example: -v /host/docs:/srv/docs:ro.",
-      probe: "Check path",
-      probeSuccess: "Path is available: {path}",
       browser: {
         title: "Browse server paths",
         open: "Browse",
@@ -3892,6 +3890,9 @@ export const enAdmin = {
           "Only paths mounted inside this container are shown. Host paths and Docker mounts cannot be managed here.",
         root: "Root",
         rootLocation: "Filesystem root",
+        navigate: "Go",
+        pathInputHint:
+          "Edit the absolute path and press Enter to open it. Leave it empty to return to the root.",
         parent: "Up one level",
         refresh: "Refresh folder",
         breadcrumbsAria: "Current server path",

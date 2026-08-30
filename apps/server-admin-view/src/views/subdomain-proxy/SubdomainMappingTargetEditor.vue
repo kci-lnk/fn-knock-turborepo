@@ -228,7 +228,6 @@ watch(
       v-else-if="mappingForm.static_serve"
       :model-value="mappingForm.static_serve"
       :target-type="mappingForm.target_type"
-      :open="open"
       @browse="(targetType, path) => emit('browseStaticPath', targetType, path)"
       @update:model-value="updateStaticServe"
     />

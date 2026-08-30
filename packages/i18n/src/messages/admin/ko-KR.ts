@@ -3849,8 +3849,6 @@ export const koKRAdmin = {
         "이 경로는 브라우저 컴퓨터가 아닌 게이트웨이 서버의 경로입니다. 예: Linux /srv/site, Windows C:\\Sites\\docs. 저장 및 제공 시 다시 검증합니다.",
       pathDockerHint:
         "Docker에서는 컨테이너 내부 경로를 읽기 전용으로 마운트하세요. 예: -v /host/docs:/srv/docs:ro.",
-      probe: "경로 확인",
-      probeSuccess: "사용 가능한 경로: {path}",
       browser: {
         title: "서버 경로 찾아보기",
         open: "찾아보기",
@@ -3859,6 +3857,9 @@ export const koKRAdmin = {
           "컨테이너 내부에 마운트된 경로만 표시됩니다. 호스트 경로나 Docker 마운트는 여기에서 관리할 수 없습니다.",
         root: "루트",
         rootLocation: "파일 시스템 루트",
+        navigate: "이동",
+        pathInputHint:
+          "절대 경로를 편집한 후 Enter를 눌러 이동하세요. 비워 두면 루트로 돌아갑니다.",
         parent: "상위 폴더",
         refresh: "폴더 새로고침",
         breadcrumbsAria: "현재 서버 경로",

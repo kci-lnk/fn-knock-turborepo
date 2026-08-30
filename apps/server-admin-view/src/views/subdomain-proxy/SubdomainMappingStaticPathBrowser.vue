@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import {
   ChevronLeft,
   ChevronRight,
+  CornerDownLeft,
   File,
   Folder,
   FolderRoot,
@@ -13,6 +14,8 @@ import {
   TriangleAlert,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useConfigStore } from "@/store/config";
 import type { StaticPathBrowseEntry } from "@/lib/api/config";
 import type { useStaticPathBrowser } from "./useStaticPathBrowser";
@@ -66,6 +69,11 @@ const entryAriaLabel = (entry: StaticPathBrowseEntry) =>
       : "admin.subdomainProxy.staticServe.browser.selectFileAria",
     { name: entry.name },
   );
+const handlePathEnter = (event: KeyboardEvent) => {
+  if (event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  void editor.navigateToPath();
+};
 </script>
 
 <template>
@@ -83,6 +91,52 @@ const entryAriaLabel = (entry: StaticPathBrowseEntry) =>
     </div>
 
     <div class="space-y-2 rounded-lg border bg-muted/10 p-3">
+      <form class="space-y-1.5" @submit.prevent="editor.navigateToPath">
+        <Label for="static-path-browser-address" class="text-xs">
+          {{ t("admin.subdomainProxy.staticServe.pathLabel") }}
+        </Label>
+        <div class="flex min-w-0 gap-2">
+          <Input
+            id="static-path-browser-address"
+            :model-value="editor.pathDraft"
+            class="min-w-0 font-mono"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+            :placeholder="
+              t('admin.subdomainProxy.staticServe.browser.rootLocation')
+            "
+            aria-describedby="static-path-browser-address-hint"
+            :aria-invalid="Boolean(editor.loadError)"
+            :aria-errormessage="
+              editor.loadError ? 'static-path-browser-load-error' : undefined
+            "
+            @keydown.enter="handlePathEnter"
+            @update:model-value="editor.updatePathDraft"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            class="shrink-0"
+            data-testid="navigate-static-path"
+          >
+            <Loader2
+              v-if="editor.isLoading"
+              class="mr-1.5 h-4 w-4 animate-spin"
+            />
+            <CornerDownLeft v-else class="mr-1.5 h-4 w-4" />
+            {{ t("admin.subdomainProxy.staticServe.browser.navigate") }}
+          </Button>
+        </div>
+        <p
+          id="static-path-browser-address-hint"
+          class="text-xs text-muted-foreground"
+        >
+          {{ t("admin.subdomainProxy.staticServe.browser.pathInputHint") }}
+        </p>
+      </form>
+
       <div class="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -181,14 +235,17 @@ const entryAriaLabel = (entry: StaticPathBrowseEntry) =>
         role="alert"
       >
         <TriangleAlert class="h-6 w-6 text-destructive" />
-        <p class="max-w-md text-sm text-destructive">
+        <p
+          id="static-path-browser-load-error"
+          class="max-w-md text-sm text-destructive"
+        >
           {{ editor.loadError }}
         </p>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          @click="editor.refresh"
+          @click="editor.navigateToPath"
         >
           <RotateCcw class="mr-1.5 h-4 w-4" />
           {{ t("admin.subdomainProxy.staticServe.browser.retry") }}
@@ -209,14 +266,14 @@ const entryAriaLabel = (entry: StaticPathBrowseEntry) =>
           type="button"
           class="grid w-full grid-cols-[minmax(0,1fr)_6rem_10rem] items-center px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-sm:grid-cols-1"
           :class="
-            editor.selectedPath === entry.path &&
+            editor.selectionPath === entry.path &&
             'bg-primary/10 text-primary hover:bg-primary/15'
           "
           :disabled="editor.isLoading || isEntryDisabled(entry)"
           :aria-label="entryAriaLabel(entry)"
           :aria-pressed="
             entry.entry_type === 'file'
-              ? editor.selectedPath === entry.path
+              ? editor.selectionPath === entry.path
               : undefined
           "
           @click="editor.activateEntry(entry)"

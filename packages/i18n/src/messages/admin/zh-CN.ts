@@ -3591,8 +3591,6 @@ export const zhCNAdmin = {
         "该路径属于网关服务器，不是当前浏览器所在电脑。例如 Linux：/srv/site；Windows：C:\\Sites\\docs。保存和请求时都会重新校验。",
       pathDockerHint:
         "Docker 请使用容器内路径并只读挂载，例如：-v /host/docs:/srv/docs:ro。",
-      probe: "检查路径",
-      probeSuccess: "路径可用：{path}",
       browser: {
         title: "浏览服务器路径",
         open: "浏览",
@@ -3601,6 +3599,8 @@ export const zhCNAdmin = {
           "这里只显示已挂载到容器内的路径，不能浏览宿主机路径或管理 Docker 挂载。",
         root: "根位置",
         rootLocation: "文件系统根位置",
+        navigate: "前往",
+        pathInputHint: "编辑绝对路径后按 Enter 前往；留空可返回根位置。",
         parent: "上一级",
         refresh: "刷新文件夹",
         breadcrumbsAria: "当前服务器路径",

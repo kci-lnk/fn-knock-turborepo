@@ -3536,8 +3536,6 @@ export const zhHantAdmin = {
         "此路徑屬於閘道伺服器，不是目前瀏覽器所在電腦。例如 Linux：/srv/site；Windows：C:\\Sites\\docs。儲存與請求時都會重新驗證。",
       pathDockerHint:
         "Docker 請使用容器內路徑並以唯讀方式掛載，例如：-v /host/docs:/srv/docs:ro。",
-      probe: "檢查路徑",
-      probeSuccess: "路徑可用：{path}",
       browser: {
         title: "瀏覽伺服器路徑",
         open: "瀏覽",
@@ -3546,6 +3544,8 @@ export const zhHantAdmin = {
           "這裡只顯示已掛載至容器內的路徑，無法瀏覽主機路徑或管理 Docker 掛載。",
         root: "根位置",
         rootLocation: "檔案系統根位置",
+        navigate: "前往",
+        pathInputHint: "編輯絕對路徑後按 Enter 前往；留空可返回根位置。",
         parent: "上一層",
         refresh: "重新整理資料夾",
         breadcrumbsAria: "目前伺服器路徑",

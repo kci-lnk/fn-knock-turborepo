@@ -24,8 +24,16 @@ test("static path browser stays inside the mapping dialog and keeps responsive a
   assert.match(browser, /staticServe\.browser\.dockerHint/);
   assert.match(browser, /max-sm:grid-cols-1/);
   assert.match(browser, /:aria-busy="editor\.isLoading"/);
+  assert.match(browser, /id="static-path-browser-address"/);
+  assert.match(browser, /:model-value="editor\.pathDraft"/);
+  assert.match(browser, /@update:model-value="editor\.updatePathDraft"/);
+  assert.match(browser, /@keydown\.enter="handlePathEnter"/);
+  assert.match(browser, /@submit\.prevent="editor\.navigateToPath"/);
+  assert.match(browser, /event\.isComposing/);
   assert.match(browser, /:aria-label="entryAriaLabel\(entry\)"/);
   assert.match(browser, /:aria-pressed=/);
+  assert.match(browser, /editor\.selectionPath === entry\.path/);
+  assert.doesNotMatch(browser, /editor\.selectedPath === entry\.path/);
 
   const nativeButtons = browser.match(/<button\b[^>]*>/g) ?? [];
   assert.ok(nativeButtons.length > 0);

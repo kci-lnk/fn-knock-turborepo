@@ -3871,8 +3871,6 @@ export const jaJPAdmin = {
         "このパスはブラウザー側ではなくゲートウェイサーバー上のものです。例: Linux /srv/site、Windows C:\\Sites\\docs。保存時と配信時に再検証されます。",
       pathDockerHint:
         "Docker ではコンテナ内のパスを読み取り専用でマウントしてください。例: -v /host/docs:/srv/docs:ro。",
-      probe: "パスを確認",
-      probeSuccess: "利用可能なパス: {path}",
       browser: {
         title: "サーバーパスを参照",
         open: "参照",
@@ -3881,6 +3879,9 @@ export const jaJPAdmin = {
           "コンテナ内にマウント済みのパスだけが表示されます。ホストのパスや Docker マウントはここでは管理できません。",
         root: "ルート",
         rootLocation: "ファイルシステムのルート",
+        navigate: "移動",
+        pathInputHint:
+          "絶対パスを編集して Enter キーを押すと移動します。空欄にするとルートに戻ります。",
         parent: "1 つ上へ",
         refresh: "フォルダーを更新",
         breadcrumbsAria: "現在のサーバーパス",

@@ -2,15 +2,13 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, nextTick, reactive, type PropType } from "vue";
 import { createI18n } from "vue-i18n";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { ConfigAPI, type StaticPathProbeResult } from "../src/lib/api/config";
 import { useConfigStore } from "../src/store/config";
 import type {
   AppConfig,
   HostMapping,
   HostMappingStaticServe,
-  HostMappingTargetType,
 } from "../src/types";
 import SubdomainMappingRowActions from "../src/views/subdomain-proxy/SubdomainMappingRowActions.vue";
 import SubdomainMappingStaticTargetField from "../src/views/subdomain-proxy/SubdomainMappingStaticTargetField.vue";
@@ -61,12 +59,10 @@ const createTestI18n = () =>
               pathHint: "This path belongs to the gateway server.",
               pathLabel: "Server path",
               browser: { open: "Browse" },
-              probe: "Check path",
               probeErrors: {
                 probe_failed: "Probe failed",
                 type_mismatch: "Type mismatch",
               },
-              probeSuccess: "Path available: {path}",
               renderReadme: "Render README",
               renderReadmeHint: "Render README below the list.",
               switchConfirmAction: "Switch target",
@@ -319,7 +315,6 @@ const mountStaticTargetField = (modelValue: HostMappingStaticServe) => {
   return mount(SubdomainMappingStaticTargetField, {
     props: {
       modelValue,
-      open: true,
       targetType: "directory",
     },
     global: {
@@ -328,18 +323,6 @@ const mountStaticTargetField = (modelValue: HostMappingStaticServe) => {
     },
   });
 };
-
-const successfulProbe = (
-  targetType: Exclude<HostMappingTargetType, "proxy">,
-  path: string,
-): StaticPathProbeResult => ({
-  actual_type: targetType,
-  error_code: null,
-  exists: true,
-  normalized_path: path,
-  readable: true,
-  target_type: targetType,
-});
 
 const DropdownItemStub = defineComponent({
   emits: ["select"],
@@ -366,10 +349,6 @@ const dropdownStubs = {
 
 const findButton = (wrapper: ReturnType<typeof mount>, label: string) =>
   wrapper.findAll("button").find((button) => button.text().includes(label));
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe("host mapping static target components", () => {
   it("requires confirmation before clearing proxy-only settings", async () => {
@@ -443,68 +422,15 @@ describe("host mapping static target components", () => {
     expect(mappingForm.suppress_toolbar).toBe(false);
   });
 
-  it("invalidates path probes on path, type, and open changes and ignores stale responses", async () => {
-    const probe = vi.spyOn(ConfigAPI, "probeHostMappingStaticPath");
-    const wrapper = mountStaticTargetField(staticServeConfig("/srv/docs"));
-    const checkPath = () => findButton(wrapper, "Check path")!;
-
-    probe.mockResolvedValueOnce(successfulProbe("directory", "/srv/docs"));
-    await checkPath().trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("Path available: /srv/docs");
-
-    await wrapper.setProps({
-      modelValue: staticServeConfig("/srv/next"),
-    });
-    expect(wrapper.text()).not.toContain("Path available:");
-
-    probe.mockResolvedValueOnce(successfulProbe("directory", "/srv/next"));
-    await checkPath().trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("Path available: /srv/next");
-
-    await wrapper.setProps({ targetType: "file" });
-    expect(wrapper.text()).not.toContain("Path available:");
-
-    probe.mockResolvedValueOnce(successfulProbe("file", "/srv/next"));
-    await checkPath().trigger("click");
-    await flushPromises();
-    expect(wrapper.text()).toContain("Path available: /srv/next");
-
-    await wrapper.setProps({ open: false });
-    expect(wrapper.text()).not.toContain("Path available:");
-
-    let resolvePending!: (result: StaticPathProbeResult) => void;
-    const pending = new Promise<StaticPathProbeResult>((resolve) => {
-      resolvePending = resolve;
-    });
-    probe.mockReturnValueOnce(pending);
-    await wrapper.setProps({ open: true });
-    await checkPath().trigger("click");
-    await wrapper.setProps({
-      modelValue: staticServeConfig("/srv/manual.pdf", false, false),
-    });
-    resolvePending(successfulProbe("file", "/srv/next"));
-    await flushPromises();
-    expect(wrapper.text()).not.toContain("Path available:");
-    expect(probe).toHaveBeenLastCalledWith("file", "/srv/next");
-  });
-
-  it("preserves a trailing-space POSIX path when browsing and probing", async () => {
+  it("preserves a trailing-space POSIX path when opening the browser", async () => {
     const path = "/srv/docs ";
-    const probe = vi
-      .spyOn(ConfigAPI, "probeHostMappingStaticPath")
-      .mockResolvedValue(successfulProbe("directory", path));
     const wrapper = mountStaticTargetField(staticServeConfig(path));
 
     await wrapper.get('[data-testid="browse-static-path"]').trigger("click");
 
     expect(wrapper.emitted("browse")).toEqual([["directory", path]]);
     expect(wrapper.emitted("update:modelValue")).toBeUndefined();
-
-    await findButton(wrapper, "Check path")!.trigger("click");
-    await flushPromises();
-    expect(probe).toHaveBeenCalledWith("directory", path);
+    expect(wrapper.text()).not.toContain("Check path");
   });
 
   it("turning directory listing off clears and disables README rendering", async () => {

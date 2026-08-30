@@ -18,6 +18,7 @@ const {
   handleSessionTabChange,
   openTargetCreate,
   openTargetEdit,
+  openLocalSettings,
   selectedTargetId,
   selectedSessionId,
   selectTarget,
@@ -66,6 +67,7 @@ const selectSession = async (sessionId: string) => {
       :sessions="sessions"
       :targets="targets"
       @add="addTarget"
+      @configure-local="openLocalSettings"
       @delete="removeTarget"
       @edit="editTarget"
       @select="selectTarget"
@@ -91,13 +93,13 @@ const selectSession = async (sessionId: string) => {
     <SheetContent side="left" class="w-[88vw] max-w-[340px] p-0">
       <SheetHeader class="sr-only">
         <SheetTitle>{{
-          t("admin.webTerminal.targets", "SSH targets")
+          t("admin.webTerminal.targets", "Terminal targets")
         }}</SheetTitle>
         <SheetDescription>
           {{
             t(
               "admin.webTerminal.targetsDescription",
-              "Manage SSH targets and choose a terminal session.",
+              "Manage local and SSH targets and choose a terminal session.",
             )
           }}
         </SheetDescription>
@@ -111,6 +113,7 @@ const selectSession = async (sessionId: string) => {
         :sessions="sessions"
         :targets="targets"
         @add="addTarget"
+        @configure-local="openLocalSettings"
         @delete="removeTarget"
         @edit="editTarget"
         @select="selectTarget"

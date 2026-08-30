@@ -50,7 +50,10 @@ fn-knock은 리버스 프록시, 접근 인증, TLS 인증서, DDNS, 접근 제�
 | 일상 운영         | 시스템 모니터링, 감사 이벤트, 웹 터미널, 알림, 백업, 업데이트 확인                           |
 | 멀티플랫폼 패키지 | fnOS, OpenWrt, Docker, Windows, macOS, Synology DSM, 범용 Linux                              |
 
-웹 터미널은 모든 fn-knock 배포 패키지에서 사용할 수 있지만, 관리자가 호스트 지문을 명시적으로 신뢰한 SSH 대상에만 연결합니다. fn-knock 호스트의 로컬 Shell을 직접 열지 않습니다. 대화형 PTY를 제공하는 SSH Server가 있으면 Linux, macOS 또는 Windows를 대상으로 사용할 수 있습니다.
+웹 터미널은 관리자가 호스트 지문을 명시적으로 신뢰한 SSH 대상을 계속 지원합니다. 전체 FPK, 범용 Linux, macOS 및 OpenWrt 패키지에서는 로컬 PTY도 활성화할 수 있습니다. 로컬 기능은 기본적으로 꺼져 있으며 fn-knock 서비스의 유효 UID/GID를 그대로 상속하므로 서비스가 root로 실행되면 터미널도 root 권한을 가집니다. FPK Lite, Synology, Docker, Windows 및 개발 모드에서는 로컬 터미널을 제공하지 않습니다.
+
+> [!WARNING]
+> 활성화하기 전에 표시된 서비스 실행 계정, Shell 및 초기 디렉터리를 확인하십시오. 권한 강등, 사용자 전환 또는 localhost SSH는 사용하지 않습니다. 브라우저를 닫아도 프로세스 내 세션은 계속 실행되지만 fn-knock을 재시작하면 종료됩니다. 전체 FPK의 터미널 트래픽은 `index.cgi`에서 루프백 Rust 서비스로만 전달하며 fnOS 통합 게이트웨이, Go/gRPC 경로 또는 WebSocket을 사용하지 않습니다.
 
 ## 아키텍처
 

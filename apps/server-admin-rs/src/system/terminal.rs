@@ -1,4 +1,4 @@
-//! SSH-backed Web Terminal.
+//! SSH and local-PTY backed Web Terminal.
 //!
 //! Persistent target metadata and installation-bound credentials live outside
 //! the runtime. Shells, attachments and their output buffers intentionally
@@ -8,10 +8,12 @@ mod backup;
 pub(crate) mod domain;
 mod http;
 mod legacy_cleanup;
+mod local;
 mod repository;
 mod runtime;
 mod secrets;
 mod service;
+mod shell;
 mod ssh;
 
 use std::time::Duration;
@@ -33,8 +35,8 @@ pub fn terminal_routes() -> Router<AppState> {
 }
 
 /// Starts the only terminal background worker. It expires abandoned browser
-/// attachments, but never expires a live SSH shell merely because no browser
-/// is attached.
+/// attachments, but never expires a live shell merely because no browser is
+/// attached.
 pub fn start_terminal_tasks(state: AppState) {
     let task_state = state.clone();
     state.spawn_background("terminal-runtime-maintenance", async move {

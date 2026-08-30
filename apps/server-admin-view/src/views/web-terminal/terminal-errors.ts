@@ -17,6 +17,12 @@ const terminalErrorCodes = new Set<TerminalErrorCode>([
   "attachment_expired",
   "controller_conflict",
   "target_revision_conflict",
+  "local_terminal_unsupported",
+  "local_terminal_disabled",
+  "local_terminal_risk_acknowledgement_required",
+  "local_terminal_revision_conflict",
+  "local_shell_unavailable",
+  "local_pty_start_failed",
   "connect_timeout",
   "conflict",
   "upstream_unavailable",
@@ -28,6 +34,32 @@ export type TerminalRequestError = {
   confirmationToken: string | null;
   errorCode: TerminalErrorCode | null;
   message: string;
+};
+
+const terminalErrorTranslationKeys: Partial<Record<TerminalErrorCode, string>> =
+  {
+    local_terminal_unsupported:
+      "admin.webTerminal.terminalError.localTerminalUnsupported",
+    local_terminal_disabled:
+      "admin.webTerminal.terminalError.localTerminalDisabled",
+    local_terminal_risk_acknowledgement_required:
+      "admin.webTerminal.terminalError.localTerminalRiskAcknowledgementRequired",
+    local_terminal_revision_conflict:
+      "admin.webTerminal.terminalError.localTerminalRevisionConflict",
+    local_shell_unavailable:
+      "admin.webTerminal.terminalError.localShellUnavailable",
+    local_pty_start_failed:
+      "admin.webTerminal.terminalError.localPtyStartFailed",
+  };
+
+export const localizeTerminalError = (
+  failure: Pick<TerminalRequestError, "errorCode" | "message">,
+  translate: (key: string) => string,
+) => {
+  const key = failure.errorCode
+    ? terminalErrorTranslationKeys[failure.errorCode]
+    : undefined;
+  return key ? translate(key) : failure.message;
 };
 
 const getResponseData = (

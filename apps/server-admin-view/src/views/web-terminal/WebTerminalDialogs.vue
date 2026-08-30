@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TerminalRenameDialog from "./TerminalRenameDialog.vue";
+import TerminalLocalSettingsDialog from "./TerminalLocalSettingsDialog.vue";
 import TerminalSendDialog from "./TerminalSendDialog.vue";
 import TerminalTargetEditorDialog from "./TerminalTargetEditorDialog.vue";
 import TerminalTargetForceDeleteDialog from "./TerminalTargetForceDeleteDialog.vue";
@@ -30,6 +31,8 @@ const {
 </script>
 
 <template>
+  <TerminalLocalSettingsDialog :controller="controller" />
+
   <TerminalSendDialog
     v-model:open="sendDialogOpen"
     v-model:payload="sendDialogPayload"

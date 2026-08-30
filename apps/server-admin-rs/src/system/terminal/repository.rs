@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -11,6 +12,64 @@ use super::{
 };
 
 const TARGETS_KEY: &str = "fn_knock:terminal:targets";
+pub(super) const LOCAL_SETTINGS_KEY: &str = "fn_knock:terminal:local-settings";
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct LocalSettingsRecord {
+    pub enabled: bool,
+    pub revision: u64,
+}
+
+pub(super) struct LocalSettingsRepository<'a> {
+    state: &'a AppState,
+}
+
+impl<'a> LocalSettingsRepository<'a> {
+    pub fn new(state: &'a AppState) -> Self {
+        Self { state }
+    }
+
+    pub async fn get(&self) -> TerminalResult<LocalSettingsRecord> {
+        let value = self
+            .state
+            .storage
+            .store
+            .get_json_value(LOCAL_SETTINGS_KEY)
+            .await
+            .map_err(|error| TerminalError::internal(error.to_string()))?;
+        let Some(value) = value else {
+            return Ok(LocalSettingsRecord::default());
+        };
+        let record = serde_json::from_value::<LocalSettingsRecord>(value).map_err(|error| {
+            tracing::error!(%error, "local terminal settings are corrupted");
+            TerminalError::internal("local terminal settings are corrupted")
+        })?;
+        if record.revision == 0 {
+            tracing::error!("local terminal settings revision is invalid");
+            return Err(TerminalError::internal(
+                "local terminal settings are corrupted",
+            ));
+        }
+        Ok(record)
+    }
+
+    pub async fn save(&self, record: LocalSettingsRecord) -> TerminalResult<()> {
+        if record.revision == 0 {
+            return Err(TerminalError::internal(
+                "local terminal settings revision is invalid",
+            ));
+        }
+        let value = serde_json::to_value(record)
+            .map_err(|error| TerminalError::internal(error.to_string()))?;
+        self.state
+            .storage
+            .store
+            .set_json_value(LOCAL_SETTINGS_KEY, &value)
+            .await
+            .map_err(|error| TerminalError::internal(error.to_string()))
+    }
+}
 
 pub struct TargetRepository<'a> {
     state: &'a AppState,

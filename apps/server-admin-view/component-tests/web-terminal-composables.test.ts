@@ -2,11 +2,15 @@ import { ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   TerminalAttachmentRecord,
+  TerminalLocalStatus,
   TerminalSessionRecord,
   TerminalTargetRecord,
 } from "@/lib/api/terminal";
 import { useTerminalAttachment } from "@/views/web-terminal/useTerminalAttachment";
-import { extractTerminalError } from "@/views/web-terminal/terminal-errors";
+import {
+  extractTerminalError,
+  localizeTerminalError,
+} from "@/views/web-terminal/terminal-errors";
 import { normalizeTerminalDimensions } from "@/views/web-terminal/terminal-dimensions";
 import { useTerminalInputQueue } from "@/views/web-terminal/useTerminalInputQueue";
 import { useTerminalSessions } from "@/views/web-terminal/useTerminalSessions";
@@ -18,15 +22,20 @@ import { useTerminalViewport } from "@/views/web-terminal/useTerminalViewport";
 const terminalApi = vi.hoisted(() => ({
   claimControl: vi.fn(),
   createAttachment: vi.fn(),
+  createTarget: vi.fn(),
   deleteTarget: vi.fn(),
   deleteSession: vi.fn(),
   detachAttachment: vi.fn(),
+  getLocalStatus: vi.fn(),
+  listTargets: vi.fn(),
   listSessions: vi.fn(),
   pollAttachmentEvents: vi.fn(),
   probeHostKey: vi.fn(),
   resizeAttachment: vi.fn(),
   sendInput: vi.fn(),
   testConnection: vi.fn(),
+  updateLocalStatus: vi.fn(),
+  updateTarget: vi.fn(),
 }));
 
 vi.mock("@/lib/api/terminal", async () => {
@@ -41,6 +50,7 @@ const session = (
   overrides: Partial<TerminalSessionRecord> = {},
 ): TerminalSessionRecord => ({
   id: "session-1",
+  backend: "ssh",
   targetId: "target-1",
   title: "Shell 1",
   phase: "running",
@@ -90,6 +100,22 @@ const target = (
   ...overrides,
 });
 
+const localStatus = (
+  overrides: Partial<TerminalLocalStatus> = {},
+): TerminalLocalStatus => ({
+  targetId: "local",
+  supported: true,
+  enabled: false,
+  ready: false,
+  executionIdentity: "fn-knock",
+  privileged: false,
+  shell: "/bin/sh",
+  workingDirectory: "/var/lib/fn-knock",
+  blockedReason: null,
+  revision: 0,
+  ...overrides,
+});
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -119,15 +145,22 @@ beforeEach(() => {
   localStorage.clear();
   terminalApi.claimControl.mockReset();
   terminalApi.createAttachment.mockReset();
+  terminalApi.createTarget.mockReset();
   terminalApi.deleteSession.mockReset();
   terminalApi.deleteTarget.mockReset();
   terminalApi.detachAttachment.mockReset().mockResolvedValue(undefined);
+  terminalApi.getLocalStatus
+    .mockReset()
+    .mockResolvedValue(localStatus({ supported: false }));
+  terminalApi.listTargets.mockReset().mockResolvedValue([]);
   terminalApi.listSessions.mockReset();
   terminalApi.pollAttachmentEvents.mockReset();
   terminalApi.probeHostKey.mockReset();
   terminalApi.resizeAttachment.mockReset().mockResolvedValue(undefined);
   terminalApi.sendInput.mockReset().mockResolvedValue(undefined);
   terminalApi.testConnection.mockReset();
+  terminalApi.updateLocalStatus.mockReset();
+  terminalApi.updateTarget.mockReset();
 });
 
 afterEach(() => {
@@ -454,6 +487,76 @@ describe("SSH terminal viewport behavior", () => {
 });
 
 describe("SSH terminal collection and editor behavior", () => {
+  it("keeps unsupported platforms as a pure SSH target list", async () => {
+    terminalApi.getLocalStatus.mockResolvedValue(
+      localStatus({
+        supported: false,
+        shell: null,
+        workingDirectory: null,
+        blockedReason: "unsupportedPlatform",
+      }),
+    );
+    terminalApi.listTargets.mockResolvedValue([target()]);
+    const controller = useTerminalTargets();
+
+    await controller.loadTargets();
+    expect(controller.targets.value).toHaveLength(1);
+    expect(controller.targets.value[0]).toMatchObject({
+      id: "target-1",
+      kind: "ssh",
+    });
+    controller.dispose();
+  });
+
+  it("keeps SSH targets available when local terminal status fails", async () => {
+    terminalApi.getLocalStatus.mockRejectedValue(
+      new Error("local status failed"),
+    );
+    terminalApi.listTargets.mockResolvedValue([target()]);
+    const controller = useTerminalTargets();
+
+    await expect(controller.loadTargets()).resolves.toBeUndefined();
+    expect(controller.localStatus.value).toBeNull();
+    expect(controller.targets.value).toEqual([
+      expect.objectContaining({ id: "target-1", kind: "ssh" }),
+    ]);
+    expect(controller.selectedTargetId.value).toBe("target-1");
+    expect(controller.error.value).toBe("local status failed");
+    controller.dispose();
+  });
+
+  it("pins a supported local terminal before SSH targets and updates it optimistically", async () => {
+    terminalApi.getLocalStatus.mockResolvedValue(localStatus());
+    terminalApi.listTargets.mockResolvedValue([target()]);
+    terminalApi.updateLocalStatus.mockResolvedValue(
+      localStatus({ enabled: true, ready: true, revision: 1 }),
+    );
+    const controller = useTerminalTargets();
+
+    await controller.loadTargets();
+    expect(
+      controller.targets.value.map(({ id, kind }) => ({ id, kind })),
+    ).toEqual([
+      { id: "local", kind: "local" },
+      { id: "target-1", kind: "ssh" },
+    ]);
+    expect(controller.selectedTargetId.value).toBe("local");
+
+    await controller.updateLocalTerminal(true, true);
+    expect(terminalApi.updateLocalStatus).toHaveBeenCalledWith(
+      { enabled: true, revision: 0, acknowledgeRisk: true },
+      false,
+      undefined,
+      expect.any(AbortSignal),
+    );
+    expect(controller.localStatus.value).toMatchObject({
+      enabled: true,
+      ready: true,
+      revision: 1,
+    });
+    controller.dispose();
+  });
+
   it("preserves stable terminal API messages and error codes", () => {
     expect(
       extractTerminalError({
@@ -471,6 +574,17 @@ describe("SSH terminal collection and editor behavior", () => {
       errorCode: "target_revision_conflict",
       message: "The SSH target was updated in another browser",
     });
+    expect(
+      localizeTerminalError(
+        {
+          errorCode: "local_terminal_revision_conflict",
+          message: "backend fallback",
+        },
+        (key) => `translated:${key}`,
+      ),
+    ).toBe(
+      "translated:admin.webTerminal.terminalError.localTerminalRevisionConflict",
+    );
   });
 
   it("invalidates the selected session when runtimeId changes", async () => {

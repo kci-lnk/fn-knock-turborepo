@@ -20,6 +20,7 @@ use super::domain::{
     HostKeyProbeResult, SessionPhase, TargetRecord, TerminalError, TerminalErrorCode,
     TerminalResult, TrustedHostKey,
 };
+use super::shell::{BoxedShell, InteractiveShell, ShellEvent};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
@@ -78,25 +79,6 @@ struct ConnectedShell {
     pub channel: Channel<client::Msg>,
     pub pending_events: VecDeque<ShellEvent>,
 }
-
-pub(super) enum ShellEvent {
-    Data(Vec<u8>),
-    Exited(u32),
-    Signaled(String),
-    Closed,
-    Other,
-}
-
-#[async_trait]
-pub(super) trait InteractiveShell: Send {
-    async fn next_event(&mut self) -> ShellEvent;
-    async fn input(&mut self, data: Vec<u8>) -> TerminalResult<()>;
-    async fn resize(&mut self, cols: u32, rows: u32) -> TerminalResult<()>;
-    async fn close(&mut self);
-    async fn disconnect(&mut self);
-}
-
-pub(super) type BoxedShell = Box<dyn InteractiveShell>;
 
 #[async_trait]
 impl InteractiveShell for ConnectedShell {

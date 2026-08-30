@@ -112,8 +112,10 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:smart-connect:runtime",
     "fn_knock:ssh_security:",
     // Removed local-terminal runtime state (tmux/FIFO/log attachments) must
-    // never be exported or resurrected from an older backup. SSH target
-    // metadata lives at `fn_knock:terminal:targets` and remains included.
+    // never be exported or resurrected from an older backup. The local PTY
+    // feature switch is host-specific and also defaults off after a restore.
+    // SSH target metadata remains included.
+    "fn_knock:terminal:local-settings",
     "fn_knock:terminal:session:",
     "fn_knock:terminal:attachment:",
     "fn_knock:traffic:",

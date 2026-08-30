@@ -152,6 +152,9 @@ fn filters_backup_keys_like_node() {
     ));
     assert!(should_export_backup_key("fn_knock:terminal:targets"));
     assert!(!should_export_backup_key(
+        "fn_knock:terminal:local-settings"
+    ));
+    assert!(!should_export_backup_key(
         "fn_knock:terminal:session:data:legacy-session"
     ));
     for prefix in BACKUP_EXCLUDED_KEY_PREFIXES {

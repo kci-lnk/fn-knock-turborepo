@@ -15,8 +15,8 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import type {
+  TerminalDestination,
   TerminalSessionRecord,
-  TerminalTargetRecord,
 } from "@/lib/api/terminal";
 
 defineProps<{
@@ -38,7 +38,7 @@ defineProps<{
   reconnectSession: () => Promise<void> | void;
   selectedSession: TerminalSessionRecord | null;
   selectedSessionId: string;
-  selectedTarget: TerminalTargetRecord | null;
+  selectedTarget: TerminalDestination | null;
   sessions: TerminalSessionRecord[];
   statusTone: string;
   toolbarDisabled: boolean;
@@ -60,8 +60,10 @@ const { t } = useI18n();
         <Server class="mr-1.5 h-4 w-4 shrink-0" />
         <span class="truncate">
           {{
-            selectedTarget?.name ||
-            t("admin.webTerminal.targets", "SSH targets")
+            selectedTarget?.kind === "local"
+              ? t("admin.webTerminal.localTarget")
+              : selectedTarget?.name ||
+                t("admin.webTerminal.targets", "Terminal targets")
           }}
         </span>
       </Button>

@@ -1,10 +1,12 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import type {
   TerminalAttachmentRecord,
+  TerminalDestination,
+  TerminalErrorCode,
   TerminalSessionRecord,
-  TerminalTargetRecord,
 } from "@/lib/api/terminal";
 import type { TerminalAttachmentState } from "./useTerminalAttachment";
+import { localizeTerminalError } from "./terminal-errors";
 import { toolbarModifierLabels, type ArmedModifier } from "./terminal-runtime";
 
 export const useTerminalPresentation = ({
@@ -14,6 +16,7 @@ export const useTerminalPresentation = ({
   compactViewport,
   isTerminalFullscreen,
   lastAttachmentError,
+  lastAttachmentErrorCode,
   pageError,
   readOnly,
   selectedSession,
@@ -26,10 +29,11 @@ export const useTerminalPresentation = ({
   compactViewport: Ref<boolean>;
   isTerminalFullscreen: Ref<boolean>;
   lastAttachmentError: Ref<string>;
+  lastAttachmentErrorCode: Ref<TerminalErrorCode | null>;
   pageError: Ref<string>;
   readOnly: Readonly<Ref<boolean>>;
   selectedSession: ComputedRef<TerminalSessionRecord | null>;
-  selectedTarget: ComputedRef<TerminalTargetRecord | null>;
+  selectedTarget: ComputedRef<TerminalDestination | null>;
   translate: (key: string, params?: Record<string, string>) => string;
 }) => {
   const sessionPhaseLabel = computed(() => {
@@ -55,9 +59,16 @@ export const useTerminalPresentation = ({
     if (kind === "error" || pageError.value) return "error";
     return "idle";
   });
-  const connectionError = computed(
-    () => pageError.value || lastAttachmentError.value,
-  );
+  const connectionError = computed(() => {
+    if (pageError.value) return pageError.value;
+    return localizeTerminalError(
+      {
+        errorCode: lastAttachmentErrorCode.value,
+        message: lastAttachmentError.value,
+      },
+      (key) => translate(key),
+    );
+  });
   const terminalWindowTitle = computed(
     () =>
       selectedSession.value?.title?.trim() ||
@@ -67,9 +78,11 @@ export const useTerminalPresentation = ({
     const target = selectedTarget.value;
     const session = selectedSession.value;
     if (!target) return translate("admin.webTerminal.statusDisconnected");
-    return `${target.username}@${target.host}:${target.port}${
-      session ? ` · ${sessionPhaseLabel.value}` : ""
-    }`;
+    const endpoint =
+      target.kind === "local"
+        ? `${target.executionIdentity}@${translate("admin.webTerminal.localTarget")}`
+        : `${target.username}@${target.host}:${target.port}`;
+    return `${endpoint}${session ? ` · ${sessionPhaseLabel.value}` : ""}`;
   });
   const statusTone = computed(() => {
     if (selectedSession.value?.phase !== "running" && sessionPhaseLabel.value) {

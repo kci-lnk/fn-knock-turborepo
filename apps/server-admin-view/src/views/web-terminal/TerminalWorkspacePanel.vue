@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { Eye, LoaderCircle, Plus, Server } from "lucide-vue-next";
+import {
+  Eye,
+  Laptop,
+  LoaderCircle,
+  LockKeyhole,
+  Plus,
+  Server,
+  ShieldAlert,
+} from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -41,6 +49,7 @@ const {
   openRenameDialog,
   openSendDialog,
   openTargetCreate,
+  openLocalSettings,
   pasteClipboardToTerminal,
   readOnly,
   reconnectSession,
@@ -136,20 +145,63 @@ const {
     </div>
 
     <div
+      v-else-if="
+        selectedTarget.kind === 'local' &&
+        (!selectedTarget.enabled || !selectedTarget.ready)
+      "
+      class="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-amber-500/30 bg-amber-500/5 p-6 text-center"
+    >
+      <div class="max-w-md">
+        <span
+          class="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        >
+          <LockKeyhole v-if="!selectedTarget.enabled" class="h-6 w-6" />
+          <ShieldAlert v-else class="h-6 w-6" />
+        </span>
+        <h2 class="mt-3 text-base font-semibold">
+          {{
+            selectedTarget.enabled
+              ? t("admin.webTerminal.localUnavailableTitle")
+              : t("admin.webTerminal.localLockedTitle")
+          }}
+        </h2>
+        <p class="mt-1 text-sm leading-6 text-muted-foreground">
+          {{
+            selectedTarget.enabled
+              ? t("admin.webTerminal.localUnavailableDescription")
+              : t("admin.webTerminal.localLockedDescription", {
+                  identity: selectedTarget.executionIdentity,
+                })
+          }}
+        </p>
+        <Button class="mt-4" @click="openLocalSettings">
+          <ShieldAlert class="mr-1.5 h-4 w-4" />
+          {{ t("admin.webTerminal.localSettingsTitle") }}
+        </Button>
+      </div>
+    </div>
+
+    <div
       v-else-if="!selectedSession"
       class="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-border/80 bg-muted/10 p-6 text-center"
     >
       <div class="max-w-sm">
-        <Server class="mx-auto h-8 w-8 text-muted-foreground" />
+        <Laptop
+          v-if="selectedTarget.kind === 'local'"
+          class="mx-auto h-8 w-8 text-muted-foreground"
+        />
+        <Server v-else class="mx-auto h-8 w-8 text-muted-foreground" />
         <h2 class="mt-3 text-base font-semibold">
           {{ t("admin.webTerminal.noSessions", "No sessions on this target") }}
         </h2>
         <p class="mt-1 text-sm leading-6 text-muted-foreground">
           {{
-            t(
-              "admin.webTerminal.noSessionsDescription",
-              "Create an independent SSH shell. It stays alive while the terminal service is running.",
-            )
+            selectedTarget.kind === "local"
+              ? t("admin.webTerminal.localNoSessionsDescription")
+              : t(
+                  "admin.webTerminal.noSessionsDescription",
+                  "Create an independent SSH shell. It stays alive while the terminal service is running.",
+                )
           }}
         </p>
         <Button class="mt-4" :disabled="isCreating" @click="createSession">

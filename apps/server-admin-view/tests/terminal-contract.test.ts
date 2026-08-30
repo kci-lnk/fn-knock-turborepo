@@ -16,9 +16,12 @@ const contract = JSON.parse(
   paths: Record<string, Record<string, Operation>>;
 };
 
-describe("SSH terminal API contract", () => {
-  it("publishes target, session, and attachment operations", () => {
+describe("Web terminal API contract", () => {
+  it("publishes local, SSH target, session, and attachment operations", () => {
     for (const [method, path] of [
+      ["get", "/api/admin/terminal/local"],
+      ["patch", "/api/admin/terminal/local"],
+      ["post", "/api/admin/terminal/local/sessions"],
       ["get", "/api/admin/terminal/targets"],
       ["post", "/api/admin/terminal/targets"],
       ["get", "/api/admin/terminal/targets/{id}"],
@@ -46,6 +49,14 @@ describe("SSH terminal API contract", () => {
   });
 
   it("keeps force and long-poll queries typed", () => {
+    const localParameters =
+      contract.paths["/api/admin/terminal/local"]?.patch?.parameters ?? [];
+    assert.ok(localParameters.some((parameter) => parameter.name === "force"));
+    assert.ok(
+      localParameters.some(
+        (parameter) => parameter.name === "confirmationToken",
+      ),
+    );
     for (const method of ["patch", "delete"] as const) {
       const parameters =
         contract.paths["/api/admin/terminal/targets/{id}"]?.[method]
@@ -70,7 +81,7 @@ describe("SSH terminal API contract", () => {
     );
   });
 
-  it("removes local tmux and legacy polling endpoints", () => {
+  it("keeps the new local PTY API while removing tmux and legacy polling endpoints", () => {
     for (const path of [
       "/api/admin/terminal/status",
       "/api/admin/terminal/tmux/install",
@@ -86,6 +97,8 @@ describe("SSH terminal API contract", () => {
 
     const api = readSource("../src/lib/api/terminal.ts");
     assert.doesNotMatch(api, /tmux|terminal\/status|\/poll["`]/iu);
+    assert.match(api, /\/terminal\/local/u);
+    assert.match(api, /\/terminal\/local\/sessions/u);
     assert.match(api, /probe-host-key/u);
     assert.match(api, /test-connection/u);
     assert.match(api, /\/events/u);

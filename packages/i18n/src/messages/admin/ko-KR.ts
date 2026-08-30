@@ -4794,6 +4794,8 @@ export const koKRAdmin = {
     statusViewer: "읽기 전용",
     sessionPhase: {
       creating: "세션 생성 중",
+      openingPty: "로컬 PTY 여는 중",
+      startingShell: "로컬 셸 시작 중",
       resolving: "호스트 확인 중",
       connecting: "연결 중",
       verifyingHostKey: "호스트 키 확인 중",
@@ -4803,12 +4805,13 @@ export const koKRAdmin = {
       running: "실행 중",
       closing: "종료 중",
       closed: "종료됨",
-      exited: "원격 셸 종료됨",
+      exited: "셸 종료됨",
       lost: "연결 끊김",
       failed: "연결 실패",
     },
-    targets: "SSH 대상",
-    targetsDescription: "SSH 대상을 관리하고 터미널 세션을 선택합니다.",
+    targets: "터미널 대상",
+    targetsDescription:
+      "로컬 터미널과 SSH 대상을 관리하고 터미널 세션을 선택합니다.",
     targetCountSuffix: "개 구성됨",
     addTarget: "SSH 대상 추가",
     editTarget: "SSH 대상 편집",
@@ -4844,6 +4847,52 @@ export const koKRAdmin = {
     forceDeleteTargetAction: "세션 종료 후 삭제",
     expandTargets: "대상 목록 펼치기",
     collapseTargets: "대상 목록 접기",
+    localTarget: "로컬",
+    localReady: "사용 가능",
+    localLocked: "비활성화됨",
+    localSettingsTitle: "로컬 터미널 설정",
+    localSettingsDescription:
+      "셸은 이 컴퓨터에서 fn-knock 서비스 계정으로 직접 실행됩니다.",
+    executionIdentity: "실행 계정",
+    initialDirectory: "초기 디렉터리",
+    unavailable: "사용할 수 없음",
+    localRootRiskTitle: "이 터미널은 root로 실행됩니다",
+    localRootRiskDescription:
+      "명령은 호스트에 대한 모든 권한을 가지며 시스템 및 애플리케이션 데이터를 변경하거나 삭제할 수 있습니다.",
+    localRiskTitle: "이 터미널은 서비스 계정으로 실행됩니다",
+    localRiskDescription:
+      "명령에는 이 호스트에서 fn-knock 서비스 계정이 가진 모든 권한이 부여됩니다.",
+    localRiskAcknowledgement:
+      "활성화하면 브라우저 터미널에서 표시된 서비스 계정 권한으로 명령을 실행할 수 있음을 이해했습니다.",
+    localDisableConfirmationTitle: "로컬 세션을 종료하고 비활성화할까요?",
+    localDisableConfirmationDescription:
+      "로컬 터미널을 비활성화하면 활성 로컬 세션 {count}개가 즉시 종료됩니다.",
+    localTerminateAndDisable: "세션 종료 후 비활성화",
+    enableLocal: "로컬 터미널 활성화",
+    disableLocal: "로컬 터미널 비활성화",
+    localEnabled: "로컬 터미널이 활성화되었습니다",
+    localDisabled: "로컬 터미널이 비활성화되었습니다",
+    terminalError: {
+      localTerminalUnsupported:
+        "이 플랫폼에서는 로컬 터미널을 지원하지 않습니다.",
+      localTerminalDisabled:
+        "로컬 터미널이 비활성화되어 있습니다. 활성화한 후 세션을 만드세요.",
+      localTerminalRiskAcknowledgementRequired:
+        "로컬 터미널을 활성화하기 전에 서비스 실행 계정의 위험을 확인해야 합니다.",
+      localTerminalRevisionConflict:
+        "다른 요청에서 로컬 터미널 설정이 변경되었습니다. 새로고침 후 다시 시도하세요.",
+      localShellUnavailable:
+        "이 컴퓨터에 사용할 수 있는 실행 가능한 로그인 셸이 없습니다.",
+      localPtyStartFailed: "로컬 PTY 또는 로그인 셸을 시작할 수 없습니다.",
+    },
+    localLockedTitle: "로컬 터미널이 비활성화되어 있습니다",
+    localLockedDescription:
+      "{identity} 계정으로 명령을 실행할 때의 위험을 확인한 후 활성화하세요.",
+    localUnavailableTitle: "로컬 터미널을 사용할 수 없습니다",
+    localUnavailableDescription:
+      "이 컴퓨터에서 지원되는 로그인 셸을 찾을 수 없습니다.",
+    localNoSessionsDescription:
+      "fn-knock 서비스 계정으로 로컬 셸을 생성합니다. 터미널 서비스가 실행되는 동안 유지됩니다.",
     noSessions: "이 대상에 세션이 없습니다",
     noSessionsDescription:
       "독립적인 SSH 셸을 생성합니다. 터미널 서비스가 실행되는 동안 세션이 유지됩니다.",
@@ -6619,8 +6668,8 @@ export const koKRAdmin = {
         "장치 {target}, SSH 호스트 {host}: {result} ({latency}ms)",
       panelSyncStatus: "연결 {connection}: {event}; {message}",
       terminalAuditDescription: "{action} · {resource}{error}",
-      terminalAuditTarget: "SSH 대상 {target}",
-      terminalAuditSession: "SSH 세션 {session}",
+      terminalAuditTarget: "터미널 대상 {target}",
+      terminalAuditSession: "터미널 세션 {session}",
       terminalAuditError: " · 오류 {error}",
       terminalAuditActions: {
         target_created: "SSH 대상 생성",
@@ -6629,11 +6678,13 @@ export const koKRAdmin = {
         host_key_confirmed: "호스트 지문 확인",
         connection_test_succeeded: "SSH 연결 테스트 성공",
         connection_test_failed: "SSH 연결 테스트 실패",
-        session_creation_started: "SSH 세션 생성 시작",
-        session_creation_failed: "SSH 세션 생성 실패",
-        session_ended: "SSH 세션 종료",
-        session_exited: "원격 Shell 종료",
-        session_lost: "SSH 세션 연결 끊김",
+        local_terminal_enabled: "로컬 터미널 활성화",
+        local_terminal_disabled: "로컬 터미널 비활성화",
+        session_creation_started: "터미널 세션 생성 시작",
+        session_creation_failed: "터미널 세션 생성 실패",
+        session_ended: "터미널 세션 종료",
+        session_exited: "Shell 종료",
+        session_lost: "터미널 세션 연결 끊김",
       },
       gatewayThrottleBlocked:
         "{ip}(이)가 요청 제한에 걸려 {seconds}초 동안 차단되었습니다.",

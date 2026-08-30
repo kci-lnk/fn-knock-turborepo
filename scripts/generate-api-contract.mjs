@@ -44,6 +44,9 @@ function validateContract(openapiPath) {
     ["post /api/admin/panel-sync/connections/{id}/sync", "SyncRequest"],
     ["get /api/admin/panel-sync/connections/{id}/runs", null],
     ["get /api/admin/panel-sync/runs/{run_id}", null],
+    ["get /api/admin/terminal/local", null],
+    ["patch /api/admin/terminal/local", "LocalTerminalSettingsInput"],
+    ["post /api/admin/terminal/local/sessions", "CreateSessionInput"],
     ["get /api/admin/terminal/targets", null],
     ["post /api/admin/terminal/targets", "TargetCreateInput"],
     ["get /api/admin/terminal/targets/{id}", null],
@@ -764,6 +767,8 @@ function validateContract(openapiPath) {
   }
   const expectedSessionPhases = [
     "creating",
+    "openingPty",
+    "startingShell",
     "resolving",
     "connecting",
     "verifyingHostKey",
@@ -793,6 +798,12 @@ function validateContract(openapiPath) {
     "attachment_expired",
     "controller_conflict",
     "target_revision_conflict",
+    "local_terminal_unsupported",
+    "local_terminal_disabled",
+    "local_terminal_risk_acknowledgement_required",
+    "local_terminal_revision_conflict",
+    "local_shell_unavailable",
+    "local_pty_start_failed",
     "connect_timeout",
   ];
   const terminalErrorCodes = terminalSchemas.TerminalErrorCode?.enum ?? [];
@@ -829,6 +840,10 @@ function validateContract(openapiPath) {
     !(terminalSchemas.SessionListResult?.required ?? []).includes(
       "runtimeId",
     ) ||
+    terminalSchemas.TerminalSession?.properties?.backend?.$ref !==
+      "#/components/schemas/SessionBackend" ||
+    JSON.stringify(terminalSchemas.SessionBackend?.enum) !==
+      JSON.stringify(["ssh", "local"]) ||
     terminalSchemas.TerminalAttachment?.properties?.transport?.$ref !==
       "#/components/schemas/TerminalTransport" ||
     JSON.stringify(terminalSchemas.TerminalTransport?.enum) !==
@@ -870,6 +885,32 @@ function validateContract(openapiPath) {
   ).find((parameter) => parameter.name === "revision");
   if (terminalDeleteRevision?.required !== true) {
     throw new Error("terminal target deletion must require an expected revision");
+  }
+  const terminalLocalPath = document.paths?.["/api/admin/terminal/local"] ?? {};
+  for (const parameterName of ["force", "confirmationToken"]) {
+    if (
+      !(terminalLocalPath.patch?.parameters ?? []).some(
+        (parameter) => parameter.name === parameterName,
+      )
+    ) {
+      throw new Error(
+        `local terminal patch lacks ${parameterName} confirmation query`,
+      );
+    }
+  }
+  const localStatusRequired = terminalSchemas.LocalTerminalStatus?.required ?? [];
+  for (const property of [
+    "targetId",
+    "supported",
+    "enabled",
+    "ready",
+    "executionIdentity",
+    "privileged",
+    "revision",
+  ]) {
+    if (!localStatusRequired.includes(property)) {
+      throw new Error(`local terminal status must require ${property}`);
+    }
   }
   const terminalErrorProperties =
     terminalSchemas.TerminalErrorEnvelope?.properties ?? {};

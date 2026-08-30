@@ -610,6 +610,8 @@ pub(super) fn format_terminal_audit_action(value: &str, translator: &Translator)
         "host_key_confirmed" => "terminalActions.hostKeyConfirmed",
         "connection_test_succeeded" => "terminalActions.connectionTestSucceeded",
         "connection_test_failed" => "terminalActions.connectionTestFailed",
+        "local_terminal_enabled" => "terminalActions.localTerminalEnabled",
+        "local_terminal_disabled" => "terminalActions.localTerminalDisabled",
         "session_creation_started" => "terminalActions.sessionCreationStarted",
         "session_creation_failed" => "terminalActions.sessionCreationFailed",
         "session_ended" => "terminalActions.sessionEnded",

@@ -100,6 +100,9 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_Shell",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+portable-pty = "0.9.0"
+
 [dev-dependencies]
 getrandom = { version = "0.4", features = ["sys_rng"] }
 rcgen = { version = "0.14.8", features = ["pem", "x509-parser"] }

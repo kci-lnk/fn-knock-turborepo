@@ -151,8 +151,47 @@ pub struct ConnectionTestResult {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum SessionBackend {
+    Ssh,
+    Local,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalTerminalBlockedReason {
+    UnsupportedPlatform,
+    ShellUnavailable,
+}
+
+#[derive(Clone, Debug, Serialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalTerminalStatus {
+    pub target_id: String,
+    pub supported: bool,
+    pub enabled: bool,
+    pub ready: bool,
+    pub execution_identity: String,
+    pub privileged: bool,
+    pub shell: Option<String>,
+    pub working_directory: Option<String>,
+    pub blocked_reason: Option<LocalTerminalBlockedReason>,
+    pub revision: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalTerminalSettingsInput {
+    pub enabled: bool,
+    pub revision: u64,
+    pub acknowledge_risk: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum SessionPhase {
     Creating,
+    OpeningPty,
+    StartingShell,
     Resolving,
     Connecting,
     VerifyingHostKey,
@@ -179,7 +218,10 @@ impl SessionPhase {
         use SessionPhase::*;
         matches!(
             (self, next),
-            (Creating, Resolving)
+            (Creating, OpeningPty)
+                | (OpeningPty, StartingShell)
+                | (StartingShell, Running)
+                | (Creating, Resolving)
                 | (Resolving, Connecting)
                 | (Connecting, VerifyingHostKey)
                 | (VerifyingHostKey, Authenticating)
@@ -190,6 +232,8 @@ impl SessionPhase {
                 | (Closing, Closed | Lost)
                 | (
                     Creating
+                        | OpeningPty
+                        | StartingShell
                         | Resolving
                         | Connecting
                         | VerifyingHostKey
@@ -207,6 +251,7 @@ impl SessionPhase {
 pub struct TerminalSession {
     pub id: String,
     pub target_id: String,
+    pub backend: SessionBackend,
     pub title: String,
     pub phase: SessionPhase,
     pub cols: u32,
@@ -375,6 +420,12 @@ pub enum TerminalErrorCode {
     AttachmentExpired,
     ControllerConflict,
     TargetRevisionConflict,
+    LocalTerminalUnsupported,
+    LocalTerminalDisabled,
+    LocalTerminalRiskAcknowledgementRequired,
+    LocalTerminalRevisionConflict,
+    LocalShellUnavailable,
+    LocalPtyStartFailed,
     ConnectTimeout,
     Conflict,
     UpstreamUnavailable,

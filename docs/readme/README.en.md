@@ -50,7 +50,10 @@ fn-knock brings reverse proxying, access authentication, TLS certificates, DDNS,
 | Day-to-day operations   | System monitoring, audit events, web terminal, notifications, backups, and update checks                                        |
 | Multi-platform packages | fnOS, OpenWrt, Docker, Windows, macOS, Synology DSM, and general-purpose Linux                                                  |
 
-The Web Terminal is available in every fn-knock package, but it only connects to SSH targets whose host fingerprints an administrator explicitly trusts. It never opens a local shell on the fn-knock host. Targets may run Linux, macOS, or Windows as long as an SSH server provides an interactive PTY.
+The Web Terminal continues to support SSH targets whose host fingerprints an administrator explicitly trusts. Full FPK, general-purpose Linux, macOS, and OpenWrt packages can also enable a local PTY. Local access is disabled by default and always inherits the effective UID/GID of the fn-knock service, including root privileges when the service runs as root. FPK Lite, Synology, Docker, Windows, and development deployments do not expose a local terminal.
+
+> [!WARNING]
+> Verify the displayed service identity, shell, and initial directory before enabling local access. The local terminal does not drop privileges, switch users, or connect through localhost SSH. Closing the browser leaves the in-process session running, while restarting fn-knock ends it. On full FPK, terminal traffic is forwarded only by `index.cgi` to the loopback Rust service; it must never use the fnOS unified gateway, Go/gRPC routes, or WebSocket.
 
 ## Architecture
 

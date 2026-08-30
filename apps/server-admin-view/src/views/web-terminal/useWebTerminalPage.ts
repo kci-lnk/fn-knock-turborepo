@@ -9,11 +9,12 @@ import {
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import { useTerminalAttachment } from "./useTerminalAttachment";
-import { extractTerminalErrorMessage } from "./terminal-errors";
+import { extractTerminalError, localizeTerminalError } from "./terminal-errors";
 import { useTerminalEmulator } from "./useTerminalEmulator";
 import { useTerminalFontSize } from "./useTerminalFontSize";
 import { useTerminalInputQueue } from "./useTerminalInputQueue";
 import { useTerminalInteractions } from "./useTerminalInteractions";
+import { useTerminalLocalSettings } from "./useTerminalLocalSettings";
 import { useTerminalPresentation } from "./useTerminalPresentation";
 import { useTerminalResizeQueue } from "./useTerminalResizeQueue";
 import { useTerminalSessionActions } from "./useTerminalSessionActions";
@@ -30,6 +31,8 @@ export const useWebTerminalPage = () => {
   const { t } = useI18n();
   const booting = ref(true);
   const pageError = ref("");
+  const localizedTerminalFailure = (reason: unknown) =>
+    localizeTerminalError(extractTerminalError(reason), (key) => t(key));
   const runtimeRestarted = ref(false);
   let disposed = false;
   let sessionRefreshTimer: number | null = null;
@@ -178,6 +181,18 @@ export const useWebTerminalPage = () => {
     translate: (key, fallback) => t(key, fallback),
   });
 
+  const localSettings = useTerminalLocalSettings({
+    activeSessionCount: sessionsController.activeSessionCount,
+    attachedSessionId: attachmentController.sessionId,
+    detach: sessionConnection.detach,
+    loadSessions: sessionsController.loadSessions,
+    localStatus: targetsController.localStatus,
+    localUpdating: targetsController.updatingLocal,
+    sessions: sessionsController.sessions,
+    translate: (key) => t(key),
+    updateLocalTerminal: targetsController.updateLocalTerminal,
+  });
+
   const presentation = useTerminalPresentation({
     activeAttachment: attachmentController.attachment,
     armedModifier: emulator.armedModifier,
@@ -185,6 +200,7 @@ export const useWebTerminalPage = () => {
     compactViewport: viewport.compactViewport,
     isTerminalFullscreen: viewport.isTerminalFullscreen,
     lastAttachmentError: attachmentController.lastError,
+    lastAttachmentErrorCode: attachmentController.lastErrorCode,
     pageError,
     readOnly: attachmentController.readOnly,
     selectedSession: sessionsController.selectedSession,
@@ -193,6 +209,7 @@ export const useWebTerminalPage = () => {
   });
 
   const sessionActions = useTerminalSessionActions({
+    beginLocalSettings: localSettings.openLocalSettings,
     beginTargetCreate: targetEditor.beginCreate,
     beginTargetEdit: targetEditor.beginEdit,
     connect: sessionConnection.connect,
@@ -258,6 +275,17 @@ export const useWebTerminalPage = () => {
         sessionsController.loadSessions(),
       ]);
       if (disposed) return;
+      if (targetsController.error.value) {
+        toast.warning(t("admin.webTerminal.localUnavailableTitle"), {
+          description: localizeTerminalError(
+            {
+              errorCode: targetsController.errorCode.value,
+              message: targetsController.error.value,
+            },
+            (key) => t(key),
+          ),
+        });
+      }
       sessionsController.reconcileSelection();
       booting.value = false;
       await nextTick();
@@ -266,7 +294,7 @@ export const useWebTerminalPage = () => {
       if (session) await sessionActions.connectToSession(session);
     } catch (reason) {
       if (disposed) return;
-      pageError.value = extractTerminalErrorMessage(reason);
+      pageError.value = localizedTerminalFailure(reason);
     } finally {
       if (!disposed) booting.value = false;
     }
@@ -313,7 +341,7 @@ export const useWebTerminalPage = () => {
     await nextTick();
     if (generation !== targetSelectionGeneration) return;
     await sessionActions.connectToSession(session).catch((reason) => {
-      pageError.value = extractTerminalErrorMessage(reason);
+      pageError.value = localizedTerminalFailure(reason);
     });
   });
 
@@ -356,6 +384,7 @@ export const useWebTerminalPage = () => {
     readOnly: attachmentController.readOnly,
     resetTerminalFontSize: fontSize.resetTerminalFontSize,
     runtimeRestarted,
+    ...localSettings,
     selectedSession: sessionsController.selectedSession,
     selectedSessionId: sessionsController.selectedSessionId,
     selectedTarget: targetsController.selectedTarget,

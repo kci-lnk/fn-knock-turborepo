@@ -1,14 +1,16 @@
 import { nextTick, type Ref } from "vue";
 import { toast } from "@admin-shared/utils/toast";
 import type {
+  TerminalDestination,
   TerminalSessionRecord,
   TerminalTargetRecord,
 } from "@/lib/api/terminal";
-import { extractTerminalErrorMessage } from "./terminal-errors";
+import { extractTerminalError, localizeTerminalError } from "./terminal-errors";
 
 export const useTerminalSessionActions = ({
   beginTargetCreate,
   beginTargetEdit,
+  beginLocalSettings,
   connect,
   createSession: requestCreateSession,
   detach,
@@ -25,6 +27,7 @@ export const useTerminalSessionActions = ({
 }: {
   beginTargetCreate: () => void;
   beginTargetEdit: (target: TerminalTargetRecord) => void;
+  beginLocalSettings: () => void;
   connect: (session: TerminalSessionRecord) => Promise<void>;
   createSession: (
     targetId: string,
@@ -38,10 +41,13 @@ export const useTerminalSessionActions = ({
   reconnectAttachment: () => Promise<void>;
   selectedSession: Readonly<Ref<TerminalSessionRecord | null>>;
   selectedSessionId: Readonly<Ref<string>>;
-  selectedTarget: Readonly<Ref<TerminalTargetRecord | null>>;
+  selectedTarget: Readonly<Ref<TerminalDestination | null>>;
   sessions: Readonly<Ref<TerminalSessionRecord[]>>;
   translate: (key: string) => string;
 }) => {
+  const errorMessage = (reason: unknown, fallback: string) =>
+    localizeTerminalError(extractTerminalError(reason, fallback), translate);
+
   const connectToSession = async (session: TerminalSessionRecord) => {
     onConnectStart();
     await connect(session);
@@ -59,7 +65,7 @@ export const useTerminalSessionActions = ({
       await connectToSession(session);
     } catch (reason) {
       toast.error(translate("admin.webTerminal.switchFailed"), {
-        description: extractTerminalErrorMessage(
+        description: errorMessage(
           reason,
           translate("admin.webTerminal.switchFailedDescription"),
         ),
@@ -73,10 +79,15 @@ export const useTerminalSessionActions = ({
       beginTargetCreate();
       return null;
     }
+    if (target.kind === "local" && (!target.enabled || !target.ready)) {
+      beginLocalSettings();
+      return null;
+    }
     if (
-      !target.credentialConfigured ||
-      !target.trustedHostKey ||
-      !target.lastVerifiedAt
+      target.kind === "ssh" &&
+      (!target.credentialConfigured ||
+        !target.trustedHostKey ||
+        !target.lastVerifiedAt)
     ) {
       beginTargetEdit(target);
       return null;
@@ -89,7 +100,7 @@ export const useTerminalSessionActions = ({
       return session;
     } catch (reason) {
       toast.error(translate("admin.webTerminal.createFailed"), {
-        description: extractTerminalErrorMessage(
+        description: errorMessage(
           reason,
           translate("admin.webTerminal.createFailedDescription"),
         ),
@@ -109,7 +120,7 @@ export const useTerminalSessionActions = ({
       toast.success(translate("admin.webTerminal.sessionEnded"));
     } catch (reason) {
       toast.error(translate("admin.webTerminal.endFailed"), {
-        description: extractTerminalErrorMessage(
+        description: errorMessage(
           reason,
           translate("admin.webTerminal.endFailedDescription"),
         ),
@@ -122,7 +133,7 @@ export const useTerminalSessionActions = ({
       await reconnectAttachment();
     } catch (reason) {
       toast.error(translate("admin.webTerminal.reconnectFailed"), {
-        description: extractTerminalErrorMessage(
+        description: errorMessage(
           reason,
           translate("admin.webTerminal.reconnectFailedDescription"),
         ),

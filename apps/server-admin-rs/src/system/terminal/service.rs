@@ -5,8 +5,9 @@ use crate::{state::AppState, time_utils::now_iso};
 
 use super::{
     domain::*,
-    repository::TargetRepository,
-    runtime::{MAX_TARGETS, SessionStartup},
+    local::{self, LOCAL_TARGET_ID},
+    repository::{LocalSettingsRecord, LocalSettingsRepository, TargetRepository},
+    runtime::{MAX_TARGETS, SessionStartup, SessionStartupBackend},
     secrets::{CredentialBundle, CredentialKind, TerminalSecretStore},
     ssh::{RusshConnector, SshConnector, SshCredential},
 };
@@ -533,6 +534,89 @@ pub async fn sessions(state: &AppState) -> SessionListResult {
     state.terminal.list().await
 }
 
+pub async fn local_terminal_status(state: &AppState) -> TerminalResult<LocalTerminalStatus> {
+    let settings = LocalSettingsRepository::new(state).get().await?;
+    Ok(local::status(state, settings))
+}
+
+pub async fn update_local_terminal(
+    state: &AppState,
+    input: LocalTerminalSettingsInput,
+    force: bool,
+    confirmation_token: Option<&str>,
+) -> TerminalResult<LocalTerminalStatus> {
+    let _target_guard = state.terminal.target_operation(LOCAL_TARGET_ID).await;
+    let repository = LocalSettingsRepository::new(state);
+    let current = repository.get().await?;
+    if current.revision != input.revision {
+        return Err(TerminalError::new(
+            TerminalErrorCode::LocalTerminalRevisionConflict,
+            "local terminal settings were modified by another request",
+        ));
+    }
+    if current.enabled == input.enabled {
+        return Ok(local::status(state, current));
+    }
+    if input.enabled {
+        let current_status = local::status(state, current);
+        if !current_status.supported {
+            return Err(TerminalError::new(
+                TerminalErrorCode::LocalTerminalUnsupported,
+                "local terminal is not supported on this platform",
+            ));
+        }
+        if !current_status.ready {
+            return Err(TerminalError::new(
+                TerminalErrorCode::LocalShellUnavailable,
+                "no supported local login shell is available",
+            ));
+        }
+        if !input.acknowledge_risk {
+            return Err(TerminalError::new(
+                TerminalErrorCode::LocalTerminalRiskAcknowledgementRequired,
+                "local terminal execution risk must be acknowledged",
+            ));
+        }
+    } else {
+        confirm_active_session_mutation(
+            state,
+            LOCAL_TARGET_ID,
+            current.revision,
+            force,
+            confirmation_token,
+        )
+        .await?;
+    }
+    let next = LocalSettingsRecord {
+        enabled: input.enabled,
+        revision: current.revision.saturating_add(1).max(1),
+    };
+    repository.save(next).await?;
+    if !next.enabled {
+        state.terminal.terminate_target(LOCAL_TARGET_ID).await;
+    }
+    let action = if next.enabled {
+        "local_terminal_enabled"
+    } else {
+        "local_terminal_disabled"
+    };
+    audit_event(
+        state,
+        action,
+        Some(LOCAL_TARGET_ID),
+        None,
+        Some(next.revision),
+        None,
+    )
+    .await;
+    tracing::info!(
+        enabled = next.enabled,
+        revision = next.revision,
+        "local terminal setting updated"
+    );
+    Ok(local::status(state, next))
+}
+
 pub async fn create_session(
     state: &AppState,
     target_id: &str,
@@ -559,8 +643,7 @@ pub async fn create_session(
         .terminal
         .start_session(SessionStartup {
             pending,
-            target,
-            credential,
+            backend: SessionStartupBackend::Ssh { target, credential },
             initial_cols: cols,
             initial_rows: rows,
             shutdown: state.shutdown.child_token(),
@@ -575,6 +658,89 @@ pub async fn create_session(
         Some(target_id),
         Some(&session.id),
         Some(target_revision),
+        None,
+    )
+    .await;
+    Ok(session)
+}
+
+pub async fn create_local_session(
+    state: &AppState,
+    input: CreateSessionInput,
+) -> TerminalResult<TerminalSession> {
+    let mut settings_revision = None;
+    let result = create_local_session_inner(state, input, &mut settings_revision).await;
+    if let Err(error) = result.as_ref() {
+        tracing::warn!(
+            target_id = LOCAL_TARGET_ID,
+            error_code = %error.code,
+            "local terminal session creation rejected"
+        );
+        audit_event(
+            state,
+            "session_creation_failed",
+            Some(LOCAL_TARGET_ID),
+            None,
+            settings_revision,
+            Some(error.code),
+        )
+        .await;
+    }
+    result
+}
+
+async fn create_local_session_inner(
+    state: &AppState,
+    input: CreateSessionInput,
+    settings_revision: &mut Option<u64>,
+) -> TerminalResult<TerminalSession> {
+    let target_guard = state.terminal.target_operation(LOCAL_TARGET_ID).await;
+    let descriptor = local::descriptor(state)?;
+    let settings = LocalSettingsRepository::new(state).get().await?;
+    *settings_revision = Some(settings.revision);
+    if !settings.enabled {
+        return Err(TerminalError::new(
+            TerminalErrorCode::LocalTerminalDisabled,
+            "local terminal is disabled",
+        ));
+    }
+    let cols = input.cols.unwrap_or(120).clamp(40, 400);
+    let rows = input.rows.unwrap_or(32).clamp(12, 200);
+    let title = match input.title {
+        Some(title) => sanitize_session_title(&title)?,
+        None => default_local_session_title(state).await,
+    };
+    let pending = state
+        .terminal
+        .begin_session(LOCAL_TARGET_ID.to_string(), title, cols, rows)
+        .await?;
+    let execution_identity = descriptor.execution_identity.clone();
+    let privileged = descriptor.privileged;
+    let session = state
+        .terminal
+        .start_session(SessionStartup {
+            pending,
+            backend: SessionStartupBackend::Local { descriptor },
+            initial_cols: cols,
+            initial_rows: rows,
+            shutdown: state.shutdown.child_token(),
+            target_guard,
+            audit_state: Some(state.clone()),
+        })
+        .await?;
+    tracing::info!(
+        target_id = LOCAL_TARGET_ID,
+        session_id = %session.id,
+        %execution_identity,
+        privileged,
+        "local terminal session creation started"
+    );
+    audit_event(
+        state,
+        "session_creation_started",
+        Some(LOCAL_TARGET_ID),
+        Some(&session.id),
+        Some(settings.revision),
         None,
     )
     .await;
@@ -605,6 +771,18 @@ async fn default_session_title(state: &AppState, target: &TargetRecord) -> Strin
         .filter(|session| session.target_id == target.id)
         .count();
     format!("{} {}", target.name, existing.saturating_add(1))
+}
+
+async fn default_local_session_title(state: &AppState) -> String {
+    let existing = state
+        .terminal
+        .list()
+        .await
+        .sessions
+        .into_iter()
+        .filter(|session| session.target_id == LOCAL_TARGET_ID)
+        .count();
+    format!("Local {}", existing.saturating_add(1))
 }
 
 fn decorate_target(
@@ -965,16 +1143,30 @@ async fn audit_event(
     error_code: Option<TerminalErrorCode>,
 ) {
     let error_code = error_code.map(|code| code.to_string());
-    if let Err(error) = crate::system_events::publish_terminal_audit_event(
-        state,
-        action,
-        target_id,
-        session_id,
-        revision,
-        error_code.as_deref(),
-    )
-    .await
-    {
+    let result = if target_id == Some(LOCAL_TARGET_ID) {
+        let (execution_identity, privileged) = local::audit_context(state);
+        crate::system_events::publish_local_terminal_audit_event(
+            state,
+            action,
+            target_id,
+            session_id,
+            revision,
+            error_code.as_deref(),
+            (&execution_identity, privileged),
+        )
+        .await
+    } else {
+        crate::system_events::publish_terminal_audit_event(
+            state,
+            action,
+            target_id,
+            session_id,
+            revision,
+            error_code.as_deref(),
+        )
+        .await
+    };
+    if let Err(error) = result {
         tracing::warn!(action, %error, "failed to publish terminal audit event");
     }
 }
@@ -1008,6 +1200,7 @@ mod tests {
             crate::settings::Settings::from_env()
         };
         settings.data_dir = directory.path().join("data");
+        settings.runtime_target = "linux".to_string();
         settings.gateway_config_dir = directory.path().join("gateway");
         settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
         settings.legacy_redis_url = String::new();
@@ -1030,6 +1223,160 @@ mod tests {
             action,
             secret: secret.map(str::to_string),
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn local_terminal_defaults_off_and_requires_risk_acknowledgement() {
+        let (_directory, state) = test_state().await;
+        let initial = local_terminal_status(&state).await.unwrap();
+        assert!(initial.supported);
+        assert!(initial.ready);
+        assert!(!initial.enabled);
+        assert_eq!(initial.revision, 0);
+        assert!(initial.shell.is_some());
+
+        let error = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: true,
+                revision: 0,
+                acknowledge_risk: false,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error.code,
+            TerminalErrorCode::LocalTerminalRiskAcknowledgementRequired
+        );
+
+        let enabled = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: true,
+                revision: 0,
+                acknowledge_risk: true,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(enabled.enabled);
+        assert_eq!(enabled.revision, 1);
+        assert_eq!(local_terminal_status(&state).await.unwrap(), enabled);
+
+        let stale = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: false,
+                revision: 0,
+                acknowledge_risk: false,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(stale.code, TerminalErrorCode::LocalTerminalRevisionConflict);
+        state.terminal.shutdown_all().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rejected_local_session_creation_is_audited() {
+        let (_directory, state) = test_state().await;
+        let error = create_local_session(
+            &state,
+            CreateSessionInput {
+                title: None,
+                cols: None,
+                rows: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, TerminalErrorCode::LocalTerminalDisabled);
+
+        let page = state
+            .storage
+            .store
+            .list_system_events(1, 20, "", Some("FN_EVENT_TERMINAL_AUDIT"), None, None)
+            .await
+            .unwrap();
+        let events = page
+            .get("events")
+            .and_then(serde_json::Value::as_array)
+            .expect("terminal audit events");
+        assert!(events.iter().any(|event| {
+            event.get("payload").is_some_and(|payload| {
+                payload.get("action").and_then(serde_json::Value::as_str)
+                    == Some("session_creation_failed")
+                    && payload.get("backend").and_then(serde_json::Value::as_str) == Some("local")
+                    && payload
+                        .get("error_code")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("local_terminal_disabled")
+            })
+        }));
+        state.terminal.shutdown_all().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn disabling_local_terminal_reuses_active_session_confirmation() {
+        let (_directory, state) = test_state().await;
+        let enabled = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: true,
+                revision: 0,
+                acknowledge_risk: true,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+        state
+            .terminal
+            .reserve_active_test_session(LOCAL_TARGET_ID)
+            .await
+            .unwrap();
+
+        let conflict = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: false,
+                revision: enabled.revision,
+                acknowledge_risk: false,
+            },
+            false,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(conflict.code, TerminalErrorCode::Conflict);
+        assert_eq!(conflict.active_session_count, Some(1));
+
+        let disabled = update_local_terminal(
+            &state,
+            LocalTerminalSettingsInput {
+                enabled: false,
+                revision: enabled.revision,
+                acknowledge_risk: false,
+            },
+            true,
+            conflict.confirmation_token.as_deref(),
+        )
+        .await
+        .unwrap();
+        assert!(!disabled.enabled);
+        assert_eq!(state.terminal.active_counts(Some(LOCAL_TARGET_ID)).await, 0);
+        state.terminal.shutdown_all().await;
     }
 
     #[test]

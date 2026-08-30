@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROUTER="${ROOT_DIR}/apps/server-admin-rs/src/app/router.rs"
 ADMIN_CLIENT="${ROOT_DIR}/apps/server-admin-view/src/lib/api/client.ts"
+FPK_CGI="${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi"
+GO_REPOSITORY="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}"
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-cgi-compression.XXXXXX")"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
@@ -56,6 +58,14 @@ assert_contains "${SYNOLOGY_CGI}" 'Content-Encoding' 'Synology compressed respon
 assert_not_contains "${ROUTER}" 'same_origin_middleware' 'retired request-origin middleware'
 assert_not_contains "${ROUTER}" 'browser_request_origin_allowed' 'retired request-origin filter'
 assert_not_contains "${ADMIN_CLIENT}" 'X-Fn-Knock-Browser-Origin' 'retired browser-origin proof header'
+assert_contains "${FPK_CGI}" 'TARGET_HOST=${ADMIN_TARGET_HOST:-"127.0.0.1"}' 'FPK loopback Rust target'
+
+terminal_route_roots=("${ROOT_DIR}/apps" "${ROOT_DIR}/proto")
+[ ! -d "${GO_REPOSITORY}" ] || terminal_route_roots+=("${GO_REPOSITORY}")
+if rg -F '/api/admin/terminal/local' "${terminal_route_roots[@]}" \
+  --glob '*.go' --glob '*.proto' >/dev/null 2>&1; then
+  fail 'local terminal API must not be routed through the Go gateway or gRPC/proto'
+fi
 
 mkdir -p "${WORK_DIR}/bin"
 cat > "${WORK_DIR}/bin/curl" <<'FAKE_CURL'
@@ -64,6 +74,8 @@ header_file=""
 body_file=""
 accept_encoding=""
 target_url=""
+request_method="GET"
+forward_body="false"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -D)
@@ -81,6 +93,11 @@ while [ "$#" -gt 0 ]; do
       shift 2
       ;;
     -X)
+      request_method="$2"
+      shift 2
+      ;;
+    --data-binary)
+      forward_body="true"
       shift 2
       ;;
     *)
@@ -90,6 +107,18 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ "${accept_encoding}" = "${EXPECTED_ACCEPT_ENCODING}" ] || exit 65
+if [ "${forward_body}" = "true" ]; then
+  forwarded_body="$(cat)"
+else
+  forwarded_body=""
+fi
+if [ -n "${CAPTURE_FILE:-}" ]; then
+  {
+    printf 'method=%s\n' "${request_method}"
+    printf 'url=%s\n' "${target_url}"
+    printf 'body=%s\n' "${forwarded_body}"
+  } > "${CAPTURE_FILE}"
+fi
 body='raw-src="/fixture.js"'
 case "${target_url}" in
   */assets/*) content_type='text/javascript; charset=utf-8' ;;
@@ -159,4 +188,47 @@ do
     fail "static asset lost nosniff protection: ${cgi}"
 done
 
-printf '[test-cgi-proxy-contract] CGI forwarding and fnOS WebView compression contract passed\n'
+assert_fpk_terminal_forwarding() {
+  local method="$1" request_uri="$2" query="$3" body="$4" expected_url="$5"
+  local capture_file="${WORK_DIR}/terminal-forwarding.capture"
+  printf '%s' "${body}" | \
+    PATH="${WORK_DIR}/bin:${PATH}" \
+    EXPECTED_ACCEPT_ENCODING='' \
+    CAPTURE_FILE="${capture_file}" \
+    ADMIN_TARGET_HOST='127.0.0.1' \
+    ADMIN_TARGET_PORT='7998' \
+    REQUEST_METHOD="${method}" \
+    REQUEST_URI="${request_uri}" \
+    QUERY_STRING="${query}" \
+      sh "${FPK_CGI}" >/dev/null
+  assert_contains "${capture_file}" "method=${method}" "FPK terminal method forwarding"
+  assert_contains "${capture_file}" "url=${expected_url}" "FPK terminal query forwarding"
+  assert_contains "${capture_file}" "body=${body}" "FPK terminal JSON body forwarding"
+}
+
+assert_fpk_terminal_forwarding \
+  GET \
+  '/cgi/ThirdParty/fn-knock/index.cgi/api/admin/terminal/local' \
+  '' \
+  '' \
+  'http://127.0.0.1:7998/api/admin/terminal/local'
+assert_fpk_terminal_forwarding \
+  PATCH \
+  '/cgi/ThirdParty/fn-knock/index.cgi/api/admin/terminal/local?force=true&confirmationToken=terminal-confirmation' \
+  'force=true&confirmationToken=terminal-confirmation' \
+  '{"enabled":false,"revision":1,"acknowledgeRisk":false}' \
+  'http://127.0.0.1:7998/api/admin/terminal/local?force=true&confirmationToken=terminal-confirmation'
+assert_fpk_terminal_forwarding \
+  POST \
+  '/cgi/ThirdParty/fn-knock/index.cgi/api/admin/terminal/local/sessions' \
+  '' \
+  '{"cols":120,"rows":32}' \
+  'http://127.0.0.1:7998/api/admin/terminal/local/sessions'
+assert_fpk_terminal_forwarding \
+  GET \
+  '/cgi/ThirdParty/fn-knock/index.cgi/api/admin/terminal/attachments/attachment-1/events?after=4&timeoutMs=25000' \
+  'after=4&timeoutMs=25000' \
+  '' \
+  'http://127.0.0.1:7998/api/admin/terminal/attachments/attachment-1/events?after=4&timeoutMs=25000'
+
+printf '[test-cgi-proxy-contract] CGI forwarding, local terminal, and fnOS WebView compression contract passed\n'

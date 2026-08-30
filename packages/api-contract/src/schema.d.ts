@@ -6026,6 +6026,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/terminal/local": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看Web 终端local
+         * @description 管理 Web 终端运行时能力和交互会话。。`GET /api/admin/terminal/local` 用于读取当前状态、配置或导出内容，不会主动修改服务配置。 该操作不要求 JSON 请求体。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        get: operations["get_local_terminal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 修改Web 终端local
+         * @description 管理 Web 终端运行时能力和交互会话。。`PATCH /api/admin/terminal/local` 用于对已有资源进行局部更新；仅提交需要变更的字段。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        patch: operations["update_local_terminal"];
+        trace?: never;
+    };
+    "/api/admin/terminal/local/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 提交Web 终端会话
+         * @description 管理 Web 终端运行时能力和交互会话。。`POST /api/admin/terminal/local/sessions` 用于提交操作或创建、更新服务状态；执行结果以响应中的数据和消息为准。 请求体字段、必填项和可选值请以 Swagger 展开的 schema 为准。 成功响应通常使用标准管理端 JSON 信封，具体 `data` 结构请查看响应 schema。
+         */
+        post: operations["create_local_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/terminal/sessions": {
         parameters: {
             query?: never;
@@ -10587,6 +10631,27 @@ export interface components {
         LdapProvidersData: {
             providers: components["schemas"]["LdapProviderData"][];
         };
+        /** @enum {string} */
+        LocalTerminalBlockedReason: "unsupportedPlatform" | "shellUnavailable";
+        LocalTerminalSettingsInput: {
+            acknowledgeRisk: boolean;
+            enabled: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        LocalTerminalStatus: {
+            blockedReason?: null | components["schemas"]["LocalTerminalBlockedReason"];
+            enabled: boolean;
+            executionIdentity: string;
+            privileged: boolean;
+            ready: boolean;
+            /** Format: int64 */
+            revision: number;
+            shell?: string | null;
+            supported: boolean;
+            targetId: string;
+            workingDirectory?: string | null;
+        };
         LocaleConfigData: {
             /** @enum {string} */
             default_locale: "zh-CN" | "zh-Hant" | "en" | "ko-KR" | "ja-JP";
@@ -11676,6 +11741,8 @@ export interface components {
             lastSeenAt: string;
             subjectHash: string;
         };
+        /** @enum {string} */
+        SessionBackend: "ssh" | "local";
         SessionCommentBody: {
             comment: string;
         };
@@ -11705,7 +11772,7 @@ export interface components {
             lastDriftSource?: string | null;
         };
         /** @enum {string} */
-        SessionPhase: "creating" | "resolving" | "connecting" | "verifyingHostKey" | "authenticating" | "openingChannel" | "requestingPty" | "running" | "closing" | "closed" | "exited" | "lost" | "failed";
+        SessionPhase: "creating" | "openingPty" | "startingShell" | "resolving" | "connecting" | "verifyingHostKey" | "authenticating" | "openingChannel" | "requestingPty" | "running" | "closing" | "closed" | "exited" | "lost" | "failed";
         SessionRecordData: {
             comment?: string | null;
             credentialId?: string | null;
@@ -12572,7 +12639,7 @@ export interface components {
             transport: components["schemas"]["TerminalTransport"];
         };
         /** @enum {string} */
-        TerminalErrorCode: "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
+        TerminalErrorCode: "invalid_request" | "target_not_found" | "session_not_found" | "host_key_required" | "host_key_mismatch" | "authentication_failed" | "pty_rejected" | "session_limit_reached" | "session_lost" | "attachment_expired" | "controller_conflict" | "target_revision_conflict" | "local_terminal_unsupported" | "local_terminal_disabled" | "local_terminal_risk_acknowledgement_required" | "local_terminal_revision_conflict" | "local_shell_unavailable" | "local_pty_start_failed" | "connect_timeout" | "conflict" | "upstream_unavailable" | "internal_error";
         TerminalErrorEnvelope: {
             activeSessionCount?: number | null;
             confirmationToken?: string | null;
@@ -12598,6 +12665,7 @@ export interface components {
         /** @enum {string} */
         TerminalEventType: "output" | "status" | "control";
         TerminalSession: {
+            backend: components["schemas"]["SessionBackend"];
             /** Format: int32 */
             cols: number;
             createdAt: string;
@@ -27984,6 +28052,125 @@ export interface operations {
         };
         responses: {
             /** @description 「调整大小Web 终端附件」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["TerminalSession"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_local_terminal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 「查看Web 终端local」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["LocalTerminalStatus"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    update_local_terminal: {
+        parameters: {
+            query?: {
+                force?: boolean;
+                confirmationToken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocalTerminalSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description 「修改Web 终端local」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["LocalTerminalStatus"];
+                        message?: string | null;
+                        /** @constant */
+                        success: true;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description 接口处理失败时返回标准错误信封；请结合 HTTP 状态、错误消息和服务日志排查。 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerminalErrorEnvelope"];
+                };
+            };
+        };
+    };
+    create_local_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSessionInput"];
+            };
+        };
+        responses: {
+            /** @description 「提交Web 终端会话」成功，返回标准管理端 JSON 信封；具体 data 结构请查看响应 schema。 */
             200: {
                 headers: {
                     [name: string]: unknown;

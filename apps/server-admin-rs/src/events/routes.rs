@@ -323,12 +323,52 @@ pub async fn publish_terminal_audit_event(
     revision: Option<u64>,
     error_code: Option<&str>,
 ) -> anyhow::Result<bool> {
+    publish_terminal_audit_event_with_context(
+        state, action, target_id, session_id, revision, error_code, None,
+    )
+    .await
+}
+
+pub async fn publish_local_terminal_audit_event(
+    state: &AppState,
+    action: &str,
+    target_id: Option<&str>,
+    session_id: Option<&str>,
+    revision: Option<u64>,
+    error_code: Option<&str>,
+    local_context: (&str, bool),
+) -> anyhow::Result<bool> {
+    publish_terminal_audit_event_with_context(
+        state,
+        action,
+        target_id,
+        session_id,
+        revision,
+        error_code,
+        Some(local_context),
+    )
+    .await
+}
+
+async fn publish_terminal_audit_event_with_context(
+    state: &AppState,
+    action: &str,
+    target_id: Option<&str>,
+    session_id: Option<&str>,
+    revision: Option<u64>,
+    error_code: Option<&str>,
+    local_context: Option<(&str, bool)>,
+) -> anyhow::Result<bool> {
     let mut payload = Map::new();
     payload.insert("action".to_string(), Value::String(action.to_string()));
     if let Some(target_id) = target_id.filter(|value| !value.is_empty()) {
         payload.insert(
             "target_id".to_string(),
             Value::String(target_id.to_string()),
+        );
+        payload.insert(
+            "backend".to_string(),
+            Value::String(if target_id == "local" { "local" } else { "ssh" }.to_string()),
         );
     }
     if let Some(session_id) = session_id.filter(|value| !value.is_empty()) {
@@ -345,6 +385,13 @@ pub async fn publish_terminal_audit_event(
             "error_code".to_string(),
             Value::String(error_code.to_string()),
         );
+    }
+    if let Some((execution_identity, privileged)) = local_context {
+        payload.insert(
+            "execution_identity".to_string(),
+            Value::String(execution_identity.to_string()),
+        );
+        payload.insert("privileged".to_string(), Value::Bool(privileged));
     }
     let subject_id = session_id.or(target_id).unwrap_or("terminal");
     publish_system_event_body(

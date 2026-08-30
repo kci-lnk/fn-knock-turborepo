@@ -50,7 +50,10 @@ fn-knock は、リバースプロキシ、アクセス認証、TLS 証明書、D
 | 日常運用                   | システム監視、監査イベント、Web ターミナル、通知、バックアップ、アップデート確認                        |
 | マルチプラットフォーム配布 | fnOS、OpenWrt、Docker、Windows、macOS、Synology DSM、汎用 Linux                                         |
 
-Web ターミナルはすべての fn-knock 配布パッケージで利用できますが、管理者がホストフィンガープリントを明示的に信頼した SSH ターゲットにのみ接続します。fn-knock ホスト上のローカル Shell を直接開くことはありません。対話型 PTY を提供する SSH Server があれば、Linux、macOS、Windows をターゲットにできます。
+Web ターミナルは、管理者がホストフィンガープリントを明示的に信頼した SSH ターゲットを引き続きサポートします。完全版 FPK、汎用 Linux、macOS、OpenWrt ではローカル PTY も有効化できます。ローカル機能は既定で無効で、fn-knock サービスの実効 UID/GID（サービスが root の場合は root 権限）をそのまま継承します。FPK Lite、Synology、Docker、Windows、開発モードではローカルターミナルを提供しません。
+
+> [!WARNING]
+> 有効化前に、表示されるサービス実行ユーザー、Shell、初期ディレクトリを確認してください。権限降格、ユーザー切り替え、localhost SSH は行いません。ブラウザーを閉じてもプロセス内セッションは継続しますが、fn-knock の再起動で終了します。完全版 FPK のターミナル通信は `index.cgi` からループバックの Rust サービスへだけ転送し、fnOS 統一ゲートウェイ、Go/gRPC ルート、WebSocket は使用しません。
 
 ## アーキテクチャ
 

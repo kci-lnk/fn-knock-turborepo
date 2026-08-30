@@ -4825,6 +4825,8 @@ export const jaJPAdmin = {
     statusViewer: "読み取り専用",
     sessionPhase: {
       creating: "セッションを作成中",
+      openingPty: "ローカル PTY を開いています",
+      startingShell: "ローカルシェルを起動中",
       resolving: "ホストを解決中",
       connecting: "接続中",
       verifyingHostKey: "ホスト鍵を検証中",
@@ -4834,13 +4836,13 @@ export const jaJPAdmin = {
       running: "実行中",
       closing: "終了処理中",
       closed: "終了済み",
-      exited: "リモートシェルが終了しました",
+      exited: "シェルが終了しました",
       lost: "接続が失われました",
       failed: "接続に失敗しました",
     },
-    targets: "SSH 接続先",
+    targets: "ターミナル接続先",
     targetsDescription:
-      "SSH 接続先を管理し、ターミナルセッションを選択します。",
+      "ローカルターミナルと SSH 接続先を管理し、セッションを選択します。",
     targetCountSuffix: "件設定済み",
     addTarget: "SSH 接続先を追加",
     editTarget: "SSH 接続先を編集",
@@ -4877,6 +4879,54 @@ export const jaJPAdmin = {
     forceDeleteTargetAction: "セッションを終了して削除",
     expandTargets: "接続先一覧を展開",
     collapseTargets: "接続先一覧を折りたたむ",
+    localTarget: "ローカル",
+    localReady: "利用可能",
+    localLocked: "無効",
+    localSettingsTitle: "ローカルターミナル設定",
+    localSettingsDescription:
+      "シェルはこのマシン上で fn-knock サービスの実行ユーザーとして直接動作します。",
+    executionIdentity: "実行ユーザー",
+    initialDirectory: "初期ディレクトリ",
+    unavailable: "利用不可",
+    localRootRiskTitle: "このターミナルは root として実行されます",
+    localRootRiskDescription:
+      "コマンドはホストに対する完全な権限を持ち、システムやアプリケーションのデータを変更・削除できます。",
+    localRiskTitle: "このターミナルはサービスアカウントで実行されます",
+    localRiskDescription:
+      "コマンドには、このホスト上の fn-knock サービスアカウントの全権限が付与されます。",
+    localRiskAcknowledgement:
+      "有効にすると、ブラウザーターミナルから表示中のサービスユーザー権限でコマンドを実行できることを理解しました。",
+    localDisableConfirmationTitle:
+      "ローカルセッションを終了して無効にしますか？",
+    localDisableConfirmationDescription:
+      "無効にすると、実行中のローカルセッション {count} 件が直ちに終了します。",
+    localTerminateAndDisable: "セッションを終了して無効化",
+    enableLocal: "ローカルターミナルを有効化",
+    disableLocal: "ローカルターミナルを無効化",
+    localEnabled: "ローカルターミナルを有効にしました",
+    localDisabled: "ローカルターミナルを無効にしました",
+    terminalError: {
+      localTerminalUnsupported:
+        "このプラットフォームではローカルターミナルを利用できません。",
+      localTerminalDisabled:
+        "ローカルターミナルは無効です。有効にしてからセッションを作成してください。",
+      localTerminalRiskAcknowledgementRequired:
+        "ローカルターミナルを有効にする前に、サービス実行ユーザーのリスクを確認してください。",
+      localTerminalRevisionConflict:
+        "ローカルターミナル設定が別のリクエストで変更されました。再読み込みしてやり直してください。",
+      localShellUnavailable:
+        "利用可能な実行可能ログインシェルがこのマシンにありません。",
+      localPtyStartFailed:
+        "ローカル PTY またはログインシェルを起動できませんでした。",
+    },
+    localLockedTitle: "ローカルターミナルは無効です",
+    localLockedDescription:
+      "{identity} としてコマンドを実行するリスクを確認してから有効にしてください。",
+    localUnavailableTitle: "ローカルターミナルを利用できません",
+    localUnavailableDescription:
+      "このマシンで対応するログインシェルを検出できませんでした。",
+    localNoSessionsDescription:
+      "fn-knock サービスユーザーでローカルシェルを作成します。ターミナルサービスの実行中は維持されます。",
     noSessions: "この接続先にセッションはありません",
     noSessionsDescription:
       "独立した SSH シェルを作成します。ターミナルサービスの実行中はセッションが維持されます。",
@@ -6662,8 +6712,8 @@ export const jaJPAdmin = {
         "デバイス {target} / SSH ホスト {host}: {result}（{latency} ms）",
       panelSyncStatus: "接続 {connection}: {event}; {message}",
       terminalAuditDescription: "{action}・{resource}{error}",
-      terminalAuditTarget: "SSH ターゲット {target}",
-      terminalAuditSession: "SSH セッション {session}",
+      terminalAuditTarget: "ターミナルターゲット {target}",
+      terminalAuditSession: "ターミナルセッション {session}",
       terminalAuditError: "・エラー {error}",
       terminalAuditActions: {
         target_created: "SSH ターゲットを作成",
@@ -6672,11 +6722,13 @@ export const jaJPAdmin = {
         host_key_confirmed: "ホストフィンガープリントを確認",
         connection_test_succeeded: "SSH 接続テストに成功",
         connection_test_failed: "SSH 接続テストに失敗",
-        session_creation_started: "SSH セッションの作成を開始",
-        session_creation_failed: "SSH セッションの作成に失敗",
-        session_ended: "SSH セッションを終了",
-        session_exited: "リモート Shell が終了",
-        session_lost: "SSH セッションの接続が切断",
+        local_terminal_enabled: "ローカルターミナルを有効化",
+        local_terminal_disabled: "ローカルターミナルを無効化",
+        session_creation_started: "ターミナルセッションの作成を開始",
+        session_creation_failed: "ターミナルセッションの作成に失敗",
+        session_ended: "ターミナルセッションを終了",
+        session_exited: "Shell が終了",
+        session_lost: "ターミナルセッションの接続が切断",
       },
       gatewayThrottleBlocked: "{ip} に {seconds}秒間のレート制限を適用しました",
       gatewayVisibilityBlocked:

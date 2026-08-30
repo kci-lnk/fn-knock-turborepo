@@ -27,6 +27,8 @@ const isTerminalPhase = (phase: TerminalSessionPhase) =>
 
 const phaseOrder: Record<TerminalSessionPhase, number> = {
   creating: 0,
+  openingPty: 1,
+  startingShell: 2,
   resolving: 1,
   connecting: 2,
   verifyingHostKey: 3,

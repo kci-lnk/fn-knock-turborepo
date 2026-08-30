@@ -4838,6 +4838,8 @@ export const enAdmin = {
     statusViewer: "Read-only viewer",
     sessionPhase: {
       creating: "Creating session",
+      openingPty: "Opening local PTY",
+      startingShell: "Starting local shell",
       resolving: "Resolving host",
       connecting: "Connecting",
       verifyingHostKey: "Verifying host key",
@@ -4847,12 +4849,13 @@ export const enAdmin = {
       running: "Running",
       closing: "Closing",
       closed: "Closed",
-      exited: "Remote shell exited",
+      exited: "Shell exited",
       lost: "Connection lost",
       failed: "Connection failed",
     },
-    targets: "SSH targets",
-    targetsDescription: "Manage SSH targets and choose a terminal session.",
+    targets: "Terminal targets",
+    targetsDescription:
+      "Manage the local terminal and SSH targets, then choose a session.",
     targetCountSuffix: "configured",
     addTarget: "Add SSH target",
     editTarget: "Edit SSH target",
@@ -4889,6 +4892,52 @@ export const enAdmin = {
     forceDeleteTargetAction: "End sessions and delete",
     expandTargets: "Expand targets",
     collapseTargets: "Collapse targets",
+    localTarget: "Local",
+    localReady: "Ready",
+    localLocked: "Disabled",
+    localSettingsTitle: "Local terminal settings",
+    localSettingsDescription:
+      "The shell runs directly on this machine as the fn-knock service identity.",
+    executionIdentity: "Execution identity",
+    initialDirectory: "Initial directory",
+    unavailable: "Unavailable",
+    localRootRiskTitle: "This terminal runs as root",
+    localRootRiskDescription:
+      "Commands have unrestricted access to the host. A terminal user can modify or delete system and application data.",
+    localRiskTitle: "This terminal runs as the service account",
+    localRiskDescription:
+      "Commands receive every permission held by the fn-knock service account on this host.",
+    localRiskAcknowledgement:
+      "I understand that enabling this feature grants browser terminal access with the displayed service identity.",
+    localDisableConfirmationTitle: "End local sessions and disable?",
+    localDisableConfirmationDescription:
+      "Disabling the local terminal will immediately end {count} active local session(s).",
+    localTerminateAndDisable: "End sessions and disable",
+    enableLocal: "Enable local terminal",
+    disableLocal: "Disable local terminal",
+    localEnabled: "Local terminal enabled",
+    localDisabled: "Local terminal disabled",
+    terminalError: {
+      localTerminalUnsupported:
+        "Local terminal is not supported on this platform.",
+      localTerminalDisabled:
+        "Local terminal is disabled. Enable it before creating a session.",
+      localTerminalRiskAcknowledgementRequired:
+        "Confirm the service-identity risk before enabling the local terminal.",
+      localTerminalRevisionConflict:
+        "Local terminal settings changed in another request. Reload and try again.",
+      localShellUnavailable:
+        "No supported executable login shell is available on this machine.",
+      localPtyStartFailed: "The local PTY or login shell could not be started.",
+    },
+    localLockedTitle: "Local terminal is disabled",
+    localLockedDescription:
+      "Enable it after reviewing the risk of running commands as {identity}.",
+    localUnavailableTitle: "Local terminal is unavailable",
+    localUnavailableDescription:
+      "No supported login shell could be resolved on this machine.",
+    localNoSessionsDescription:
+      "Create a local shell using the fn-knock service identity. It stays alive while the terminal service is running.",
     noSessions: "No sessions on this target",
     noSessionsDescription:
       "Create an independent SSH shell. It stays alive while the terminal service is running.",
@@ -6669,8 +6718,8 @@ export const enAdmin = {
         "Device {target} via SSH host {host}: {result} ({latency} ms)",
       panelSyncStatus: "Connection {connection}: {event}; {message}",
       terminalAuditDescription: "{action} · {resource}{error}",
-      terminalAuditTarget: "SSH target {target}",
-      terminalAuditSession: "SSH session {session}",
+      terminalAuditTarget: "Terminal target {target}",
+      terminalAuditSession: "Terminal session {session}",
       terminalAuditError: " · error {error}",
       terminalAuditActions: {
         target_created: "SSH target created",
@@ -6679,11 +6728,13 @@ export const enAdmin = {
         host_key_confirmed: "Host fingerprint confirmed",
         connection_test_succeeded: "SSH connection test succeeded",
         connection_test_failed: "SSH connection test failed",
-        session_creation_started: "SSH session creation started",
-        session_creation_failed: "SSH session creation failed",
-        session_ended: "SSH session ended",
-        session_exited: "Remote shell exited",
-        session_lost: "SSH session lost",
+        local_terminal_enabled: "Local terminal enabled",
+        local_terminal_disabled: "Local terminal disabled",
+        session_creation_started: "Terminal session creation started",
+        session_creation_failed: "Terminal session creation failed",
+        session_ended: "Terminal session ended",
+        session_exited: "Shell exited",
+        session_lost: "Terminal session lost",
       },
       gatewayThrottleBlocked: "{ip} triggered throttling for {seconds}s",
       gatewayVisibilityBlocked:

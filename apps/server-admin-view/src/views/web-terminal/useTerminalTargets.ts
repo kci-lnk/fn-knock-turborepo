@@ -1,9 +1,11 @@
 import { computed, ref } from "vue";
 import {
   TerminalAPI,
+  type TerminalDestination,
   type TerminalErrorCode,
+  type TerminalLocalStatus,
+  type TerminalSshDestination,
   type TerminalTargetCreateInput,
-  type TerminalTargetRecord,
   type TerminalTargetUpdateInput,
 } from "@/lib/api/terminal";
 import { extractTerminalError } from "./terminal-errors";
@@ -29,9 +31,11 @@ const newOperationSlot = (): OperationSlot => ({
 });
 
 export const useTerminalTargets = () => {
-  const targets = ref<TerminalTargetRecord[]>([]);
+  const sshTargets = ref<TerminalSshDestination[]>([]);
+  const localStatus = ref<TerminalLocalStatus | null>(null);
   const selectedTargetId = ref("");
   const loading = ref(false);
+  const updatingLocal = ref(false);
   const error = ref("");
   const errorCode = ref<TerminalErrorCode | null>(null);
   let loadGeneration = 0;
@@ -39,6 +43,24 @@ export const useTerminalTargets = () => {
   const createOperation = newOperationSlot();
   const updateOperation = newOperationSlot();
   const deleteOperation = newOperationSlot();
+  const localOperation = newOperationSlot();
+
+  const targets = computed<TerminalDestination[]>(() => {
+    const local = localStatus.value;
+    return [
+      ...(local?.supported
+        ? [
+            {
+              ...local,
+              id: "local" as const,
+              kind: "local" as const,
+              name: "Local" as const,
+            },
+          ]
+        : []),
+      ...sshTargets.value,
+    ];
+  });
 
   const beginOperation = (slot: OperationSlot) => {
     slot.generation += 1;
@@ -57,6 +79,7 @@ export const useTerminalTargets = () => {
     cancelOperation(createOperation);
     cancelOperation(updateOperation);
     cancelOperation(deleteOperation);
+    cancelOperation(localOperation);
   };
   const cancelEdits = () => {
     cancelOperation(createOperation);
@@ -108,9 +131,27 @@ export const useTerminalTargets = () => {
     error.value = "";
     errorCode.value = null;
     try {
-      const result = await TerminalAPI.listTargets(loadController.signal);
-      if (generation !== loadGeneration) return;
-      targets.value = result;
+      const [localResult, sshResult] = await Promise.allSettled([
+        TerminalAPI.getLocalStatus(loadController.signal),
+        TerminalAPI.listTargets(loadController.signal),
+      ]);
+      if (generation !== loadGeneration || loadController.signal.aborted)
+        return;
+      if (sshResult.status === "rejected") throw sshResult.reason;
+      sshTargets.value = sshResult.value.map((target) => ({
+        ...target,
+        kind: "ssh",
+      }));
+      if (localResult.status === "fulfilled") {
+        localStatus.value = localResult.value;
+      } else {
+        // The local backend is optional. Fail it closed without hiding SSH
+        // destinations that were loaded successfully.
+        localStatus.value = null;
+        const failure = extractTerminalError(localResult.reason);
+        error.value = failure.message;
+        errorCode.value = failure.errorCode;
+      }
       reconcileSelection();
     } catch (reason) {
       if (generation !== loadGeneration || loadController.signal.aborted)
@@ -133,7 +174,7 @@ export const useTerminalTargets = () => {
       if (!isCurrent(createOperation, operation.generation)) {
         throw new DOMException("Aborted", "AbortError");
       }
-      targets.value = [...targets.value, created];
+      sshTargets.value = [...sshTargets.value, { ...created, kind: "ssh" }];
       commitSelection(created.id);
       return created;
     } catch (reason) {
@@ -166,8 +207,8 @@ export const useTerminalTargets = () => {
       if (!isCurrent(updateOperation, operation.generation)) {
         throw new DOMException("Aborted", "AbortError");
       }
-      targets.value = targets.value.map((target) =>
-        target.id === updated.id ? updated : target,
+      sshTargets.value = sshTargets.value.map((target) =>
+        target.id === updated.id ? { ...updated, kind: "ssh" } : target,
       );
       return updated;
     } catch (reason) {
@@ -198,7 +239,9 @@ export const useTerminalTargets = () => {
         operation.signal,
       );
       if (!isCurrent(deleteOperation, operation.generation)) return;
-      targets.value = targets.value.filter((target) => target.id !== targetId);
+      sshTargets.value = sshTargets.value.filter(
+        (target) => target.id !== targetId,
+      );
       reconcileSelection();
     } catch (reason) {
       if (isCurrent(deleteOperation, operation.generation)) {
@@ -207,6 +250,49 @@ export const useTerminalTargets = () => {
         errorCode.value = failure.errorCode;
       }
       throw reason;
+    }
+  };
+
+  const updateLocalTerminal = async (
+    enabled: boolean,
+    acknowledgeRisk = false,
+    force = false,
+    confirmationToken?: string,
+  ) => {
+    const status = localStatus.value;
+    if (!status) throw new Error("local terminal status is unavailable");
+    const operation = beginOperation(localOperation);
+    updatingLocal.value = true;
+    error.value = "";
+    errorCode.value = null;
+    try {
+      const updated = await TerminalAPI.updateLocalStatus(
+        {
+          enabled,
+          revision: status.revision,
+          acknowledgeRisk,
+        },
+        force,
+        confirmationToken,
+        operation.signal,
+      );
+      if (!isCurrent(localOperation, operation.generation)) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      localStatus.value = updated;
+      reconcileSelection();
+      return updated;
+    } catch (reason) {
+      if (isCurrent(localOperation, operation.generation)) {
+        const failure = extractTerminalError(reason);
+        error.value = failure.message;
+        errorCode.value = failure.errorCode;
+      }
+      throw reason;
+    } finally {
+      if (isCurrent(localOperation, operation.generation)) {
+        updatingLocal.value = false;
+      }
     }
   };
 
@@ -226,11 +312,14 @@ export const useTerminalTargets = () => {
     error,
     errorCode,
     loadTargets,
+    localStatus,
     loading,
     selectedTarget,
     selectedTargetId,
     selectTarget,
     targets,
+    updateLocalTerminal,
+    updatingLocal,
     updateTarget,
   };
 };

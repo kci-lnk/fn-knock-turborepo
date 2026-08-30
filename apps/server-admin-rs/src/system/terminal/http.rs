@@ -78,6 +78,8 @@ where
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(get_local_terminal, update_local_terminal))
+        .routes(routes!(create_local_session))
         .routes(routes!(list_targets, create_target))
         .routes(routes!(get_target, update_target, delete_target))
         .routes(routes!(probe_host_key))
@@ -91,6 +93,36 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(resize))
         .routes(routes!(claim_control))
         .routes(routes!(delete_attachment))
+}
+
+#[utoipa::path(get, path = "/api/admin/terminal/local", tag = "terminal", responses((status = 200, body = LocalTerminalStatus)))]
+async fn get_local_terminal(State(state): State<AppState>) -> Response {
+    result(service::local_terminal_status(&state).await)
+}
+
+#[utoipa::path(patch, path = "/api/admin/terminal/local", tag = "terminal", params(ForceQuery), request_body = LocalTerminalSettingsInput, responses((status = 200, body = LocalTerminalStatus), (status = 400, body = TerminalErrorEnvelope), (status = 409, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
+async fn update_local_terminal(
+    State(state): State<AppState>,
+    TerminalQuery(query): TerminalQuery<ForceQuery>,
+    TerminalJson(input): TerminalJson<LocalTerminalSettingsInput>,
+) -> Response {
+    result(
+        service::update_local_terminal(
+            &state,
+            input,
+            query.force,
+            query.confirmation_token.as_deref(),
+        )
+        .await,
+    )
+}
+
+#[utoipa::path(post, path = "/api/admin/terminal/local/sessions", tag = "terminal", request_body = CreateSessionInput, responses((status = 200, body = TerminalSession), (status = 409, body = TerminalErrorEnvelope), (status = 502, body = TerminalErrorEnvelope), (status = 503, body = TerminalErrorEnvelope)))]
+async fn create_local_session(
+    State(state): State<AppState>,
+    TerminalJson(input): TerminalJson<CreateSessionInput>,
+) -> Response {
+    result(service::create_local_session(&state, input).await)
 }
 
 #[utoipa::path(get, path = "/api/admin/terminal/targets", tag = "terminal", responses((status = 200, body = [TerminalTarget])))]
@@ -308,9 +340,10 @@ pub struct TerminalErrorEnvelope {
 
 fn terminal_error(error: TerminalError) -> Response {
     let status = match error.code {
-        TerminalErrorCode::InvalidRequest | TerminalErrorCode::HostKeyRequired => {
-            StatusCode::BAD_REQUEST
-        }
+        TerminalErrorCode::InvalidRequest
+        | TerminalErrorCode::HostKeyRequired
+        | TerminalErrorCode::LocalTerminalUnsupported
+        | TerminalErrorCode::LocalTerminalRiskAcknowledgementRequired => StatusCode::BAD_REQUEST,
         TerminalErrorCode::TargetNotFound | TerminalErrorCode::SessionNotFound => {
             StatusCode::NOT_FOUND
         }
@@ -318,13 +351,16 @@ fn terminal_error(error: TerminalError) -> Response {
         TerminalErrorCode::HostKeyMismatch
         | TerminalErrorCode::ControllerConflict
         | TerminalErrorCode::TargetRevisionConflict
+        | TerminalErrorCode::LocalTerminalDisabled
+        | TerminalErrorCode::LocalTerminalRevisionConflict
         | TerminalErrorCode::SessionLimitReached
         | TerminalErrorCode::SessionLost
         | TerminalErrorCode::Conflict => StatusCode::CONFLICT,
         TerminalErrorCode::AuthenticationFailed => StatusCode::UNAUTHORIZED,
-        TerminalErrorCode::PtyRejected | TerminalErrorCode::UpstreamUnavailable => {
-            StatusCode::BAD_GATEWAY
-        }
+        TerminalErrorCode::PtyRejected
+        | TerminalErrorCode::LocalPtyStartFailed
+        | TerminalErrorCode::UpstreamUnavailable => StatusCode::BAD_GATEWAY,
+        TerminalErrorCode::LocalShellUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         TerminalErrorCode::ConnectTimeout => StatusCode::GATEWAY_TIMEOUT,
         TerminalErrorCode::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
     };
@@ -366,5 +402,40 @@ mod tests {
         let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(body["success"], false);
         assert_eq!(body["errorCode"], "invalid_request");
+    }
+
+    #[test]
+    fn local_terminal_failures_use_stable_http_statuses() {
+        for (code, expected) in [
+            (
+                TerminalErrorCode::LocalTerminalUnsupported,
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                TerminalErrorCode::LocalTerminalRiskAcknowledgementRequired,
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                TerminalErrorCode::LocalTerminalDisabled,
+                StatusCode::CONFLICT,
+            ),
+            (
+                TerminalErrorCode::LocalTerminalRevisionConflict,
+                StatusCode::CONFLICT,
+            ),
+            (
+                TerminalErrorCode::LocalShellUnavailable,
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                TerminalErrorCode::LocalPtyStartFailed,
+                StatusCode::BAD_GATEWAY,
+            ),
+        ] {
+            assert_eq!(
+                terminal_error(TerminalError::new(code, "test")).status(),
+                expected
+            );
+        }
     }
 }

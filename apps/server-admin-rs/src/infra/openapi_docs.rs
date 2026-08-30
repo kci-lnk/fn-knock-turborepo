@@ -2090,6 +2090,33 @@ pub(crate) fn build_openapi_document() -> Value {
     insert_typed_enveloped_operation(
         &mut paths,
         &typed_terminal_runtime,
+        "/api/admin/terminal/local",
+        "get",
+        "LocalTerminalStatus",
+        None,
+        None,
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/local",
+        "patch",
+        "LocalTerminalStatus",
+        None,
+        Some("LocalTerminalSettingsInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
+        "/api/admin/terminal/local/sessions",
+        "post",
+        "TerminalSession",
+        None,
+        Some("CreateSessionInput"),
+    );
+    insert_typed_enveloped_operation(
+        &mut paths,
+        &typed_terminal_runtime,
         "/api/admin/terminal/targets",
         "post",
         "TerminalTarget",
@@ -2248,6 +2275,9 @@ pub(crate) fn build_openapi_document() -> Value {
         None,
     );
     for (method, path) in [
+        ("get", "/api/admin/terminal/local"),
+        ("patch", "/api/admin/terminal/local"),
+        ("post", "/api/admin/terminal/local/sessions"),
         ("get", "/api/admin/terminal/targets"),
         ("post", "/api/admin/terminal/targets"),
         ("get", "/api/admin/terminal/targets/{id}"),

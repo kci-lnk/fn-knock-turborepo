@@ -2465,11 +2465,13 @@
           "hostKeyConfirmed": "已确认主机指纹",
           "connectionTestSucceeded": "SSH 连接测试成功",
           "connectionTestFailed": "SSH 连接测试失败",
-          "sessionCreationStarted": "已开始创建 SSH 会话",
-          "sessionCreationFailed": "SSH 会话创建失败",
-          "sessionEnded": "SSH 会话已结束",
-          "sessionExited": "远端 Shell 已退出",
-          "sessionLost": "SSH 会话连接丢失"
+          "localTerminalEnabled": "已启用本机终端",
+          "localTerminalDisabled": "已禁用本机终端",
+          "sessionCreationStarted": "已开始创建终端会话",
+          "sessionCreationFailed": "终端会话创建失败",
+          "sessionEnded": "终端会话已结束",
+          "sessionExited": "Shell 已退出",
+          "sessionLost": "终端会话连接丢失"
         }
       },
       "providers": {
@@ -5670,11 +5672,13 @@
           "hostKeyConfirmed": "已確認主機指紋",
           "connectionTestSucceeded": "SSH 連線測試成功",
           "connectionTestFailed": "SSH 連線測試失敗",
-          "sessionCreationStarted": "已開始建立 SSH 工作階段",
-          "sessionCreationFailed": "SSH 工作階段建立失敗",
-          "sessionEnded": "SSH 工作階段已結束",
-          "sessionExited": "遠端 Shell 已結束",
-          "sessionLost": "SSH 工作階段連線遺失"
+          "localTerminalEnabled": "已啟用本機終端",
+          "localTerminalDisabled": "已停用本機終端",
+          "sessionCreationStarted": "已開始建立終端工作階段",
+          "sessionCreationFailed": "終端工作階段建立失敗",
+          "sessionEnded": "終端工作階段已結束",
+          "sessionExited": "Shell 已結束",
+          "sessionLost": "終端工作階段連線遺失"
         }
       },
       "providers": {
@@ -8875,11 +8879,13 @@
           "hostKeyConfirmed": "Host fingerprint confirmed",
           "connectionTestSucceeded": "SSH connection test succeeded",
           "connectionTestFailed": "SSH connection test failed",
-          "sessionCreationStarted": "SSH session creation started",
-          "sessionCreationFailed": "SSH session creation failed",
-          "sessionEnded": "SSH session ended",
-          "sessionExited": "Remote shell exited",
-          "sessionLost": "SSH session lost"
+          "localTerminalEnabled": "Local terminal enabled",
+          "localTerminalDisabled": "Local terminal disabled",
+          "sessionCreationStarted": "Terminal session creation started",
+          "sessionCreationFailed": "Terminal session creation failed",
+          "sessionEnded": "Terminal session ended",
+          "sessionExited": "Shell exited",
+          "sessionLost": "Terminal session lost"
         }
       },
       "providers": {
@@ -12080,11 +12086,13 @@
           "hostKeyConfirmed": "호스트 지문 확인",
           "connectionTestSucceeded": "SSH 연결 테스트 성공",
           "connectionTestFailed": "SSH 연결 테스트 실패",
-          "sessionCreationStarted": "SSH 세션 생성 시작",
-          "sessionCreationFailed": "SSH 세션 생성 실패",
-          "sessionEnded": "SSH 세션 종료",
-          "sessionExited": "원격 Shell 종료",
-          "sessionLost": "SSH 세션 연결 끊김"
+          "localTerminalEnabled": "로컬 터미널 활성화",
+          "localTerminalDisabled": "로컬 터미널 비활성화",
+          "sessionCreationStarted": "터미널 세션 생성 시작",
+          "sessionCreationFailed": "터미널 세션 생성 실패",
+          "sessionEnded": "터미널 세션 종료",
+          "sessionExited": "Shell 종료",
+          "sessionLost": "터미널 세션 연결 끊김"
         }
       },
       "providers": {
@@ -15285,11 +15293,13 @@
           "hostKeyConfirmed": "ホストフィンガープリントを確認",
           "connectionTestSucceeded": "SSH 接続テストに成功",
           "connectionTestFailed": "SSH 接続テストに失敗",
-          "sessionCreationStarted": "SSH セッションの作成を開始",
-          "sessionCreationFailed": "SSH セッションの作成に失敗",
-          "sessionEnded": "SSH セッションを終了",
-          "sessionExited": "リモート Shell が終了",
-          "sessionLost": "SSH セッションの接続が切断"
+          "localTerminalEnabled": "ローカルターミナルを有効化",
+          "localTerminalDisabled": "ローカルターミナルを無効化",
+          "sessionCreationStarted": "ターミナルセッションの作成を開始",
+          "sessionCreationFailed": "ターミナルセッションの作成に失敗",
+          "sessionEnded": "ターミナルセッションを終了",
+          "sessionExited": "Shell が終了",
+          "sessionLost": "ターミナルセッションの接続が切断"
         }
       },
       "providers": {

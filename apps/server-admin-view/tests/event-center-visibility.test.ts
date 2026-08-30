@@ -211,6 +211,9 @@ describe("terminal audit system event", () => {
       assert.ok(catalog.eventCenter.events.terminalAuditDescription);
       assert.ok(catalog.eventCenter.events.terminalAuditActions.session_lost);
       assert.ok(
+        catalog.eventCenter.events.terminalAuditActions.local_terminal_enabled,
+      );
+      assert.ok(
         catalog.eventCenter.events.terminalAuditActions.session_creation_failed,
       );
       assert.ok(catalog.eventCenter.events.detailFields.error_code);

@@ -8,6 +8,8 @@ const terminalAuditActions = new Set([
   "host_key_confirmed",
   "connection_test_succeeded",
   "connection_test_failed",
+  "local_terminal_enabled",
+  "local_terminal_disabled",
   "session_creation_started",
   "session_creation_failed",
   "session_ended",

@@ -2,7 +2,7 @@ use std::fs;
 
 use super::{
     domain::{
-        AttachmentRole, AuthMethod, SessionPhase, TerminalErrorCode, TerminalEvent,
+        AttachmentRole, AuthMethod, SessionBackend, SessionPhase, TerminalErrorCode, TerminalEvent,
         TerminalEventType,
     },
     secrets::{CredentialKind, TerminalSecretStore},
@@ -17,6 +17,14 @@ fn serializes_stable_wire_enums() {
     assert_eq!(
         serde_json::to_string(&SessionPhase::VerifyingHostKey).unwrap(),
         r#""verifyingHostKey""#
+    );
+    assert_eq!(
+        serde_json::to_string(&SessionPhase::OpeningPty).unwrap(),
+        r#""openingPty""#
+    );
+    assert_eq!(
+        serde_json::to_string(&SessionBackend::Local).unwrap(),
+        r#""local""#
     );
     assert_eq!(
         serde_json::to_string(&TerminalErrorCode::HostKeyRequired).unwrap(),

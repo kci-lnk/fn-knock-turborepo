@@ -23,6 +23,10 @@ export type TerminalConnectionTestInput =
   TerminalSchemas["TerminalTestConnectionInput"];
 export type TerminalConnectionTestResult =
   TerminalSchemas["ConnectionTestResult"];
+export type TerminalLocalStatus = TerminalSchemas["LocalTerminalStatus"];
+export type TerminalLocalSettingsInput =
+  TerminalSchemas["LocalTerminalSettingsInput"];
+export type TerminalSessionBackend = TerminalSchemas["SessionBackend"];
 export type TerminalSessionRecord = TerminalSchemas["TerminalSession"];
 export type TerminalSessionListResult = TerminalSchemas["SessionListResult"];
 export type TerminalAttachmentRecord = TerminalSchemas["TerminalAttachment"];
@@ -69,6 +73,15 @@ export type TerminalResizeBody = TerminalSchemas["ResizeRequest"];
 export type TerminalClaimControlBody = TerminalSchemas["ClaimControlRequest"];
 export type TerminalRenameSessionInput = TerminalSchemas["RenameSessionInput"];
 
+export type TerminalSshDestination = TerminalTargetRecord & { kind: "ssh" };
+export type TerminalLocalDestination = TerminalLocalStatus & {
+  id: "local";
+  kind: "local";
+  name: "Local";
+};
+export type TerminalDestination =
+  TerminalLocalDestination | TerminalSshDestination;
+
 const targetPath = (id: string) =>
   `/terminal/targets/${encodeURIComponent(id)}`;
 const sessionPath = (id: string) =>
@@ -77,6 +90,27 @@ const attachmentPath = (id: string) =>
   `/terminal/attachments/${encodeURIComponent(id)}`;
 
 export const TerminalAPI = {
+  async getLocalStatus(signal?: AbortSignal): Promise<TerminalLocalStatus> {
+    const response = await apiClient.get("/terminal/local", { signal });
+    return response.data.data;
+  },
+
+  async updateLocalStatus(
+    payload: TerminalLocalSettingsInput,
+    force = false,
+    confirmationToken?: string,
+    signal?: AbortSignal,
+  ): Promise<TerminalLocalStatus> {
+    const response = await apiClient.patch("/terminal/local", payload, {
+      params: {
+        force,
+        ...(confirmationToken ? { confirmationToken } : {}),
+      },
+      signal,
+    });
+    return response.data.data;
+  },
+
   async listTargets(signal?: AbortSignal): Promise<TerminalTargetRecord[]> {
     const response = await apiClient.get("/terminal/targets", { signal });
     return response.data.data;
@@ -168,11 +202,29 @@ export const TerminalAPI = {
     payload: TerminalCreateSessionInput,
     signal?: AbortSignal,
   ): Promise<TerminalSessionRecord> {
+    if (targetId === "local") {
+      const response = await apiClient.post(
+        "/terminal/local/sessions",
+        payload,
+        { signal },
+      );
+      return response.data.data;
+    }
     const response = await apiClient.post(
       `${targetPath(targetId)}/sessions`,
       payload,
       { signal },
     );
+    return response.data.data;
+  },
+
+  async createLocalSession(
+    payload: TerminalCreateSessionInput,
+    signal?: AbortSignal,
+  ): Promise<TerminalSessionRecord> {
+    const response = await apiClient.post("/terminal/local/sessions", payload, {
+      signal,
+    });
     return response.data.data;
   },
 

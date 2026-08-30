@@ -10,7 +10,7 @@ import zhHantMessages from "../../../packages/i18n/src/messages/scopes/admin/zh-
 const readSource = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-describe("SSH terminal frontend architecture", () => {
+describe("Web terminal frontend architecture", () => {
   it("keeps page orchestration split by responsibility", () => {
     const page = readSource("../src/views/web-terminal/useWebTerminalPage.ts");
     for (const composable of [
@@ -19,6 +19,7 @@ describe("SSH terminal frontend architecture", () => {
       "useTerminalSessions",
       "useTerminalAttachment",
       "useTerminalEmulator",
+      "useTerminalLocalSettings",
       "useTerminalViewport",
     ]) {
       assert.match(page, new RegExp(`${composable}\\(`, "u"), composable);
@@ -36,7 +37,7 @@ describe("SSH terminal frontend architecture", () => {
     assert.ok(output > reset);
   });
 
-  it("keeps pre-running SSH phases read-only", () => {
+  it("keeps pre-running SSH and local PTY phases read-only", () => {
     const attachment = readSource(
       "../src/views/web-terminal/useTerminalAttachment.ts",
     );
@@ -47,6 +48,27 @@ describe("SSH terminal frontend architecture", () => {
     assert.match(attachment, /livePhase\.value === "running"/);
     assert.match(attachment, /livePhase\.value = event\.phase/);
     assert.match(attachment, /livePhase\.value = session\.phase/);
+  });
+
+  it("pins the fixed local destination and keeps it out of SSH target mutations", () => {
+    const targets = readSource(
+      "../src/views/web-terminal/useTerminalTargets.ts",
+    );
+    const targetList = readSource(
+      "../src/views/web-terminal/TerminalTargetList.vue",
+    );
+    const localDialog = readSource(
+      "../src/views/web-terminal/TerminalLocalSettingsDialog.vue",
+    );
+    assert.match(targets, /local\?\.supported/u);
+    assert.match(targets, /\.\.\.sshTargets\.value/u);
+    assert.match(targets, /id: "local" as const/u);
+    assert.match(targetList, /target\.kind === 'local'/u);
+    assert.match(targetList, /v-if="target\.kind === 'ssh'"/u);
+    assert.match(targetList, /emit\('configureLocal'/u);
+    assert.match(localDialog, /localStatus\.privileged/u);
+    assert.match(localDialog, /localRootRiskTitle/u);
+    assert.match(localDialog, /localRiskAcknowledged/u);
   });
 
   it("reconciles session selection after targets and sessions bootstrap", () => {
@@ -281,7 +303,7 @@ describe("SSH terminal frontend architecture", () => {
     assert.match(refresh, /sessionExists\(previousSessionId\)/u);
   });
 
-  it("localizes every SSH connection phase instead of rendering raw enums", () => {
+  it("localizes every SSH and local PTY phase instead of rendering raw enums", () => {
     const presentation = readSource(
       "../src/views/web-terminal/useTerminalPresentation.ts",
     );

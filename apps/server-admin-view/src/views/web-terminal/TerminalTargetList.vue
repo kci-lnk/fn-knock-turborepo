@@ -6,13 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   LoaderCircle,
+  Laptop,
+  LockKeyhole,
   Pencil,
   Plus,
   Server,
+  Settings2,
+  ShieldAlert,
   SquareTerminal,
   Trash2,
 } from "lucide-vue-next";
 import type {
+  TerminalDestination,
   TerminalSessionRecord,
   TerminalTargetRecord,
 } from "@/lib/api/terminal";
@@ -24,13 +29,14 @@ const props = defineProps<{
   selectedSessionId: string;
   selectedTargetId: string;
   sessions: TerminalSessionRecord[];
-  targets: TerminalTargetRecord[];
+  targets: TerminalDestination[];
 }>();
 
 const emit = defineEmits<{
   add: [];
   delete: [target: TerminalTargetRecord];
   edit: [target: TerminalTargetRecord];
+  configureLocal: [];
   selectSession: [sessionId: string];
   select: [targetId: string];
 }>();
@@ -38,6 +44,8 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const activePhases = new Set([
   "creating",
+  "openingPty",
+  "startingShell",
   "resolving",
   "connecting",
   "verifyingHostKey",
@@ -96,7 +104,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
     >
       <div v-if="!collapsed" class="min-w-0">
         <p class="truncate text-sm font-semibold">
-          {{ t("admin.webTerminal.targets", "SSH targets") }}
+          {{ t("admin.webTerminal.targets", "Terminal targets") }}
         </p>
         <p class="text-[11px] text-muted-foreground">
           {{ targets.length }}
@@ -162,16 +170,27 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             'flex w-full items-center text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
             collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2.5 pr-20',
           ]"
-          :aria-label="target.name"
+          :aria-label="
+            target.kind === 'local'
+              ? t('admin.webTerminal.localTarget')
+              : target.name
+          "
           :title="
             collapsed
-              ? `${target.name} — ${target.username}@${target.host}`
+              ? target.kind === 'local'
+                ? `${t('admin.webTerminal.localTarget')} — ${target.executionIdentity}`
+                : `${target.name} — ${target.username}@${target.host}`
               : undefined
           "
           @click="emit('select', target.id)"
         >
           <span class="relative shrink-0">
-            <Server class="h-4 w-4" />
+            <Laptop v-if="target.kind === 'local'" class="h-4 w-4" />
+            <Server v-else class="h-4 w-4" />
+            <LockKeyhole
+              v-if="target.kind === 'local' && !target.enabled"
+              class="absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full bg-background text-amber-600"
+            />
             <span
               v-if="activeCount(target.id)"
               class="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-background bg-emerald-500"
@@ -180,7 +199,9 @@ const sessionStatus = (session: TerminalSessionRecord) => {
           <span v-if="!collapsed" class="min-w-0 flex-1">
             <span class="flex items-center gap-1.5">
               <span class="truncate text-xs font-medium">{{
-                target.name
+                target.kind === "local"
+                  ? t("admin.webTerminal.localTarget")
+                  : target.name
               }}</span>
               <Badge
                 v-if="activeCount(target.id)"
@@ -193,7 +214,17 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             <span
               class="mt-0.5 block truncate text-[10px] text-muted-foreground"
             >
-              {{ target.username }}@{{ target.host }}:{{ target.port }}
+              <template v-if="target.kind === 'local'">
+                {{ target.executionIdentity }} ·
+                {{
+                  target.enabled
+                    ? t("admin.webTerminal.localReady")
+                    : t("admin.webTerminal.localLocked")
+                }}
+              </template>
+              <template v-else>
+                {{ target.username }}@{{ target.host }}:{{ target.port }}
+              </template>
             </span>
           </span>
         </button>
@@ -203,6 +234,19 @@ const sessionStatus = (session: TerminalSessionRecord) => {
           class="absolute right-1.5 top-1.5 flex opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <Button
+            v-if="target.kind === 'local'"
+            size="icon-sm"
+            variant="ghost"
+            :class="target.privileged ? 'text-amber-600' : ''"
+            :aria-label="t('admin.webTerminal.localSettingsTitle')"
+            :title="t('admin.webTerminal.localSettingsTitle')"
+            @click.stop="emit('configureLocal')"
+          >
+            <ShieldAlert v-if="target.privileged" class="h-3.5 w-3.5" />
+            <Settings2 v-else class="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            v-if="target.kind === 'ssh'"
             size="icon-sm"
             variant="ghost"
             :aria-label="t('common.edit')"
@@ -212,6 +256,7 @@ const sessionStatus = (session: TerminalSessionRecord) => {
             <Pencil class="h-3.5 w-3.5" />
           </Button>
           <ConfirmDangerPopover
+            v-if="target.kind === 'ssh'"
             :title="
               t('admin.webTerminal.deleteTargetTitle', 'Delete SSH target?')
             "

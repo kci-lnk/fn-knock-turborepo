@@ -17,11 +17,13 @@ use crate::time_utils::{iso_after_seconds, now_iso};
 
 use super::{
     domain::{
-        AttachmentRole, EventsResult, SessionListResult, SessionPhase, TerminalAttachment,
-        TerminalError, TerminalErrorCode, TerminalEvent, TerminalEventType, TerminalResult,
-        TerminalSession, TerminalTransport,
+        AttachmentRole, EventsResult, SessionBackend, SessionListResult, SessionPhase,
+        TerminalAttachment, TerminalError, TerminalErrorCode, TerminalEvent, TerminalEventType,
+        TerminalResult, TerminalSession, TerminalTransport,
     },
-    ssh::{BoxedShell, RusshConnector, ShellEvent, SshConnector, SshCredential},
+    local::{self, LOCAL_TARGET_ID, LocalTerminalDescriptor},
+    shell::{BoxedShell, ShellEvent},
+    ssh::{RusshConnector, SshConnector, SshCredential},
 };
 
 pub const MAX_TARGETS: usize = 100;
@@ -132,13 +134,22 @@ pub(super) struct PendingSession {
 
 pub(super) struct SessionStartup {
     pub pending: PendingSession,
-    pub target: super::domain::TargetRecord,
-    pub credential: SshCredential,
+    pub backend: SessionStartupBackend,
     pub initial_cols: u32,
     pub initial_rows: u32,
     pub shutdown: CancellationToken,
     pub target_guard: tokio::sync::OwnedMutexGuard<()>,
     pub audit_state: Option<AppState>,
+}
+
+pub(super) enum SessionStartupBackend {
+    Ssh {
+        target: super::domain::TargetRecord,
+        credential: SshCredential,
+    },
+    Local {
+        descriptor: LocalTerminalDescriptor,
+    },
 }
 
 struct OutputBuffer {
@@ -374,6 +385,11 @@ impl TerminalRuntime {
         let now = now_iso();
         let snapshot = TerminalSession {
             id: id.clone(),
+            backend: if target_id == LOCAL_TARGET_ID {
+                SessionBackend::Local
+            } else {
+                SessionBackend::Ssh
+            },
             target_id,
             title,
             phase: SessionPhase::Creating,
@@ -480,18 +496,16 @@ impl TerminalRuntime {
         Ok(id)
     }
 
-    /// Registers the complete SSH initialization and shell loop as one owned
-    /// runtime task. The HTTP request can return the `creating` snapshot as
-    /// soon as this method returns; DNS, authentication and PTY negotiation
-    /// continue independently and remain observable through status events.
+    /// Registers the complete backend initialization and shell loop as one
+    /// owned runtime task. The HTTP request can return the `creating` snapshot
+    /// while connection or PTY setup continues through observable phases.
     pub(super) async fn start_session(
         &self,
         startup: SessionStartup,
     ) -> TerminalResult<TerminalSession> {
         let SessionStartup {
             mut pending,
-            target,
-            credential,
+            backend,
             initial_cols,
             initial_rows,
             shutdown,
@@ -508,18 +522,35 @@ impl TerminalRuntime {
         let connector = Arc::clone(&self.connector);
         let (progress, progress_task) = pending.progress_channel();
         let task = tokio::spawn(async move {
-            // Target mutation/deletion is serialized with this target's SSH
-            // initialization, but never blocks unrelated targets.
+            // Target mutation/deletion or local disable is serialized with
+            // backend initialization, but never blocks unrelated targets.
             let _target_guard = target_guard;
             let cancelled = runtime.cancel.clone();
             let connected = {
-                let connection = connector.open_shell(
-                    &target,
-                    credential,
-                    initial_cols,
-                    initial_rows,
-                    Some(&progress),
-                );
+                let connection = async {
+                    match backend {
+                        SessionStartupBackend::Ssh { target, credential } => {
+                            connector
+                                .open_shell(
+                                    &target,
+                                    credential,
+                                    initial_cols,
+                                    initial_rows,
+                                    Some(&progress),
+                                )
+                                .await
+                        }
+                        SessionStartupBackend::Local { descriptor } => {
+                            local::open_shell(
+                                descriptor,
+                                initial_cols,
+                                initial_rows,
+                                Some(&progress),
+                            )
+                            .await
+                        }
+                    }
+                };
                 tokio::pin!(connection);
                 tokio::select! {
                     connected = &mut connection => Some(connected),
@@ -533,13 +564,13 @@ impl TerminalRuntime {
                 drop(_target_guard);
                 set_phase(&runtime, SessionPhase::Closing, None, None).await;
                 set_phase(&runtime, SessionPhase::Closed, None, None).await;
-                let session_id = runtime.state.lock().await.session.id.clone();
+                let session = runtime.state.lock().await.session.clone();
                 if let Some(audit_state) = audit_state.as_ref() {
                     publish_session_audit(
                         audit_state,
                         "session_ended",
-                        &target.id,
-                        &session_id,
+                        &session.target_id,
+                        &session.id,
                         None,
                     )
                     .await;
@@ -556,19 +587,20 @@ impl TerminalRuntime {
                         None,
                     )
                     .await;
-                    let session_id = runtime.state.lock().await.session.id.clone();
+                    let session = runtime.state.lock().await.session.clone();
                     tracing::warn!(
-                        target_id = %target.id,
-                        %session_id,
+                        target_id = %session.target_id,
+                        session_id = %session.id,
+                        backend = ?session.backend,
                         error_code = %error.code,
-                        "terminal session connection failed"
+                        "terminal session initialization failed"
                     );
                     if let Some(audit_state) = audit_state.as_ref() {
                         publish_session_audit(
                             audit_state,
                             "session_creation_failed",
-                            &target.id,
-                            &session_id,
+                            &session.target_id,
+                            &session.id,
                             Some(error.code),
                         )
                         .await;
@@ -578,8 +610,8 @@ impl TerminalRuntime {
             };
 
             // An attachment can reserve control and provide a newer viewport
-            // while SSH is still connecting. Synchronize that final size once
-            // the channel exists, before accepting input.
+            // while the backend is still initializing. Synchronize that final
+            // size once the shell exists, before accepting input.
             let (cols, rows) = {
                 let state = runtime.state.lock().await;
                 (state.session.cols, state.session.rows)
@@ -590,7 +622,7 @@ impl TerminalRuntime {
                     .unwrap_or_else(|_| {
                         Err(TerminalError::new(
                             TerminalErrorCode::SessionLost,
-                            "SSH terminal initial resize timed out",
+                            "terminal initial resize timed out",
                         ))
                     })
             } else {
@@ -605,13 +637,13 @@ impl TerminalRuntime {
                 )
                 .await;
                 shell.disconnect().await;
-                let session_id = runtime.state.lock().await.session.id.clone();
+                let session = runtime.state.lock().await.session.clone();
                 if let Some(audit_state) = audit_state.as_ref() {
                     publish_session_audit(
                         audit_state,
                         "session_creation_failed",
-                        &target.id,
-                        &session_id,
+                        &session.target_id,
+                        &session.id,
                         Some(error.code),
                     )
                     .await;
@@ -698,6 +730,8 @@ impl TerminalRuntime {
         let role = if matches!(
             state.session.phase,
             SessionPhase::Creating
+                | SessionPhase::OpeningPty
+                | SessionPhase::StartingShell
                 | SessionPhase::Resolving
                 | SessionPhase::Connecting
                 | SessionPhase::VerifyingHostKey
@@ -1607,7 +1641,7 @@ async fn run_session_actor(
                                 .unwrap_or_else(|_| {
                                     Err(TerminalError::new(
                                         TerminalErrorCode::SessionLost,
-                                        "SSH terminal input timed out",
+                                        "terminal input timed out",
                                     ))
                                 });
                                 let failure = result.as_ref().err().cloned();
@@ -1656,7 +1690,7 @@ async fn run_session_actor(
                                 .unwrap_or_else(|_| {
                                     Err(TerminalError::new(
                                         TerminalErrorCode::SessionLost,
-                                        "SSH terminal resize timed out",
+                                        "terminal resize timed out",
                                     ))
                                 });
                                 let failure = result.as_ref().err().cloned();
@@ -1731,7 +1765,7 @@ async fn run_session_actor(
             SessionPhase::Lost,
             Some((
                 TerminalErrorCode::SessionLost,
-                "SSH connection was lost".to_string(),
+                "terminal connection was lost".to_string(),
             )),
             None,
         )
@@ -1764,16 +1798,30 @@ async fn publish_session_audit(
     error_code: Option<TerminalErrorCode>,
 ) {
     let error_code = error_code.map(|code| code.to_string());
-    if let Err(error) = crate::system_events::publish_terminal_audit_event(
-        state,
-        action,
-        Some(target_id),
-        Some(session_id),
-        None,
-        error_code.as_deref(),
-    )
-    .await
-    {
+    let result = if target_id == LOCAL_TARGET_ID {
+        let (execution_identity, privileged) = local::audit_context(state);
+        crate::system_events::publish_local_terminal_audit_event(
+            state,
+            action,
+            Some(target_id),
+            Some(session_id),
+            None,
+            error_code.as_deref(),
+            (&execution_identity, privileged),
+        )
+        .await
+    } else {
+        crate::system_events::publish_terminal_audit_event(
+            state,
+            action,
+            Some(target_id),
+            Some(session_id),
+            None,
+            error_code.as_deref(),
+        )
+        .await
+    };
+    if let Err(error) = result {
         tracing::warn!(action, %error, "failed to publish terminal session audit event");
     }
 }
@@ -1839,7 +1887,8 @@ mod unit {
 
     use crate::system::terminal::{
         domain::{AuthMethod, HostKeyProbeResult, TargetRecord},
-        ssh::{InteractiveShell, SshConnector},
+        shell::InteractiveShell,
+        ssh::SshConnector,
     };
 
     #[test]
@@ -2048,8 +2097,10 @@ mod unit {
         let creating = runtime
             .start_session(SessionStartup {
                 pending,
-                target,
-                credential: SshCredential::Password("secret".to_string()),
+                backend: SessionStartupBackend::Ssh {
+                    target,
+                    credential: SshCredential::Password("secret".to_string()),
+                },
                 initial_cols: 120,
                 initial_rows: 32,
                 shutdown: CancellationToken::new(),
@@ -2132,6 +2183,52 @@ mod unit {
             sessions
                 .iter()
                 .any(|session| session.target_id == "replacement")
+        );
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn local_and_ssh_sessions_share_global_and_per_target_limits() {
+        let runtime = TerminalRuntime::new();
+        for _ in 0..MAX_TARGET_SESSIONS {
+            runtime
+                .reserve_active_test_session(LOCAL_TARGET_ID)
+                .await
+                .unwrap();
+        }
+        let local_limit = match runtime.reserve_active_test_session(LOCAL_TARGET_ID).await {
+            Ok(_) => panic!("fifth local terminal session should be rejected"),
+            Err(error) => error,
+        };
+        assert_eq!(local_limit.code, TerminalErrorCode::SessionLimitReached);
+        for target_id in ["ssh-a", "ssh-b"] {
+            for _ in 0..MAX_TARGET_SESSIONS {
+                runtime
+                    .reserve_active_test_session(target_id)
+                    .await
+                    .unwrap();
+            }
+        }
+        let global_limit = match runtime.reserve_active_test_session("ssh-c").await {
+            Ok(_) => panic!("thirteenth terminal session should be rejected"),
+            Err(error) => error,
+        };
+        assert_eq!(global_limit.code, TerminalErrorCode::SessionLimitReached);
+        let sessions = runtime.list().await.sessions;
+        assert_eq!(sessions.len(), MAX_GLOBAL_SESSIONS);
+        assert_eq!(
+            sessions
+                .iter()
+                .filter(|session| session.backend == SessionBackend::Local)
+                .count(),
+            MAX_TARGET_SESSIONS
+        );
+        assert_eq!(
+            sessions
+                .iter()
+                .filter(|session| session.backend == SessionBackend::Ssh)
+                .count(),
+            MAX_GLOBAL_SESSIONS - MAX_TARGET_SESSIONS
         );
         runtime.shutdown_all().await;
     }
@@ -2358,6 +2455,47 @@ mod unit {
             .unwrap();
         assert_eq!(snapshot.phase, SessionPhase::Exited);
         assert_eq!(snapshot.exit_code, Some(7));
+        runtime.shutdown_all().await;
+    }
+
+    #[tokio::test]
+    async fn detaching_the_browser_does_not_end_the_terminal_session() {
+        let runtime = TerminalRuntime::new();
+        let (session, events_tx, _, _) = running_mock_session(&runtime).await;
+        let attachment = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        runtime.detach(&attachment.id).await.unwrap();
+        events_tx
+            .send(ShellEvent::Data(b"still-running\r\n".to_vec()))
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(5)).await;
+
+        let snapshot = runtime
+            .list()
+            .await
+            .sessions
+            .into_iter()
+            .find(|item| item.id == session.id)
+            .unwrap();
+        assert_eq!(snapshot.phase, SessionPhase::Running);
+        let reattached = runtime
+            .create_attachment(&session.id, None, None)
+            .await
+            .unwrap();
+        let replay = runtime
+            .events(&reattached.id, 0, Duration::from_millis(1))
+            .await
+            .unwrap();
+        assert!(replay.events.iter().any(|event| {
+            event.kind == TerminalEventType::Output
+                && event
+                    .data_base64
+                    .as_ref()
+                    .and_then(|data| STANDARD.decode(data).ok())
+                    .is_some_and(|data| String::from_utf8_lossy(&data).contains("still-running"))
+        }));
         runtime.shutdown_all().await;
     }
 

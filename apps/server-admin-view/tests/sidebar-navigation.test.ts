@@ -34,6 +34,28 @@ describe("sidebar navigation order", () => {
     assert.match(scrollAreaSource, /rgb\(0 0 0 \/ 16%\)/u);
   });
 
+  it("restores focus to the locale dialog trigger after close", () => {
+    const layoutSource = readFileSync(
+      new URL("../src/views/Layout.vue", import.meta.url),
+      "utf8",
+    );
+    const focusRestoreSource = readFileSync(
+      new URL("../src/views/layout/useDialogFocusRestore.ts", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(layoutSource, /useDialogFocusRestore\(isLocaleDialogOpen\)/u);
+    assert.match(
+      focusRestoreSource,
+      /event\.currentTarget instanceof HTMLElement/u,
+    );
+    assert.match(focusRestoreSource, /watch\(isOpen/u);
+    assert.match(
+      focusRestoreSource,
+      /target\.focus\(\{ preventScroll: true \}\)/u,
+    );
+  });
+
   it("keeps deep monitoring under subdomain mappings instead of the sidebar", () => {
     assert.equal(
       (DEFAULT_SIDEBAR_MENU_ORDER as readonly string[]).includes(

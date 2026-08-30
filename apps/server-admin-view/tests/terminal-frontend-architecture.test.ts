@@ -142,6 +142,13 @@ describe("SSH terminal frontend architecture", () => {
     );
   });
 
+  it("keeps the terminal workspace inside the layout main landmark", () => {
+    const workspace = readSource(
+      "../src/views/web-terminal/TerminalWorkspacePanel.vue",
+    );
+    assert.doesNotMatch(workspace, /<main(?:\s|>)/u);
+  });
+
   it("guards editor requests against stale async results", () => {
     const editor = readSource(
       "../src/views/web-terminal/useTerminalTargetEditor.ts",

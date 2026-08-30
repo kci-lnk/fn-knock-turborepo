@@ -80,9 +80,7 @@ const {
 </script>
 
 <template>
-  <main
-    class="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-3 sm:gap-3 sm:p-6"
-  >
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 p-3 sm:gap-3 sm:p-6">
     <TerminalSessionToolbar
       :claim-control="claimControl"
       :can-claim-control="canClaimControl"
@@ -278,5 +276,5 @@ const {
         </span>
       </div>
     </div>
-  </main>
+  </div>
 </template>

@@ -276,6 +276,7 @@ import { Github, Languages, LogOut, Menu } from "lucide-vue-next";
 import LayoutLoadStatus from "./layout/LayoutLoadStatus.vue";
 import LayoutScrollArea from "./layout/LayoutScrollArea.vue";
 import LayoutStatusBanners from "./layout/LayoutStatusBanners.vue";
+import { useDialogFocusRestore } from "./layout/useDialogFocusRestore";
 import { useLayoutNavigation } from "./layout/useLayoutNavigation";
 import RouteAccessibility from "../components/RouteAccessibility.vue";
 import {
@@ -304,6 +305,7 @@ const {
 const isMobileNavOpen = ref(false);
 const isLocaleDialogOpen = ref(false);
 const isSavingLocale = ref(false);
+const { openDialog: openLocaleDialog } = useDialogFocusRestore(isLocaleDialogOpen);
 const i18n = useI18n();
 const { t, locale } = i18n;
 const selectedLocale = ref<LocaleCode>(
@@ -391,10 +393,6 @@ const applySystemLocale = async (value: string | null | undefined) => {
   const next = await setFnKnockLocale(i18n, value);
   selectedLocale.value = next;
   return next;
-};
-
-const openLocaleDialog = () => {
-  isLocaleDialogOpen.value = true;
 };
 
 const handleLocaleSelect = async (value: LocaleCode) => {

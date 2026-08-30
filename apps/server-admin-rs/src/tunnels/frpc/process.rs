@@ -66,6 +66,29 @@ pub(super) async fn read_process_args(pid: u32) -> Option<Vec<String>> {
         .or_else(|| read_ps_command_args(pid))
 }
 
+pub(super) async fn process_uses_executable(pid: u32, expected: &Path) -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    if let Ok(actual) = fs::read_link(format!("/proc/{pid}/exe")).await {
+        return Some(same_executable_path(&actual, expected));
+    }
+
+    let args = read_process_args(pid).await?;
+    process_args_use_executable(&args, expected)
+}
+
+pub(super) fn process_args_use_executable(args: &[String], expected: &Path) -> Option<bool> {
+    args.first()
+        .map(Path::new)
+        .map(|actual| same_executable_path(actual, expected))
+}
+
+fn same_executable_path(left: &Path, right: &Path) -> bool {
+    match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => same_path(&left.to_string_lossy(), &right.to_string_lossy()),
+    }
+}
+
 pub(super) async fn read_proc_cmdline_args(pid: u32) -> Option<Vec<String>> {
     let bytes = fs::read(format!("/proc/{pid}/cmdline")).await.ok()?;
     if bytes.is_empty() {

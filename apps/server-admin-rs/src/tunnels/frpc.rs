@@ -123,6 +123,7 @@ struct FrpcInstancesOverview {
     total: usize,
     extra_count: usize,
     running_count: usize,
+    outdated_running_count: usize,
     defaults: Value,
     items: Vec<FrpcInstanceStatus>,
 }

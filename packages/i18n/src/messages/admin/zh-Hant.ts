@@ -2113,8 +2113,15 @@ export const zhHantAdmin = {
     cancelRequested: "已請求取消下載",
     readyLabel: "已下載",
     pendingLabel: "未下載",
+    outdatedLabel: "版本過舊",
+    outdatedTitle: "偵測到舊版 FRP",
+    outdatedDescription: "本機 FRP 不是目前要求的 {version}，請儘快更新。",
     downloadButton: "下載 FRP 資源",
+    updateButton: "更新 FRP",
     downloading: "下載中，請稍候...",
+    updateConfirmTitle: "更新 FRP 資源？",
+    updateConfirmDescription:
+      "更新會安裝新版 FRP。正在執行的舊程序不會自動停止；請在更新完成後重新啟動 FRP 執行個體以切換版本。",
     redownloadConfirmTitle: "確認重新下載 FRP 資源？",
     redownloadConfirmDescription: "此操作會覆蓋現有文件。",
     deleteConfirmTitle: "確認刪除 FRP 資源？",
@@ -2962,6 +2969,16 @@ export const zhHantAdmin = {
     notInitializedTitle: "FRP 未初始化",
     notInitializedDescription: "請先在 系統設置 -> FRP資源 中完成初始化。",
     goInitialize: "前往初始化",
+    outdatedRunningTitle: "舊版 FRP 仍在執行",
+    outdatedRunningDescription:
+      "為避免立即中斷連線，系統不會自動停止它。請前往系統設定更新至 {version}，更新完成後重新啟動 FRP 執行個體以切換版本。",
+    outdatedStoppedTitle: "FRP 版本過舊",
+    outdatedStoppedDescription:
+      "舊版已停止且無法再次啟動。請先前往系統設定更新至 {version}。",
+    goUpdate: "前往更新",
+    restartRequiredTitle: "FRP 更新尚未完成",
+    restartRequiredDescription:
+      "新版 FRP 已安裝，但仍有 {count} 個執行個體正在使用舊版。請停止後重新啟動這些執行個體以完成切換。",
     saveFailed: "保存失敗",
     clearLogsFailed: "清空日誌失敗",
     loadStatusFailed: "載入狀態失敗",

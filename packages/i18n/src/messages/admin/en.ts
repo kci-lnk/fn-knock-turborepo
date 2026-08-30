@@ -2353,8 +2353,16 @@ export const enAdmin = {
     cancelRequested: "Download cancellation requested",
     readyLabel: "Downloaded",
     pendingLabel: "Not downloaded",
+    outdatedLabel: "Outdated",
+    outdatedTitle: "An outdated FRP installation was detected",
+    outdatedDescription:
+      "The local FRP installation does not match the required version {version}. Update it soon.",
     downloadButton: "Download FRP resource",
+    updateButton: "Update FRP",
     downloading: "Downloading, please wait...",
+    updateConfirmTitle: "Update the FRP resource?",
+    updateConfirmDescription:
+      "This installs the new FRP version. A running old process will not be stopped automatically; restart the FRP instance after the update to switch versions.",
     redownloadConfirmTitle: "Download the FRP resource again?",
     redownloadConfirmDescription: "This overwrites the existing file.",
     deleteConfirmTitle: "Delete the FRP resource?",
@@ -3264,6 +3272,16 @@ export const enAdmin = {
     notInitializedDescription:
       "Initialize it first in System Settings -> FRP resources.",
     goInitialize: "Go initialize",
+    outdatedRunningTitle: "An outdated FRP process is still running",
+    outdatedRunningDescription:
+      "It will not be stopped automatically to avoid an immediate disconnect. Go to System Settings and update to {version}, then restart the FRP instance to switch versions.",
+    outdatedStoppedTitle: "FRP is outdated",
+    outdatedStoppedDescription:
+      "The old version is stopped and cannot be started again. Update to {version} in System Settings first.",
+    goUpdate: "Go to update",
+    restartRequiredTitle: "The FRP update is not complete",
+    restartRequiredDescription:
+      "The new FRP version is installed, but {count} instance(s) are still using the old binary. Stop and start those instances to finish switching versions.",
     saveFailed: "Save failed",
     clearLogsFailed: "Failed to clear logs",
     loadStatusFailed: "Failed to load status",

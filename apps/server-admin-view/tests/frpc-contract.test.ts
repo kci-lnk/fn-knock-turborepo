@@ -82,6 +82,7 @@ describe("FRPC API contract", () => {
     ]);
     assert.equal(overview.properties?.primaryInstanceId?.const, "primary");
     assert.equal(overview.properties?.extraCount?.maximum, 20);
+    assert.ok(overview.required?.includes("outdatedRunningCount"));
     for (const field of [
       "pid",
       "startedAt",

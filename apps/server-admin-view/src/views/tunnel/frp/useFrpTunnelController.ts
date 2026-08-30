@@ -42,6 +42,10 @@ export const useFrpTunnelController = () => {
   const primaryConfig = ref("");
   const primaryLogs = ref<string[]>([]);
   const showInitDialog = ref(false);
+  const frpInstallationStatus = ref<"missing" | "outdated" | "current">(
+    "missing",
+  );
+  const frpTargetVersion = ref("");
   const configLoaded = ref(false);
   const primaryEditorRef = ref<FrpcEditorExpose | null>(null);
   const setPrimaryEditorRef = (editor: unknown) => {
@@ -180,10 +184,19 @@ export const useFrpTunnelController = () => {
     await runLoadStatus(async () => {
       const data = await FrpcAPI.getInstances();
       overview.value = data;
-      if (!data.initialized) {
-        const sys = await SystemAPI.getFrpStatus();
-        if (!sys?.data?.downloaded) showInitDialog.value = true;
+      if (data.initialized) {
+        frpInstallationStatus.value = "current";
+        frpTargetVersion.value = "";
+        showInitDialog.value = false;
+        return;
       }
+      const sys = await SystemAPI.getFrpStatus();
+      frpInstallationStatus.value =
+        sys?.data?.installation_status ??
+        (sys?.data?.downloaded ? "current" : "missing");
+      frpTargetVersion.value = sys?.data?.target_version ?? "";
+      showInitDialog.value =
+        frpInstallationStatus.value === "missing" && data.runningCount === 0;
     });
   };
 
@@ -407,6 +420,8 @@ export const useFrpTunnelController = () => {
     deletingInstanceId,
     extraInstances,
     formatSummary,
+    frpInstallationStatus,
+    frpTargetVersion,
     getInstanceDisplayName,
     gotoFrpResources,
     gotoInstanceCreate,

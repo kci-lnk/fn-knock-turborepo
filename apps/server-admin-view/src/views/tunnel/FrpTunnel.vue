@@ -25,6 +25,7 @@ import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import TunnelSupervisorStatus from "@/components/TunnelSupervisorStatus.vue";
 import { docsUrls } from "@/lib/docs";
 import FrpcInstanceEditor from "./frp/FrpcInstanceEditor.vue";
+import FrpOutdatedAlert from "./frp/FrpOutdatedAlert.vue";
 import { useFrpTunnelController } from "./frp/useFrpTunnelController";
 
 withDefaults(
@@ -43,6 +44,8 @@ const {
   deletingInstanceId,
   extraInstances,
   formatSummary,
+  frpInstallationStatus,
+  frpTargetVersion,
   getInstanceDisplayName,
   gotoFrpResources,
   gotoInstanceCreate,
@@ -113,6 +116,14 @@ const {
         </Button>
       </div>
     </div>
+
+    <FrpOutdatedAlert
+      :installation-status="frpInstallationStatus"
+      :target-version="frpTargetVersion"
+      :running-count="overview?.runningCount ?? 0"
+      :outdated-running-count="overview?.outdatedRunningCount ?? 0"
+      @go-update="gotoFrpResources"
+    />
 
     <ConfigCollapsibleCard
       :title="t('admin.frpTunnel.primaryConfigTitle')"

@@ -9996,6 +9996,14 @@
           "downloaded": {
             "type": "boolean"
           },
+          "installation_status": {
+            "enum": [
+              "missing",
+              "outdated",
+              "current"
+            ],
+            "type": "string"
+          },
           "platform": {
             "enum": [
               "darwin-amd64",
@@ -10012,12 +10020,17 @@
           },
           "supported": {
             "type": "boolean"
+          },
+          "target_version": {
+            "type": "string"
           }
         },
         "required": [
           "supported",
           "platform",
           "downloaded",
+          "installation_status",
+          "target_version",
           "progress"
         ],
         "type": "object"
@@ -10273,6 +10286,10 @@
             },
             "type": "array"
           },
+          "outdatedRunningCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "platform": {
             "enum": [
               "darwin-amd64",
@@ -10304,6 +10321,7 @@
           "total",
           "extraCount",
           "runningCount",
+          "outdatedRunningCount",
           "defaults",
           "items"
         ],

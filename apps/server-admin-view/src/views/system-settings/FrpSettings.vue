@@ -10,5 +10,6 @@ import BinaryResourceSettings from "./BinaryResourceSettings.vue";
     :start-download="SystemAPI.startFrpDownload"
     :cancel-download="SystemAPI.cancelFrpDownload"
     :delete-resource="SystemAPI.deleteFrp"
+    version-aware
   />
 </template>

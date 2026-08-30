@@ -65,6 +65,7 @@ pub(super) struct FrpcInstancesOverviewData {
     total: usize,
     extra_count: usize,
     running_count: usize,
+    outdated_running_count: usize,
     defaults: FrpcDefaultsData,
     items: Vec<FrpcInstanceStatusData>,
 }

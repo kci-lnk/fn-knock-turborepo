@@ -84,13 +84,8 @@ const { isInitializing, refresh: refreshStatus } = usePollingResourceStatus({
     supported.value = res.data.supported;
     platform.value = res.data.platform;
     downloaded.value = res.data.downloaded;
-    if ("installation_status" in res.data) {
-      installationStatus.value = res.data.installation_status;
-      targetVersion.value = res.data.target_version;
-    } else {
-      installationStatus.value = res.data.downloaded ? "current" : "missing";
-      targetVersion.value = "";
-    }
+    installationStatus.value = res.data.installation_status;
+    targetVersion.value = res.data.target_version;
     status.value = res.data.progress?.status || "idle";
     percent.value = res.data.progress?.percent || 0;
     error.value = res.data.progress?.error || "";

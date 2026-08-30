@@ -90,6 +90,34 @@ fn matches_frpc_process_config_args() {
 }
 
 #[test]
+fn distinguishes_current_and_outdated_frpc_process_executables() {
+    let current = Path::new("/opt/frp/frp_0.71.0_linux_amd64/frpc");
+    assert_eq!(
+        process_args_use_executable(
+            &[
+                "/opt/frp/frp_0.71.0_linux_amd64/frpc".to_string(),
+                "-c".to_string(),
+                "/tmp/frpc.toml".to_string(),
+            ],
+            current,
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        process_args_use_executable(
+            &[
+                "/opt/frp/frp_0.70.0_linux_amd64/frpc".to_string(),
+                "-c".to_string(),
+                "/tmp/frpc.toml".to_string(),
+            ],
+            current,
+        ),
+        Some(false)
+    );
+    assert_eq!(process_args_use_executable(&[], current), None);
+}
+
+#[test]
 fn sanitizes_instance_ids_like_node() {
     assert_eq!(sanitize_instance_id("abc-123").as_deref(), Some("abc-123"));
     assert!(sanitize_instance_id("../bad").is_none());

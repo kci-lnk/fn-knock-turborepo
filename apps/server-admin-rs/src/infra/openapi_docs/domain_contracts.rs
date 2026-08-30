@@ -2198,6 +2198,12 @@ pub(super) fn components() -> Map<String, Value> {
             "unsupported",
         ],
     );
+    set_property_enum(
+        &mut schemas,
+        "FrpAssetStatusData",
+        "installation_status",
+        &["missing", "outdated", "current"],
+    );
     set_property_metadata(
         &mut schemas,
         "SystemAssetMutationResponseData",
@@ -2785,6 +2791,7 @@ pub(super) fn components() -> Map<String, Value> {
         ("FrpcInstancesOverviewData", "total"),
         ("FrpcInstancesOverviewData", "extraCount"),
         ("FrpcInstancesOverviewData", "runningCount"),
+        ("FrpcInstancesOverviewData", "outdatedRunningCount"),
         ("FrpcStatusData", "total"),
         ("FrpcStatusData", "running_count"),
     ] {

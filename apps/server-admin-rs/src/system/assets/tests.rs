@@ -1,3 +1,5 @@
+use std::fs;
+
 use super::*;
 
 async fn generic_linux_test_state() -> (tempfile::TempDir, AppState) {
@@ -93,18 +95,18 @@ fn validates_downloaded_darwin_binary_architectures() {
 #[test]
 fn rejects_unsafe_frp_archive_entries() {
     assert!(downloads::frp_archive_entry_path_is_safe(
-        "frp_0.67.0_darwin_arm64",
-        "frp_0.67.0_darwin_arm64/frpc"
+        "frp_0.71.0_darwin_arm64",
+        "frp_0.71.0_darwin_arm64/frpc"
     ));
     for unsafe_path in [
         "../frpc",
         "/tmp/frpc",
         "another-root/frpc",
-        "frp_0.67.0_darwin_arm64/../frpc",
-        "frp_0.67.0_darwin_arm64//frpc",
+        "frp_0.71.0_darwin_arm64/../frpc",
+        "frp_0.71.0_darwin_arm64//frpc",
     ] {
         assert!(!downloads::frp_archive_entry_path_is_safe(
-            "frp_0.67.0_darwin_arm64",
+            "frp_0.71.0_darwin_arm64",
             unsafe_path
         ));
     }
@@ -124,8 +126,30 @@ fn rejects_unsafe_frp_archive_entries() {
 #[test]
 fn builds_frp_binary_path_for_supported_platforms() {
     let path = frp_binary_path(Path::new("/tmp/data"), "linux-amd64", "frpc").unwrap();
-    assert!(path.ends_with("frp/frp_0.67.0_linux_amd64/frpc"));
+    assert!(path.ends_with("frp/frp_0.71.0_linux_amd64/frpc"));
     assert!(frp_binary_path(Path::new("/tmp/data"), "unsupported", "frpc").is_none());
+}
+
+#[test]
+fn rejects_frp_archives_with_an_unexpected_checksum() {
+    let temp = tempfile::tempdir().unwrap();
+    let archive = temp.path().join("frp.tar.gz");
+    fs::write(&archive, b"hello").unwrap();
+    assert!(
+        downloads::validate_frp_checksum(
+            &archive,
+            "linux-amd64",
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        )
+        .is_ok()
+    );
+    let error = downloads::validate_frp_checksum(
+        &archive,
+        "linux-amd64",
+        "84f27e39f11169f7adcef8e8b70c9329de17747b1f14dad9fb95eef5682ea716",
+    )
+    .unwrap_err();
+    assert!(error.contains("FRP checksum mismatch"));
 }
 
 #[test]

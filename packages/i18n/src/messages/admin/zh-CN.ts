@@ -2169,8 +2169,15 @@ export const zhCNAdmin = {
     cancelRequested: "已请求取消下载",
     readyLabel: "已下载",
     pendingLabel: "未下载",
+    outdatedLabel: "版本过旧",
+    outdatedTitle: "检测到旧版 FRP",
+    outdatedDescription: "本地 FRP 不是当前要求的 {version}，请尽快更新。",
     downloadButton: "下载 FRP 资源",
+    updateButton: "更新 FRP",
     downloading: "下载中，请稍候...",
+    updateConfirmTitle: "更新 FRP 资源？",
+    updateConfirmDescription:
+      "更新会安装新版 FRP。正在运行的旧进程不会被自动停止；请在更新完成后重启 FRP 实例以切换版本。",
     redownloadConfirmTitle: "确认重新下载 FRP 资源？",
     redownloadConfirmDescription: "此操作会覆盖现有文件。",
     deleteConfirmTitle: "确认删除 FRP 资源？",
@@ -3019,6 +3026,16 @@ export const zhCNAdmin = {
     notInitializedTitle: "FRP 未初始化",
     notInitializedDescription: "请先在 系统设置 -> FRP资源 中完成初始化。",
     goInitialize: "前往初始化",
+    outdatedRunningTitle: "旧版 FRP 仍在运行",
+    outdatedRunningDescription:
+      "为避免立即中断连接，系统不会自动停止它。请前往系统设置更新至 {version}，更新完成后重启 FRP 实例以切换版本。",
+    outdatedStoppedTitle: "FRP 版本过旧",
+    outdatedStoppedDescription:
+      "旧版已停止且不能再次启动。请先前往系统设置更新至 {version}。",
+    goUpdate: "前往更新",
+    restartRequiredTitle: "FRP 更新尚未完成",
+    restartRequiredDescription:
+      "新版 FRP 已安装，但仍有 {count} 个实例正在使用旧版。请停止后重新启动这些实例以完成切换。",
     saveFailed: "保存失败",
     clearLogsFailed: "清空日志失败",
     loadStatusFailed: "加载状态失败",

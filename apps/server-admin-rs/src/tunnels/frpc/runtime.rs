@@ -6,13 +6,30 @@ pub(super) async fn build_overview(state: &AppState) -> FrpcResult<FrpcInstances
     for meta in metas {
         items.push(build_status(state, &meta).await?);
     }
+    let current_executable = frp_executable(state);
+    let running_count = items.iter().filter(|item| item.running).count();
+    let outdated_running_count = if let Some(current_executable) = current_executable.as_deref() {
+        let mut count = 0;
+        for item in &items {
+            if item.running
+                && let Some(pid) = item.pid
+                && process_uses_executable(pid, current_executable).await == Some(false)
+            {
+                count += 1;
+            }
+        }
+        count
+    } else {
+        running_count
+    };
     Ok(FrpcInstancesOverview {
-        initialized: frp_executable(state).is_some(),
+        initialized: current_executable.is_some(),
         platform: detect_frp_platform().to_string(),
         primary_instance_id: FRPC_PRIMARY_INSTANCE_ID.to_string(),
         total: items.len(),
         extra_count: items.iter().filter(|item| !item.is_primary).count(),
-        running_count: items.iter().filter(|item| item.running).count(),
+        running_count,
+        outdated_running_count,
         defaults: json!({ "local_port": std::env::var("GO_REPROXY_PORT").unwrap_or_else(|_| "7999".to_string()) }),
         items,
     })

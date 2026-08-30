@@ -490,6 +490,7 @@ describe("FRP instance model", () => {
       total: 2,
       extraCount: 1,
       runningCount: 1,
+      outdatedRunningCount: 0,
       defaults: { local_port: "7999" },
       items: [createInstance("primary", true), createInstance("extra", false)],
     };

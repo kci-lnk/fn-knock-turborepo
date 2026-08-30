@@ -9609,9 +9609,12 @@ export interface components {
         FrpAssetStatusData: {
             downloaded: boolean;
             /** @enum {string} */
+            installation_status: "missing" | "outdated" | "current";
+            /** @enum {string} */
             platform: "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" | "unsupported";
             progress: components["schemas"]["SystemAssetDownloadProgressData"];
             supported: boolean;
+            target_version: string;
         };
         FrpcConfigData: {
             /** @description Authenticated management response containing the FRPC TOML configuration */
@@ -9680,6 +9683,7 @@ export interface components {
             extraCount: number;
             initialized: boolean;
             items: components["schemas"]["FrpcInstanceStatusData"][];
+            outdatedRunningCount: number;
             /** @enum {string} */
             platform: "darwin-amd64" | "darwin-arm64" | "linux-amd64" | "linux-arm64" | "linux-arm" | "unsupported";
             /** @constant */

@@ -25,8 +25,11 @@ use crate::{
 
 pub(super) use crate::cloudflared_utils::detect_cloudflared_platform;
 
+#[cfg(test)]
+pub(super) use crate::frp_utils::frp_binary_path;
 pub(super) use crate::frp_utils::{
-    detect_frp_platform, frp_archive_name, frp_binary_path, frp_extracted_dir,
+    detect_frp_platform, frp_archive_name, frp_archive_sha256, frp_extracted_dir,
+    frp_installation_status,
 };
 
 use super::{
@@ -53,12 +56,13 @@ pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator)
 
 pub(super) fn build_frp_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_frp_platform();
-    let downloaded = frp_binary_path(data_dir, platform, "frpc").is_some_and(|path| path.exists())
-        || frp_binary_path(data_dir, platform, "frps").is_some_and(|path| path.exists());
+    let installation_status = frp_installation_status(data_dir, platform);
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
-        "downloaded": downloaded,
+        "downloaded": installation_status.as_str() == "current",
+        "installation_status": installation_status.as_str(),
+        "target_version": crate::frp_utils::FRP_VERSION,
         "progress": progress_json("frp", translator)
     })
 }
@@ -216,7 +220,7 @@ impl CloudflaredInstallTransaction {
     }
 }
 
-fn validate_cloudflared_checksum(path: &Path, asset: CloudflaredAssetSpec) -> Result<(), String> {
+fn calculate_file_sha256(path: &Path) -> Result<String, String> {
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
@@ -227,13 +231,33 @@ fn validate_cloudflared_checksum(path: &Path, asset: CloudflaredAssetSpec) -> Re
         }
         hasher.update(&buffer[..read]);
     }
-    let actual = hex::encode(hasher.finalize());
+    Ok(hex::encode(hasher.finalize()))
+}
+
+fn validate_cloudflared_checksum(path: &Path, asset: CloudflaredAssetSpec) -> Result<(), String> {
+    let actual = calculate_file_sha256(path)?;
     if actual == asset.sha256 {
         Ok(())
     } else {
         Err(format!(
             "Cloudflared checksum mismatch for {} {}: expected {}, got {actual}",
             asset.platform, asset.version, asset.sha256
+        ))
+    }
+}
+
+pub(super) fn validate_frp_checksum(
+    path: &Path,
+    platform: &str,
+    expected: &str,
+) -> Result<(), String> {
+    let actual = calculate_file_sha256(path)?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "FRP checksum mismatch for {platform} {}: expected {expected}, got {actual}",
+            crate::frp_utils::FRP_VERSION
         ))
     }
 }
@@ -309,6 +333,7 @@ pub(super) async fn download_frp(state: AppState) {
     let result = async {
         let platform = detect_frp_platform();
         let archive = frp_archive_name(platform).ok_or("FRP platform is unsupported")?;
+        let expected_sha256 = frp_archive_sha256(platform).ok_or("FRP platform is unsupported")?;
         let candidates = [
             format!("{FRP_MIRROR_BASE}/{archive}.tar.gz"),
             frp_utils::frp_github_archive_url(&archive),
@@ -322,7 +347,9 @@ pub(super) async fn download_frp(state: AppState) {
         for url in candidates {
             reset_download_file(&temp);
             match download_to_file(&state, "frp", &url, &temp).await {
-                Ok(()) => match validate_frp_archive(&temp, &archive) {
+                Ok(()) => match validate_frp_checksum(&temp, platform, expected_sha256)
+                    .and_then(|()| validate_frp_archive(&temp, &archive))
+                {
                     Ok(()) => {
                         succeeded = true;
                         break;

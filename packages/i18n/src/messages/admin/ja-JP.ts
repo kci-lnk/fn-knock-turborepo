@@ -2353,8 +2353,16 @@ export const jaJPAdmin = {
     cancelRequested: "ダウンロードのキャンセルを要求しました",
     readyLabel: "ダウンロード済み",
     pendingLabel: "未ダウンロード",
+    outdatedLabel: "旧バージョン",
+    outdatedTitle: "古い FRP が検出されました",
+    outdatedDescription:
+      "ローカルの FRP は現在必要な {version} と一致しません。早めに更新してください。",
     downloadButton: "FRP リソースをダウンロード",
+    updateButton: "FRP を更新",
     downloading: "ダウンロード中です。しばらくお待ちください...",
+    updateConfirmTitle: "FRP リソースを更新しますか？",
+    updateConfirmDescription:
+      "新しい FRP バージョンをインストールします。実行中の旧プロセスは自動停止されないため、更新後に FRP インスタンスを再起動してバージョンを切り替えてください。",
     redownloadConfirmTitle: "FRP リソースを再ダウンロードしますか？",
     redownloadConfirmDescription: "既存のファイルは上書きされます。",
     deleteConfirmTitle: "FRP リソースを削除しますか？",
@@ -3255,6 +3263,16 @@ export const jaJPAdmin = {
     notInitializedDescription:
       "先に「システム設定 → FRP リソース」で初期化してください。",
     goInitialize: "初期化する",
+    outdatedRunningTitle: "古い FRP が実行中です",
+    outdatedRunningDescription:
+      "接続の即時切断を避けるため、自動では停止しません。システム設定で {version} に更新し、更新後に FRP インスタンスを再起動してバージョンを切り替えてください。",
+    outdatedStoppedTitle: "FRP が古くなっています",
+    outdatedStoppedDescription:
+      "旧バージョンは停止しており、再起動できません。先にシステム設定で {version} に更新してください。",
+    goUpdate: "更新へ移動",
+    restartRequiredTitle: "FRP の更新が完了していません",
+    restartRequiredDescription:
+      "新しい FRP はインストール済みですが、{count} 個のインスタンスがまだ旧バージョンを使用しています。これらを停止して再起動し、切り替えを完了してください。",
     saveFailed: "保存に失敗しました",
     clearLogsFailed: "ログのクリアに失敗しました",
     loadStatusFailed: "状態の読み込みに失敗しました",

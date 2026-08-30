@@ -392,13 +392,18 @@ describe("system-managed binary and dnsmasq API contract", () => {
         ?.installation_status?.enum,
       ["missing", "outdated", "current"],
     );
-    for (const field of ["installation_status", "target_version"] as const) {
-      assert.ok(
-        contract.components.schemas.CloudflaredAssetStatusData.required?.includes(
-          field,
-        ),
-        field,
-      );
+    for (const schema of [
+      contract.components.schemas.CloudflaredAssetStatusData,
+      contract.components.schemas.FrpAssetStatusData,
+    ]) {
+      assert.deepEqual(schema.properties?.installation_status?.enum, [
+        "missing",
+        "outdated",
+        "current",
+      ]);
+      for (const field of ["installation_status", "target_version"] as const) {
+        assert.ok(schema.required?.includes(field), field);
+      }
     }
 
     for (const [method, path] of [

@@ -2336,8 +2336,16 @@ export const koKRAdmin = {
     cancelRequested: "다운로드 취소를 요청했습니다",
     readyLabel: "다운로드 완료",
     pendingLabel: "다운로드 필요",
+    outdatedLabel: "오래된 버전",
+    outdatedTitle: "오래된 FRP가 감지되었습니다",
+    outdatedDescription:
+      "로컬 FRP가 현재 필요한 {version} 버전과 일치하지 않습니다. 가능한 한 빨리 업데이트하세요.",
     downloadButton: "FRP 리소스 다운로드",
+    updateButton: "FRP 업데이트",
     downloading: "다운로드 중입니다. 잠시 기다려 주세요...",
+    updateConfirmTitle: "FRP 리소스를 업데이트하시겠습니까?",
+    updateConfirmDescription:
+      "새 FRP 버전을 설치합니다. 실행 중인 이전 프로세스는 자동으로 중지되지 않으므로 업데이트 후 FRP 인스턴스를 다시 시작해 버전을 전환하세요.",
     redownloadConfirmTitle: "FRP 리소스를 다시 다운로드하시겠습니까?",
     redownloadConfirmDescription: "기존 파일을 덮어씁니다.",
     deleteConfirmTitle: "FRP 리소스를 삭제하시겠습니까?",
@@ -3239,6 +3247,16 @@ export const koKRAdmin = {
     notInitializedDescription:
       "시스템 설정 -> FRP 리소스에서 먼저 초기화하세요.",
     goInitialize: "초기화로 이동",
+    outdatedRunningTitle: "오래된 FRP가 아직 실행 중입니다",
+    outdatedRunningDescription:
+      "연결이 즉시 끊기지 않도록 자동으로 중지하지 않습니다. 시스템 설정에서 {version}(으)로 업데이트한 뒤 FRP 인스턴스를 다시 시작해 버전을 전환하세요.",
+    outdatedStoppedTitle: "FRP 버전이 오래되었습니다",
+    outdatedStoppedDescription:
+      "이전 버전은 중지되어 있으며 다시 시작할 수 없습니다. 먼저 시스템 설정에서 {version}(으)로 업데이트하세요.",
+    goUpdate: "업데이트로 이동",
+    restartRequiredTitle: "FRP 업데이트가 아직 완료되지 않았습니다",
+    restartRequiredDescription:
+      "새 FRP가 설치되었지만 {count}개 인스턴스가 아직 이전 버전을 사용 중입니다. 해당 인스턴스를 중지한 뒤 다시 시작해 전환을 완료하세요.",
     saveFailed: "저장 실패",
     clearLogsFailed: "로그를 지우지 못했습니다.",
     loadStatusFailed: "상태를 불러오지 못했습니다.",
